@@ -1,14 +1,14 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file relay/op/layout.h
+ * \file tvm/layout.h
  * \brief Layout expression.
  *
  *  This file is adapted from its nnvm counterpart and will keep involving
  *  to the new layout system
  *
  *  The layout is composed of upper cases, lower cases and numbers,
- *  where upper case indicates a (super-)dimension and
- *  the corresponding lower case with factor size indicates the split (sub-)dimension.
+ *  where upper case indicates a (super-)axis and
+ *  the corresponding lower case with factor size indicates the split (sub-)axis.
  *  For example, NCHW16c can describe a 5-D tensor of
  *  [batch_size, channel, height, width, channel_block].
  *  Here sub-dimension channel_block=16 is the split of super-dimension C (channel).
@@ -18,7 +18,6 @@
 
 #include <tvm/base.h>
 #include <tvm/expr.h>
-#include <tvm/relay/base.h>
 
 #include <string>
 #include <sstream>
@@ -26,8 +25,9 @@
 #include <utility>
 #include <algorithm>
 
+#include "ir_operator.h"
+
 namespace tvm {
-namespace relay {
 
 class LayoutNode : public Node {
  public:
@@ -52,7 +52,7 @@ class LayoutNode : public Node {
 class Layout : public NodeRef {
  public:
   using LayoutDim = char;
-  static constexpr uint32_t kUniqueDim = 26;
+  static constexpr size_t kUniqueDim = 26;
 
   explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
 
@@ -213,7 +213,7 @@ class Layout : public NodeRef {
    * \param size size of the sub-dimension.
    * \return A newly constructed Layout object.
    */
-  Layout Split(LayoutDim dim, size_t target_pos, uint32_t size) const {
+  Layout Split(LayoutDim dim, size_t target_pos, size_t size) const {
     const std::string &name = operator->()->name;
     CHECK(target_pos <= this->ndim()) << "Invalid split position "
                                       << target_pos << " for layout " << name;
@@ -354,14 +354,14 @@ class Layout : public NodeRef {
   void Parse(const std::string &layout) {
     node_ = make_node<LayoutNode>();
 
-    std::vector<uint32_t> superdim_pos(kUniqueDim, -1);
-    std::vector<uint32_t> subdim_pos(kUniqueDim, -1);
-    std::vector<uint32_t> subdim_size(kUniqueDim, -1);
+    std::vector<size_t> superdim_pos(kUniqueDim, -1);
+    std::vector<size_t> subdim_pos(kUniqueDim, -1);
+    std::vector<size_t> subdim_size(kUniqueDim, -1);
     std::vector<char> layout_simplified;
 
     if (layout != "__undef__") {  // parse layout string
       int32_t factor = 0;
-      uint32_t curr = 0;
+      size_t curr = 0;
       for (size_t i = 0; i < layout.size(); ++i) {
         const LayoutDim c = layout.at(i);
         if (IsSuperdim(c)) {
@@ -403,7 +403,7 @@ class Layout : public NodeRef {
     LayoutNode *node = operator->();
     node->name = layout;
 
-    for (uint32_t i = 0; i < kUniqueDim; ++i) {
+    for (size_t i = 0; i < kUniqueDim; ++i) {
       node->superdim_pos.push_back(superdim_pos[i]);
       node->subdim_pos.push_back(subdim_pos[i]);
       node->subdim_size.push_back(subdim_size[i]);
@@ -414,30 +414,117 @@ class Layout : public NodeRef {
   }
 };
 
-/*!
- * \brief Convert shape in src_layout to shape in dst_layout
- * \param src original shape
- * \param src_layout layout of original shape
- * \param dst_layout target layout
- * \return shape in target layout
- */
-std::vector<IndexExpr> ConvertLayout(
-    std::vector<IndexExpr> src,
-    const Layout& src_layout,
-    const Layout& dst_layout);
+class BijectiveLayoutNode;
 
-/*!
- * \brief Convert shape in src_layout to shape in dst_layout
- * \param src original shape
- * \param src_layout layout of original shape
- * \param dst_layout target layout
- * \return shape in target layout
- */
-std::vector<IndexExpr> ConvertLayout(
-    const Array<IndexExpr>& src,
-    const Layout& src_layout,
-    const Layout& dst_layout);
-}  // namespace relay
+class BijectiveLayout : public NodeRef {
+public:
+  BijectiveLayout() {}
+  explicit BijectiveLayout(NodePtr<Node> n) : NodeRef(n) {}
+
+  // Final shape of the underlying array, given the shape of the normal layout
+  TVM_DLL Array<Expr> ForwardShape(const Array<Expr>& shape) const;
+  // Given final shape, recover the original shape.
+  TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& shape) const;
+  // Final index of the underlying array, given the normal layout.
+  TVM_DLL Array<Expr> ForwardIndex(const Array<Expr>& index) const;
+  // Given store index, recover the original representation space index.
+  TVM_DLL Array<Expr> BackwardIndex(const Array<Expr>& store_index) const;
+
+  /*!
+  * \brief access the internal node container
+  * \return the pointer to the internal node container
+  */
+  inline const BijectiveLayoutNode* operator->() const;
+
+  /*! \brief specify container node */
+  using ContainerType = BijectiveLayoutNode;
+};
+
+class BijectiveLayoutNode : public Node {
+public:
+  // The original axis, with symbolic shape
+  Array<IterVar> orig_axis;
+  Array<IterVar> store_axis;
+  // expression of each location, on how original location can be mapped
+  // to the store location, example
+  // [i0 / 16, i1, i0 % 16]
+  Array<Expr> forward_rule;
+  Array<Expr> backward_rule;
+
+  std::string orig_layout;
+  std::string store_layout;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("orig_axis", &orig_axis);
+    v->Visit("store_axis", &store_axis);
+    v->Visit("orig_layout", &orig_layout);
+    v->Visit("store_layout", &store_layout);
+  }
+
+  TVM_DLL static BijectiveLayout make(const std::string& orig_layout,
+                                      const std::string& store_layout);
+
+  static constexpr const char* _type_key = "BijectiveLayout";
+  TVM_DECLARE_NODE_TYPE_INFO(BijectiveLayoutNode, Node);
+
+  inline static char GetAxisName(const IterVar& axis) {
+    return axis->var.get()->name_hint.at(0);
+  }
+  inline static bool IsMajorAxis(const IterVar& axis) {
+    return GetAxisName(axis) >= 'A' && GetAxisName(axis) <= 'Z';
+  }
+  inline static bool Match(const IterVar& x, const IterVar& y) {
+    const char x_name = IsMajorAxis(x) ? GetAxisName(x) : GetAxisName(x) - 'a' + 'A';
+    const char y_name = IsMajorAxis(y) ? GetAxisName(y) : GetAxisName(y) - 'a' + 'A';
+    return x_name == y_name;
+  }
+
+private:
+  inline static bool GetStoreRule(Array<Expr>& rule,
+                                  const Array<IterVar>& orig_axes,
+                                  const Array<IterVar>& store_axes) {
+    for (const IterVar& axis : store_axes) {
+      Expr store(0);
+      for (const IterVar& orig_axis : orig_axes) {
+        if (Match(axis, orig_axis)) {
+          if (IsMajorAxis(orig_axis)) {
+            Expr orig_var = orig_axis->var;
+            // TODO: avoid for loop
+            for (const IterVar& temp_axis : orig_axes) {
+              if (!IsMajorAxis(temp_axis) && Match(temp_axis, orig_axis)) {
+                orig_var = orig_var * temp_axis->dom->extent;
+              }
+            }
+            store = store + orig_var;
+          } else {
+            store = store + orig_axis->var;
+          }
+        }
+      }
+      if (is_zero(store)) {
+        // Not convertible
+        return false;
+      }
+      if (IsMajorAxis(axis)) {
+        // TODO: avoid for loop
+        for (const IterVar& temp_axis : store_axes) {
+          if (!IsMajorAxis(temp_axis) && Match(temp_axis, axis)) {
+            store = store / temp_axis->dom->extent;
+          }
+        }
+      } else {
+        store = store % axis->dom->extent;
+      }
+      rule.push_back(store);
+    }
+    return true;
+  }
+};
+
+inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
+  return static_cast<const BijectiveLayoutNode*>(node_.get());
+}
+
 }  // namespace tvm
 
 #endif  // TVM_RELAY_OP_LAYOUT_H_
