@@ -91,7 +91,7 @@ def test_alter_layout():
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
-        new_attrs['weight_layout'] = 'OIHW16i'
+        new_attrs['kernel_layout'] = 'OIHW16i'
         return relay.nn.conv2d(data, weight, **new_attrs)
 
     def expected():
@@ -105,7 +105,7 @@ def test_alter_layout():
                             channels=64,
                             kernel_size=(3, 3),
                             padding=(1, 1),
-                            weight_layout="OIHW16i",
+                            kernel_layout="OIHW16i",
                             data_layout="NCHW16c")
         b = relay.expand_dims(bias, axis=1, num_newaxis=2)
         b = relay.layout_transform(b, "CHW", "CHW16c")
@@ -269,7 +269,7 @@ def test_alter_layout_broadcast_op():
         y = relay.Function(free_vars(y), y)
         return y
 
-    @register_alter_op_layout("nn.conv2d", level=102)
+    @register_alter_op_layout("nn.conv2d", level=105)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
         new_attrs = dict(attrs)
@@ -305,6 +305,107 @@ def test_alter_layout_broadcast_op():
 
     assert(alpha_equal(a, b))
 
+def test_alter_layout_scalar():
+    """Test alternating the layout of a conv2d.
+    The layout of broadcast operators and the weight should be changed accordingly.
+    """
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight")
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.add(y, relay.const(1, "float32"))
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    @register_alter_op_layout("nn.conv2d", level=106)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        w = relay.var("weight")
+
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, w,
+                            channels=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        y = relay.add(y, relay.const(1.0, "float32"))
+
+        y = relay.layout_transform(y, "NCHW16c", "NCHW")
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = canonicalize_ops(a)
+    a = infer_type(a)
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
+    assert(alpha_equal(a, b))
+
+def test_alter_layout_concatenate():
+    """ """
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        weight2 = relay.var('weight2')
+        y = relay.nn.conv2d(x, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+        y1 = relay.nn.conv2d(y, weight2,
+                             channels=32,
+                             kernel_size=(3, 3),
+                             padding=(1, 1))
+        ret = relay.concatenate([y, y1], axis=1)
+        y = relay.Function(free_vars(ret), ret)
+        return y
+
+    @register_alter_op_layout("nn.conv2d", level=107)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight1 = relay.var('weight1')
+        weight2 = relay.var('weight2')
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, weight1,
+                            channels=32,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        y1 = relay.nn.conv2d(y, weight2,
+                             channels=32,
+                             kernel_size=(3, 3),
+                             padding=(1, 1),
+                             data_layout='NCHW16c')
+        ret = relay.concatenate([y, y1], axis=1)
+        ret = relay.layout_transform(ret, "NCHW16c", "NCHW")
+        y = relay.Function(free_vars(ret), ret)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
+    assert(alpha_equal(a, b))
 
 if __name__ == "__main__":
     test_alter_op()
@@ -313,3 +414,5 @@ if __name__ == "__main__":
     test_alter_layout_dual_path()
     test_alter_layout_resnet()
     test_alter_layout_broadcast_op()
+    test_alter_layout_scalar()
+    test_alter_layout_concatenate()

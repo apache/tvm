@@ -99,7 +99,7 @@ def sort_pre_ir_data(data, index, sizes_in, data_out, index_out, \
         tvm.target.current_target(allow_none=False).max_num_threads)
     tx = tvm.thread_axis("threadIdx.x")
     bx = tvm.thread_axis("blockIdx.x")
-    dshape = tvm.max(sizes_in.shape[0], p_index[0])
+    dshape = axis_mul_before * axis_mul_after
     nthread_tx = max_threads
     nthread_bx = dshape // max_threads + 1
     ib.scope_attr(tx, "thread_extent", nthread_tx)
@@ -331,9 +331,7 @@ def sort_gpu(data, data_buf, index, index_buf, output_buf, axis, is_descend):
     Parameters
     ----------
     data: tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6].
-        The last dimension should be in format of
-        [class_id, score, box_left, box_top, box_right, box_bottom].
+        2-D tensor of input boxes' score with shape [batch_size, num_anchors].
 
     data_buf: Buffer
         2D Buffer of input boxes' score with shape [batch_size, num_anchors].
@@ -595,8 +593,8 @@ def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk
         force_suppress = True
         nms_topk = -1
         out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
-        np_data = np.random.uniform(dshape)
-        np_valid_count = np.array([4])
+        np_data = np.random.uniform(size=dshape).astype("float32")
+        np_valid_count = np.array([4]).astype("int32")
         s = topi.generic.schedule_nms(out)
         f = tvm.build(s, [data, valid_count, out], "llvm")
         ctx = tvm.cpu()
