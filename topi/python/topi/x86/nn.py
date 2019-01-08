@@ -5,19 +5,20 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 
-from .. import generic, tag
-from ..util import traverse_inline, get_const_tuple
-from .. import nn
 from .util import get_fp32_len
+from .. import generic, tag, nn
+from ..util import traverse_inline, get_const_tuple
 
 @generic.schedule_softmax.register(["cpu"])
 def schedule_softmax(outs):
     """Schedule for softmax
+
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of softmax
           in the format of an array of tensors.
+
     Returns
     -------
     sch: Schedule
