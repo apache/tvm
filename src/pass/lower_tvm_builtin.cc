@@ -54,7 +54,6 @@ class BuiltinLower : public IRMutator {
     stmt = IRMutator::Mutate(stmt);
     CHECK_EQ(run_shape_stack_, 0);
     CHECK_EQ(run_array_stack_, 0);
-    CHECK_EQ(run_arg_stack_, 0);
     while (prep_seq_.size() != 0) {
       stmt = Block::make(prep_seq_.back(), stmt);
       prep_seq_.pop_back();
@@ -140,6 +139,8 @@ class BuiltinLower : public IRMutator {
   Expr Mutate_(const Call* op, const Expr &e) final {
     if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
       return MakeCallPacked(op, e);
+    } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed)) {
+      return MakeCallTracePacked(op, e);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_shape)) {
       return MakeShape(op, e);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_array)) {
@@ -253,6 +254,56 @@ class BuiltinLower : public IRMutator {
     };
     return Call::make(
         Int(32), intrinsic::tvm_call_packed_lowered,
+        packed_args, Call::Intrinsic);
+  }
+
+  Expr MakeCallTracePacked(const Call *op, const Expr &e) {
+    size_t restore_shape_stack = run_shape_stack_;
+    size_t restore_array_stack = run_array_stack_;
+    size_t arg_stack_begin = run_arg_stack_;
+    run_arg_stack_ += op->args.size();
+    size_t args_size = op->args.size();
+    CHECK_GT(args_size, 0);
+    Expr expr = IRMutator::Mutate_(op, e);
+    op = expr.as<Call>();
+    for (size_t i = 1; i < op->args.size(); ++i) {
+      Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
+      Expr arg = op->args[i];
+      Type t = arg.type();
+      Type api_type = APIType(t);
+      if (t != api_type) {
+        arg = Cast::make(api_type, arg);
+      }
+      prep_seq_.emplace_back(TVMStructSet(
+          stack_value_, static_cast<int>(arg_stack_begin + i - 1),
+          intrinsic::kTVMValueContent, arg));
+      int arg_tcode = api_type.code();
+      CHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
+      prep_seq_.emplace_back(
+          Store::make(stack_tcode_,
+                      ConstInt32(arg_tcode),
+                      stack_index, const_true(1)));
+    }
+    // UPDATE stack value
+    max_arg_stack_ = std::max(run_arg_stack_, max_arg_stack_);
+    max_shape_stack_ = std::max(run_shape_stack_, max_shape_stack_);
+    max_array_stack_ = std::max(run_array_stack_, max_array_stack_);
+    run_shape_stack_ = restore_shape_stack;
+    run_array_stack_ = restore_array_stack;
+    // Update the top of the stack, so we can use more than one
+    // packed function's arguments with the one stack.
+    run_arg_stack_ = arg_stack_begin + args_size - 1;
+    Array<Expr> packed_args = {
+      op->args[0],
+      stack_value_,
+      stack_tcode_,
+      ConstInt32(arg_stack_begin),
+      ConstInt32(arg_stack_begin + op->args.size() - 1),
+      // Pass traced value.
+      op->args[args_size - 1]
+    };
+    return Call::make(
+        op->type, intrinsic::tvm_call_trace_packed_lowered,
         packed_args, Call::Intrinsic);
   }
 

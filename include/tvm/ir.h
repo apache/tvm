@@ -395,6 +395,17 @@ constexpr const char* tvm_stack_make_array = "tvm_stack_make_array";
 constexpr const char* tvm_call_packed = "tvm_call_packed";
 /*!
  * \brief See pesudo code
+ *
+ *  int tvm_call_trace_packed(name, TVMValue* args) {
+ *     ModuleNode* env = GetCurrentEnv();
+ *     const PackedFunc* f = env->GetFuncFromEnv(name);
+ *     (*f)(args, type_code_of(args), len(args));
+ *     return 0;
+ *  }
+ */
+constexpr const char *tvm_call_trace_packed = "tvm_call_trace_packed";
+/*!
+ * \brief See pesudo code
  *  Mark the content as thread local context, can get optimized
  *  by only call the call once at thread start.
  *
@@ -422,6 +433,25 @@ constexpr const char* tvm_thread_context = "tvm_thread_context";
  *  }
  */
 constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
+/*!
+ * \brief Lowered version of trace intrinsic, the space of value and
+ *  type codes are explicitly allocated. The return value is the
+ *  (end - 1) value on the stack.
+ *
+ *  int tvm_call_trace_packed_lowered(name,
+ *                                    TVMValue* value_stack,
+ *                                    int* tcode_stack,
+ *                                    int begin,
+ *                                    int end) {
+ *     ModuleNode* env = GetCurrentEnv();
+ *     const PackedFunc* f = env->GetFuncFromEnv(name);
+ *     f->CallPacked(TVMArgs(value_stack[begin:end],
+ *                           tcode_stack[begin:end]),
+ *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *  }
+ */
+constexpr const char *tvm_call_trace_packed_lowered =
+    "tvm_call_trace_packed_lowered";
 /*!
  * \brief See pseudo code
  *
