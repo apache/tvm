@@ -1328,8 +1328,11 @@ class GraphProto(object):
 
         #Add the RNN outputs also with 'head' nodes of the relay graph
         if self._num_rnn_layer:
-            out_rnn = _op.concatenate(self._out_rnn, axis=0)
-            out.append(out_rnn)
+            if len(self._out_rnn) == 1:
+              out.append(self._out_rnn[0])
+            else:
+              out_rnn = _op.concatenate(self._out_rnn, axis=0)
+              out.append(out_rnn)
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(ir_pass.free_vars(out), out)
