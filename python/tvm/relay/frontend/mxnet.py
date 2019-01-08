@@ -380,6 +380,47 @@ def _mx_proposal(inputs, attrs):
     return _op.vision.proposal(inputs[0], inputs[1], inputs[2], **new_attrs)
 
 
+def _mx_box_nms(inputs, attrs):
+    force_suppress = attrs.get_bool("force_suppress", False)
+    overlap_thresh = attrs.get_float('overlap_thresh', 0.5)
+    topk = attrs.get_int('topk', -1)
+    valid_thresh = attrs.get_float('valid_thresh', 0)
+    coord_start = attrs.get_int('coord_start', 2)
+    score_index = attrs.get_int('score_index', 1)
+    id_index = attrs.get_int('id_index', -1)
+    in_format = attrs.get_str('in_format', 'corner')
+    out_format = attrs.get_str('out_format', 'corner')
+    if coord_start != 2:
+        raise RuntimeError('coord_start %s is not supported.' % coord_start)
+    if score_index != 1:
+        raise RuntimeError('score_index %s is not supported.' % score_index)
+    if id_index != -1 and int(id_index) != 0:
+        raise RuntimeError('id_index %s is not supported.' % id_index)
+    if in_format != 'corner':
+        raise RuntimeError('in_format %s is not supported.' % in_format)
+    if out_format != 'corner':
+        raise RuntimeError('out_format %s is not supported.' % out_format)
+
+    valid_counts, inter_out = \
+        _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
+    nms_out = _op.vision.nms(inter_out, valid_counts,
+                             iou_threshold=overlap_thresh,
+                             force_suppress=force_suppress,
+                             topk=topk, id_index=id_index,
+                             do_rearrange=True)
+    return nms_out
+
+
+def _mx_l2_normalize(inputs, attrs):
+    new_attrs = {}
+    mode = attrs.get_str('mode', 'instance')
+    if mode != 'channel':
+        raise RuntimeError('mode %s is not supported.' % mode)
+    new_attrs['eps'] = attrs.get_float('eps', 1e-10)
+    new_attrs['axis'] = 1
+    return _op.nn.l2_normalize(inputs[0], **new_attrs)
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -481,7 +522,9 @@ _convert_map = {
     "slice"         : _mx_slice,
     "slice_like"    : _mx_slice_like,
     "slice_axis"    : _mx_slice_axis,
+    "L2Normalization"  : _mx_l2_normalize,∂
     "SliceChannel"  : _mx_split,
+    "slice_axis"    : _mx_slice_axis,
     "split"         : _mx_split,
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,

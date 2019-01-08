@@ -58,19 +58,35 @@ struct MultiBoxTransformLocAttrs
   }
 };
 
-/*! \brief Attributes used in non_maximum_suppression operators */
+/*! \brief Attributes used in get_valid_counts operator */
+struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs>{
+  double score_threshold;
+
+  TVM_DECLARE_ATTRS(GetValidCountsAttrs, "relay.attrs.GetValidCountsAttrs") {
+    TVM_ATTR_FIELD(score_threshold).set_default(0.0)
+      .describe("Lower limit of score for valid bounding boxes.");
+  }
+};
+
+/*! \brief Attributes used in non_maximum_suppression operator */
 struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
-  double overlap_threshold;
+  double iou_threshold;
   bool force_suppress;
   int topk;
+  int id_index;
+  bool do_rearrange;
 
   TVM_DECLARE_ATTRS(NMSAttrs, "relay.attrs.NMSAttrs") {
-      TVM_ATTR_FIELD(overlap_threshold).set_default(0.5)
-        .describe("Non-maximum suppression threshold.");
-      TVM_ATTR_FIELD(force_suppress).set_default(false)
-        .describe("Suppress all detections regardless of class_id.");
-      TVM_ATTR_FIELD(topk).set_default(-1)
-        .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    TVM_ATTR_FIELD(iou_threshold).set_default(0.5)
+      .describe("Non-maximum suppression threshold.");
+    TVM_ATTR_FIELD(force_suppress).set_default(false)
+      .describe("Suppress all detections regardless of class_id.");
+    TVM_ATTR_FIELD(topk).set_default(-1)
+      .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    TVM_ATTR_FIELD(id_index).set_default(0)
+      .describe("Axis index of id.");
+    TVM_ATTR_FIELD(do_rearrange).set_default(false)
+      .describe("Whether to move all valid bounding boxes to the top.");
   }
 };
 

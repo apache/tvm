@@ -54,6 +54,23 @@ reg.register_pattern("vision.multibox_transform_loc", OpPattern.OPAQUE)
 reg.register_pattern("vision.multibox_detection", OpPattern.OPAQUE)
 
 
+# Get counts of valid boxes
+@reg.register_schedule("vision.get_valid_counts")
+def schedule_get_valid_counts(_, outs, target):
+    """Schedule definition of get_valid_counts"""
+    with target:
+        return topi.generic.schedule_nms(outs)
+
+
+@reg.register_compute("vision.get_valid_counts")
+def compute_get_valid_counts(attrs, inputs, _, target):
+    """Compute definition of get_valid_counts"""
+    score_threshold = get_const_float(attrs.score_threshold)
+    return topi.vision.get_valid_counts(inputs[0], score_threshold)
+
+reg.register_pattern("vision.get_valid_counts", OpPattern.OPAQUE)
+
+
 # non-maximum suppression
 @reg.register_schedule("vision.nms")
 def schedule_nms(_, outs, target):
@@ -65,12 +82,14 @@ def schedule_nms(_, outs, target):
 @reg.register_compute("vision.nms")
 def compute_nms(attrs, inputs, _, target):
     """Compute definition of nms"""
-    overlap_threshold = get_const_float(attrs.overlap_threshold)
+    iou_threshold = get_const_float(attrs.iou_threshold)
     force_suppress = bool(get_const_int(attrs.force_suppress))
     topk = get_const_int(attrs.topk)
+    id_index = get_const_int(attrs.id_index)
+    do_rearrange = bool(get_const_int(attrs.do_rearrange))
     return [
-        topi.vision.nms(inputs[0], inputs[1], overlap_threshold,
-                        force_suppress, topk)
+        topi.vision.nms(inputs[0], inputs[1], iou_threshold,
+                        force_suppress, topk, id_index, do_rearrange)
     ]
 
 

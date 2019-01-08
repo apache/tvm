@@ -6,6 +6,6 @@ from .multibox import *
 from .nms import *
 from .rcnn import *
 from .yolo import *
-from . import _multibox
 from . import _rcnn
 from . import _yolo
+from . import _vision

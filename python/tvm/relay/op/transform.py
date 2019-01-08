@@ -456,7 +456,7 @@ def strided_slice(data, begin, end, strides=None):
         The indices to begin with in the slicing.
 
     end: list of int
-        Indicies indicating end of the slice.
+        Indices indicating end of the slice.
 
     strides: list of int, optional
         Specifies the stride values, it can be negative in that case,
@@ -469,6 +469,32 @@ def strided_slice(data, begin, end, strides=None):
     """
     strides = strides or []
     return _make.strided_slice(data, list(begin), list(end), list(strides))
+
+
+def slice_axis(data, axis, begin, end=None):
+    """Slice input array along specific axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source array to be sliced.
+
+    axis : int
+        Axis to be sliced.
+
+    begin: int
+        The index to begin with in the slicing.
+
+    end: int, optional
+        The index indicating end of the slice.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    end = end or 0
+    return _make.slice_axis(data, axis, begin, end)
 
 
 def slice_like(data, shape_like, axes=None):

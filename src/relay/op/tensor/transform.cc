@@ -1347,6 +1347,118 @@ RELAY_REGISTER_OP("broadcast_to_like")
 .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 
+// Adapter function to make int array.
+Array<Integer> GetIntArray(Array<IndexExpr> arr) {
+  for (size_t i = 0; i < arr.size(); ++i) {
+    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
+      << "Expect an int array";
+  }
+  return Array<Integer>(arr.node_);
+}
+
+// slice_axis
+TVM_REGISTER_NODE_TYPE(SliceAxisAttrs);
+
+bool SliceAxisRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const SliceAxisAttrs *param = attrs.as<SliceAxisAttrs>();
+
+  auto src_shape = data->shape;
+  int axis = param->axis;
+  int begin = param->begin;
+  int end = param->end;
+
+  if (axis < 0) {
+    axis += src_shape.size();
+  }
+  if (begin < 0) {
+    begin += *as_const_int(src_shape[axis]);
+  }
+  if (end <= 0) {
+    end += *as_const_int(src_shape[axis]);
+  }
+  CHECK_LT(begin, end)
+    << "Begin index must be smaller than end index: "
+    << begin << " vs " << end;
+
+  std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+  oshape[axis] = IndexExpr(end - begin);
+
+  // assign output type
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeSliceAxis(Expr data,
+                   int axis,
+                   int begin,
+                   int end) {
+  auto attrs = make_node<SliceAxisAttrs>();
+  attrs->axis = axis;
+  attrs->begin = begin;
+  attrs->end = end;
+  static const Op& op = Op::Get("slice_axis");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.slice_axis")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+  runtime::detail::unpack_call<Expr, 4>(MakeSliceAxis, args, rv);
+});
+
+Array<Tensor> SliceAxisCompute(const Attrs& attrs,
+                               const Array<Tensor>& inputs,
+                               const Type& out_type,
+                               const Target& target) {
+  const SliceAxisAttrs *param = attrs.as<SliceAxisAttrs>();
+  const Array<IndexExpr> src_shape = inputs[0]->shape;
+  Array<IndexExpr> begin_idx, end_idx, strides;
+  int axis = param->axis;
+  int begin = param->begin;
+  int end = param->end;
+
+  if (axis < 0) {
+    axis += src_shape.size();
+  }
+  if (begin < 0) {
+    begin += *as_const_int(src_shape[axis]);
+  }
+  if (end <= 0) {
+    end += *as_const_int(src_shape[axis]);
+  }
+  for (size_t i = 0; i < src_shape.size(); ++i) {
+    begin_idx.push_back(make_const(tvm::Int(32), 0));
+    strides.push_back(make_const(tvm::Int(32), 1));
+  }
+  end_idx = Array<IndexExpr>(src_shape);
+  begin_idx.Set(axis, make_const(tvm::Int(32), begin));
+  end_idx.Set(axis, make_const(tvm::Int(32), end));
+
+  return Array<Tensor>{
+    topi::strided_slice(inputs[0],
+                        GetIntArray(begin_idx),
+                        GetIntArray(end_idx),
+                        GetIntArray(strides))
+  };
+}
+
+RELAY_REGISTER_OP("relay.op._make.slice_axis")
+.describe(R"doc(Slices along a given axis.
+Returns an array slice along a given axis starting from
+the begin index to the end index.
+)doc" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "Input data.")
+.set_support_level(4)
+.add_type_rel("SliceAxis", SliceAxisRel)
+.set_attr<FTVMCompute>("FTVMCompute", SliceAxisCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
+
 // strided_slice
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 bool StridedSliceRel(const Array<Type>& types,
@@ -1699,15 +1811,6 @@ Expr MakeSliceLike(Expr data,
   attrs->axes = std::move(axes);
   static const Op& op = Op::Get("slice_like");
   return CallNode::make(op, {data, shape_like}, Attrs(attrs), {});
-}
-
-// Adapter function to make int array.
-Array<Integer> GetIntArray(Array<IndexExpr> arr) {
-  for (size_t i = 0; i < arr.size(); ++i) {
-    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
-        << "Expect an int array";
-  }
-  return Array<Integer>(arr.node_);
 }
 
 Array<Tensor> SliceLikeCompute(const Attrs& attrs,

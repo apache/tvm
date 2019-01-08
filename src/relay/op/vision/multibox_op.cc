@@ -70,8 +70,10 @@ RELAY_REGISTER_OP("vision.multibox_prior")
 
 TVM_REGISTER_NODE_TYPE(MultiBoxTransformLocAttrs);
 
-bool MultiBoxTransformLocRel(const Array<Type>& types, int num_inputs,
-                             const Attrs& attrs, const TypeReporter& reporter) {
+bool MultiBoxTransformLocRel(const Array<Type>& types,
+                             int num_inputs,
+                             const Attrs& attrs,
+                             const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
 
   const auto* cls_prob = types[0].as<TensorTypeNode>();

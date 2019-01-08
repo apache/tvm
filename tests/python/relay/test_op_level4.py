@@ -196,6 +196,29 @@ def test_reduce_functions():
         verify_reduce(func, (128, 24, 128), (0, 2), True, False, (1, 24, 1))
 
 
+def test_slice_axis():
+    def verify(dshape, axis, begin, end):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.slice_axis(x, axis=axis, begin=begin, end=end)
+        func = relay.Function([x], z)
+        func = relay.ir_pass.infer_type(func)
+        text = func.astext()
+        assert "begin=" in text
+        assert "end=" in text
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = topi.testing.slice_axis_python(
+            x_data, axis, begin, end)
+        for target, ctx in ctx_list():
+            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+    verify((1, 2, 3, 4), 3, 0, 2)
+    verify((100, 50), -1, 1, -1)
+    verify((20,), -1, -9, -3)
+    verify((20, 30, 40), 1, 5, 0)
+
+
 def test_strided_slice():
     def verify(dshape, begin, end, strides, output, test_ref=True):
         x = relay.var("x", relay.TensorType(dshape, "float32"))

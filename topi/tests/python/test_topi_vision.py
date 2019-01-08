@@ -59,7 +59,6 @@ def test_get_valid_counts():
     verify_get_valid_counts((1, 2500, 6), -1)
     verify_get_valid_counts((3, 1000, 6), 0.55)
     verify_get_valid_counts((16, 500, 6), 0.95)
->>>>>>> Add test for get_valid_counts
 
 
 def test_nms():

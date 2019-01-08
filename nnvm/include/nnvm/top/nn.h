@@ -402,9 +402,9 @@ struct LayoutTransformParam : public dmlc::Parameter<LayoutTransformParam> {
 
   DMLC_DECLARE_PARAMETER(LayoutTransformParam) {
     DMLC_DECLARE_FIELD(src_layout).set_default("__undef__")
-    .describe("Dimension ordering of data");
+      .describe("Dimension ordering of data");
     DMLC_DECLARE_FIELD(dst_layout).set_default("__undef__")
-    .describe("Dimension ordering of data.");
+      .describe("Dimension ordering of data.");
   }
 };
 
@@ -419,13 +419,13 @@ struct MultiBoxPriorParam : public dmlc::Parameter<MultiBoxPriorParam> {
     DMLC_DECLARE_FIELD(sizes).set_default(Tuple<float>({1.0}))
       .describe("List of sizes of generated MultiBoxPriores.");
     DMLC_DECLARE_FIELD(ratios).set_default(Tuple<float>({1.0}))
-    .describe("List of aspect ratios of generated MultiBoxPriores.");
+      .describe("List of aspect ratios of generated MultiBoxPriores.");
     DMLC_DECLARE_FIELD(steps).set_default(Tuple<float>({-1.0, -1.0}))
-    .describe("Priorbox step across y and x, -1 for auto calculation.");
+      .describe("Priorbox step across y and x, -1 for auto calculation.");
     DMLC_DECLARE_FIELD(offsets).set_default(Tuple<float>({0.5, 0.5}))
-    .describe("Priorbox center offsets, y and x respectively.");
+      .describe("Priorbox center offsets, y and x respectively.");
     DMLC_DECLARE_FIELD(clip).set_default(false)
-    .describe("Whether to clip out-of-boundary boxes.");
+      .describe("Whether to clip out-of-boundary boxes.");
   }
 };
 
@@ -461,11 +461,11 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
     DMLC_DECLARE_FIELD(iou_threshold).set_default(0.5)
       .describe("Non-maximum suppression threshold.");
     DMLC_DECLARE_FIELD(force_suppress).set_default(false)
-    .describe("Suppress all detections regardless of class_id.");
+      .describe("Suppress all detections regardless of class_id.");
     DMLC_DECLARE_FIELD(topk).set_default(-1)
-    .describe("Keep maximum top k detections before nms, -1 for no limit.");
-    DMLC_DECLARE_FIELD(id_index).set_default(0)
       .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    DMLC_DECLARE_FIELD(id_index).set_default(0)
+      .describe("Axis index for id.");
     DMLC_DECLARE_FIELD(do_rearrange).set_default(false)
       .describe("Whether to move all valid bounding boxes to the top.");
   }

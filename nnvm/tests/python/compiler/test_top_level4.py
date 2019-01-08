@@ -700,16 +700,8 @@ def test_slice_like():
 def verify_slice_axis(dshape, axis, begin, end):
     data = sym.Variable("data")
     net = sym.slice_axis(data, axis=axis, begin=begin, end=end)
-    if axis < 0:
-        axis += len(dshape)
-    if begin < 0:
-        begin += dshape[axis]
-    if end <= 0:
-        end += dshape[axis]
     np_data = np.random.uniform(size=dshape)
-    slc = [slice(None)] * len(dshape)
-    slc[axis] = slice(begin, end)
-    np_out = np_data[slc]
+    np_out = topi.testing.slice_axis_python(np_data, axis, begin, end)
 
     dtype = "float32"
     for target, ctx in ctx_list():

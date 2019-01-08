@@ -11,7 +11,6 @@
 #include <nnvm/op_attr_types.h>
 #include <nnvm/compiler/op_attr_types.h>
 #include "../op_common.h"
-#include "../elemwise_op_common.h"
 
 namespace nnvm {
 namespace top {
