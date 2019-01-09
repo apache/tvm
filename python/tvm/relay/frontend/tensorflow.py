@@ -386,11 +386,11 @@ def _conv(opname):
         else:
             raise TypeError("Unsupported padding type : {}".format(attr['padding']))
 
-        if 'weight_layout' not in attr:
+        if 'kernel_layout' not in attr:
             if opname == 'conv':
-                attr['weight_layout'] = 'HWIO' if attr['data_format'] == 'NHWC' else 'OIHW'
+                attr['kernel_layout'] = 'HWIO' if attr['data_format'] == 'NHWC' else 'OIHW'
             else:
-                attr['weight_layout'] = 'HWOI' if attr['data_format'] == 'NHWC' else 'OIHW'
+                attr['kernel_layout'] = 'HWOI' if attr['data_format'] == 'NHWC' else 'OIHW'
 
         use_bias = len(inputs) == 3
         channel_axis = 1 if attr['data_format'] == "NCHW" else 3
@@ -602,12 +602,8 @@ def _shape():
 def _fill():
     def _impl(inputs, attr, params):
         fill_arg = params.pop(inputs.pop(1).name_hint)
-        new_inputs = []
-        return AttrCvt(
-            op_name='full',
-            extras={'shape':inputs[0],
-                    'fill_value':fill_arg.asnumpy()[0], 'dtype':attr['T'].name},
-            ignores=['index_type', 'T'])(new_inputs, attr)
+        return _op.full(tvm.relay.const(fill_arg.asnumpy()[0], attr['T'].name),
+                        attr['_output_shapes'][0], attr['T'].name)
     return _impl
 
 def _lrn():
@@ -1329,10 +1325,10 @@ class GraphProto(object):
         #Add the RNN outputs also with 'head' nodes of the relay graph
         if self._num_rnn_layer:
             if len(self._out_rnn) == 1:
-              out.append(self._out_rnn[0])
+                out.append(self._out_rnn[0])
             else:
-              out_rnn = _op.concatenate(self._out_rnn, axis=0)
-              out.append(out_rnn)
+                out_rnn = _op.concatenate(self._out_rnn, axis=0)
+                out.append(out_rnn)
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(ir_pass.free_vars(out), out)

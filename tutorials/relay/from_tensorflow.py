@@ -8,8 +8,7 @@ For us to begin with, tensorflow python module is required to be installed.
 Please refer to https://www.tensorflow.org/install
 """
 
-# tvm, relay and nnvm
-import nnvm
+# tvm, relay
 import tvm
 from tvm import relay
 
@@ -36,12 +35,6 @@ image_url = os.path.join(repo_base, img_name)
 ######################################################################
 # Tutorials
 # ---------
-# .. note::
-#
-#   protobuf should be exported with :any:`add_shapes=True` option.
-#   Could use https://github.com/dmlc/web-data/tree/master/tensorflow/scripts/tf-to-nnvm.py
-#   to add shapes for existing models.
-#
 # Please refer docs/frontend/tensorflow.md for more details for various models
 # from tensorflow.
 
