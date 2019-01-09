@@ -4,7 +4,7 @@ from topi import util
 
 
 def test_util():
-    x = tvm.const(100)
+    x = tvm.const(100, "int32")
     assert util.get_const_int(x) == 100
     assert util.get_const_tuple((x, x)) == (100, 100)
 

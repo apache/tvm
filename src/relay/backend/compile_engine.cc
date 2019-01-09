@@ -84,6 +84,9 @@ class ScheduleGetter :
     CHECK(master_op_.defined());
     Schedule schedule = fschedule[master_op_](
         master_attrs_, cache_node->outputs, target_);
+    for (const auto& scalar : scalars_) {
+      schedule[scalar].compute_inline();
+    }
     return std::make_pair(schedule, cfunc);
   }
 
@@ -123,6 +126,7 @@ class ScheduleGetter :
           return tvm::Expr();
         }
       });
+    scalars_.push_back(value->op);
     return {value};
   }
 
@@ -157,14 +161,14 @@ class ScheduleGetter :
 
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
-      CHECK(!master_op_.defined() || master_op_patetrn_ < kCommReduce)
+      CHECK(!master_op_.defined() || master_op_pattern_ < kCommReduce)
           << "Two complicated op in a primitive function "
           << " master=" << master_op_ << " current=" << op;
     }
-    if (op_pattern >= master_op_patetrn_) {
+    if (op_pattern >= master_op_pattern_) {
       master_op_ = op;
       master_attrs_ = call_node->attrs;
-      master_op_patetrn_ = op_pattern;
+      master_op_pattern_ = op_pattern;
     }
     if (outputs.size() != 1) {
       const auto* tuple_type =
@@ -213,9 +217,10 @@ class ScheduleGetter :
   tvm::Target target_;
   Op master_op_;
   Attrs master_attrs_;
-  int master_op_patetrn_{0};
+  int master_op_pattern_{0};
   std::ostringstream readable_name_stream_;
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
+  Array<Operation> scalars_;
 };
 
 
@@ -286,7 +291,7 @@ class CompileEngineImpl : public CompileEngineNode {
     auto spair = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_node<CachedFuncNode>(
         *(spair.second.operator->()));
-    cache_node->func_name = GetUniqeName(cache_node->func_name);
+    cache_node->func_name = GetUniqueName(cache_node->func_name);
     // NOTE: array will copy on write.
     Array<Tensor> all_args = cache_node->inputs;
     for (Tensor arg : cache_node->outputs) {
@@ -297,7 +302,7 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_node->funcs = (*f)(
           spair.first, all_args, cache_node->func_name, key->source_func);
     } else {
-      LOG(FATAL) << "relay.backend._lower is not registred";
+      LOG(FATAL) << "relay.backend.lower is not registred";
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -307,7 +312,7 @@ class CompileEngineImpl : public CompileEngineNode {
    * \param name The orginal name.
    * \return Updated name which is unique.
    */
-  std::string GetUniqeName(std::string name) {
+  std::string GetUniqueName(std::string name) {
     for (size_t i = 0; i < name.length(); ++i) {
       if (name[i] == '.') name[i] = '_';
     }

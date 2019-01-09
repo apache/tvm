@@ -196,7 +196,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
  protected:
   using StorageAllocaBaseVisitor::VisitExpr_;
   // override create token by getting token as prototype requirements.
-  void CreateToken(const ExprNode* op, bool can_realloc)  final {
+  void CreateToken(const ExprNode* op, bool can_realloc) final {
     CHECK(!token_map_.count(op));
     auto it = prototype_.find(op);
     CHECK(it != prototype_.end());
@@ -253,12 +253,12 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     size_t size = 1;
     for (IndexExpr dim : ttype->shape) {
       const int64_t* pval = as_const_int(dim);
-      CHECK_GE(*pval, 0) <<
-        "can not allocate memory for tensor with negative shape" <<
-        *pval;
       CHECK(pval != nullptr)
           << "Cannot allocate memory symbolic tensor shape "
           << ttype->shape;
+      CHECK_GE(*pval, 0)
+          << "Cannot allocate memory for tensor with negative shape"
+          << *pval;
       size *= static_cast<size_t>(pval[0]);
     }
     size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);

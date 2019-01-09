@@ -272,7 +272,8 @@ def test_schedule_cache_relayout4():
 
 def test_schedule_bound_condition():
    A = tvm.placeholder((64,), name='A', dtype="float32")
-   Apad = tvm.compute((66,), lambda i: tvm.select(tvm.all(i>0, i < 65), A[i-1], tvm.const(0.)), name='Apad')
+   Apad = tvm.compute((66,), lambda i: tvm.select(
+       tvm.all(i>0, i < 65), A[i-1], tvm.const(0., "float32")), name='Apad')
    Apad2 = tvm.compute((66,), lambda i: Apad[i]*2, name='Apad2')
    s = tvm.create_schedule(Apad2.op)
    AL1 = s.cache_read(A,"local",[Apad])
@@ -419,8 +420,22 @@ def test_loop_dep_reduce():
     f = tvm.build(s, [X, Y])
 
 
+def test_loop_dep_reduce_cache_write():
+    X = tvm.placeholder(shape=(10,), name="x")
+    def f(n):
+        rv = tvm.reduce_axis((0, n))
+        init = lambda dtype: tvm.select(n > 1, tvm.const(0, dtype), n.astype(dtype))
+        sum = tvm.comm_reducer(lambda x, y: tvm.max(x + y, n.astype('float32')), init, name='sum')
+        return sum(X[rv], axis=rv)
+    Y = tvm.compute(X.shape, f, name="y")
+    s = tvm.create_schedule([Y.op])
+    s.cache_write(Y, 'local')
+    f = tvm.build(s, [X, Y])
+
+
 if __name__ == "__main__":
     test_loop_dep_reduce()
+    test_loop_dep_reduce_cache_write()
     test_schedule_middle_cache()
     test_inline_multi_reduce()
     test_schedule_cache_relayout4()

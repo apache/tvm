@@ -233,11 +233,16 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output):
 
     s[conv].reorder(rco, ryo, rxo, rci, ryi, rxi, n, f, y, x, c, rc_block)
 
+    cfg.define_reorder("reorder_inner", [rco, ryo, rxo], policy="all")
+    cfg["reorder_inner"].apply(s, conv, [rco, ryo, rxo])
+    cfg["reorder_inner"].apply(s, conv, [rci, ryi, rxi])
+
     _, rc_block = s[conv].split(rc_block, factor=4)
     s[conv].tensorize(rc_block, _dp4a)
 
-    s[AA].compute_at(s[conv], rxo)
-    s[WW].compute_at(s[conv], rxo)
+    cache_loc = [rco, ryo, rxo][cfg["reorder_inner"].perm[-1]]
+    s[AA].compute_at(s[conv], cache_loc)
+    s[WW].compute_at(s[conv], cache_loc)
 
     # cooperative fetching
     for load in [AA, WW]:

@@ -36,6 +36,7 @@ class AttrCvt(object):
         self._ignores.append('_node_name')
         self._ignores.append('is_training')
         self._ignores.append('_target_layout')
+        self._ignores.append('_input_0d_mismatch')
         # Retain the names
         try:
             attrs['name'] = attrs['_node_name']
@@ -119,7 +120,7 @@ def _pooling(name):
         attr['data_format'] = attr['data_format'].decode("utf-8")
         flip_layout = False
 
-        input_shape = attr['_input_shapes'][inputs[0]][0]
+        input_shape = attr['_input_shapes'][inputs[0]]
 
         if attr['data_format'] == 'NHWC':
             attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2])
@@ -131,7 +132,7 @@ def _pooling(name):
             raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
-            tmp_shape = attr['_input_shapes'][inputs[0]][0]
+            tmp_shape = attr['_input_shapes'][inputs[0]]
             input_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
             inputs[0] = _sym.transpose(inputs[0], axes=(0, 3, 1, 2))
             attr['data_format'] = "NCHW"
@@ -184,13 +185,13 @@ def _conv(opname):
 
         # NCHW Layout require weights transpose
         if attr['data_format'] == 'NCHW':
-            tmp_shape = attr['_input_shapes'][inputs[1]][0]
+            tmp_shape = attr['_input_shapes'][inputs[1]]
             tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
             inputs[1] = _sym.transpose(inputs[1], axes=(3, 2, 0, 1))
-            attr['_input_shapes'][inputs[1]] = [tmp_shape]
+            attr['_input_shapes'][inputs[1]] = tmp_shape
 
-        input_shape = attr['_input_shapes'][inputs[0]][0]
-        weights_shape = attr['_input_shapes'][inputs[1]][0]
+        input_shape = attr['_input_shapes'][inputs[0]]
+        weights_shape = attr['_input_shapes'][inputs[1]]
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
@@ -319,8 +320,7 @@ def _expand_dims():
         dim_input = inputs.pop(1)
         axis = params[dim_input.list_output_names()[0]]
         params.pop(dim_input.list_output_names()[0])
-        return AttrCvt(op_name="expand_dims", ignores=['Tdim'],
-                       extras={'axis': axis.asnumpy()[0]})(inputs, attr)
+        return _expand_dims_0d_aware(inputs[0], attr, axis=axis.asnumpy()[0])
     return _impl
 
 def _resize_bilinear():
@@ -383,7 +383,7 @@ def _concat():
 def _pack():
     def _impl(inputs, attr, params):
         axis = int(attr["axis"])
-        inputs_reshaped = [_sym.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
+        inputs_reshaped = [_expand_dims_0d_aware(i, attr, axis=axis, num_newaxis=1) for i in inputs]
         return _sym.concatenate(*inputs_reshaped, axis=axis, name=attr["_node_name"])
 
     return _impl
@@ -484,7 +484,7 @@ def _relu6():
 
 def _shape():
     def _impl(inputs, attr, params):
-        return np.array(attr['_input_shapes'][inputs[0]][0], dtype='int32')
+        return np.array(attr['_input_shapes'][inputs[0]], dtype='int32')
     return _impl
 
 def _fill():
@@ -565,7 +565,7 @@ def _stridedSlice():
         new_axis_mask = int(attr.get('new_axis_mask', 0))
         shrink_axis_mask = int(attr.get('shrink_axis_mask', 0))
         data_shape = attr['_input_shapes'][inputs[0]]
-        data_dim = len(data_shape[0])
+        data_dim = len(data_shape)
         stride_dim = len(stride)
 
         def _transform_mask(stride_dim, ellipsis_mask):
@@ -596,7 +596,7 @@ def _stridedSlice():
                                      + new_axes_after_ellipsis), data_dim)
                     for i in range(final_index, to_index):
                         m_begin[final_index] = 0
-                        m_end[final_index] = data_shape[0][final_index]
+                        m_end[final_index] = data_shape[final_index]
                         m_stride[final_index] = 1
                         fshape_indices.append(final_index)
                         final_index += 1
@@ -606,19 +606,19 @@ def _stridedSlice():
                     if final_index == len(m_begin):
                         break
                     if mask & begin_mask:
-                        m_begin[final_index] = data_shape[0][final_index] \
+                        m_begin[final_index] = data_shape[final_index] \
                                                      if stride[index] < 0 else 0
                     elif begin[index]:
                         m_begin[final_index] = begin[index]
                     if mask & end_mask:
                         m_end[final_index] = 0 if stride[index] < 0 \
-                                                 else data_shape[0][final_index]
+                                                 else data_shape[final_index]
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]
                     if mask & shrink_axis_mask:
                         #Tensorflow make axis with shrink_axis_mask as dimension 1
-                        m_begin[final_index] = data_shape[0][final_index] + begin[index] \
+                        m_begin[final_index] = data_shape[final_index] + begin[index] \
                                                  if begin[index] < 0 else begin[index]
                         m_end[final_index] = begin[index] + 1
                         m_stride[final_index] = 1
@@ -646,6 +646,9 @@ def _stridedSlice():
                 pass
             else:
                 final_output.append(out_shape[gather_index])
+        # Prevent 0-dim tensors which are not accepted by nnvm
+        if not final_output:
+            final_output.append(1)
         return _sym.reshape(out, shape=tuple(final_output))
     return _impl
 
@@ -681,8 +684,8 @@ def _LSTMBlockCell():
         forget_bias = attr.pop('forget_bias')
         input_shape = attr['_input_shapes'][inputs[0]]
         weight_shape = attr['_input_shapes'][inputs[3]]
-        batch_size, input_size = input_shape[0][0], input_shape[0][1]
-        num_hidden_layers = weight_shape[0][1]
+        batch_size, input_size = input_shape[0], input_shape[1]
+        num_hidden_layers = weight_shape[1]
         num_hidden = num_hidden_layers // 4
 
         in_data = _sym.reshape(in_data,
@@ -738,11 +741,10 @@ def _transpose():
 
 def _rank():
     def _impl(inputs, attr, params):
-        input_shapes = attr['_input_shapes'][inputs[0]]
-        assert len(inputs) == 1
+        input_shape = attr['_input_shapes'][inputs[0]]
 
         name = attr["_node_name"]
-        params[name] = tvm.nd.array([len(input_shapes[0])])
+        params[name] = tvm.nd.array([len(input_shape)])
         return _sym.Variable(name=name, shape=params[name].shape)
     return _impl
 
@@ -787,14 +789,63 @@ def _broadcast(name):
         )(inputs, attr)
     return _impl
 
-def _split():
+def _split(has_size_vector):
+    # TF documentation https://www.tensorflow.org/api_docs/python/tf/split
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[0].list_output_names()[0])
-        return AttrCvt(
-            op_name="split", ignores=['T'],
-            transforms={'num_split': 'indices_or_sections'},
-            extras={'axis': axis.asnumpy()[0]})(inputs[1], attr)
+        try:
+            # order and number of inputs are different:
+            # if has_size_vector:
+            #     https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/split-v
+            # else:
+            #     https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/split
+
+            # in addition, `axis` and `num_or_size_splits` can be tensors in TensorFlow,
+            # we can only support constants
+            if has_size_vector:
+                input_node_index = 0
+                input_axis_index = 2
+                size_splits_input_name = inputs[1].list_output_names()[0]
+                size_splits = params[size_splits_input_name].asnumpy()
+                section_beginnings = np.cumsum(size_splits)[:-1]
+                indices_or_sections = tuple(section_beginnings)
+            else:
+                input_node_index = 1
+                input_axis_index = 0
+                indices_or_sections = attr['num_split']
+            input_node = inputs[input_node_index]
+            axis_input_name = inputs[input_axis_index].list_output_names()[0]
+            axis_input_value = params[axis_input_name].asnumpy()[0]
+        except (IndexError, KeyError):
+            raise TypeError( \
+                "Unsupported argument for split: `axis` and `num_or_size_splits` " \
+                "should be constants")
+        return _sym.split(input_node,
+                          indices_or_sections=indices_or_sections,
+                          axis=axis_input_value)
     return _impl
+
+def _unpack():
+    def _impl(inputs, attr, params):
+        input_node = inputs[0]
+        axis = attr['axis']
+        input_shape = attr['_input_shapes'][input_node]
+        axis_length = input_shape[axis]
+        if axis_length < 0:
+            raise TypeError("Unstack with unknown axis length")
+        splitted = _sym.split(input_node,
+                              indices_or_sections=axis_length,
+                              axis=axis,
+                              name=attr.get('_node_name', 'unstack'))
+
+        return _sym.Group([_sym.squeeze(split_item, axis=axis) for split_item in splitted])
+    return _impl
+
+def _expand_dims_0d_aware(data, attr, axis, num_newaxis=1):
+    if data in attr['_input_0d_mismatch']:
+        return data if num_newaxis == 1 else \
+            _sym.expand_dims(data, axis=axis, num_newaxis=num_newaxis-1)
+
+    return _sym.expand_dims(data, axis=axis, num_newaxis=num_newaxis)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -863,7 +914,9 @@ _convert_map = {
     'GreaterEqual'                      : _broadcast('greater_equal'),
     'Equal'                             : _broadcast('equal'),
     'NotEqual'                          : _broadcast('not_equal'),
-    'Split'                             : _split(),
+    'Split'                             : _split(False),
+    'SplitV'                            : _split(True),
+    'Unpack'                            : _unpack(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
@@ -964,8 +1017,8 @@ class RecurrentNetworks(object):
                 """LSTM cell warapper to prepare the inputs"""
                 input_shape = attr['_input_shapes'][inputs[0]]
                 weight_shape = attr['_input_shapes'][inputs[3]]
-                batch_size = input_shape[0][0]
-                num_hidden = weight_shape[0][1] // 4
+                batch_size = input_shape[0]
+                num_hidden = weight_shape[1] // 4
 
                 if layer == 0:
                     #Create initial states placeholder in case of first layer
@@ -1059,6 +1112,7 @@ class GraphProto(object):
         self._output_shapes = {}
         self._num_param = 0
         self._num_rnn_layer = False
+        self._outputs_are_0d = {}
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
@@ -1114,6 +1168,7 @@ class GraphProto(object):
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
 
             input_shapes = {}
+            input_0d_mismatch = set()
             attr = self._parse_attr(node.attr)
 
             #Variable converted to Const will not have only value attr
@@ -1124,8 +1179,8 @@ class GraphProto(object):
                         tensor_value.tensor_shape)]
             elif '_output_shapes' in attr:
                 self._output_shapes[node.name] = \
-                    [tensor_util.TensorShapeProtoToList(shape) \
-                    for shape in attr['_output_shapes']]
+                    [tensor_util.TensorShapeProtoToList(tshape) \
+                    for tshape in attr['_output_shapes']]
             elif shape:
                 # Keep the list indexable to avoid key error.
                 # Actual value will be filled after node creation.
@@ -1133,6 +1188,9 @@ class GraphProto(object):
             else:
                 raise NotImplementedError( \
                     "Please freeze the graph with add_shapes=True")
+            self._outputs_are_0d[node.name] = [ \
+                not tshape if isinstance(tshape, list) else False \
+                for tshape in self._output_shapes[node.name]]
 
             if node.op == "Placeholder":
                 self._nodes[node.name] = _sym.Variable(name=node.name,
@@ -1162,11 +1220,13 @@ class GraphProto(object):
                 # Fill shapes for all inputs in a list
                 inputs = []
                 for i in node.input:
-                    #ToDo: Some of the tensorflow operators internaly maintain
-                    #execution layers and its output name will the layer number along with
-                    #graph node name.eg: Node name:- 'Model/RNN/cell_0/RnnCell', but the
-                    #output name will be 'Model/RNN/cell_0/RnnCell:0'. In this case,
-                    #the digit has to be ignored.
+                    # Some TensorFlow operators internally maintain execution layers
+                    # and their output name includes the layer number along with
+                    # graph node name. E.g. the node name is 'Model/RNN/cell_0/RnnCell', but the
+                    # output tensor name is 'Model/RNN/cell_0/RnnCell:0'. In this case,
+                    # the number has to be ignored for single-output nodes.
+                    # On the other hand, for multi-output nodes the number is the output index,
+                    # and the lack of the number implies 0.
                     tensor_name = i.split(':')
                     node_name = tensor_name[0]
                     if node_name in self._nodes:
@@ -1174,12 +1234,18 @@ class GraphProto(object):
                         if len(in_sym.list_output_names()) > 1:
                             tensor_slot = int(tensor_name[1]) if len(tensor_name) > 1 else 0
                             in_sym = in_sym[tensor_slot]
-                            input_shape = (self._output_shapes[node_name])[tensor_slot]
+                            input_shape = self._output_shapes[node_name][tensor_slot]
                         else:
+                            tensor_slot = 0
                             input_shape = self._output_shapes[node_name][0]
                         inputs.append(in_sym)
-                        input_shapes[in_sym] = [input_shape]
+                        input_shapes[in_sym] = input_shape
+                        # This means the node is 1d in NNVM and 0d in TF.
+                        # See `_expand_dims_0d_aware`.
+                        if self._outputs_are_0d[node_name][tensor_slot] and input_shape:
+                            input_0d_mismatch.add(in_sym)
                 attr['_input_shapes'] = input_shapes
+                attr['_input_0d_mismatch'] = input_0d_mismatch
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
                 op = self._convert_operator(node.op, inputs, attr, graph)
@@ -1207,7 +1273,13 @@ class GraphProto(object):
         if outputs is None:
             out.append(final_op)
         else:
-            out = [self._nodes[out_name] for out_name in outputs]
+            for out_name in outputs:
+                if ":" in out_name:
+                    out_name, out_num = out_name.split(":")
+                    out_num = int(out_num)
+                    out.append(self._nodes[out_name][out_num])
+                else:
+                    out.append(self._nodes[out_name])
 
         #Add the RNN outputs also with 'head' nodes of the nnvm graph
         if self._num_rnn_layer:
@@ -1215,7 +1287,7 @@ class GraphProto(object):
             out.append(out_rnn)
 
         if isinstance(out, list):
-            out = _sym.Group(out)
+            out = _sym.Group(out) if len(out) > 1 else out[0]
 
         return out, self._params
 

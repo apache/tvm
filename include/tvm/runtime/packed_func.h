@@ -946,9 +946,11 @@ inline TVMType String2TVMType(std::string s) {
   char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
   uint8_t bits = static_cast<uint8_t>(strtoul(scan, &xdelim, 10));
   if (bits != 0) t.bits = bits;
+  char* endpt = xdelim;
   if (*xdelim == 'x') {
-    t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, nullptr, 10));
+    t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, &endpt, 10));
   }
+  CHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
   return t;
 }
 

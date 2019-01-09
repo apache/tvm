@@ -465,9 +465,9 @@ def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
 
 ##### REGISTER ALTER OP LAYOUT #####
 @conv2d_alter_layout.register(["mali"])
-def _alter_conv2d_layout(attrs, inputs, tinfos):
+def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     try:
-        return _alter_conv2d_layout_arm(attrs, inputs, tinfos)
+        return _alter_conv2d_layout_arm(attrs, inputs, tinfos, F)
     except KeyError:  # to filter out fallback opencl templates
         return None
 

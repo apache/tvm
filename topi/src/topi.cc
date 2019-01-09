@@ -422,6 +422,11 @@ TVM_REGISTER_GLOBAL("topi.vision.reorg")
   });
 
 /* Ops from image/resize.h */
+TVM_REGISTER_GLOBAL("topi.image.bilinear_sample_nchw")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = image::bilinear_sample_nchw(args[0], args[1], args[2], args[3]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.image.resize")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = image::resize(args[0], args[1], args[2], args[3], args[4]);

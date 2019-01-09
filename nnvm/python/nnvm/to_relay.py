@@ -1,11 +1,12 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, unused-argument
 """Convert an NNVM graph to Relay."""
 import json
+import numpy
+
 from tvm import relay, nd
 from tvm.relay import op, expr, var
 from tvm.relay.frontend.common import StrAttrsDict
 from tvm.relay.frontend.nnvm_common import _rename
-import numpy
 from .symbol import Symbol
 from .compiler import graph_attr
 from .graph import create as graph_create
@@ -42,7 +43,7 @@ def _conv2d(children, attrs, odtype='float32'):
     dilation = attrs.get_int_tuple('dilation', (1, 1))
     groups = attrs.get_int('groups', 1)
     data_layout = attrs.get_str('layout', 'NCHW')
-    weight_layout = attrs.get_str('kernel_layout', 'OIHW')
+    kernel_layout = attrs.get_str('kernel_layout', 'OIHW')
     out_layout = ''
     out_dtype = attrs.get_str('out_dtype', '')
 
@@ -54,7 +55,7 @@ def _conv2d(children, attrs, odtype='float32'):
         dilation=dilation,
         groups=groups,
         data_layout=data_layout,
-        weight_layout=weight_layout,
+        kernel_layout=kernel_layout,
         out_layout=out_layout,
         out_dtype=out_dtype)
 
@@ -77,7 +78,7 @@ def _conv2d_transpose(children, attrs, odtype='float32'):
     dilation = attrs.get_int_tuple('dilation', (1, 1))
     groups = attrs.get_int('groups', 1)
     data_layout = attrs.get_str('layout', 'NCHW')
-    weight_layout = attrs.get_str('kernel_layout', 'OIHW')
+    kernel_layout = attrs.get_str('kernel_layout', 'OIHW')
     out_dtype = attrs.get_str('out_dtype', '')
 
     out_conv2d = op.nn.conv2d_transpose(
@@ -88,7 +89,7 @@ def _conv2d_transpose(children, attrs, odtype='float32'):
         dilation=dilation,
         groups=groups,
         data_layout=data_layout,
-        weight_layout=weight_layout,
+        kernel_layout=kernel_layout,
         out_dtype=out_dtype)
 
     if use_bias:
@@ -364,6 +365,11 @@ def _squeeze(children, attrs, odtype='float32'):
 
     return op.squeeze(children[0], axis)
 
+def _concatenate(children, attrs, odtype='float32'):
+    axis = attrs.get_int('axis', None)
+    return op.concatenate(children, axis)
+
+
 NNVM_OP_2_RELAY_OP = {
     'flatten': _nn_batch_flatten,
     'dense': _dense,
@@ -422,6 +428,7 @@ NNVM_OP_2_RELAY_OP = {
     'strided_slice': _strided_slice,
     'split': _split,
     'squeeze': _squeeze,
+    'concatenate': _concatenate,
 }
 
 
@@ -436,7 +443,7 @@ def to_relay(graph, shape_dict, dtype_dict, params):
     shape_dict : dict of str to shape
        The input shape.
 
-    dtype_dict : dict of str to shape
+    dtype_dict : dict of str to str/dtype
        The input shape.
 
     params : dict of str to array

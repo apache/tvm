@@ -523,9 +523,25 @@ def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
 
 ##### REGISTER ALTER OP LAYOUT #####
 @conv2d_alter_layout.register(["arm_cpu"])
-def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
-    """Alter op layout for pre-computing kernel transformation"""
-    import nnvm.symbol as sym
+def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
+    """Alter op layout for pre-computing kernel transformation
+
+    Parameters
+    ----------
+    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : nnvm.symbol or tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    F: symbol
+        The context, can be either nnvm.sym or relay.op
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level,
+    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    """
     copy_inputs = [s for s in inputs]
 
     new_attrs = {k: attrs[k] for k in attrs.keys()}
@@ -534,9 +550,11 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
     groups = attrs.get_int('groups')
-    layout = attrs["layout"]
+    data_layout_key = "data_layout" if "data_layout" in new_attrs else "layout"
+    layout = attrs[data_layout_key]
     out_dtype = attrs["out_dtype"]
-    out_dtype = tinfos[0].dtype if out_dtype == "same" else out_dtype
+    if out_dtype == "" or out_dtype == "same":
+        out_dtype = tinfos[0].dtype
 
     if layout != 'NCHW' or groups != 1:
         return None
@@ -570,7 +588,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
             [new_data, new_kernel, strides, padding, dilation, 'NCHW', out_dtype], conv2d)
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return sym.conv2d(*copy_inputs, **new_attrs)
+        return F.nn.conv2d(*copy_inputs, **new_attrs)
     else:  # pre-compute weight transformation in winograd
         if "-device=arm_cpu" in target.options:
             tile_size = 4
@@ -580,10 +598,10 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
             tile_size = _pick_tile_size(tinfos[0], tinfos[1])
             VC = cfg['tile_bna'].val
 
-        weight = sym.contrib.conv2d_winograd_weight_transform(copy_inputs[1], tile_size=tile_size)
-        weight = sym.reshape(weight,
-                             shape=(KH + tile_size - 1, KW + tile_size - 1, CO // VC, VC, CI))
-        weight = sym.transpose(weight, axes=[0, 1, 2, 4, 3])
+        weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1], tile_size=tile_size)
+        weight = F.reshape(weight,
+                           newshape=(KH + tile_size - 1, KW + tile_size - 1, CO // VC, VC, CI))
+        weight = F.transpose(weight, axes=[0, 1, 2, 4, 3])
 
         copy_inputs[1] = weight
         new_attrs['tile_size'] = tile_size
@@ -594,8 +612,8 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
                                      kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_weight, strides, padding, dilation,
-             new_attrs['layout'], out_dtype, tile_size],
+             new_attrs[data_layout_key], out_dtype, tile_size],
             conv2d_winograd_without_weight_transform)
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return sym.contrib.conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
+        return F.nn.contrib_conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)

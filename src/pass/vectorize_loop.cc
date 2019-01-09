@@ -83,6 +83,19 @@ class Vectorizer : public IRMutator {
   // user mutate from parent.
   using IRMutator::Mutate;
 
+  Stmt Mutate(Stmt stmt) final {
+    CHECK(!need_scalarize_);
+
+    Stmt ret = IRMutator::Mutate(stmt);
+    if (need_scalarize_) {
+      need_scalarize_ = false;
+      return Scalarize(stmt);
+    } else {
+      return ret;
+    }
+  }
+
+
   Expr Mutate_(const Add* op, const Expr &e) final {
     return AddSubVec(op, e);
   }
@@ -200,10 +213,37 @@ class Vectorizer : public IRMutator {
       return e;
     }
   }
+  // IfThenElse expr
+  Expr MutateIfThenElseExpr_(const Call *op, const Expr& e) {
+    Expr cond = this->Mutate(op->args[0]);
+    if (cond.type().is_vector())  {
+      need_scalarize_ = true;
+      return e;
+    }
+    Expr t = this->Mutate(op->args[1]);
+    Expr f = this->Mutate(op->args[2]);
+    if (cond.same_as(op->args[0]) &&
+        t.same_as(op->args[1]) &&
+        f.same_as(op->args[2])) {
+      return e;
+    } else {
+      int lanes = std::max(t.type().lanes(), f.type().lanes());
+      t = BroadcastTo(t, lanes);
+      f = BroadcastTo(f, lanes);
+      return Call::make(
+          op->type.with_lanes(lanes), op->name,
+          {cond, t, f}, op->call_type, op->func, op->value_index);
+    }
+  }
   // Call
   Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->name == intrinsic::tvm_if_then_else) {
+      return MutateIfThenElseExpr_(op, e);
+    }
     int lane = 0;
     Array<Expr> new_args = MutateArray(op->args, &lane);
+
+    // normal code path.
     if (op->args.same_as(new_args)) {
       return e;
     } else {
@@ -367,6 +407,8 @@ class Vectorizer : public IRMutator {
   int var_lanes_;
   // ramp representing the var.
   Expr ramp_;
+  // flag to mark requirment of scalarization.
+  bool need_scalarize_{false};
   // The lets
   std::unordered_map<const Variable*, Expr> lets_;
   // mutate array, with given lane requirement

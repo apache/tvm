@@ -119,13 +119,16 @@ def _bind_params_by_name(func, params):
     return expr.bind(func, bind_dict)
 
 
-def optimize(func, params=None):
+def optimize(func, target, params=None):
     """Perform target invariant optimizations.
 
     Parameters
     ----------
     func : tvm.relay.Function
         The input to optimization.
+
+    target: :any:`tvm.target.Target`
+        The optimization target. Some optimization passes are target specific.
 
     params : Optional[Dict[str, tvm.nd.NDArray]]
         Input parameters to the graph that do not change
@@ -150,6 +153,8 @@ def optimize(func, params=None):
         func = ir_pass.infer_type(func)
         func = ir_pass.combine_parallel_conv2d(func)
 
+    # The constant folding pass is necessary because FoldScaleAxis pass needs
+    # to check the constantness and positiveness of scales.
     if cfg.pass_enabled("FoldConstant"):
         func = ir_pass.fold_constant(func)
 
@@ -164,7 +169,11 @@ def optimize(func, params=None):
         func = ir_pass.infer_type(func)
         func = ir_pass.canonicalize_ops(func)
         func = ir_pass.infer_type(func)
-        func = ir_pass.alter_op_layout(func)
+        with target:
+            func = ir_pass.alter_op_layout(func)
+
+    if cfg.pass_enabled("FoldConstant"):
+        func = ir_pass.fold_constant(func)
 
     return func
 
@@ -222,7 +231,7 @@ def build(func,
     cfg = BuildConfig.current
 
     with tophub_context:
-        func = optimize(func, params)
+        func = optimize(func, target, params)
         # Fuse ops before running code gen
         func = ir_pass.infer_type(func)
         func = ir_pass.fuse_ops(func, cfg.opt_level)

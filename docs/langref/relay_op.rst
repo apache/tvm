@@ -124,6 +124,7 @@ This level enables additional math and transform operators.
    tvm.relay.mean
    tvm.relay.prod
    tvm.relay.strided_slice
+   tvm.relay.broadcast_to
 
 
 **Level 5: Vision/Image Operators**
@@ -132,6 +133,9 @@ This level enables additional math and transform operators.
    :nosignatures:
 
    tvm.relay.image.resize
+   tvm.relay.vision.multibox_prior
+   tvm.relay.vision.multibox_transform_loc
+   tvm.relay.vision.nms
 
 
 **Level 10: Temporary Operators**
@@ -159,6 +163,7 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.mod
 .. autofunction:: tvm.relay.tanh
 .. autofunction:: tvm.relay.concatenate
+.. autofunction:: tvm.relay.expand_dims
 .. autofunction:: tvm.relay.nn.softmax
 .. autofunction:: tvm.relay.nn.log_softmax
 .. autofunction:: tvm.relay.nn.relu
@@ -235,6 +240,9 @@ Level 4 Definitions
 Level 5 Definitions
 -------------------
 .. autofunction:: tvm.relay.image.resize
+.. autofunction:: tvm.relay.vision.multibox_prior
+.. autofunction:: tvm.relay.vision.multibox_transform_loc
+.. autofunction:: tvm.relay.vision.nms
 
 
 Level 10 Definitions

@@ -9,6 +9,7 @@
 #include <tvm/node/container.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/packed_func.h>
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
 #include <string>
@@ -25,34 +26,12 @@ namespace tvm {
 }
 
 inline std::string Type2String(const Type& t) {
-  if (t.code()  ==Type::Handle) return "handle";
-  std::ostringstream os;
-  os << t;
-  return os.str();
+  return runtime::TVMType2String(Type2TVMType(t));
 }
 
 
 inline Type String2Type(std::string s) {
-  std::istringstream is(s);
-  halideir_type_code_t code = Type::Int;
-  if (s.substr(0, 3) == "int") {
-    code = Type::Int; s = s.substr(3);
-  } else if (s.substr(0, 4) == "uint") {
-    code = Type::UInt; s = s.substr(4);
-  } else if (s.substr(0, 5) == "float") {
-    code = Type::Float; s = s.substr(5);
-  } else if (s.substr(0, 5) == "float") {
-    code = Type::Float; s = s.substr(5);
-  } else if (s == "handle") {
-    return Handle();
-  } else {
-    LOG(FATAL) << "unknown type " << s;
-  }
-  int bits = 32, lanes = 1;
-  if (sscanf(s.c_str(), "%dx%d", &bits, &lanes) == 0) {
-    LOG(FATAL) << "unknown type " << s;
-  }
-  return Type(code, bits, lanes);
+  return TVMType2Type(runtime::String2TVMType(s));
 }
 
 

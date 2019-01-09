@@ -35,6 +35,40 @@ class VarReplacer : public ir::IRMutator {
     return e;
   }
 
+  ir::CommReducer MutateCommReducer(ir::CommReducer combiner) {
+    // Replace free variables in combiner
+    auto new_identity = ir::UpdateArray(combiner->identity_element, [this] (const Expr& e) {
+      return this->Mutate(e);
+      });
+    auto new_result = ir::UpdateArray(combiner->result, [this] (const Expr& e) {
+      return this->Mutate(e);
+      });
+
+    if (combiner->identity_element.same_as(new_identity) &&
+        combiner->identity_element.same_as(new_result)) {
+      return combiner;
+    } else {
+      return ir::CommReducerNode::make(
+        combiner->lhs, combiner->rhs, new_result, new_identity);
+    }
+  }
+
+  Expr Mutate_(const ir::Reduce* op, const Expr& e) {
+    Expr new_e = IRMutator::Mutate_(op, e);
+    const ir::Reduce* new_reduce = new_e.as<ir::Reduce>();
+    ir::CommReducer new_combiner = MutateCommReducer(op->combiner);
+    if (op->combiner.same_as(new_combiner)) {
+      return new_e;
+    } else {
+      return ir::Reduce::make(
+        new_combiner,
+        new_reduce->source,
+        new_reduce->axis,
+        new_reduce->condition,
+        new_reduce->value_index);
+    }
+  }
+
  private:
   const std::unordered_map<const Variable*, Expr>& vsub_;
 };

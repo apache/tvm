@@ -9,6 +9,7 @@
 
 #include <llvm/ExecutionEngine/MCJIT.h>
 
+#include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/Support/SourceMgr.h>
 

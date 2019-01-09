@@ -4,6 +4,26 @@ from . import _make
 from ..expr import TupleWrapper
 
 
+def cast(data, dtype):
+    """Cast input tensor to data type.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    dtype: str
+        The target data type
+
+    Returns
+    -------
+    result : relay.Expr
+        The casted result.
+    """
+    from .. import _make as _relay_make
+    return _relay_make.cast(data, dtype)
+
+
 def expand_dims(data, axis, num_newaxis=1):
     """Insert `num_newaxis` axises at the position given by `axis`.
 
@@ -267,6 +287,24 @@ def where(condition, x, y):
     """
     return _make.where(condition, x, y)
 
+def broadcast_to(data, shape):
+    """Return an scalar value array with the same type, broadcast to
+    the provided shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    shape : shape
+        Provide the shape to broadcast to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.broadcast_to(data, shape)
 
 def broadcast_to_like(data, broadcast_type):
     """Return an scalar value array with the same shape and type as the input array.

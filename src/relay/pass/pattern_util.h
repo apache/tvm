@@ -112,11 +112,11 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
  */
 inline bool IsDepthwiseConv2D(const Call& call,
                               const Conv2DAttrs* param,
-                              const Layout& weight_layout) {
+                              const Layout& kernel_layout) {
   static const Layout kOIHW("OIHW");
   auto wshape = ConvertLayout(
       call->args[1]->type_as<TensorTypeNode>()->shape,
-      weight_layout, kOIHW);
+      kernel_layout, kOIHW);
   return is_const_int(wshape[0], param->groups) &&
       is_const_int(wshape[1], 1);
 }
@@ -129,7 +129,7 @@ inline bool IsDepthwiseConv2D(const Call& call,
 inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
     auto param = call->attrs.as<Conv2DAttrs>();
     auto tweight = call->args[1]->type_as<TensorTypeNode>();
-    auto index = param->weight_layout.find('O');
+    auto index = param->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
     auto channels = as_const_int(tweight->shape[index]);
     return *channels;
@@ -189,57 +189,6 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs) {
 Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
-
-
-template <typename T>
-bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
-  CHECK_EQ(tensor->ctx.device_type, kDLCPU);
-  CHECK(tensor->strides == nullptr);
-  CHECK_EQ(tensor->byte_offset, 0);
-  const T* data = static_cast<const T*>(tensor->data);
-  int64_t num_elems = 1;
-  for (int i = 0; i < tensor->ndim; ++i) {
-    num_elems *= tensor->shape[i];
-  }
-
-  for (int64_t i = 0; i < num_elems; i++) {
-    if (*data < value) {
-      return false;
-    }
-    data++;
-  }
-  return true;
-}
-
-
-inline bool IsPositiveConstant(const Expr& expr) {
-  const auto* constant = expr.as<ConstantNode>();
-  if (!constant) return false;
-  const auto& tensor = constant->data;
-  const auto& dtype = tensor->dtype;
-
-  if (dtype.lanes != 1) {
-    // pass
-  } else if (dtype.code == kDLFloat && dtype.bits == 32) {
-    return IsNDArrayAllGreaterEqual<float>(tensor, 0);
-  } else if (dtype.code == kDLFloat && dtype.bits == 64) {
-    return IsNDArrayAllGreaterEqual<double>(tensor, 0);
-  } else if (dtype.code == kDLInt && dtype.bits == 8) {
-    return IsNDArrayAllGreaterEqual<int8_t>(tensor, 0);
-  } else if (dtype.code == kDLInt && dtype.bits == 32) {
-    return IsNDArrayAllGreaterEqual<int32_t>(tensor, 0);
-  } else if (dtype.code == kDLUInt && dtype.bits == 8) {
-    return IsNDArrayAllGreaterEqual<uint8_t>(tensor, 0);
-  } else if (dtype.code == kDLUInt && dtype.bits == 32) {
-    return IsNDArrayAllGreaterEqual<uint32_t>(tensor, 0);
-  }
-
-  LOG(WARNING) << "Unsupported data type (code = " << dtype.code
-               << ", bits = " << dtype.bits << ", lanes = " << dtype.lanes
-               << ")";
-  return false;
-}
-
 
 }  // namespace relay
 }  // namespace tvm

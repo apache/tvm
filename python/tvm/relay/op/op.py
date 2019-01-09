@@ -8,6 +8,7 @@ from ..base import register_relay_node
 from ..expr import Expr
 from ...api import register_func
 from ...build_module import lower, build
+from . import _make
 
 @register_relay_node
 class Op(Expr):
@@ -91,7 +92,7 @@ class OpPattern(object):
     BROADCAST = 1
     # Injective mapping
     INJECTIVE = 2
-    # Comunication
+    # Communication
     COMM_REDUCE = 3
     # Complex op, can still fuse ewise into it
     OUT_ELEMWISE_FUSABLE = 4
@@ -183,3 +184,18 @@ def schedule_injective(attrs, outputs, target):
     """Generic schedule for binary broadcast."""
     with target:
         return topi.generic.schedule_injective(outputs)
+
+__DEBUG_COUNTER__ = 0
+
+def debug(expr, debug_func=None):
+    """The main entry point to the debugger."""
+    global __DEBUG_COUNTER__
+
+    if debug_func:
+        name = "debugger_func{}".format(__DEBUG_COUNTER__)
+        register_func(name, debug_func)
+        __DEBUG_COUNTER__ += 1
+    else:
+        name = ''
+
+    return _make.debug(expr, name)

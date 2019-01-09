@@ -481,41 +481,76 @@ class Canonical::Internal : public IRMutator {
     }
     return value;
   }
-  // Detect if a = x * coeff + y, where y \in [0, coeff), x >= 0
-  // return true if such detection is successful
-  // return false if it is not.
+  // Detect if a = q * coeff + r, where r \in [0, coeff), coeff > 0
+  // (in Euclidean division)
+  // returns pair (q, r) if such detection is successful
+  // returns empty vector otherwise.
+  // Assumes that coeff is a constant integer
   std::vector<ComExpr> TryLinearEquation(const ComExpr& a,
                                          const Expr& coeff) {
     Type type = coeff.type();
     int64_t value = GetConstIntValue(coeff);
+    CHECK_NE(value, 0);
     if (value < 0) return {};
-    auto xnode = make_node<ComExprNode>();
-    auto ynode = make_node<ComExprNode>();
+    // Given that denominator (value variable) is positive, truncated division
+    // (i.e., TVM's division semantics) is equivalent to Euclidean division if and only if
+    // numerator is non-negative or numerator is divisible by denominator (i.e., value)
+    IntSet numerator_int_set = EvalSet(Sum2Expr(a, type), var_range_);
+    bool numerator_is_non_neg = numerator_int_set.can_prove_non_negative();
+    // Try to separate terms of a into ones that can be proven to be
+    // divisible by coeff and ones that are not
+    // We will build q and r from divisible and non_divisible respectively
+    auto divisible = make_node<ComExprNode>();
+    auto non_divisible = make_node<ComExprNode>();
     if (a->base % value == 0) {
-      xnode->base = a->base;
+      divisible->base = a->base;
     } else {
-      ynode->base = a->base;
+      non_divisible->base = a->base;
     }
     for (const auto& e : a->elem) {
       if (e.scale % value == 0) {
-        xnode->elem.push_back(e);
+        divisible->elem.push_back(e);
       } else {
-        ynode->elem.push_back(e);
+        non_divisible->elem.push_back(e);
       }
     }
-    Expr yres = Sum2Expr(ComExpr(ynode), type);
-    IntSet yset = EvalSet(yres, var_range_);
-    // This relies on the integer division rounds down
-    // Most cases it is good for integer division.
-    if (yset.min().type() == type &&
-        can_prove(yset.min() >= make_zero(type)) &&
-        yset.max().type() == type &&
-        can_prove(yset.max() < coeff)) {
-      xnode->base /= value;
-      for (auto &e : xnode->elem) {
+    bool non_divisible_is_simplified = false;
+    int64_t div_result;
+    Expr non_divisible_res = Sum2Expr(ComExpr(non_divisible), type);
+    // if non_divisible part consists of only an integer and numerator is non-negative,
+    // we can simply divide it by coeff
+    if (is_const(non_divisible_res)) {
+      int64_t non_divisible_const = GetConstIntValue(non_divisible_res);
+      if (numerator_is_non_neg || non_divisible_const == 0) {
+        non_divisible_is_simplified = true;
+        // We need to do an Euclidean division here because (a*b + c)/b == a + c/b
+        // holds true only if division is Euclidean
+        div_result = HalideIR::Internal::div_imp(non_divisible_const , value);
+      }
+    } else {
+      // If we can prove that non_divisible part lies within [0, coeff), then
+      // non_divisible itself will be our r
+      IntSet non_divisible_set = EvalSet(non_divisible_res, var_range_);
+      if (non_divisible_set.min().type() == type &&
+          non_divisible_set.max().type() == type) {
+        if ( (non_divisible_set.is_single_point() &&
+              can_prove(non_divisible_set.point_value() == 0)) ||
+             (numerator_is_non_neg &&
+              can_prove(non_divisible_set.min() >= make_zero(type)) &&
+              can_prove(non_divisible_set.max() < coeff)) ) {
+          non_divisible_is_simplified = true;
+          div_result = 0;
+        }
+      }
+    }
+    if (non_divisible_is_simplified) {
+      non_divisible->base -= div_result * value;
+      divisible->base /= value;
+      divisible->base += div_result;
+      for (auto& e : divisible->elem) {
         e.scale /= value;
       }
-      return {ComExpr(xnode), ComExpr(ynode)};
+      return {ComExpr(divisible), ComExpr(non_divisible)};
     } else {
       return {};
     }
@@ -526,6 +561,12 @@ class Canonical::Internal : public IRMutator {
     if (pair.size() == 0) {
       int64_t value = GetConstIntValue(v);
       auto n = make_node<ComExprNode>();
+      // FIXME(derisavi) : The following can be done only for Euclidean division/mod.
+      //  Therefore, it's only valid when truncated division/mod is equivalent to Euclidean one,
+      //  that is, if and only if a and v are
+      //  both negative or both positive or a is divisible by v.
+      //  Extend the code to handle cases where the above condition is not satisfied, i.e.,
+      //  a and v are of different signs and a is not divisible by v.
       n->base = a->base % value;
       for (auto e : a->elem) {
         if (e.scale % value == 0) continue;

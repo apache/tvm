@@ -351,11 +351,10 @@ class GraphRuntime : public ModuleNode {
   /*! \brief Setup the executors. */
   void SetupOpExecs();
   /*!
-   * \brief Create a executtion function given input.
+   * \brief Create an execution function given input.
    * \param attrs The node attributes.
    * \param args The arguments to the functor, including inputs and outputs.
    * \param num_inputs Number of inputs.
-   * \param dev_type The device type of the tvm_op.
    * \return The created executor.
    */
   std::function<void()> CreateTVMOp(const TVMOpParam& attrs,

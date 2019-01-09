@@ -1,4 +1,4 @@
-"""External function interface to NNPACK libraroes."""
+"""External function interface to NNPACK libraries."""
 from __future__ import absolute_import as _abs
 
 from .. import api as _api

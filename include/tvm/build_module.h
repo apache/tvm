@@ -223,6 +223,9 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to instrument loads and stores with check for out of the bounds. */
   bool instrument_bound_checkers = false;
 
+  /*! \brief Whether to disable select rewriting. */
+  bool disable_select_rewriting = false;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
@@ -236,6 +239,7 @@ class BuildConfigNode : public Node {
     v->Visit("partition_const_loop", &partition_const_loop);
     v->Visit("dump_pass_ir", &dump_pass_ir);
     v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
+    v->Visit("disable_select_rewriting", &disable_select_rewriting);
   }
 
   static constexpr const char* _type_key = "BuildConfig";

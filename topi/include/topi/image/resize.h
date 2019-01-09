@@ -22,6 +22,45 @@ namespace image {
 using namespace tvm;
 
 /*!
+ * \brief Sample a point in a tensor using bilinear interpolation.
+ *
+ * \param input The input tensor.
+ * \param indices The index of the target point, which can be fractional
+ * \param max_y The maximum of y dimension
+ * \param max_x The maximum of x dimension
+ *
+ * \return The interpolated value in the given index.
+ */
+inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices,
+                                 const Expr max_y, const Expr max_x) {
+  auto in_y = indices[2];
+  auto yf = tvm::floor(in_y);
+  auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
+
+  auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
+  auto y1 = tvm::select((yc > max_y), max_y, yc);
+  auto y_lerp = in_y - yf;
+
+  auto in_x = indices[3];
+  auto xf = tvm::floor(in_x);
+  auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
+
+  auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
+  auto x1 = tvm::select((xc > max_x), max_x, xc);
+  auto x_lerp = in_x - xf;
+
+  auto A = input(indices[0], indices[1], y0, x0);
+  auto B = input(indices[0], indices[1], y0, x1);
+  auto C = input(indices[0], indices[1], y1, x0);
+  auto D = input(indices[0], indices[1], y1, x1);
+
+  auto top = A + (B - A) * x_lerp;
+  auto bottom = C + (D - C) * x_lerp;
+
+  return (top + (bottom - top) * y_lerp);
+}
+
+/*!
 * \brief Resize given tensor to given shape using nearest neighbour for NHWC
 *
 * \param input The input tensor.
@@ -249,30 +288,8 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
   return compute(
     out_shape, [&](const Array<Var>& indices) {
     auto in_y = indices[2] * y_ratio;
-    auto yf = tvm::floor(in_y);
-    auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
-
-    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
-    auto y1 = tvm::select((yc > other_y), other_y, yc);
-    auto y_lerp  = in_y - yf;
-
     auto in_x = indices[3] * x_ratio;
-    auto xf = tvm::floor(in_x);
-    auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
-
-    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
-    auto x1 = tvm::select((xc > other_x), other_x, xc);
-    auto x_lerp  = in_x - xf;
-
-    auto A = input(indices[0], indices[1], y0, x0);
-    auto B = input(indices[0], indices[1], y0, x1);
-    auto C = input(indices[0], indices[1], y1, x0);
-    auto D = input(indices[0], indices[1], y1, x1);
-
-    auto top = A + (B - A) * x_lerp;
-    auto bottom = C + (D - C) * x_lerp;
-
-    return  (top + (bottom - top) * y_lerp);
+    return bilinear_sample_nchw(input, {indices[0], indices[1], in_y, in_x}, other_y, other_x);
     }, name, tag);
 }
 
