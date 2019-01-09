@@ -21,7 +21,7 @@ NE: '!=' ;
 opIdent: CNAME ;
 GLOBAL_VAR: '@' CNAME ;
 LOCAL_VAR: '%' CNAME;
-GRAPH_VAR: '%' INT;
+GRAPH_VAR: '%' NAT;
 
 MUT: 'mut' ;
 
@@ -32,13 +32,13 @@ BOOL_LIT
 
 // non-negative floats
 FLOAT
-  : INT '.' INT EXP? // 1.35, 1.35E-9, 0.3, 4.5
-  | INT EXP // 1e10 3e4
+  : NAT '.' NAT EXP? // 1.35, 1.35E-9, 0.3, 4.5
+  | NAT EXP // 1e10 3e4
   ;
 
 // non-negative ints
-INT: DIGIT+ ;
-fragment EXP: [eE] [+\-]? INT ; // \- since - means "range" inside [...]
+NAT: DIGIT+ ;
+fragment EXP: [eE] [+\-]? NAT ; // \- since - means "range" inside [...]
 
 CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ;
 fragment LETTER: [a-zA-Z] ;
@@ -86,7 +86,7 @@ expr
 
   | ident                                     # identExpr
   | scalar                                    # scalarExpr
-  // | expr '.' INT                           # project
+  // | expr '.' NAT                           # project
   // | 'debug'                                # debug
   ;
 
@@ -112,7 +112,7 @@ type_
   // | identType '[' (type_ (',' type_)*)? ']'         # callType
   | 'fn' '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
   | '_'                                             # incompleteType
-  | INT                                             # intType
+  | NAT                                             # intType
   ;
 
 shapeSeq
@@ -125,7 +125,7 @@ shape
   : '(' shape ')'                   # parensShape
   // | type_ op=('*'|'/') type_        # binOpType
   // | type_ op=('+'|'-') type_        # binOpType
-  | INT                             # intShape
+  | NAT                             # intShape
   ;
 
 identType: CNAME ;
@@ -138,7 +138,7 @@ body: '{' expr '}' ;
 
 scalar
   : FLOAT    # scalarFloat
-  | INT      # scalarInt
+  | NAT      # scalarInt
   | BOOL_LIT # scalarBool
   ;
 

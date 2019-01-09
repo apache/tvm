@@ -180,7 +180,7 @@ class ParseTreeToRelayIR(RelayVisitor):
                 raise ParseError("Couldn't resolve `{}`".format(name))
 
         # data types
-        elif node_type == RelayLexer.INT:
+        elif node_type == RelayLexer.NAT:
             return int(node_text)
         elif node_type == RelayLexer.FLOAT:
             return float(node_text)
@@ -241,7 +241,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitScalarInt(self, ctx):
         # type: (RelayParser.ScalarIntContext) -> expr.Constant
-        return expr.const(self.visit(ctx.INT()))
+        return expr.const(self.visit(ctx.NAT()))
 
     def visitScalarBool(self, ctx):
         # type: (RelayParser.ScalarBoolContext) -> expr.Constant
