@@ -269,7 +269,9 @@ class GraphExecutor(_interpreter.Executor):
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
         if params:
             gmodule.set_input(*params)
-        def _graph_wrapper(*args):
+
+        def _graph_wrapper(*args, **kwargs):
+            args = self._convert_args(func, args, kwargs)
             # Create map of inputs.
             for i, arg in enumerate(args):
                 gmodule.set_input(i, arg)

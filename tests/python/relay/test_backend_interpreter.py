@@ -118,6 +118,18 @@ def test_binds():
     res = intrp.evaluate(y, binds={x: xx}).asnumpy()
     tvm.testing.assert_allclose(xx + xx, res)
 
+def test_kwargs_params():
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.var("z", shape=(1, 10))
+    f = relay.Function([x, y, z], x + y + z)
+    x_data = np.random.rand(1, 10).astype('float32')
+    y_data = np.random.rand(1, 10).astype('float32')
+    z_data = np.random.rand(1, 10).astype('float32')
+    params = { 'y': y_data, 'z': z_data }
+    intrp = create_executor("debug")
+    res = intrp.evaluate(f)(x_data, **params).data
+    tvm.testing.assert_allclose(res.asnumpy(), x_data + y_data + z_data)
 
 if __name__ == "__main__":
     test_id()
@@ -127,3 +139,4 @@ if __name__ == "__main__":
     test_simple_loop()
     test_loop()
     test_binds()
+    test_kwargs_params()
