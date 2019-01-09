@@ -1,5 +1,7 @@
 grammar Relay;
 
+SEMVER: 'v0.0.1' ;
+
 // Lexing
 // comments
 WS : [ \t\n\r]+ -> skip ;
@@ -47,7 +49,7 @@ fragment DIGIT: [0-9] ;
 // Parsing
 
 // A Relay program is a list of global definitions or an expression.
-prog: (defn* | expr) EOF ;
+prog: ((SEMVER defn*) | expr) EOF ;
 
 // option: 'set' ident BOOL_LIT ;
 
@@ -90,11 +92,20 @@ expr
   // | 'debug'                                # debug
   ;
 
-func: 'fn'        varList ('->' type_)? body ;
-defn: 'def' ident varList ('->' type_)? body ;
+func: 'fn'        '(' argList ')' ('->' type_)? body ;
+defn: 'def' ident '(' argList ')' ('->' type_)? body ;
 
-varList: '(' (var (',' var)*)? ')' ;
+argList
+  : varList
+  | attrList
+  | varList ',' attrList
+  ;
+
+varList: (var (',' var)*)? ;
 var: ident (':' type_)? ;
+
+attrList: (attr (',' attr)*)? ;
+attr: CNAME '=' expr ;
 
 // TODO(@jmp): for improved type annotations
 // returnAnno: (ident ':')? type_ ;

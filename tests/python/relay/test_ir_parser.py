@@ -203,7 +203,7 @@ def test_seq():
         )
     )
 
-    zero = relay.Tuple([])
+    zero = UNIT
     assert alpha_equal(
         relay.fromtext("%0 = (); (%0, %0)"),
         relay.Tuple([zero, zero])
@@ -275,12 +275,19 @@ def test_func():
         )
     )
 
+    # attributes
+    assert alpha_equal(
+        relay.fromtext("fn (n=5) { () }"),
+        relay.Function([], UNIT, None, None, tvm.make.node("DictAttrs", n=relay.const(5)))
+    )
+
 # TODO(@jmp): Crashes if %x isn't annnotated.
 # @nottest
 @if_parser_enabled
 def test_defn():
     id_defn = relay.fromtext(
         """
+        v0.0.1
         def @id(%x: int32) -> int32 {
             %x
         }
