@@ -156,33 +156,29 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.type_param_scopes[0].appendleft((name, typ))
         return typ
 
-    def local_lookup(self, name):
-        try:
-            graph_nid = int(name)
-            return self.graph_expr[graph_nid]
-        except ValueError:
-            var = lookup(self.var_scopes, name)
-
-            if var is None:
-                raise ParseError("Couldn't resolve `{}`.".format(name))
-
-            return var
-        except IndexError:
-            raise ParseError("Graph Expr error {}".format(name))
-
     def visitTerminal(self, node):
         # type: (TerminalNode) -> Union[expr.Expr, int, float]
         """Visit lexer tokens that aren't ignored or visited by other functions."""
 
         node_type = node.getSymbol().type
         node_text = node.getText()
+        name = node_text[1:]
 
         # variables
         if node_type == RelayLexer.GLOBAL_VAR:
             return lookup([self.global_var_scope], node_text[1:])
         elif node_type == RelayLexer.LOCAL_VAR:
             # Remove the leading '%' and lookup the name.
-            return self.local_lookup(node_text[1:])
+            var = lookup(self.var_scopes, name)
+            if var is None:
+                raise ParseError("Couldn't resolve `{}`.".format(name))
+            return var
+        elif node_type == RelayLexer.GRAPH_VAR:
+            try:
+                return self.graph_expr[int(name)]
+            except IndexError:
+                raise ParseError("Couldn't resolve `{}`".format(name))
+
         # data types
         elif node_type == RelayLexer.INT:
             return int(node_text)
@@ -197,6 +193,7 @@ class ParseTreeToRelayIR(RelayVisitor):
                 raise ParseError("Unrecognized BOOL_LIT: `{}`".format(node_text))
 
         else:
+            print(node_text)
             raise ParseError("todo: {}".format(node_text))
 
     def visit_list(self, ctx_list):
@@ -265,7 +262,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return expr.Tuple(tup)
 
     # Currently doesn't support mutable sequencing.
-    def visitSeq(self, ctx):
+    def visitLet(self, ctx):
         # type: (RelayParser.SeqContext) -> expr.Let
         """Desugar various sequence constructs to Relay Let nodes."""
         if ctx.MUT() is not None:
@@ -344,7 +341,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (RelayParser.FuncContext) -> expr.Function
         return self.mk_func(ctx)
 
-    @spanify
+    # TODO: how to set spans for definitions?
+    # @spanify
     def visitDefn(self, ctx):
         # type: (RelayParser.DefnContext) -> None
         ident = ctx.ident().GLOBAL_VAR()
@@ -380,6 +378,24 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.exit_var_scope()
 
         return expr.If(cond, true_branch, false_branch)
+
+    @spanify
+    def visitGraph(self, ctx):
+        # type: (RelayParser.GraphConttext) -> expr.Expr
+        """Visit a graph variable assignment."""
+        if ctx.ident().GRAPH_VAR() is None:
+            raise ParseError('Expected a graph var, but got `{}`'.format(ctx.ident().getText()))
+        graph_nid = int(ctx.ident().GRAPH_VAR().getText()[1:])
+
+        self.enter_var_scope()
+        value = self.visit(ctx.expr(0))
+        self.exit_var_scope()
+
+        assert graph_nid == len(self.graph_expr)
+        self.graph_expr.append(value)
+
+        kont = self.visit(ctx.expr(1))
+        return kont
 
     # Types
 
@@ -479,7 +495,5 @@ def fromtext(data, source_name=None):
     if isinstance(source_name, str):
         source_name = SourceName(source_name)
 
-    import pdb; pdb.set_trace()
-    print(data)
     tree = make_parser(data).prog()
     return ParseTreeToRelayIR(source_name).visit(tree)

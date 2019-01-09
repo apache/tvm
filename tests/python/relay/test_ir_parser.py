@@ -203,6 +203,12 @@ def test_seq():
         )
     )
 
+    zero = relay.Tuple([])
+    assert alpha_equal(
+        relay.fromtext("%0 = (); (%0, %0)"),
+        relay.Tuple([zero, zero])
+    )
+
 @raises_parse_error
 @if_parser_enabled
 def test_let_global_var():

@@ -20,7 +20,8 @@ NE: '!=' ;
 
 opIdent: CNAME ;
 GLOBAL_VAR: '@' CNAME ;
-LOCAL_VAR: '%' (CNAME | INT);
+LOCAL_VAR: '%' CNAME;
+GRAPH_VAR: '%' INT;
 
 MUT: 'mut' ;
 
@@ -73,10 +74,11 @@ expr
   | 'if' '(' expr ')' body 'else' body        # ifElse
 
   // sequencing
-  | 'let' MUT? var '=' expr ';' expr          # seq
-  | 'let' MUT? var '=' '{' expr '}' ';' expr  # seq
+  | 'let' MUT? var '=' expr ';' expr          # let
+  | 'let' MUT? var '=' '{' expr '}' ';' expr  # let
   // sugar for let %_ = expr; expr
-  | expr ';' expr                             # seq
+  | expr ';' expr                             # let
+  | ident '=' expr ';' expr                   # graph
 
   // mutable update
   // | ident '=' expr                            # writeRef
@@ -84,7 +86,6 @@ expr
 
   | ident                                     # identExpr
   | scalar                                    # scalarExpr
-  | LOCAL_VAR '=' expr ';' expr               # graphExpr
   // | expr '.' INT                           # project
   // | 'debug'                                # debug
   ;
@@ -128,12 +129,12 @@ shape
   ;
 
 identType: CNAME ;
-// Int8, Int16, Int32, Int64
-// UInt8, UInt16, UInt32, UInt64
-// Float16, Float32, Float64
-// Bool
+// int8, int16, int32, int64
+// uint8, uint16, uint32, uint64
+// float16, float32, float64
+// bool
 
-body: '{' expr ';' '}' ;
+body: '{' expr '}' ;
 
 scalar
   : FLOAT    # scalarFloat
@@ -145,4 +146,5 @@ ident
   : opIdent
   | GLOBAL_VAR
   | LOCAL_VAR
+  | GRAPH_VAR
   ;
