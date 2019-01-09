@@ -17,8 +17,8 @@ def find_example_resource():
     index_page = os.path.join(base_path, "web/example_rpc.html")
     js_files = [
         os.path.join(base_path, "web/tvm_runtime.js"),
-        os.path.join(base_path, "lib/libtvm_web_runtime.js"),
-        os.path.join(base_path, "lib/libtvm_web_runtime.js.mem")
+        os.path.join(base_path, "build/libtvm_web_runtime.js"),
+        os.path.join(base_path, "build/libtvm_web_runtime.js.mem")
     ]
     for fname in [index_page] + js_files:
         if not os.path.exists(fname):
