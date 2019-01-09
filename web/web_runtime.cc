@@ -11,6 +11,7 @@
 #include "../src/runtime/module_util.cc"
 #include "../src/runtime/system_lib_module.cc"
 #include "../src/runtime/module.cc"
+#include "../src/runtime/ndarray.cc"
 #include "../src/runtime/registry.cc"
 #include "../src/runtime/file_util.cc"
 #include "../src/runtime/dso_module.cc"

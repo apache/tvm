@@ -32,7 +32,7 @@ cpptest:
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
 	-Oz -s RESERVED_FUNCTION_POINTERS=2 -s MAIN_MODULE=1 -s NO_EXIT_RUNTIME=1\
 	-s TOTAL_MEMORY=1073741824\
-	-s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap','getValue','setValue','addFunction']"\
+	-s EXTRA_EXPORTED_RUNTIME_METHODS="['addFunction','cwrap','getValue','setValue']"\
 	-s USE_GLFW=3 -s USE_WEBGL2=1 -lglfw\
 	$(INCLUDE_FLAGS)
 
