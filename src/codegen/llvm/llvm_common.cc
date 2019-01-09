@@ -5,6 +5,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/base.h>
+#include <atomic>
 #include <mutex>
 #include "llvm_common.h"
 
@@ -13,7 +14,7 @@ namespace codegen {
 
 struct LLVMEnv {
   std::mutex mu;
-  volatile bool all_initialized{false};
+  std::atomic<bool> all_initialized{false};
 
   static LLVMEnv* Global() {
     static LLVMEnv inst;
@@ -23,15 +24,15 @@ struct LLVMEnv {
 
 void InitializeLLVM() {
   LLVMEnv* e = LLVMEnv::Global();
-  if (!e->all_initialized) {
+  if (!e->all_initialized.load(std::memory_order::memory_order_acquire)) {
     std::lock_guard<std::mutex> lock(e->mu);
-    if (!e->all_initialized) {
+    if (!e->all_initialized.load(std::memory_order::memory_order_acquire)) {
       llvm::InitializeAllTargetInfos();
       llvm::InitializeAllTargets();
       llvm::InitializeAllTargetMCs();
       llvm::InitializeAllAsmParsers();
       llvm::InitializeAllAsmPrinters();
-      e->all_initialized = true;
+      e->all_initialized.store(true, std::memory_order::memory_order_release);
     }
   }
 }
