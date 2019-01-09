@@ -593,6 +593,27 @@ def test_const_range():
     b = [1, 2, 3, 4, 5]
     run_and_check(hoo, [a, b])
 
+def test_schedule():
+    @script
+    def outer_product(a, b):
+        """This is a simple outer product.
+        Actually this function is not required to be documented.
+        I write this docstring to test skipping docstring functionality.
+        """
+        c = output_tensor((128, 128), a.dtype)
+        for i in range(128):
+            for j in range(128):
+                c[i, j] = a[i] * b[j]
+        return c
+    a = tvm.placeholder((128,))
+    b = tvm.placeholder((128,))
+    c = outer_product(a, b)
+    sch = tvm.create_schedule(c.op)
+    i, j = c.op.axis
+    print(i.iter_type)
+    print(j.iter_type)
+    print(i, j)
+    io, ii = sch[c].split(i, 4)
 
 if __name__ == "__main__":
     test_outer_product()
@@ -610,5 +631,6 @@ if __name__ == "__main__":
     test_func_call()
     test_bool()
     test_const_range()
+    test_schedule()
     # TODO:
     # test_inplace()

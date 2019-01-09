@@ -8,7 +8,9 @@
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <unordered_set>
+
 #include "op_util.h"
+#include "hybrid_op.h"
 
 namespace tvm {
 using namespace ir;
@@ -52,6 +54,7 @@ Operation HybridOpNode::make(std::string name,
   n->attrs = std::move(attrs);
   n->inputs = std::move(inputs);
   n->outputs = std::move(outputs);
+  n->axis = op::GatherLoopVars(body);
   n->body = std::move(body);
   Operation res = Operation(n);
   return res;
@@ -186,4 +189,73 @@ Stmt HybridOpNode::BuildProvide(
   ret = op::ReplaceProvideTensor(ret, rmap);
   return ret;
 }
+
+class LoopVarFinder : public ir::IRVisitor {
+ public:
+  std::vector<IterVar> res_;
+
+  void Visit_(const ir::For *op) {
+    Var loop_var(op->loop_var);
+    Range dom = Range::make_by_min_extent(op->min, op->extent);
+    IterVarType iter_var_ty = kOpaque;
+    switch(op->for_type) {
+    case ForType::Serial:
+      iter_var_ty = kOrdered;
+      break;
+    case ForType::Parallel:
+      iter_var_ty = kDataPar;
+      break;
+    case ForType::Vectorized:
+      iter_var_ty = kVectorized;
+      break;
+    case ForType::Unrolled:
+      iter_var_ty = kUnrolled;
+      break;
+    }
+    res_.push_back(IterVarNode::make(dom, loop_var, iter_var_ty));
+    Visit(op->body);
+  }
+
+};
+
+std::vector<IterVar> GatherLoopVars(Stmt stmt) {
+  LoopVarFinder Finder;
+  Finder.Visit(stmt);
+  return Finder.res_;
+}
+
+// replacer to replace tensors' usage in Provide
+class ProviderReplacer : public ir::IRMutator {
+ public:
+  explicit ProviderReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
+      : vmap_(vmap) {}
+
+  Stmt Mutate_(const ir::Provide* op, const Stmt& s) {
+    Tensor t = Operation(op->func.node_).output(op->value_index);
+    auto it = vmap_.find(t);
+    if (it != vmap_.end()) {
+      Stmt ret = ir::Provide::make(
+        it->second->op, it->second->value_index, op->value, op->args);
+      found = true;
+      return IRMutator::Mutate_(ret.as<ir::Provide>(), ret);
+    }
+    return IRMutator::Mutate_(op, s);
+  }
+
+  // whether it is found.
+  bool found{false};
+
+ private:
+  const std::unordered_map<Tensor, Tensor>& vmap_;
+};
+
+Stmt ReplaceProvideTensor(Stmt stmt,
+                   const std::unordered_map<Tensor, Tensor>& replace) {
+  ProviderReplacer repl(replace);
+  Stmt ret = repl.Mutate(stmt);
+  return repl.found ? ret : stmt;
+}
+
+
+
 }  // namespace tvm

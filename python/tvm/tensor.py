@@ -152,7 +152,7 @@ class ComputeOp(Operation):
     """Compute operation."""
     @property
     def axis(self):
-        """Represent axis of IterVar, only defined when it is a ComputeOp"""
+        """Represent axis of IterVar, defined when it is a ComputeOp"""
         return self.__getattr__("axis")
 
     @property
@@ -184,4 +184,7 @@ class ExternOp(Operation):
 @register_node
 class HybridOp(Operation):
     """Hybrid operation."""
-    pass
+    @property
+    def axis(self):
+        """Represent axis of IterVar, also defined when it is a HybridOp"""
+        return self.__getattr__("axis")
