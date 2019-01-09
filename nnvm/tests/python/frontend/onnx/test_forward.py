@@ -910,7 +910,7 @@ def test_single_ops():
         model = helper.make_model(graph, producer_name='_test')
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(model, [x], target, ctx)
-            tvm.testing.assert_allclose(out_np, tvm_out)
+            tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
     x = np.random.uniform(size=in_shape).astype(dtype)
     verify_single_ops("Neg",x, -x)
