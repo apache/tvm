@@ -73,6 +73,35 @@ def _arg_to_ast(arg):
 
 class Executor(object):
     """An abstract interface for executing Relay programs."""
+
+    def _convert_args(self, expr, args, kwargs):
+        """
+        Convert the combination of args and kwargs into
+        a sequence of arguments that can be passed to
+        a Relay evaluator.
+        """
+        if not kwargs:
+            return args
+
+        if kwargs and not isinstance(expr, Function):
+            raise Exception("can only supply keyword parameters for a Relay function, found {0}".format(expr))
+
+        param_names = [p.name_hint for p in expr.params]
+        num_of_args = len(args)
+
+        cargs = list(args)[:]
+        for i, name in enumerate(param_names):
+            if i < num_of_args:
+                if kwargs.get(name):
+                    raise Exception(
+                        "duplicate argument supplied in \
+                         both positional args (at position {0}), \
+                         and keyword argument (with name {1}".format(i, name))
+            else:
+                cargs.append(kwargs[name])
+
+        return tuple(cargs)
+
     def _make_executor(self, _):
         """
         Construct a Python function that implements the evaluation
@@ -166,7 +195,9 @@ class Interpreter(Executor):
         return ck_fused
 
     def _make_executor(self, expr):
-        def _interp_wrapper(*args):
+        def _interp_wrapper(*args, **kwargs):
+            args = self._convert_args(expr, args, kwargs)
+
             relay_args = []
             for arg in args:
                 relay_args.append(_arg_to_ast(arg))
