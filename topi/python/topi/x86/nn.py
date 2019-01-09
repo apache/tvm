@@ -47,12 +47,13 @@ def _declaration_dense(cfg, data, weight, bias=None):
     # because of overhead in packing and limited reuse from batch dimension
     # TODO(icemelon9): use a more systematic way to determine which schedule to use
     if batch <= 16:
-        return _declaration_gemm_nopack(cfg, data, weight, bias)
-    return _declaration_gemm_pack(cfg, data, weight, bias)
+        return _declaration_dense_nopack(cfg, data, weight, bias)
+    return _declaration_dense_pack(cfg, data, weight, bias)
 
 
-# Declare GEMM compute with packing weight into cache-friendly layout
-def _declaration_gemm_pack(cfg, data, weight, bias=None):
+# Declare dense compute with packing weight into cache-friendly layout
+@autotvm.register_topi_compute(nn.dense, "cpu", "direct_pack")
+def _declaration_dense_pack(cfg, data, weight, bias=None):
     batch, in_dim = get_const_tuple(data.shape)
     out_dim, _ = get_const_tuple(weight.shape)
     # create tuning space
@@ -60,7 +61,7 @@ def _declaration_gemm_pack(cfg, data, weight, bias=None):
     cfg.define_split("tile_x", out_dim, num_outputs=3)
     cfg.define_split("tile_k", in_dim, num_outputs=2)
     if cfg.is_fallback:
-        _default_gemm_pack_config(cfg, batch, out_dim, in_dim)
+        _default_dense_pack_config(cfg, batch, out_dim, in_dim)
 
     packw_bn = cfg["tile_x"].size[-1]
     packw_shape = (out_dim // packw_bn, in_dim, packw_bn)
@@ -72,15 +73,16 @@ def _declaration_gemm_pack(cfg, data, weight, bias=None):
                     lambda y, x: tvm.sum(
                         data[y, k] * packw[x // packw_bn, k, x % packw_bn],
                         axis=k),
-                    tag="gemm_pack")
+                    tag="dense_pack")
     if bias is not None:
         C = tvm.compute((batch, out_dim), lambda i, j: C[i, j] + bias[j],
                         tag=tag.BROADCAST)
     return C
 
 
-# Declare GEMM compute without packing weight
-def _declaration_gemm_nopack(cfg, data, weight, bias=None):
+# Declare dense compute without packing weight
+@autotvm.register_topi_compute(nn.dense, "cpu", "direct_nopack")
+def _declaration_dense_nopack(cfg, data, weight, bias=None):
     batch, in_dim = get_const_tuple(data.shape)
     out_dim, _ = get_const_tuple(weight.shape)
     # create tuning space
@@ -88,7 +90,7 @@ def _declaration_gemm_nopack(cfg, data, weight, bias=None):
     cfg.define_split("tile_y", batch, num_outputs=2)
     cfg.define_split("tile_k", in_dim, num_outputs=2)
     if cfg.is_fallback:
-        _default_gemm_nopack_config(cfg, batch, out_dim, in_dim)
+        _default_dense_nopack_config(cfg, batch, out_dim, in_dim)
 
     vec = cfg["tile_k"].size[-1]
     k = tvm.reduce_axis((0, in_dim // vec), "k")
@@ -99,7 +101,7 @@ def _declaration_gemm_nopack(cfg, data, weight, bias=None):
     kk = tvm.reduce_axis((0, vec), "kk")
     C = tvm.compute((batch, out_dim),
                     lambda y, x: tvm.sum(CC[y, x, kk], axis=kk),
-                    tag="gemm_nopack")
+                    tag="dense_nopack")
     if bias is not None:
         C = tvm.compute((batch, out_dim), lambda i, j: C[i, j] + bias[j],
                         tag=tag.BROADCAST)
@@ -113,15 +115,39 @@ def _schedule_dense(cfg, outs):
     scheduled_ops = []
 
     def _callback(op):
-        if "gemm_pack" in op.tag:
-            _schedule_gemm_pack_template(cfg, s, op.output(0))
-        elif 'gemm_nopack' in op.tag:
-            _schedule_gemm_nopack_template(cfg, s, op.output(0))
+        if "dense_pack" in op.tag:
+            _schedule_dense_pack_template(cfg, s, op.output(0))
+        elif 'dense_nopack' in op.tag:
+            _schedule_dense_nopack_template(cfg, s, op.output(0))
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
-def _schedule_gemm_pack_template(cfg, s, C):
+@autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct_pack")
+def _schedule_dense_pack(cfg, outs):
+    s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+
+    def _callback(op):
+        if "dense_pack" in op.tag:
+            _schedule_dense_pack_template(cfg, s, op.output(0))
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+@autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct_nopack")
+def _schedule_dense_nopack(cfg, outs):
+    s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+
+    def _callback(op):
+        if 'dense_nopack' in op.tag:
+            _schedule_dense_nopack_template(cfg, s, op.output(0))
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+def _schedule_dense_pack_template(cfg, s, C):
     A, packedB = s[C].op.input_tensors
 
     CC = s.cache_write(C, "global")
@@ -149,12 +175,10 @@ def _schedule_gemm_pack_template(cfg, s, C):
     s[packedB].reorder(z, x, y)
     s[packedB].parallel(z)
     s[packedB].vectorize(y)
-
     return s
 
 
-def _schedule_gemm_nopack_template(cfg, s, C):
-    print(C)
+def _schedule_dense_nopack_template(cfg, s, C):
     y, x = s[C].op.axis
     kk, = s[C].op.reduce_axis
     yo, yi = cfg["tile_y"].apply(s, C, y)
@@ -172,11 +196,10 @@ def _schedule_gemm_nopack_template(cfg, s, C):
     s[CC].reorder(k, yz, x)
     s[CC].unroll(yz)
     s[CC].vectorize(x)
-
     return s
 
 
-def _default_gemm_pack_config(cfg, M, N, K):
+def _default_dense_pack_config(cfg, M, N, K):
     vec_width = get_fp32_len()
 
     tilex_ii = 1
@@ -203,10 +226,10 @@ def _default_gemm_pack_config(cfg, M, N, K):
 
     cfg["tile_y"] = SplitEntity([MM // tiley_oi, tiley_oi, tiley_ii])
     cfg["tile_x"] = SplitEntity([NN // tilex_oi, tilex_oi, tilex_ii])
-    cfg["tile_k"] = SplitEntity([K // 4, 4])
+    cfg["tile_k"] = SplitEntity([K, 1])
 
 
-def _default_gemm_nopack_config(cfg, M, N, K):
+def _default_dense_nopack_config(cfg, M, N, K):
     vec_width = get_fp32_len()
     tilek_bn = 1
     for bn in range(vec_width*2, 0, -1):
