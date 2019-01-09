@@ -70,23 +70,12 @@ shape_dict = {input_name: x.shape}
 sym, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
 with relay.build_config(opt_level=1):
-    # exec = relay.build_module.create_executor('graph', sym, tvm.cpu(0), target)
-    graph, lib, params = relay.build(sym, target, params=params)
+    intrp = relay.build_module.create_executor('graph', sym, tvm.cpu(0), target)
 
 ######################################################################
 # Execute on TVM
 # ---------------------------------------------
-from tvm.contrib import graph_runtime
-ctx = tvm.cpu(0)
-dtype = 'float32'
-m = graph_runtime.create(graph, lib, ctx)
-# set inputs
-m.set_input(input_name, tvm.nd.array(x.astype(dtype)))
-m.set_input(**params)
-# execute
-m.run()
-# get outputs
-tvm_output = m.get_output(0).asnumpy()
+tvm_output = intrp.evaluate(sym)(tvm.nd.array(x.astype(dtype)), **params).asnumpy()
 
 ######################################################################
 # Display results
