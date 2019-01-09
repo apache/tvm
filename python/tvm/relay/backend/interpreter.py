@@ -76,9 +76,15 @@ class Executor(object):
 
     def _convert_args(self, expr, args, kwargs):
         """
-        Convert the combination of args and kwargs into
-        a sequence of arguments that can be passed to
+        Convert the combination of arguments and keyword arguments
+        into a sequence of arguments that may be passed to
         a Relay evaluator.
+
+        We first provide all positional arguments, and then attempt
+        to fill in the remaining arguments using the keyword arguments. We
+        map the keyword arguments to the corresponding parameters, if there
+        is an ambiguity between positional and keyword arguments this
+        procedure will raise an error.
 
         Parameters
         ----------
@@ -102,7 +108,8 @@ class Executor(object):
             raise Exception("can only supply keyword parameters for a \
                              relay.Function, found {0}".format(expr))
 
-        param_names = [p.name_hint for p in expr.params]
+        params = expr.params
+        param_names = [p.name_hint for p in params]
         num_of_args = len(args)
 
         cargs = list(args)[:]
@@ -115,6 +122,11 @@ class Executor(object):
                          and keyword argument (with name {1}".format(i, name))
             else:
                 cargs.append(kwargs[name])
+
+        if len(cargs) != len(params):
+            raise Exception(
+                "insufficient arguments, expected" \
+                " {0}, provided {1}".format(len(cargs), len(params)))
 
         return tuple(cargs)
 
