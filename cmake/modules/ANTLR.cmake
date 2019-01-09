@@ -4,6 +4,12 @@ if(USE_ANTLR)
         /usr/local/Cellar/*antlr-*-complete.jar)
 
   if(DEFINED ANTLR4)
+    # Get the first element of the list of antlr jars.
+    # Sort and reverse the list so the item selected is the highest
+    #   version in lib or else in Cellar if no lib installation exists.
+    list(SORT ANTLR4)
+    list(REVERSE ANTLR4)
+    list(GET ANTLR4 0 ANTLR4)
     set(RELAY_PARSER_DIR
       ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm/relay/grammar)
 
@@ -18,6 +24,7 @@ if(USE_ANTLR)
 
     set(JAVA_HOME $ENV{JAVA_HOME})
     if (NOT DEFINED JAVA_HOME)
+      # Hack to get system to search for Java itself.
       set(JAVA_HOME "/usr")
     endif()
 
