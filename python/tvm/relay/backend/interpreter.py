@@ -79,12 +79,28 @@ class Executor(object):
         Convert the combination of args and kwargs into
         a sequence of arguments that can be passed to
         a Relay evaluator.
+
+        Parameters
+        ----------
+        expr: relay.Expr
+            The expression to evaluate
+
+        args: List[tvm.NDArray]
+            The arguments to pass to the evaluator.
+
+        kwargs: Dict[str, tvm.NDArrray]
+            The keyword arguments to pass to the evaluator.
+
+        Returns:
+            args: List[tvm.NDArray]
+                The new arguments with all keyword arguments placed in the correct slot.
         """
         if not kwargs:
             return args
 
         if kwargs and not isinstance(expr, Function):
-            raise Exception("can only supply keyword parameters for a Relay function, found {0}".format(expr))
+            raise Exception("can only supply keyword parameters for a \
+                             relay.Function, found {0}".format(expr))
 
         param_names = [p.name_hint for p in expr.params]
         num_of_args = len(args)
