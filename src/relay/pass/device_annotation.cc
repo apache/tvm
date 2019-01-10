@@ -48,9 +48,9 @@ class ValidateAnnotation : private ExprVisitor {
  private:
   void VisitExpr_(const CallNode* call_node) final {
     if (IsOnDeviceNode(call_node)) {
-      int device_id = GetDeviceId(call_node);
+      int device_type = GetDeviceId(call_node);
       if (annotation_map_.count(call_node)) {
-        CHECK_EQ(annotation_map_.at(call_node), device_id)
+        CHECK_EQ(annotation_map_.at(call_node), device_type)
             << "An expression node can only be annotated to one device.";
       } else {
         annotation_map_.insert({call_node, GetDeviceId(call_node)});
@@ -59,7 +59,7 @@ class ValidateAnnotation : private ExprVisitor {
       CHECK_EQ(call_node->args.size(), 1U);
       const auto* node = call_node->args[0].operator->();
       if (annotation_map_.count(node)) {
-        CHECK_EQ(annotation_map_.at(node), device_id)
+        CHECK_EQ(annotation_map_.at(node), device_type)
             << "An expression node can only be annotated to one device.";
       } else {
         annotation_map_.insert({node, GetDeviceId(call_node)});
@@ -69,15 +69,15 @@ class ValidateAnnotation : private ExprVisitor {
   }
 
   /*
-   * \brief Get the device id of the annotation node.
+   * \brief Get the device type of the annotation node.
    * \param call_node The on_device annotation call node.
-   * \return The device id.
+   * \return The device type.
    */
   int GetDeviceId(const CallNode* call_node) {
     CHECK(IsOnDeviceNode(call_node))
         << "The input call node must be on_device node.";
     const OnDeviceAttrs* on_device_attr = call_node->attrs.as<OnDeviceAttrs>();
-    return on_device_attr->device_id;
+    return on_device_attr->device_type;
   }
 
   std::unordered_map<const ExprNode*, int> annotation_map_;
@@ -88,7 +88,7 @@ class ValidateAnnotation : private ExprVisitor {
 //
 // This actually replaces annotation ops with device copy ops and connects any
 // two dependent expressions with a `device_copy` op when needed. Note that the
-// device id of a `device_copy` op is identical to that of the destination op
+// device type of a `device_copy` op is identical to that of the destination op
 // since it is where the data should be copied to.
 class RewriteAnnotation : public ExprMutator {
  public:
@@ -202,20 +202,20 @@ class RewriteAnnotation : public ExprMutator {
       return CreateDeviceCopy(src, fallback_device_, dit->second);
     } else {
       const auto dit = annotation_map_.find(dst);
-      int dst_dev_id =
+      int dst_dev_type =
           dit == annotation_map_.end() ? fallback_device_ : dit->second;
-      return CreateDeviceCopy(src, sit->second, dst_dev_id);
+      return CreateDeviceCopy(src, sit->second, dst_dev_type);
     }
   }
 
   // Check if a device copy op is need between two ops.
   bool NeedDeviceCopy(const ExprNode* src, const ExprNode* dst) {
     if (annotation_map_.count(src)) {
-      int src_dev_id = annotation_map_.at(src);
+      int src_dev_type = annotation_map_.at(src);
       if (annotation_map_.count(dst)) {
-        return src_dev_id != annotation_map_.at(dst);
+        return src_dev_type != annotation_map_.at(dst);
       } else {
-        return src_dev_id != fallback_device_;
+        return src_dev_type != fallback_device_;
       }
     } else {
       if (annotation_map_.count(dst)) {
@@ -240,17 +240,17 @@ class RewriteAnnotation : public ExprMutator {
    * \brief Create an operator to copy data from the source device to the
    * destination device.
    * \param src The source expression that produces data to be copied.
-   * \param src_dev_id The device id where the data is copied from.
-   * \param dst_dev_id The device id where the data is copied to.
+   * \param src_dev_type The device type where the data is copied from.
+   * \param dst_dev_type The device type where the data is copied to.
    * \return The created call node.
    */
-  Call CreateDeviceCopy(const Expr& src, int src_dev_id, int dst_dev_id) {
+  Call CreateDeviceCopy(const Expr& src, int src_dev_type, int dst_dev_type) {
     auto attrs = make_node<DeviceCopyAttrs>();
-    attrs->src_dev_id = src_dev_id;
-    attrs->dst_dev_id = dst_dev_id;
+    attrs->src_dev_type = src_dev_type;
+    attrs->dst_dev_type = dst_dev_type;
     static const Op& op = Op::Get("device_copy");
     Call device_copy = CallNode::make(op, {src}, Attrs(attrs), {});
-    annotation_map_.insert({device_copy.operator->(), dst_dev_id});
+    annotation_map_.insert({device_copy.operator->(), dst_dev_type});
     return device_copy;
   }
 
@@ -270,7 +270,7 @@ class AnnotatationVisitor : private ExprVisitor {
   void VisitExpr_(const CallNode* call_node) {
     if (IsOnDeviceNode(call_node)) {
       const auto* attr = call_node->attrs.as<OnDeviceAttrs>();
-      annotations_.Set(GetRef<Expr>(call_node), attr->device_id);
+      annotations_.Set(GetRef<Expr>(call_node), attr->device_type);
     }
     ExprVisitor::VisitExpr_(call_node);
   }
@@ -292,7 +292,7 @@ class AnnotatationVisitor : private ExprVisitor {
  * Suppose we have annotated add, sqrt, and log with device 1, 2, and 3,
  * respectively. The fallback/default device is 4. After Rewriting the
  * program, we can have the following graph, where each copy op has both
- * source and destination device id denoting which device the data should be
+ * source and destination device type denoting which device the data should be
  * copied from and to.
  *
  *         x     y
@@ -311,12 +311,12 @@ class AnnotatationVisitor : private ExprVisitor {
  *
  * To Get the device mapping of each expression, we need to propagate the
  * device information from the copy ops. This can be done in two passes.
- *  -Pass 1: Propagating the source device id to ops in a bottom-up way to the
+ *  -Pass 1: Propagating the source device type to ops in a bottom-up way to the
  *           ancestors until encountering another copy op. For example, this way
- *           provides add, x, and y device ids from the copy operator, `copy1`.
- *  -Pass 2: Propagating the destination device id of "the last" copy op in a
+ *           provides add, x, and y device types from the copy operator, `copy1`.
+ *  -Pass 2: Propagating the destination device type of "the last" copy op in a
  *           top-down manner to the nodes on the output paths. For instance,
- *           this offers `subtract` and `exp` the same device id as `copy3`.
+ *           this offers `subtract` and `exp` the same device type as `copy3`.
  */
 
 class DeviceInfo {
@@ -397,34 +397,34 @@ class DeviceInfo {
 
   void BottomUpPropagation() {
     const CallNode* last_copy_node = nullptr;
-    int cur_dev_id = -1;
+    int cur_dev_type = -1;
     for (auto it = post_visitor_.post_dfs_order_.crbegin();
          it != post_visitor_.post_dfs_order_.crend(); ++it) {
       if (IsDeviceCopyNode(*it)) {
         last_copy_node = dynamic_cast<const CallNode*>(*it);
         const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
-        cur_dev_id = attrs->src_dev_id;
-        device_map_.Set(GetRef<Expr>(last_copy_node), attrs->dst_dev_id);
+        cur_dev_type = attrs->src_dev_type;
+        device_map_.Set(GetRef<Expr>(last_copy_node), attrs->dst_dev_type);
       } else if (last_copy_node) {
         Expr expr = GetRef<Expr>(*it);
         CHECK_EQ(device_map_.count(expr), 0U);
-        device_map_.Set(expr, cur_dev_id);
+        device_map_.Set(expr, cur_dev_type);
       }
     }
   }
 
   void TopDownPropagation() {
     const CallNode* last_copy_node = nullptr;
-    int cur_dev_id = -1;
+    int cur_dev_type = -1;
     for (const auto& it : post_visitor_.post_dfs_order_) {
       if (IsDeviceCopyNode(it)) {
         last_copy_node = dynamic_cast<const CallNode*>(it);
         const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
-        cur_dev_id = attrs->dst_dev_id;
+        cur_dev_type = attrs->dst_dev_type;
       } else if (last_copy_node) {
         Expr expr = GetRef<Expr>(it);
         if (device_map_.count(expr) == 0) {
-          device_map_.Set(expr, cur_dev_id);
+          device_map_.Set(expr, cur_dev_type);
         }
       }
     }

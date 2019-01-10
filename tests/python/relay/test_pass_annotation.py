@@ -188,7 +188,7 @@ def test_conv_network():
         func = relay.Function([data1, weight, data2], conv2d_3)
         return func
 
-    def check_storage_and_device_ids():
+    def check_storage_and_device_types():
         func = annotated()
         func = relay.ir_pass.rewrite_annotated_ops(func, 3)
         func = relay.ir_pass.infer_type(func)
@@ -196,22 +196,22 @@ def test_conv_network():
         func = relay.ir_pass.infer_type(func)
         smap = relay.backend._backend.GraphPlanMemory(func)
         storage_ids = []
-        device_ids = []
-        for _, storage_dev_id in smap.items():
-            assert len(storage_dev_id) == 2
-            for sid in storage_dev_id[0]:
+        device_types = []
+        for _, storage_dev_type in smap.items():
+            assert len(storage_dev_type) == 2
+            for sid in storage_dev_type[0]:
                 storage_ids.append(sid.value)
-            for did in storage_dev_id[1]:
-                device_ids.append(did.value)
+            for did in storage_dev_type[1]:
+                device_types.append(did.value)
         assert len(storage_ids) == 10
         assert len(set(storage_ids)) == 7
-        assert len(set(device_ids)) == 2
-        assert set(device_ids) == {1, 2}
+        assert len(set(device_types)) == 2
+        assert set(device_types) == {1, 2}
 
     annotated_func = annotated()
     expected_func = expected()
     check_annotated_graph(annotated_func, expected_func)
-    check_storage_and_device_ids()
+    check_storage_and_device_types()
 
 
 def test_fusible_network():

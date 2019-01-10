@@ -23,11 +23,11 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(DeviceCopyAttrs);
 
 TVM_REGISTER_API("relay.op._make.device_copy")
-.set_body_typed<Expr(Expr, int, int)>([](Expr data, int src_dev_id,
-                                    int dst_dev_id) {
+.set_body_typed<Expr(Expr, int, int)>([](Expr data, int src_dev_type,
+                                    int dst_dev_type) {
   auto attrs = make_node<DeviceCopyAttrs>();
-  attrs->src_dev_id = src_dev_id;
-  attrs->dst_dev_id = dst_dev_id;
+  attrs->src_dev_type = src_dev_type;
+  attrs->dst_dev_type = dst_dev_type;
   static const Op& op = Op::Get("device_copy");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 });
@@ -49,15 +49,15 @@ on different devices.
 TVM_REGISTER_NODE_TYPE(OnDeviceAttrs);
 
 TVM_REGISTER_API("relay.op._make.on_device")
-.set_body_typed<Expr(Expr, int)>([](Expr data, int device_id) {
+.set_body_typed<Expr(Expr, int)>([](Expr data, int device_type) {
   auto attrs = make_node<OnDeviceAttrs>();
-  attrs->device_id = device_id;
+  attrs->device_type = device_type;
   static const Op& op = Op::Get("on_device");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("on_device")
-.describe(R"code(Annotate an expression with device id)code" TVM_ADD_FILELINE)
+.describe(R"code(Annotate an expression with device type)code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_support_level(10)
 .add_type_rel("Identity", IdentityRel)

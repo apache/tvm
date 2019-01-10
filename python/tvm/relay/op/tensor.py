@@ -660,7 +660,7 @@ def device_copy(data, src_dev, dst_dev):
 
 
 def on_device(data, device):
-    """Annotate an expression with device id.
+    """Annotate an expression with device type.
 
     Parameters
     ----------
@@ -668,7 +668,7 @@ def on_device(data, device):
         The expression to be annotated.
 
     device : Union[:py:class:`TVMContext`, str]
-        The device id to annotate.
+        The device type to annotate.
 
     Returns
     -------

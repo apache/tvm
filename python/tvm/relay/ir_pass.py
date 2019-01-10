@@ -394,7 +394,7 @@ def collect_device_info(expr):
     Returns
     -------
     ret : Dict[tvm.relay.expr, int]
-        A dictionary mapping tvm.relay.Expr to device id.
+        A dictionary mapping tvm.relay.Expr to device type.
     """
     return _ir_pass.CollectDeviceInfo(expr)
 
@@ -410,7 +410,7 @@ def collect_device_annotation_ops(expr):
     Returns
     -------
     ret : Dict[tvm.relay.expr, int]
-        A dictionary mapping tvm.relay.Expr to device id where the keys are
+        A dictionary mapping tvm.relay.Expr to device type where the keys are
         annotation expressions.
     """
     return _ir_pass.CollectDeviceAnnotationOps(expr)

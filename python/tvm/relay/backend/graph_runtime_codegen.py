@@ -132,19 +132,19 @@ class GraphRuntimeCodegen(ExprFunctor):
         checked_type = expr.checked_type
         # setup storage ids
         assert expr in self.storage_device_map
-        storage_device_ids = self.storage_device_map[expr]
-        assert len(storage_device_ids) == 2
-        node.attrs["storage_id"] = [x.value for x in storage_device_ids[0]]
-        device_ids = [x.value for x in storage_device_ids[1]]
-        num_unknown_devices = device_ids.count(0)
-        if num_unknown_devices != 0 and num_unknown_devices != len(device_ids):
+        storage_device_info = self.storage_device_map[expr]
+        assert len(storage_device_info) == 2
+        node.attrs["storage_id"] = [x.value for x in storage_device_info[0]]
+        device_types = [x.value for x in storage_device_info[1]]
+        num_unknown_devices = device_types.count(0)
+        if num_unknown_devices != 0 and num_unknown_devices != len(device_types):
             raise RuntimeError("The graph contains not annotated nodes for "
                                "heterogeneous execution. All nodes must be "
                                "annotated.")
 
         # Add the `device_index` attribute when the graph is annotated.
         if num_unknown_devices == 0:
-            node.attrs["device_index"] = device_ids
+            node.attrs["device_index"] = device_types
 
         node_id = len(self.nodes)
         self.nodes.append(node)
@@ -245,24 +245,24 @@ class GraphRuntimeCodegen(ExprFunctor):
                 "(i.e functions composed of fusable operator invocations)")
 
         assert call in self.storage_device_map
-        device_ids = self.storage_device_map[call][1]
-        call_dev_id = device_ids[0].value
+        device_types = self.storage_device_map[call][1]
+        call_dev_type = device_types[0].value
         if isinstance(self.target, (str, _target.Target)):
             # homogeneous execution.
             cached_func = self.compile_engine.lower(func, self.target)
             self.target = {0: str(self.target)}
         elif isinstance(self.target, dict):
             # heterogeneous execution.
-            if call_dev_id not in self.target:
+            if call_dev_type not in self.target:
                 raise Exception("No target is provided for device " +
-                                "{0}".format(call_dev_id))
+                                "{0}".format(call_dev_type))
             cached_func = self.compile_engine.lower(func,
-                                                    self.target[call_dev_id])
+                                                    self.target[call_dev_type])
         else:
             raise ValueError("self.target must be the type of str," +
                              "tvm.target.Target, or dict of int to str")
         for loweredf in cached_func.funcs:
-            self.lowered_funcs[self.target[call_dev_id]].add(loweredf)
+            self.lowered_funcs[self.target[call_dev_type]].add(loweredf)
 
         inputs = []
         # flatten tuple in the call.
@@ -312,7 +312,7 @@ class GraphRuntimeCodegen(ExprFunctor):
         num_entry = 0
         shapes = []
         storage_ids = []
-        device_ids = []
+        device_types = []
         dltypes = []
         node_row_ptr = [0]
         for node in self.nodes:
@@ -321,7 +321,7 @@ class GraphRuntimeCodegen(ExprFunctor):
             dltypes += node.attrs["dtype"]
             storage_ids += node.attrs["storage_id"]
             if "device_index" in node.attrs:
-                device_ids += node.attrs["device_index"]
+                device_types += node.attrs["device_index"]
             num_entry += node.num_outputs
             node_row_ptr.append(num_entry)
 
@@ -329,8 +329,8 @@ class GraphRuntimeCodegen(ExprFunctor):
         attrs = {}
         attrs["shape"] = ["list_shape", shapes]
         attrs["storage_id"] = ["list_int", storage_ids]
-        if device_ids:
-            attrs["device_index"] = ["list_int", device_ids]
+        if device_types:
+            attrs["device_index"] = ["list_int", device_types]
         attrs["dltype"] = ["list_str", dltypes]
 
         json_dict = {
@@ -347,9 +347,9 @@ class GraphRuntimeCodegen(ExprFunctor):
         """Debug function to dump memory plan."""
         def _annotate(expr):
             if expr in self.storage_device_map:
-                storage_device_ids = self.storage_device_map[expr]
-                assert len(storage_device_ids) == 2
-                return str(storage_device_ids[0])
+                storage_device_info = self.storage_device_map[expr]
+                assert len(storage_device_info) == 2
+                return str(storage_device_info[0])
             return ""
         return func.astext(show_meta_data=False, annotate=_annotate)
 
@@ -357,9 +357,9 @@ class GraphRuntimeCodegen(ExprFunctor):
         """Debug function to dump device annotation result."""
         def _annotate(expr):
             if expr in self.storage_device_map:
-                storage_device_ids = self.storage_device_map[expr]
-                assert len(storage_device_ids) == 2
-                return str(storage_device_ids[1])
+                storage_device_info = self.storage_device_map[expr]
+                assert len(storage_device_info) == 2
+                return str(storage_device_info[1])
             return ""
         return func.astext(show_meta_data=False, annotate=_annotate)
 

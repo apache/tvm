@@ -134,7 +134,7 @@ def optimize(func, target, params=None):
 
     target : Optional[:any:`tvm.target.Target`, Dict[int, tvm.target.Target]]
         The optimization target. For heterogeneous compilation, it is a
-        dictionary mapping device id to compilation target. For homogeneous
+        dictionary mapping device type to compilation target. For homogeneous
         compilation, it is a build target.
 
     params : Optional[Dict[str, tvm.nd.NDArray]]
@@ -280,7 +280,7 @@ def build(func, target=None, target_host=None, params=None,
 def _update_heterogeneous_inputs(target, fallback_device=None):
     """Update the target and fallback device required for heterogeneous
     compilation. CPU is used as the fallback device if it wasn't provided.
-    Meanwhile, a CPU device id and "llvm" pair will be added to the target
+    Meanwhile, a CPU device type and "llvm" pair will be added to the target
     dictionary in this case.
 
     Parameters
@@ -295,10 +295,10 @@ def _update_heterogeneous_inputs(target, fallback_device=None):
     Returns
     -------
     device_target : dict of int to tvm.target.Target.
-        The updated device id to target dict.
+        The updated device type to target dict.
 
     fallback_device : int
-        The updated fallback device id.
+        The updated fallback device type.
     """
     if not isinstance(target, dict):
         raise ValueError("target must be dict of device name to target for " +
@@ -339,7 +339,7 @@ def _run_device_annotation_passes(func, target, fallback_device):
         The function where annotation passes will be execute at.
 
     target : Dict[int, tvm.target.Target]
-        A dict contains device_id to target pairs.
+        A dict contains device type to target pairs.
 
     fallback_device : int
         The fallback device type.
@@ -347,7 +347,7 @@ def _run_device_annotation_passes(func, target, fallback_device):
     Returns
     -------
     target : Dict[int, tvm.target.Target]
-        The updated device id to target dict.
+        The updated device type to target dict.
 
     func : tvm.relay.Function
         The updated func.
@@ -355,7 +355,7 @@ def _run_device_annotation_passes(func, target, fallback_device):
     func = ir_pass.infer_type(func)
     func = ir_pass.rewrite_annotated_ops(func, fallback_device)
     device_map = ir_pass.collect_device_info(func)
-    # The expression to device id map will be empty if all or none of
+    # The expression to device type map will be empty if all or none of
     # the expressions in the `func` are annotated because this map is
     # obtained by propagating the device information in the device copy
     # operator. None of the above cases needs device copy operator.
@@ -365,13 +365,13 @@ def _run_device_annotation_passes(func, target, fallback_device):
         if not annotation_map:
             target = {0: target[fallback_device]}
         else:
-            dev_id = next(iter(annotation_map.values()))
-            # All annotated with the same device id.
-            if all(val == dev_id for val in annotation_map.values()):
-                target = {0: target[dev_id]}
+            dev_type = next(iter(annotation_map.values()))
+            # All annotated with the same device type.
+            if all(val == dev_type for val in annotation_map.values()):
+                target = {0: target[dev_type]}
             else:
                 raise RuntimeError("Expressions in the function are "
-                                   "annotated with various device ids,"
+                                   "annotated with various device types,"
                                    "but not device copy operators "
                                    "found. Please check the "
                                    "RewriteAnnotation pass.")
