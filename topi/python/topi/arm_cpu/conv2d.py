@@ -645,5 +645,6 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
 
             return F.nn.conv2d(*copy_inputs, **new_attrs)
         else:
-            # add more schedule templates
+            # currently we only have contrib_spatial_pack and direct template
+            # add more schedule templates.
             return None
