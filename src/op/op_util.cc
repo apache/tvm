@@ -215,5 +215,33 @@ Stmt Substitute(Stmt s,
   return ir::Substitute(s, init);
 }
 
+IterVarType ForTypeToIterVarType(ir::ForType for_type) {
+  switch(for_type) {
+  case ForType::Serial:
+    return kOrdered;
+  case ForType::Parallel:
+    return kDataPar;
+  case ForType::Vectorized:
+    return kVectorized;
+  case ForType::Unrolled:
+    return kUnrolled;
+  }
+}
+
+ir::ForType IterVarTypeToForType(IterVarType iter_type) {
+  switch(iter_type) {
+  case kOrdered:
+    return ForType::Serial;
+  case kDataPar:
+    return ForType::Parallel;
+  case kVectorized:
+    return ForType::Vectorized;
+  case kUnrolled:
+    return ForType::Unrolled;
+  default:
+    return ForType::Serial;
+  }
+}
+
 }  // namespace op
 }  // namespace tvm

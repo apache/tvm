@@ -28,7 +28,15 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt);
  * \param replace The replacement rule.
  */
 Stmt ReplaceProvideTensor(Stmt stmt,
-                   const std::unordered_map<Tensor, Tensor>& replace);
+                          const std::unordered_map<Tensor, Tensor>& replace);
+
+/*!
+ * \brief Replace the tensor reference (especially in Provide's) in stmt by the replace map.
+ * \param stmt The statement to be processed.
+ * \param stage The schedule information to be applied.
+ */
+Stmt ApplySchedule(const Stage& stage,
+                   const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
 
 } // namespace op
 } // namespace tvm

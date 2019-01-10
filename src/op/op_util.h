@@ -72,6 +72,18 @@ Expr ReplaceTensor(Expr expr,
 Stmt Substitute(Stmt stmt,
                 const std::unordered_map<IterVar, Expr>& value_map);
 
+/*!
+ * \brief Converts Halide ForType to its corresponding IterVarType
+ * \param for_type The ForType to be converted
+ */
+IterVarType ForTypeToIterVarType(ir::ForType for_type);
+
+/*!
+ * \brief Converts IterVarType to its corresponding Halide ForType
+ * \param iter_type The IterVarType to be converted
+ */
+ir::ForType IterVarTypeToForType(IterVarType iter_type);
+
 }  // namespace op
 }  // namespace tvm
 #endif  // TVM_OP_OP_UTIL_H_

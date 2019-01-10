@@ -7,6 +7,8 @@
 #include <tvm/arithmetic.h>
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/ir_operator.h>
+#include <tvm/ir_pass.h>
 #include <unordered_set>
 
 #include "op_util.h"
@@ -27,7 +29,7 @@ int HybridOpNode::num_outputs() const {
 }
 
 Array<IterVar> HybridOpNode::root_iter_vars() const {
-  return {};
+  return this->axis;
 }
 
 Type HybridOpNode::output_dtype(size_t i) const {
@@ -105,6 +107,10 @@ void HybridOpNode::GatherBound(
     const Operation& self,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
+  for (auto iter_var : axis) {
+    CHECK(!out_dom_map->count(iter_var));
+    out_dom_map->operator[](iter_var) = iter_var->dom;
+  }
 }
 
 Stmt HybridOpNode::BuildRealize(
@@ -187,41 +193,113 @@ Stmt HybridOpNode::BuildProvide(
    * */
   ret = op::ReplaceTensor(ret, rmap);
   ret = op::ReplaceProvideTensor(ret, rmap);
+
+  ret = op::ApplySchedule(stage, dom_map, ret);
   return ret;
 }
 
-class LoopVarFinder : public ir::IRVisitor {
- public:
-  std::vector<IterVar> res_;
+namespace op {
+Stmt ApplySplits(const Stage &stage,
+                 const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt) {
+  class LoopSpliter : public IRMutator {
+    Expr factor;
+    IterVar parent, inner, outer;
+   public:
+    LoopSpliter(const SplitNode *split,
+                const std::unordered_map<IterVar, Range>& dom_map) : 
+      factor(split->factor) {
 
-  void Visit_(const ir::For *op) {
-    Var loop_var(op->loop_var);
-    Range dom = Range::make_by_min_extent(op->min, op->extent);
-    IterVarType iter_var_ty = kOpaque;
-    switch(op->for_type) {
-    case ForType::Serial:
-      iter_var_ty = kOrdered;
-      break;
-    case ForType::Parallel:
-      iter_var_ty = kDataPar;
-      break;
-    case ForType::Vectorized:
-      iter_var_ty = kVectorized;
-      break;
-    case ForType::Unrolled:
-      iter_var_ty = kUnrolled;
-      break;
+      auto &parent_ = split->parent;
+      if (parent_->dom.defined()) {
+        CHECK(is_const_int(parent_->dom->min, 0));
+        parent= parent_;
+      } else {
+        CHECK(dom_map.count(parent_));
+        auto &dom = dom_map.find(parent_)->second;
+        CHECK(is_const_int(dom->min, 0));
+        parent = IterVarNode::make(dom, parent_->var, parent_->iter_type);
+      }
+
+      auto &inner_ = split->inner;
+      CHECK(dom_map.count(inner_));
+      auto &inner_dom = dom_map.find(inner_)->second;
+      CHECK(is_const_int(inner_dom->min, 0));
+
+      auto &outer_ = split->outer;
+      CHECK(dom_map.count(outer_));
+      auto &outer_dom = dom_map.find(outer_)->second;
+      CHECK(is_const_int(outer_dom->min, 0));
+
+      inner = IterVarNode::make(inner_dom, inner_->var, inner_->iter_type);
+      outer = IterVarNode::make(outer_dom, outer_->var, outer_->iter_type);
     }
-    res_.push_back(IterVarNode::make(dom, loop_var, iter_var_ty));
-    Visit(op->body);
+
+    Stmt Mutate_(const For *op, const Stmt &stmt) {
+      if (op->loop_var.get() == parent->var.get()) {
+        std::unordered_map<const Variable *, Expr> rmap;
+        rmap[op->loop_var.get()] = inner + outer * factor;
+        Stmt ret = ir::Substitute(op->body, rmap);
+        Expr cond = likely(outer * factor < (parent->dom->extent - inner));
+        ret = IfThenElse::make(cond, ret);
+        ret = For::make(inner->var, Expr(0), inner->dom->extent,
+                        IterVarTypeToForType(inner->iter_type), op->device_api, ret);
+        ret = For::make(outer->var, Expr(0), outer->dom->extent,
+                        IterVarTypeToForType(outer->iter_type), op->device_api, ret);
+        return ret;
+      }
+      return IRMutator::Mutate_(op, stmt);
+    }
+  };
+
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (auto &rel : stage->relations) {
+      if (const SplitNode* split = rel.as<SplitNode>()) {
+        bool not_splited = false;
+        PostOrderVisit(stmt, [&not_splited, &split](const NodeRef &node) {
+          if (const Variable *var = node.as<Variable>()) {
+            if (var == split->parent->var.get())
+              not_splited = true;
+          }
+        });
+        if (not_splited) {
+          stmt = LoopSpliter(split, dom_map).Mutate(stmt);
+          changed = true;
+        }
+      }
+    }
   }
 
-};
+  return stmt;
+}
+
+Stmt ApplyLoopAnnotations(const Stage &stage, Stmt stmt) {
+  return stmt;
+}
+
+Stmt ApplyLoopOrder(const Stage &stage, Stmt stmt) {
+  return stmt;
+}
+
+Stmt ApplySchedule(const Stage &stage, const
+                   std::unordered_map<IterVar, Range>& dom_map, Stmt stmt) {
+  stmt = ApplySplits(stage, dom_map, stmt);
+  stmt = ApplyLoopAnnotations(stage, stmt);
+  stmt = ApplyLoopOrder(stage, stmt);
+  return stmt;
+}
 
 std::vector<IterVar> GatherLoopVars(Stmt stmt) {
-  LoopVarFinder Finder;
-  Finder.Visit(stmt);
-  return Finder.res_;
+  std::vector<IterVar> res_;
+  PostOrderVisit(stmt, [&res_](const NodeRef &node) {
+    if (const For *op = node.as<For>()) {
+      Var loop_var(op->loop_var);
+      Range dom = Range::make_by_min_extent(op->min, op->extent);
+      res_.push_back(IterVarNode::make(dom, loop_var, ForTypeToIterVarType(op->for_type)));
+    }
+  });
+  return res_;
 }
 
 // replacer to replace tensors' usage in Provide
@@ -255,7 +333,6 @@ Stmt ReplaceProvideTensor(Stmt stmt,
   Stmt ret = repl.Mutate(stmt);
   return repl.found ? ret : stmt;
 }
-
-
+} // namespace op
 
 }  // namespace tvm

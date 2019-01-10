@@ -594,26 +594,37 @@ def test_const_range():
     run_and_check(hoo, [a, b])
 
 def test_schedule():
+    # Testing perfect loop split
     @script
     def outer_product(a, b):
-        """This is a simple outer product.
-        Actually this function is not required to be documented.
-        I write this docstring to test skipping docstring functionality.
-        """
-        c = output_tensor((128, 128), a.dtype)
+        c = output_tensor((128, 64), a.dtype)
         for i in range(128):
-            for j in range(128):
+            for j in range(64):
                 c[i, j] = a[i] * b[j]
         return c
-    a = tvm.placeholder((128,))
-    b = tvm.placeholder((128,))
+    a = tvm.placeholder((128,), name='a')
+    b = tvm.placeholder((64,), name='b')
     c = outer_product(a, b)
     sch = tvm.create_schedule(c.op)
-    i, j = c.op.axis
-    print(i.iter_type)
-    print(j.iter_type)
-    print(i, j)
-    io, ii = sch[c].split(i, 4)
+    j, i = c.op.axis
+    jo, ji = sch[c].split(j, 4)
+    joo, joi = sch[c].split(jo, 4)
+    ir = tvm.lower(sch, [a, b, c], simple_mode=True)
+    assert isinstance(ir, tvm.stmt.ProducerConsumer)
+    ir = ir.body
+    assert isinstance(ir, tvm.stmt.AttrStmt)
+    ir = ir.body
+    assert ir.loop_var.name == 'i'
+    ir = ir.body
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'j.outer.outer'
+    ir = ir.body
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'j.outer.inner'
+    ir = ir.body
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'j.inner'
+
 
 if __name__ == "__main__":
     test_outer_product()
