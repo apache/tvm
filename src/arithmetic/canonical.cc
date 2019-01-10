@@ -828,6 +828,14 @@ Expr SimplifyCombiner(const Expr& expr, const Map<Var, Range>& vrange = Map<Var,
   // mark all used components starting from the value_index
   mark_used(op->value_index);
 
+  // components which have side effects should also be preserved
+  for (size_t i = 0; i < used.size(); ++i) {
+    if (HasSideEffect(op->source[i]) || HasSideEffect(op->combiner->identity_element[i]) ||
+        HasSideEffect(op->combiner->result[i])) {
+      mark_used(i);
+    }
+  }
+
   int new_value_index = op->value_index;
   Array<Expr> new_result;
   Array<Expr> new_identity;

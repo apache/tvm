@@ -113,13 +113,20 @@ def test_simplify_combiner():
         for lhs, rhs in zip(simplified.source, reference_simplified_sources[j]):
             assert Equal(lhs, rhs)
 
+    # Test that components with side effects are not removed
+    side_effect = lambda *xs: tvm.make.Call("int32", "dummy", xs, tvm.expr.Call.Intrinsic, None, 0)
+    assert Equal(Simplify(sum_and_prod((A[k], side_effect(A[10-k])), k)[0]),
+                 sum_and_prod((A[k], side_effect(A[10-k])), k)[0])
+    assert Equal(Simplify(sum_and_prod((side_effect(A[k]), A[10-k]), k)[0]),
+                 tvm.sum(side_effect(A[k]), k))
+
 
 def test_simplify_reduce():
     k = tvm.reduce_axis((0, 10), name="k")
     j = tvm.reduce_axis((-5, 3), name="j")
     A = tvm.placeholder((10,), name='A')
 
-    assert Equal(Simplify(tvm.sum(k/10, k)), tvm.sum(tvm.const(0), k))
+    assert Equal(Simplify(tvm.sum(k/10, k)), tvm.sum(tvm.const(0, "int32"), k))
     assert Equal(Simplify(tvm.sum(A[3], [])), A[3])
     assert Equal(Simplify(tvm.sum(tvm.select(k + j < 12, k + j, 0), [k, j])),
                  tvm.sum(k + j, [k, j]))
