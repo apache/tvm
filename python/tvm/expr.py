@@ -626,7 +626,7 @@ class Select(Expr):
 
     Note
     ----
-    Select may computes both true_value and false_value.
+    Select may compute both true_value and false_value.
     Use :any:`tvm.if_then_else` instead if you want to
     get a conditional expression that only evaluates
     the correct branch.
