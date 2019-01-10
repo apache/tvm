@@ -216,7 +216,7 @@ Stmt Substitute(Stmt s,
 }
 
 IterVarType ForTypeToIterVarType(ir::ForType for_type) {
-  switch(for_type) {
+  switch (for_type) {
   case ForType::Serial:
     return kDataPar;
   case ForType::Parallel:
@@ -229,7 +229,7 @@ IterVarType ForTypeToIterVarType(ir::ForType for_type) {
 }
 
 ir::ForType IterVarTypeToForType(IterVarType iter_type) {
-  switch(iter_type) {
+  switch (iter_type) {
   case kDataPar:
     return ForType::Serial;
   case kParallelized:

@@ -10,7 +10,7 @@
 #include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
-
+#include <string>
 #include "op_util.h"
 #include "hybrid_op.h"
 
@@ -205,15 +205,15 @@ Stmt ApplySplits(const Stage &stage,
   class LoopSpliter : public IRMutator {
     Expr factor;
     IterVar parent, inner, outer;
+
    public:
     LoopSpliter(const SplitNode *split,
-                const std::unordered_map<IterVar, Range>& dom_map) : 
+                const std::unordered_map<IterVar, Range>& dom_map) :
       factor(split->factor) {
-
       auto &parent_ = split->parent;
       if (parent_->dom.defined()) {
         CHECK(is_const_int(parent_->dom->min, 0));
-        parent= parent_;
+        parent = parent_;
       } else {
         CHECK(dom_map.count(parent_));
         auto &dom = dom_map.find(parent_)->second;
@@ -281,7 +281,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage, Stmt stmt) {
     ForType for_type;
    public:
     LoopAnnotator(const Variable *var_, ForType for_type_) : var(var_), for_type(for_type_) {}
-    
+
     Stmt Mutate_(const For *op, const Stmt &stmt) {
       if (op->loop_var.get() == var) {
         CHECK(for_type != op->for_type);
@@ -323,8 +323,8 @@ Stmt ApplyLoopOrder(const Stage &stage, Stmt stmt) {
   return stmt;
 }
 
-Stmt ApplySchedule(const Stage &stage, const
-                   std::unordered_map<IterVar, Range>& dom_map, Stmt stmt) {
+Stmt ApplySchedule(const Stage &stage,
+                   const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt) {
   stmt = ApplySplits(stage, dom_map, stmt);
   stmt = ApplyLoopAnnotations(stage, stmt);
   stmt = ApplyLoopOrder(stage, stmt);
@@ -374,5 +374,5 @@ Stmt ReplaceProvideTensor(Stmt stmt,
   Stmt ret = repl.Mutate(stmt);
   return repl.found ? ret : stmt;
 }
-} // namespace op
+}  // namespace op
 }  // namespace tvm

@@ -3,8 +3,8 @@
  * \brief Helper utilities to implement hybrid_op.
  * \file hybrid_op.h
  */
-#ifndef TVM_HYBRID_OP_H
-#define TVM_HYBRID_OP_H
+#ifndef TVM_OP_HYBRID_OP_H_
+#define TVM_OP_HYBRID_OP_H_
 
 #include <tvm/expr.h>
 #include <tvm/ir_mutator.h>
@@ -52,7 +52,7 @@ Stmt ApplySchedule(const Stage& stage,
 Stmt ApplySplits(const Stage &stage,
                  const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
 
-} // namespace op
-} // namespace tvm
+}  // namespace op
+}  // namespace tvm
 
-#endif // TVM_HYBRID_OP_H
+#endif  // TVM_OP_HYBRID_OP_H_
