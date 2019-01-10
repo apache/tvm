@@ -1,9 +1,8 @@
 """Common utilities"""
 from __future__ import absolute_import as _abs
-from .. import expr as _expr
-
 import logging
 from topi.util import get_const_tuple
+from .. import expr as _expr
 from .. import expr as _expr
 from .. import ir_pass
 from .. import op as _op
