@@ -886,7 +886,7 @@ def test_single_ops():
     dtype = "float32"
     out_shape = in_shape
 
-    def verify_single_ops(op, x, out_np):
+    def verify_single_ops(op, x, out_np, rtol=1e-5, atol=1e-5):
         z = helper.make_node(op, ['in1'], ['out'])
         graph = helper.make_graph([z],
                                    '_test',
@@ -894,7 +894,7 @@ def test_single_ops():
                                                 TensorProto.FLOAT, list(in_shape)),],
                                   outputs = [helper.make_tensor_value_info("out",
                                                 TensorProto.FLOAT, list(out_shape))])
-        model = helper.make_model(graph, producer_name='_test')
+        model = helper.make_model(graph, producer_name='_test', rtol=rtol, atol=atol)
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(model, [x], target, ctx)
             tvm.testing.assert_allclose(out_np, tvm_out)
@@ -1022,7 +1022,7 @@ if __name__ == '__main__':
     test_pad()
     test_split()
     test_binary_ops()
-    #test_single_ops()
+    test_single_ops()
     test_leaky_relu()
     #test_elu()
     #test_selu()
