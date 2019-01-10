@@ -225,6 +225,8 @@ IterVarType ForTypeToIterVarType(ir::ForType for_type) {
     return kVectorized;
   case ForType::Unrolled:
     return kUnrolled;
+  default:
+    return kDataPar;
   }
 }
 
