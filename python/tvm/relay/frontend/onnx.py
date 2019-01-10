@@ -2,6 +2,7 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 from __future__ import absolute_import as _abs
 
+import logging
 import numpy as np
 from ... import nd as _nd
 from .. import ir_pass
@@ -469,7 +470,7 @@ class Shape(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # Result of this operator is prominently used by reshape operator.
         # Just pass the input as it is so that reshape_like can be used there.
-        print("Shape: Differently implemented in relay as a bypass (dummy operator)")
+        logging.warning("Shape: Differently implemented in relay as a bypass (dummy operator)")
         return inputs[0]
 
 class Cast(OnnxOpConverter):
