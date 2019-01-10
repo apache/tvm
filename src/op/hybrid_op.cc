@@ -276,6 +276,46 @@ Stmt ApplySplits(const Stage &stage,
 }
 
 Stmt ApplyLoopAnnotations(const Stage &stage, Stmt stmt) {
+  class LoopAnnotator : public IRMutator {
+    const Variable *var;
+    ForType for_type;
+   public:
+    LoopAnnotator(const Variable *var_, ForType for_type_) : var(var_), for_type(for_type_) {}
+    
+    Stmt Mutate_(const For *op, const Stmt &stmt) {
+      if (op->loop_var.get() == var) {
+        CHECK(for_type != op->for_type);
+        return For::make(op->loop_var, op->min, op->extent,
+                         for_type, op->device_api, op->body);
+      }
+      return IRMutator::Mutate_(op, stmt);
+    }
+  };
+
+  for (auto &iter_var : stage->leaf_iter_vars) {
+    bool equal = false;
+    int found = 0;
+
+    const Variable *var = iter_var->var.get();
+    ForType expected = IterVarTypeToForType(iter_var->iter_type);
+    if (stage->iter_var_attrs.count(iter_var)) {
+      expected = IterVarTypeToForType(stage->iter_var_attrs[iter_var]->iter_type);
+    }
+
+    PostOrderVisit(stmt, [&found, &var, &expected, &equal](const NodeRef &node) {
+      if (const For *op = node.as<For>()) {
+        if (op->loop_var.get() == var) {
+          ++found;
+          equal = expected == op->for_type;
+        }
+      }
+    });
+
+    CHECK_EQ(found, 1) << " iter var should be found exactly once!";
+    if (!equal) {
+      stmt = LoopAnnotator(var, expected).Mutate(stmt);
+    }
+  }
   return stmt;
 }
 

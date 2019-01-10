@@ -595,6 +595,7 @@ def test_const_range():
 
 def test_schedule():
     # Test perfect loop split
+    # Test loop annotation
     @script
     def outer_product(a, b):
         c = output_tensor((128, 64), a.dtype)
@@ -609,7 +610,9 @@ def test_schedule():
     j, i = c.op.axis
     jo, ji = sch[c].split(j, 4)
     joo, joi = sch[c].split(jo, 4)
+    sch[c].vectorize(ji)
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
+    print(ir)
     assert isinstance(ir, tvm.stmt.ProducerConsumer)
     ir = ir.body
     assert isinstance(ir, tvm.stmt.AttrStmt)
@@ -622,11 +625,8 @@ def test_schedule():
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'j.outer.inner'
     ir = ir.body
-    assert isinstance(ir, tvm.stmt.For)
-    assert ir.loop_var.name == 'j.inner'
 
     # Test imperfect loop split
-    # Test loop annotation
     # Test loop binds
     # Test loop reorder
 
