@@ -54,6 +54,26 @@ def verify_keras_frontend(keras_model, need_transpose=True):
             tvm.testing.assert_allclose(kout, tout, rtol=1e-5, atol=1e-5)
 
 
+def test_forward_elemwise_add():
+    r = []
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
+    r.append(x)
+    x = keras.layers.Conv2D(8, (3, 3), padding="same")(x)
+    r.append(x)
+    x = keras.layers.Conv2D(8, (3, 3), padding="same")(x)
+    # add two symbols
+    y = keras.layers.add([keras.layers.add([x, r[0]]), r[1]])
+    y = keras.layers.GlobalAveragePooling2D()(y)
+    keras_model = keras.models.Model(data, y)
+    verify_keras_frontend(keras_model)
+    # add three symbols
+    y = keras.layers.add([x, r[0], r[1]])
+    y = keras.layers.GlobalAveragePooling2D()(y)
+    keras_model = keras.models.Model(data, y)
+    verify_keras_frontend(keras_model)
+
+
 def test_forward_merge():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
@@ -241,6 +261,7 @@ def test_forward_mobilenet():
 
 
 if __name__ == '__main__':
+    test_forward_elemwise_add()
     test_forward_merge()
     test_forward_activations()
     test_forward_dense()
