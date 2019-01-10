@@ -363,7 +363,7 @@ def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
         input_name = model.graph.input[0].name
         py_out = _get_python_lrn()
         tvm_out = get_tvm_output(model, in_array, target, ctx, py_out.shape, 'float32')
-        tvm.testing.assert_allclose(py_out, tvm_out)
+        tvm.testing.assert_allclose(py_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
 def test_lrn():
@@ -894,10 +894,10 @@ def test_single_ops():
                                                 TensorProto.FLOAT, list(in_shape)),],
                                   outputs = [helper.make_tensor_value_info("out",
                                                 TensorProto.FLOAT, list(out_shape))])
-        model = helper.make_model(graph, producer_name='_test', rtol=rtol, atol=atol)
+        model = helper.make_model(graph, producer_name='_test')
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(model, [x], target, ctx)
-            tvm.testing.assert_allclose(out_np, tvm_out)
+            tvm.testing.assert_allclose(out_np, tvm_out, rtol=rtol, atol=atol)
 
     x = np.random.uniform(size=in_shape).astype(dtype)
     verify_single_ops("Neg",x, -x)
@@ -1024,10 +1024,10 @@ if __name__ == '__main__':
     test_binary_ops()
     test_single_ops()
     test_leaky_relu()
-    #test_elu()
-    #test_selu()
-    #test_ThresholdedRelu()
+    test_elu()
+    test_selu()
+    test_ThresholdedRelu()
     test_ScaledTanh()
-    #test_ParametricSoftplus()
+    test_ParametricSoftplus()
     test_Scale()
     test_LogSoftmax()

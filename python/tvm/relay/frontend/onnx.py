@@ -616,11 +616,9 @@ class Mean(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         if not isinstance(inputs, list) or len(inputs) < 2:
             raise ValueError("Expect minimum 2 inputs")
-        count = len(inputs)
-        _sum = inputs[0]
-        for i in range(1, count):
-            _sum = AttrCvt('add')([_sum, inputs[i]], {})
-        return _sum / _expr.const(float(count))
+        # avoid overflow
+        concat = _op.concatenate([_op.expand_dims(x, axis=0) for x in inputs], axis=0)
+        return _op.mean(concat, axis=0, keepdims=False)
 
 class HardSigmoid(OnnxOpConverter):
     """ Operator converter for HardSigmoid.
