@@ -101,6 +101,12 @@ def test_annotate_none():
     assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
 
 
+def check_annotated_graph(annotated_func, expected_func):
+    annotated_func = relay.ir_pass.infer_type(annotated_func)
+    expected_func = relay.ir_pass.infer_type(expected_func)
+    assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
+
+
 def test_conv_network():
     R""" The network is as following:
              data1     data2
@@ -182,13 +188,6 @@ def test_conv_network():
         func = relay.Function([data1, weight, data2], conv2d_3)
         return func
 
-    def check_annotated_graph():
-        annotated_func = annotated()
-        annotated_func = relay.ir_pass.infer_type(annotated_func)
-        expected_func = expected()
-        expected_func = relay.ir_pass.infer_type(expected_func)
-        assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
-
     def check_storage_and_device_ids():
         func = annotated()
         func = relay.ir_pass.rewrite_annotated_ops(func, 3)
@@ -209,8 +208,10 @@ def test_conv_network():
         assert len(set(device_ids)) == 2
         assert set(device_ids) == {1, 2}
 
+    annotated_func = annotated()
+    expected_func = expected()
+    check_annotated_graph(annotated_func, expected_func)
     check_storage_and_device_ids()
-    check_annotated_graph()
 
 
 def test_fusible_network():
@@ -244,11 +245,6 @@ def test_fusible_network():
 
         func = relay.Function([x, y], exp)
         return func
-
-    def check_annotated_graph(func, ref_func):
-        func = relay.ir_pass.infer_type(func)
-        ref_func = relay.ir_pass.infer_type(ref_func)
-        assert relay.ir_pass.alpha_equal(func, ref_func)
 
     def test_runtime(target, device, func, fallback_device=None):
         params = {"x": x_data, "y": y_data}

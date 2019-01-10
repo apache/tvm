@@ -7,6 +7,7 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/operation.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
@@ -83,7 +84,8 @@ class ScheduleGetter :
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
     Schedule schedule;
-    if (cache_node->func_name != "__copy") {
+    // No need to register schedule for device copy op.
+    if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
       schedule =
           fschedule[master_op_](master_attrs_, cache_node->outputs, target_);
       for (const auto& scalar : scalars_) {
@@ -310,9 +312,12 @@ class CompileEngineImpl : public CompileEngineNode {
         *(spair.second.operator->()));
 
     // Skip lowering for device copy node.
-    if (cache_node->func_name == "__copy") {
-      value->cached_func = CachedFunc(cache_node);
-      return value;
+    const Expr body = (key->source_func)->body;
+    if (const CallNode* call_node = body.as<CallNode>()) {
+      if (call_node->attrs.as<DeviceCopyAttrs>()) {
+        value->cached_func = CachedFunc(cache_node);
+        return value;
+      }
     }
 
     cache_node->func_name = GetUniqueName(cache_node->func_name);

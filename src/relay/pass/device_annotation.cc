@@ -342,8 +342,7 @@ class DeviceInfo {
     // Post order traversal.
     void VisitExpr_(const FunctionNode* fn) final {
       ExprVisitor::VisitExpr_(fn);
-      // Skip function node for now.
-      // post_dfs_order_.push_back(fn);
+      // TODO(zhiics) Skip annotation of function node for now.
     }
 
     void VisitExpr_(const ConstantNode* cn) final {
@@ -364,8 +363,7 @@ class DeviceInfo {
 
     void VisitExpr_(const TupleNode* tn) final {
       ExprVisitor::VisitExpr_(tn);
-      // Skip adding tuple, or keep it but return an array of device ids later.
-      // post_dfs_order_.push_back(tn);
+      // TODO(zhiics) Skip annotation of tuple node for now.
     }
 
     void VisitExpr_(const TupleGetItemNode* op) final {

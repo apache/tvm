@@ -2,6 +2,8 @@
 Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
+import warnings
+
 from tvm._ffi.runtime_ctypes import TVMContext
 from ..build_module import build as _tvm_build_module
 from .. import nd as _nd, target as _target, autotvm
@@ -130,7 +132,7 @@ def optimize(func, target, params=None):
     func : tvm.relay.Function
         The input to optimization.
 
-    target : Optional[:any:`tvm.target.Target`, Dict[int, str]]
+    target : Optional[:any:`tvm.target.Target`, Dict[int, tvm.target.Target]]
         The optimization target. For heterogeneous compilation, it is a
         dictionary mapping device id to compilation target. For homogeneous
         compilation, it is a build target.
@@ -173,12 +175,16 @@ def optimize(func, target, params=None):
     # FIXME(zhiics) Skip AlterOpLayout pass for heterogeneous compilation for
     # now. We probably need to pass target to this pass as well. Fix it in
     # a followup PR.
-    if cfg.pass_enabled("AlterOpLayout") and not isinstance(target, dict):
-        func = ir_pass.infer_type(func)
-        func = ir_pass.canonicalize_ops(func)
-        func = ir_pass.infer_type(func)
-        with target:
-            func = ir_pass.alter_op_layout(func)
+    if cfg.pass_enabled("AlterOpLayout"):
+        if isinstance(target, _target.Target):
+            func = ir_pass.infer_type(func)
+            func = ir_pass.canonicalize_ops(func)
+            func = ir_pass.infer_type(func)
+            with target:
+                func = ir_pass.alter_op_layout(func)
+        elif isinstance(target, dict):
+            warnings.warn("AlterOpLayout pass is not enabled for heterogeneous"
+                          " execution yet.")
 
     if cfg.pass_enabled("FoldConstant"):
         func = ir_pass.fold_constant(func)
@@ -288,7 +294,7 @@ def _update_heterogeneous_inputs(target, fallback_device=None):
 
     Returns
     -------
-    device_target : dict of int to str.
+    device_target : dict of int to tvm.target.Target.
         The updated device id to target dict.
 
     fallback_device : int
@@ -314,7 +320,7 @@ def _update_heterogeneous_inputs(target, fallback_device=None):
 
     device_target = {}
     for dev, tgt in target.items():
-        device_target[_nd.context(dev).device_type] = str(tgt)
+        device_target[_nd.context(dev).device_type] = _target.create(tgt)
 
     if fallback_device not in device_target:
         raise ValueError("%s is used as the default device, but the target" +
