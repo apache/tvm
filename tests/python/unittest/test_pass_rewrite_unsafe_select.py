@@ -1,7 +1,7 @@
 import tvm
 
 
-def test_rewrite():
+def test_rewrite_Select():
     ib = tvm.ir_builder.create()
     A = ib.allocate("float32", 100, name="A", scope="global")
     i = tvm.var("i")
@@ -20,4 +20,4 @@ def test_rewrite():
 
 
 if __name__ == "__main__":
-    test_rewrite()
+    test_rewrite_Select()

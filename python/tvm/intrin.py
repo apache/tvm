@@ -417,6 +417,9 @@ def if_then_else(cond, t, f):
     ----
     Unlike Select, if_then_else will not execute
     the branch that does not satisfy the condition.
+    You can use it to guard against out of bound access.
+    Unlike Select, if_then_else cannot be vectorized
+    if some lanes in the vector have different conditions.
     """
     t = convert(t)
     f = convert(f)

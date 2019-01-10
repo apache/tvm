@@ -55,7 +55,6 @@ class CopyIntrinInjector : public IRMutator {
     return false;
   }
 
-
   bool MatchCopyPattern(Stmt stmt, Stmt *out) {
     Stmt body = stmt;
     bool is_single_point_copy = false;
