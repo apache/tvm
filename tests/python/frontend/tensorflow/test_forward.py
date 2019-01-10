@@ -1097,7 +1097,7 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
-    #test_forward_ptb()
+    #_test_forward_ptb()
 
     # RNN
     test_forward_lstm()
