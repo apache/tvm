@@ -487,9 +487,6 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
           (*it).second->bind_thread.defined()) {
         continue;
       }
-      if (iv->dom.defined() && is_const_int(iv->dom->min, 0)) {
-        continue;
-      }
       if (idx < leaf_vars->data.size()) {
         // insert rebase
         IterVar rebased = IterVarNode::make(
