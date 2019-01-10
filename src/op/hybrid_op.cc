@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \brief Hybrid computation rule.
  * \file hybrid_op.cc
  */
@@ -199,6 +199,7 @@ Stmt HybridOpNode::BuildProvide(
 }
 
 namespace op {
+
 Stmt ApplySplits(const Stage &stage,
                  const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt) {
   class LoopSpliter : public IRMutator {
@@ -334,5 +335,4 @@ Stmt ReplaceProvideTensor(Stmt stmt,
   return repl.found ? ret : stmt;
 }
 } // namespace op
-
 }  // namespace tvm

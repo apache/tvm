@@ -1,3 +1,8 @@
+/*!
+ *  Copyright (c) 2019 by Contributors
+ * \brief Helper utilities to implement hybrid_op.
+ * \file hybrid_op.h
+ */
 #ifndef TVM_HYBRID_OP_H
 #define TVM_HYBRID_OP_H
 

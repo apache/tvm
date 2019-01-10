@@ -594,7 +594,7 @@ def test_const_range():
     run_and_check(hoo, [a, b])
 
 def test_schedule():
-    # Testing perfect loop split
+    # Test perfect loop split
     @script
     def outer_product(a, b):
         c = output_tensor((128, 64), a.dtype)
@@ -624,6 +624,11 @@ def test_schedule():
     ir = ir.body
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'j.inner'
+
+    # Test imperfect loop split
+    # Test loop annotation
+    # Test loop binds
+    # Test loop reorder
 
 
 if __name__ == "__main__":
