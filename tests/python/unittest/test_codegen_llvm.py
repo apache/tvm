@@ -287,12 +287,12 @@ def test_multiple_func():
 
 
 
-def test_llvm_select():
+def test_llvm_condition():
     def check_llvm(n, offset):
         if not tvm.module.enabled("llvm"):
             return
         A = tvm.placeholder((n, ), name='A')
-        C = tvm.compute((n,), lambda i: tvm.select(i >= offset, A[i], 0.0), name='C')
+        C = tvm.compute((n,), lambda i: tvm.if_then_else(i >= offset, A[i], 0.0), name='C')
         s = tvm.create_schedule(C.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
@@ -462,7 +462,7 @@ if __name__ == "__main__":
     test_rank_zero_bound_checkers()
     test_llvm_bool()
     test_llvm_persist_parallel()
-    test_llvm_select()
+    test_llvm_condition()
     test_llvm_vadd_pipeline()
     test_llvm_add_pipeline()
     test_llvm_intrin()

@@ -392,7 +392,7 @@ TVM_DLL Expr operator^(Expr a, Expr b);
  */
 TVM_DLL Expr operator~(Expr a);
 /*!
- * \brief select result by condition
+ * \brief Conditional expression.
  *
  * \param cond The condition
  * \param true_value The value when results are true.
@@ -401,7 +401,7 @@ TVM_DLL Expr operator~(Expr a);
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
-TVM_DLL Expr select(Expr cond, Expr true_value, Expr false_value);
+TVM_DLL Expr if_then_else(Expr cond, Expr true_value, Expr false_value);
 /*!
  * \brief Mark condition as likely.
  * \param cond The condition
