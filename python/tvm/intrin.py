@@ -393,6 +393,42 @@ def fmod(x, y):
     """
     return call_pure_intrin(x.dtype, "fmod", x, y)
 
+
+def if_then_else(cond, t, f):
+    """Conditional selection expression.
+
+    Parameters
+    ----------
+    cond : Expr
+        The condition
+
+    t : Expr
+        The result expression if cond is true.
+
+    f : Expr
+        The result expression if cond is false.
+
+    Returns
+    -------
+    result : Node
+        The result of conditional expression.
+
+    Note
+    ----
+    Unlike Select, if_then_else will not execute
+    the branch that does not satisfy the condition.
+    You can use it to guard against out of bound access.
+    Unlike Select, if_then_else cannot be vectorized
+    if some lanes in the vector have different conditions.
+    """
+    t = convert(t)
+    f = convert(f)
+    cond = convert(cond)
+    if cond.dtype != "bool":
+        raise TypeError("The condition's data type has to be bool")
+    return call_pure_intrin(t.dtype, "tvm_if_then_else", cond, t, f)
+
+
 # Intrinsic rule related code
 def register_intrin_rule(target, intrin, f=None, override=False):
     """Register an intrinsic function generation rule.

@@ -296,9 +296,10 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
 
     # pack input tile
     input_tile = tvm.compute((CI, P_round // bnb, alpha, alpha, bnb), lambda ci, b, eps, nu, bb: \
-         tvm.select(b * bnb + bb < P,
-                    data_pad[(b*bnb+bb) // (nH*nW)][ci][(b*bnb+bb) // nW % nH * m + eps]
-                    [(b*bnb+bb) % nW * m + nu], tvm.const(0, data_pad.dtype)), name='d')
+         tvm.if_then_else(
+             b * bnb + bb < P,
+             data_pad[(b*bnb+bb) // (nH*nW)][ci][(b*bnb+bb) // nW % nH * m + eps]
+             [(b*bnb+bb) % nW * m + nu], tvm.const(0, data_pad.dtype)), name='d')
 
     # transform kernel
     if pre_computed:

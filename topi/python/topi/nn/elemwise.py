@@ -41,7 +41,7 @@ def leaky_relu(x, alpha):
     def _compute(*indices):
         value = x(*indices)
         calpha = tvm.const(alpha, value.dtype)
-        return tvm.select(value > 0, value, value * calpha)
+        return tvm.expr.Select(value > 0, value, value * calpha)
     return tvm.compute(x.shape, _compute)
 
 @tvm.tag_scope(tag=tag.BROADCAST)
@@ -74,5 +74,6 @@ def prelu(x, slope, axis=1):
     assert get_const_int(slope.shape[0]) == get_const_int(x.shape[axis])
 
     def _compute_channelwise(*indices):
-        return tvm.select(x(*indices) > 0, x(*indices), x(*indices) * slope(indices[axis]))
+        xval = x(*indices)
+        return tvm.expr.Select(xval > 0, xval, xval * slope(indices[axis]))
     return tvm.compute(x.shape, _compute_channelwise)

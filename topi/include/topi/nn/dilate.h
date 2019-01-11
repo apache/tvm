@@ -76,7 +76,8 @@ inline Tensor dilate(const Tensor& x,
       }
       if (not_zero.size() > 0) {
         auto all_not_zero = all(not_zero);
-        return tvm::select(all_not_zero, x(index_tuple), make_const(x->dtype, 0));
+        return tvm::if_then_else(
+            all_not_zero, x(index_tuple), make_const(x->dtype, 0));
       }
       return x(index_tuple);
     }, name, tag);

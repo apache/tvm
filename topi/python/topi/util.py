@@ -249,9 +249,9 @@ def const_matrix(matrix, name="const_matrix"):
         now = tvm.const(0.0, dtype)
         for ii in range(row):
             for jj in range(col):
-                now = tvm.select(tvm.all(i % row == ii, j % col == jj),
-                                 tvm.const(matrix[ii][jj], dtype),
-                                 now)
+                now = tvm.expr.Select(tvm.all(i % row == ii, j % col == jj),
+                                      tvm.const(matrix[ii][jj], dtype),
+                                      now)
         return now
 
     return tvm.compute(matrix.shape, select_array, name=name)
