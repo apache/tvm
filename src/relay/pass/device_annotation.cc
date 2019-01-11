@@ -12,6 +12,7 @@
  */
 
 #include <tvm/relay/attrs/device_copy.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pass.h>

@@ -657,29 +657,3 @@ def device_copy(data, src_dev, dst_dev):
         raise ValueError("dst_dev is expected to be the type of TVMContext or "
                          "str, but received %s" % (type(dst_dev)))
     return _make.device_copy(data, src_dev, dst_dev)
-
-
-def on_device(data, device):
-    """Annotate an expression with device type.
-
-    Parameters
-    ----------
-    data : tvm.relay.Expr
-        The expression to be annotated.
-
-    device : Union[:py:class:`TVMContext`, str]
-        The device type to annotate.
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The annotated tensor.
-    """
-    if isinstance(device, _TVMContext):
-        device = device.device_type
-    elif isinstance(device, str):
-        device = _nd.context(device).device_type
-    else:
-        raise ValueError("device is expected to be the type of TVMContext or "
-                         "str, but received %s" % (type(device)))
-    return _make.on_device(data, device)

@@ -16,8 +16,8 @@ def test_redundant_annotation():
 
     def annotated():
         add = relay.add(x, y)
-        _add1 = relay.on_device(add, ctx2)
-        _add2 = relay.on_device(add, ctx2)
+        _add1 = relay.annotation.on_device(add, ctx2)
+        _add2 = relay.annotation.on_device(add, ctx2)
         sub = relay.subtract(add, z)
 
         func = relay.Function([x, y, z],
@@ -51,9 +51,9 @@ def test_annotate_all():
 
     def annotated():
         add = relay.add(x, y)
-        _add = relay.on_device(add, ctx2)
+        _add = relay.annotation.on_device(add, ctx2)
         sub = relay.subtract(add, z)
-        _sub = relay.on_device(sub, ctx2)
+        _sub = relay.annotation.on_device(sub, ctx2)
 
         func = relay.Function([x, y, z],
                               relay.Tuple(tvm.convert([_add, _sub,
@@ -132,23 +132,23 @@ def test_conv_network():
             channels=64,
             kernel_size=(3, 3),
             padding=(1, 1))
-        _conv2d_1 = relay.on_device(conv2d_1, dev2)
+        _conv2d_1 = relay.annotation.on_device(conv2d_1, dev2)
         conv2d_2 = relay.nn.conv2d(
             data2,
             weight,
             channels=64,
             kernel_size=(3, 3),
             padding=(1, 1))
-        _conv2d_2 = relay.on_device(conv2d_2, dev2)
+        _conv2d_2 = relay.annotation.on_device(conv2d_2, dev2)
         add = relay.add(conv2d_1, conv2d_2)
-        _add = relay.on_device(add, dev1)
+        _add = relay.annotation.on_device(add, dev1)
         conv2d_3 = relay.nn.conv2d(
             add,
             weight,
             channels=64,
             kernel_size=(3, 3),
             padding=(1, 1))
-        _conv2d_3 = relay.on_device(conv2d_3, dev2)
+        _conv2d_3 = relay.annotation.on_device(conv2d_3, dev2)
 
         func = relay.Function([data1, data2, weight],
                               relay.Tuple(tvm.convert([_conv2d_1, _conv2d_2,
@@ -271,11 +271,11 @@ def test_fusible_network():
         def annotated():
             add = relay.add(x, y)
             sqrt = relay.sqrt(add)
-            _sqrt = relay.on_device(sqrt, dev_ctx)
+            _sqrt = relay.annotation.on_device(sqrt, dev_ctx)
             log = relay.log(add)
             subtract = relay.subtract(sqrt, log)
             exp = relay.exp(subtract)
-            _exp = relay.on_device(exp, dev_ctx)
+            _exp = relay.annotation.on_device(exp, dev_ctx)
 
             func = relay.Function([x, y],
                                   relay.Tuple(tvm.convert([_sqrt, _exp, exp])))
@@ -313,15 +313,15 @@ def test_fusible_network():
 
         def annotated():
             add = relay.add(x, y)
-            _add = relay.on_device(add, dev_ctx)
+            _add = relay.annotation.on_device(add, dev_ctx)
             sqrt = relay.sqrt(add)
-            _sqrt = relay.on_device(sqrt, dev_ctx)
+            _sqrt = relay.annotation.on_device(sqrt, dev_ctx)
             log = relay.log(add)
-            _log = relay.on_device(log, dev_ctx)
+            _log = relay.annotation.on_device(log, dev_ctx)
             subtract = relay.subtract(sqrt, log)
-            _subtract = relay.on_device(subtract, dev_ctx)
+            _subtract = relay.annotation.on_device(subtract, dev_ctx)
             exp = relay.exp(subtract)
-            _exp = relay.on_device(exp, dev_ctx)
+            _exp = relay.annotation.on_device(exp, dev_ctx)
 
             func = relay.Function([x, y],
                                   relay.Tuple(tvm.convert([_add, _sqrt, _log,
@@ -350,7 +350,7 @@ def test_fusible_network():
             log = relay.log(add)
             subtract = relay.subtract(sqrt, log)
             exp = relay.exp(subtract)
-            _exp = relay.on_device(exp, cpu_ctx)
+            _exp = relay.annotation.on_device(exp, cpu_ctx)
 
             func = relay.Function([x, y],
                                   relay.Tuple(tvm.convert([_exp, exp])))
