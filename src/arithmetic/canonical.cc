@@ -781,12 +781,138 @@ T Simplify_(T a, Map<Var, Range> vrange) {
 }
 
 
+/*!
+ * \brief Simplify just the combiner of the given reduce node.
+ *
+ *  This function applies Simplify to the components of the top reduction's
+ *  combiner, but not to the source or condition of the reduction.
+ *  It also removes all components which are not used to
+ *  compute the resulting value (the value_index-th value).
+ *
+ *  If \p expr is not a reduction node, it is left unchanged.
+ *
+ * \param expr The expression to be simplifed.
+ * \return Simplified expression.
+ */
+Expr SimplifyCombiner(const Expr& expr, const Map<Var, Range>& vrange = Map<Var, Range>()) {
+  const Reduce* op = expr.as<Reduce>();
+  if (!op) {
+    return expr;
+  }
+
+  // First simplify the results
+  Array<Expr> simplified_result;
+  for (const auto& res : op->combiner->result) {
+    simplified_result.push_back(Simplify(res, vrange));
+  }
+
+  // Which components to keep
+  std::vector<int> used(op->combiner->result.size(), false);
+
+  // This function recursively marks the used components starting from
+  // the index idx
+  std::function<void(int)> mark_used;
+  mark_used = [&used, &simplified_result, op, &mark_used](size_t idx) {
+    // if the idx-th component was marked as used before, do nothing
+    if (used[idx]) return;
+    used[idx] = true;
+
+    // check if the idx-th result expr uses some lhs or rhs variables
+    // and recursively mark the corresponding components
+    for (size_t i = 0; i < simplified_result.size(); ++i)
+      if (!used[i]) {
+        if (ExprUseVar(simplified_result[idx], op->combiner->lhs[i]) ||
+            ExprUseVar(simplified_result[idx], op->combiner->rhs[i]))
+          mark_used(i);
+      }
+  };
+
+  // mark all used components starting from the value_index
+  mark_used(op->value_index);
+
+  // components which have side effects should also be preserved
+  for (size_t i = 0; i < used.size(); ++i) {
+    if (HasSideEffect(op->source[i]) || HasSideEffect(op->combiner->identity_element[i]) ||
+        HasSideEffect(op->combiner->result[i])) {
+      mark_used(i);
+    }
+  }
+
+  int new_value_index = op->value_index;
+  Array<Expr> new_result;
+  Array<Expr> new_identity;
+  Array<Var> new_lhs;
+  Array<Var> new_rhs;
+  Array<Expr> new_source;
+
+  // new stuff is old stuff which is used
+  for (size_t i = 0; i < used.size(); ++i) {
+    if (used[i]) {
+      // We simplify the result and identity, but not the source
+      new_result.push_back(simplified_result[i]);
+      new_identity.push_back(Simplify(op->combiner->identity_element[i], vrange));
+      new_lhs.push_back(op->combiner->lhs[i]);
+      new_rhs.push_back(op->combiner->rhs[i]);
+      new_source.push_back(op->source[i]);
+    } else if (static_cast<int>(i) < op->value_index) {
+      // value_index should also be adjusted
+      new_value_index--;
+    }
+  }
+
+  CommReducer new_combiner = CommReducerNode::make(new_lhs, new_rhs, new_result, new_identity);
+  return Reduce::make(new_combiner, new_source, op->axis, op->condition, new_value_index);
+}
+
+/*!
+ * \brief Remove a single reduction over empty axis.
+ *
+ *  If \p e is a reduction node and its axis is empty, replace it with its source,
+ *  otherwise return \p e unchanged.
+ *
+ * \param e The expression to be transformed.
+ * \return The transformed expression.
+ */
+Expr RemoveEmptyReduction(const Expr& e) {
+  const Reduce* r = e.as<Reduce>();
+  if (r && r->axis.empty()) {
+    // Note that here we assume that the identity element is indeed identity. Without this
+    // assumption we would have to perform a single iteration of the loop, i.e. use
+    // `(*r->combiner.get())(r->combiner->identity_element, r->source)[r->value_index]`
+    // instead of `r->source[r->value_index]`. The former may be more difficult to simplify.
+    return Select::make(r->condition,
+                        r->source[r->value_index],
+                        r->combiner->identity_element[r->value_index]);
+  }
+  return e;
+}
+
 Expr Simplify(Expr a, Map<Var, Range> vrange) {
   // We should not pass an expression having a non-HalideIR op to
   // Halide::Internal::simplify. Reduce op is the only such op at this time
   // and it only appears as the top op in an expression. So we strip it
   // first and send the sub-expressions to the simplifier.
   if (const Reduce* r = a.as<Reduce>()) {
+    // If axis is empty, we can remove the reduce op completely.
+    if (r->axis.empty())
+      return Simplify_(RemoveEmptyReduction(a), vrange);
+
+    // Simplify the combiner of the reduction
+    a = SimplifyCombiner(a, vrange);
+    r = a.as<Reduce>();
+
+    // If axis is not empty then we add the information about ranges to vrange
+    for (const IterVar& iv : r->axis) {
+      if (vrange.count(iv->var)) {
+        Range existing_range = vrange[iv->var];
+        CHECK(Equal(existing_range->min, iv->dom->min) &&
+              Equal(existing_range->extent, iv->dom->extent))
+          << "Simplify was given vrange stating that the range of the reduction var "
+          << iv << " is " << existing_range << ". This is probably a mistake.";
+      }
+      vrange.Set(iv->var, iv->dom);
+    }
+
     Array<Expr> new_source;
     for (auto& e : r->source) {
       new_source.push_back(Simplify_(e, vrange));
