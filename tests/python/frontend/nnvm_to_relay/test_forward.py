@@ -67,11 +67,6 @@ def test_forward_densenet():
     verify_nnvm_to_relay(model, params)
 
 
-def test_forward_dcgan():
-    model, params = nnvm.testing.dcgan.get_workload(1)
-    verify_nnvm_to_relay(model, params, data_shape=(1, 100))
-
-
 def test_forward_dqn():
     model, params = nnvm.testing.dqn.get_workload(1)
     verify_nnvm_to_relay(model, params, data_shape=(1, 4, 84, 84))
@@ -84,5 +79,4 @@ if __name__ == '__main__':
     test_forward_squeezenet()
     test_forward_inception_v3()
     test_forward_densenet()
-    test_forward_dcgan()
     test_forward_dqn()
