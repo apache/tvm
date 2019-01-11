@@ -32,3 +32,6 @@ python3 -m nose -v tests/python/frontend/mxnet || exit -1
 
 echo "Running relay Keras frontend test..."
 python3 -m nose -v tests/python/frontend/keras || exit -1
+
+echo "Running relay ONNX frondend test..."
+python3 -m nose -v tests/python/frontend/onnx || exit -1
