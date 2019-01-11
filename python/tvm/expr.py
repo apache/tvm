@@ -624,6 +624,13 @@ class Not(LogicalExpr):
 class Select(Expr):
     """Select node.
 
+    Note
+    ----
+    Select may compute both true_value and false_value.
+    Use :any:`tvm.if_then_else` instead if you want to
+    get a conditional expression that only evaluates
+    the correct branch.
+
     Parameters
     ----------
     condition : Expr
@@ -634,6 +641,7 @@ class Select(Expr):
 
     false_value : Expr
         The value to take when condition is false.
+
     """
     def __init__(self, condition, true_value, false_value):
         self.__init_handle_by_constructor__(

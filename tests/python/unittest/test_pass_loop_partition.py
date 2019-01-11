@@ -133,7 +133,7 @@ def test_vectorize():
     assert(x.var.name not in str(body.condition))
     assert(any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.expr.Ramp))))
 
-def test_select():
+def test_condition():
     ib = tvm.ir_builder.create()
     m = tvm.var('m')
     n = tvm.var('n')
@@ -335,7 +335,7 @@ if __name__ == "__main__":
     test_multi_if()
     test_thread_axis()
     test_vectorize()
-    test_select()
+    test_condition()
     test_thread_axis2()
     test_everything_during_deduction()
     test_single_likely()

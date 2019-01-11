@@ -38,7 +38,7 @@ inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices
   auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
 
   auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
-  auto y1 = tvm::select((yc > max_y), max_y, yc);
+  auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
   auto y_lerp = in_y - yf;
 
   auto in_x = indices[3];
@@ -46,7 +46,7 @@ inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices
   auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
 
   auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
-  auto x1 = tvm::select((xc > max_x), max_x, xc);
+  auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
   auto x_lerp = in_x - xf;
 
   auto A = input(indices[0], indices[1], y0, x0);
@@ -215,7 +215,7 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
     auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
 
     auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
-    auto y1 = tvm::select((yc > other_y), other_y, yc);
+    auto y1 = tvm::if_then_else((yc > other_y), other_y, yc);
     auto y_lerp  = in_y - yf;
 
     auto in_x = indices[2] * x_ratio;
@@ -223,7 +223,7 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
     auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
 
     auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
-    auto x1 = tvm::select((xc > other_x), other_x, xc);
+    auto x1 = tvm::if_then_else((xc > other_x), other_x, xc);
     auto x_lerp  = in_x - xf;
 
     auto A = input(indices[0], y0, x0, indices[3]);

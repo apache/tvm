@@ -268,8 +268,9 @@ inline IntSet CombineInterval<Mul>(Interval a, Interval b) {
     } else if (is_negative_const(b.min)) {
       return IntervalSet::make(e2, e1);
     } else if (a.is_bounded()) {
+      using ir::Select;
       Expr cmp = b.min >= make_zero(b.min.type().element_of());
-      return IntervalSet::make(select(cmp, e1, e2), select(cmp, e2, e1));
+      return IntervalSet::make(Select::make(cmp, e1, e2), Select::make(cmp, e2, e1));
     }
   }
   LOG(WARNING) << "Return Everything in CombineInterval Mul";
@@ -294,8 +295,9 @@ inline IntSet CombineInterval<Div>(Interval a, Interval b) {
     } else if (is_negative_const(b.min)) {
       return IntervalSet::make(e2, e1);
     } else if (a.is_bounded()) {
+      using ir::Select;
       Expr cmp = b.min >= make_zero(b.min.type().element_of());
-      return IntervalSet::make(select(cmp, e1, e2), select(cmp, e2, e1));
+      return IntervalSet::make(Select::make(cmp, e1, e2), Select::make(cmp, e2, e1));
     }
   }
   LOG(WARNING) << "Return Everything in CombineInterval Div";

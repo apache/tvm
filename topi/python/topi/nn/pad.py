@@ -55,6 +55,6 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
                 not_zero.append(indices[i] < data.shape[i] + pad_before[i])
         if not_zero:
             not_zero = tvm.all(*not_zero)
-            return tvm.select(not_zero, data(*index_tuple), pad_value)
+            return tvm.if_then_else(not_zero, data(*index_tuple), pad_value)
         return data(*index_tuple)
     return tvm.compute(out_shape, _pad, name=name)

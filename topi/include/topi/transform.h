@@ -314,9 +314,9 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
           idx.push_back(indices[i]);
         }
 
-        ret = tvm::select(ind >= 0,
-                          inputs[i + 1](idx),
-                          ret);
+        ret = tvm::if_then_else(ind >= 0,
+                                inputs[i + 1](idx),
+                                ret);
       }
       return ret;
     }, name, tag);
@@ -652,7 +652,7 @@ inline Tensor where(const Tensor& condition,
       << condition->shape.size() << " vs " << x->shape.size();
     out = compute(
       oshape, [&](const Array<Var>& indices) {
-        return tvm::select(condition(indices) != 0, x(indices), y(indices));
+        return tvm::ir::Select::make(condition(indices) != 0, x(indices), y(indices));
       }, name, tag);
   } else {
     CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
@@ -661,8 +661,8 @@ inline Tensor where(const Tensor& condition,
     out = compute(
       oshape, [&](const Array<Var>& indices) {
         Array<Expr> condition_idx{indices[0]};
-        return tvm::select(condition(condition_idx) != 0,
-                           x(indices), y(indices));
+        return tvm::ir::Select::make(condition(condition_idx) != 0,
+                                     x(indices), y(indices));
       }, name, tag);
   }
   return out;

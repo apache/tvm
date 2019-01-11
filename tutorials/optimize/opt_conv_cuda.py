@@ -43,7 +43,7 @@ out_size = (in_size - kernel + 2*pad) // stride + 1
 # Pad input
 Apad = tvm.compute(
     (in_size + 2*pad, in_size + 2*pad, in_channel, batch),
-    lambda yy, xx, cc, nn: tvm.select(
+    lambda yy, xx, cc, nn: tvm.if_then_else(
         tvm.all(yy >= pad, yy - pad < in_size,
                 xx >= pad, xx - pad < in_size),
         A[yy - pad, xx - pad, cc, nn], tvm.const(0., "float32")),

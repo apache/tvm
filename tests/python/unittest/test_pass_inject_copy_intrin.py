@@ -25,8 +25,8 @@ def test_copy_pad():
     l = tvm.var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.compute((m + 2, l), lambda i, j:
-                    tvm.select(tvm.all(i >= 1, i < m + 1),
-                                       A[i - 1, j], 1.0), name='B')
+                    tvm.if_then_else(tvm.all(i >= 1, i < m + 1),
+                                     A[i - 1, j], 1.0), name='B')
     s = tvm.create_schedule(B.op)
     s[B].pragma(B.op.axis[0], "memcpy")
     bounds = tvm.schedule.InferBound(s)
@@ -71,8 +71,8 @@ def test_copy_pad_split():
     m = 4 * 3
     A = tvm.placeholder((m, ), name="A")
     Apad = tvm.compute((m + 2,), lambda i:
-                       tvm.select(tvm.all(i >= 1, i <= m),
-                                  A[i - 1], 0.0), "Apad")
+                       tvm.if_then_else(tvm.all(i >= 1, i <= m),
+                                        A[i - 1], 0.0), "Apad")
     B = tvm.compute((m,), lambda i: Apad[i] + Apad[i + 1] + Apad[i + 2])
     s = tvm.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=4)
