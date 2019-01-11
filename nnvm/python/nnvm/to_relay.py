@@ -38,6 +38,8 @@ def _conv2d(children, attrs, odtype='float32'):
     else:
         data, weight = children
 
+    kernel_size = attrs.get_int_tuple('kernel_size')
+    channels = attrs.get_int('channels')
     strides = attrs.get_int_tuple('strides', (1, 1))
     padding = attrs.get_int_tuple('padding', (0, 0))
     dilation = attrs.get_int_tuple('dilation', (1, 1))
@@ -50,6 +52,8 @@ def _conv2d(children, attrs, odtype='float32'):
     conv_out = op.nn.conv2d(
         data,
         weight,
+        kernel_size=kernel_size,
+        channels=channels,
         strides=strides,
         padding=padding,
         dilation=dilation,
