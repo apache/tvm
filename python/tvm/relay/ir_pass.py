@@ -357,3 +357,60 @@ def alter_op_layout(expr):
         Transformed expression with alternated layout.
     """
     return _ir_pass.AlterOpLayout(expr)
+
+
+def rewrite_annotated_ops(expr, fallback_device):
+    """Rewrite the annotated program where annotation operators, e.g.
+    `on_deivce`, mark which device an expression should be scheduled to.
+    This pass helps heterogeneous execution where different operators may need
+    to be allocated on various devices.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    fallback_device : int
+        The fallback device type. It is also used as the default device for
+        operators with no annotated device.
+
+    Returns
+    -------
+    transformed_expr : tvm.relay.Expr
+        Transformed expression with cross device data copy operators.
+    """
+    return _ir_pass.RewriteDeviceAnnotation(expr, fallback_device)
+
+
+def collect_device_info(expr):
+    """Collect the device allocation map for the given expression. The device
+    ids are propagated from the `device_copy` operators.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    ret : Dict[tvm.relay.expr, int]
+        A dictionary mapping tvm.relay.Expr to device type.
+    """
+    return _ir_pass.CollectDeviceInfo(expr)
+
+
+def collect_device_annotation_ops(expr):
+    """Collect the device annotation ops for the given expression.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    ret : Dict[tvm.relay.expr, int]
+        A dictionary mapping tvm.relay.Expr to device type where the keys are
+        annotation expressions.
+    """
+    return _ir_pass.CollectDeviceAnnotationOps(expr)

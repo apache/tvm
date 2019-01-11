@@ -112,14 +112,19 @@ def test_plan_memory():
     func = relay.ir_pass.infer_type(func)
     smap = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
+    device_types = set()
     for k, v in smap.items():
-        for x in v:
+        assert len(v) == 2
+        for x in v[0]:
             storage_ids.add(x.value)
+        for x in v[1]:
+            device_types.add(x.value)
 
     # Current rule requires vars have unique storage id
     # because we don't do inplace, we will need another
     # two alternating temporary space.
     assert len(storage_ids) == 4
+    assert len(device_types) == 1
 
 
 if __name__ == "__main__":
