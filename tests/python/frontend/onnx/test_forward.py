@@ -1,19 +1,17 @@
 import numpy as np
 import math
-import nnvm
 import topi
 import topi.testing
 import tvm
+from tvm import relay
 from tvm.contrib import graph_runtime
 from nnvm.testing.config import ctx_list
 import onnx
-from model_zoo import super_resolution, squeezenet1_1, lenet, resnet18_1_0
 from onnx import helper, TensorProto
+import unittest
 
 def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32'):
     """ Generic function to execute and get tvm output"""
-
-    sym, params = nnvm.frontend.from_onnx(graph_def)
     target = 'llvm'
     if isinstance(input_data, list):
         input_names = {}
@@ -28,8 +26,9 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         shape_dict = {input_names: input_data.shape}
         dtype_dict = {input_names: input_data.dtype}
 
-    graph, lib, params = nnvm.compiler.build(sym, target, shape_dict,
-                                             dtype=dtype_dict, params=params)
+    sym, params = relay.frontend.from_onnx(graph_def, shape_dict)
+    with relay.build_config(opt_level=1):
+        graph, lib, params = relay.build(sym, target, params=params)
 
     ctx = tvm.cpu(0)
     from tvm.contrib import graph_runtime
@@ -87,7 +86,7 @@ def verify_resnet18():
 
 def test_reshape():
     in_shape = (4, 3, 3, 4)
-    ref_shape = (3, 4, 4, 3)
+    ref_shape = (6, 2, 4, 3)
 
     ref_array = np.array(ref_shape)
     ref_node = onnx.helper.make_node('Constant',
@@ -272,7 +271,7 @@ def test_slice():
     _test_slice_iteration(x, x[:, 1:1000], (1), (1000), (1))
     _test_slice_iteration(x, x[:, 0:-1], (0), (-1), (1))
 
-def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs, rtol=1e-7, atol=1e-7):
+def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
     indata = np.random.uniform(-1, 1, size=inshape).astype(dtype)
     outdata = outfunc(indata, **npargs)
 
@@ -290,7 +289,7 @@ def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs, r
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype)
 
-    tvm.testing.assert_allclose(outdata, tvm_out, rtol=rtol, atol=atol)
+    tvm.testing.assert_allclose(outdata, tvm_out)
 
 def test_floor():
     _test_onnx_op_elementwise((2, 4, 5, 6), np.floor, {}, 'float32', 'Floor', {})
@@ -361,22 +360,11 @@ def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
         return py_out
 
     for target, ctx in ctx_list():
-        new_sym, params = nnvm.frontend.from_onnx(model)
-
         input_name = model.graph.input[0].name
-        shape_dict = {input_name: in_array.shape}
-        dtype_dict = {input_name: dtype}
-        graph, lib, params = nnvm.compiler.build(new_sym, target,
-                                                 shape_dict, dtype_dict, params=params)
-        m = graph_runtime.create(graph, lib, ctx)
-        # set inputs
-        m.set_input(input_name, tvm.nd.array(in_array.astype(dtype)))
-        m.set_input(**params)
-        m.run()
-        # get outputs
-        tvm_out = m.get_output(0, tvm.nd.empty(shape, dtype))
         py_out = _get_python_lrn()
-        tvm.testing.assert_allclose(py_out, tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
+        tvm_out = get_tvm_output(model, in_array, target, ctx, py_out.shape, 'float32')
+        tvm.testing.assert_allclose(py_out, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_lrn():
     verify_lrn((5, 5, 5, 5), 3, 'float32')
@@ -628,7 +616,6 @@ def verify_argmax(input_dim, axis=None, keepdims=None):
         return result.astype(data.dtype)
 
     a_np1 = np.random.uniform(-10, 10, input_dim).astype(np.int32)
-
     if keepdims is None and axis is None:
         b_np = _argmax_numpy(a_np1)
         node = onnx.helper.make_node('ArgMax',
@@ -675,8 +662,8 @@ def test_forward_arg_min_max():
     verify_argmax([3,4,4], axis=0)
     verify_argmin([3,4,4], keepdims=0)
     verify_argmax([3,4,4], keepdims=1)
-    for axis in [0,1,2]:
-        for keepdims in [True,False]:
+    for axis in [None, 0,1,2]:
+        for keepdims in [None, True,False]:
             verify_argmin([3,4,4], axis, keepdims)
             verify_argmax([3,4,4], axis, keepdims)
 
@@ -766,7 +753,7 @@ def verify_reduce_x(name, indata, axis, keepdims):
                                 keepdims=keepdims)
     else:
         node = helper.make_node(name, inputs=['input'], outputs=['output'],
-                                axis=axis, keepdims=keepdims)
+                                axes=axis, keepdims=keepdims)
     graph = helper.make_graph([node],
                               '{}_test'.format(name),
                               inputs = [helper.make_tensor_value_info("input",
@@ -863,7 +850,7 @@ def test_binary_ops():
     dtype = "float32"
     out_shape = in_shape
 
-    def verify_binary_ops(op, x, y, out_np, broadcast=None, rtol=1e-7, atol=1e-7):
+    def verify_binary_ops(op, x, y, out_np, broadcast=None):
         if broadcast is None:
             z = helper.make_node(op, ['in1', 'in2'], ['out'])
         else:
@@ -879,7 +866,7 @@ def test_binary_ops():
         model = helper.make_model(graph, producer_name='_test')
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(model, [x, y], target, ctx)
-            tvm.testing.assert_allclose(out_np, tvm_out, rtol=rtol, atol=atol)
+            tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
     x = np.random.uniform(size=in_shape).astype(dtype)
     y = np.random.uniform(size=in_shape).astype(dtype)
@@ -890,8 +877,8 @@ def test_binary_ops():
     verify_binary_ops("Sub", x, z, x - z, broadcast=True)
     verify_binary_ops("Mul",x, y, x * y, broadcast=None)
     verify_binary_ops("Mul", x, z,  x * z, broadcast=True)
-    verify_binary_ops("Div", x, y, x / y, broadcast=None, rtol=1e-5, atol=1e-5)
-    verify_binary_ops("Div", x, z, x / z, broadcast=True, rtol=1e-5, atol=1e-5)
+    verify_binary_ops("Div", x, y, x / y, broadcast=None)
+    verify_binary_ops("Div", x, z, x / z, broadcast=True)
     verify_binary_ops("Sum", x, y, x + y, broadcast=None)
 
 def test_single_ops():
@@ -899,7 +886,7 @@ def test_single_ops():
     dtype = "float32"
     out_shape = in_shape
 
-    def verify_single_ops(op, x, out_np, rtol=1e-7, atol=1e-7):
+    def verify_single_ops(op, x, out_np, rtol=1e-5, atol=1e-5):
         z = helper.make_node(op, ['in1'], ['out'])
         graph = helper.make_graph([z],
                                    '_test',
@@ -915,16 +902,16 @@ def test_single_ops():
     x = np.random.uniform(size=in_shape).astype(dtype)
     verify_single_ops("Neg",x, -x)
     verify_single_ops("Abs",x, np.abs(x))
-    verify_single_ops("Reciprocal",x, 1/x, rtol=1e-5, atol=1e-5)
-    verify_single_ops("Sqrt",x, np.sqrt(x), rtol=1e-5, atol=1e-5)
+    verify_single_ops("Reciprocal",x, 1/x)
+    verify_single_ops("Sqrt",x, np.sqrt(x))
     verify_single_ops("Relu",x, np.maximum(x, 0))
-    verify_single_ops("Exp",x, np.exp(x), rtol=1e-5, atol=1e-5)
-    verify_single_ops("Log",x, np.log(x), rtol=1e-5, atol=1e-5)
-    verify_single_ops("Log",x, np.log(x), rtol=1e-5, atol=1e-5)
-    verify_single_ops("Tanh",x, np.tanh(x), rtol=1e-5, atol=1e-5)
-    verify_single_ops("Sigmoid",x, 1 / (1 + np.exp(-x)), rtol=1e-5, atol=1e-5)
-    verify_single_ops("Softsign",x, x / (1 + np.abs(x)), rtol=1e-5, atol=1e-5)
-    verify_single_ops("SoftPlus",x, np.log(1 + np.exp(x)), rtol=1e-5, atol=1e-5)
+    verify_single_ops("Exp",x, np.exp(x))
+    verify_single_ops("Log",x, np.log(x))
+    verify_single_ops("Log",x, np.log(x))
+    verify_single_ops("Tanh",x, np.tanh(x))
+    verify_single_ops("Sigmoid",x, 1 / (1 + np.exp(-x)))
+    verify_single_ops("Softsign",x, x / (1 + np.abs(x)))
+    verify_single_ops("SoftPlus",x, np.log(1 + np.exp(x)))
 
 def test_leaky_relu():
     def leaky_relu_x(x, alpha):
@@ -1004,15 +991,9 @@ def test_LogSoftmax():
                               {},
                               'float32',
                               'LogSoftmax',
-                              {'axis': 1},
-                              rtol=1e-5,
-                              atol=1e-5)
+                              {'axis': 1})
 
 if __name__ == '__main__':
-    # verify_super_resolution_example()
-    # verify_squeezenet1_1()
-    # verify_lenet()
-    verify_resnet18()
     test_reshape()
     test_reshape_like()
     test_power()
@@ -1038,6 +1019,7 @@ if __name__ == '__main__':
     test_reduce_min()
     test_reduce_sum()
     test_reduce_mean()
+    test_pad()
     test_split()
     test_binary_ops()
     test_single_ops()
