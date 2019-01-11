@@ -262,13 +262,15 @@ Stmt ApplySplits(const Stage &stage,
     const Variable *outer;
     bool under_outer;
     Expr extent;
-    
+
    public:
     bool fused;
-    LoopFuser(const FuseNode *fuse_)
+    explicit LoopFuser(const FuseNode *fuse_)
       : parent(fuse_->fused), inner(fuse_->inner->var.get()),
         outer(fuse_->outer->var.get()), under_outer(false),
         extent(0), fused(false) {}
+
+    // TODO: Handle imperfect loops
 
     Stmt Mutate_(const For *op, const Stmt &stmt) {
       if (op->loop_var.get() == inner) {

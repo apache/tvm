@@ -654,6 +654,11 @@ def test_schedule():
     run_and_check(outer_product, [a, b], sch=sch, outs=[c])
 
     # Test imperfect loop split
+    sch = tvm.create_schedule(c.op)
+    sch[c].split(c.op.axis[0], 3)
+    ir = tvm.lower(sch, [a, b, c], simple_mode=True)
+    run_and_check(outer_product, [a, b], sch=sch, outs=[c])
+
     # Test loop binds
 
 
