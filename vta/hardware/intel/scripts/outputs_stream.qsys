@@ -173,7 +173,7 @@
    {
       datum _sortIndex
       {
-         value = "3";
+         value = "2";
          type = "int";
       }
    }
@@ -185,15 +185,31 @@
          type = "String";
       }
    }
-   element msgdma_to_hls_avst_0
+   element outputs_stream
    {
-      datum _sortIndex
+      datum _originalDeviceFamily
       {
-         value = "2";
-         type = "int";
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element outputs_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
       }
    }
    element stream_acp_adaptor_0
+   {
+      datum _sortIndex
+      {
+         value = "3";
+         type = "int";
+      }
+   }
+   element stream_seq_converter_0
    {
       datum _sortIndex
       {
@@ -223,6 +239,11 @@
  <parameter name="useTestBenchNamingPattern" value="false" />
  <instanceScript></instanceScript>
  <interface
+   name="avst_sink"
+   internal="stream_seq_converter_0.avst_sink"
+   type="avalon_streaming"
+   dir="end" />
+ <interface
    name="axi_master"
    internal="AXI_cache_secruity_bridge_0.axi_master"
    type="axi"
@@ -240,11 +261,6 @@
    type="avalon"
    dir="end" />
  <interface name="insns_length" internal="stream_acp_adaptor_0.insns_length" />
- <interface
-   name="msgdma_to_hls_avst_0_avst_sink"
-   internal="msgdma_to_hls_avst_0.avst_sink"
-   type="avalon_streaming"
-   dir="end" />
  <interface name="reset" internal="clk_0.clk_in_reset" type="reset" dir="end" />
  <interface name="uops_length" internal="stream_acp_adaptor_0.uops_length" />
  <module
@@ -277,14 +293,14 @@
   <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
   <parameter name="AUTO_MM_READ_ADDRESS_MAP" value="" />
   <parameter name="AUTO_MM_READ_ADDRESS_WIDTH" value="AddressWidth = -1" />
-  <parameter name="AUTO_MM_WRITE_ADDRESS_MAP" value="" />
-  <parameter name="AUTO_MM_WRITE_ADDRESS_WIDTH" value="AddressWidth = -1" />
+  <parameter name="AUTO_MM_WRITE_ADDRESS_MAP"><![CDATA[<address-map><slave name='AXI_cache_secruity_bridge_0.axi_slave' start='0x0' end='0x100000000' /></address-map>]]></parameter>
+  <parameter name="AUTO_MM_WRITE_ADDRESS_WIDTH" value="AddressWidth = 32" />
   <parameter name="BURST_ENABLE" value="0" />
   <parameter name="BURST_WRAPPING_SUPPORT" value="0" />
   <parameter name="CHANNEL_ENABLE" value="0" />
   <parameter name="CHANNEL_WIDTH" value="8" />
   <parameter name="DATA_FIFO_DEPTH" value="128" />
-  <parameter name="DATA_WIDTH" value="512" />
+  <parameter name="DATA_WIDTH" value="128" />
   <parameter name="DESCRIPTOR_FIFO_DEPTH" value="16" />
   <parameter name="ENHANCED_FEATURES" value="0" />
   <parameter name="ERROR_ENABLE" value="0" />
@@ -307,17 +323,17 @@
   <parameter name="USE_FIX_ADDRESS_WIDTH" value="0" />
  </module>
  <module
-   name="msgdma_to_hls_avst_0"
-   kind="msgdma_to_hls_avst"
-   version="1.0"
-   enabled="1">
-  <parameter name="LENGTH" value="512" />
- </module>
- <module
    name="stream_acp_adaptor_0"
    kind="stream_acp_adaptor"
    version="1.0"
    enabled="1" />
+ <module
+   name="stream_seq_converter_0"
+   kind="stream_seq_converter"
+   version="1.0"
+   enabled="1">
+  <parameter name="DATA_WIDTH" value="128" />
+ </module>
  <connection
    kind="avalon"
    version="18.0"
@@ -346,9 +362,18 @@
   <parameter name="defaultConnection" value="false" />
  </connection>
  <connection
+   kind="avalon"
+   version="18.0"
+   start="msgdma_0.mm_write"
+   end="AXI_cache_secruity_bridge_0.axi_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
    kind="avalon_streaming"
    version="18.0"
-   start="msgdma_to_hls_avst_0.avst_source"
+   start="stream_seq_converter_0.avst_source"
    end="msgdma_0.st_sink" />
  <connection
    kind="clock"
@@ -360,22 +385,22 @@
    kind="clock"
    version="18.0"
    start="clk_0.clk"
-   end="msgdma_to_hls_avst_0.clock" />
+   end="stream_acp_adaptor_0.clock" />
  <connection
    kind="clock"
    version="18.0"
    start="clk_0.clk"
-   end="stream_acp_adaptor_0.clock" />
- <connection
-   kind="reset"
-   version="18.0"
-   start="clk_0.clk_reset"
-   end="msgdma_to_hls_avst_0.reset" />
+   end="stream_seq_converter_0.clock" />
  <connection
    kind="reset"
    version="18.0"
    start="clk_0.clk_reset"
    end="stream_acp_adaptor_0.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="stream_seq_converter_0.reset" />
  <connection
    kind="reset"
    version="18.0"

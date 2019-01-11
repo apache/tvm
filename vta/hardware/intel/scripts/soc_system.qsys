@@ -34,7 +34,7 @@
    {
       datum _sortIndex
       {
-         value = "21";
+         value = "20";
          type = "int";
       }
    }
@@ -89,8 +89,16 @@
    {
       datum _sortIndex
       {
-         value = "14";
+         value = "22";
          type = "int";
+      }
+   }
+   element compute_0.done
+   {
+      datum baseAddress
+      {
+         value = "139288";
+         type = "String";
       }
    }
    element dipsw_pio
@@ -194,7 +202,7 @@
    {
       datum _sortIndex
       {
-         value = "15";
+         value = "14";
          type = "int";
       }
    }
@@ -202,7 +210,7 @@
    {
       datum _sortIndex
       {
-         value = "20";
+         value = "19";
          type = "int";
       }
    }
@@ -281,8 +289,112 @@
    {
       datum _sortIndex
       {
-         value = "17";
+         value = "16";
          type = "int";
+      }
+   }
+   element outputs_stream_0
+   {
+      datum _sortIndex
+      {
+         value = "23";
+         type = "int";
+      }
+   }
+   element outputs_stream_0.descriptor_slave
+   {
+      datum baseAddress
+      {
+         value = "143376";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
       }
    }
    element soc_system
@@ -553,7 +665,7 @@
    {
       datum _sortIndex
       {
-         value = "22";
+         value = "21";
          type = "int";
       }
    }
@@ -561,7 +673,7 @@
    {
       datum _sortIndex
       {
-         value = "18";
+         value = "17";
          type = "int";
       }
    }
@@ -595,7 +707,7 @@
    {
       datum _sortIndex
       {
-         value = "19";
+         value = "18";
          type = "int";
       }
    }
@@ -651,7 +763,7 @@
    {
       datum _sortIndex
       {
-         value = "16";
+         value = "15";
          type = "int";
       }
    }
@@ -676,6 +788,11 @@
  <parameter name="timeStamp" value="0" />
  <parameter name="useTestBenchNamingPattern" value="false" />
  <instanceScript></instanceScript>
+ <interface
+   name="biases_stream_0_data_length"
+   internal="biases_stream_0.data_length"
+   type="conduit"
+   dir="end" />
  <interface
    name="button_pio_external_connection"
    internal="button_pio.external_connection"
@@ -715,7 +832,17 @@
  <interface name="hps_0_h2f_user0_clock" internal="hps_0.h2f_user0_clock" />
  <interface name="hps_0_hps_io" internal="hps_0.hps_io" type="conduit" dir="end" />
  <interface name="memory" internal="hps_0.memory" type="conduit" dir="end" />
+ <interface
+   name="outputs_stream_0_data_length"
+   internal="outputs_stream_0.data_length"
+   type="conduit"
+   dir="end" />
  <interface name="reset" internal="clk_0.clk_in_reset" type="reset" dir="end" />
+ <interface
+   name="uops_stream_0_data_length"
+   internal="uops_stream_0.data_length"
+   type="conduit"
+   dir="end" />
  <interface
    name="vta_adaptor_0_compute_biases"
    internal="vta_adaptor_0.compute_biases" />
@@ -769,21 +896,7 @@
   <parameter name="inputClockFrequency" value="0" />
   <parameter name="resetSynchronousEdges" value="NONE" />
  </module>
- <module name="compute_0" kind="compute" version="1.0" enabled="1">
-  <parameter name="AUTO_AVMM_3_RW_ADDRESS_MAP"><![CDATA[<address-map><slave name='out_mem.s1' start='0x0' end='0x20000' /></address-map>]]></parameter>
-  <parameter name="AUTO_AVMM_3_RW_ADDRESS_WIDTH" value="AddressWidth = 17" />
-  <parameter name="AUTO_CLOCK2X_CLOCK_DOMAIN" value="1" />
-  <parameter name="AUTO_CLOCK2X_CLOCK_RATE" value="50000000" />
-  <parameter name="AUTO_CLOCK2X_RESET_DOMAIN" value="1" />
-  <parameter name="AUTO_CLOCK_CLOCK_DOMAIN" value="1" />
-  <parameter name="AUTO_CLOCK_CLOCK_RATE" value="50000000" />
-  <parameter name="AUTO_CLOCK_RESET_DOMAIN" value="1" />
-  <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
-  <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
-  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
-  <parameter name="AUTO_GENERATION_ID" value="0" />
-  <parameter name="AUTO_UNIQUE_ID">$${FILENAME}_compute_0</parameter>
- </module>
+ <module name="compute_0" kind="compute" version="1.0" enabled="1" />
  <module name="dipsw_pio" kind="altera_avalon_pio" version="18.0" enabled="1">
   <parameter name="bitClearingEdgeCapReg" value="true" />
   <parameter name="bitModifyingOutReg" value="false" />
@@ -1526,6 +1639,22 @@
   <parameter name="writable" value="true" />
  </module>
  <module
+   name="outputs_stream_0"
+   kind="outputs_stream"
+   version="1.0"
+   enabled="1">
+  <parameter name="AUTO_AXI_MASTER_ADDRESS_MAP"><![CDATA[<address-map><slave name='hps_0_axi_sdram.axi_slave0' start='0x0' end='0x80000000' /><slave name='hps_0_gmac0.axi_slave0' start='0xFF700000' end='0xFF702000' /><slave name='hps_0_gmac1.axi_slave0' start='0xFF702000' end='0xFF704000' /><slave name='hps_0_sdmmc.axi_slave0' start='0xFF704000' end='0xFF705000' /><slave name='hps_0_qspi.axi_slave0' start='0xFF705000' end='0xFF705100' /><slave name='hps_0_fpgamgr.axi_slave0' start='0xFF706000' end='0xFF707000' /><slave name='hps_0_gpio0.axi_slave0' start='0xFF708000' end='0xFF708100' /><slave name='hps_0_gpio1.axi_slave0' start='0xFF709000' end='0xFF709100' /><slave name='hps_0_gpio2.axi_slave0' start='0xFF70A000' end='0xFF70A100' /><slave name='hps_0_l3regs.axi_slave0' start='0xFF800000' end='0xFF801000' /><slave name='hps_0_nand0.axi_slave0' start='0xFF900000' end='0xFF910000' /><slave name='hps_0_qspi.axi_slave1' start='0xFFA00000' end='0xFFA00100' /><slave name='hps_0_usb0.axi_slave0' start='0xFFB00000' end='0xFFB40000' /><slave name='hps_0_usb1.axi_slave0' start='0xFFB40000' end='0xFFB80000' /><slave name='hps_0_nand0.axi_slave1' start='0xFFB80000' end='0xFFB90000' /><slave name='hps_0_fpgamgr.axi_slave1' start='0xFFB90000' end='0xFFB90100' /><slave name='hps_0_dcan0.axi_slave0' start='0xFFC00000' end='0xFFC01000' /><slave name='hps_0_dcan1.axi_slave0' start='0xFFC01000' end='0xFFC02000' /><slave name='hps_0_uart0.axi_slave0' start='0xFFC02000' end='0xFFC02100' /><slave name='hps_0_uart1.axi_slave0' start='0xFFC03000' end='0xFFC03100' /><slave name='hps_0_i2c0.axi_slave0' start='0xFFC04000' end='0xFFC04100' /><slave name='hps_0_i2c1.axi_slave0' start='0xFFC05000' end='0xFFC05100' /><slave name='hps_0_i2c2.axi_slave0' start='0xFFC06000' end='0xFFC06100' /><slave name='hps_0_i2c3.axi_slave0' start='0xFFC07000' end='0xFFC07100' /><slave name='hps_0_timer0.axi_slave0' start='0xFFC08000' end='0xFFC08100' /><slave name='hps_0_timer1.axi_slave0' start='0xFFC09000' end='0xFFC09100' /><slave name='hps_0_sdrctl.axi_slave0' start='0xFFC25000' end='0xFFC26000' /><slave name='hps_0_timer2.axi_slave0' start='0xFFD00000' end='0xFFD00100' /><slave name='hps_0_timer3.axi_slave0' start='0xFFD01000' end='0xFFD01100' /><slave name='hps_0_clkmgr.axi_slave0' start='0xFFD04000' end='0xFFD05000' /><slave name='hps_0_rstmgr.axi_slave0' start='0xFFD05000' end='0xFFD05100' /><slave name='hps_0_sysmgr.axi_slave0' start='0xFFD08000' end='0xFFD08400' /><slave name='hps_0_dma.axi_slave0' start='0xFFE01000' end='0xFFE02000' /><slave name='hps_0_spim0.axi_slave0' start='0xFFF00000' end='0xFFF00100' /><slave name='hps_0_spim1.axi_slave0' start='0xFFF01000' end='0xFFF01100' /><slave name='hps_0_arm_gic_0.axi_slave1' start='0xFFFEC100' end='0xFFFEC200' /><slave name='hps_0_timer.axi_slave0' start='0xFFFEC600' end='0xFFFEC700' /><slave name='hps_0_arm_gic_0.axi_slave0' start='0xFFFED000' end='0xFFFEE000' /><slave name='hps_0_L2.axi_slave0' start='0xFFFEF000' end='0xFFFF0000' /><slave name='hps_0_axi_ocram.axi_slave0' start='0xFFFF0000' end='0x100000000' /></address-map>]]></parameter>
+  <parameter name="AUTO_AXI_MASTER_ADDRESS_WIDTH" value="AddressWidth = 32" />
+  <parameter name="AUTO_CLK_CLOCK_DOMAIN" value="1" />
+  <parameter name="AUTO_CLK_CLOCK_RATE" value="50000000" />
+  <parameter name="AUTO_CLK_RESET_DOMAIN" value="1" />
+  <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
+  <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
+  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
+  <parameter name="AUTO_GENERATION_ID" value="0" />
+  <parameter name="AUTO_UNIQUE_ID">$${FILENAME}_outputs_stream_0</parameter>
+ </module>
+ <module
    name="st_dwidth_adaptor_0"
    kind="st_dwidth_adaptor"
    version="1.0"
@@ -1600,15 +1729,6 @@
  <connection
    kind="avalon"
    version="18.0"
-   start="compute_0.avmm_3_rw"
-   end="out_mem.s1">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
    start="store_0.avmm_3_rw"
    end="out_mem.s2">
   <parameter name="arbitrationPriority" value="1" />
@@ -1637,6 +1757,15 @@
    kind="avalon"
    version="18.0"
    start="biases_stream_0.axi_master"
+   end="hps_0.f2h_axi_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="outputs_stream_0.axi_master"
    end="hps_0.f2h_axi_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
@@ -1718,6 +1847,24 @@
    kind="avalon"
    version="18.0"
    start="mm_bridge_0.m0"
+   end="outputs_stream_0.descriptor_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00023010" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="compute_0.done">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00022018" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
    end="vta_adaptor_0.fetch_call_avs">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x00020000" />
@@ -1834,6 +1981,24 @@
  <connection
    kind="avalon"
    version="18.0"
+   start="fpga_only_master.master"
+   end="outputs_stream_0.descriptor_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00023010" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="compute_0.done">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00022018" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
    start="hps_only_master.master"
    end="hps_0.f2h_axi_slave">
   <parameter name="arbitrationPriority" value="1" />
@@ -1904,6 +2069,15 @@
   <parameter name="defaultConnection" value="false" />
  </connection>
  <connection
+   kind="avalon"
+   version="18.0"
+   start="compute_0.out_mem"
+   end="out_mem.s1">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
    kind="avalon_streaming"
    version="18.0"
    start="insns_stream_0.avst_source"
@@ -1928,6 +2102,11 @@
    version="18.0"
    start="fetch_0.gemm_queue"
    end="compute_0.gemm_queue" />
+ <connection
+   kind="avalon_streaming"
+   version="18.0"
+   start="store_0.outputs"
+   end="outputs_stream_0.avst_sink" />
  <connection
    kind="avalon_streaming"
    version="18.0"
@@ -1979,6 +2158,11 @@
    kind="clock"
    version="18.0"
    start="clk_0.clk"
+   end="outputs_stream_0.clk" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
    end="onchip_memory2_0.clk1" />
  <connection kind="clock" version="18.0" start="clk_0.clk" end="inp_mem.clk1" />
  <connection kind="clock" version="18.0" start="clk_0.clk" end="wgt_mem.clk1" />
@@ -1989,14 +2173,13 @@
    version="18.0"
    start="clk_0.clk"
    end="vta_adaptor_0.clock" />
- <connection kind="clock" version="18.0" start="clk_0.clk" end="compute_0.clock" />
  <connection kind="clock" version="18.0" start="clk_0.clk" end="store_0.clock" />
  <connection
    kind="clock"
    version="18.0"
    start="clk_0.clk"
    end="st_dwidth_adaptor_0.clock" />
- <connection kind="clock" version="18.0" start="clk_0.clk" end="compute_0.clock2x" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="compute_0.clock" />
  <connection
    kind="clock"
    version="18.0"
@@ -2017,17 +2200,6 @@
    version="18.0"
    start="clk_0.clk"
    end="hps_0.h2f_lw_axi_clock" />
- <connection
-   kind="conduit"
-   version="18.0"
-   start="compute_0.call"
-   end="vta_adaptor_0.compute_call">
-  <parameter name="endPort" value="" />
-  <parameter name="endPortLSB" value="0" />
-  <parameter name="startPort" value="" />
-  <parameter name="startPortLSB" value="0" />
-  <parameter name="width" value="0" />
- </connection>
  <connection
    kind="conduit"
    version="18.0"
@@ -2053,30 +2225,8 @@
  <connection
    kind="conduit"
    version="18.0"
-   start="vta_adaptor_0.compute_biases_count"
-   end="biases_stream_0.data_length">
-  <parameter name="endPort" value="" />
-  <parameter name="endPortLSB" value="0" />
-  <parameter name="startPort" value="" />
-  <parameter name="startPortLSB" value="0" />
-  <parameter name="width" value="0" />
- </connection>
- <connection
-   kind="conduit"
-   version="18.0"
-   start="uops_stream_0.data_length"
-   end="vta_adaptor_0.compute_uops_count">
-  <parameter name="endPort" value="" />
-  <parameter name="endPortLSB" value="0" />
-  <parameter name="startPort" value="" />
-  <parameter name="startPortLSB" value="0" />
-  <parameter name="width" value="0" />
- </connection>
- <connection
-   kind="conduit"
-   version="18.0"
-   start="vta_adaptor_0.fetch_insn_count_2"
-   end="insns_stream_0.data_length">
+   start="insns_stream_0.data_length"
+   end="vta_adaptor_0.fetch_insn_count_2">
   <parameter name="endPort" value="" />
   <parameter name="endPortLSB" value="0" />
   <parameter name="startPort" value="" />
@@ -2178,11 +2328,6 @@
    kind="reset"
    version="18.0"
    start="clk_0.clk_reset"
-   end="compute_0.reset" />
- <connection
-   kind="reset"
-   version="18.0"
-   start="clk_0.clk_reset"
    end="store_0.reset" />
  <connection
    kind="reset"
@@ -2204,6 +2349,16 @@
    version="18.0"
    start="clk_0.clk_reset"
    end="st_dwidth_adaptor_0.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="compute_0.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="outputs_stream_0.reset" />
  <connection
    kind="reset"
    version="18.0"
