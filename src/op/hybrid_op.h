@@ -49,7 +49,7 @@ Stmt ApplySchedule(const Stage& stage,
  * \param dom_map The extents of the iterative variables may be used.
  * \param stmt The statement to be processed.
  */
-Stmt ApplySplits(const Stage &stage,
+Stmt ApplyLoopShapes(const Stage &stage,
                  const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
 
 

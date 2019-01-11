@@ -202,7 +202,7 @@ Stmt HybridOpNode::BuildProvide(
 namespace op {
 
 
-Stmt ApplySplits(const Stage &stage,
+Stmt ApplyLoopShapes(const Stage &stage,
                  const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
   class LoopSpliter : public IRMutator {
     Expr factor;
@@ -270,7 +270,7 @@ Stmt ApplySplits(const Stage &stage,
         outer(fuse_->outer->var.get()), under_outer(false),
         extent(0), fused(false) {}
 
-    // TODO: Handle imperfect loops
+    // TODO(@were): Handle imperfect loops
 
     Stmt Mutate_(const For *op, const Stmt &stmt) {
       if (op->loop_var.get() == inner) {
@@ -447,13 +447,14 @@ Stmt ApplySchedule(const Stage &stage,
       CHECK(dom_map.count(rebase->rebased));
     }
   }
-  stmt = ApplySplits(stage, dom_map, stmt);
+  stmt = ApplyLoopShapes(stage, dom_map, stmt);
   stmt = ApplyLoopOrder(stage, dom_map, rebased, stmt);
   stmt = ApplyLoopAnnotations(stage, rebased, stmt);
   return stmt;
 }
 
 std::vector<IterVar> GatherLoopVars(Stmt stmt) {
+  // TODO(@were): Write a comprehensive pass to analyze iter var types
   std::vector<IterVar> res_;
   PostOrderVisit(stmt, [&res_](const NodeRef &node) {
     if (const For *op = node.as<For>()) {
