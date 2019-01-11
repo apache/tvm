@@ -352,9 +352,9 @@ def test_forward_mobilenet():
     tflite_model_buf = open(tflite_model_file, "rb").read()
     data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
     tvm_data = np.transpose(data, axes=(0, 3, 1, 2))
-    tf_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
     tvm_output = run_tvm_graph(tflite_model_buf, tvm_data, 'input')
-    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]),
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
                                 rtol=1e-5, atol=1e-5)
 
 #######################################################################
