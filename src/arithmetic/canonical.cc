@@ -796,13 +796,15 @@ T Simplify_(T a, Map<Var, Range> vrange) {
  */
 Expr SimplifyCombiner(const Expr& expr, const Map<Var, Range>& vrange = Map<Var, Range>()) {
   const Reduce* op = expr.as<Reduce>();
-  if (!op)
+  if (!op) {
     return expr;
+  }
 
   // First simplify the results
   Array<Expr> simplified_result;
-  for (const auto& res : op->combiner->result)
+  for (const auto& res : op->combiner->result) {
     simplified_result.push_back(Simplify(res, vrange));
+  }
 
   // Which components to keep
   std::vector<int> used(op->combiner->result.size(), false);

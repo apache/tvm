@@ -60,8 +60,10 @@ def test_simplify_combiner():
 
     prod = comm_reducer(lambda x, y: x*y, lambda t0: tvm.const(1, t0))
 
-    sum_or_prod = comm_reducer(lambda x, y: tvm.select(dummy < 0, x + y, x*y),
-                               lambda t0: tvm.select(dummy < 0, tvm.const(0, t0), tvm.const(1, t0)))
+    sum_or_prod = comm_reducer(lambda x, y: tvm.expr.Select(dummy < 0,
+                                                            x + y, x*y),
+                               lambda t0: tvm.expr.Select(dummy < 0,
+                                                          tvm.const(0, t0), tvm.const(1, t0)))
 
     sum_and_prod = comm_reducer(lambda x, y: (x[0] + y[0],
                                               x[1]*y[1]),
@@ -128,7 +130,7 @@ def test_simplify_reduce():
 
     assert Equal(Simplify(tvm.sum(k/10, k)), tvm.sum(tvm.const(0, "int32"), k))
     assert Equal(Simplify(tvm.sum(A[3], [])), A[3])
-    assert Equal(Simplify(tvm.sum(tvm.select(k + j < 12, k + j, 0), [k, j])),
+    assert Equal(Simplify(tvm.sum(tvm.expr.Select(k + j < 12, k + j, 0), [k, j])),
                  tvm.sum(k + j, [k, j]))
 
 
