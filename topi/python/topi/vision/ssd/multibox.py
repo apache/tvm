@@ -19,29 +19,31 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
     data : tvm.Tensor or numpy NDArray
         4-D tensor with shape [batch, channel, height, width]]
 
-    sizes : tvm.ndarray
-        1-D tensor of sizes for anchor boxes.
+    sizes : tvm ConsExpr
+        Sizes for anchor boxes.
 
-    ratios : tvm.ndarray
-        1-D tensor of ratios for anchor boxes.
+    ratios : tvm ConsExpr
+        Ratios for anchor boxes.
 
-    steps : tvm.ndarray
-        1-D tensor of priorbox step across y and x, -1 for auto calculation.
+    steps : tvm ConsExpr
+        Priorbox step across y and x, -1 for auto calculation.
 
-    offsets : tvm.ndarray
-        1-D tensor priorbox center offsets, y and x respectively.
+    offsets : tvm ConsExpr
+        Priorbox center offsets, y and x respectively.
 
     Returns
     -------
     output : tvm.Tensor or numpy NDArray
         3-D tensor with shape [1, h_in * w_in * (num_sizes + num_ratios - 1), 4]
     """
-    in_height, in_width = data.shape[2], data.shape[3]
-    num_sizes, num_ratios = sizes.shape[0], ratios.shape[0]
+    in_height = data.shape[2]
+    in_width = data.shape[3]
+    num_sizes = len(sizes)
+    num_ratios = len(ratios)
     num_boxes = in_height * in_width * (num_sizes + num_ratios - 1)
-    output = output_tensor((1, num_boxes, 4), data.dtype)
-    steps_h = steps[0] if steps[0] > 0 else 1.0 / in_height
-    steps_w = steps[1] if steps[1] > 0 else 1.0 / in_width
+    output = output_tensor((1, num_boxes, 4), "float32")
+    steps_h = steps[0] * 1.0 if steps[0] > 0 else 1.0 / in_height
+    steps_w = steps[1] * 1.0 if steps[1] > 0 else 1.0 / in_width
     offset_h = offsets[0]
     offset_w = offsets[1]
 
@@ -49,7 +51,7 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
         center_h = (i + offset_h) * steps_h
         for j in range(in_width):
             center_w = (j + offset_w) * steps_w
-            for k in range(num_sizes + num_ratios - 1):
+            for k in const_range(num_sizes + num_ratios - 1):
                 if k < num_sizes:
                     w = sizes[k] * in_height / in_width / 2.0
                     h = sizes[k] / 2.0
@@ -96,7 +98,8 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
     out : tvm.Tensor
         3-D tensor with shape [1, h_in * w_in * (num_sizes + num_ratios - 1), 4]
     """
-    out = hybrid_multibox_prior(data, sizes, ratios, steps, offsets)
+    out = hybrid_multibox_prior(data, tvm.convert(sizes), tvm.convert(ratios),
+                                tvm.convert(steps), tvm.convert(offsets))
     if clip:
         out = topi.clip(out, 0, 1)
     return out
@@ -105,11 +108,23 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
 def _hybridy_transform_loc(box, pred_loc, variance, clip):
     """Transform prior anchor box to output box through location predictions.
     """
-    al, at, ar, ab = box[0], box[1], box[2], box[3]
-    px, py, pw, ph = pred_loc[0], pred_loc[1], \
-                     pred_loc[2], pred_loc[3]
-    vx, vy, vw, vh = variance[0], variance[1], \
-                     variance[2], variance[3]
+    al = box[0]
+    at = box[1]
+    ar = box[2]
+    ab = box[3]
+
+    px = pred_loc[0]
+    py = pred_loc[1]
+    pw = pred_loc[2]
+    ph = pred_loc[3]
+
+    vx = variance[0]
+    vy = variance[1]
+    vw = variance[2]
+    vh = variance[3]
+
+    output = output_tensor((4,), pred_loc.dtype)
+
     aw = ar - al
     ah = ab - at
     ax = (al + ar) / 2.0
@@ -118,11 +133,11 @@ def _hybridy_transform_loc(box, pred_loc, variance, clip):
     oy = py * vy * ah + ay
     ow = exp(pw * vw) * aw / 2.0
     oh = exp(ph * vh) * ah / 2.0
-    out_l = max(0, min(1, ox - ow)) if clip else ox - ow
-    out_t = max(0, min(1, oy - oh)) if clip else oy - oh
-    out_r = max(0, min(1, ox + ow)) if clip else ox + ow
-    out_b = max(0, min(1, oy + oh)) if clip else oy + oh
-    return out_l, out_t, out_r, out_b
+    output[0] = max(0.0, min(1.0, ox - ow)) if clip else ox - ow
+    output[1] = max(0.0, min(1.0, oy - oh)) if clip else oy - oh
+    output[2] = max(0.0, min(1.0, ox + ow)) if clip else ox + ow
+    output[3] = max(0.0, min(1.0, oy + oh)) if clip else oy + oh
+    return output
 
 @hybrid.script
 def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
@@ -135,7 +150,7 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
         3-D tensor of class probabilities.
 
     loc_pred : tvm.Tensor or numpy NDArray
-        3-D tensor of location regression predictions.
+        2-D tensor of location regression predictions.
 
     anchor : tvm.Tensor or numpy NDArray
         3-D tensor of prior anchor boxes.
@@ -189,6 +204,8 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
     batch_size = cls_prob.shape[0]
     num_classes = cls_prob.shape[1]
     num_anchors = cls_prob.shape[2]
+    box_coord = allocate((4,), loc_pred.dtype)
+    pred_coord = allocate((4,), loc_pred.dtype)
     out_loc = output_tensor((batch_size, num_anchors, 6),
                             loc_pred.dtype)
     valid_count = output_tensor((batch_size,), "int32")
@@ -215,7 +232,7 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
             for k in range(num_classes):
                 if k > 0:
                     temp = cls_prob[i, k, j]
-                    cls_id = j if temp > score else cls_id
+                    cls_id = k if temp > score else cls_id
                     score = max(temp, score)
             if cls_id > 0 and score < threshold:
                 cls_id = 0
@@ -225,12 +242,16 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
             if cls_id > 0:
                 out_loc[i, valid_count[i], 0] = cls_id - 1.0
                 out_loc[i, valid_count[i], 1] = score
-                out_coord = _hybridy_transform_loc(anchor[j], loc_pred[i, j],
+                for l in range(4):
+                    box_coord[l] = anchor[0, j, l]
+                    pred_coord[l] = loc_pred[i, j * 4 + l]
+                out_coord = _hybridy_transform_loc(box_coord, pred_coord,
                                                    variances, clip)
                 out_loc[i, valid_count[i], 2] = out_coord[0]
                 out_loc[i, valid_count[i], 3] = out_coord[1]
                 out_loc[i, valid_count[i], 4] = out_coord[2]
                 out_loc[i, valid_count[i], 5] = out_coord[3]
+                valid_count[i] += 1
 
     return out_loc, valid_count
 
@@ -266,7 +287,7 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
     out, valid_count = hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
                                                      tvm.const(clip, "bool"),
                                                      tvm.const(threshold, "float32"),
-                                                     variances)
+                                                     tvm.convert(variances))
     return out, valid_count
 
 @tvm.target.generic_func
