@@ -426,7 +426,7 @@ def if_then_else(cond, t, f):
     cond = convert(cond)
     if cond.dtype != "bool":
         raise TypeError("The condition's data type has to be bool")
-    return call_intrin(t.dtype, "tvm_if_then_else", cond, t, f)
+    return call_pure_intrin(t.dtype, "tvm_if_then_else", cond, t, f)
 
 
 # Intrinsic rule related code

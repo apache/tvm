@@ -263,7 +263,7 @@ Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
       true_value.type(),
       ir::intrinsic::tvm_if_then_else,
       {cond, true_value, false_value},
-      ir::Call::Intrinsic);
+      ir::Call::PureIntrinsic);
 }
 
 Expr likely(Expr cond) {
