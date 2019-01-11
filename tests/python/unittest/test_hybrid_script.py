@@ -288,8 +288,21 @@ def test_bind():
 
     a = tvm.placeholder((1000, ), dtype='float32', name='a')
     b = tvm.placeholder((1000, ), dtype='float32', name='b')
-
     run_and_check(vec_add, [a, b], target='cuda')
+
+    @script
+    def raw(a, b):
+        c = output_tensor((1000, ), 'float32')
+        for i in range(1000):
+            c[i] = a[i] + b[i]
+        return c
+
+    c = raw(a, b)
+    sch = tvm.create_schedule(c.op)
+    x = tvm.thread_axis('threadIdx.x')
+    sch[c].bind(c.op.axis[0], x)
+    run_and_check(raw, [a, b], sch=sch, outs=[c], target='cuda')
+
 
 def test_math_intrin():
     @script
