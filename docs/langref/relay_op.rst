@@ -148,6 +148,8 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.broadcast_to_like
    tvm.relay.collapse_sum_like
    tvm.relay.slice_like
+   tvm.relay.device_copy
+   tvm.relay.annotation.on_device
 
 
 Level 1 Definitions

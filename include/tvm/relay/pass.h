@@ -188,6 +188,21 @@ Expr ForwardRewrite(const Expr& expr,
                     std::function<NodeRef(const Call&)> fcontext = nullptr,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
+/*!
+ * \brief Rewrite the annotated program.
+ * \param expr The expression.
+ * \param fallback_device The fallback device which is the default device for
+ *                        operators without annotation.
+ * \return The updated program.
+ */
+Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
+
+/*!
+ * \brief Collect the device mapping information of each expression.
+ * \param expr The expression.
+ * \return The device mapping.
+ */
+Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {

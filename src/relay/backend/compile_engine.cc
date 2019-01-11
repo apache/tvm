@@ -7,6 +7,7 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/operation.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
@@ -82,10 +83,14 @@ class ScheduleGetter :
     cache_node->func_name = readable_name_stream_.str();
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
-    Schedule schedule = fschedule[master_op_](
-        master_attrs_, cache_node->outputs, target_);
-    for (const auto& scalar : scalars_) {
-      schedule[scalar].compute_inline();
+    Schedule schedule;
+    // No need to register schedule for device copy op.
+    if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
+      schedule =
+          fschedule[master_op_](master_attrs_, cache_node->outputs, target_);
+      for (const auto& scalar : scalars_) {
+        schedule[scalar].compute_inline();
+      }
     }
     return std::make_pair(schedule, cfunc);
   }
@@ -153,11 +158,18 @@ class ScheduleGetter :
     CHECK(call_node->op.as<OpNode>())
         << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
-    Array<Tensor> outputs = fcompute[op](
-        call_node->attrs,
-        inputs,
-        call_node->checked_type(),
-        target_);
+    // Check if the op is a device copy op.
+    bool is_copy_op = op.same_as(Op::Get("device_copy"));
+    Array<Tensor> outputs;
+    // Skip fcompute for device copy operators as it is not registered.
+    if (is_copy_op) {
+      const auto* copy_input = inputs[0].operator->();
+      outputs.push_back(TensorNode::make(copy_input->shape, copy_input->dtype,
+                                         Operation(), 0));
+    } else {
+      outputs = fcompute[op](call_node->attrs, inputs,
+                             call_node->checked_type(), target_);
+    }
 
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
@@ -176,7 +188,14 @@ class ScheduleGetter :
       CHECK(tuple_type) << "Expect output to be a tuple type";
       CHECK_EQ(tuple_type->fields.size(), outputs.size());
     }
-    readable_name_stream_ << '_' << op->name;
+    // Set the name to `__copy`. It will be detected in graph runtime to perform
+    // data copy across devices.
+    if (is_copy_op) {
+      readable_name_stream_.str(std::string());
+      readable_name_stream_ << "__copy";
+    } else {
+      readable_name_stream_ << '_' << op->name;
+    }
     return outputs;
   }
 
@@ -291,6 +310,16 @@ class CompileEngineImpl : public CompileEngineNode {
     auto spair = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_node<CachedFuncNode>(
         *(spair.second.operator->()));
+
+    // Skip lowering for device copy node.
+    const Expr body = (key->source_func)->body;
+    if (const CallNode* call_node = body.as<CallNode>()) {
+      if (call_node->attrs.as<DeviceCopyAttrs>()) {
+        value->cached_func = CachedFunc(cache_node);
+        return value;
+      }
+    }
+
     cache_node->func_name = GetUniqueName(cache_node->func_name);
     // NOTE: array will copy on write.
     Array<Tensor> all_args = cache_node->inputs;

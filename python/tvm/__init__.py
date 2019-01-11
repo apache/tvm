@@ -25,6 +25,7 @@ from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, opengl, ext_dev
 
 from ._ffi.runtime_ctypes import TypeCode
+from ._ffi.ndarray import TVMContext
 from ._ffi.function import Function
 from ._ffi.base import TVMError, __version__
 from .api import *
