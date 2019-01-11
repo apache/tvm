@@ -209,9 +209,10 @@ Stmt ApplySplits(const Stage &stage,
     IterVar parent, inner, outer;
 
    public:
+    bool splitted;
     LoopSpliter(const SplitNode *split,
                 const std::unordered_map<IterVar, Range> &dom_map) :
-      factor(split->factor) {
+      factor(split->factor), splitted(false) {
       auto &parent_ = split->parent;
       if (parent_->dom.defined()) {
         CHECK(is_const_int(parent_->dom->min, 0));
@@ -248,29 +249,65 @@ Stmt ApplySplits(const Stage &stage,
                         IterVarTypeToForType(inner->iter_type), op->device_api, ret);
         ret = For::make(outer->var, Expr(0), outer->dom->extent,
                         IterVarTypeToForType(outer->iter_type), op->device_api, ret);
+        splitted = true;
         return ret;
       }
       return IRMutator::Mutate_(op, stmt);
     }
   };
 
-  bool changed = true;
-  while (changed) {
-    changed = false;
-    for (auto &rel : stage->relations) {
-      if (const SplitNode* split = rel.as<SplitNode>()) {
-        bool not_splited = false;
-        PostOrderVisit(stmt, [&not_splited, &split](const NodeRef &node) {
-          if (const Variable *var = node.as<Variable>()) {
-            if (var == split->parent->var.get())
-              not_splited = true;
-          }
-        });
-        if (not_splited) {
-          stmt = LoopSpliter(split, dom_map).Mutate(stmt);
-          changed = true;
-        }
+  class LoopFuser : public IRMutator {
+    const IterVar &parent;
+    const Variable *inner;
+    const Variable *outer;
+    bool under_outer;
+    Expr extent;
+    
+   public:
+    bool fused;
+    LoopFuser(const FuseNode *fuse_)
+      : parent(fuse_->fused), inner(fuse_->inner->var.get()),
+        outer(fuse_->outer->var.get()), under_outer(false),
+        extent(0), fused(false) {}
+
+    Stmt Mutate_(const For *op, const Stmt &stmt) {
+      if (op->loop_var.get() == inner) {
+        CHECK(under_outer);
+        std::unordered_map<const Variable *, Expr> rmap;
+        rmap[op->loop_var.get()] = parent % op->extent;
+        extent = op->extent;
+        fused = true;
+        return ir::Substitute(op->body, rmap);
+      } else if (op->loop_var.get() == outer) {
+        under_outer = true;
+        Stmt body = IRMutator::Mutate(op->body);
+        std::unordered_map<const Variable *, Expr> rmap;
+        rmap[op->loop_var.get()] = parent / extent;
+        body = ir::Substitute(body, rmap);
+        under_outer = false;
+        return For::make(parent->var, Expr(0), extent * op->extent,
+                         op->for_type, op->device_api, body);
+      } else if (under_outer) {
+        Stmt body = IRMutator::Mutate(op->body);
+        std::unordered_map<const Variable *, Expr> rmap;
+        rmap[op->loop_var.get()] = parent / extent % op->extent;
+        body = ir::Substitute(body, rmap);
+        extent = extent * op->extent;
+        return body;
       }
+      return IRMutator::Mutate(stmt);
+    }
+  };
+
+  for (auto &rel : stage->relations) {
+    if (const SplitNode *split = rel.as<SplitNode>()) {
+      LoopSpliter Spliter(split, dom_map);
+      stmt = Spliter.Mutate(stmt);
+      CHECK(Spliter.splitted);
+    } else if (const FuseNode *fuse = rel.as<FuseNode>()) {
+      LoopFuser Fuser(fuse);
+      stmt = Fuser.Mutate(stmt);
+      CHECK(Fuser.fused);
     }
   }
 

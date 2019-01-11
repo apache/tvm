@@ -3,7 +3,7 @@ from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
 
 @nose.tools.nottest
-def run_and_check(func, args, var_dict={}, target='llvm', sch=None):
+def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
@@ -18,8 +18,9 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None):
         op = outs[0].op if isinstance(outs, list) else outs.op
         sch = tvm.create_schedule(op)
     else:
-        op = sch.outputs[0]
-        outs = list(op.outputs)
+        assert outs is not None
+        assert isinstance(outs, list)
+        op = outs[0].op
 
     emu_args = []
     nd_args = []
@@ -599,9 +600,6 @@ def test_const_range():
     run_and_check(hoo, [a, b])
 
 def test_schedule():
-    # Test perfect loop split
-    # Test loop reorder
-    # Test loop annotation
     @script
     def outer_product(a, b):
         c = output_tensor((64, 64), a.dtype)
@@ -612,6 +610,10 @@ def test_schedule():
     a = tvm.placeholder((64,), name='a', dtype='float32')
     b = tvm.placeholder((64,), name='b', dtype='float32')
     c = outer_product(a, b)
+
+    # Test perfect loop split
+    # Test loop reorder
+    # Test loop annotation
     sch = tvm.create_schedule(c.op)
     i, j = c.op.axis
     io, ii = sch[c].split(i, 4)
@@ -637,18 +639,19 @@ def test_schedule():
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'j.outer.inner'
     ir = ir.body
+    run_and_check(outer_product, [a, b], sch=sch, outs=[c])
 
-    module = tvm.build(sch, [a, b, c])
-    assert module
-    a = numpy.random.randn(64)
-    b = numpy.random.randn(64)
-    c = numpy.outer(a, b)
-    nd_a = tvm.ndarray.array(a.astype('float32'))
-    nd_b = tvm.ndarray.array(b.astype('float32'))
-    nd_c = tvm.ndarray.array(numpy.zeros((64, 64)).astype('float32'))
-    module(nd_a, nd_b, nd_c)
-    tvm.testing.assert_allclose(nd_c.asnumpy(), c, 1e-5, 1e-5)
-    #run_and_check(outer_product, [a, b], sch=sch)
+    # Test fuse
+    sch = tvm.create_schedule(c.op)
+    sch[c].fuse(c.op.axis[0], c.op.axis[1])
+    ir = tvm.lower(sch, [a, b, c], simple_mode=True)
+    assert isinstance(ir, tvm.stmt.ProducerConsumer)
+    ir = ir.body
+    assert isinstance(ir, tvm.stmt.AttrStmt)
+    ir = ir.body
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'i.j.fused'
+    run_and_check(outer_product, [a, b], sch=sch, outs=[c])
 
     # Test imperfect loop split
     # Test loop binds
