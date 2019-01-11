@@ -3,7 +3,7 @@ from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
 
 @nose.tools.nottest
-def run_and_check(func, args, var_dict={}, target='llvm'):
+def run_and_check(func, args, var_dict={}, target='llvm', sch=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
@@ -13,8 +13,13 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
     ctx = tvm.context(target, 0)
     op = None
 
-    outs = func(*tuple(tvm.convert(i) if isinstance(i, list) else i for i in args))
-    op = outs[0].op if isinstance(outs, list) else outs.op
+    if sch is None:
+        outs = func(*tuple(tvm.convert(i) if isinstance(i, list) else i for i in args))
+        op = outs[0].op if isinstance(outs, list) else outs.op
+        sch = tvm.create_schedule(op)
+    else:
+        op = sch.outputs[0]
+        outs = list(op.outputs)
 
     emu_args = []
     nd_args = []
@@ -30,13 +35,13 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
             assert isinstance(i, list)
             emu_args.append(numpy.array(i))
 
-    sch = tvm.create_schedule(op)
+    compile_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))] + \
+                   (outs if isinstance(outs, list) else [outs])
     module = tvm.build(sch,
-                       [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))] + \
-                       (outs if isinstance(outs, list) else [outs]),
+                       compile_args,
                        target=target)
     assert module
-    
+
     out_tensors = []
     for i in range(op.num_outputs):
         output = op.output(i)
@@ -47,7 +52,7 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
     ref_data = func(*emu_args)
     if isinstance(ref_data, numpy.ndarray):
         ref_data = [ref_data]
-    
+
     module(*nd_args)
 
     for nd, np in zip(out_tensors, ref_data):
@@ -595,29 +600,36 @@ def test_const_range():
 
 def test_schedule():
     # Test perfect loop split
+    # Test loop reorder
     # Test loop annotation
     @script
     def outer_product(a, b):
-        c = output_tensor((128, 64), a.dtype)
-        for i in range(128):
+        c = output_tensor((64, 64), a.dtype)
+        for i in range(64):
             for j in range(64):
                 c[i, j] = a[i] * b[j]
         return c
-    a = tvm.placeholder((128,), name='a')
-    b = tvm.placeholder((64,), name='b')
+    a = tvm.placeholder((64,), name='a', dtype='float32')
+    b = tvm.placeholder((64,), name='b', dtype='float32')
     c = outer_product(a, b)
     sch = tvm.create_schedule(c.op)
-    j, i = c.op.axis
+    i, j = c.op.axis
+    io, ii = sch[c].split(i, 4)
+    sch[c].parallel(ii)
     jo, ji = sch[c].split(j, 4)
     joo, joi = sch[c].split(jo, 4)
     sch[c].vectorize(ji)
+    sch[c].reorder(ii, io, joo, joi, ji)
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    print(ir)
     assert isinstance(ir, tvm.stmt.ProducerConsumer)
     ir = ir.body
     assert isinstance(ir, tvm.stmt.AttrStmt)
     ir = ir.body
-    assert ir.loop_var.name == 'i'
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'i.inner'
+    ir = ir.body
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'i.outer'
     ir = ir.body
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'j.outer.outer'
@@ -626,9 +638,20 @@ def test_schedule():
     assert ir.loop_var.name == 'j.outer.inner'
     ir = ir.body
 
+    module = tvm.build(sch, [a, b, c])
+    assert module
+    a = numpy.random.randn(64)
+    b = numpy.random.randn(64)
+    c = numpy.outer(a, b)
+    nd_a = tvm.ndarray.array(a.astype('float32'))
+    nd_b = tvm.ndarray.array(b.astype('float32'))
+    nd_c = tvm.ndarray.array(numpy.zeros((64, 64)).astype('float32'))
+    module(nd_a, nd_b, nd_c)
+    tvm.testing.assert_allclose(nd_c.asnumpy(), c, 1e-5, 1e-5)
+    #run_and_check(outer_product, [a, b], sch=sch)
+
     # Test imperfect loop split
     # Test loop binds
-    # Test loop reorder
 
 
 if __name__ == "__main__":

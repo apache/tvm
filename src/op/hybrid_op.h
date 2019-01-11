@@ -52,6 +52,27 @@ Stmt ApplySchedule(const Stage& stage,
 Stmt ApplySplits(const Stage &stage,
                  const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
 
+
+/*!
+ * \brief Apply loop annotation in the schedule on the function body.
+ * \param stage The schedule information to be applied.
+ * \param rebased The map specifies the rebase, a.k.a rename, relationship of these variables.
+ * \param stmt The statement to be processed.
+ */
+Stmt ApplyLoopAnnotations(const Stage &stage,
+                          const std::unordered_map<IterVar, IterVar>& rebased, Stmt stmt);
+
+/*!
+ * \brief Apply loop order in the schedule on the function body.
+ * \param stage The schedule information to be applied.
+ * \param dom_map The extents of the iterative variables may be used.
+ * \param rebased The map specifies the rebase, a.k.a rename, relationship of these variables.
+ * \param stmt The statement to be processed.
+ */
+Stmt ApplyLoopOrder(const Stage &stage,
+                    const std::unordered_map<IterVar, Range> &dom_map,
+                    const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt);
+
 }  // namespace op
 }  // namespace tvm
 

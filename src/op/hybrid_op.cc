@@ -9,6 +9,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_operator.h>
 #include <tvm/ir_pass.h>
+#include <ir/Expr.h>
 #include <unordered_set>
 #include <string>
 #include "op_util.h"
@@ -200,6 +201,7 @@ Stmt HybridOpNode::BuildProvide(
 
 namespace op {
 
+
 Stmt ApplySplits(const Stage &stage,
                  const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt) {
   class LoopSpliter : public IRMutator {
@@ -275,7 +277,8 @@ Stmt ApplySplits(const Stage &stage,
   return stmt;
 }
 
-Stmt ApplyLoopAnnotations(const Stage &stage, Stmt stmt) {
+Stmt ApplyLoopAnnotations(const Stage &stage,
+                          const std::unordered_map<IterVar, IterVar>& rebased, Stmt stmt) {
   class LoopAnnotator : public IRMutator {
     const Variable *var;
     ForType for_type;
@@ -296,7 +299,8 @@ Stmt ApplyLoopAnnotations(const Stage &stage, Stmt stmt) {
     bool equal = false;
     int found = 0;
 
-    const Variable *var = iter_var->var.get();
+    const IterVar &actual = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
+    const Variable *var = actual->var.get();
     ForType expected = IterVarTypeToForType(iter_var->iter_type);
     if (stage->iter_var_attrs.count(iter_var)) {
       expected = IterVarTypeToForType(stage->iter_var_attrs[iter_var]->iter_type);
@@ -319,15 +323,79 @@ Stmt ApplyLoopAnnotations(const Stage &stage, Stmt stmt) {
   return stmt;
 }
 
-Stmt ApplyLoopOrder(const Stage &stage, Stmt stmt) {
+Stmt ApplyLoopOrder(const Stage &stage,
+                    const std::unordered_map<IterVar, Range> &dom_map,
+                    const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
+  std::vector<const Variable*> current_order;
+  PostOrderVisit(stmt, [&current_order](const NodeRef &node) {
+    if (const For *op = node.as<For>())
+      current_order.push_back(op->loop_var.get());
+  });
+  std::reverse(current_order.begin(), current_order.end());
+  auto &required_ord = stage->leaf_iter_vars;
+  CHECK_EQ(current_order.size(), required_ord.size()) << "Cannot reorder the loops!";
+  std::unordered_map<const Variable *, IterVar> reorder;
+  bool need_reorder = false;
+  for (size_t i = 0; i < current_order.size(); ++i) {
+    auto &current = current_order[i];
+    const IterVar &iter_var = required_ord[i];
+    const IterVar &required = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
+    CHECK(required->dom.defined() || dom_map.count(required)) << required << "\n";
+    reorder[current] = required;
+    if (current != required->var.get()) {
+      need_reorder = true;
+    }
+  }
+
+  class LoopReorder : public IRMutator {
+    const Stage &stage;
+    const std::unordered_map<IterVar, Range> &dom_map;
+    const std::unordered_map<const Variable *, IterVar> &reorder;
+
+   public:
+    LoopReorder(const Stage &stage,
+                const std::unordered_map<IterVar, Range> &dom_map,
+                const std::unordered_map<const Variable*, IterVar> &reorder)
+      : stage(stage), dom_map(dom_map), reorder(reorder) {}
+
+    Stmt Mutate_(const For *op, const Stmt &stmt) {
+      // Reorder from in to out
+      Stmt body_ = IRMutator::Mutate(op->body);
+      CHECK(reorder.count(op->loop_var.get()));
+      auto target = reorder.find(op->loop_var.get())->second;
+      if (body_.same_as(op->body) && op->loop_var.get() == target->var.get())
+          return stmt;
+      const Stmt &body = op->body.same_as(body_) ? op->body : body_;
+      ForType for_type = IterVarTypeToForType(target->iter_type);
+      if (stage->iter_var_attrs.count(target)) {
+        for_type = IterVarTypeToForType(stage->iter_var_attrs[target]->iter_type);
+      }
+      const Range &range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
+      return For::make(target->var, range->min, range->extent,
+                       for_type, HalideIR::DeviceAPI::None, body);
+    }
+  };
+
+  if (need_reorder)
+    return LoopReorder(stage, dom_map, reorder).Mutate(stmt);
+
   return stmt;
 }
 
 Stmt ApplySchedule(const Stage &stage,
                    const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt) {
+  // Gather rebased variables
+  std::unordered_map<IterVar, IterVar> rebased;
+  for (auto rel : stage->relations) {
+    if (auto rebase = rel.as<RebaseNode>()) {
+      rebased[rebase->rebased] = rebase->parent;
+      CHECK(rebase->parent->dom.defined());
+      CHECK(dom_map.count(rebase->rebased));
+    }
+  }
   stmt = ApplySplits(stage, dom_map, stmt);
-  stmt = ApplyLoopAnnotations(stage, stmt);
-  stmt = ApplyLoopOrder(stage, stmt);
+  stmt = ApplyLoopOrder(stage, dom_map, rebased, stmt);
+  stmt = ApplyLoopAnnotations(stage, rebased, stmt);
   return stmt;
 }
 
@@ -340,6 +408,7 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
       res_.push_back(IterVarNode::make(dom, loop_var, ForTypeToIterVarType(op->for_type)));
     }
   });
+  std::reverse(res_.begin(), res_.end());
   return res_;
 }
 
