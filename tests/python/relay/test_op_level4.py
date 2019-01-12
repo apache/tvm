@@ -203,8 +203,8 @@ def test_slice_axis():
         func = relay.Function([x], z)
         func = relay.ir_pass.infer_type(func)
         text = func.astext()
-        assert "begin=" in text
-        assert "end=" in text
+        assert "begin" in text
+        assert "end" in text
         x_data = np.random.uniform(size=dshape).astype("float32")
         ref_res = topi.testing.slice_axis_python(
             x_data, axis, begin, end)

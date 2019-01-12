@@ -31,4 +31,4 @@ def slice_axis_python(data, axis, begin, end=None):
         end += dshape[axis]
     slc = [slice(None)] * len(dshape)
     slc[axis] = slice(begin, end)
-    return data[slc]
+    return data[tuple(slc)]

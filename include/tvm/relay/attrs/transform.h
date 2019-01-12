@@ -172,9 +172,9 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
 };
 
 struct SliceAxisAttrs : public tvm::AttrsNode<SliceAxisAttrs> {
-  Integer axis;
-  Integer begin;
-  Integer end;
+  int axis;
+  int begin;
+  int end;
 
   TVM_DECLARE_ATTRS(SliceAxisAttrs, "relay.attrs.SliceAxisAttrs") {
     TVM_ATTR_FIELD(axis)

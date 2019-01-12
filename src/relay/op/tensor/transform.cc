@@ -1368,9 +1368,9 @@ bool SliceAxisRel(const Array<Type>& types,
   const SliceAxisAttrs *param = attrs.as<SliceAxisAttrs>();
 
   auto src_shape = data->shape;
-  int64_t axis = param->axis;
-  int64_t begin = param->begin;
-  int64_t end = param->end;
+  int axis = param->axis;
+  int begin = param->begin;
+  int end = param->end;
 
   if (axis < 0) {
     axis += src_shape.size();
@@ -1386,7 +1386,7 @@ bool SliceAxisRel(const Array<Type>& types,
     << begin << " vs " << end;
 
   std::vector<IndexExpr>&& oshape = AsVector(data->shape);
-  oshape[axis] = make_const(Int(64), end - begin);
+  oshape[axis] = make_const(Int(32), end - begin);
 
   // assign output type
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
@@ -1417,9 +1417,9 @@ Array<Tensor> SliceAxisCompute(const Attrs& attrs,
   const SliceAxisAttrs *param = attrs.as<SliceAxisAttrs>();
   const Array<IndexExpr> src_shape = inputs[0]->shape;
   Array<IndexExpr> begin_idx, end_idx, strides;
-  int64_t axis = param->axis;
-  int64_t begin = param->begin;
-  int64_t end = param->end;
+  int axis = param->axis;
+  int begin = param->begin;
+  int end = param->end;
 
   if (axis < 0) {
     axis += src_shape.size();
@@ -1431,12 +1431,12 @@ Array<Tensor> SliceAxisCompute(const Attrs& attrs,
     end += *as_const_int(src_shape[axis]);
   }
   for (size_t i = 0; i < src_shape.size(); ++i) {
-    begin_idx.push_back(make_const(Int(64), 0));
-    strides.push_back(make_const(Int(64), 1));
+    begin_idx.push_back(make_const(Int(32), 0));
+    strides.push_back(make_const(Int(32), 1));
   }
   end_idx = Array<IndexExpr>(src_shape);
-  begin_idx.Set(axis, make_const(Int(64), begin));
-  end_idx.Set(axis, make_const(Int(64), end));
+  begin_idx.Set(axis, make_const(Int(32), begin));
+  end_idx.Set(axis, make_const(Int(32), end));
 
   return Array<Tensor>{
     topi::strided_slice(inputs[0],
@@ -1446,7 +1446,7 @@ Array<Tensor> SliceAxisCompute(const Attrs& attrs,
   };
 }
 
-RELAY_REGISTER_OP("relay.op._make.slice_axis")
+RELAY_REGISTER_OP("slice_axis")
 .describe(R"doc(Slices along a given axis.
 Returns an array slice along a given axis starting from
 the begin index to the end index.
