@@ -49,7 +49,7 @@ fragment DIGIT: [0-9] ;
 // Parsing
 
 // A Relay program is a list of global definitions or an expression.
-prog: ((SEMVER defn*) | expr) EOF ;
+prog: SEMVER (defn* | expr) EOF ;
 
 // option: 'set' ident BOOL_LIT ;
 
