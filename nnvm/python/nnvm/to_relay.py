@@ -374,8 +374,8 @@ def _concatenate(children, attrs, odtype='float32'):
     return op.concatenate(children, axis)
 
 def _dropout(children, attrs, odtype='float32'):
-    # Convert dropout to identity
-    return children[0]
+    rate = attrs.get_float('rate', 0.5)
+    return op.nn.dropout(children[0], rate)
 
 
 NNVM_OP_2_RELAY_OP = {
