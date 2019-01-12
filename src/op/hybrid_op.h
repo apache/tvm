@@ -44,7 +44,7 @@ Stmt ApplySchedule(const Stage& stage,
                    const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
 
 /*!
- * \brief Apply loop splits in the schedule on the function body.
+ * \brief Apply loop splits and fuses in the schedule on the function body.
  * \param stage The schedule information to be applied.
  * \param dom_map The extents of the iterative variables may be used.
  * \param stmt The statement to be processed.
