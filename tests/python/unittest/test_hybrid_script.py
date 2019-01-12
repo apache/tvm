@@ -563,6 +563,37 @@ def test_const_range():
     b = [[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]]
     run_and_check(foo, [a, b])
 
+    @tvm.hybrid.script
+    def goo(a, b):
+        c = output_tensor(a.shape, a.dtype)
+        len_b = len(b)
+        for i in const_range(len_b * 2):
+            if i < len_b:
+                c[i] = a[i] + b[i]
+            else:
+                c[i - len_b] = a[i - len_b] + b[i - len_b]
+        return c
+    a = tvm.placeholder((5, ), name='a', dtype='int32')
+    b = [1, 2, 3, 4, 5]
+    c = goo(a, tvm.convert(b))
+    sch = tvm.create_schedule(c.op)
+    run_and_check(goo, [a, b])
+
+    @tvm.hybrid.script
+    def hoo(a, b):
+        c = output_tensor(a.shape, a.dtype)
+        len_b = len(b)
+        for i in range(a.shape[0]):
+            for j in const_range(len(b)):
+                d = a[i] * b[j]
+                d += a[i] + b[j]
+                c[i] = d
+        return c
+    a = tvm.placeholder((5, ), name='a', dtype='int32')
+    b = [1, 2, 3, 4, 5]
+    run_and_check(hoo, [a, b])
+
+
 if __name__ == "__main__":
     test_outer_product()
     test_fanout()
