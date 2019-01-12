@@ -316,6 +316,23 @@ def test_ifelse_scope():
 
 @if_parser_enabled
 def test_call():
+    # select right function to call: simple ident case
+    x = relay.Var("x")
+    id_func = relay.Var("id")
+    assert alpha_equal(
+        relay.fromtext(
+        """
+        let %id = fn (%x) { %x };
+        10 * %id(10)
+        """
+        ),
+        relay.Let(
+            id_func,
+            relay.Function([x], x, None, []),
+            relay.multiply(relay.const(10), relay.Call(id_func, [relay.const(10)]))
+        )
+    )
+
     # 0 args
     constant = relay.Var("constant")
     assert alpha_equal(
