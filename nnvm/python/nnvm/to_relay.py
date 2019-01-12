@@ -31,13 +31,15 @@ def _nn_softmax(children, attrs, odtype='float32'):
     return op.nn.softmax(children[0], axis)
 
 def _conv2d(children, attrs, odtype='float32'):
-    use_bias = attrs.get_bool('use_bias', False)
+    use_bias = attrs.get_bool('use_bias', True)
 
     if use_bias:
         data, weight, bias = children
     else:
         data, weight = children
 
+    kernel_size = attrs.get_int_tuple('kernel_size')
+    channels = attrs.get_int('channels')
     strides = attrs.get_int_tuple('strides', (1, 1))
     padding = attrs.get_int_tuple('padding', (0, 0))
     dilation = attrs.get_int_tuple('dilation', (1, 1))
@@ -50,6 +52,8 @@ def _conv2d(children, attrs, odtype='float32'):
     conv_out = op.nn.conv2d(
         data,
         weight,
+        kernel_size=kernel_size,
+        channels=channels,
         strides=strides,
         padding=padding,
         dilation=dilation,
@@ -366,8 +370,12 @@ def _squeeze(children, attrs, odtype='float32'):
     return op.squeeze(children[0], axis)
 
 def _concatenate(children, attrs, odtype='float32'):
-    axis = attrs.get_int('axis', None)
+    axis = attrs.get_int('axis', 1)
     return op.concatenate(children, axis)
+
+def _dropout(children, attrs, odtype='float32'):
+    rate = attrs.get_float('rate', 0.5)
+    return op.nn.dropout(children[0], rate)
 
 
 NNVM_OP_2_RELAY_OP = {
@@ -379,6 +387,7 @@ NNVM_OP_2_RELAY_OP = {
     'max_pool2d': _max_pool2d,
     'reshape': _reshape,
     'transpose': _transpose,
+    'dropout': _dropout,
     # Addition
     '__add_scalar__': _add,
     'broadcast_add': _add,
