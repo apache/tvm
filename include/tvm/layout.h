@@ -73,14 +73,14 @@ class Layout : public NodeRef {
   Layout(const std::string& name) { // NOLINT(*)
     node_ = make_node<LayoutNode>();
 
-    std::vector<uint32_t> superdim_pos(kUniqueDim, -1);
-    std::vector<uint32_t> subdim_pos(kUniqueDim, -1);
-    std::vector<uint32_t> subdim_size(kUniqueDim, -1);
+    std::vector<size_t> superdim_pos(kUniqueDim, -1);
+    std::vector<size_t> subdim_pos(kUniqueDim, -1);
+    std::vector<size_t> subdim_size(kUniqueDim, -1);
     std::vector<char> layout_simplified;
 
     if (name != "__undef__") {  // parse layout string
       int32_t factor = 0;
-      uint32_t curr = 0;
+      size_t curr = 0;
       for (size_t i = 0; i < name.size(); ++i) {
         const LayoutDim c = name.at(i);
         if (IsSuperdim(c)) {
@@ -121,7 +121,7 @@ class Layout : public NodeRef {
     LayoutNode *node = operator->();
     node->name = name;
 
-    for (uint32_t i = 0; i < kUniqueDim; ++i) {
+    for (size_t i = 0; i < kUniqueDim; ++i) {
       node->superdim_pos.push_back(superdim_pos[i]);
       node->subdim_pos.push_back(subdim_pos[i]);
       node->subdim_size.push_back(subdim_size[i]);
@@ -406,12 +406,12 @@ class Layout : public NodeRef {
 class BijectiveLayoutNode;
 
 class BijectiveLayout : public NodeRef {
-public:
+ public:
   BijectiveLayout() {}
   explicit BijectiveLayout(NodePtr<Node> n) : NodeRef(n) {}
 
   // Final shape of the underlying array, given the shape of the normal layout
-  TVM_DLL Array<Expr> ForwardShape(const Array<Expr>& shape) const;
+  TVM_DLL Array <Expr> ForwardShape(const Array<Expr>& shape) const;
   // Given final shape, recover the original shape.
   TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& shape) const;
   // Final index of the underlying array, given the normal layout.
@@ -430,7 +430,7 @@ public:
 };
 
 class BijectiveLayoutNode : public Node {
-public:
+ public:
   // The original axis, with symbolic shape
   Array<IterVar> orig_axis;
   Array<IterVar> store_axis;
@@ -450,11 +450,17 @@ public:
     v->Visit("store_layout", &store_layout);
   }
 
+  static constexpr const char* _type_key = "BijectiveLayout";
+  TVM_DECLARE_NODE_TYPE_INFO(BijectiveLayoutNode, Node);
+
   TVM_DLL static BijectiveLayout make(const std::string& orig_layout,
                                       const std::string& store_layout);
 
-  static constexpr const char* _type_key = "BijectiveLayout";
-  TVM_DECLARE_NODE_TYPE_INFO(BijectiveLayoutNode, Node);
+  TVM_DLL static BijectiveLayout make(const Layout& orig_layout,
+                                      const Layout& store_layout) {
+    // TODO
+    return make(orig_layout.name(), store_layout.name());
+  }
 
   inline static char GetAxisName(const IterVar& axis) {
     return axis->var.get()->name_hint.at(0);
@@ -468,7 +474,7 @@ public:
     return x_name == y_name;
   }
 
-private:
+ private:
   inline static bool GetStoreRule(Array<Expr>& rule,
                                   const Array<IterVar>& orig_axes,
                                   const Array<IterVar>& store_axes) {

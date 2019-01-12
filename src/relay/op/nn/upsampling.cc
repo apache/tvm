@@ -3,6 +3,7 @@
  * \file upsampling.cc
  * \brief upsampling operator
  */
+#include <tvm/layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op_attr_types.h>
@@ -11,7 +12,6 @@
 #include <topi/nn/upsampling.h>
 #include <vector>
 #include "../op_common.h"
-#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -35,14 +35,15 @@ bool UpSamplingRel(const Array<Type>& types,
     << "UpSampling only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
 
-  auto oshape = ConvertLayout(data->shape, in_layout, kNCHW);
+  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  auto oshape = layout_converter.ForwardShape(data->shape);
 
-  oshape[2] = oshape[2] * param->scale;
-  oshape[3] = oshape[3] * param->scale;
+  oshape.Set(2, oshape[2] * param->scale);
+  oshape.Set(3, oshape[3] * param->scale);
 
   // assign output type
   reporter->Assign(types[1],
-                   TensorTypeNode::make(ConvertLayout(oshape, kNCHW, in_layout),
+                   TensorTypeNode::make(layout_converter.BackwardShape(oshape),
                                         data->dtype));
   return true;
 }

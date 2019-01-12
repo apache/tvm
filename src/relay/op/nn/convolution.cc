@@ -3,12 +3,12 @@
  * \file convolution.cc
  * \brief Convolution operators
  */
+#include <tvm/layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
 
 #include "../../pass/alter_op_layout.h"
-#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -43,21 +43,24 @@ bool Conv2DRel(const Array<Type>& types,
       << "Conv only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
 
-  std::vector<IndexExpr> dshape_nchw = ConvertLayout(
-      data->shape, in_layout, kNCHW);
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
+  const auto trans_kernel_layout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
+  const auto trans_out_layout = BijectiveLayoutNode::make(out_layout, kNCHW);
+
+  Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
 
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
   // infer weight if the kernel_size and channels are defined
   if (param->kernel_size.defined() && param->channels.defined()) {
     CHECK_EQ(param->kernel_size.size(), 2);
     CHECK_EQ(param->dilation.size(), 2);
-    std::vector<IndexExpr> wshape(
+    Array<IndexExpr> wshape(
        {param->channels / param->groups,
          dshape_nchw[1] / param->groups,
          param->kernel_size[0],
          param->kernel_size[1]});
-    wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
-    wshape[kernel_layout.Indexof('O')] *= param->groups;
+    wshape = trans_kernel_layout.BackwardShape(wshape);
+    wshape.Set(kernel_layout.Indexof('O'), wshape[kernel_layout.Indexof('O')] * param->groups);
     channels = param->channels;
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
@@ -66,7 +69,7 @@ bool Conv2DRel(const Array<Type>& types,
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
-    auto wshape = ConvertLayout(weight->shape, kernel_layout, kOIHW);
+    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
     if (param->kernel_size.defined()) {
       CHECK_EQ(param->kernel_size.size(), 2);
       // check the size
@@ -74,13 +77,13 @@ bool Conv2DRel(const Array<Type>& types,
             reporter->AssertEQ(param->kernel_size[1], wshape[3]))
           << "Conv2D: shape of weight is inconsistent with kernel_size, "
           << " kernel_size=" << param->kernel_size
-          << " wshape=" << Array<IndexExpr>(wshape);
+          << " wshape=" << wshape;
     }
     if (param->channels.defined()) {
       CHECK(reporter->AssertEQ(param->channels, wshape[0]))
           << "Conv2D: shape of weight is inconsistent with channels, "
           << " channels=" << param->channels
-          << " wshape=" << Array<IndexExpr>(wshape);
+          << " wshape=" << wshape;
     }
     CHECK(reporter->AssertEQ(dshape_nchw[1] / param->groups, wshape[1]));
     channels = wshape[0];
@@ -88,15 +91,15 @@ bool Conv2DRel(const Array<Type>& types,
     dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
   }
   // dilation
-  std::vector<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
+  Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
-  oshape[2] = (dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1;
-  oshape[3] = (dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1;
+  oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1);
+  oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1);
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
   }
-  oshape = ConvertLayout(oshape, kNCHW, out_layout);
+  oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
   reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;
@@ -206,21 +209,25 @@ bool Conv2DTransposeRel(const Array<Type>& types,
     << "Conv only support output layouts that are convertible from NCHW."
     << " But got " << out_layout;
 
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
+  const auto trans_kernel_layout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
+  const auto trans_out_layout = BijectiveLayoutNode::make(out_layout, kNCHW);
+
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
 
-  auto dshape_nchw = ConvertLayout(data->shape, in_layout, kNCHW);
+  auto dshape_nchw = trans_in_layout.ForwardShape(data->shape);
 
   // infer weight if the kernel_size and channels are defined
   if (param->kernel_size.defined() && param->channels.defined()) {
     CHECK_EQ(param->kernel_size.size(), 2);
     CHECK_EQ(param->dilation.size(), 2);
 
-    std::vector<IndexExpr> wshape({dshape_nchw[1],
-                                   param->channels / param->groups,
-                                   param->kernel_size[0],
-                                   param->kernel_size[1]});
+    Array<IndexExpr> wshape({dshape_nchw[1],
+                             param->channels / param->groups,
+                             param->kernel_size[0],
+                             param->kernel_size[1]});
 
-    wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
+    wshape = trans_kernel_layout.BackwardShape(wshape);
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
     channels = param->channels;
@@ -230,7 +237,7 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
-    auto wshape = ConvertLayout(weight->shape, kernel_layout, kOIHW);
+    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
     if (param->kernel_size.defined()) {
       CHECK_EQ(param->kernel_size.size(), 2);
       // check the size
@@ -252,17 +259,17 @@ bool Conv2DTransposeRel(const Array<Type>& types,
     dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
   }
   // dilation
-  std::vector<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
-  oshape[2] = (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y -
-               2 * param->padding[0] + param->output_padding[0]);
-  oshape[3] = (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x -
-               2 * param->padding[1] + param->output_padding[1]);
+  Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
+  oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y -
+                 2 * param->padding[0] + param->output_padding[0]));
+  oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x -
+                 2 * param->padding[1] + param->output_padding[1]));
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
   }
-  oshape = ConvertLayout(oshape, kNCHW, out_layout);
+  oshape = trans_out_layout.BackwardShape(oshape);
   reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }
@@ -362,8 +369,10 @@ bool Conv2DWinogradRel(const Array<Type>& types,
       << "Conv only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
 
-  std::vector<IndexExpr> dshape_nchw = ConvertLayout(
-      data->shape, in_layout, kNCHW);
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
+  const auto trans_out_layout = BijectiveLayoutNode::make(out_layout, kNCHW);
+
+  Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
 
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
 
@@ -385,15 +394,15 @@ bool Conv2DWinogradRel(const Array<Type>& types,
   // can handle this correctly in alter_op_layout.
 
   // dilation
-  std::vector<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
+  Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
-  oshape[2] = (dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1;
-  oshape[3] = (dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1;
+  oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1);
+  oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1);
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
   }
-  oshape = ConvertLayout(oshape, kNCHW, out_layout);
+  oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
   reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;

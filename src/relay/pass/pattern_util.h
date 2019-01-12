@@ -8,11 +8,11 @@
 #ifndef TVM_RELAY_PASS_PATTERN_UTIL_H_
 #define TVM_RELAY_PASS_PATTERN_UTIL_H_
 
+#include <tvm/layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/transform.h>
 #include <string>
-#include "../op/layout.h"
 
 
 namespace tvm {
@@ -114,9 +114,8 @@ inline bool IsDepthwiseConv2D(const Call& call,
                               const Conv2DAttrs* param,
                               const Layout& kernel_layout) {
   static const Layout kOIHW("OIHW");
-  auto wshape = ConvertLayout(
-      call->args[1]->type_as<TensorTypeNode>()->shape,
-      kernel_layout, kOIHW);
+  const auto bilayout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
+  auto wshape = bilayout.ForwardShape(call->args[1]->type_as<TensorTypeNode>()->shape);
   return is_const_int(wshape[0], param->groups) &&
       is_const_int(wshape[1], 1);
 }

@@ -7,6 +7,7 @@
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir_operator.h>
 #include <tvm/ir.h>
+#include <tvm/layout.h>
 #include <topi/transform.h>
 #include <topi/elemwise.h>
 #include <topi/broadcast.h>
@@ -16,7 +17,6 @@
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
 #include "../../pass/alter_op_layout.h"
-#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -1620,8 +1620,9 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
     << "cannot convert from/to undefined layout";
   CHECK(src_layout.Convertible(dst_layout))
     << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
+  auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
 
-  const auto& out_shape = ConvertLayout(inputs[0]->shape, src_layout, dst_layout);
+  const auto& out_shape = layout_converter.ForwardShape(inputs[0]->shape);
   return Array<Tensor> {
       topi::layout_transform(inputs[0], out_shape, [&](const Array<tvm::Var>& dst_indices) {
         std::vector<tvm::Expr> dst_to_src_indices;
@@ -1664,8 +1665,9 @@ bool LayoutTransformRel(const Array<Type>& types,
     << "cannot convert from/to undefined layout";
   CHECK(src_layout.Convertible(dst_layout))
     << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
+  auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
 
-  const auto& out_shape = ConvertLayout(data->shape, src_layout, dst_layout);
+  const auto& out_shape = layout_converter.ForwardShape(data->shape);
   reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));
   return true;
 }

@@ -3,11 +3,11 @@
  * \file resize.cc
  * \brief Image operators
  */
+#include <tvm/layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/image.h>
 #include <topi/elemwise.h>
 #include <topi/image/resize.h>
-#include "../layout.h"
 #include "../op_common.h"
 
 namespace tvm {
@@ -32,13 +32,14 @@ bool ResizeRel(const Array<Type>& types,
     << "Resize only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
 
-  auto oshape = ConvertLayout(data->shape, in_layout, kNCHW);
-  oshape[2] = param->size[0];
-  oshape[3] = param->size[1];
+  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  auto oshape = layout_converter.ForwardShape(data->shape);
+  oshape.Set(2, param->size[0]);
+  oshape.Set(3, param->size[1]);
 
   // assign output type
   reporter->Assign(types[1],
-                   TensorTypeNode::make(ConvertLayout(oshape, kNCHW, in_layout),
+                   TensorTypeNode::make(layout_converter.BackwardShape(oshape),
                                         data->dtype));
   return true;
 }

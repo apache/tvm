@@ -3,12 +3,12 @@
  * \file pooling.cc
  * \brief Pooling operators
  */
+#include <tvm/layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
 #include <topi/nn/pooling.h>
 #include <vector>
-#include "../layout.h"
 #include "../../pass/alter_op_layout.h"
 
 namespace tvm {
