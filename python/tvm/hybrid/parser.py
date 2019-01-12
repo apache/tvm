@@ -459,9 +459,10 @@ class HybridParser(ast.NodeVisitor):
 
         if for_type is None:
             res = _make.AttrStmt(iter_var, 'thread_extent', ext, _body)
-        _internal_assert(not isinstance(for_type, tuple), \
-                         "Micro expansion should be handled before!")
-        res = _make.For(iter_var, _api.const(0, 'int32'), ext, for_type, 0, _body)
+        else:
+            _internal_assert(not isinstance(for_type, tuple), \
+                            "Micro expansion should be handled before!")
+            res = _make.For(iter_var, _api.const(0, 'int32'), ext, for_type, 0, _body)
 
         self.symbols.pop(_name)
         return res
