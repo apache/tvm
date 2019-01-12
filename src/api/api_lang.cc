@@ -11,6 +11,7 @@
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>
 #include <tvm/build_module.h>
+#include <tvm/layout.h>
 
 namespace tvm {
 
@@ -223,6 +224,36 @@ TVM_REGISTER_API("_BufferVStore")
     *ret = args[0].operator Buffer()
         .vstore(args[1], args[2]);
   });
+
+TVM_REGISTER_API("_BijectiveLayout")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = BijectiveLayoutNode::make(LayoutNode::make(args[0]),
+                                   LayoutNode::make(args[1]));
+});
+
+TVM_REGISTER_API("_BijectiveLayoutForwardIndex")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator BijectiveLayout()
+      .ForwardIndex(args[1]);
+});
+
+TVM_REGISTER_API("_BijectiveLayoutBackwardIndex")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator BijectiveLayout()
+      .BackwardIndex(args[1]);
+});
+
+TVM_REGISTER_API("_BijectiveLayoutForwardShape")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator BijectiveLayout()
+      .ForwardShape(args[1]);
+});
+
+TVM_REGISTER_API("_BijectiveLayoutBackwardShape")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator BijectiveLayout()
+      .BackwardShape(args[1]);
+});
 
 TVM_REGISTER_API("_Tensor")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {

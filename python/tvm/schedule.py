@@ -141,6 +141,21 @@ class Buffer(NodeBase):
 
 
 @register_node
+class BijectiveLayout(NodeBase):
+    def forward_index(self, index):
+        return _api_internal._BijectiveLayoutForwardIndex(self, index)
+
+    def backward_index(self, index):
+        return _api_internal._BijectiveLayoutBackwardIndex(self, index)
+
+    def forward_shape(self, shape):
+        return _api_internal._BijectiveLayoutForwardShape(self, shape)
+
+    def backward_shape(self, shape):
+        return _api_internal._BijectiveLayoutBackwardShape(self, shape)
+
+
+@register_node
 class Split(NodeBase):
     """Split operation on axis."""
     pass

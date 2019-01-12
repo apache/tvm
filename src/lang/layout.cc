@@ -11,6 +11,10 @@ namespace tvm {
 TVM_REGISTER_NODE_TYPE(LayoutNode);
 TVM_REGISTER_NODE_TYPE(BijectiveLayoutNode);
 
+Layout LayoutNode::make(const std::string& layout) {
+  return Layout(layout);
+}
+
 inline Array<Expr> TransformIndex(const Array<Expr>& src_index,
                                   const Array<IterVar>& src_axis,
                                   const Array<Expr>& transform_rule) {
@@ -93,8 +97,8 @@ Array<Expr> BijectiveLayout::BackwardShape(const Array<Expr>& shape) const {
   return TransformShape(shape, self->store_axis, self->orig_axis, self->backward_rule);
 }
 
-BijectiveLayout BijectiveLayoutNode::make(const std::string& orig_layout,
-                                const std::string& store_layout) {
+BijectiveLayout BijectiveLayoutNode::make(const Layout& orig_layout,
+                                          const Layout& store_layout) {
   auto n = make_node<BijectiveLayoutNode>();
 
   auto LayoutParser = [](const std::string& layout, Array<IterVar>& axes) {
@@ -132,11 +136,12 @@ BijectiveLayout BijectiveLayoutNode::make(const std::string& orig_layout,
     }
   };
 
-  n->orig_layout = orig_layout;
-  LayoutParser(orig_layout, n->orig_axis);
+  // TODO
+  n->orig_layout = orig_layout.name();
+  LayoutParser(orig_layout.name(), n->orig_axis);
 
-  n->store_layout = store_layout;
-  LayoutParser(store_layout, n->store_axis);
+  n->store_layout = store_layout.name();
+  LayoutParser(store_layout.name(), n->store_axis);
 
   if (!GetStoreRule(n->forward_rule, n->orig_axis, n->store_axis)) {
     // not convertible

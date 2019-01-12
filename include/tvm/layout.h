@@ -29,6 +29,7 @@
 
 namespace tvm {
 
+class Layout;
 class LayoutNode : public Node {
  public:
   std::string name;
@@ -44,6 +45,8 @@ class LayoutNode : public Node {
     v->Visit("subdim_size", &subdim_size);
     v->Visit("layout_simplified", &layout_simplified);
   }
+
+  TVM_DLL static Layout make(const std::string& layout);
 
   static constexpr const char* _type_key = "Layout";
   TVM_DECLARE_NODE_TYPE_INFO(LayoutNode, Node);
@@ -453,14 +456,8 @@ class BijectiveLayoutNode : public Node {
   static constexpr const char* _type_key = "BijectiveLayout";
   TVM_DECLARE_NODE_TYPE_INFO(BijectiveLayoutNode, Node);
 
-  TVM_DLL static BijectiveLayout make(const std::string& orig_layout,
-                                      const std::string& store_layout);
-
   TVM_DLL static BijectiveLayout make(const Layout& orig_layout,
-                                      const Layout& store_layout) {
-    // TODO
-    return make(orig_layout.name(), store_layout.name());
-  }
+                                      const Layout& store_layout);
 
   inline static char GetAxisName(const IterVar& axis) {
     return axis->var.get()->name_hint.at(0);
