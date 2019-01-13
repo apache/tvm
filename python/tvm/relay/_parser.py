@@ -336,7 +336,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         return dict(self.visit_list(ctx.attr()))
 
     def visitArgList(self, ctx):
-        # type: (RelayParser.ArgListContext) -> Tuple[Optional[List[expr.Var]], Optional[Dict[str, expr.Expr]]]
+        # type: (RelayParser.ArgListContext) ->
+        #   Tuple[Optional[List[expr.Var]], Optional[Dict[str, expr.Expr]]]
         var_list = self.visit(ctx.varList()) if ctx.varList() else None
         attr_list = self.visit(ctx.attrList()) if ctx.attrList() else None
 
