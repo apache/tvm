@@ -47,6 +47,10 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
     offset_h = offsets[0]
     offset_w = offsets[1]
 
+    # Need to define var out of const_range + if
+    w = 0.0
+    h = 0.0
+
     for i in parallel(in_height):
         center_h = (i + offset_h) * steps_h
         for j in range(in_width):
@@ -57,8 +61,8 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
                     h = sizes[k] / 2.0
                 else:
                     w = sizes[0] * in_height / in_width \
-                        * sqrt(ratios[k - num_sizes + 1]) / 2.0
-                    h = sizes[0] * sqrt(ratios[k - num_sizes + 1]) / 2.0
+                        * sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
+                    h = sizes[0] / sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
                 count = i * in_width * (num_sizes + num_ratios - 1) \
                         + j * (num_sizes + num_ratios - 1) + k
                 output[0, count, 0] = center_w - w
@@ -103,6 +107,7 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
     if clip:
         out = topi.clip(out, 0, 1)
     return out
+
 
 @hybrid.script
 def _hybridy_transform_loc(box, pred_loc, variance, clip):
@@ -166,37 +171,8 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
 
     Returns
     -------
-<<<<<<< HEAD
-    stmt : Stmt
-        The result IR statement.
-    """
-    def transform_loc(loc, loc_base_idx, anchor, anchor_base_idx, clip, vx, vy, vw, vh):
-        """Transform prior anchor box to output box through location predictions.
-        """
-        al = anchor[anchor_base_idx]
-        at = anchor[anchor_base_idx + 1]
-        ar = anchor[anchor_base_idx + 2]
-        ab = anchor[anchor_base_idx + 3]
-        aw = ar - al
-        ah = ab - at
-        ax = (al + ar) / 2.0
-        ay = (at + ab) / 2.0
-        px = loc[loc_base_idx]
-        py = loc[loc_base_idx + 1]
-        pw = loc[loc_base_idx + 2]
-        ph = loc[loc_base_idx + 3]
-        ox = px * vx * aw + ax
-        oy = py * vy * ah + ay
-        ow = tvm.exp(pw * vw) * aw / 2.0
-        oh = tvm.exp(ph * vh) * ah / 2.0
-        return tvm.if_then_else(clip, tvm.max(0, tvm.min(1, ox - ow)), ox - ow), \
-               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, oy - oh)), oy - oh), \
-               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, ox + ow)), ox + ow), \
-               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, oy + oh)), oy + oh)
-=======
     out_loc : tvm.Tensor or numpy NDArray
         3-D tensor of transformed location.
->>>>>>> Modify SSD tutorial
 
     valid_count : tvm.Tensor or numpy NDArray
         1_d tensor of valid counts for boxes.
@@ -214,19 +190,6 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
         valid_count[i] = 0
         for j in range(num_anchors):
             # Find the predicted class id and probability
-<<<<<<< HEAD
-            score = ib.allocate('float32', (1,), name="score", scope="local")
-            cls_id = ib.allocate('int32', (1,), name="id", scope="local")
-            score[0] = -1.0
-            cls_id[0] = 0
-            with ib.for_range(0, num_classes, name="j") as j:
-                with ib.if_scope(j > 0):
-                    temp = p_cls_prob[n * num_anchors * num_classes + j * num_anchors + i]
-                    cls_id[0] = tvm.if_then_else(temp > score[0], j, cls_id[0])
-                    score[0] = tvm.max(temp, score[0])
-            with ib.if_scope(tvm.all(cls_id[0] > 0, score[0] < threshold)):
-                cls_id[0] = 0
-=======
             score = -1.0
             cls_id = 0
             for k in range(num_classes):
@@ -236,7 +199,6 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
                     score = max(temp, score)
             if cls_id > 0 and score < threshold:
                 cls_id = 0
->>>>>>> Modify SSD tutorial
             # [id, prob, xmin, ymin, xmax, ymax]
             # Remove background, restore original id
             if cls_id > 0:
