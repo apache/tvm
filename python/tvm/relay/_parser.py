@@ -313,6 +313,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     @spanify
     def visitVar(self, ctx):
         # type: (RelayParser.VarContext) -> expr.Var
+        """Visit a single variable."""
         ident = ctx.ident().LOCAL_VAR()
 
         if ident is None:
