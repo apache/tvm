@@ -3,7 +3,11 @@ from __future__ import absolute_import
 from .. import register_func
 
 def enabled():
-    """Is the parser enabled/Can we import the parser?"""
+    """Checks whether the parser is enabled, this allows users to
+       optionally support building the parser.
+
+       We use this check before importing the parser.
+    """
     try:
         # pylint: disable=unused-variable
         from tvm.relay import _parser

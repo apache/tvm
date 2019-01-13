@@ -4,10 +4,11 @@
 from __future__ import absolute_import
 
 import sys
-import tvm
 
 from collections import deque
 from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any, Dict
+
+import tvm
 
 from . import module
 from .base import Span, SourceName
@@ -80,6 +81,14 @@ def lookup(scopes, name):
     return None
 
 def spanify(f):
+    """A decorator which attachs span information
+       to the value returned by calling `f`.
+
+       Intended for use with the below AST visiting
+       methods. The idea is that after we do the work
+       of constructing the AST we attach Span information.
+    """
+
     def _wrapper(*args, **kwargs):
         sn = args[0].source_name
         ctx = args[1]
@@ -321,7 +330,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def visitAttr(self, ctx):
         # type: (RelayParser.AttrContext) -> Tuple[str, expr.Expr]
         return (ctx.CNAME().getText(), self.visit(ctx.expr()))
-    
+
     def visitAttrList(self, ctx):
         # type: (RelayParser.AttrListContext) -> Dict[str, expr.Expr]
         return dict(self.visit_list(ctx.attr()))
