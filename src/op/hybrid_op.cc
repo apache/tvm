@@ -206,23 +206,15 @@ Stmt ApplyLoopShapes(const Stage &stage,
                  const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
   class LoopSpliter : public IRMutator {
     Expr factor;
-    IterVar parent, inner, outer;
+    const Variable *parent;
+    IterVar inner, outer;
 
    public:
     bool splitted;
     LoopSpliter(const SplitNode *split,
                 const std::unordered_map<IterVar, Range> &dom_map) :
       factor(split->factor), splitted(false) {
-      auto &parent_ = split->parent;
-      if (parent_->dom.defined()) {
-        CHECK(is_const_int(parent_->dom->min, 0));
-        parent = parent_;
-      } else {
-        CHECK(dom_map.count(parent_));
-        auto &dom = dom_map.find(parent_)->second;
-        CHECK(is_const_int(dom->min, 0));
-        parent = IterVarNode::make(dom, parent_->var, parent_->iter_type);
-      }
+      parent = split->parent->var.get();
 
       auto &inner_ = split->inner;
       CHECK(dom_map.count(inner_));
@@ -239,11 +231,11 @@ Stmt ApplyLoopShapes(const Stage &stage,
     }
 
     Stmt Mutate_(const For *op, const Stmt &stmt) {
-      if (op->loop_var.get() == parent->var.get()) {
+      if (op->loop_var.get() == parent) {
         std::unordered_map<const Variable *, Expr> rmap;
         rmap[op->loop_var.get()] = inner + outer * factor;
         Stmt ret = ir::Substitute(op->body, rmap);
-        Expr cond = likely(outer * factor < (parent->dom->extent - inner));
+        Expr cond = likely(outer * factor < (op->extent - inner));
         ret = IfThenElse::make(cond, ret);
         ret = For::make(inner->var, Expr(0), inner->dom->extent,
                         IterVarTypeToForType(inner->iter_type), op->device_api, ret);

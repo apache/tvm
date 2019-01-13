@@ -38,6 +38,7 @@ Stmt ReplaceProvideTensor(Stmt stmt,
 /*!
  * \brief Apply the schedule manipulation on the function body.
  * \param stmt The statement to be processed.
+ * \param dom_map The extents of the iterative variables may be used.
  * \param stage The schedule information to be applied.
  */
 Stmt ApplySchedule(const Stage& stage,
