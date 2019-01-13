@@ -303,6 +303,22 @@ def test_bind():
     sch[c].bind(c.op.axis[0], x)
     run_and_check(raw, [a, b], sch=sch, outs=[c], target='cuda')
 
+    # Test loop binds
+    @tvm.hybrid.script
+    def goo(a, b):
+        c = output_tensor(a.shape, a.dtype)
+        len_b = len(b)
+        for i in const_range(len_b * 2):
+            if i < len_b:
+                c[i] = a[i] + b[i]
+            else:
+                c[i - len_b] = a[i - len_b] + b[i - len_b]
+        return c
+    a = tvm.placeholder((5, ), name='a', dtype='int32')
+    b = [1, 2, 3, 4, 5]
+    c = goo(a, tvm.convert(b))
+    sch = tvm.create_schedule(c.op)
+    run_and_check(goo, [a, b], sch=sch, outs=[c])
 
 def test_math_intrin():
     @script
@@ -583,6 +599,7 @@ def test_const_range():
     run_and_check(foo, [a, b])
 
     @tvm.hybrid.script
+<<<<<<< 52c435f9c55a53e2e8e10b3a9fe672d2f8718122
     def goo(a, b):
         c = output_tensor(a.shape, a.dtype)
         len_b = len(b)
@@ -599,6 +616,8 @@ def test_const_range():
     run_and_check(goo, [a, b])
 
     @tvm.hybrid.script
+=======
+>>>>>>> fix online edit typo
     def hoo(a, b):
         c = output_tensor(a.shape, a.dtype)
         len_b = len(b)
