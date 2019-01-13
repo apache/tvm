@@ -51,7 +51,7 @@ Stmt ApplySchedule(const Stage& stage,
  * \param stmt The statement to be processed.
  */
 Stmt ApplyLoopShapes(const Stage &stage,
-                 const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
+                     const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
 
 
 /*!
