@@ -118,6 +118,7 @@ Stmt HybridOpNode::BuildRealize(
     const Stage &stage,
     const std::unordered_map<IterVar, Range> &realize_map,
     const Stmt &body) const {
+  // TODO(@were): Add attribute inject here and remove it from hybrid parser.
   CHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
   for (int k = 0; k < num_outputs(); ++k) {
@@ -430,6 +431,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
 
 Stmt ApplySchedule(const Stage &stage,
                    const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
+  // TODO(@were): Eliminate loop rebase in script parser and move the burden here
   // Gather rebased variables
   std::unordered_map<IterVar, IterVar> rebased;
   for (auto rel : stage->relations) {
