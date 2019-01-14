@@ -5,8 +5,21 @@ The set of automatic differentiation algorithms in Relay.
 """
 from . import _gradient
 
-def gradient(expr, mod=None, order=1):
-    if order == 1:
-        return _gradient.first_order_gradient(expr, mod)
-    else:
-        raise Exception('only order=1 supported right now.')
+
+def gradient(expr, mod=None):
+    """.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, which is a Function or a GlobalVar.
+
+    mod : Optional[tvm.relay.Module]
+        The global module.
+
+    Returns
+    -------
+    ret : tvm.relay.Expr
+        A function that calculate the original result paired with gradient.
+    """
+    return _gradient.first_order_gradient(expr, mod)

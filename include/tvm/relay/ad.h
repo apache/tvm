@@ -42,7 +42,7 @@ Type WithGradientType(const Type&);
 /*! return an expression that represent differentiation of e (according to WithGradientType).
  *  This version only work on first order code without control flow.
  */
-Expr FOWithGradient(const Expr& e, const Module& mod);
+Expr FirstOrderGradient(const Expr& e, const Module& mod);
 
 }  // namespace relay
 }  // namespace tvm
