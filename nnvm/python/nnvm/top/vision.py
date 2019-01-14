@@ -58,7 +58,7 @@ def compute_multibox_transform_loc(attrs, inputs, _):
     return topi.vision.ssd.multibox_transform_loc(inputs[0], inputs[1], inputs[2],
                                                   clip, threshold, variance)
 
-reg.register_pattern("multibox_detection", OpPattern.OPAQUE)
+reg.register_pattern("multibox_transform_loc", OpPattern.OPAQUE)
 
 # Get valid number of anchor boxes
 @reg.register_schedule("get_valid_counts")

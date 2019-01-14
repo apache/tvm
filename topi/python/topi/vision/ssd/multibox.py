@@ -246,11 +246,10 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
     -------
     ret : tuple of tvm.Tensor
     """
-    out, valid_count = hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
-                                                     tvm.const(clip, "bool"),
-                                                     tvm.const(threshold, "float32"),
-                                                     tvm.convert(variances))
-    return out, valid_count
+    return hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
+                                         tvm.const(clip, "bool"),
+                                         tvm.const(threshold, "float32"),
+                                         tvm.convert(variances))
 
 @tvm.target.generic_func
 def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,

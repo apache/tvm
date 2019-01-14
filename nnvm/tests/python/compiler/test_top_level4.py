@@ -3,6 +3,7 @@ import numpy as np
 import tvm
 from tvm.contrib import graph_runtime
 import topi
+import topi.testing
 import nnvm.symbol as sym
 import nnvm.compiler
 from nnvm.testing.config import ctx_list
@@ -657,7 +658,7 @@ def np_slice_like(np_data, np_shape_like, axis=[]):
     slice_idx = []
     for b, e in zip(begin_idx, end_idx):
         slice_idx.append(slice(b, e))
-    np_result = np_data[slice_idx]
+    np_result = np_data[tuple(slice_idx)]
     return np_result
 
 def verify_slice_like(np_data, np_shape_like, axis=[]):
