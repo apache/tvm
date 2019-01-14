@@ -132,7 +132,7 @@ tvm::Array<Var> FreeVars(const Expr& expr);
  *
  * \param expr the expression.
  *
- * \return List of free vars, in the PostDFS order in the expression.
+ * \return List of all vars, in the PostDFS order in the expression.
  */
 tvm::Array<Var> AllVars(const Expr& expr);
 
