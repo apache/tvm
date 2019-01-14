@@ -136,7 +136,7 @@ def download_package(package_name):
                 os.mkdir(path)
 
     logger.info("Download pre-tuned parameters package %s", package_name)
-    download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/%s"
+    download("https://raw.githubusercontent.com/uwsampl/tvm-distro/master/tophub/%s"
              % package_name, os.path.join(rootpath, package_name), True, verbose=0)
 
 
