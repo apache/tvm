@@ -682,6 +682,8 @@ def from_mxnet(symbol,
             params[k] = _nd.array(v.data().asnumpy())
         data = mx.sym.Variable("data")
         sym = symbol(data)
+        if isinstance(sym, (list, tuple)):
+            sym = mx.sym.Group(sym)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
         sym = _from_mxnet_impl(sym, shape, dtype)
     elif isinstance(symbol, mx.gluon.Block):

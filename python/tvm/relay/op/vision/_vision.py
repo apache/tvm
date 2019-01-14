@@ -59,7 +59,7 @@ reg.register_pattern("vision.multibox_detection", OpPattern.OPAQUE)
 def schedule_get_valid_counts(_, outs, target):
     """Schedule definition of get_valid_counts"""
     with target:
-        return topi.generic.schedule_nms(outs)
+        return topi.generic.schedule_get_valid_counts(outs)
 
 
 @reg.register_compute("vision.get_valid_counts")
