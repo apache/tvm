@@ -7,11 +7,11 @@
  *  to the new layout system
  *
  *  The layout is composed of upper cases, lower cases and numbers,
- *  where upper case indicates a (super-)axis and
- *  the corresponding lower case with factor size indicates the split (sub-)axis.
+ *  where upper case indicates a (primal) axis and
+ *  the corresponding lower case with factor size indicates the split (subordinate) axis.
  *  For example, NCHW16c can describe a 5-D tensor of
  *  [batch_size, channel, height, width, channel_block].
- *  Here sub-dimension channel_block=16 is the split of super-dimension C (channel).
+ *  Here subordinate axis channel_block=16 is the split of the primal axis C (channel).
  */
 #ifndef TVM_RELAY_OP_LAYOUT_H_
 #define TVM_RELAY_OP_LAYOUT_H_
@@ -30,9 +30,25 @@
 namespace tvm {
 
 class Layout;
+
+class LayoutAxis {
+ public:
+  inline bool IsPrimal() const { return name_ >= 'A' && name_ <= 'Z'; }
+  inline std::string name() const { return std::string(1, name_); }
+  friend std::ostream& operator<<(std::ostream& os, const LayoutAxis& l) {
+    os << l.name();
+    return os;
+  }
+ private:
+  friend class Layout;
+  explicit LayoutAxis(const char name) : name_(name) {}
+  const char name_;
+};
+
 class LayoutNode : public Node {
  public:
   std::string name;
+  Array<IterVar> axes;
   Array<Integer> superdim_pos;
   Array<Integer> subdim_pos;
   Array<Integer> subdim_size;
@@ -40,10 +56,6 @@ class LayoutNode : public Node {
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
-    v->Visit("superdim_pos", &superdim_pos);
-    v->Visit("subdim_pos", &subdim_pos);
-    v->Visit("subdim_size", &subdim_size);
-    v->Visit("layout_simplified", &layout_simplified);
   }
 
   TVM_DLL static Layout make(const std::string& layout);
@@ -55,6 +67,73 @@ class LayoutNode : public Node {
 class Layout : public NodeRef {
  public:
   using LayoutDim = char;
+  // single axis definitions
+  static const LayoutAxis A;
+  static const LayoutAxis B;
+  static const LayoutAxis C;
+  static const LayoutAxis D;
+  static const LayoutAxis E;
+  static const LayoutAxis F;
+  static const LayoutAxis G;
+  static const LayoutAxis H;
+  static const LayoutAxis I;
+  static const LayoutAxis J;
+  static const LayoutAxis K;
+  static const LayoutAxis L;
+  static const LayoutAxis M;
+  static const LayoutAxis N;
+  static const LayoutAxis O;
+  static const LayoutAxis P;
+  static const LayoutAxis Q;
+  static const LayoutAxis R;
+  static const LayoutAxis S;
+  static const LayoutAxis T;
+  static const LayoutAxis U;
+  static const LayoutAxis V;
+  static const LayoutAxis W;
+  static const LayoutAxis X;
+  static const LayoutAxis Y;
+  static const LayoutAxis Z;
+  static const LayoutAxis a;
+  static const LayoutAxis b;
+  static const LayoutAxis c;
+  static const LayoutAxis d;
+  static const LayoutAxis e;
+  static const LayoutAxis f;
+  static const LayoutAxis g;
+  static const LayoutAxis h;
+  static const LayoutAxis i;
+  static const LayoutAxis j;
+  static const LayoutAxis k;
+  static const LayoutAxis l;
+  static const LayoutAxis m;
+  static const LayoutAxis n;
+  static const LayoutAxis o;
+  static const LayoutAxis p;
+  static const LayoutAxis q;
+  static const LayoutAxis r;
+  static const LayoutAxis s;
+  static const LayoutAxis t;
+  static const LayoutAxis u;
+  static const LayoutAxis v;
+  static const LayoutAxis w;
+  static const LayoutAxis x;
+  static const LayoutAxis y;
+  static const LayoutAxis z;
+
+  static const LayoutAxis Axis(const char name) {
+    static const LayoutAxis kPrimal[] =
+      {A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z};
+    static const LayoutAxis kSub[] =
+      {a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z};
+    if (name >= 'A' && name <= 'Z') {
+      return kPrimal[name - 'A'];
+    } else {
+      CHECK(name >= 'a' && name <= 'z') << "Invalid axis layout name " << name;
+      return kSub[name - 'a'];
+    }
+  }
+
   static constexpr size_t kUniqueDim = 26;
 
   explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
@@ -410,7 +489,7 @@ class BijectiveLayoutNode;
 
 class BijectiveLayout : public NodeRef {
  public:
-  BijectiveLayout() {}
+  BijectiveLayout() = default;
   explicit BijectiveLayout(NodePtr<Node> n) : NodeRef(n) {}
 
   // Final shape of the underlying array, given the shape of the normal layout
@@ -443,8 +522,8 @@ class BijectiveLayoutNode : public Node {
   Array<Expr> forward_rule;
   Array<Expr> backward_rule;
 
-  std::string orig_layout;
-  std::string store_layout;
+  Layout orig_layout;
+  Layout store_layout;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("orig_axis", &orig_axis);

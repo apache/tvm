@@ -11,6 +11,59 @@ namespace tvm {
 TVM_REGISTER_NODE_TYPE(LayoutNode);
 TVM_REGISTER_NODE_TYPE(BijectiveLayoutNode);
 
+const LayoutAxis Layout::A = LayoutAxis('A');
+const LayoutAxis Layout::B = LayoutAxis('B');
+const LayoutAxis Layout::C = LayoutAxis('C');
+const LayoutAxis Layout::D = LayoutAxis('D');
+const LayoutAxis Layout::E = LayoutAxis('E');
+const LayoutAxis Layout::F = LayoutAxis('F');
+const LayoutAxis Layout::G = LayoutAxis('G');
+const LayoutAxis Layout::H = LayoutAxis('H');
+const LayoutAxis Layout::I = LayoutAxis('I');
+const LayoutAxis Layout::J = LayoutAxis('J');
+const LayoutAxis Layout::K = LayoutAxis('K');
+const LayoutAxis Layout::L = LayoutAxis('L');
+const LayoutAxis Layout::M = LayoutAxis('M');
+const LayoutAxis Layout::N = LayoutAxis('N');
+const LayoutAxis Layout::O = LayoutAxis('O');
+const LayoutAxis Layout::P = LayoutAxis('P');
+const LayoutAxis Layout::Q = LayoutAxis('Q');
+const LayoutAxis Layout::R = LayoutAxis('R');
+const LayoutAxis Layout::S = LayoutAxis('S');
+const LayoutAxis Layout::T = LayoutAxis('T');
+const LayoutAxis Layout::U = LayoutAxis('U');
+const LayoutAxis Layout::V = LayoutAxis('V');
+const LayoutAxis Layout::W = LayoutAxis('W');
+const LayoutAxis Layout::X = LayoutAxis('X');
+const LayoutAxis Layout::Y = LayoutAxis('Y');
+const LayoutAxis Layout::Z = LayoutAxis('Z');
+const LayoutAxis Layout::a = LayoutAxis('a');
+const LayoutAxis Layout::b = LayoutAxis('b');
+const LayoutAxis Layout::c = LayoutAxis('c');
+const LayoutAxis Layout::d = LayoutAxis('d');
+const LayoutAxis Layout::e = LayoutAxis('e');
+const LayoutAxis Layout::f = LayoutAxis('f');
+const LayoutAxis Layout::g = LayoutAxis('g');
+const LayoutAxis Layout::h = LayoutAxis('h');
+const LayoutAxis Layout::i = LayoutAxis('i');
+const LayoutAxis Layout::j = LayoutAxis('j');
+const LayoutAxis Layout::k = LayoutAxis('k');
+const LayoutAxis Layout::l = LayoutAxis('l');
+const LayoutAxis Layout::m = LayoutAxis('m');
+const LayoutAxis Layout::n = LayoutAxis('n');
+const LayoutAxis Layout::o = LayoutAxis('o');
+const LayoutAxis Layout::p = LayoutAxis('p');
+const LayoutAxis Layout::q = LayoutAxis('q');
+const LayoutAxis Layout::r = LayoutAxis('r');
+const LayoutAxis Layout::s = LayoutAxis('s');
+const LayoutAxis Layout::t = LayoutAxis('t');
+const LayoutAxis Layout::u = LayoutAxis('u');
+const LayoutAxis Layout::v = LayoutAxis('v');
+const LayoutAxis Layout::w = LayoutAxis('w');
+const LayoutAxis Layout::x = LayoutAxis('x');
+const LayoutAxis Layout::y = LayoutAxis('y');
+const LayoutAxis Layout::z = LayoutAxis('z');
+
 Layout LayoutNode::make(const std::string& layout) {
   return Layout(layout);
 }
@@ -101,47 +154,28 @@ BijectiveLayout BijectiveLayoutNode::make(const Layout& orig_layout,
                                           const Layout& store_layout) {
   auto n = make_node<BijectiveLayoutNode>();
 
-  auto LayoutParser = [](const std::string& layout, Array<IterVar>& axes) {
-    std::vector<int32_t> axis_factor(256, -1);
-    int32_t factor = 0;
-    for (size_t i = 0; i < layout.size(); ++i) {
-      const char axis_name = layout.at(i);
-      if (axis_name >= 'A' && axis_name <= 'Z') {
-        CHECK_EQ(axis_factor[axis_name], -1) << "Invalid layout " << layout
-                                             << ": duplicated axis " << axis_name;
-        CHECK_EQ(factor, 0) << "Invalid layout " << layout
-                            << ": invalid factor size " << factor
-                            << " before dimension " << axis_name;
-        const std::string shape_name(std::string(1, axis_name) + "_shape");
+  auto LayoutParser = [](const Layout& layout, Array<IterVar>& axes) {
+    for (size_t i = 0; i < layout.ndim(); ++i) {
+      auto axis_layout = layout[i];
+      if (Layout::IsSuperdim(axis_layout)) {
+        std::string shape_name("_shape");
+        shape_name.insert(0, 1, axis_layout);
         IterVar axis = IterVarNode::make(Range(Expr(0), Var(shape_name)),
-                                         Var(std::string(1, axis_name)), kDataPar);
+                                         Var(std::string(1, axis_layout)), kDataPar);
         axes.push_back(axis);
-        axis_factor[axis_name] = 0;
-      } else if (axis_name >= 'a' && axis_name <= 'z') {
-        CHECK_EQ(axis_factor[axis_name], -1) << "Invalid layout " << layout
-                                             << ": duplicated axis " << axis_name;
-        CHECK_GT(factor, 0) << "Invalid layout " << layout << ": invalid factor size "
-                            << factor << " for dimension " << axis_name;
-        IterVar axis = IterVarNode::make(Range(Expr(0), Expr(factor)),
-                                         Var(std::string(1, axis_name)), kDataPar);
-        axes.push_back(axis);
-        axis_factor[axis_name] = factor;
-        factor = 0;
-      } else if (axis_name >= '0' && axis_name <= '9') {
-        CHECK(factor >= 0) << "Invalid layout " << layout << ": _ is adjacent to a number.";
-        factor = factor * 10 + axis_name - '0';
       } else {
-        LOG(FATAL) << "Invalid layout " << layout;
+        IterVar axis = IterVarNode::make(Range(Expr(0), Expr(layout.Subsizeof(axis_layout))),
+                                         Var(std::string(1, axis_layout)), kDataPar);
+        axes.push_back(axis);
       }
     }
   };
 
-  // TODO
-  n->orig_layout = orig_layout.name();
-  LayoutParser(orig_layout.name(), n->orig_axis);
+  n->orig_layout = orig_layout;
+  LayoutParser(orig_layout, n->orig_axis);
 
-  n->store_layout = store_layout.name();
-  LayoutParser(store_layout.name(), n->store_axis);
+  n->store_layout = store_layout;
+  LayoutParser(store_layout, n->store_axis);
 
   if (!GetStoreRule(n->forward_rule, n->orig_axis, n->store_axis)) {
     // not convertible
