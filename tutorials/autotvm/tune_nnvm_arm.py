@@ -1,7 +1,7 @@
 """
 Auto-tuning a convolutional network for ARM CPU
 ====================================================
-**Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
+**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Zhao Wu <https://github.com/FrozenGene>`_
 
 Auto-tuning for a specific ARM device is critical for getting the best
 performance. This is a tutorial about how to tune a whole convolutional
@@ -196,8 +196,8 @@ tuning_option = {
     'log_filename': log_file,
 
     'tuner': 'xgb',
-    'n_trial': 1000,
-    'early_stopping': 400,
+    'n_trial': 2000,
+    'early_stopping': 800,
 
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(
@@ -220,6 +220,10 @@ tuning_option = {
 #   If your device runs very slow or your conv2d operators have many GFLOPs, considering to
 #   set timeout larger.
 #
+#   If your model has depthwise convolution, you could consider setting
+#   :code:`try_spatial_pack_depthwise` be :code:`True`, which perform better than default
+#   optimization in general. For example, on ARM CPU A53 2.0GHz, we find it could boost 1.6x
+#   performance of depthwise convolution on Mobilenet V1 model.
 
 ###################################################################
 # Begin Tuning
@@ -237,7 +241,8 @@ def tune_tasks(tasks,
                early_stopping=None,
                log_filename='tuning.log',
                use_transfer_learning=True,
-               try_winograd=True):
+               try_winograd=True,
+               try_spatial_pack_depthwise=False):
     if try_winograd:
         for i in range(len(tasks)):
             try:  # try winograd template
@@ -257,9 +262,17 @@ def tune_tasks(tasks,
     for i, tsk in enumerate(reversed(tasks)):
         prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
 
+        # if we want to use spatial pack for depthwise convolution
+        if try_spatial_pack_depthwise and tsk.name == 'topi_nn_depthwise_conv2d_nchw':
+            tsk = autotvm.task.create(tsk.name, tsk.args,
+                                      tsk.target, tsk.target_host, 'contrib_spatial_pack')
+
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
-            tuner_obj = XGBTuner(tsk, loss_type='rank')
+            if try_spatial_pack_depthwise and tsk.name == 'topi_nn_depthwise_conv2d_nchw':
+                tuner_obj = XGBTuner(tsk, loss_type='rank', feature_type='knob')
+            else:
+                tuner_obj = XGBTuner(tsk, loss_type='rank')
         elif tuner == 'ga':
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == 'random':
