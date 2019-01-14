@@ -14,7 +14,8 @@ register_gradient("add", add_grad)
 
 def subtract_grad(orig, grad):
     from tvm.relay import op
-    return [op.broadcast_to_like(grad, orig.args[0]), op.broadcast_to_like(op.negative(grad), orig.args[1])]
+    return [op.broadcast_to_like(grad, orig.args[0]),
+            op.broadcast_to_like(op.negative(grad), orig.args[1])]
 
 register_gradient("subtract", subtract_grad)
 
