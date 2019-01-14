@@ -599,7 +599,6 @@ def test_const_range():
     run_and_check(foo, [a, b])
 
     @tvm.hybrid.script
-<<<<<<< 52c435f9c55a53e2e8e10b3a9fe672d2f8718122
     def goo(a, b):
         c = output_tensor(a.shape, a.dtype)
         len_b = len(b)
@@ -616,8 +615,6 @@ def test_const_range():
     run_and_check(goo, [a, b])
 
     @tvm.hybrid.script
-=======
->>>>>>> fix online edit typo
     def hoo(a, b):
         c = output_tensor(a.shape, a.dtype)
         len_b = len(b)
