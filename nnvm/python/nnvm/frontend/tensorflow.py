@@ -388,6 +388,21 @@ def _pack():
 
     return _impl
 
+def _slice():
+    def _impl(inputs, attr, params):
+        begin = params.pop(inputs[1].list_output_names()[0]).asnumpy().tolist()
+        size = params.pop(inputs[2].list_output_names()[0]).asnumpy().tolist()
+        data_shape = attr['_input_shapes'][inputs[0]]
+        data_dim = len(data_shape)
+        end = size
+        for i in range(data_dim):
+            if size[i] == -1:
+                end[i] = data_shape[i] - begin[i]
+            else:
+                end[i] += begin[i]
+        return _sym.strided_slice(inputs[0], begin=begin, end=size)
+    return _impl
+
 def _reshape():
     def _impl(inputs, attr, params):
         try:
@@ -883,6 +898,7 @@ _convert_map = {
     'Sum'                               : _sum(),
     'Square'                            : _square(),
     'Pack'                              : _pack(),
+    'Slice'                             : _slice(),
     'LeakyRelu'                         : AttrCvt('leaky_relu'),
     'Relu'                              : AttrCvt('relu'),
     'Reshape'                           : _reshape(),

@@ -656,6 +656,23 @@ def test_forward_resize_bilinear():
 
 
 #######################################################################
+# Crop to bounding box
+# --------------------
+
+def _test_crop(in_shape, off_h, off_w, tar_h, tar_w):
+    """ Crop to bounding box """
+    data = np.random.uniform(size=in_shape).astype('float32')
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        tf.image.crop_to_bounding_box(in_data, off_h, off_w, tar_h, tar_w)
+        compare_tf_with_tvm(data, 'Placeholder:0', 'crop_to_bounding_box/Slice:0')
+
+def test_forward_crop():
+    """ Crop to bounding box """
+    _test_crop((1, 224, 224, 3), 20, 20, 120, 120)
+
+
+#######################################################################
 # LSTM
 # ----
 
@@ -1139,6 +1156,7 @@ if __name__ == '__main__':
     test_forward_squeeze()
     test_forward_pack()
     test_forward_resize_bilinear()
+    test_forward_crop()
     test_forward_pad()
     test_forward_gather()
     test_forward_stridedslice()
