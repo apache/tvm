@@ -75,6 +75,7 @@ with relay.build_config(opt_level=1):
 ######################################################################
 # Execute on TVM
 # ---------------------------------------------
+dtype = 'float32'
 tvm_output = intrp.evaluate(sym)(tvm.nd.array(x.astype(dtype)), **params).asnumpy()
 
 ######################################################################
