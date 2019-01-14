@@ -53,14 +53,15 @@ prog: (defn* | expr) EOF ;
 expr
   // operators
   : '(' expr ')'                              # parens
+  // function application
+  | expr '(' (expr (',' expr)*)? ')'          # call
   | '-' expr                                  # neg
   | expr op=('*'|'/') expr                    # binOp
   | expr op=('+'|'-') expr                    # binOp
   | expr op=('<'|'>'|'<='|'>=') expr          # binOp
   | expr op=('=='|'!=') expr                  # binOp
 
-  // function definition and application
-  | expr '(' (expr (',' expr)*)? ')'          # call
+  // function definition
   | func                                      # funcExpr
 
   // tuples and tensors
