@@ -38,10 +38,9 @@ def test_compile_placeholder_bypass():
     x = relay.var("x", shape=(2, 3))
     y = relay.var("y", shape=(2, 3))
     z = relay.var("z", shape=(2, 3))
-    result = relay.Tuple([relay.op.concatenate([y, z], axis=0)])
-    #result = relay.Tuple([x, relay.op.concatenate([y, z], axis=0)])
+    result = relay.Tuple([x, relay.op.concatenate([y, z], axis=0)])
     func = relay.Function(relay.ir_pass.free_vars(result), result)
-    with relay.build_config(opt_level=3):
+    with relay.build_config(opt_level=0):
        graph, lib, params = relay.build(func, 'llvm')
 
 if __name__ == "__main__":

@@ -83,7 +83,7 @@ class ScheduleGetter :
     cache_node->func_name = readable_name_stream_.str();
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
-    // Filter PlacehosderOp from the outputs for schedule.
+    // Filter PlaceholderOp from the outputs for schedule.
     tvm::Array<Tensor> tensor_outs;
     for (const auto& tensor : cache_node->outputs) {
       if (!tensor->op.as<PlaceholderOpNode>()) {
