@@ -416,7 +416,7 @@ def _mx_l2_normalize(inputs, attrs):
     if mode != 'channel':
         raise RuntimeError('mode %s is not supported.' % mode)
     new_attrs['eps'] = attrs.get_float('eps', 1e-10)
-    new_attrs['axis'] = 1
+    new_attrs['axis'] = [1]
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
 
 
