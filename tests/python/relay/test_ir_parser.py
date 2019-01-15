@@ -282,6 +282,16 @@ def test_defn():
     assert isinstance(id_defn, relay.Module)
 
 @if_parser_enabled
+def test_recursive_call():
+    id_defn = relay.fromtext(
+        """
+        def @id(%x: int32) -> int32 {
+            @id(%x)
+        }
+        """)
+    assert isinstance(id_defn, relay.Module)
+
+@if_parser_enabled
 def test_ifelse():
     assert alpha_equal(
         relay.fromtext(
