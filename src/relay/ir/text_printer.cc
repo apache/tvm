@@ -287,7 +287,7 @@ class TextPrinter :
     std::ostringstream os;
     os << id << " = fn";
     this->PrintFuncInternal(os.str(), GetRef<Function>(op));
-    this->PrintEndInst(";\n");
+    this->PrintEndInst("\n");
     return id;
   }
 
@@ -325,7 +325,7 @@ class TextPrinter :
     }
     this->PrintCallAttrs(op->op, op->attrs, stream_);
     stream_ << ")";
-    this->PrintEndInst(";");
+    this->PrintEndInst("");
     this->PrintOptionalInfo(GetRef<Expr>(op));
     stream_ << '\n';
     return id;
@@ -336,7 +336,7 @@ class TextPrinter :
     this->PrintIndent();
     stream_ << id << " = ";
     this->PrintScope(GetRef<Expr>(op));
-    this->PrintEndInst(";\n");
+    this->PrintEndInst("\n");
     return id;
   }
 
@@ -345,7 +345,7 @@ class TextPrinter :
     this->PrintIndent();
     stream_ << id << " = ";
     this->PrintScope(GetRef<Expr>(op));
-    this->PrintEndInst(";\n");
+    this->PrintEndInst("\n");
     return id;
   }
 
@@ -358,7 +358,7 @@ class TextPrinter :
     TextValue id = this->AllocTempVar();
     this->PrintIndent();
     stream_ << id << " = " << tuple << "." << op->index << "";
-    this->PrintEndInst(";\n");
+    this->PrintEndInst("\n");
     return id;
   }
 
@@ -492,7 +492,7 @@ class TextPrinter :
       stream_ << "let ";
       this->PrintVarDecl(let->var, stream_);
       stream_ << " = " << value;
-      this->PrintEndInst(";\n");
+      this->PrintEndInst("\n");
       this->PrintScopeBody(let->body);
     } else if (const IfNode* ifnode = body.as<IfNode>()) {
       TextValue cond = GetValue(ifnode->cond);
@@ -507,7 +507,7 @@ class TextPrinter :
       TextValue value = GetValue(body);
       this->PrintIndent();
       stream_ << value;
-      this->PrintEndInst(";\n");
+      this->PrintEndInst("\n");
     }
   }
 
