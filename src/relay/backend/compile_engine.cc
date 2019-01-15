@@ -83,7 +83,9 @@ class ScheduleGetter :
     cache_node->func_name = readable_name_stream_.str();
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
-    // Filter PlaceholderOp from the outputs for schedule.
+    // Fusion over tupled results may leave identity relationships
+    // between inputs and outputs, and those should not be scheduled.
+    // Hence schedule only non PlaceholderOp outputs.
     tvm::Array<Tensor> tensor_outs;
     for (const auto& tensor : cache_node->outputs) {
       if (!tensor->op.as<PlaceholderOpNode>()) {
