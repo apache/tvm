@@ -124,6 +124,19 @@ using FForwardRewrite = runtime::TypedPackedFunc<
   Expr(const Call& ref_call,
        const Array<Expr>& new_args,
        const NodeRef& ctx)>;
+
+/*!
+ * \brief Gradient for a specific op.
+ *
+ * \param orig_call the original Expr.
+ *
+ * \param output_grad the gradient of the Expr.
+ *
+ * \return the gradient for each parameters.
+ */
+using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(const Expr& orig_call,
+                                                                  const Expr& output_grad)>;
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_ATTR_TYPES_H_

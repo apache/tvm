@@ -11,6 +11,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/attrs/nn.h>
 #include <string>
 #include "../op/layout.h"
 
@@ -150,6 +151,23 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
   return ConstantNode::make(arr);
 }
 
+inline Expr GetField(Expr t, size_t i) {
+  return TupleGetItemNode::make(t, i);
+}
+
+inline Expr Pair(Expr l, Expr r) {
+  return TupleNode::make({l, r});
+}
+
+inline Expr Exp(Expr e) {
+  static const Op& op = Op::Get("exp");
+  return CallNode::make(op, {e});
+}
+
+inline Expr Log(Expr e) {
+  static const Op& op = Op::Get("log");
+  return CallNode::make(op, {e});
+}
 
 inline Expr Negative(Expr x) {
   static const Op& op = Op::Get("negative");
@@ -180,6 +198,15 @@ inline Expr Divide(Expr lhs, Expr rhs) {
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
+inline Expr ZeroLike(Expr e) {
+  static const Op& op = Op::Get("zeros_like");
+  return CallNode::make(op, {e});
+}
+
+inline Expr OneLike(Expr e) {
+  static const Op& op = Op::Get("ones_like");
+  return CallNode::make(op, {e});
+}
 
 inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");

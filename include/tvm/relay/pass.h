@@ -28,6 +28,7 @@ namespace relay {
  * \return A type checked expression with its checked_type field populated.
  */
 Expr InferType(const Expr& expr, const Module& mod);
+
 /*!
  * \brief Infer the type of a function as if it is mapped to var in the mod.
  *

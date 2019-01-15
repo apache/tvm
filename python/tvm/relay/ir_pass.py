@@ -414,3 +414,22 @@ def collect_device_annotation_ops(expr):
         annotation expressions.
     """
     return _ir_pass.CollectDeviceAnnotationOps(expr)
+
+
+def gradient(expr, mod=None):
+    """.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, which is a Function or a GlobalVar.
+
+    mod : Optional[tvm.relay.Module]
+        The global module.
+
+    Returns
+    -------
+    ret : tvm.relay.Expr
+        A function that calculate the original result paired with gradient.
+    """
+    return _ir_pass.first_order_gradient(expr, mod)
