@@ -53,6 +53,7 @@ Type WithGradientType(const Type& t) {
   // TODO(M.K.): stricter checking
   auto ty = t.as<FuncTypeNode>();
   CHECK(ty) << "input should be a function";
+  CHECK(ty->ret_type.defined());
   return FuncTypeNode::make(ty->arg_types,
                             TupleTypeNode::make({
                               ty->ret_type,
@@ -172,6 +173,14 @@ struct ReverseAD : ExprFunctor<ADValue(const Expr &)> {
   }
 };
 
+/*! \brief Checks whether the annotation is defined.
+ *         If the annotation is defined, return it.
+ *         Otherwise, return a type hole.
+ */
+Type FromAnnotation(const Type& annotation) {
+  return (annotation.defined()) ? annotation : IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+}
+
 Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   // Currently we first remove any global functions for the first
   // order case.
@@ -207,11 +216,13 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   });
   std::vector<Type> vt;
   for (const auto& p : f->params) {
-    vt.push_back(p->type_annotation);
+    vt.push_back(FromAnnotation(p->type_annotation));
   }
+  Type ret_type = FromAnnotation(f->ret_type);
+
   return FunctionNode::make(f->params,
                             body,
-                            TupleTypeNode::make({f->ret_type, TupleTypeNode::make({})}),
+                            TupleTypeNode::make({ret_type, TupleTypeNode::make(vt)}),
                             {});
 }
 
