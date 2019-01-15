@@ -18,6 +18,7 @@ namespace relay {
 
 using common::LinkNode;
 using common::LinkedList;
+
 /*!
  * \brief Interface of type solver used in type inference.
  *
@@ -65,6 +66,11 @@ class TypeSolver {
   Type Unify(const Type& lhs, const Type& rhs);
 
  private:
+  class OccursChecker;
+  class Unifier;
+  class Resolver;
+  class Propagator;
+  class Merger;
   class Reporter;
   struct TypeNode;
   struct RelationNode;
@@ -77,15 +83,15 @@ class TypeSolver {
    *  that can unifies the same types to the name resolved_type.
    *
    *  It also contains collection of links to related Relations,
-   *  which is stored in rel_list.
+   *  which is stored in rel_set.
    */
   struct TypeNode {
     /*! \brief The final resolved type */
     Type resolved_type;
     /*! \brief type node in the union find algorithm */
     TypeNode* parent{nullptr};
-    /*! \brief list of relations that is related to this type node */
-    LinkedList<RelationNode*> rel_list;
+    /*! \brief set of relations that is related to this type node */
+    std::unordered_set<RelationNode*> rel_set;
     /*!
      * \brief Find the root type node, perform path compression
      * \return The root type node.
@@ -125,7 +131,7 @@ class TypeSolver {
   size_t num_resolved_rels_{0};
   /*! \brief map from type node to types. */
   std::unordered_map<Type, TypeNode*, NodeHash, NodeEqual> tmap_;
-  /*! \breif Internal queue to update the relation */
+  /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/
   common::Arena arena_;
@@ -163,22 +169,7 @@ class TypeSolver {
    * \param src The source operand
    * \param dst The dst operand.
    */
-  void MergeFromTo(TypeNode* src, TypeNode* dst) {
-    if (src == dst) return;
-    src->parent = dst;
-    // move the link to the to dst
-    for (auto* rlink = src->rel_list.head; rlink != nullptr;) {
-      // store next pointer first before rlink get moved
-      auto* next = rlink->next;
-      // if the relation is not yet resolved
-      // send the relation to the new
-      if (!rlink->value->resolved) {
-        this->AddToQueue(rlink->value);
-        dst->rel_list.Push(rlink);
-      }
-      rlink = next;
-    }
-  }
+  void MergeFromTo(TypeNode* src, TypeNode* dst);
 };
 
 }  // namespace relay
