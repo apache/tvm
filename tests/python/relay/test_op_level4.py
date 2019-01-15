@@ -135,7 +135,7 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
     out_type = "int32" if test_func in [relay.argmin, relay.argmax] else dtype
     assert zz.checked_type == relay.ty.TensorType(output, out_type)
 
-    if all(isinstance(v, tvm.expr.Var) == 1 for v in data) or len(output) == 0:
+    if all(isinstance(v, tvm.expr.Var) == 1 for v in data):
         return
 
     func = relay.Function([x], z)
@@ -187,7 +187,7 @@ def test_reduce_functions():
         verify_reduce(func, (2, 3, 4), 1, True, False, (2, 1, 4))
         verify_reduce(func, (2, 3, 4), (1,), True, False, (2, 1, 4))
         verify_reduce(func, (2, 3, 4), (0, 1, 2), False, False, ())
-        verify_reduce(func, (4, 4, 3), None, False, True, ())
+        verify_reduce(func, (4, 4, 3), None, False, False, ())
         verify_reduce(func, (4, 4, 3), (0, 2), False, False, (4,))
         verify_reduce(func, (128, 24, 128), (0, 1), False, False, (128,))
         verify_reduce(func, (128, 24, 128), (0, 2), False, False, (24,))
