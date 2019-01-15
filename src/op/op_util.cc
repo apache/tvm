@@ -164,38 +164,6 @@ std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
   return nest;
 }
 
-// replacer to replace tensors' usage in Provide
-class ProviderReplacer : public ir::IRMutator {
- public:
-  explicit ProviderReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
-      : vmap_(vmap) {}
-
-  Stmt Mutate_(const ir::Provide* op, const Stmt& s) {
-    Tensor t = Operation(op->func.node_).output(op->value_index);
-    auto it = vmap_.find(t);
-    if (it != vmap_.end()) {
-      Stmt ret = ir::Provide::make(
-        it->second->op, it->second->value_index, op->value, op->args);
-      found = true;
-      return IRMutator::Mutate_(ret.as<ir::Provide>(), ret);
-    }
-    return IRMutator::Mutate_(op, s);
-  }
-
-  // whether it is found.
-  bool found{false};
-
- private:
-  const std::unordered_map<Tensor, Tensor>& vmap_;
-};
-
-Stmt ReplaceProvideTensor(Stmt stmt,
-                   const std::unordered_map<Tensor, Tensor>& replace) {
-  ProviderReplacer repl(replace);
-  Stmt ret = repl.Mutate(stmt);
-  return repl.found ? ret : stmt;
-}
-
 // replacer to replace tensors
 class TensorReplacer : public ir::IRMutator {
  public:
@@ -245,6 +213,36 @@ Stmt Substitute(Stmt s,
     init[kv.first->var.get()] = kv.second;
   }
   return ir::Substitute(s, init);
+}
+
+IterVarType ForTypeToIterVarType(ir::ForType for_type) {
+  switch (for_type) {
+  case ForType::Serial:
+    return kDataPar;
+  case ForType::Parallel:
+    return kParallelized;
+  case ForType::Vectorized:
+    return kVectorized;
+  case ForType::Unrolled:
+    return kUnrolled;
+  default:
+    return kDataPar;
+  }
+}
+
+ir::ForType IterVarTypeToForType(IterVarType iter_type) {
+  switch (iter_type) {
+  case kDataPar:
+    return ForType::Serial;
+  case kParallelized:
+    return ForType::Parallel;
+  case kVectorized:
+    return ForType::Vectorized;
+  case kUnrolled:
+    return ForType::Unrolled;
+  default:
+    return ForType::Serial;
+  }
 }
 
 }  // namespace op

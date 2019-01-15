@@ -68,17 +68,23 @@ to LLVM module.
 Tuning
 ~~~~~~
 
-**Under construction, not supported yet.**
-
 Follow up the example above, you can use some tvm like interfaces to tune the code: 
 
 .. code-block:: python
 
+   i, j = c.op.axis
    sch = tvm.create_schedule(op)
    jo, ji = sch.split(j, 4)
    sch.vectorize(ji)
 
-``split``, ``reorder``, and loop_annotation will be supported!
+For now, you can use loop annotations (``unroll``, ``parallel``, ``vectorize``, and ``bind``),
+loop manipulation (``split`` and ``fuse``), and ``reorder``.
+
+.. note::
+
+        This is a preliminary function, so users should be in charge of the correctness
+        of the functionality after tuning. Specifically, users should be careful when
+        fusing and reorderding imperfect loops. 
 
 Loops
 ~~~~~
