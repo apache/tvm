@@ -740,8 +740,9 @@ class FuseMutator : private ExprMutator {
     Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     Tuple new_tuple = TupleNode::make(new_fields);
     if (ret_group == gmap_.at(tuple)) {
-      bool isolated = true;
-      for (size_t i = 0; i < new_fields.size(); ++i) {
+      // This tuple is the root of its group. Check if all fields come from other groups.
+      bool isolated = new_fields.size() == ginfo_[ret_group].params.size();
+      for (size_t i = 0; i < new_fields.size() && isolated; ++i) {
         isolated &= (new_fields[i].same_as(ginfo_[ret_group].params[i]));
       }
       if (isolated) {
