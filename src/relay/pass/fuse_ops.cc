@@ -236,7 +236,11 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     Node* tuple_node = graph_.node_map.at(op);
     tuple_node->pattern = kInjective;
     for (const Expr& field : op->fields) {
-      this->Update(field, tuple_node, kInjective);
+      if (field->checked_type().as<TensorTypeNode>()) {
+        this->Update(field, tuple_node, kInjective);
+      } else {
+        this->Update(field, nullptr, kOpaque);
+      }
     }
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);

@@ -168,6 +168,22 @@ def register_pattern(op_name, pattern, level=10):
     """
     return register(op_name, "TOpPattern", pattern, level)
 
+def register_gradient(op_name, fgradient, level=10):
+    """Register operator pattern for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    fgradient : function (orig_expr : Expr, output_grad : Expr) -> new_expr : Expr
+        The gradient being used.
+
+    level : int
+        The priority level
+    """
+    return register(op_name, "FPrimalGradient", fgradient, level)
+
 
 _init_api("relay.op", __name__)
 

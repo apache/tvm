@@ -31,6 +31,19 @@ class TupleValue(Value):
     def __getitem__(self, field_no):
         return self.fields[field_no]
 
+    def __len__(self):
+        return len(self.fields)
+
+    def __str__(self):
+        body = ','.join(str(f) for f in self.fields)
+        return '({0})'.format(body)
+
+    def __repr__(self):
+        body = ','.join(repr(f) for f in self.fields)
+        return '({0})'.format(body)
+
+    def __iter__(self):
+        return iter(self.fields)
 
 @register_relay_node
 class Closure(Value):
@@ -58,6 +71,12 @@ class TensorValue(Value):
 
     def __eq__(self, other):
         return self.data == other.data
+
+    def __repr__(self):
+        return repr(self.data)
+
+    def __str__(self):
+        return str(self.data)
 
 
 def _arg_to_ast(arg):

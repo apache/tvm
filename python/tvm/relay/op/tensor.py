@@ -62,6 +62,7 @@ def sqrt(data):
     """
     return _make.sqrt(data)
 
+
 def sigmoid(data):
     """Compute elementwise sigmoid of data.
 
@@ -215,6 +216,7 @@ def add(lhs, rhs):
     """
     return _make.add(lhs, rhs)
 
+
 def subtract(lhs, rhs):
     """Subtraction with numpy-style broadcasting.
 
@@ -231,6 +233,7 @@ def subtract(lhs, rhs):
         The computed result.
     """
     return _make.subtract(lhs, rhs)
+
 
 def multiply(lhs, rhs):
     """Multiplication with numpy-style broadcasting.
@@ -552,6 +555,7 @@ def ones_like(data):
         The computed result.
     """
     return _make.ones_like(data)
+
 
 def clip(a, a_min, a_max):
     """Clip the elements in `a` between `a_min` and `a_max`.
