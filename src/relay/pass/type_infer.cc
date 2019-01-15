@@ -543,10 +543,9 @@ Function InferType(const Function& func,
                    const GlobalVar& var) {
   Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
   func_copy->checked_type_ = func_copy->func_type_annotation();
-  mod->functions.Set(var, func_copy);
+  mod->AddUnchecked(var, func_copy);
   Expr func_ret = TypeInferencer(mod).Infer(func_copy);
-  auto map_node = mod->functions.CopyOnWrite();
-  map_node->data.erase(var.node_);
+  mod->Remove(var);
   CHECK(WellFormed(func_ret));
   return Downcast<Function>(func_ret);
 }

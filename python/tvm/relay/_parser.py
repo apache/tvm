@@ -87,6 +87,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         # Adding an empty scope allows naked lets without pain.
         self.var_scopes = deque([deque()]) # type: Scopes[expr.Var]
+        self.global_var_scope = deque() # type: Scope[expr.GlobalVar]
         self.type_param_scopes = deque([deque()]) # type: Scopes[ty.TypeVar]
 
         super(ParseTreeToRelayIR, self).__init__()
@@ -109,6 +110,14 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         var = expr.Var(name, type_)
         self.var_scopes[0].appendleft((name, var))
+        return var
+
+    def mk_global_var(self, name):
+        # type: (str) -> expr.GlobalVar
+        """Create a new GlobalVar and add it to the GlobalVar scope."""
+
+        var = expr.GlobalVar(name)
+        self.global_var_scope.append((name, var))
         return var
 
     def enter_type_param_scope(self):
@@ -140,7 +149,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         # variables
         if node_type == RelayLexer.GLOBAL_VAR:
-            return expr.GlobalVar(node_text[1:])
+            return lookup([self.global_var_scope], node_text[1:])
         elif node_type == RelayLexer.LOCAL_VAR:
             name = node_text[1:]
             var = lookup(self.var_scopes, name)
@@ -313,7 +322,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         ident = ctx.ident().GLOBAL_VAR()
         if ident is None:
             raise ParseError('Only global ids may be used in `def`s.')
-        ident = expr.GlobalVar(ident.getText()[1:])
+        ident_name = ident.getText()[1:]
+        ident = self.mk_global_var(ident_name)
 
         self.module[ident] = self.mk_func(ctx)
 
