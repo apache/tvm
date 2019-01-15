@@ -6,7 +6,6 @@
 
 #include <tvm/lowered_func.h>
 #include <tvm/operation.h>
-#include <tvm/relay/ad.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pass.h>
 #include "pattern_util.h"
