@@ -33,10 +33,26 @@ GlobalVar ModuleNode::GetGlobalVar(const std::string& name) {
   return (*it).second;
 }
 
+void ModuleNode::AddUnchecked(const GlobalVar& var,
+                              const Function& func) {
+  auto mod = GetRef<Module>(this);
+  this->functions.Set(var, func);
+
+  auto it = global_var_map_.find(var->name_hint);
+  if (it != global_var_map_.end()) {
+    CHECK_EQ((*it).second, var);
+  } else {
+    CHECK(!global_var_map_.count(var->name_hint))
+        << "Duplicate global function name " << var->name_hint;
+  }
+
+  global_var_map_.Set(var->name_hint, var);
+}
+
 void ModuleNode::Add(const GlobalVar& var,
-                          const Function& func,
-                          bool update) {
-  // Type check the item before we add it to the modironment.
+                     const Function& func,
+                     bool update) {
+  // Type check the item before we add it to the module.
   auto mod = GetRef<Module>(this);
   Function checked_func = InferType(func, mod, var);
   auto type = checked_func->checked_type();
@@ -48,18 +64,7 @@ void ModuleNode::Add(const GlobalVar& var,
     CHECK(AlphaEqual(type, old_type))
         << "Module#update changes type, not possible in this mode.";
   }
-  this->functions.Set(var, checked_func);
-
-  auto it = global_var_map_.find(var->name_hint);
-  if (it != global_var_map_.end()) {
-    CHECK_EQ((*it).second, var);
-  } else {
-    // set global var map
-    CHECK(!global_var_map_.count(var->name_hint))
-        << "Duplicate global function name " << var->name_hint;
-  }
-
-  global_var_map_.Set(var->name_hint, var);
+  AddUnchecked(var, checked_func);
 }
 
 void ModuleNode::Update(const GlobalVar& var, const Function& func) {
