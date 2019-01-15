@@ -1,4 +1,5 @@
 # CI docker GPU env
+# tag: v0.41
 FROM nvidia/cuda:8.0-cudnn7-devel
 
 # Base scripts
@@ -47,6 +48,9 @@ RUN bash /install/ubuntu_install_mxnet.sh
 
 COPY install/ubuntu_install_coreml.sh /install/ubuntu_install_coreml.sh
 RUN bash /install/ubuntu_install_coreml.sh
+
+COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
+RUN bash /install/ubuntu_install_tensorflow.sh
 
 COPY install/ubuntu_install_keras.sh /install/ubuntu_install_keras.sh
 RUN bash /install/ubuntu_install_keras.sh
