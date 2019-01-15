@@ -254,6 +254,16 @@ def tune_tasks(tasks,
             except Exception:
                 pass
 
+    # if we want to use spatial pack for depthwise convolution
+    if try_spatial_pack_depthwise:
+        tuner = 'xgb_knob'
+        for i in range(len(tasks)):
+            if tasks[i].name == 'topi_nn_depthwise_conv2d_nchw':
+                tsk = autotvm.task.create(tasks[i].name, tasks[i].args,
+                                          tasks[i].target, tasks[i].target_host,
+                                          'contrib_spatial_pack')
+                tasks[i] = tsk
+
     # create tmp log file
     tmp_log_file = log_filename + ".tmp"
     if os.path.exists(tmp_log_file):
@@ -262,17 +272,11 @@ def tune_tasks(tasks,
     for i, tsk in enumerate(reversed(tasks)):
         prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
 
-        # if we want to use spatial pack for depthwise convolution
-        if try_spatial_pack_depthwise and tsk.name == 'topi_nn_depthwise_conv2d_nchw':
-            tsk = autotvm.task.create(tsk.name, tsk.args,
-                                      tsk.target, tsk.target_host, 'contrib_spatial_pack')
-
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
-            if try_spatial_pack_depthwise and tsk.name == 'topi_nn_depthwise_conv2d_nchw':
-                tuner_obj = XGBTuner(tsk, loss_type='rank', feature_type='knob')
-            else:
-                tuner_obj = XGBTuner(tsk, loss_type='rank')
+            tuner_obj = XGBTuner(tsk, loss_type='rank')
+        elif tuner == 'xgb_knob':
+            tuner_obj = XGBTuner(tsk, loss_type='rank', feature_type='knob')
         elif tuner == 'ga':
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == 'random':
