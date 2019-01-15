@@ -1,7 +1,6 @@
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import free_vars, free_type_vars
-from tvm.relay.gradient import gradient
+from tvm.relay.ir_pass import free_vars, free_type_vars, gradient
 from tvm.relay import create_executor
 
 import numpy as np
