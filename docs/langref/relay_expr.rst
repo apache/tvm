@@ -75,10 +75,11 @@ references to :code:`%a` in the outer scope continue to refer to
 the first one.
 
 .. code-block:: python
-let %a = 1;
-let %b = 2 * %a;  // %b = 2
-let %a = %a + %a; // %a = 2. %a is shadowed
-%a + %b           // has value 2 + 2 = 4
+
+    let %a = 1;
+    let %b = 2 * %a;  // %b = 2
+    let %a = %a + %a; // %a = 2. %a is shadowed
+    %a + %b           // has value 2 + 2 = 4
 
 (Note that in Relay's implementation, each definition of a local variable
 creates a new :py:class:`~tvm.relay.expr.Var`, so a shadowed local variable,
