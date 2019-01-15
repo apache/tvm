@@ -401,7 +401,7 @@ def _mx_box_nms(inputs, attrs):
     if out_format != 'corner':
         raise RuntimeError('out_format %s is not supported.' % out_format)
 
-    ret =_op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
+    ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
     nms_out = _op.vision.nms(ret[1], ret[0],
                              iou_threshold=overlap_thresh,
                              force_suppress=force_suppress,

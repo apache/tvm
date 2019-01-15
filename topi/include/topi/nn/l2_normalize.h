@@ -33,7 +33,7 @@ inline Tensor l2_normalize(const Tensor& data,
   for (size_t i = 0; i < axis.size(); ++i) {
     int ax = topi::detail::GetConstInt(axis[i]);
     CHECK_LT(ax, data->shape.size()) <<
-             "Axis " << ax << " exceeds input data dim " << 
+             "Axis " << ax << " exceeds input data dim " <<
              data->shape.size();
   }
   auto input_shape = data->shape;

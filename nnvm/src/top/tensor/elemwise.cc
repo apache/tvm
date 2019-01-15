@@ -815,12 +815,10 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__equal_scalar__)
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
-
     Tensor out = topi::cast(
       binary_scalar_op(attrs, inputs[0],
                        [](Expr x, Expr y) { return x == y; }),
-      out_info[0]->dtype
-    );
+      out_info[0]->dtype);
     return Array<Tensor>{ out };
 })
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes);
@@ -837,8 +835,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__not_equal_scalar__)
     Tensor out = topi::cast(
       binary_scalar_op(attrs, inputs[0],
                        [](Expr x, Expr y) { return x != y; }),
-      out_info[0]->dtype
-    );
+      out_info[0]->dtype);
     return Array<Tensor>{ out };
 })
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes);
@@ -855,8 +852,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__greater_scalar__)
     Tensor out = topi::cast(
       binary_scalar_op(attrs, inputs[0],
                        [](Expr x, Expr y) { return x > y; }),
-      out_info[0]->dtype
-    );
+      out_info[0]->dtype);
     return Array<Tensor>{ out };
 })
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes);
@@ -873,8 +869,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__greater_equal_scalar__)
     Tensor out = topi::cast(
       binary_scalar_op(attrs, inputs[0],
                        [](Expr x, Expr y) { return x >= y; }),
-      out_info[0]->dtype
-    );
+      out_info[0]->dtype);
     return Array<Tensor>{ out };
 })
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes);
@@ -891,8 +886,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__less_scalar__)
     Tensor out = topi::cast(
       binary_scalar_op(attrs, inputs[0],
                        [](Expr x, Expr y) { return x < y; }),
-      out_info[0]->dtype
-    );
+      out_info[0]->dtype);
     return Array<Tensor>{ out };
 })
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes);
@@ -909,8 +903,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__less_equal_scalar__)
     Tensor out = topi::cast(
       binary_scalar_op(attrs, inputs[0],
                        [](Expr x, Expr y) { return x <= y; }),
-      out_info[0]->dtype
-    );
+      out_info[0]->dtype);
     return Array<Tensor>{ out };
 })
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes);
