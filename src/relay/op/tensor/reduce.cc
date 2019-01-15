@@ -101,6 +101,7 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
 // Get axis under exclude condition.
 Array<Integer> GetExcludeAxes(size_t indim,
                               const Array<Integer>& inaxis) {
+  CHECK(inaxis.defined()) << "Cannot set exclude when axis=None";
   std::vector<bool> axis_flag(indim, true);
   for (auto i : inaxis) {
     int64_t axis = i->value;
@@ -137,9 +138,9 @@ Array<Tensor> ReduceCompute(const Attrs& attrs,
   auto axes = param->axis;
   if (param->exclude) {
     axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
-  }
-  if (axes.size() == 0) {
-    return { topi::identity(inputs[0]) };
+    if (axes.size() == 0) {
+      return { topi::identity(inputs[0]) };
+    }
   }
   return { f(inputs[0], axes, param->keepdims, false) };
 }
