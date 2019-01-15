@@ -158,6 +158,38 @@ def free_vars(expr):
     return _ir_pass.free_vars(expr)
 
 
+def bound_vars(expr):
+    """Get bound vars from expression expr in post-DFS order.
+
+    Parameters
+    ----------
+    expr: tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    free : List[tvm.relay.Var]
+        The list of bound variables in post-DFS order.
+    """
+    return _ir_pass.bound_vars(expr)
+
+
+def all_vars(expr):
+    """Get all vars from expression expr in post-DFS order.
+
+    Parameters
+    ----------
+    expr: tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    free : List[tvm.relay.Var]
+        The list of all variables in post-DFS order.
+    """
+    return _ir_pass.all_vars(expr)
+
+
 def free_type_vars(expr):
     """Get free type variables from expression/type e
 
@@ -168,10 +200,42 @@ def free_type_vars(expr):
 
     Returns
     -------
-    free : List[tvm.relay.TypeParam]
-        The list of free type variables
+    free : List[tvm.relay.TypeVar]
+        The list of free type variables in post-DFS order
     """
     return _ir_pass.free_type_vars(expr)
+
+
+def bound_type_vars(expr):
+    """Get bound type variables from expression/type e
+
+    Parameters
+    ----------
+    expr: Union[tvm.relay.Expr,tvm.relay.Type]
+        The input expression/type
+
+    Returns
+    -------
+    free : List[tvm.relay.TypeVar]
+        The list of bound type variables in post-DFS order
+    """
+    return _ir_pass.bound_type_vars(expr)
+
+
+def all_type_vars(expr):
+    """Get all type variables from expression/type e
+
+    Parameters
+    ----------
+    expr: Union[tvm.relay.Expr,tvm.relay.Type]
+        The input expression/type
+
+    Returns
+    -------
+    free : List[tvm.relay.TypeVar]
+        The list of all type variables in post-DFS order
+    """
+    return _ir_pass.all_type_vars(expr)
 
 
 def simplify_inference(expr):
