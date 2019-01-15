@@ -73,14 +73,14 @@ def sum(data, axis=None, keepdims=False, exclude=False):
         The input data
 
     axis : None or int or tuple of int
-        Axis or axes along which a argmin operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of
-        the input array. If axis is negative it counts from the last to the first axis.
+        Axis or axes along which a sum is performed. The default, axis=None,
+        will sum all of the elements of the input array. If axis is
+        negative it counts from the last to the first axis.
 
     keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as dimensions
-        with size one.
-        With this option, the result will broadcast correctly against the input array.
+        If this is set to True, the axes which are reduced are left in the result as
+        dimensions with size one. With this option, the result will broadcast
+        correctly against the input array.
 
     exclude : bool
         If `exclude` is true, reduction will be performed on the axes that are
@@ -91,7 +91,7 @@ def sum(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
-    axis = [axis] if isinstance(axis, int) else axis
+    axis = [axis] if axis and isinstance(axis, int) else axis
     return _make.sum(data, axis, keepdims, exclude)
 
 
