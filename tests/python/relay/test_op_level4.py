@@ -121,9 +121,6 @@ def test_where():
 
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
     test_func = funcs[0]
-
-
-
     ref_func = funcs[1]
 
     x = relay.var("x", relay.TensorType(data, dtype))
