@@ -53,7 +53,6 @@ Type WithGradientType(const Type& t) {
   // TODO(M.K.): stricter checking
   auto ty = t.as<FuncTypeNode>();
   CHECK(ty) << "input should be a function";
-  CHECK(ty->ret_type.defined());
   return FuncTypeNode::make(ty->arg_types,
                             TupleTypeNode::make({
                               ty->ret_type,
