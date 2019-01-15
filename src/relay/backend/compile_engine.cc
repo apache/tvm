@@ -83,11 +83,20 @@ class ScheduleGetter :
     cache_node->func_name = readable_name_stream_.str();
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
+    // Fusion over tupled results may leave identity relationships
+    // between inputs and outputs, and those should not be scheduled.
+    // Hence schedule only non PlaceholderOp outputs.
+    tvm::Array<Tensor> tensor_outs;
+    for (const auto& tensor : cache_node->outputs) {
+      if (!tensor->op.as<PlaceholderOpNode>()) {
+        tensor_outs.push_back(tensor);
+      }
+    }
     Schedule schedule;
     // No need to register schedule for device copy op.
     if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
       schedule =
-          fschedule[master_op_](master_attrs_, cache_node->outputs, target_);
+          fschedule[master_op_](master_attrs_, tensor_outs, target_);
       for (const auto& scalar : scalars_) {
         schedule[scalar].compute_inline();
       }
