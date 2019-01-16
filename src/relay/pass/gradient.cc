@@ -205,14 +205,25 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
       });
     return Pair(res.foward, grad);
   });
+
+  // if type annotations are provided, we will construct a ret type;
+  // otherwise, leave it to be inferred
+  Type ret_type = Type();
   std::vector<Type> vt;
+  bool missing = !f->ret_type.defined();
   for (const auto& p : f->params) {
+    if (missing || !p->type_annotation.defined()) {
+      missing = true;
+      break;
+    }
     vt.push_back(p->type_annotation);
   }
-  return FunctionNode::make(f->params,
-                            body,
-                            TupleTypeNode::make({f->ret_type, TupleTypeNode::make({})}),
-                            {});
+
+  if (!missing) {
+    ret_type = TupleTypeNode::make({f->ret_type, TupleTypeNode::make(vt)});
+  }
+
+  return FunctionNode::make(f->params, body, ret_type, {});
 }
 
 TVM_REGISTER_API("relay._ir_pass.first_order_gradient")
