@@ -105,7 +105,8 @@ typedef ac_int<VTA_LOG_ACC_WIDTH, 1> aluop_sh_imm_T;
 */
 void fetch(
   uint32_t insn_count,
-  ihc::stream_in<insn_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &insns,
+  // ihc::stream_in<insn_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &insns,
+  ihc::mm_master<insn_T, ihc::aspace<4>, ihc::dwidth<VTA_INS_WIDTH>, ihc::awidth<32> > & insns,
   ihc::stream_out<insn_T> &load_queue,
   ihc::stream_out<insn_T> &gemm_queue,
   ihc::stream_out<insn_T> &store_queue);
@@ -126,13 +127,18 @@ void fetch(
 * \param wgt_mem Local weight SRAM buffer. Write only single port BRAM.
 */
 void load(
-  ihc::stream_in<inp_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &inputs,
-  ihc::stream_in<wgt_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &weights,
+  // ihc::stream_in<inp_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &inputs,
+  // ihc::stream_in<wgt_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &weights,
+  ihc::mm_master<inp_vec_T, ihc::aspace<8>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & inputs,
+  ihc::mm_master<wgt_vec_T, ihc::aspace<9>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & weights,
   ihc::stream_in<insn_T> &load_queue,
   ihc::stream_in<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
-  inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
-  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]);
+  // inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
+  // wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]
+  ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & inp_mem,
+  ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & wgt_mem
+);
 
 /*!
 * \brief Compute module.
@@ -159,16 +165,22 @@ void load(
 */
 void compute(
   uint32_t *done,
-  ihc::stream_in<uop_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & uops,
-  ihc::stream_in<acc_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & biases,
+  // ihc::stream_in<uop_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & uops,
+  // ihc::stream_in<acc_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & biases,
+  ihc::mm_master<uop_T    , ihc::aspace<5>, ihc::dwidth<VTA_UOP_WIDTH>, ihc::awidth<32> > & uops,
+  ihc::mm_master<acc_vec_T, ihc::aspace<6>, ihc::dwidth<VTA_ACC_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > & biases,
   ihc::stream_in<insn_T> &gemm_queue,
   ihc::stream_in<bool> &l2g_dep_queue,
   ihc::stream_in<bool> &s2g_dep_queue,
   ihc::stream_out<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &g2s_dep_queue,
-  out_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
-  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
-  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]);
+  ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & inp_mem,
+  ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & wgt_mem,
+  // out_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
+  // wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
+  ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > & out_mem
+  // out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
+);
 
 /*!
 * \brief Store module.
@@ -185,11 +197,14 @@ void compute(
 */
 void store(
   // out_vec_T *outputs,
-  ihc::stream_out<out_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & outputs,
+  // ihc::stream_out<out_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & outputs,
+  ihc::mm_master<out_vec_T, ihc::aspace<7>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > &outputs,
   ihc::stream_in<insn_T> &store_queue,
   ihc::stream_in<bool> &g2s_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
-  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]);
+  ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > & out_mem
+  // out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
+);
 
 /*!
 * \brief VTA wrapper for simulation purpose only.

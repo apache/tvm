@@ -43,7 +43,8 @@ reg   [7:0]    csr_state;
 reg   [7:0]    cfg_state;
      
 reg   [1:0]    csr_status;
-reg   [31:0]   dma_address = 0;
+reg   [31:0]   write_address = 0;
+reg   [31:0]   read_address = 0;
 
 ///////////////////////////////
 // state controller
@@ -89,11 +90,13 @@ end
 
 always @(posedge clock_clk or posedge reset) begin
 	if (reset) begin
-	  dma_address <= 0;
+	  read_address <= 0;
+	  write_address <= 0;
 	end
 	else begin
      if (axi_slave_write) begin
-       dma_address <= axi_slave_writedata;
+       read_address <= axi_slave_writedata;
+		 write_address <= axi_slave_writedata;
      end
 	end
 end
@@ -135,7 +138,7 @@ always @(posedge clock_clk or posedge reset) begin
 	  	   avmm_csr_write <= 0; 
 	  	   avmm_desc_write <= 1; 
 	  	   avmm_desc_read <= 0; 
-	  	   avmm_desc_writedata <= {32'h80000300,data_length_data,32'h00000000,dma_address};
+	  	   avmm_desc_writedata <= {32'h80000300,data_length_data,write_address,read_address};
 	  	 end 
 		 8'h03: begin // idle
 	  	   avmm_csr_read <= 0;

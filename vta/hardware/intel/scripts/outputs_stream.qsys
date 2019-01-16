@@ -270,7 +270,7 @@
    enabled="1">
   <parameter name="ADDRESS_WIDTH" value="32" />
   <parameter name="AXUSER_WIDTH" value="5" />
-  <parameter name="DATA_WIDTH" value="64" />
+  <parameter name="DATA_WIDTH" value="128" />
   <parameter name="ID_WIDTH" value="1" />
  </module>
  <module name="clk_0" kind="clock_source" version="18.0" enabled="1">
