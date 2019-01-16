@@ -23,7 +23,7 @@ def test_monomorphic_let():
     x = sb.let('x', relay.const(1.0, "float64"))
     sb.ret(x)
     xchecked = relay.ir_pass.infer_type(sb.get())
-    assert xchecked.checked_type == relay.scalar_type("float64")
+    assert xchecked.checked_type == relay.scalar_type("float64" )
 
 
 def test_single_op():
@@ -41,14 +41,15 @@ def test_add_broadcast_op():
             return x + y;
         }
     """
-    pass
-    # x = relay.var('x', shape=(10, 4))
-    # y = relay.var('y', shape=(5, 10, 1))
-    # z = x + y
-    # func = relay.Function([x, y], z)
-    # ttype = relay.TensorType((5, 5, 5), 'float32')
-    # expected_ty = relay.FuncType([ttype, ttype], ttype)
-    # assert_has_type(func.to_func(), expected_ty)
+    x = relay.var('x', shape=(10, 4))
+    y = relay.var('y', shape=(5, 10, 1))
+    z = x + y
+    func = relay.Function([x, y], z)
+    t1 = relay.TensorType((10, 4), 'float32')
+    t2 = relay.TensorType((5, 10, 1), 'float32')
+    t3 = relay.TensorType((5, 10, 4), 'float32')
+    expected_ty = relay.FuncType([t1, t2], t3)
+    assert_has_type(func, expected_ty)
 
 
 def test_dual_op():
@@ -110,24 +111,17 @@ def test_recursion():
     assert "%3 = @f(%1, %2)" in mod.astext()
     assert mod[f].checked_type == relay.FuncType([ti32, tf32], tf32)
 
-# This currently fails and should pass under the type system.
-#
-# This test is to illustrate problem with our weak form of
-# unification.
-#
-
 
 def test_incomplete_call():
-    sb = ScopeBuilder()
-    x = relay.var('x', dtype='int32')
+    tt = relay.scalar_type('int32')
+    x = relay.var('x', tt)
     f = relay.var('f')
-    func = relay.Function([x, f], relay.Call(f, [x]))
+    func = relay.Function([x, f], relay.Call(f, [x]), tt)
 
-    try:
-        relay.ir_pass.infer_type(func)
-        assert False
-    except tvm.TVMError as e:
-        assert True
+    ft = relay.ir_pass.infer_type(func)
+    f_type = relay.FuncType([tt], tt)
+    assert ft.checked_type == relay.FuncType([tt, f_type], tt)
+
 
 def test_tuple():
     tp = relay.TensorType((10,))
@@ -135,6 +129,7 @@ def test_tuple():
     res = relay.Tuple([x, x])
     assert (relay.ir_pass.infer_type(res).checked_type ==
             relay.TupleType([tp, tp]))
+
 
 def test_free_expr():
     x = relay.var("x", "float32")
@@ -161,38 +156,26 @@ def test_type_args():
     assert sh2[1].value == 10
 
 
-def test_self_reference():
-    """
-    Program:
-       def f(x) {
-           return x;
-       }
-    """
-    a = relay.TypeVar("a")
-    x = relay.var("x", a)
-    sb = relay.ScopeBuilder()
-
-    f = relay.Function([x], x)
-    fx = relay.Call(f, [x])
-    assert relay.ir_pass.infer_type(x).checked_type == a
-    assert relay.ir_pass.infer_type(f).checked_type == relay.FuncType([a], a)
-    assert relay.ir_pass.infer_type(fx).checked_type == a
-
-
-def test_global_var_cow_issue():
+def test_global_var_recursion():
     mod = relay.Module({})
     gv = relay.GlobalVar("foo")
     x = relay.var('x', shape=[])
-    func = relay.Function([x], relay.Call(gv, [x]),
-                          relay.TensorType([], 'float32'))
+    tt = relay.scalar_type('float32')
+
+    func = relay.Function([x], relay.Call(gv, [x]), tt)
     mod[gv] = func
+
+    ft = relay.ir_pass.infer_type(gv, mod)
+    assert mod[ft].checked_type == relay.FuncType([tt], tt)
 
 
 def test_equal():
     i = relay.var('i', shape=[], dtype='int32')
     eq = op.equal(i, relay.const(0, dtype='int32'))
-    # This should fail ....
-    func = relay.Function([i], eq, ret_type=relay.TensorType([], 'int32'))
+    func = relay.Function([i], eq)
+    ft = relay.ir_pass.infer_type(func)
+
+    assert ft.checked_type == relay.FuncType([relay.scalar_type('int32')], relay.scalar_type('bool'))
 
 
 if __name__ == "__main__":
@@ -204,8 +187,12 @@ if __name__ == "__main__":
     test_decl()
     test_recursion()
     test_tuple()
+    test_generalized_tuple()
     test_incomplete_call()
+    test_generalized_call()
+    test_call_with_type_args()
     test_free_expr()
     test_type_args()
     test_self_reference()
-    test_global_var_cow_issue()
+    test_global_var_recursion()
+    test_equal()
