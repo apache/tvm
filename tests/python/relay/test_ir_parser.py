@@ -51,7 +51,6 @@ TYPES = {
 
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
-    print(relay.fromtext(SEMVER + "\n" + code))
     return alpha_equal(relay.fromtext(SEMVER + "\n" + code), expr)
 
 def get_scalar(x):
