@@ -63,7 +63,13 @@ void TypeVisitor::VisitType_(const TypeDataNode* op) {
   for (const auto& v : op->tv) {
     this->VisitType(v);
   }
-  // TODO(slyubomirsky, MarisaKirisame): visit constructors
+
+  for (const auto& c : op->constructors) {
+    this->VisitType(c->belong_to);
+    for (const auto& t : c->inp) {
+      this->VisitType(t);
+    }
+  }
 }
 
 // Type Mutator.
