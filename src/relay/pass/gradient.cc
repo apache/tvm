@@ -172,14 +172,6 @@ struct ReverseAD : ExprFunctor<ADValue(const Expr &)> {
   }
 };
 
-/*! \brief Checks whether the annotation is defined.
- *         If the annotation is defined, return it.
- *         Otherwise, return a type hole.
- */
-Type FromAnnotation(const Type& annotation) {
-  return (annotation.defined()) ? annotation : IncompleteTypeNode::make(TypeVarNode::Kind::kType);
-}
-
 Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   // Currently we first remove any global functions for the first
   // order case.
@@ -213,16 +205,25 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
       });
     return Pair(res.foward, grad);
   });
-  std::vector<Type> vt;
-  for (const auto& p : f->params) {
-    vt.push_back(FromAnnotation(p->type_annotation));
-  }
-  Type ret_type = FromAnnotation(f->ret_type);
 
-  return FunctionNode::make(f->params,
-                            body,
-                            TupleTypeNode::make({ret_type, TupleTypeNode::make(vt)}),
-                            {});
+  // if type annotations are provided, we will construct a ret type;
+  // otherwise, leave it to be inferred
+  Type ret_type = Type();
+  std::vector<Type> vt;
+  bool missing = !f->ret_type.defined();
+  for (const auto& p: f->params) {
+    if (missing || !p->type_annotation.defined()) {
+      missing = true;
+      break;
+    }
+    vt.push_back(p->type_annotation);
+  }
+
+  if (!missing) {
+    ret_type = TupleTypeNode::make({f->ret_type, TupleTypeNode::make(vt)});
+  }
+
+  return FunctionNode::make(f->params, body, ret_type, {});
 }
 
 TVM_REGISTER_API("relay._ir_pass.first_order_gradient")
