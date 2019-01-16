@@ -81,8 +81,8 @@ Because a tuple type is of statically known size, the type of a tuple projection
 is simply the corresponding index into the tuple type.
 
 For example, in the below code, :code:`%t` is of type
-`(Tensor[(), bool], Tensor[(10, 10), float32])`
-and :code:`%c` is of type `Tensor[(10, 10), float32]`.
+:code:`(Tensor[(), bool], Tensor[(10, 10), float32])`
+and :code:`%c` is of type :code:`Tensor[(10, 10), float32]`.
 
 .. code-block:: python
    let %t = (False, Constant(1, (10, 10), float32));
@@ -90,6 +90,8 @@ and :code:`%c` is of type `Tensor[(10, 10), float32]`.
    %c
 
 See :py:class:`~tvm.relay.ty.TupleType` for its definition and documentation.
+
+.. _type-parameter:
 
 Type Parameter
 ~~~~~~~~~~~~~~
@@ -153,6 +155,8 @@ type as arguments, but may take a subset instead.
 
 See :py:class:`~tvm.relay.ty.FuncType` for its definition and documentation.
 
+.. _type-relation:
+
 Type Relation
 ~~~~~~~~~~~~~
 
@@ -193,8 +197,8 @@ to type operators like :code:`add`:
                 where Broadcast
 
 The inclusion of :code:`Broadcast` above indicates that the argument
-types and the return type must be tensors where the shape of `t3` is
-the broadcast of the shapes of `t1` and `t2`. The type system will
+types and the return type must be tensors where the shape of :code:`t3` is
+the broadcast of the shapes of :code:`t1` and :code:`t2`. The type system will
 accept any argument types and return type so long as they fulfill
 :code:`Broadcast`.
 
@@ -213,11 +217,10 @@ until one of the following conditions holds:
 
 1. All relations hold and no incomplete types remain (typechecking succeeds).
 2. A relation fails to hold (a type error).
-3. A fixpoint is reached where shape variables or incomplete types
-remain (either a type error or more type annotations may be needed).
+3. A fixpoint is reached where shape variables or incomplete types remain (either a type error or more type annotations may be needed).
 
 Presently all of the relations used in Relay are implemented in C++.
-See the files in `src/relay/op` for examples of relations implemented
+See the files in :code:`src/relay/op` for examples of relations implemented
 in C++.
 
 See :py:class:`~tvm.relay.ty.TypeRelation` for its definition and documentation.
