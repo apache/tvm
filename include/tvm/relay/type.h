@@ -187,7 +187,7 @@ class TypeCall;
 class TypeCallNode : public TypeNode {
  public:
   /*!
-   * \brief The type-level function.
+   * \brief The type-level function (ADT that takes type params).
    */
   Type func;
   /*! \brief The arguments. */
