@@ -12,7 +12,7 @@ import topi
 import tvm
 from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
-from tvm.autotvm.task.nnvm_integration import deserialize_args
+from tvm.autotvm.task.topi_integration import deserialize_args
 from tvm.autotvm.record import encode, load_from_file
 from tvm.relay.expr import Call, Var
 
@@ -112,6 +112,7 @@ class BaseGraphTuner(object):
         self._wkl_dict = {}
         self._sch_dict = {}
         self._layout_transform_dict = {}
+        self._layout_transform_matrix_dict = {}
         self._stage_dict = {}
         self._dep_dict = {}
         self._counted_nodes_set = set()
@@ -257,6 +258,81 @@ class BaseGraphTuner(object):
 
         return sch_dict
 
+    def _iterate_layout_transform(self, callback):
+        """Iterate all possible layout transformations and execute callback for each
+        iteration. callback function accepts 6 arguments: from_node_idx, to_node_idx,
+        from_sch_idx, to_sch_idx, args which represent the argument list of layout
+        transformation and is_valid showing whether this is a valid layout transformation.
+        """
+        input_names = self._input_shapes.keys()
+        for key, val in self._in_nodes_dict.items():
+            node = self._node_list[key]
+            target_input_idx = -1
+            target_input_pos = -1
+            if has_multiple_inputs(self._node_list, key, input_names):
+                for i, item in enumerate(val):
+                    if not is_input_node(self._node_list, item):
+                        target_input_idx = item
+                        target_input_pos = i
+                        break
+
+            for i, item in enumerate(val):
+                if is_input_node(self._node_list, item):
+                    continue
+
+                c_idx = item
+                if node["op"] == self._target_op:
+                    t_idx = key
+                else:
+                    t_idx = target_input_idx
+                    if i <= target_input_pos:
+                        continue
+                wkl_c = self._wkl_dict[c_idx]
+                sch_current_list = self._sch_dict[c_idx]
+                sch_current = [sch_current_list[j]["schedule"]
+                               for j in range(min(self._max_sch_num, len(sch_current_list)))]
+                wkl_t = self._wkl_dict[t_idx]
+                sch_target_list = self._sch_dict[t_idx]
+                sch_target = [sch_target_list[j]["schedule"]
+                              for j in range(min(self._max_sch_num, len(sch_target_list)))]
+
+                for m, sch_c in enumerate(sch_current):
+                    for n, sch_t in enumerate(sch_target):
+                        if has_multiple_inputs(self._node_list, key, input_names):
+                            in_shape, out_shape, is_valid = self._infer_layout_shape_func(
+                                wkl_c, sch_c, sch_t, self._node_list[key]["oshape"])
+                        else:
+                            in_shape, out_shape, is_valid = self._infer_layout_shape_func(
+                                wkl_t, sch_c, sch_t)
+                        in_layout = shape2layout(in_shape, self._data_layout)
+                        out_layout = shape2layout(out_shape, self._data_layout)
+                        data_placeholder = tvm.placeholder(in_shape, name="data",
+                                                           dtype=self._dtype)
+                        args = [data_placeholder, in_layout, out_layout, out_shape,
+                                "layout_transform", "injective"]
+                        callback(c_idx, t_idx, m, n, args)
+
+    def _create_matrix_callback(self, from_node_idx, to_node_idx, from_sch_idx,
+                                to_sch_idx, args):
+        """Create dictionary containing matrix format of layout transformation
+        between nodes."""
+        ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
+        idx_pair_key = (from_node_idx, to_node_idx)
+        in_shape, out_shape = args[0].shape, args[3]
+
+        if in_shape == out_shape:
+            layout_transform_time = 0
+        else:
+            layout_transform_time = \
+                self._layout_transform_dict[ltf_workload][1].costs[0]
+
+        if idx_pair_key not in self._layout_transform_matrix_dict:
+            self._layout_transform_matrix_dict[idx_pair_key] = []
+        if len(self._layout_transform_matrix_dict[idx_pair_key]) <= from_sch_idx:
+            self._layout_transform_matrix_dict[idx_pair_key].append([])
+        self._layout_transform_matrix_dict[idx_pair_key][from_sch_idx][to_sch_idx] = \
+            layout_transform_time
+
     def benchmark_layout_transform(self, target="llvm", min_exec_num=100, timeout=10,
                                    use_rpc=False, device_key=None, host="localhost",
                                    port=9190, n_parallel=1, build_func='default',
@@ -353,55 +429,12 @@ class BaseGraphTuner(object):
             avg_time = total_time / num_flops
 
         args_list = []
-        input_names = self._input_shapes.keys()
-        for key, val in self._in_nodes_dict.items():
-            node = self._node_list[key]
-            target_input_idx = -1
-            target_input_pos = -1
-            if has_multiple_inputs(self._node_list, key, input_names):
-                for i, item in enumerate(val):
-                    if not is_input_node(self._node_list, item):
-                        target_input_idx = item
-                        target_input_pos = i
-                        break
+        def _fetch_args_callback(from_node_idx, to_node_idx, from_sch_idx,
+                                 to_sch_idx, args):
+            """Callback function to fetch layout transform args"""
+            args_list.append(args)
 
-            for i, item in enumerate(val):
-                if is_input_node(self._node_list, item):
-                    continue
-
-                c_idx = item
-                if node["op"] == self._target_op:
-                    t_idx = key
-                else:
-                    t_idx = target_input_idx
-                    if i <= target_input_pos:
-                        continue
-                wkl_c = self._wkl_dict[c_idx]
-                sch_current_list = self._sch_dict[c_idx]
-                sch_current = [sch_current_list[j]["schedule"]
-                               for j in range(min(self._max_sch_num, len(sch_current_list)))]
-                wkl_t = self._wkl_dict[t_idx]
-                sch_target_list = self._sch_dict[t_idx]
-                sch_target = [sch_target_list[j]["schedule"]
-                              for j in range(min(self._max_sch_num, len(sch_target_list)))]
-
-                for sch_c in sch_current:
-                    for sch_t in sch_target:
-                        if has_multiple_inputs(self._node_list, key, input_names):
-                            in_shape, out_shape, is_valid = self._infer_layout_shape_func(
-                                wkl_c, sch_c, sch_t, self._node_list[key]["oshape"])
-                        else:
-                            in_shape, out_shape, is_valid = self._infer_layout_shape_func(
-                                wkl_t, sch_c, sch_t)
-                        if is_valid:
-                            if in_shape != out_shape:
-                                in_layout = shape2layout(in_shape, self._data_layout)
-                                out_layout = shape2layout(out_shape, self._data_layout)
-                                data_placeholder = tvm.placeholder(in_shape, name="data",
-                                                                   dtype=self._dtype)
-                                args = [data_placeholder, in_layout, out_layout, out_shape,
-                                        "layout_transform", "injective"]
-                                args_list.append(args)
+        self._iterate_layout_transform(_fetch_args_callback)
 
         def _log_to_list(record_list):
             """Callback to log result to a list."""
@@ -443,7 +476,11 @@ class BaseGraphTuner(object):
                        callbacks=[_log_to_list(records)])
             self._layout_transform_dict[ltf_workload] = records[0]
 
+        self._iterate_layout_transform(self._create_matrix_callback)
+
         self._global_data_dict["layout_time_dict"] = self._layout_transform_dict
+        self._global_data_dict["layout_time_matrix_dict"] = \
+            self._layout_transform_matrix_dict
         self._logger.info("Benchmarking layout transformation successful.")
 
     @property

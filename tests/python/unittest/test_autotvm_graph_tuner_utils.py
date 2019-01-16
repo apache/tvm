@@ -10,7 +10,7 @@ from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, \
     relay_get_conv2d_NCHWc_AVX_workload, has_multiple_inputs, get_direct_ancestor, \
     get_in_nodes, get_out_nodes, shape2layout, get_wkl_map, get_real_node, \
-    infer_layout_shape_avx, expr2graph
+    infer_conv2d_layout_shape_avx, expr2graph
 from topi.nn.conv2d import conv2d_NCHWc
 
 

@@ -8,7 +8,7 @@ from tvm import autotvm
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.autotvm.graph_tuner import DPTuner
-from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, infer_layout_shape_avx
+from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
 from test_autotvm_graph_tuner_utils import create_workload
 
 
@@ -100,7 +100,7 @@ def test_graph_tuner_layout_transform():
     g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
     graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
     executor = DPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
-                       ("tile_ic", "tile_oc"), infer_layout_shape_avx, log_file=log_file)
+                       ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx, log_file=log_file)
     executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
     out = executor._layout_transform_dict
 
@@ -154,7 +154,7 @@ def test_DPTuner_run():
 
     graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
     executor = DPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
-                       ("tile_ic", "tile_oc"), infer_layout_shape_avx, log_file=log_file)
+                       ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx, log_file=log_file)
     executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
     executor.run()
     out = executor.get_optimal_schedules()

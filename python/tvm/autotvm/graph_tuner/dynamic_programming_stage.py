@@ -18,9 +18,9 @@ class DPStage(object):
     In most cases, instance of this class should be created through DPTuner.
     """
     def __init__(self, idx, wkl_dict, sch_dict, input_shapes, node_list,
-                 data_layout, counted_nodes_set,
-                 layout_time_dict, stage_dict, in_nodes_dict, out_nodes_dict,
-                 dep_dict, target_op, infer_layout_shape_func, dtype="float32"):
+                 data_layout, counted_nodes_set, layout_time_matrix_dict,
+                 stage_dict, in_nodes_dict, out_nodes_dict, dep_dict, target_op,
+                 infer_layout_shape_func, dtype="float32"):
         """Initialize a stage and create all states.
 
         Parameters
@@ -47,8 +47,8 @@ class DPStage(object):
         counted_nodes_set : set of int
             Global set recording whether the execution time of a node has been counted.
 
-        layout_time_dict : dict of string to float
-            Dictionary maps layout transformation to execution time.
+        layout_time_matrix_dict : dict of tuple to list
+            Dictionary maps node index pair to layout transformation time between them.
 
         stage_dict : dict of int to Stage
             Global dictionary for all stages mapping node index to stage.
@@ -77,7 +77,7 @@ class DPStage(object):
         self._global_input_shapes = input_shapes
         self._global_node_list = node_list
         self._global_counted_nodes_set = counted_nodes_set
-        self._global_layout_time_dict = layout_time_dict
+        self._global_layout_time_matrix_dict = layout_time_matrix_dict
         self._global_stage_dict = stage_dict
         self._global_in_nodes_dict = in_nodes_dict
         self._global_out_nodes_dict = out_nodes_dict
@@ -96,31 +96,6 @@ class DPStage(object):
         self._full_states = None
         self._full_states_idx = None
         self._create_states()
-
-    def _get_layout_wkl(self, workload, current_sch, target_sch):
-        """Infer input and output data shape with self._target_op
-        from workload and schedules. This function can be overridden if
-        different formats of workload and schedule are used.
-        """
-        input_names = self._global_input_shapes.keys()
-        if has_multiple_inputs(self._global_node_list, self._idx, input_names):
-            multi_input_node_shape = self._global_node_list[self._idx]["oshape"]
-            in_shape, out_shape, is_valid = self._infer_layout_shape_func(workload, current_sch,
-                                                                          target_sch,
-                                                                          multi_input_node_shape)
-        else:
-            in_shape, out_shape, is_valid = self._infer_layout_shape_func(workload, current_sch,
-                                                                          target_sch)
-
-        ltf_wkl = None
-        if is_valid:
-            in_layout = shape2layout(in_shape, self._data_layout)
-            out_layout = shape2layout(out_shape, self._data_layout)
-            data_placeholder = tvm.placeholder(in_shape, name="data", dtype=self._dtype)
-            args = [data_placeholder, in_layout, out_layout, out_shape, "layout_transform",
-                    "injective"]
-            ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(args)
-        return in_shape, out_shape, ltf_wkl, is_valid
 
     def _create_states(self):
         """Create states."""
@@ -162,23 +137,12 @@ class DPStage(object):
             input_node_time_counted = input_idx in self._global_counted_nodes_set
 
             for i in range(num_schedules):
-                current_sch = self._sch_list[i]["schedule"]
                 current_sch_time = float(self._sch_list[i]["cost"])
                 for j in range(num_input_states):
                     input_sch_idx = j // dep_multiplier
-                    input_sch = input_sch_list[input_sch_idx]["schedule"]
-                    in_shape, out_shape, ltf_wkl, is_valid = self._get_layout_wkl(
-                        self._wkl, input_sch, current_sch)
-                    if is_valid:
-                        if in_shape == out_shape:
-                            layout_transform_time = 0.0
-                        else:
-                            layout_time_val = self._global_layout_time_dict[ltf_wkl]
-                            layout_transform_time = \
-                                layout_time_val if isinstance(layout_time_val, float) \
-                                else layout_time_val[1].costs[0]
-                    else:
-                        layout_transform_time = INVALID_LAYOUT_TIME
+                    layout_transform_time = \
+                        self._global_layout_time_matrix_dict[(input_idx, self._idx)][input_sch_idx][i]
+
                     if input_node_time_counted:
                         total_time = current_sch_time + layout_transform_time
                     else:
@@ -241,7 +205,6 @@ class DPStage(object):
         for i in range(num_states):
             target_sch_idx = (i % (target_multiplier *
                                    aligned_shape[target_major_axis])) // target_multiplier
-            target_sch = self._global_sch_dict[target_node_idx][target_sch_idx]["schedule"]
             if node_time_counted[0]:
                 new_state = 0
             else:
@@ -253,20 +216,10 @@ class DPStage(object):
                 src_major_axis = states_list[j][1]
                 src_sch_idx = (i % (src_multiplier *
                                     aligned_shape[src_major_axis])) // src_multiplier
-                src_wkl = self._global_wkl_dict[src_node_idx]
-                src_sch = self._global_sch_dict[src_node_idx][src_sch_idx]["schedule"]
-                in_shape, out_shape, ltf_wkl, is_valid = self._get_layout_wkl(src_wkl, src_sch,
-                                                                              target_sch)
-                if is_valid:
-                    if in_shape == out_shape:
-                        layout_transform_time = 0.0
-                    else:
-                        layout_time_val = self._global_layout_time_dict[ltf_wkl]
-                        layout_transform_time = \
-                            layout_time_val if isinstance(layout_time_val, float) \
-                            else layout_time_val[1].costs[0]
-                else:
-                    layout_transform_time = INVALID_LAYOUT_TIME
+                layout_transform_time = \
+                    self._global_layout_time_matrix_dict[(src_node_idx,
+                                                          target_node_idx)][src_sch_idx][target_sch_idx]
+
                 if node_time_counted[j]:
                     new_state += layout_transform_time
                 else:
