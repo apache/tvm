@@ -76,7 +76,7 @@ class MessageNode : public RelayNode {
 
   static Message make(const AxesSet& axes, bool require_positive);
 
-  static constexpr const char* _type_key = "relay.pass.fold_scale_axis.message";
+  static constexpr const char* _type_key = "relay.pass.fold_scale_axis.Message";
   TVM_DECLARE_NODE_TYPE_INFO(MessageNode, RelayNode);
 };
 
