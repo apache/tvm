@@ -79,7 +79,7 @@ def test_get_wkl_map():
     g = nnvm.graph.create(out)
     dshape = (1, 3, 256, 256)
     graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
-    node_map = get_wkl_map(g, wkl_list, "conv2d", graph_wkl_list)
+    node_map = get_wkl_map(json.loads(g.json())["nodes"], wkl_list, "conv2d", graph_wkl_list)
     expected_out = {3: 2, 6: 3, 9: 5}
     diff_set = set(node_map) ^ set(expected_out)
     if len(diff_set) != 0:
@@ -116,7 +116,7 @@ def test_shape2layout():
 
 def verify_infer_layout_shape_avx(wkl, in_sch, out_sch, elemlike_shape,
                                   expected_in_shape, expected_out_shape):
-    in_shape, out_shape, _ = infer_layout_shape_avx(wkl, in_sch, out_sch,
+    in_shape, out_shape, _ = infer_conv2d_layout_shape_avx(wkl, in_sch, out_sch,
                                                     elemlike_shape)
     if in_shape != expected_in_shape:
         raise RuntimeError("Input shape mismatch: expecting %s but got %s."

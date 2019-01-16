@@ -12,8 +12,9 @@ import topi
 import tvm
 from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
-from tvm.autotvm.task.topi_integration import deserialize_args
+from tvm.autotvm.task.topi_integration import deserialize_args, serialize_args
 from tvm.autotvm.record import encode, load_from_file
+from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.relay.expr import Call, Var
 
 from .utils import get_real_node, is_input_node, shape2layout, \
@@ -316,9 +317,10 @@ class BaseGraphTuner(object):
                                 to_sch_idx, args):
         """Create dictionary containing matrix format of layout transformation
         between nodes."""
+        in_shape, out_shape = args[0].shape, args[3]
+        args = serialize_args(args)
         ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
         idx_pair_key = (from_node_idx, to_node_idx)
-        in_shape, out_shape = args[0].shape, args[3]
 
         if in_shape == out_shape:
             layout_transform_time = 0
@@ -330,8 +332,8 @@ class BaseGraphTuner(object):
             self._layout_transform_matrix_dict[idx_pair_key] = []
         if len(self._layout_transform_matrix_dict[idx_pair_key]) <= from_sch_idx:
             self._layout_transform_matrix_dict[idx_pair_key].append([])
-        self._layout_transform_matrix_dict[idx_pair_key][from_sch_idx][to_sch_idx] = \
-            layout_transform_time
+        self._layout_transform_matrix_dict[idx_pair_key][from_sch_idx]\
+            .append(layout_transform_time)
 
     def benchmark_layout_transform(self, target="llvm", min_exec_num=100, timeout=10,
                                    use_rpc=False, device_key=None, host="localhost",
@@ -453,21 +455,24 @@ class BaseGraphTuner(object):
                                                timeout=timeout)
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args in args_list:
+            args = serialize_args(args)
             ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
             if ltf_workload in  self._layout_transform_dict:
                 continue
 
             if infer_layout:
-                input_shape = ltf_workload[1][:-1]
+                input_shape = ltf_workload[1][1]
                 flops = 1
                 for i in input_shape:
                     flops *= i
                 inferred_time = flops * avg_time
-                self._layout_transform_dict[ltf_workload] = inferred_time
+                record_input = MeasureInput(target=target, task=None, config=None)
+                record_output =  MeasureResult(costs=(inferred_time,), error_no=0,
+                                               all_cost=-1, timestamp=-1)
+                self._layout_transform_dict[ltf_workload] = (record_input, record_output)
                 continue
 
             records = []
-            args = autotvm.task.nnvm_integration.serialize_args(args)
             task = autotvm.task.create(layout_transform, args=args, target=target,
                                        target_host=target_host)
             task.workload = ltf_workload
@@ -478,7 +483,6 @@ class BaseGraphTuner(object):
 
         self._iterate_layout_transform(self._create_matrix_callback)
 
-        self._global_data_dict["layout_time_dict"] = self._layout_transform_dict
         self._global_data_dict["layout_time_matrix_dict"] = \
             self._layout_transform_matrix_dict
         self._logger.info("Benchmarking layout transformation successful.")
