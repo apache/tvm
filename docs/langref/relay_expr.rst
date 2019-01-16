@@ -16,6 +16,7 @@ be viewed as a traditional comptuation graph when writing and expressing transfo
 The dataflow fragment covers the set of Relay expressions that do not involve
 control flow. That is, any portion of a program containing only the following
 constructs corresponds to a pure computation graph:
+
 - `Variables`_
 - Tuple `Construction`_ and `Projection`_
 - `Let Bindings`_
@@ -25,6 +26,7 @@ constructs corresponds to a pure computation graph:
 Control flow expressions allow the graph topology to change
 based on the value of previously executed expressions. The control
 fragment in Relay includes the following constructs:
+
 - `If-Then-Else`_ Expressions
 - Recursive Calls in Functions
 
@@ -50,10 +52,8 @@ Global Variable
 
 Global identifiers are prefixed by the :code:`@` sigil, such as ":code:`@global`".
 A global identifier always references a globally visible definition contained in the
-globally visible environment, known as the `module`__.
+globally visible environment, known as the `module <Module and Global Functions_>`__.
 Global identifiers must be unique.
-
-__ `Module and Global Functions`_
 
 See :py:class:`~tvm.relay.expr.GlobalVar` for its implementation
 and documentation.
@@ -187,7 +187,7 @@ a tensor of zero values because the closure for :code:`%f` stores the value of
 Polymorphism and Type Relations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. *Note: type parameter syntax is not yet supported in the text format.*
+*Note: type parameter syntax is not yet supported in the text format.*
 
 A function may also be given a set of type parameters, which can be
 substituted for specific types at call sites. Functions with
@@ -199,9 +199,7 @@ Type parameters are classified by *kind* and can
 only appear in parts of the type signature where their kind is appropriate
 (e.g., type parameters of kind :code:`Shape` can only appear where a shape
 would be expected in a tensor type); for a full discussion, 
-see `the documentation on type parameters`__.
-
-__ `Type Parameter`_
+see :ref:`the documentation on type parameters <type-parameter>`.
 
 For example, one can define a polymorphic identity function for
 any Relay type as follows:
@@ -221,7 +219,7 @@ arguments to tensor types:
 
 Notice that the return type is omitted and will be inferred.
 
-.. *Note: :code:`where` syntax is not yet supported in the text format.*
+*Note: :code:`where` syntax is not yet supported in the text format.*
 
 A function may also be subject to one or more type relations, such as in
 the following:
@@ -241,7 +239,7 @@ constraints on types (especially tensor shapes).
 All function relations must hold at all call sites;
 type checking is thus treated as a constraint-solving problem.
 For more detail on type relations and their implementations,
-please see the documentation on `Relay's Type System`_.
+please see :ref:`their section in the documentation on Relay's type system <type-relation>`.
 
 Operators
 =========
@@ -260,13 +258,11 @@ by optimization passes) may be registered as a new column.
 From the perspective of Relay's type system, an operator is a function,
 so operators may be called like any other function and have function
 types. In particular, operator types are registered using a single
-type relation (see `the documentation on type relations`__), typically a relation
+type relation (see :ref:`the documentation on type relations <type-relation>`), typically a relation
 specialized to that operator. For example, the :code:`add` operator
 is registered with the :code:`Broadcast` relation, indicating that the
 arguments of :code:`add` must be tensors and that the return type
 is a tensor whose shape depends on those of its arguments.
-
-__ `Type Relation`_
 
 Operators are rendered without a sigil (e.g :code:`conv2d`, :code:`flatten`)
 when pretty-printing Relay programs.
@@ -281,10 +277,8 @@ See :py:class:`~tvm.relay.op.Op` for the definition and documentation
 of operator nodes, demonstrating the infrastructure for registering
 operator metadata. The other files in :py:class:`~tvm.relay.op` give
 handles for generating a call to various pre-registered operators.
-The `tutorial on adding operators to Relay`__ shows how to add further
+The :ref:`tutorial on adding operators to Relay <relay-add-op>` shows how to add further
 operators into the language.
-
-__ `Adding an Operator to Relay`_
 
 Call
 ====
@@ -312,7 +306,7 @@ Thus, in the above example, the call evaluates to 22.
 In the case of operators, the implementation is opaque to Relay,
 so the result is left up to the registered TVM implementation.
 
-.. *Note: type parameters are not yet supported in the text format.* 
+*Note: type parameters are not yet supported in the text format.* 
 
 A type-polymorphic function can also include type arguments at a call
 site. The type arguments are substituted for type parameters when
@@ -489,12 +483,10 @@ These bindings allow for a style of programming that corresponds to that already
 employed by NNVM and other dataflow graph-based input formats. The fact that the variables
 are not scoped offers some flexibility in evaluation order compared to :code:`let`
 bindings, though this can also introduce some ambiguity in programs (the
-`developer introduction to the Relay IR`__ includes more detailed discussion
+:ref:`developer introduction to the Relay IR<relay-dev-intro>` includes more detailed discussion
 of this nuance).
 
-__ `Introduction to Relay IR`_
-
-.. *Note: Graph bindings are not currently parsed by the text format.*
+*Note: Graph bindings are not currently parsed by the text format.*
 
 In Relay's text format, a graph binding can be written as below (note the lack of a
 :code:`let` keyword and a semicolon):
@@ -521,7 +513,7 @@ For development purposes and to enable certain optimizations, Relay includes pas
 convert between dataflow graphs defined using graph bindings and programs with :code:`let`
 bindings in A-normal form, employed by many compiler optimizations from the functional
 programming community (see `"A-Normalization: Why and How" by
-Matt Might<http://matt.might.net/articles/a-normalization/>`__ for an introduction
+Matt Might <http://matt.might.net/articles/a-normalization/>`__ for an introduction
 to A-normal form).
 
 If-Then-Else
@@ -555,11 +547,11 @@ Program transformations (passes) in Relay may require inserting temporary
 state into the program AST to guide further transformations. The
 :code:`TempExpr` node is provided as a utility to developers for this purpose;
 nodes inheriting from :code:`TempExpr` cannot appear directly in user-provided
-code but may be inserted in a pass. Any :code:`TempExpr`s created in a pass
-should ideally be eliminated before the pass is complete, as 
-:code:`TempExpr`s only store internal state and have no semantics of their own.
+code but may be inserted in a pass. Any :code:`TempExpr` created in a pass
+should ideally be eliminated before the pass is complete, as a
+:code:`TempExpr` only stores internal state and has no semantics of its own.
 
-For an example of :code:`TempExpr`s being used in a pass, 
+For an example of :code:`TempExpr` being used in a pass, 
 see :code:`src/relay/pass/alter_op_layout.cc`, which uses :code:`TempExpr` nodes
 to store information about operator layouts as the pass tries to rearrange operator
 calls.

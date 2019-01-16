@@ -1,3 +1,5 @@
+.. _relay-add-op:
+
 Adding an Operator to Relay
 ===========================
 
