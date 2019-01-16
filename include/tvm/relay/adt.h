@@ -94,6 +94,7 @@ class ConstructorNode : public ExprNode {
   tvm::Array<Type> inp;
   /*! \brief The datatype the constructor will construct. */
   GlobalTypeVar belong_to;
+  /*! \brief Index in the table of constructors (set when the type is registered). */
   mutable int tag = -1;
 
   ConstructorNode() {}
