@@ -205,7 +205,6 @@ class ParseTreeToRelayIR(RelayVisitor):
                 raise ParseError("Unrecognized BOOL_LIT: `{}`".format(node_text))
 
         else:
-            print(node_text)
             raise ParseError("todo: {}".format(node_text))
 
     def visit_list(self, ctx_list):
@@ -498,14 +497,6 @@ class ParseTreeToRelayIR(RelayVisitor):
         ret_type = types[-1]
 
         return ty.FuncType(arg_types, ret_type, [], None)
-
-    def visitGraphExpr(self, ctx):
-        graph_nid = int(ctx.LOCAL_VAR().getText()[1:])
-        value = self.visit(ctx.expr(0))
-        assert graph_nid == len(self.graph_expr)
-        self.graph_expr.append(value)
-        kont = self.visit(ctx.expr(1))
-        return kont
 
 def make_parser(data):
     # type: (str) -> RelayParser

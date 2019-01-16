@@ -227,9 +227,10 @@ def test_seq():
     )
 
     zero = UNIT
+    one = relay.const(1)
     assert parses_as(
         "%0 = (); (%0, %0)",
-        relay.Tuple([zero, zero])
+        relay.Tuple([zero, zero, one])
     )
 
 @raises_parse_error
