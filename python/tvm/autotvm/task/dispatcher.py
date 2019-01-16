@@ -266,8 +266,11 @@ class ApplyHistoryBest(DispatchContext):
             Otherwise, it is an iterator.
         """
         from ..record import load_from_file
+        import os
 
         if isinstance(records, str):
+            if not os.path.isfile(records):
+                return
             records = load_from_file(records)
         if not records:
             return
