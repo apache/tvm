@@ -1193,6 +1193,9 @@ class GraphProto(object):
                 self._output_shapes[node.name] = \
                     [tensor_util.TensorShapeProtoToList( \
                         tensor_value.tensor_shape)]
+            elif shape and node.name in shape:
+                # Give priority to user argument.
+                self._output_shapes[node.name] = [shape[node.name]]
             elif '_output_shapes' in attr:
                 self._output_shapes[node.name] = \
                     [tensor_util.TensorShapeProtoToList(tshape) \
