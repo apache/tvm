@@ -782,7 +782,7 @@ def test_forward_resnetv2():
 # PTB
 # ---
 dir(tf.contrib)
-def _test_forward_ptb():
+def test_forward_ptb():
     '''test ptb model'''
     config = tf_testing.get_config()
     num_steps = config.num_steps
@@ -814,7 +814,8 @@ def _test_forward_ptb():
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':'float32',
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':'float32'}
         target = 'llvm'
-        graph, lib, params = relay.build(sym, target, params=params)
+        with relay.build_config(opt_level=0):
+            graph, lib, params = relay.build(sym, target, params=params)
         from tvm.contrib import graph_runtime
         ctx = tvm.cpu(0)
         return params, graph_runtime.create(graph, lib, ctx)
@@ -1097,7 +1098,7 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
-    #_test_forward_ptb()
+    test_forward_ptb()
 
     # RNN
     test_forward_lstm()
