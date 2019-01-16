@@ -185,6 +185,24 @@ Expr ExprMutator::VisitExpr_(const RefWriteNode* op) {
   }
 }
 
+Expr ExprMutator::VisitExpr_(const ConstructorNode* c) {
+  return GetRef<Expr>(c);
+}
+
+Expr ExprMutator::VisitExpr_(const MatchNode* m) {
+  std::vector<Clause> pattern;
+  for (const Clause& p : m->pattern) {
+    pattern.push_back(VisitClause(p));
+  }
+  return MatchNode::make(VisitExpr(m->data), pattern);
+}
+
+Clause ExprMutator::VisitClause(const Clause& c) {
+  return ClauseNode::make(VisitPattern(c->lhs), VisitExpr(c->rhs));
+}
+
+Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }
+
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
 void ExprVisitor::VisitExpr(const Expr& expr) {
@@ -266,6 +284,27 @@ void ExprVisitor::ExprVisitor::VisitExpr_(const RefWriteNode* op) {
   this->VisitExpr(op->ref);
   this->VisitExpr(op->value);
 }
+
+void ExprVisitor::VisitExpr_(const ConstructorNode* op) {
+  for (const Type& t : op->inp) {
+    this->VisitType(t);
+  }
+  this->VisitType(op->belong_to);
+}
+
+void ExprVisitor::VisitExpr_(const MatchNode* op) {
+  this->VisitExpr(op->data);
+  for (const Clause& c : op->pattern) {
+    this->VisitClause(c);
+  }
+}
+
+void ExprVisitor::VisitClause(const Clause& op) {
+  this->VisitPattern(op->lhs);
+  this->VisitExpr(op->rhs);
+}
+
+void ExprVisitor::VisitPattern(const Pattern& p) { return; }
 
 void ExprVisitor::VisitType(const Type& t) { return; }
 

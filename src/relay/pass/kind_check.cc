@@ -20,7 +20,6 @@ namespace tvm {
 namespace relay {
 
 using namespace tvm::runtime;
-using Kind = TypeVarNode::Kind;
 
 struct KindChecker : TypeVisitor {
   bool valid;
@@ -113,7 +112,7 @@ bool KindCheck(const Type& t, const Module& mod) {
 TVM_REGISTER_API("relay._ir_pass.check_kind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     if (args.size() == 1) {
-      *ret = KindCheck(args[0], ModuleNode::make({}));
+      *ret = KindCheck(args[0], ModuleNode::make({}, {}));
     } else {
       *ret = KindCheck(args[0], args[1]);
     }

@@ -48,6 +48,23 @@ void TypeVisitor::VisitType_(const TypeRelationNode* op) {
   }
 }
 
+void TypeVisitor::VisitType_(const GlobalTypeVarNode* op) {
+}
+
+void TypeVisitor::VisitType_(const TypeCallNode* op) {
+  this->VisitType(op->func);
+  for (const Type& t : op->args) {
+    this->VisitType(t);
+  }
+}
+
+void TypeVisitor::VisitType_(const TypeDataNode* op) {
+  this->VisitType(op->header);
+  for (const auto& v : op->tv) {
+    this->VisitType(v);
+  }
+  // TODO(slyubomirsky, MarisaKirisame): visit constructors
+}
 
 // Type Mutator.
 Array<Type> TypeMutator::MutateArray(Array<Type> arr) {
@@ -137,6 +154,22 @@ Type TypeMutator::VisitType_(const TypeRelationNode* type_rel) {
                                   type_rel->num_inputs,
                                   type_rel->attrs);
   }
+}
+
+Type TypeMutator::VisitType_(const GlobalTypeVarNode* op) {
+  return GetRef<Type>(op);
+}
+
+Type TypeMutator::VisitType_(const TypeCallNode* op) {
+  std::vector<Type> args;
+  for (const auto& a : op->args) {
+    args.push_back(VisitType(a));
+  }
+  return TypeCallNode::make(VisitType(op->func), args);
+}
+
+Type TypeMutator::VisitType_(const TypeDataNode* op) {
+  return GetRef<Type>(op);
 }
 
 // Implements bind.
