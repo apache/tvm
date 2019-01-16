@@ -211,7 +211,7 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   Type ret_type = Type();
   std::vector<Type> vt;
   bool missing = !f->ret_type.defined();
-  for (const auto& p: f->params) {
+  for (const auto& p : f->params) {
     if (missing || !p->type_annotation.defined()) {
       missing = true;
       break;
