@@ -8,8 +8,7 @@ from numpy import isclose
 from typing import Union
 from functools import wraps
 if enabled():
-    from tvm.relay._parser import ParseError
-    raises_parse_error = raises(ParseError)
+    raises_parse_error = raises(tvm._ffi.base.TVMError)
 else:
     raises_parse_error = lambda x: x
 
@@ -320,6 +319,7 @@ def test_defn():
 @if_parser_enabled
 def test_recursive_call():
     id_defn = relay.fromtext(
+        SEMVER+
         """
         def @id(%x: int32) -> int32 {
             @id(%x)
@@ -363,13 +363,11 @@ def test_ifelse_scope():
 def test_call():
     # select right function to call: simple ident case
     id_func = relay.Var("id")
-    assert alpha_equal(
-        relay.fromtext(
+    assert parses_as(
         """
         let %id = fn (%x) { %x };
         10 * %id(10)
-        """
-        ),
+        """,
         relay.Let(
             id_func,
             relay.Function([X], X, None, []),
