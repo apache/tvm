@@ -182,7 +182,7 @@ class OperatorConverter(object):
         dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
         dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
 
-        params = {'channels': output_channels,
+        params = {'channels': int(output_channels),
                   'kernel_size': [kernel_h, kernel_w],
                   'strides': [stride_h, stride_w],
                   'dilation': [dilation_h, dilation_w],
@@ -271,12 +271,12 @@ class OperatorConverter(object):
         dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
         dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
 
-        params = {'channels': in_channels * multiplier,
+        params = {'channels': int(in_channels * multiplier),
                   'kernel_size': [kernel_h, kernel_w],
                   'strides': [stride_h, stride_w],
                   'dilation': [dilation_h, dilation_w],
                   'padding': [0, 0],
-                  'groups': in_channels}
+                  'groups': int(in_channels)}
         # weight tensor type should be UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
         assert weight_tensor_type == TensorType.UINT8 or weight_tensor_type == TensorType.FLOAT32
