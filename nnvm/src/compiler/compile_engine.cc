@@ -40,6 +40,7 @@ int GetTypeFlag(tvm::Type type) {
   if (type == tvm::UInt(16)) return 8;
   if (type == tvm::UInt(32)) return 9;
   if (type == tvm::UInt(64)) return 10;
+  if (type == tvm::UInt(1)) return 11;
   LOG(FATAL) << "cannot convert " << type;
   return 0;
 }
@@ -68,6 +69,8 @@ Type GetTVMType(int type_flag) {
       return tvm::UInt(32);
     case 10:
       return tvm::UInt(64);
+    case 11:
+      return tvm::UInt(1);
     default:
       LOG(FATAL) << "unknown type_flag=" << type_flag;
       return Float(32);
