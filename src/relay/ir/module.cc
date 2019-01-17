@@ -87,17 +87,20 @@ void ModuleNode::Add(const GlobalVar& var,
 }
 
 void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
-  // kind checker is broken, not checking them rn.
-  // TODO(slyubomirsky, MarisaKirisame): fix the kind checker.
   this->type_definitions.Set(var, type);
   // set global type var map
   CHECK(!global_type_var_map_.count(var->var->name_hint))
     << "Duplicate global type definition name " << var->var->name_hint;
-    global_type_var_map_.Set(var->var->name_hint, var);
-    for (size_t i = 0; i < type->constructors.size(); ++i) {
-      type->constructors[i]->tag = i;
-    }
+  global_type_var_map_.Set(var->var->name_hint, var);
+  for (size_t i = 0; i < type->constructors.size(); ++i) {
+    type->constructors[i]->tag = i;
   }
+
+  // need to kind check at the end because the check can look up
+  // a definition potentially
+  CHECK(KindCheck(type, GetRef<Module>(this)))
+    << "Kind-checking fails for the type data given: " << type;
+}
 
 void ModuleNode::Update(const GlobalVar& var, const Function& func) {
   this->Add(var, func, true);

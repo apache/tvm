@@ -23,8 +23,9 @@ using namespace tvm::runtime;
 
 struct KindChecker : TypeVisitor {
   bool valid;
+  const Module& mod;
 
-  KindChecker() : valid(true) {}
+  explicit KindChecker(const Module& mod) : valid(true), mod(mod) {}
 
   // checks if t is an incomplete node of kind k or a type param of kind k
   bool MatchKind(const Type& t, Kind k) {
@@ -36,6 +37,10 @@ struct KindChecker : TypeVisitor {
       return tp->kind == k;
     }
 
+    if (const GlobalTypeVarNode* gtp = t.as<GlobalTypeVarNode>()) {
+      return gtp->kind == k;
+    }
+
     return false;
   }
 
@@ -44,7 +49,8 @@ struct KindChecker : TypeVisitor {
       return true;
     }
 
-    return t.as_derived<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
+    return t.as_derived<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>()
+      || t.as<TypeCallNode>();
   }
 
   void VisitType_(const TupleTypeNode* op) override {
@@ -98,6 +104,53 @@ struct KindChecker : TypeVisitor {
     }
   }
 
+  void VisitType_(const TypeCallNode* op) override {
+    // type call func should be a global type var, args should be type
+    const auto* gtv = op->func.as<GlobalTypeVarNode>();
+    valid = valid && gtv != nullptr && IsTypeKind(op->func);
+    if (!valid) {
+      return;
+    }
+    for (const Type& t : op->args) {
+      this->VisitType(t);
+      valid = valid && IsTypeKind(t);
+      if (!valid) {
+        return;
+      }
+    }
+
+    // finally we need to check the module to check the number of type params
+    auto var = GetRef<GlobalTypeVar>(gtv);
+    auto data = mod->LookupDef(var);
+    valid = valid && data->tv.size() == op->args.size();
+  }
+
+  void VisitType_(const TypeDataNode* op) override {
+    // Constructors can reference the header var, but no other GlobalTypeVars.
+    // In theory, a TypeData could be nested, so the header scope
+    // should be tracked recursively, but it is unclear that we need
+    // to support it.
+    valid = valid && op->header->kind == Kind::kType;
+    for (const auto& var : op->tv) {
+      valid = valid && IsTypeKind(var);
+      if (!valid) {
+        return;
+      }
+    }
+    for (const auto& con : op->constructors) {
+      valid = valid && con->belong_to.same_as(op->header);
+      for (const Type& t : con->inp) {
+        valid = valid && IsTypeKind(t);
+        if (const auto* gtv = t.as<GlobalTypeVarNode>()) {
+          valid = valid && GetRef<GlobalTypeVar>(gtv).same_as(op->header);
+        }
+        if (!valid) {
+          return;
+        }
+      }
+    }
+  }
+
   bool Check(const Type& t) {
     this->VisitType(t);
     return valid;
@@ -105,7 +158,7 @@ struct KindChecker : TypeVisitor {
 };
 
 bool KindCheck(const Type& t, const Module& mod) {
-  KindChecker kc;
+  KindChecker kc(mod);
   return kc.Check(t);
 }
 
