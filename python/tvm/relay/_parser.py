@@ -424,7 +424,9 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.exit_var_scope()
 
         if graph_nid != len(self.graph_expr):
-            raise ParseError("Expected the new graph variable to be `%{}`, but got `%{}` instead".format(len(self.graph_expr), graph_nid))
+            raise ParseError(
+                "Expected new graph variable to be `%{}`,".format(len(self.graph_expr)) + \
+                "but got `%{}`".format(graph_nid))
         self.graph_expr.append(value)
 
         kont = self.visit(ctx.expr(1))
