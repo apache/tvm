@@ -189,6 +189,20 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return RefTypeNode::make(Unify(op->value, rtn->value));
   }
 
+  Type VisitType_(const TypeCallNode* op, const Type& tn) {
+    const auto* tcn = tn.as<TypeCallNode>();
+    if (!tcn || tcn->args.size() != op->args.size()) {
+      return Type();
+    }
+
+    Type func = Unify(op->func, tcn->func);
+    tvm::Array<Type> args;
+    for (size_t i = 0; i < op->args.size(); i++) {
+      args.push_back(Unify(op->args[i], tcn->args[i]));
+    }
+    return TypeCallNode::make(func, args);
+  }
+
  private:
   TypeSolver* solver_;
 };
@@ -263,6 +277,16 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
     for (auto type_cs : ft->type_constraints) {
       Propagate(type_cs);
+    }
+  }
+
+  void VisitType_(const TypeCallNode* op) override {
+    TypeCall tc = GetRef<TypeCall>(op);
+    UpdateRelSet(tc);
+
+    Propagate(tc->func);
+    for (auto arg : tc->args) {
+      Propagate(arg);
     }
   }
 

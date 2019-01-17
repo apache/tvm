@@ -151,12 +151,12 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
 
     for (auto type_param : ft->type_params) {
-      instantiation_map_.Set(type_param, IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+      instantiation_map_.Set(type_param, IncompleteTypeNode::make(Kind::kType));
     }
 
     Type ret_type = ft->ret_type;
     if (!ret_type.defined()) {
-      ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+      ret_type = IncompleteTypeNode::make(Kind::kType);
     }
 
     auto strip_tvs = FuncTypeNode::make(ft->arg_types, ret_type, {}, ft->type_constraints);
@@ -277,7 +277,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // if the definition is a function literal, permit recursion
     bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;
     if (is_functional_literal) {
-      type_map_[let->var].checked_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+      type_map_[op->var].checked_type = IncompleteTypeNode::make(Kind::kType);
     }
 
     Type vtype = GetType(let->value);
@@ -380,7 +380,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // incomplete type => it must be a function taking the arg types
     // with an unknown return type
     if (inc_ty_node != nullptr) {
-      Type ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+      Type ret_type = IncompleteTypeNode::make(Kind::kType);
       Type func_type = FuncTypeNode::make(arg_types, ret_type, {}, {});
       Type unified = this->Unify(ftype, func_type, GetRef<Call>(call));
       fn_ty_node = unified.as<FuncTypeNode>();
@@ -389,7 +389,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     Array<Type> type_args = call->type_args;
     if (type_args.size() == 0) {
       for (size_t i = 0; i < fn_ty_node->type_params.size(); i++) {
-        type_args.push_back(IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+        type_args.push_back(IncompleteTypeNode::make(Kind::kType));
       }
     }
 
