@@ -10,6 +10,10 @@
 #include <cstring>
 #include "workspace_pool.h"
 
+#ifdef __ANDROID__
+#include <android/api-level.h>
+#endif
+
 namespace tvm {
 namespace runtime {
 class CPUDeviceAPI final : public DeviceAPI {
@@ -28,10 +32,11 @@ class CPUDeviceAPI final : public DeviceAPI {
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);
     if (ptr == nullptr) throw std::bad_alloc();
-#elif defined(_LIBCPP_SGX_CONFIG)
+#elif defined(_LIBCPP_SGX_CONFIG) || (defined(__ANDROID__) && __ANDROID_API__ < 16)
     ptr = memalign(alignment, nbytes);
     if (ptr == nullptr) throw std::bad_alloc();
 #else
+    // posix_memalign is available in android ndk since __ANDROID_API__ >= 16
     int ret = posix_memalign(&ptr, alignment, nbytes);
     if (ret != 0) throw std::bad_alloc();
 #endif
