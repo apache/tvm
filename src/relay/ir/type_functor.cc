@@ -167,11 +167,13 @@ Type TypeMutator::VisitType_(const GlobalTypeVarNode* op) {
 }
 
 Type TypeMutator::VisitType_(const TypeCallNode* op) {
-  std::vector<Type> args;
-  for (const auto& a : op->args) {
-    args.push_back(VisitType(a));
+  Type new_func = VisitType(op->func);
+  Array<Type> new_args = MutateArray(op->args);
+  if (new_args.same_as(op->args) && new_func.same_as(op->func)) {
+    return GetRef<TypeCall>(op);
+  } else {
+    return TypeCallNode::make(new_func, new_args);
   }
-  return TypeCallNode::make(VisitType(op->func), args);
 }
 
 Type TypeMutator::VisitType_(const TypeDataNode* op) {
