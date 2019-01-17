@@ -3,7 +3,6 @@ import numpy as np
 
 import tvm
 from tvm import relay
-from tvm.relay import testing
 from tvm.contrib import graph_runtime
 
 
@@ -248,12 +247,14 @@ def test_fusible_network():
 
     def test_runtime(target, device, func, fallback_device=None):
         params = {"x": x_data, "y": y_data}
-        with relay.build_config(opt_level=1):
+        config = {"opt_level": 1}
+        if fallback_device:
+            config["fallback_device"] = fallback_device
+        with relay.build_config(**config):
             graph, lib, params = relay.build(
                 func,
                 target,
-                params=params,
-                fallback_device=fallback_device)
+                params=params)
             contexts = [tvm.cpu(0), tvm.context(device)]
             mod = graph_runtime.create(graph, lib, contexts)
             mod.set_input(**params)
@@ -367,13 +368,11 @@ def test_fusible_network():
         test_runtime(target, device, annotated_func, fallback_device)
 
     def test_fallback_all_operators(device, tgt):
-        target = {"cpu": "llvm", device: tgt}
-        fallback_device = tvm.cpu(0)
-
+        target = {device: tgt}
         annotated_func = get_func()
         expected_func = get_func()
         check_annotated_graph(annotated_func, expected_func)
-        test_runtime(target, device, annotated_func, fallback_device)
+        test_runtime(target, device, annotated_func)
 
     for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
                      ("opencl", str(tvm.target.intel_graphics()))]:
