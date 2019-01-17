@@ -608,7 +608,7 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
 
     // FromExpr wraps a naked expression as a function, we will unbox
     // it here.
-    if (auto func = expr.as<FunctionNode>()) {
+    if (expr.as<FunctionNode>()) {
       return e;
     } else {
       return e->body;
