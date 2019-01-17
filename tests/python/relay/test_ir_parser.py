@@ -225,12 +225,22 @@ def test_seq():
         )
     )
 
-    zero = UNIT
-    one = relay.const(1)
+@if_parser_enabled
+def test_graph():
     assert parses_as(
-        "%0 = (); (%0, %0)",
-        relay.Tuple([zero, zero, one])
+        "%0 = (); %1 = 1; (%0, %0, %1)",
+        relay.Tuple([UNIT, UNIT, relay.const(1)])
     )
+
+    assert not parses_as(
+        "%0 = (); %1 = 1; (%0, %0, %1)",
+        relay.Tuple([relay.Tuple([]), relay.Tuple([]), relay.const(1)])
+    )
+
+@raises_parse_error
+@if_parser_enabled
+def test_graph_wrong_order():
+    relay.fromtext(SEMVER+"%1 = (); %1")
 
 @raises_parse_error
 @if_parser_enabled

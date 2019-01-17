@@ -286,7 +286,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         else:
             local_var = ctx.var().ident().LOCAL_VAR()
             if local_var is None:
-                raise ParseError('Only local ids may be used in `let`s.')
+                raise ParseError("Only local ids may be used in `let`s.")
             ident = local_var.getText()[1:]
             type_ = self.getType_(ctx.var().type_())
 
@@ -318,7 +318,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         ident = ctx.ident().LOCAL_VAR()
 
         if ident is None:
-            raise ParseError('Only local ids may be used in params.')
+            raise ParseError("Only local ids may be used in vars.")
 
         type_ = self.getType_(ctx.type_())
 
@@ -379,7 +379,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (RelayParser.DefnContext) -> None
         ident = ctx.ident().GLOBAL_VAR()
         if ident is None:
-            raise ParseError('Only global ids may be used in `def`s.')
+            raise ParseError("Only global ids may be used in `def`s.")
         ident_name = ident.getText()[1:]
         ident = self.mk_global_var(ident_name)
 
@@ -416,14 +416,15 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (RelayParser.GraphContext) -> expr.Expr
         """Visit a graph variable assignment."""
         if ctx.ident().GRAPH_VAR() is None:
-            raise ParseError('Expected a graph var, but got `{}`'.format(ctx.ident().getText()))
+            raise ParseError("Expected a graph var, but got `{}`".format(ctx.ident().getText()))
         graph_nid = int(ctx.ident().GRAPH_VAR().getText()[1:])
 
         self.enter_var_scope()
         value = self.visit(ctx.expr(0))
         self.exit_var_scope()
 
-        assert graph_nid == len(self.graph_expr)
+        if graph_nid != len(self.graph_expr):
+            raise ParseError("Expected the new graph variable to be `%{}`, but got `%{}` instead".format(len(self.graph_expr), graph_nid))
         self.graph_expr.append(value)
 
         kont = self.visit(ctx.expr(1))
