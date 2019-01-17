@@ -144,6 +144,11 @@ topi.image
 ~~~~~~~~~~
 .. autofunction:: topi.image.resize
 
+topi.sparse
+~~~~~~~~~~~
+.. autofunction:: topi.sparse.csrmv
+.. autofunction:: topi.sparse.csrmm
+.. autofunction:: topi.sparse.dense
 
 topi.generic
 ~~~~~~~~~~~~
