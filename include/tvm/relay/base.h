@@ -108,7 +108,9 @@ class SourceName : public NodeRef {
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
-  inline const SourceNameNode* operator->() const;
+  inline const SourceNameNode* operator->() const {
+    return static_cast<SourceNameNode*>(this->node_.get());
+  }
 
   /*!
    * \brief Get an SourceName for a given operator name.
