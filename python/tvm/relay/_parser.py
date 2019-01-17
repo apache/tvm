@@ -6,12 +6,16 @@ from __future__ import absolute_import
 import sys
 
 from collections import deque
-from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
+from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any, Dict
+
+import tvm
 
 from . import module
+from .base import Span, SourceName
 from . import expr
 from . import ty
 from . import op
+
 
 class ParseError(Exception):
     """Exception type for parse errors."""
@@ -76,21 +80,45 @@ def lookup(scopes, name):
                 return val
     return None
 
+def spanify(f):
+    """A decorator which attaches span information
+       to the value returned by calling `f`.
+
+       Intended for use with the below AST visiting
+       methods. The idea is that after we do the work
+       of constructing the AST we attach Span information.
+    """
+
+    def _wrapper(*args, **kwargs):
+        # Assumes 0th arg is self and gets source_name from object.
+        sn = args[0].source_name
+        # Assumes 1st arg is an ANTLR parser context.
+        ctx = args[1]
+        ast = f(*args, **kwargs)
+        line, col = ctx.getSourceInterval()
+        sp = Span(sn, line, col)
+        ast.set_span(sp)
+        return ast
+    return _wrapper
+
 # TODO(@jmp): Use https://stackoverflow.com/q/13889941
 # to figure out how to get ANTLR4 to be more unhappy about syntax errors
 class ParseTreeToRelayIR(RelayVisitor):
     """Parse Relay text format into Relay IR."""
 
-    def __init__(self):
-        # type: () -> None
+    def __init__(self, source_name):
+        # type: (str) -> None
+        self.source_name = source_name
         self.module = module.Module({})   # type: module.Module
 
         # Adding an empty scope allows naked lets without pain.
-        self.var_scopes = deque([deque()]) # type: Scopes[expr.Var]
-        self.global_var_scope = deque() # type: Scope[expr.GlobalVar]
-        self.type_param_scopes = deque([deque()]) # type: Scopes[ty.TypeVar]
+        self.var_scopes = deque([deque()])          # type: Scopes[expr.Var]
+        self.global_var_scope = deque()             # type: Scope[expr.GlobalVar]
+        self.type_param_scopes = deque([deque()])   # type: Scopes[ty.TypeVar]
+        self.graph_expr = []                        # type: List[expr.Expr]
 
         super(ParseTreeToRelayIR, self).__init__()
+
 
     def enter_var_scope(self):
         # type: () -> None
@@ -146,20 +174,25 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         node_type = node.getSymbol().type
         node_text = node.getText()
+        name = node_text[1:]
 
         # variables
         if node_type == RelayLexer.GLOBAL_VAR:
-            return lookup([self.global_var_scope], node_text[1:])
+            return lookup(deque([self.global_var_scope]), node_text[1:])
         elif node_type == RelayLexer.LOCAL_VAR:
-            name = node_text[1:]
+            # Remove the leading '%' and lookup the name.
             var = lookup(self.var_scopes, name)
             if var is None:
                 raise ParseError("Couldn't resolve `{}`.".format(name))
-
             return var
+        elif node_type == RelayLexer.GRAPH_VAR:
+            try:
+                return self.graph_expr[int(name)]
+            except IndexError:
+                raise ParseError("Couldn't resolve `{}`".format(name))
 
         # data types
-        elif node_type == RelayLexer.INT:
+        elif node_type == RelayLexer.NAT:
             return int(node_text)
         elif node_type == RelayLexer.FLOAT:
             return float(node_text)
@@ -190,7 +223,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return self.visit(ctx)
 
     def visitProg(self, ctx):
-        # type: (RelayParser.ProgContext) -> Union[expr.Expr, env.Environment]
+        # type: (RelayParser.ProgContext) -> Union[expr.Expr, module.Module]
         if ctx.defn():
             self.visit_list(ctx.defn())
             return self.module
@@ -219,7 +252,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitScalarInt(self, ctx):
         # type: (RelayParser.ScalarIntContext) -> expr.Constant
-        return expr.const(self.visit(ctx.INT()))
+        return expr.const(self.visit(ctx.NAT()))
 
     def visitScalarBool(self, ctx):
         # type: (RelayParser.ScalarBoolContext) -> expr.Constant
@@ -240,7 +273,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return expr.Tuple(tup)
 
     # Currently doesn't support mutable sequencing.
-    def visitSeq(self, ctx):
+    def visitLet(self, ctx):
         # type: (RelayParser.SeqContext) -> expr.Let
         """Desugar various sequence constructs to Relay Let nodes."""
         if ctx.MUT() is not None:
@@ -253,7 +286,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         else:
             local_var = ctx.var().ident().LOCAL_VAR()
             if local_var is None:
-                raise ParseError('Only local ids may be used in `let`s.')
+                raise ParseError("Only local ids may be used in `let`s.")
             ident = local_var.getText()[1:]
             type_ = self.getType_(ctx.var().type_())
 
@@ -278,12 +311,14 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return relay_op(arg0, arg1)
 
+    @spanify
     def visitVar(self, ctx):
         # type: (RelayParser.VarContext) -> expr.Var
+        """Visit a single variable."""
         ident = ctx.ident().LOCAL_VAR()
 
         if ident is None:
-            raise ParseError('Only local ids may be used in params.')
+            raise ParseError("Only local ids may be used in vars.")
 
         type_ = self.getType_(ctx.type_())
 
@@ -293,15 +328,33 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (RelayParser.VarListContext) -> List[expr.Var]
         return self.visit_list(ctx.var())
 
+    # TODO: support a larger class of values than just Relay exprs
+    def visitAttr(self, ctx):
+        # type: (RelayParser.AttrContext) -> Tuple[str, expr.Expr]
+        return (ctx.CNAME().getText(), self.visit(ctx.expr()))
+
+    def visitAttrList(self, ctx):
+        # type: (RelayParser.AttrListContext) -> Dict[str, expr.Expr]
+        return dict(self.visit_list(ctx.attr()))
+
+    def visitArgList(self,
+                     ctx    # type: RelayParser.ArgListContext
+                    ):
+        # type: (...) -> Tuple[Optional[List[expr.Var]], Optional[Dict[str, expr.Expr]]]
+        var_list = self.visit(ctx.varList()) if ctx.varList() else None
+        attr_list = self.visit(ctx.attrList()) if ctx.attrList() else None
+
+        return (var_list, attr_list)
+
     def mk_func(self, ctx):
-        # type: (Union[RelayParser.FuncContext, RelayParser.DefnContext]) -> Function
+        # type: (Union[RelayParser.FuncContext, RelayParser.DefnContext]) -> expr.Function
         """Construct a function from either a Func or Defn."""
 
         # Enter var scope early to put params in scope.
         self.enter_var_scope()
         # Capture type params in params.
         self.enter_type_param_scope()
-        var_list = self.visit(ctx.varList())
+        var_list, attr_list = self.visit(ctx.argList())
         ret_type = self.getType_(ctx.type_())
 
         type_params = list(self.exit_type_param_scope())
@@ -311,22 +364,28 @@ class ParseTreeToRelayIR(RelayVisitor):
         body = self.visit(ctx.body())
         self.exit_var_scope()
 
-        return expr.Function(var_list, body, ret_type, type_params) # type: ignore
+        attrs = tvm.make.node("DictAttrs", **attr_list) if attr_list is not None else None
 
+        return expr.Function(var_list, body, ret_type, type_params, attrs)
+
+    @spanify
     def visitFunc(self, ctx):
         # type: (RelayParser.FuncContext) -> expr.Function
         return self.mk_func(ctx)
 
+    # TODO: how to set spans for definitions?
+    # @spanify
     def visitDefn(self, ctx):
         # type: (RelayParser.DefnContext) -> None
         ident = ctx.ident().GLOBAL_VAR()
         if ident is None:
-            raise ParseError('Only global ids may be used in `def`s.')
+            raise ParseError("Only global ids may be used in `def`s.")
         ident_name = ident.getText()[1:]
         ident = self.mk_global_var(ident_name)
 
         self.module[ident] = self.mk_func(ctx)
 
+    @spanify
     def visitCall(self, ctx):
         # type: (RelayParser.CallContext) -> expr.Call
         visited_exprs = self.visit_list(ctx.expr())
@@ -336,6 +395,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return expr.Call(func, args, None, None)
 
+    @spanify
     def visitIfElse(self, ctx):
         # type: (RelayParser.IfElseContext) -> expr.If
         """Construct a Relay If node. Creates a new scope for each branch."""
@@ -350,6 +410,27 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.exit_var_scope()
 
         return expr.If(cond, true_branch, false_branch)
+
+    @spanify
+    def visitGraph(self, ctx):
+        # type: (RelayParser.GraphContext) -> expr.Expr
+        """Visit a graph variable assignment."""
+        if ctx.ident().GRAPH_VAR() is None:
+            raise ParseError("Expected a graph var, but got `{}`".format(ctx.ident().getText()))
+        graph_nid = int(ctx.ident().GRAPH_VAR().getText()[1:])
+
+        self.enter_var_scope()
+        value = self.visit(ctx.expr(0))
+        self.exit_var_scope()
+
+        if graph_nid != len(self.graph_expr):
+            raise ParseError(
+                "Expected new graph variable to be `%{}`,".format(len(self.graph_expr)) + \
+                "but got `%{}`".format(graph_nid))
+        self.graph_expr.append(value)
+
+        kont = self.visit(ctx.expr(1))
+        return kont
 
     # Types
 
@@ -428,8 +509,18 @@ def make_parser(data):
     token_stream = CommonTokenStream(lexer)
     return RelayParser(token_stream)
 
-def fromtext(data):
-    # type: (str) -> Union[expr.Expr, env.Environment]
+__source_name_counter__ = 0
+
+def fromtext(data, source_name=None):
+    # type: (str, str) -> Union[expr.Expr, module.Module]
     """Parse a Relay program."""
+    global __source_name_counter__
+
+    if source_name is None:
+        source_name = "source_file{0}".format(__source_name_counter__)
+
+    if isinstance(source_name, str):
+        source_name = SourceName(source_name)
+
     tree = make_parser(data).prog()
-    return ParseTreeToRelayIR().visit(tree)
+    return ParseTreeToRelayIR(source_name).visit(tree)

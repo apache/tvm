@@ -1,5 +1,7 @@
 grammar Relay;
 
+SEMVER: 'v0.0.1' ;
+
 // Lexing
 // comments
 WS : [ \t\n\r]+ -> skip ;
@@ -20,7 +22,8 @@ NE: '!=' ;
 
 opIdent: CNAME ;
 GLOBAL_VAR: '@' CNAME ;
-LOCAL_VAR: '%' CNAME ;
+LOCAL_VAR: '%' CNAME;
+GRAPH_VAR: '%' NAT;
 
 MUT: 'mut' ;
 
@@ -31,13 +34,13 @@ BOOL_LIT
 
 // non-negative floats
 FLOAT
-  : INT '.' INT EXP? // 1.35, 1.35E-9, 0.3, 4.5
-  | INT EXP // 1e10 3e4
+  : NAT '.' NAT EXP? // 1.35, 1.35E-9, 0.3, 4.5
+  | NAT EXP // 1e10 3e4
   ;
 
 // non-negative ints
-INT: DIGIT+ ;
-fragment EXP: [eE] [+\-]? INT ; // \- since - means "range" inside [...]
+NAT: DIGIT+ ;
+fragment EXP: [eE] [+\-]? NAT ; // \- since - means "range" inside [...]
 
 CNAME: ('_'|LETTER) ('_'|LETTER|DIGIT)* ;
 fragment LETTER: [a-zA-Z] ;
@@ -46,7 +49,7 @@ fragment DIGIT: [0-9] ;
 // Parsing
 
 // A Relay program is a list of global definitions or an expression.
-prog: (defn* | expr) EOF ;
+prog: SEMVER (defn* | expr) EOF ;
 
 // option: 'set' ident BOOL_LIT ;
 
@@ -73,10 +76,11 @@ expr
   | 'if' '(' expr ')' body 'else' body        # ifElse
 
   // sequencing
-  | 'let' MUT? var '=' expr ';' expr          # seq
-  | 'let' MUT? var '=' '{' expr '}' ';' expr  # seq
+  | 'let' MUT? var '=' expr ';' expr          # let
+  | 'let' MUT? var '=' '{' expr '}' ';' expr  # let
   // sugar for let %_ = expr; expr
-  | expr ';' expr                             # seq
+  | expr ';' expr                             # let
+  | ident '=' expr ';' expr                   # graph
 
   // mutable update
   // | ident '=' expr                            # writeRef
@@ -84,15 +88,24 @@ expr
 
   | ident                                     # identExpr
   | scalar                                    # scalarExpr
-  // | expr '.' INT                              # project
-  // | 'debug'                                   # debug
+  // | expr '.' NAT                           # project
+  // | 'debug'                                # debug
   ;
 
-func: 'fn'        varList ('->' type_)? body ;
-defn: 'def' ident varList ('->' type_)? body ;
+func: 'fn'        '(' argList ')' ('->' type_)? body ;
+defn: 'def' ident '(' argList ')' ('->' type_)? body ;
 
-varList: '(' (var (',' var)*)? ')' ;
+argList
+  : varList
+  | attrList
+  | varList ',' attrList
+  ;
+
+varList: (var (',' var)*)? ;
 var: ident (':' type_)? ;
+
+attrList: (attr (',' attr)*)? ;
+attr: CNAME '=' expr ;
 
 // TODO(@jmp): for improved type annotations
 // returnAnno: (ident ':')? type_ ;
@@ -110,7 +123,7 @@ type_
   // | identType '[' (type_ (',' type_)*)? ']'         # callType
   | 'fn' '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
   | '_'                                             # incompleteType
-  | INT                                             # intType
+  | NAT                                             # intType
   ;
 
 shapeSeq
@@ -123,20 +136,20 @@ shape
   : '(' shape ')'                   # parensShape
   // | type_ op=('*'|'/') type_        # binOpType
   // | type_ op=('+'|'-') type_        # binOpType
-  | INT                             # intShape
+  | NAT                             # intShape
   ;
 
 identType: CNAME ;
-// Int8, Int16, Int32, Int64
-// UInt8, UInt16, UInt32, UInt64
-// Float16, Float32, Float64
-// Bool
+// int8, int16, int32, int64
+// uint8, uint16, uint32, uint64
+// float16, float32, float64
+// bool
 
 body: '{' expr '}' ;
 
 scalar
   : FLOAT    # scalarFloat
-  | INT      # scalarInt
+  | NAT      # scalarInt
   | BOOL_LIT # scalarBool
   ;
 
@@ -144,4 +157,5 @@ ident
   : opIdent
   | GLOBAL_VAR
   | LOCAL_VAR
+  | GRAPH_VAR
   ;
