@@ -480,11 +480,12 @@ inline const TTypeNode* ExprNode::type_as() const {
  * \param show_meta_data Whether to print meta data section.
  * \param annotate An optional callback function for attaching
  *        additional comment block to an expr.
+ * \note show_meta_data field is necessary to fully parse the text format.
  * \return The text representation.
  */
 std::string RelayPrint(
     const NodeRef& node,
-    bool show_meta_data = true,
+    bool show_meta_data = false,
     runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 }  // namespace relay
 }  // namespace tvm
