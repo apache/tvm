@@ -106,8 +106,6 @@ using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;
   // Finally we report the error, currently we do so to LOG(FATAL),
   // it may be good to instead report it to std::cout.
   LOG(FATAL) << annotated_prog.str() << std::endl;
-
-  exit(1);
 }
 
 void ErrorReporter::ReportAt(const GlobalVar& global, const NodeRef& node, const Error& err) {

@@ -20,11 +20,11 @@ namespace relay {
  * issues compiling and using std::stringstream
  * for error reporting.
  */
-struct StringStream {
+struct RelayErrorStream {
   std::stringstream ss;
 
   template<typename T>
-  StringStream& operator<<(const T& t) {
+  RelayErrorStream& operator<<(const T& t) {
     ss << t;
     return *this;
   }
@@ -34,13 +34,13 @@ struct StringStream {
   }
 };
 
-#define RELAY_ERROR(msg) (StringStream() << msg)
+#define RELAY_ERROR(msg) (RelayErrorStream() << msg)
 
 struct Error : public dmlc::Error {
   Span sp;
   explicit Error(const std::string &msg) : dmlc::Error(msg), sp() {}
   Error(const std::stringstream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
-  Error(const StringStream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
+  Error(const RelayErrorStream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
 };
 
 struct InternalError : public Error {

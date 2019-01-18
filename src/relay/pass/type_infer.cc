@@ -174,12 +174,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     return ret;
   }
 
-  [[noreturn]] void ReportFatalError(const Expr& expr, const std::stringstream& err) {
-    CHECK(this->current_func_.defined());
-    this->err_reporter.ReportAt(this->current_func_, expr, Error(err));
-    this->err_reporter.RenderErrors(this->mod_);
-  }
-
   [[noreturn]] void ReportFatalError(const Expr& expr, const Error& err) {
     CHECK(this->current_func_.defined());
     this->err_reporter.ReportAt(this->current_func_, expr, err);
@@ -604,19 +598,19 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
     // type check it anyway; afterwards we can just recover type
     // from the type-checked function to avoid doing unnecessary work.
 
-    Function e = mod->Lookup(mod->entry_func);
+    Function func = mod->Lookup(mod->entry_func);
 
     // FromExpr wraps a naked expression as a function, we will unbox
     // it here.
     if (expr.as<FunctionNode>()) {
-      return e;
+      return func;
     } else {
-      return e->body;
+      return func->body;
     }
   } else {
     auto e = TypeInferencer(mod_ref, mod_ref->entry_func).Infer(expr);
     CHECK(WellFormed(e));
-    return e;
+    return func;
   }
 }
 

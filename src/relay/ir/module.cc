@@ -105,7 +105,7 @@ Expr ModuleNode::EntryPoint() {
 Module ModuleNode::FromExpr(
   const Expr& expr,
   const tvm::Map<GlobalVar, Function>& global_funcs) {
-  auto mod = ModuleNode::make({});
+  auto mod = ModuleNode::make(global_funcs);
   auto func_node = expr.as<FunctionNode>();
   Function func;
   if (func_node) {
