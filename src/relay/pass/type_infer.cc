@@ -610,7 +610,7 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
   } else {
     auto e = TypeInferencer(mod_ref, mod_ref->entry_func).Infer(expr);
     CHECK(WellFormed(e));
-    return func;
+    return e;
   }
 }
 

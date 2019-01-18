@@ -38,7 +38,7 @@ struct RelayErrorStream {
 
 struct Error : public dmlc::Error {
   Span sp;
-  explicit Error(const std::string &msg) : dmlc::Error(msg), sp() {}
+  explicit Error(const std::string& msg) : dmlc::Error(msg), sp() {}
   Error(const std::stringstream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
   Error(const RelayErrorStream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
 };
