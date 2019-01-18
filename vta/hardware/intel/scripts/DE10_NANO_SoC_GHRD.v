@@ -199,7 +199,7 @@ soc_system u0(
 
 					, .uops_stream_0_data_length_data(32'h10)
 					, .biases_stream_0_data_length_data(32'h80)
-					, .outputs_stream_0_data_length_data(32'h80)
+					// , .outputs_stream_0_data_length_data(32'h80)
            );
 
 // Debounce logic to clean out glitches within 1ms
