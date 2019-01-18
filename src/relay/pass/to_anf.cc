@@ -198,7 +198,7 @@ Scope LCA(Scope lhs, Scope rhs) {
   return lhs;
 }
 
-std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(DependencyGraph& dg) {
+std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg) {
   std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
   Scope global_scope = std::make_shared<ScopeNode>();
   for (auto it = dg.post_dfs_order.rbegin(); it != dg.post_dfs_order.rend(); ++it) {
@@ -257,7 +257,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Scope GetSubScope(const Expr& e, size_t i) {
     DependencyGraph::Node* n = dg_.expr_node.at(e);
     auto h = n->input.head;
-    while(i != 0) {
+    while (i != 0) {
       CHECK(h);
       --i;
       h = h->next;
