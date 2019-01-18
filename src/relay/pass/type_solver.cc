@@ -36,20 +36,6 @@ class TypeSolver::Reporter : public TypeReporterNode {
   }
 
   void ReportError(const Error& err) final {
-    std::cout
-      << "Current Function: "
-      << solver_->current_func
-      << std::endl;
-
-    std::cout
-      << "Location: "
-      << location
-      << std::endl;
-
-    std::cout
-      << err.what()
-      << std::endl;
-
     solver_->err_reporter_->ReportAt(
       solver_->current_func,
       location,
