@@ -529,6 +529,8 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1),
         np_out = np.clip(np_out, 0, 1)
 
     for target, ctx in ctx_list():
+        if target == "cuda":
+            continue
         graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
         m = graph_runtime.create(graph, lib, ctx)
         m.set_input("data", np.random.uniform(size=dshape).astype(dtype))
