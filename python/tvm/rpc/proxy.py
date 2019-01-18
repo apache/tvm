@@ -298,7 +298,8 @@ class ProxyServerHandler(object):
         """Update information on tracker."""
         try:
             if self._tracker_conn is None:
-                self._tracker_conn = socket.socket(base.get_addr_family(self._tracker_addr), socket.SOCK_STREAM)
+                self._tracker_conn = socket.socket(base.get_addr_family(self._tracker_addr),
+                                                    socket.SOCK_STREAM)
                 self._tracker_conn.connect(self._tracker_addr)
                 self._tracker_conn.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
                 magic = struct.unpack("<i", base.recvall(self._tracker_conn, 4))[0]
