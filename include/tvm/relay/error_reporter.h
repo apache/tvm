@@ -92,6 +92,10 @@ class ErrorReporter {
    */
   [[noreturn]] void RenderErrors(const Module& module, bool use_color = true);
 
+  inline bool AnyErrors() {
+    return errors_.size() != 0;
+  }
+
  private:
   std::vector<Error> errors_;
   std::unordered_map<NodeRef, std::vector<size_t>, NodeHash, NodeEqual> node_to_error_;

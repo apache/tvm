@@ -55,7 +55,8 @@ bool EqualConstInt(const IndexExpr& lhs, int64_t value) {
 
 Type ConcreteBroadcast(const TensorType& t1,
                        const TensorType& t2,
-                       DataType output_dtype) {
+                       DataType output_dtype,
+                       const TypeReporter& reporter) {
   std::vector<IndexExpr> oshape;
   size_t ndim1 = t1->shape.size();
   size_t ndim2 = t2->shape.size();
@@ -70,9 +71,13 @@ Type ConcreteBroadcast(const TensorType& t1,
     } else if (EqualConstInt(s2, 1)) {
       oshape.push_back(s1);
     } else {
-      LOG(FATAL) << "Incompatible broadcast type " << t1 << " and " << t2;
+      reporter->ReportError(
+        RELAY_ERROR(
+          "Incompatible broadcast type "
+              << t1 << " and " << t2));
     }
   }
+
   size_t max_ndim = std::max(ndim1, ndim2);
   auto& rshape = (ndim1 > ndim2) ? t1->shape : t2->shape;
   for (; i <= max_ndim; ++i) {
@@ -92,7 +97,8 @@ bool BroadcastRel(const Array<Type>& types,
   if (auto t0 = ToTensorType(types[0])) {
     if (auto t1 = ToTensorType(types[1])) {
       CHECK_EQ(t0->dtype, t1->dtype);
-      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, t0->dtype));
+      reporter->Assign(types[2],
+        ConcreteBroadcast(t0, t1, t0->dtype, reporter));
       return true;
     }
   }
@@ -109,7 +115,7 @@ bool BroadcastCompRel(const Array<Type>& types,
   if (auto t0 = ToTensorType(types[0])) {
     if (auto t1 = ToTensorType(types[1])) {
       CHECK_EQ(t0->dtype, t1->dtype);
-      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, ::tvm::Bool()));
+      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, ::tvm::Bool(), reporter));
       return true;
     }
   }

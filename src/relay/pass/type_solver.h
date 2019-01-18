@@ -6,8 +6,10 @@
 #ifndef TVM_RELAY_PASS_TYPE_SOLVER_H_
 #define TVM_RELAY_PASS_TYPE_SOLVER_H_
 
+#include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/error_reporter.h>
 #include <vector>
 #include <queue>
 #include "../../common/arena.h"
@@ -40,13 +42,13 @@ using common::LinkedList;
  */
 class TypeSolver {
  public:
-  TypeSolver();
+  TypeSolver(const GlobalVar& current_func, ErrorReporter* err_reporter);
   ~TypeSolver();
   /*!
    * \brief Add a type constraint to the solver.
    * \param constraint The constraint to be added.
    */
-  void AddConstraint(const TypeConstraint& constraint);
+  void AddConstraint(const TypeConstraint& constraint, const NodeRef& lcoation);
   /*!
    * \brief Resolve type to the solution type in the solver.
    * \param type The type to be resolved.
@@ -63,7 +65,7 @@ class TypeSolver {
    * \param lhs The left operand.
    * \param rhs The right operand
    */
-  Type Unify(const Type& lhs, const Type& rhs);
+  Type Unify(const Type& lhs, const Type& rhs, const NodeRef& location);
 
  private:
   class OccursChecker;
@@ -112,6 +114,7 @@ class TypeSolver {
       return root;
     }
   };
+
   /*! \brief relation node */
   struct RelationNode {
     /*! \brief Whether the relation is in the queue to be solved */
@@ -122,7 +125,10 @@ class TypeSolver {
     TypeRelation rel;
     /*! \brief list types to this relation */
     LinkedList<TypeNode*> type_list;
+    /*! \brief The location this type relation originated from. */
+    NodeRef location;
   };
+
   /*! \brief List of all allocated type nodes */
   std::vector<TypeNode*> type_nodes_;
   /*! \brief List of all allocated relation nodes */
@@ -137,6 +143,11 @@ class TypeSolver {
   common::Arena arena_;
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
+  /*! \brief The global representing the current function. */
+  GlobalVar current_func;
+  /*! \brief Error reporting. */
+  ErrorReporter* err_reporter_;
+
   /*!
    * \brief GetTypeNode that is corresponds to t.
    * if it do not exist, create a new one.

@@ -12,6 +12,7 @@
 #include <string>
 
 #include "base.h"
+#include "error.h"
 #include "../attrs.h"
 
 namespace tvm {
@@ -295,8 +296,13 @@ class TypeReporterNode : public Node {
    */
   TVM_DLL virtual bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
 
+  TVM_DLL virtual void ReportError(const Error& err) = 0;
+
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) final {}
+
+  // Not sure if best design, if not we should recreate a reporter for each relation.
+  mutable NodeRef location;
 
   static constexpr const char* _type_key = "relay.TypeReporter";
   TVM_DECLARE_NODE_TYPE_INFO(TypeReporterNode, Node);

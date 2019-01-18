@@ -83,10 +83,10 @@ struct ResolvedTypeInfo {
 class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
  public:
   // constructors
-  TypeInferencer() {
-  }
+
   explicit TypeInferencer(Module mod, GlobalVar current_func)
-      : mod_(mod), current_func_(current_func), err_reporter() {
+      : mod_(mod), current_func_(current_func),
+        err_reporter(), solver_(current_func, &this->err_reporter) {
   }
 
   // inference the type of expr.
@@ -123,7 +123,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   Type Unify(const Type& t1, const Type& t2, const Expr& expr) {
     // TODO(tqchen, jroesch): propagate span to solver
     try {
-      return solver_.Unify(t1, t2);
+      return solver_.Unify(t1, t2, expr);
     } catch (const dmlc::Error &e) {
       this->ReportFatalError(
         expr,
@@ -224,7 +224,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     auto attrs = make_node<TupleGetItemAttrs>();
     attrs->index = op->index;
     solver_.AddConstraint(TypeRelationNode::make(
-        tuple_getitem_rel_, {tuple_type, rtype}, 1, Attrs(attrs)));
+        tuple_getitem_rel_, {tuple_type, rtype}, 1, Attrs(attrs)), GetRef<TupleGetItem>(op));
     return rtype;
   }
 
@@ -267,7 +267,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // The result will be the return type of the operator.
   Type PrimitiveCall(const FuncTypeNode* op,
                      Array<Type> arg_types,
-                     const Attrs& attrs) {
+                     const Attrs& attrs,
+                     const NodeRef& loc) {
     if (op->type_params.size() != arg_types.size() + 1) return Type();
     if (op->type_constraints.size() != 1) return Type();
     const TypeRelationNode* rel = op->type_constraints[0].as<TypeRelationNode>();
@@ -280,7 +281,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     arg_types.push_back(rtype);
     // we can do simple replacement here
     solver_.AddConstraint(TypeRelationNode::make(
-        rel->func, arg_types, arg_types.size() - 1, attrs));
+        rel->func, arg_types, arg_types.size() - 1, attrs), loc);
     return rtype;
   }
 
@@ -388,9 +389,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     for (auto cs : fn_ty->type_constraints) {
       if (auto tr = cs.as<TypeRelationNode>()) {
         solver_.AddConstraint(
-          TypeRelationNode::make(tr->func, tr->args, tr->num_inputs, call->attrs));
+          TypeRelationNode::make(tr->func, tr->args, tr->num_inputs, call->attrs),
+          GetRef<Call>(call));
       } else {
-        solver_.AddConstraint(cs);
+        solver_.AddConstraint(cs, GetRef<Call>(call));
       }
     }
 
@@ -406,7 +408,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     if (const OpNode* opnode = call->op.as<OpNode>()) {
       Type rtype = PrimitiveCall(opnode->op_type.as<FuncTypeNode>(),
                                  arg_types,
-                                 call->attrs);
+                                 call->attrs,
+                                 GetRef<Call>(call));
       if (rtype.defined()) {
         AddTypeArgs(GetRef<Call>(call), arg_types);
         return rtype;
@@ -583,6 +586,10 @@ Expr TypeInferencer::Infer(Expr expr) {
   GetType(expr);
   // Step 1: Solve the constraints.
   solver_.Solve();
+
+  if (err_reporter.AnyErrors()) {
+    err_reporter.RenderErrors(mod_);
+  }
 
   // Step 2: Attach resolved types to checked_type field.
   auto resolved_expr = Resolver(type_map_, &solver_).VisitExpr(expr);
