@@ -15,7 +15,7 @@ The first rule for code reviewers is to always keep the highest standard, and do
 
 Deliberate on API and Data Structures
 -------------------------------------
-A minimum and stable API is critical to the project’s life. A good API makes a huge difference. Always think very carefully about all the aspects including naming, arguments definitions and behavior.
+A minimum and stable API is critical to the project’s life. A good API makes a huge difference. Always think very carefully about all the aspects including naming, argument definitions and behavior.
 
 When possible, pay more time and thoughts into the API design during code reviews.
 Remember, it is easier to improve code implementation, but it is extremely hard to change an API.
@@ -25,17 +25,17 @@ When uncertain, start a conversation with more developers.
 Here are some useful principles for designing APIs:
 
 - Be consistent with existing well-known package’s APIs if the feature overlap.
-  For example, tensor operation APIs should always be consistent with the numpy.
+  For example, tensor operation APIs should always be consistent with the numpy API.
 - Be consistent with existing APIs in the same project.
   For example, we should use the same argument ordering across all the optimization passes,
   so there is no "surprise" when using them.
-- Think about whether API will change in the future.
-  For example, we will have more options like loop_unrolling, device placement policy
-  as we add more optimization in build. We can package optimization knobs into a build
+- Think about whether the API will change in the future.
+  For example, we will have more options like loop_unrolling and device placement policy
+  as we add more optimizations in build. We can package optimization knobs into a build
   configuration object. So that the build API is stable over time.
-- Write down documents. Documents are mandatory for APIs, sometimes writing documents helps
+- Write down documents. Documents are mandatory for APIs and sometimes writing documents helps
   us to think about whether we need clarification.
-- Minimum. Think about how many lines of code a user have to write to use the API.
+- Minimum. Think about how many lines of code a user has to write to use the API.
   Remove layers of abstraction when possible.
 
 
