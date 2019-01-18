@@ -165,7 +165,7 @@ def schedule_proposal(outs):
     Parameters
     ----------
     outs: Array of Tensor
-      The computation graph description of roi_align
+      The computation graph description of proposal
       in the format of an array of tensors.
 
     Returns
