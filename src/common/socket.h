@@ -111,6 +111,8 @@ struct SockAddr {
   } else if (addr.ss_family == AF_INET) {
     const in_addr& addr4 = reinterpret_cast<const sockaddr_in *>(&addr)->sin_addr;
     sinx_addr = reinterpret_cast<const void *>(&addr4);
+  } else {
+    CHECK(false) << "illegal address";
   }
 
 #ifdef _WIN32
