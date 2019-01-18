@@ -43,7 +43,7 @@ std::shared_ptr<RPCSession>
 RPCConnect(std::string url, int port, std::string key) {
   common::TCPSocket sock;
   common::SockAddr addr(url.c_str(), port);
-  sock.Create();
+  sock.Create(addr.ss_family());
   CHECK(sock.Connect(addr))
       << "Connect to " << addr.AsString() << " failed";
   // hand shake
