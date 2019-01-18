@@ -1,4 +1,4 @@
 .. _tutorial-nnvm:
 
-Compile Deep Learning Models
-----------------------------
+NNVM Compiler Tutorials
+-----------------------
