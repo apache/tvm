@@ -25,6 +25,7 @@ Here are guidelines for contributing to various aspect of the project:
 
    community
    code_review
+   committer_guide
    document
    code_guide
    pull_request

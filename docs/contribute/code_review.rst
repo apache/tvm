@@ -1,3 +1,5 @@
+.. _code_review_guide:
+
 Perform Code Reviews
 ====================
 
