@@ -103,7 +103,7 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
     }
 
     Layout common_part = layouts[large_idx].Sublayout(i, layouts[large_idx].ndim() - i);
-    if (!BijectiveLayoutNode::make(layouts[small_idx], common_part).defined()) {  // not convertible
+    if (!BijectiveLayout(layouts[small_idx], common_part).defined()) {  // not convertible
       return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
     }
 

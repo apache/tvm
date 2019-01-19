@@ -227,8 +227,7 @@ TVM_REGISTER_API("_BufferVStore")
 
 TVM_REGISTER_API("_BijectiveLayout")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = BijectiveLayoutNode::make(LayoutNode::make(args[0]),
-                                   LayoutNode::make(args[1]));
+  *ret = BijectiveLayoutNode::make(args[0], args[1]);
 });
 
 TVM_REGISTER_API("_BijectiveLayoutForwardIndex")

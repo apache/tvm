@@ -32,9 +32,9 @@ Array<Array<Layout> > Pool2DInferCorrectLayout(
 
     Layout raw_layout(params->layout);
     Layout input = new_in_layouts[0];
-    if (input.Indexof(LayoutAxis::Get('W')) == raw_layout.Indexof(LayoutAxis::Get('W')) &&
-        input.Indexof(LayoutAxis::Get('H')) == raw_layout.Indexof(LayoutAxis::Get('H')) &&
-        !input.Contains(LayoutAxis::Get('w')) && !input.Contains(LayoutAxis::Get('h'))) {
+    if (input.Indexof(LayoutAxis::W) == raw_layout.Indexof(LayoutAxis::W) &&
+        input.Indexof(LayoutAxis::H) == raw_layout.Indexof(LayoutAxis::H) &&
+        !input.Contains(LayoutAxis::w) && !input.Contains(LayoutAxis::h)) {
       params->layout = input.name();  // modify self to follow the input layout
     }
   }
@@ -59,13 +59,13 @@ bool Pool2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
-  CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
-        !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
+  CHECK(layout.Contains(LayoutAxis::H) && layout.Contains(LayoutAxis::W) &&
+        !layout.Contains(LayoutAxis::h) && !layout.Contains(LayoutAxis::w))
     << "Invalid layout " << layout
     << ". Pool2D layout must have H and W, which cannot be split";
 
-  const auto hidx = layout.Indexof(LayoutAxis::Get('H'));
-  const auto widx = layout.Indexof(LayoutAxis::Get('W'));
+  const auto hidx = layout.Indexof(LayoutAxis::H);
+  const auto widx = layout.Indexof(LayoutAxis::W);
 
   IndexExpr pad_h, pad_w;
   if (param->padding.size() == 1) {
@@ -129,11 +129,11 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
 
-  CHECK(BijectiveLayoutNode::make(layout, Layout("NCHW")).defined())
+  CHECK(BijectiveLayout(layout, Layout("NCHW")).defined())
       << "max_pool2d currently only supports layouts that are convertible from NCHW";
-  CHECK_EQ(layout.Indexof(LayoutAxis::Get('h')), -1)
+  CHECK_EQ(layout.Indexof(LayoutAxis::h), -1)
       << "max_pool2d does not support input split on height";
-  CHECK_EQ(layout.Indexof(LayoutAxis::Get('w')), -1)
+  CHECK_EQ(layout.Indexof(LayoutAxis::w), -1)
       << "max_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
@@ -270,13 +270,13 @@ bool GlobalPool2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
-  CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
-        !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
+  CHECK(layout.Contains(LayoutAxis::H) && layout.Contains(LayoutAxis::W) &&
+        !layout.Contains(LayoutAxis::h) && !layout.Contains(LayoutAxis::w))
     << "Invalid layout " << layout
     << ". Pool2D layout must have H and W, which cannot be split";
 
-  const auto hidx = layout.Indexof(LayoutAxis::Get('H'));
-  const auto widx = layout.Indexof(LayoutAxis::Get('W'));
+  const auto hidx = layout.Indexof(LayoutAxis::H);
+  const auto widx = layout.Indexof(LayoutAxis::W);
   Array<IndexExpr> oshape(dshape);
   oshape.Set(hidx, 1);
   oshape.Set(widx, 1);
@@ -295,11 +295,11 @@ Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
-  CHECK(BijectiveLayoutNode::make(layout, Layout("NCHW")).defined())
+  CHECK(BijectiveLayout(layout, Layout("NCHW")).defined())
     << "global_avg_pool2d currently only supports layouts that are convertible from NCHW";
-  CHECK_EQ(layout.Indexof(LayoutAxis::Get('h')), -1)
+  CHECK_EQ(layout.Indexof(LayoutAxis::h), -1)
     << "global_avg_pool2d does not support input split on height";
-  CHECK_EQ(layout.Indexof(LayoutAxis::Get('w')), -1)
+  CHECK_EQ(layout.Indexof(LayoutAxis::w), -1)
     << "global_avg_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
