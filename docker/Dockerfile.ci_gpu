@@ -46,6 +46,9 @@ RUN bash /install/ubuntu_install_opengl.sh
 COPY install/ubuntu_install_mxnet.sh /install/ubuntu_install_mxnet.sh
 RUN bash /install/ubuntu_install_mxnet.sh
 
+COPY install/ubuntu_install_gluoncv.sh /install/ubuntu_install_gluoncv.sh
+RUN bash /install/ubuntu_install_gluoncv.sh
+
 COPY install/ubuntu_install_coreml.sh /install/ubuntu_install_coreml.sh
 RUN bash /install/ubuntu_install_coreml.sh
 

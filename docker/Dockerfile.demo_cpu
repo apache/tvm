@@ -21,7 +21,7 @@ RUN echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main \
 RUN pip3 install matplotlib Image Pillow jupyter[notebook]
 
 # Deep learning frameworks
-RUN pip3 install mxnet tensorflow keras
+RUN pip3 install mxnet tensorflow keras gluoncv
 
 # Build TVM
 COPY install/install_tvm_cpu.sh /install/install_tvm_cpu.sh
