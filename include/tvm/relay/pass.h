@@ -296,7 +296,7 @@ struct StructuralHash {
   size_t operator()(const Expr& expr) const;
 };
 
-/*! \brief turn a dataflow graph into A Normal Form.
+/*! \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
  *
  * It will turn an expression that is in a graph form (with sharing implicit),
  * to an expression with explicit sharing (A-Normal Form).
