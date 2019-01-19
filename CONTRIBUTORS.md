@@ -49,6 +49,7 @@ We do encourage everyone to work anything they are interested in.
 - [Jared Roesch](https://github.com/jroesch): @jroesch
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
+- [Junru Shao](https://github.com/junrushao1994): @junrushao1994
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
