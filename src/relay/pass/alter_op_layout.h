@@ -89,21 +89,21 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
     }
   } else {
     // try to broadcast the tensors to the larger dimension
-    int large_idx = layouts[0].ndim_super() >= layouts[1].ndim_super() ? 0 : 1;
+    int large_idx = layouts[0].ndim_primal() >= layouts[1].ndim_primal() ? 0 : 1;
     int small_idx = 1 - large_idx;
     Layout ret = layouts[large_idx];
 
     // extract common part
     size_t i = layouts[large_idx].ndim();
     for (; i != 0; --i) {
-      auto dim = layouts[large_idx][i-1];
-      if (!layouts[small_idx].Contains(Layout::ToSuperdim(dim))) {
+      const auto& axis = layouts[large_idx][i-1];
+      if (!layouts[small_idx].Contains(axis.to_primal())) {
         break;
       }
     }
 
     Layout common_part = layouts[large_idx].Sublayout(i, layouts[large_idx].ndim() - i);
-    if (!layouts[small_idx].Convertible(common_part)) {  // fail
+    if (!BijectiveLayoutNode::make(layouts[small_idx], common_part).defined()) {  // not convertible
       return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
     }
 

@@ -28,11 +28,11 @@ bool ResizeRel(const Array<Type>& types,
   const ResizeAttrs* param = attrs.as<ResizeAttrs>();
   CHECK(param != nullptr);
   const Layout in_layout(param->layout);
-  CHECK(in_layout.Convertible(kNCHW))
+  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  CHECK(layout_converter.defined())
     << "Resize only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
 
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
   auto oshape = layout_converter.ForwardShape(data->shape);
   oshape.Set(2, param->size[0]);
   oshape.Set(3, param->size[1]);

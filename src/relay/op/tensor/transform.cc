@@ -217,7 +217,7 @@ Array<Array<Layout>> ConcatenateLayout(
 
   Layout ret;
   if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
-    Layout::LayoutDim concate_dim = old_in_layouts[0][axis];
+    const auto& concate_dim = old_in_layouts[0][axis];
     for (size_t i = 0; i < new_in_layouts.size(); ++i) {
       if (new_in_layouts[i].ndim() > axis &&
           new_in_layouts[i][axis] == concate_dim) {
@@ -233,7 +233,7 @@ Array<Array<Layout>> ConcatenateLayout(
       }
     }
 
-    if (ret.ndim() <= axis || Layout::IsSubdim(ret[axis])) {
+    if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
       return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
     }
   }
@@ -1618,18 +1618,19 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
 
   CHECK(src_layout.defined() && dst_layout.defined())
     << "cannot convert from/to undefined layout";
-  CHECK(src_layout.Convertible(dst_layout))
-    << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
+
   auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
+  CHECK(layout_converter.defined())
+    << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
 
   const auto& out_shape = layout_converter.ForwardShape(inputs[0]->shape);
   return Array<Tensor> {
       topi::layout_transform(inputs[0], out_shape, [&](const Array<tvm::Var>& dst_indices) {
         std::vector<tvm::Expr> dst_to_src_indices;
         for (size_t i = 0; i < src_layout.ndim(); ++i) {
-          Layout::LayoutDim src_axis = src_layout[i];
-          int dst_major_pos = dst_layout.Indexof(Layout::ToSuperdim(src_axis));
-          int dst_minor_pos = dst_layout.Indexof(Layout::ToSubdim(src_axis));
+          const auto& src_axis = src_layout[i];
+          int dst_major_pos = dst_layout.Indexof(src_axis.to_primal());
+          int dst_minor_pos = dst_layout.Indexof(src_axis.to_subordinate());
           int32_t src_factor = static_cast<int32_t>(src_layout.Subsizeof(src_axis));
           int32_t dst_factor = static_cast<int32_t>(dst_layout.Subsizeof(src_axis));
 
@@ -1638,9 +1639,9 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
             CHECK_GT(dst_factor, 0);
             src_index = src_index * dst_factor + dst_indices[dst_minor_pos];
           }
-          if (Layout::IsSuperdim(src_axis) && src_factor > 0) {
+          if (src_axis.IsPrimal() && src_factor > 0) {
             src_index = src_index / src_factor;
-          } else if (Layout::IsSubdim(src_axis) && src_factor > 0) {
+          } else if (!src_axis.IsPrimal() && src_factor > 0) {
             src_index = src_index % src_factor;
           }
           dst_to_src_indices.push_back(src_index);
@@ -1663,9 +1664,10 @@ bool LayoutTransformRel(const Array<Type>& types,
 
   CHECK(src_layout.defined() && dst_layout.defined())
     << "cannot convert from/to undefined layout";
-  CHECK(src_layout.Convertible(dst_layout))
-    << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
+
   auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
+  CHECK(layout_converter.defined())
+    << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
 
   const auto& out_shape = layout_converter.ForwardShape(data->shape);
   reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));

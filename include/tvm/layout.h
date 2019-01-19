@@ -29,44 +29,8 @@
 
 namespace tvm {
 
-class Layout;
-
 class LayoutAxis {
  public:
-  inline bool IsPrimal() const { return name_ >= 'A' && name_ <= 'Z'; }
-  inline std::string name() const { return std::string(1, name_); }
-  friend std::ostream& operator<<(std::ostream& os, const LayoutAxis& l) {
-    os << l.name();
-    return os;
-  }
- private:
-  friend class Layout;
-  explicit LayoutAxis(const char name) : name_(name) {}
-  const char name_;
-};
-
-class LayoutNode : public Node {
- public:
-  std::string name;
-  Array<IterVar> axes;
-  Array<Integer> superdim_pos;
-  Array<Integer> subdim_pos;
-  Array<Integer> subdim_size;
-  Array<Integer> layout_simplified;
-
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("name", &name);
-  }
-
-  TVM_DLL static Layout make(const std::string& layout);
-
-  static constexpr const char* _type_key = "Layout";
-  TVM_DECLARE_NODE_TYPE_INFO(LayoutNode, Node);
-};
-
-class Layout : public NodeRef {
- public:
-  using LayoutDim = char;
   // single axis definitions
   static const LayoutAxis A;
   static const LayoutAxis B;
@@ -121,25 +85,159 @@ class Layout : public NodeRef {
   static const LayoutAxis y;
   static const LayoutAxis z;
 
-  static const LayoutAxis Axis(const char name) {
-    static const LayoutAxis kPrimal[] =
-      {A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z};
-    static const LayoutAxis kSub[] =
-      {a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z};
-    if (name >= 'A' && name <= 'Z') {
-      return kPrimal[name - 'A'];
+  static const LayoutAxis& Get(const char name) {
+    switch (name) {
+      case 'A': return A;
+      case 'B': return B;
+      case 'C': return C;
+      case 'D': return D;
+      case 'E': return E;
+      case 'F': return F;
+      case 'G': return G;
+      case 'H': return H;
+      case 'I': return I;
+      case 'J': return J;
+      case 'K': return K;
+      case 'L': return L;
+      case 'M': return M;
+      case 'N': return N;
+      case 'O': return O;
+      case 'P': return P;
+      case 'Q': return Q;
+      case 'R': return R;
+      case 'S': return S;
+      case 'T': return T;
+      case 'U': return U;
+      case 'V': return V;
+      case 'W': return W;
+      case 'X': return X;
+      case 'Y': return Y;
+      case 'Z': return Z;
+      case 'a': return a;
+      case 'b': return b;
+      case 'c': return c;
+      case 'd': return d;
+      case 'e': return e;
+      case 'f': return f;
+      case 'g': return g;
+      case 'h': return h;
+      case 'i': return i;
+      case 'j': return j;
+      case 'k': return k;
+      case 'l': return l;
+      case 'm': return m;
+      case 'n': return n;
+      case 'o': return o;
+      case 'p': return p;
+      case 'q': return q;
+      case 'r': return r;
+      case 's': return s;
+      case 't': return t;
+      case 'u': return u;
+      case 'v': return v;
+      case 'w': return w;
+      case 'x': return x;
+      case 'y': return y;
+      case 'z': return z;
+      default: CHECK(false) << "Invalid layout axis name " << name;
+    }
+    // suppress return-type warning.
+    return A;
+  }
+
+  inline static const LayoutAxis& Get(const char* name) {
+    return LayoutAxis::Get(*name);
+  }
+
+  inline static const LayoutAxis& Get(const IterVar& itvar) {
+    const std::string axis = itvar->var.get()->name_hint;
+    CHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
+    return LayoutAxis::Get(axis[0]);
+  }
+
+  inline bool IsPrimal() const { return name_ >= 'A' && name_ <= 'Z'; }
+  inline std::string name() const { return name_str_; }
+
+  // if current axis is primal, switch the axis to its subordinate one,
+  // else switch to the primal.
+  inline const LayoutAxis& to_dual() const {
+    if (name_ >= 'A' && name_ <= 'Z') {
+      return LayoutAxis::Get(name_ - 'A' + 'a');
     } else {
-      CHECK(name >= 'a' && name <= 'z') << "Invalid axis layout name " << name;
-      return kSub[name - 'a'];
+      return LayoutAxis::Get(name_ - 'a' + 'A');
     }
   }
 
-  static constexpr size_t kUniqueDim = 26;
+  // return the primal axis. If it is already primal, return itself.
+  inline const LayoutAxis& to_primal() const {
+    return IsPrimal() ? *this : to_dual();
+  }
 
+  // return the subordinate axis. If it is already subordinate, return itself.
+  inline const LayoutAxis& to_subordinate() const {
+    return IsPrimal() ? to_dual() : *this;
+  }
+
+  inline bool operator==(const LayoutAxis& rhs) const {
+    return name_ == rhs.name_;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, const LayoutAxis& l) {
+    os << l.name();
+    return os;
+  }
+
+ private:
+  LayoutAxis(const LayoutAxis&);
+  LayoutAxis& operator=(const LayoutAxis&);
+
+  explicit LayoutAxis(const char name) : name_(name), name_str_(std::string(1, name)) {}
+  const char name_;
+  const std::string name_str_;
+};
+
+class Layout;
+class LayoutNode : public Node {
+ public:
+  std::string name;
+  Array<IterVar> axis;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("axis", &axis);
+  }
+
+  TVM_DLL static Layout make(const std::string& layout);
+
+  static constexpr const char* _type_key = "Layout";
+  TVM_DECLARE_NODE_TYPE_INFO(LayoutNode, Node);
+};
+
+class Layout : public NodeRef {
+ public:
   explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
 
   /*! \brief default constructor */
   Layout() : Layout("__undef__") {} // NOLINT(*)
+
+  explicit Layout(const Array<IterVar>& axes) {
+    node_ = make_node<LayoutNode>();
+    LayoutNode *node = operator->();
+    node->axis = axes;
+    std::ostringstream repr;
+    for (const IterVar& axis : axes) {
+      if (const auto* factor = axis->dom->extent.as<IntImm>()) {
+        CHECK_GT(factor->value, 0);
+        repr << factor;
+      }
+      CHECK_EQ(axis->var.get()->name_hint.size(), 1) << "Invalid layout axis "
+                                                     << axis->var.get()->name_hint;
+      char c = axis->var.get()->name_hint[0];
+      CHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) << "Invalid layout axis " << c;
+      repr << axis->var.get()->name_hint;
+    }
+    node->name = repr.str();
+  }
 
   /*! \brief construct from a string */
   Layout(const char* name) : Layout(std::string(name)) {} // NOLINT(*)
@@ -154,37 +252,27 @@ class Layout : public NodeRef {
    */
   Layout(const std::string& name) { // NOLINT(*)
     node_ = make_node<LayoutNode>();
-
-    std::vector<size_t> superdim_pos(kUniqueDim, -1);
-    std::vector<size_t> subdim_pos(kUniqueDim, -1);
-    std::vector<size_t> subdim_size(kUniqueDim, -1);
-    std::vector<char> layout_simplified;
+    LayoutNode *node = operator->();
+    node->name = name;
 
     if (name != "__undef__") {  // parse layout string
       int32_t factor = 0;
-      size_t curr = 0;
-      for (size_t i = 0; i < name.size(); ++i) {
-        const LayoutDim c = name.at(i);
-        if (IsSuperdim(c)) {
-          int pos = c - 'A';
+      for (char c : name) {
+        if (c >= 'A' && c <= 'Z') {
           CHECK_EQ(factor, 0) << "Invalid layout " << name
                               << ": invalid factor size " << factor
                               << " before dimension " << c;
-          CHECK_EQ(superdim_pos[pos], -1) << "Invalid layout " << name
-                                          << ": duplicate dimension " << c;
-          superdim_pos[pos] = curr++;
-          layout_simplified.push_back(c);
-        } else if (IsSubdim(c)) {
-          int pos = c - 'a';
+          std::string shape_name("_shape");
+          shape_name.insert(0, 1, c);
+          IterVar axis = IterVarNode::make(Range(Expr(0), Var(shape_name)),
+                                           Var(std::string(1, c)), kDataPar);
+          node->axis.push_back(axis);
+        } else if (c >= 'a' && c <= 'z') {
           CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                               << factor << " for dimension " << c;
-          CHECK_EQ(subdim_pos[pos], -1) << "Invalid layout " << name
-                                        << ": duplicate dimension " << c;
-          CHECK_EQ(subdim_size[pos], -1) << "Invalid layout " << name
-                                         << ": duplicate dimension " << c;
-          subdim_pos[pos] = curr++;
-          subdim_size[pos] = factor;
-          layout_simplified.push_back(c);
+          IterVar axis = IterVarNode::make(Range(Expr(0), Expr(factor)),
+                                           Var(std::string(1, c)), kDataPar);
+          node->axis.push_back(axis);
           factor = 0;
         } else if (c >= '0' && c <= '9') {
           CHECK(factor >= 0) << "Invalid layout " << name << ": _ is adjacent to a number.";
@@ -193,23 +281,24 @@ class Layout : public NodeRef {
           LOG(FATAL) << "Invalid layout " << name;
         }
       }
-      for (LayoutDim dim : layout_simplified) {
-        CHECK(IsSuperdim(dim) || superdim_pos[dim-'a'] >= 0)
-          << "Invalid layout " << name << ": missing axis "
-          << static_cast<char>(dim - 'a' + 'A');
+    }
+
+    // validate layout
+    std::vector<bool> exist_axis(256, false);
+    for (const IterVar& v : node->axis) {
+      auto axis_str = v->var.get()->name_hint;
+      CHECK_EQ(axis_str.size(), 1);
+      char axis = axis_str[0];
+      CHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
+      CHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
+      exist_axis[axis] = true;
+    }
+    for (const IterVar& v : node->axis) {
+      char axis = v->var.get()->name_hint[0];
+      if (axis >= 'a' && axis <= 'z') {
+        CHECK(exist_axis[axis-'a'+'A']) << "Invalid layout " << name << ": missing axis "
+                                        << axis - 'a' + 'A';
       }
-    }
-
-    LayoutNode *node = operator->();
-    node->name = name;
-
-    for (size_t i = 0; i < kUniqueDim; ++i) {
-      node->superdim_pos.push_back(superdim_pos[i]);
-      node->subdim_pos.push_back(subdim_pos[i]);
-      node->subdim_size.push_back(subdim_size[i]);
-    }
-    for (LayoutDim dim : layout_simplified) {
-      node->layout_simplified.push_back(dim);
     }
   }
 
@@ -230,74 +319,12 @@ class Layout : public NodeRef {
   }
 
   /*!
-   * \brief Check whether a given dimension is a super-dimension.
-   * \param dim input dimension
-   * \return Whether a given dimension is a super-dimension.
+   * \brief Return an undefined layout.
+   * \return a (global) undefined layout.
    */
-  static bool IsSuperdim(LayoutDim dim) {
-    return dim >= 'A' && dim <= 'Z';
-  }
-
-  /*!
-   * \brief Check whether a given dimension is a sub-dimension.
-   * \param dim input dimension
-   * \return Whether a given dimension is a sub-dimension.
-   */
-  static bool IsSubdim(LayoutDim dim) {
-    return dim >= 'a' && dim <= 'z';
-  }
-
-  /*!
-   * \brief Convert a given dimension to super-dimension.
-   * \param dim input dimension
-   * \return The converted description.
-   */
-  static LayoutDim ToSuperdim(LayoutDim dim) {
-    if (IsSubdim(dim)) {
-      return dim - 'a' + 'A';
-    }
-    return dim;
-  }
-
-  /*!
-   * \brief Convert a given dimension to sub-dimension.
-   * \param dim input dimension
-   * \return The converted description.
-   */
-  static LayoutDim ToSubdim(LayoutDim dim) {
-    if (IsSuperdim(dim)) {
-      return dim - 'A' + 'a';
-    }
-    return dim;
-  }
-
-  /*!
- * \brief Return an undefined layout.
- * \return a (global) undefined layout.
- */
   static const Layout& Undef() {
     static Layout undef;
     return undef;
-  }
-
-  /*!
-   * \brief Two layouts are convertible only if
-   *        they have same set of super-dimensions.
-   *        e.g., NCHW, NCHW16c, NHWC are convertible between each other,
-   *        but NCHW, CHW, OIHW are not.
-   * \param dst the target layout
-   * \return Whether can be converted to dst layout.
-   */
-  bool Convertible(const Layout &dst) const {
-    const LayoutNode *n = operator->();
-    if (!this->defined() || !dst.defined()) return false;
-    for (size_t i = 0; i < kUniqueDim; ++i) {
-      if ((n->superdim_pos[i]->value >= 0 && dst->superdim_pos[i]->value < 0) ||
-          (n->superdim_pos[i]->value < 0 && dst->superdim_pos[i]->value >= 0)) {
-        return false;
-      }
-    }
-    return true;
   }
 
   /*!
@@ -309,154 +336,122 @@ class Layout : public NodeRef {
    * \return A newly constructed Layout object.
    */
   Layout Sublayout(size_t pos, size_t len) const {
-    const Array<Integer>& layout_simplified = operator->()->layout_simplified;
     if (pos > ndim()) return Layout::Undef();
     if (pos + len > ndim()) len = ndim() - pos;
-    std::ostringstream new_layout;
+    Array<IterVar> new_layout;
+    const auto axes = operator->()->axis;
     for (size_t i = pos; i < pos + len; ++i) {
-      if (IsSubdim(layout_simplified[i]->value)) {
-        auto block_size = this->Subsizeof(layout_simplified[i]->value);
-        CHECK_GT(block_size, 0);
-        new_layout << block_size;
-      }
-      new_layout << static_cast<char>(layout_simplified[i]->value);
+      new_layout.push_back(axes[i]);
     }
-    return Layout(new_layout.str());
-  }
-
-  /*! \return A newly constructed reversed Layout object. */
-  Layout Reverse() const {
-    const Array<Integer>& layout_simplified = operator->()->layout_simplified;
-    if (!this->defined()) return Layout::Undef();
-    std::ostringstream new_layout;
-    for (int64_t i = this->ndim() - 1; i >= 0; --i) {
-      if (IsSubdim(layout_simplified[i]->value)) {
-        auto block_size = this->Subsizeof(layout_simplified[i]->value);
-        CHECK_GT(block_size, 0);
-        new_layout << block_size;
-      }
-      new_layout << layout_simplified[i]->value;
-    }
-    return Layout(new_layout.str());
+    return Layout(new_layout);
   }
 
   /*!
-   * \brief Split \p dim by \p size and put the sub-dimension to position \p target_pos.
-   * \param dim The source dimension to be split. It must be a super-dimension.
-   * \param target_pos The target position of the newly split sub-dimension.
+   * \brief Split \p axis by \p size and put the sub-axis to position \p target_pos.
+   * \param axis The source axis to be split. It must be a primal-axis;
+   * \param target_pos The target position of the newly split subordinate-axis.
    * \param size size of the sub-dimension.
    * \return A newly constructed Layout object.
    */
-  Layout Split(LayoutDim dim, size_t target_pos, size_t size) const {
-    const std::string &name = operator->()->name;
+  Layout Split(const LayoutAxis& axis, size_t target_pos, int32_t size) const {
+    const std::string& name = operator->()->name;
+    const auto axes = operator->()->axis;
     CHECK(target_pos <= this->ndim()) << "Invalid split position "
                                       << target_pos << " for layout " << name;
-    CHECK(IsSuperdim(dim)) << "Cannot split a sub-dimension " << dim;
-    CHECK(this->Contains(dim)) << "Axis " << dim << " does not exist in " << name;
-    CHECK(!this->Contains(ToSubdim(dim))) << "Dimension " << dim
-                                           << " has already been split in "
-                                           << name;
+    CHECK(axis.IsPrimal()) << "Cannot split a subordinate axis " << axis;
+    CHECK(this->Contains(axis)) << "Axis " << axis << " does not exist in " << name;
+    CHECK(!this->Contains(axis.to_subordinate())) << "Axis " << axis
+                                                  << " has already been split in " << name;
     CHECK(size > 0) << "Invalid split size " << size;
-    std::ostringstream new_layout;
+    Array<IterVar> new_layout;
     for (size_t i = 0; i <= this->ndim(); ++i) {
       if (i == target_pos) {
-        new_layout << size << Layout::ToSubdim(dim);
+        new_layout.push_back(IterVarNode::make(Range(Expr(0), Expr(size)),
+                                               Var(axis.to_subordinate().name()), kDataPar));
       }
       if (i == this->ndim()) break;
-      new_layout << this->at(i);
+      new_layout.push_back(axes[i]);
     }
-    Layout x(new_layout.str());
-    return x;
+    return Layout(new_layout);
   }
 
 
   /*! \return number of dimensions */
-  size_t ndim() const {
-    return operator->()->layout_simplified.size();
+  inline size_t ndim() const {
+    return operator->()->axis.size();
   }
 
   /*! \return number of super dimensions */
-  size_t ndim_super() const {
+  inline size_t ndim_primal() const {
     size_t ct = 0;
-    for (auto x : operator->()->layout_simplified) {
-      if (IsSuperdim(x))
+    for (auto x : operator->()->axis) {
+      if (LayoutAxis::Get(x->var.get()->name_hint[0]).IsPrimal()) {
         ct++;
+      }
     }
     return ct;
   }
 
   /*!
-   * \brief The description of the \p i-th dimension.
-   *        If it is a sub-dimension, the size will be returned as well,
-   *        e.g., 16c. Otherwise a single character is returned, e.g., C.
-   * \param i The position
-   * \return the description of the dimension.
-   */
-  std::string at(size_t i) const {
-    const Array<Integer>& layout_simplified = operator->()->layout_simplified;
-    CHECK_LT(i, this->ndim()) << "position " << i
-                              << " exceeds ndim=" << this->ndim();
-    std::ostringstream repr;
-    if (IsSubdim(layout_simplified[i]->value)) {
-      auto factor = Subsizeof(layout_simplified[i]->value);
-      CHECK_GT(factor, 0);
-      repr << factor;
-    }
-    repr << static_cast<char>(layout_simplified[i]->value);
-    return repr.str();
-  }
-
-  /*!
-   * \brief return the index of the input dimension.
+   * \brief return the index of the input axis.
    *        If it is not found in the layout or the layout is undefined,
    *        return -1.
-   * \param dim the input dimension.
+   * \param axis the input axis.
    * \return the index or -1 if not found.
    */
-  int32_t Indexof(LayoutDim dim) const {
+  int32_t Indexof(const LayoutAxis& axis) const {
     if (!this->defined()) return -1;
-    else if (IsSuperdim(dim)) return operator->()->superdim_pos[dim - 'A']->value;
-    else if (IsSubdim(dim)) return operator->()->subdim_pos[dim - 'a']->value;
+    const auto axes = operator->()->axis;
+    for (size_t i = 0; i < axes.size(); ++i) {
+      if (axes[i]->var.get()->name_hint == axis.name()) return static_cast<int32_t>(i);
+    }
     return -1;
   }
 
   /*!
-   * \param dim the input super-dimension or sub-dimension.
-   * \return the size of the sub-dimension of \p dim (if \p dim is a super-dimension),
-   *         or the size of \p dim itself (if \p dim is a sub-dimension).
-   *         Return -1 if \p dim is not in the layout or the layout is undefined.
+   * \param axis the input primal-axis or subordinate-axis.
+   * \return the size of the subordinate-axis of \p axis (if \p axis is a primal-axis),
+   *         or the size of \p axis itself (if \p axis is a primal-axis).
+   *         Return -1 if \p axis is not in the layout or the layout is undefined.
    */
-  int64_t Subsizeof(LayoutDim dim) const {
-    CHECK(IsSuperdim(dim) || IsSubdim(dim)) << "Invalid dim " << dim;
-    if (!this->defined() || !this->Contains(ToSubdim(dim))) {
+  int64_t Subsizeof(const LayoutAxis& axis) const {
+    const LayoutAxis& sub = axis.to_subordinate();
+    if (!this->defined() || !this->Contains(sub)) {
       return -1;
     }
-    int idx = ToSubdim(dim) - 'a';
-    return operator->()->subdim_size[idx]->value;
+
+    for (const IterVar& itvar : operator->()->axis) {
+      if (sub == LayoutAxis::Get(itvar)) {
+        const auto* factor = itvar->dom->extent.as<IntImm>();
+        CHECK(factor);
+      }
+    }
   }
 
   /*!
-   * \brief Whether the layout contains a dimension.
-   * \param dim dimension to be checked.
-   * \return Whether the layout contains the dimension.
+   * \brief Whether the layout contains an axis.
+   * \param axis axis to be checked.
+   * \return Whether the layout contains the axis.
    */
-  bool Contains(LayoutDim dim) const {
-    if (IsSuperdim(dim)) {
-      return operator->()->superdim_pos[dim-'A']->value >= 0;
-    } else if (IsSubdim(dim)) {
-      return operator->()->subdim_pos[dim-'a']->value >= 0;
+  bool Contains(const LayoutAxis& axis) const {
+    for (const IterVar var : operator->()->axis) {
+      if (var->var.get()->name_hint == axis.name()) {
+        return true;
+      }
     }
     return false;
   }
 
-  LayoutDim operator[](size_t i) const {
-    return operator->()->layout_simplified[i];
+  const LayoutAxis& operator[](size_t i) const {
+    const IterVar axis = operator->()->axis[i];
+    return LayoutAxis::Get(axis);
   }
 
   /*! \return whether the layout is defined */
   bool defined() const {
     return operator->()->name != "__undef__";
   }
+
   /*! \return the string description of the layout */
   const std::string& name() const {
     return operator->()->name;

@@ -11,58 +11,58 @@ namespace tvm {
 TVM_REGISTER_NODE_TYPE(LayoutNode);
 TVM_REGISTER_NODE_TYPE(BijectiveLayoutNode);
 
-const LayoutAxis Layout::A = LayoutAxis('A');
-const LayoutAxis Layout::B = LayoutAxis('B');
-const LayoutAxis Layout::C = LayoutAxis('C');
-const LayoutAxis Layout::D = LayoutAxis('D');
-const LayoutAxis Layout::E = LayoutAxis('E');
-const LayoutAxis Layout::F = LayoutAxis('F');
-const LayoutAxis Layout::G = LayoutAxis('G');
-const LayoutAxis Layout::H = LayoutAxis('H');
-const LayoutAxis Layout::I = LayoutAxis('I');
-const LayoutAxis Layout::J = LayoutAxis('J');
-const LayoutAxis Layout::K = LayoutAxis('K');
-const LayoutAxis Layout::L = LayoutAxis('L');
-const LayoutAxis Layout::M = LayoutAxis('M');
-const LayoutAxis Layout::N = LayoutAxis('N');
-const LayoutAxis Layout::O = LayoutAxis('O');
-const LayoutAxis Layout::P = LayoutAxis('P');
-const LayoutAxis Layout::Q = LayoutAxis('Q');
-const LayoutAxis Layout::R = LayoutAxis('R');
-const LayoutAxis Layout::S = LayoutAxis('S');
-const LayoutAxis Layout::T = LayoutAxis('T');
-const LayoutAxis Layout::U = LayoutAxis('U');
-const LayoutAxis Layout::V = LayoutAxis('V');
-const LayoutAxis Layout::W = LayoutAxis('W');
-const LayoutAxis Layout::X = LayoutAxis('X');
-const LayoutAxis Layout::Y = LayoutAxis('Y');
-const LayoutAxis Layout::Z = LayoutAxis('Z');
-const LayoutAxis Layout::a = LayoutAxis('a');
-const LayoutAxis Layout::b = LayoutAxis('b');
-const LayoutAxis Layout::c = LayoutAxis('c');
-const LayoutAxis Layout::d = LayoutAxis('d');
-const LayoutAxis Layout::e = LayoutAxis('e');
-const LayoutAxis Layout::f = LayoutAxis('f');
-const LayoutAxis Layout::g = LayoutAxis('g');
-const LayoutAxis Layout::h = LayoutAxis('h');
-const LayoutAxis Layout::i = LayoutAxis('i');
-const LayoutAxis Layout::j = LayoutAxis('j');
-const LayoutAxis Layout::k = LayoutAxis('k');
-const LayoutAxis Layout::l = LayoutAxis('l');
-const LayoutAxis Layout::m = LayoutAxis('m');
-const LayoutAxis Layout::n = LayoutAxis('n');
-const LayoutAxis Layout::o = LayoutAxis('o');
-const LayoutAxis Layout::p = LayoutAxis('p');
-const LayoutAxis Layout::q = LayoutAxis('q');
-const LayoutAxis Layout::r = LayoutAxis('r');
-const LayoutAxis Layout::s = LayoutAxis('s');
-const LayoutAxis Layout::t = LayoutAxis('t');
-const LayoutAxis Layout::u = LayoutAxis('u');
-const LayoutAxis Layout::v = LayoutAxis('v');
-const LayoutAxis Layout::w = LayoutAxis('w');
-const LayoutAxis Layout::x = LayoutAxis('x');
-const LayoutAxis Layout::y = LayoutAxis('y');
-const LayoutAxis Layout::z = LayoutAxis('z');
+const LayoutAxis LayoutAxis::A = LayoutAxis('A');
+const LayoutAxis LayoutAxis::B = LayoutAxis('B');
+const LayoutAxis LayoutAxis::C = LayoutAxis('C');
+const LayoutAxis LayoutAxis::D = LayoutAxis('D');
+const LayoutAxis LayoutAxis::E = LayoutAxis('E');
+const LayoutAxis LayoutAxis::F = LayoutAxis('F');
+const LayoutAxis LayoutAxis::G = LayoutAxis('G');
+const LayoutAxis LayoutAxis::H = LayoutAxis('H');
+const LayoutAxis LayoutAxis::I = LayoutAxis('I');
+const LayoutAxis LayoutAxis::J = LayoutAxis('J');
+const LayoutAxis LayoutAxis::K = LayoutAxis('K');
+const LayoutAxis LayoutAxis::L = LayoutAxis('L');
+const LayoutAxis LayoutAxis::M = LayoutAxis('M');
+const LayoutAxis LayoutAxis::N = LayoutAxis('N');
+const LayoutAxis LayoutAxis::O = LayoutAxis('O');
+const LayoutAxis LayoutAxis::P = LayoutAxis('P');
+const LayoutAxis LayoutAxis::Q = LayoutAxis('Q');
+const LayoutAxis LayoutAxis::R = LayoutAxis('R');
+const LayoutAxis LayoutAxis::S = LayoutAxis('S');
+const LayoutAxis LayoutAxis::T = LayoutAxis('T');
+const LayoutAxis LayoutAxis::U = LayoutAxis('U');
+const LayoutAxis LayoutAxis::V = LayoutAxis('V');
+const LayoutAxis LayoutAxis::W = LayoutAxis('W');
+const LayoutAxis LayoutAxis::X = LayoutAxis('X');
+const LayoutAxis LayoutAxis::Y = LayoutAxis('Y');
+const LayoutAxis LayoutAxis::Z = LayoutAxis('Z');
+const LayoutAxis LayoutAxis::a = LayoutAxis('a');
+const LayoutAxis LayoutAxis::b = LayoutAxis('b');
+const LayoutAxis LayoutAxis::c = LayoutAxis('c');
+const LayoutAxis LayoutAxis::d = LayoutAxis('d');
+const LayoutAxis LayoutAxis::e = LayoutAxis('e');
+const LayoutAxis LayoutAxis::f = LayoutAxis('f');
+const LayoutAxis LayoutAxis::g = LayoutAxis('g');
+const LayoutAxis LayoutAxis::h = LayoutAxis('h');
+const LayoutAxis LayoutAxis::i = LayoutAxis('i');
+const LayoutAxis LayoutAxis::j = LayoutAxis('j');
+const LayoutAxis LayoutAxis::k = LayoutAxis('k');
+const LayoutAxis LayoutAxis::l = LayoutAxis('l');
+const LayoutAxis LayoutAxis::m = LayoutAxis('m');
+const LayoutAxis LayoutAxis::n = LayoutAxis('n');
+const LayoutAxis LayoutAxis::o = LayoutAxis('o');
+const LayoutAxis LayoutAxis::p = LayoutAxis('p');
+const LayoutAxis LayoutAxis::q = LayoutAxis('q');
+const LayoutAxis LayoutAxis::r = LayoutAxis('r');
+const LayoutAxis LayoutAxis::s = LayoutAxis('s');
+const LayoutAxis LayoutAxis::t = LayoutAxis('t');
+const LayoutAxis LayoutAxis::u = LayoutAxis('u');
+const LayoutAxis LayoutAxis::v = LayoutAxis('v');
+const LayoutAxis LayoutAxis::w = LayoutAxis('w');
+const LayoutAxis LayoutAxis::x = LayoutAxis('x');
+const LayoutAxis LayoutAxis::y = LayoutAxis('y');
+const LayoutAxis LayoutAxis::z = LayoutAxis('z');
 
 Layout LayoutNode::make(const std::string& layout) {
   return Layout(layout);
@@ -154,28 +154,11 @@ BijectiveLayout BijectiveLayoutNode::make(const Layout& orig_layout,
                                           const Layout& store_layout) {
   auto n = make_node<BijectiveLayoutNode>();
 
-  auto LayoutParser = [](const Layout& layout, Array<IterVar>& axes) {
-    for (size_t i = 0; i < layout.ndim(); ++i) {
-      auto axis_layout = layout[i];
-      if (Layout::IsSuperdim(axis_layout)) {
-        std::string shape_name("_shape");
-        shape_name.insert(0, 1, axis_layout);
-        IterVar axis = IterVarNode::make(Range(Expr(0), Var(shape_name)),
-                                         Var(std::string(1, axis_layout)), kDataPar);
-        axes.push_back(axis);
-      } else {
-        IterVar axis = IterVarNode::make(Range(Expr(0), Expr(layout.Subsizeof(axis_layout))),
-                                         Var(std::string(1, axis_layout)), kDataPar);
-        axes.push_back(axis);
-      }
-    }
-  };
-
   n->orig_layout = orig_layout;
-  LayoutParser(orig_layout, n->orig_axis);
+  n->orig_axis = orig_layout->axis;
 
   n->store_layout = store_layout;
-  LayoutParser(store_layout, n->store_axis);
+  n->store_axis = store_layout->axis;
 
   if (!GetStoreRule(n->forward_rule, n->orig_axis, n->store_axis)) {
     // not convertible

@@ -31,11 +31,12 @@ bool UpSamplingRel(const Array<Type>& types,
   const UpSamplingAttrs* param = attrs.as<UpSamplingAttrs>();
   CHECK(param != nullptr);
   const Layout in_layout(param->layout);
-  CHECK(in_layout.Convertible(kNCHW))
+
+  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  CHECK(layout_converter.defined())
     << "UpSampling only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
 
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
   auto oshape = layout_converter.ForwardShape(data->shape);
 
   oshape.Set(2, oshape[2] * param->scale);
