@@ -312,7 +312,7 @@ struct StructuralHash {
  * \param mod The module used for referencing global functions, can be
  * None.
  *
- * \return expression in A Normal Form
+ * \return expression in A-Normal Form
  */
 Expr ToANF(const Expr& e, const Module& mod);
 
