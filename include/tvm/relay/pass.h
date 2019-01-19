@@ -299,7 +299,7 @@ struct StructuralHash {
 /*! \brief turn a dataflow graph into A Normal Form.
  *
  * It will turn an expression that is in a graph form (with sharing implicit),
- * to an expression with explicit sharing (A Normal Form).
+ * to an expression with explicit sharing (A-Normal Form).
  *
  * The scope of the root expression is the global scope.
 
