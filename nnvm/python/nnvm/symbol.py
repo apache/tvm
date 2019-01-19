@@ -36,7 +36,7 @@ except IMPORT_EXCEPT:
 
 
 class Symbol(SymbolBase):
-    """Symbol is basic operation unit for symbolic graph compostion."""
+    """Symbol is basic operation unit for symbolic graph composition."""
     # disable dictionary storage, also do not have parent type.
     __slots__ = []
 
