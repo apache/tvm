@@ -26,7 +26,7 @@ from tensorflow.python.framework import tensor_util
 import tvm.relay.testing.tf as tf_testing
 
 # Base location for model related files.
-repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV3/'
+repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
 
 # Test image
 img_name = 'elephant-299.jpg'
@@ -124,7 +124,7 @@ print ("Tensorflow protobuf imported to relay frontend.")
 #   params: final params after compilation.
 #   lib: target library which can be deployed on target with tvm runtime.
 
-with relay.build_config(opt_level=2):
+with relay.build_config(opt_level=3):
     graph, lib, params = relay.build(sym, target=target, target_host=target_host, params=params)
 
 ######################################################################
