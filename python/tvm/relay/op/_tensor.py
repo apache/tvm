@@ -5,17 +5,21 @@ import topi
 from .op import register_compute, register_schedule, register_pattern
 from .op import register_gradient
 from .op import schedule_injective, OpPattern
+from .transform import collapse_sum_like
+from .tensor import negative
+
 
 def add_grad(orig, grad):
-    from tvm.relay import op
-    return [op.broadcast_to_like(grad, orig.args[0]), op.broadcast_to_like(grad, orig.args[1])]
+    return [collapse_sum_like(grad, orig.args[0]), collapse_sum_like(grad, orig.args[1])]
+
 
 register_gradient("add", add_grad)
 
+
 def subtract_grad(orig, grad):
-    from tvm.relay import op
-    return [op.broadcast_to_like(grad, orig.args[0]),
-            op.broadcast_to_like(op.negative(grad), orig.args[1])]
+    return [collapse_sum_like(grad, orig.args[0]),
+            collapse_sum_like(negative(grad), orig.args[1])]
+
 
 register_gradient("subtract", subtract_grad)
 
