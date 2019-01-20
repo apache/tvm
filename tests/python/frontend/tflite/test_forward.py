@@ -1,7 +1,7 @@
 # pylint: disable=import-self, invalid-name, unused-argument
 """
 TFLite testcases
-====================
+================
 This article is a test script to test TFLite operator with Relay.
 """
 from __future__ import print_function
@@ -18,11 +18,9 @@ from tensorflow.contrib.lite.python import interpreter as interpreter_wrapper
 
 import nnvm.testing.tf
 
-
-
 #######################################################################
 # Generic run functions for TVM & TFLite
-# ------------------------------------------
+# --------------------------------------
 def convert_to_list(x):
     if not isinstance(x, list):
         x = [x]

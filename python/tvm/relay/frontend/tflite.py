@@ -47,11 +47,18 @@ class OperatorConverter(object):
         }
 
     def check_unsupported_ops(self):
+        """Check unsupported TFLite ops in our converter."""
+        unsupported_ops_set = set()
+
         for op_idx in range(self.subgraph.OperatorsLength()):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
             if op_code_str not in self.convert_map:
-                raise NotImplementedError("Not support op: '{}' currently.".format(op_code_str))
+                unsupported_ops_set.add(op_code_str)
+
+        if unsupported_ops_set:
+            raise NotImplementedError("Unsupported Ops: %s" % (
+                ','.join(unsupported_ops_set)))
 
     def convert_op_to_relay(self):
         """Convert TFLite ops to relay ops"""
@@ -147,176 +154,11 @@ class OperatorConverter(object):
 
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ActivationFunctionType import ActivationFunctionType
-            from tflite.TensorType import TensorType
-            from tflite.Operator import Operator
-            from tflite.Conv2DOptions import Conv2DOptions
-            from tflite.Padding import Padding
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        assert isinstance(op, Operator)
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >= 2, "input tensors length should >= 2"
-
-        input_tensor = input_tensors[0]
-        input_tensor_idx = input_tensor.tensor_idx
-        weight_tensor = input_tensors[1]
-
-        assert op.BuiltinOptionsType() == BuiltinOptions.Conv2DOptions
-        op_options = op.BuiltinOptions()
-        conv2d_options = Conv2DOptions()
-        conv2d_options.Init(op_options.Bytes, op_options.Pos)
-        stride_h = conv2d_options.StrideH()
-        stride_w = conv2d_options.StrideW()
-        dilation_h = conv2d_options.DilationHFactor()
-        dilation_w = conv2d_options.DilationWFactor()
-        padding = conv2d_options.Padding()
-        fused_activation_fn = conv2d_options.FusedActivationFunction()
-
-        _, input_h, input_w, _ = input_tensor.tensor.ShapeAsNumpy()
-        output_channels, kernel_h, kernel_w, _ = weight_tensor.tensor.ShapeAsNumpy()
-
-        dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
-        dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
-
-        params = {'channels': int(output_channels),
-                  'kernel_size': [kernel_h, kernel_w],
-                  'strides': [stride_h, stride_w],
-                  'dilation': [dilation_h, dilation_w],
-                  'padding': [0, 0]}
-
-        # weight tensor type should be UINT8 (quantization) or FLOAT32
-        weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type == TensorType.UINT8 or weight_tensor_type == TensorType.FLOAT32
-        weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
-
-        in_expr = self.get_expr(input_tensor_idx)
-        weight_value = self.get_tensor_value(weight_tensor)
-        # TFLite is OC KH KW IC, we require OC IC KH kW
-        weight_value = weight_value.transpose((0, 3, 1, 2))
-        weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
-
-        if padding == Padding.VALID:
-            pass
-        elif padding == Padding.SAME:
-            pad_top, pad_bottom = get_pad_value(input_h, dilated_kernel_h, stride_h)
-            pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
-            in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0), (0, 0),
-                                                          (pad_top, pad_bottom),
-                                                          (pad_left, pad_right)))
-        else:
-            raise NotImplementedError("Not support padding format: {}".format(padding))
-
-        out = _op.nn.conv2d(data=in_expr, weight=weight_expr, **params)
-
-        # if we have bias
-        if len(input_tensors) == 3:
-            bias_tensor = input_tensors[2]
-            bias_tensor_type = bias_tensor.tensor.Type()
-            # bias tensor type should be INT32 (quantization) or FLOAT32
-            assert bias_tensor_type == TensorType.INT32 or bias_tensor_type == TensorType.FLOAT32
-            bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-            bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
-                                               dtype=bias_tensor_type_str)
-            out = _op.nn.bias_add(out, bias_expr)
-
-        # If we have fused activations
-        if fused_activation_fn != ActivationFunctionType.NONE:
-            out = self.convert_fused_activation_function(out, fused_activation_fn)
-
-        return out
+        return self.convert_conv(op, "conv2d")
 
     def convert_depthwise_conv2d(self, op):
         """Convert TFLite depthwise conv2d"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ActivationFunctionType import ActivationFunctionType
-            from tflite.TensorType import TensorType
-            from tflite.Operator import Operator
-            from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
-            from tflite.Padding import Padding
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        assert isinstance(op, Operator)
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >= 2, "input tensors length should >= 2"
-
-        input_tensor = input_tensors[0]
-        input_tensor_idx = input_tensor.tensor_idx
-        weight_tensor = input_tensors[1]
-
-        assert op.BuiltinOptionsType() == BuiltinOptions.DepthwiseConv2DOptions
-        op_options = op.BuiltinOptions()
-        depthwise_conv2d_options = DepthwiseConv2DOptions()
-        depthwise_conv2d_options.Init(op_options.Bytes, op_options.Pos)
-        stride_h = depthwise_conv2d_options.StrideH()
-        stride_w = depthwise_conv2d_options.StrideW()
-        dilation_h = depthwise_conv2d_options.DilationHFactor()
-        dilation_w = depthwise_conv2d_options.DilationWFactor()
-        padding = depthwise_conv2d_options.Padding()
-        fused_activation_fn = depthwise_conv2d_options.FusedActivationFunction()
-
-        depth_multiplier = depthwise_conv2d_options.DepthMultiplier()
-        assert depth_multiplier == 1, "TF frontend have transformed it be 1 " \
-                                      "no matter original value be set by 0.25, 0.5 or any else"
-
-        _, input_h, input_w, _ = input_tensor.tensor.ShapeAsNumpy()
-        multiplier, kernel_h, kernel_w, in_channels = weight_tensor.tensor.ShapeAsNumpy()
-        assert multiplier == depth_multiplier
-
-        dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
-        dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
-
-        params = {'channels': int(in_channels * multiplier),
-                  'kernel_size': [kernel_h, kernel_w],
-                  'strides': [stride_h, stride_w],
-                  'dilation': [dilation_h, dilation_w],
-                  'padding': [0, 0],
-                  'groups': int(in_channels)}
-        # weight tensor type should be UINT8 (quantization) or FLOAT32
-        weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type == TensorType.UINT8 or weight_tensor_type == TensorType.FLOAT32
-        weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
-
-        in_expr = self.get_expr(input_tensor_idx)
-        weight_value = self.get_tensor_value(weight_tensor)
-        # TFLite is M KH KW IC, we require IC M KH KW
-        weight_value = weight_value.transpose((3, 0, 1, 2))
-        weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
-
-        if padding == Padding.VALID:
-            pass
-        elif padding == Padding.SAME:
-            pad_top, pad_bottom = get_pad_value(input_h, dilated_kernel_h, stride_h)
-            pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
-            in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0), (0, 0),
-                                                          (pad_top, pad_bottom),
-                                                          (pad_left, pad_right)))
-        else:
-            raise NotImplementedError("Not support padding format: {}".format(padding))
-
-        out = _op.nn.conv2d(data=in_expr, weight=weight_expr, **params)
-
-        # if we have bias
-        if len(input_tensors) == 3:
-            bias_tensor = input_tensors[2]
-            bias_tensor_type = bias_tensor.tensor.Type()
-            # bias tensor type should be INT32 (quantization) or FLOAT32
-            assert bias_tensor_type == TensorType.INT32 or bias_tensor_type == TensorType.FLOAT32
-            bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
-            bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
-                                               dtype=bias_tensor_type_str)
-            out = _op.nn.bias_add(out, bias_expr)
-
-        # If we have fused activations
-        if fused_activation_fn != ActivationFunctionType.NONE:
-            out = self.convert_fused_activation_function(out, fused_activation_fn)
-
-        return out
+        return self.convert_conv(op, "depthwise")
 
     def convert_average_pool2d(self, op):
         """Convert TFLite average pool2d"""
@@ -488,6 +330,121 @@ class OperatorConverter(object):
             fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
             raise NotImplementedError("Unsupported fused activation fn {}"
                                       .format(fused_activation_fn_str))
+
+    def convert_conv(self, op, conv_type):
+        """convolution implementation."""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
+            from tflite.TensorType import TensorType
+            from tflite.Operator import Operator
+            from tflite.Conv2DOptions import Conv2DOptions
+            from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
+            from tflite.Padding import Padding
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) >= 2, "input tensors length should be >= 2"
+
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        weight_tensor = input_tensors[1]
+
+        is_depthwise_conv = False
+        if conv_type == 'conv2d':
+            assert op.BuiltinOptionsType() == BuiltinOptions.Conv2DOptions
+            op_options = op.BuiltinOptions()
+            conv_options = Conv2DOptions()
+            conv_options.Init(op_options.Bytes, op_options.Pos)
+        elif conv_type == 'depthwise':
+            is_depthwise_conv = True
+            assert op.BuiltinOptionsType() == BuiltinOptions.DepthwiseConv2DOptions
+            op_options = op.BuiltinOptions()
+            conv_options = DepthwiseConv2DOptions()
+            conv_options.Init(op_options.Bytes, op_options.Pos)
+            depth_multiplier = conv_options.DepthMultiplier()
+            assert depth_multiplier == 1, "TF frontend have transformed it be 1 " \
+                                          "no matter original value be set by 0.25, 0.5 or any else"
+        else:
+            raise ValueError("Not support conv type: {}".format(conv_type))
+
+        stride_h = conv_options.StrideH()
+        stride_w = conv_options.StrideW()
+        dilation_h = conv_options.DilationHFactor()
+        dilation_w = conv_options.DilationWFactor()
+        padding = conv_options.Padding()
+        fused_activation_fn = conv_options.FusedActivationFunction()
+
+        _, input_h, input_w, _ = input_tensor.tensor.ShapeAsNumpy()
+
+        if is_depthwise_conv:
+            multiplier, kernel_h, kernel_w, in_channels = weight_tensor.tensor.ShapeAsNumpy()
+            assert multiplier == depth_multiplier
+        else:
+            output_channels, kernel_h, kernel_w, _ = weight_tensor.tensor.ShapeAsNumpy()
+
+        dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
+        dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
+
+        params = {'kernel_size': [kernel_h, kernel_w],
+                  'strides': [stride_h, stride_w],
+                  'dilation': [dilation_h, dilation_w],
+                  'padding': [0, 0]}
+
+        if is_depthwise_conv:
+            params['channels'] = int(in_channels * multiplier)
+            params['groups'] = int(in_channels)
+        else:
+            params['channels'] = int(output_channels)
+
+        # weight tensor type should be UINT8 (quantization) or FLOAT32
+        weight_tensor_type = weight_tensor.tensor.Type()
+        assert weight_tensor_type == TensorType.UINT8 or weight_tensor_type == TensorType.FLOAT32
+        weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
+
+        in_expr = self.get_expr(input_tensor_idx)
+        weight_value = self.get_tensor_value(weight_tensor)
+
+        if is_depthwise_conv:
+            # TFLite is M KH KW IC, we require IC M KH KW
+            weight_value = weight_value.transpose((3, 0, 1, 2))
+        else:
+            # TFLite is OC KH KW IC, we require OC IC KH kW
+            weight_value = weight_value.transpose((0, 3, 1, 2))
+
+        weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
+
+        if padding == Padding.VALID:
+            pass
+        elif padding == Padding.SAME:
+            pad_top, pad_bottom = get_pad_value(input_h, dilated_kernel_h, stride_h)
+            pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
+            in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0), (0, 0),
+                                                          (pad_top, pad_bottom),
+                                                          (pad_left, pad_right)))
+        else:
+            raise NotImplementedError("Not support padding format: {}".format(padding))
+
+        out = _op.nn.conv2d(data=in_expr, weight=weight_expr, **params)
+
+        # if we have bias
+        if len(input_tensors) == 3:
+            bias_tensor = input_tensors[2]
+            bias_tensor_type = bias_tensor.tensor.Type()
+            # bias tensor type should be INT32 (quantization) or FLOAT32
+            assert bias_tensor_type == TensorType.INT32 or bias_tensor_type == TensorType.FLOAT32
+            bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
+            bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
+                                               dtype=bias_tensor_type_str)
+            out = _op.nn.bias_add(out, bias_expr)
+
+        # If we have fused activations
+        if fused_activation_fn != ActivationFunctionType.NONE:
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
+
+        return out
 
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
