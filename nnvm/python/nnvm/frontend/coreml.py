@@ -68,14 +68,15 @@ def ConvolutionLayerParams(op, insym, symtab):
     else:
         pos = [insym, weights]
 
-    if op.isDeconvolution:
-        ret = _sym.conv2d_transpose(*pos, **params)
-    else:
-        ret = _sym.conv2d(*pos, **params)
     # consume padding layer
     if symtab.in_padding:
         params['padding'] = [sum(x) for x in zip(params.get('padding', [0, 0]), symtab.paddings)]
         symtab.clear_padding()
+
+    if op.isDeconvolution:
+        ret = _sym.conv2d_transpose(*pos, **params)
+    else:
+        ret = _sym.conv2d(*pos, **params)
     return ret
 
 def BatchnormLayerParams(op, insym, symtab):
