@@ -101,7 +101,7 @@ def conv2d_transpose(data,
                      kernel_layout="OIHW",
                      output_padding=(0, 0),
                      out_dtype=""):
-    """Two dimensional trnasposed convolution operator.
+    """Two dimensional transposed convolution operator.
 
     Parameters
     ----------

@@ -2,8 +2,8 @@
 Relay's Type System
 ===================
 
-We briefly introduced types while detailing Relay's expression language
-, but have not yet described its type system. Relay is
+We briefly introduced types while detailing Relay's expression language,
+but have not yet described its type system. Relay is
 a statically typed and type-inferred language, allowing programs to
 be fully typed while requiring just a few explicit type annotations.
 
