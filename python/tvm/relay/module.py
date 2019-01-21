@@ -33,17 +33,17 @@ class Module(RelayNode):
                     raise TypeError("Expect functions to be Dict[GlobalVar, Function]")
                 mapped_funcs[k] = v
             functions = mapped_funcs
-            if type_definitions is None:
-                type_definitions = {}
-            elif isinstance(type_definitions, dict):
-                mapped_type_defs = {}
-                for k, v in type_definitions.items():
-                    if isinstance(k, _base.string_types):
-                        k = _ty.GlobalTypeVar(k)
-                    if not isinstance(k, _ty.GlobalTypeVar):
-                        raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
-                type_definitions = mapped_type_defs
-            self.__init_handle_by_constructor__(_make.Module, functions, type_definitions)
+        if type_definitions is None:
+            type_definitions = {}
+        elif isinstance(type_definitions, dict):
+            mapped_type_defs = {}
+            for k, v in type_definitions.items():
+                if isinstance(k, _base.string_types):
+                    k = _ty.GlobalTypeVar(k)
+                if not isinstance(k, _ty.GlobalTypeVar):
+                    raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
+            type_definitions = mapped_type_defs
+        self.__init_handle_by_constructor__(_make.Module, functions, type_definitions)
 
 
     def __setitem__(self, var, val):
