@@ -201,7 +201,7 @@ def _connect_proxy_loop(addr, key, load_library):
     retry_period = 5
     while True:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(base.get_addr_family(addr), socket.SOCK_STREAM)
             sock.connect(addr)
             sock.sendall(struct.pack("<i", base.RPC_MAGIC))
             sock.sendall(struct.pack("<i", len(key)))
@@ -334,7 +334,7 @@ class Server(object):
             self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
             self.port = None
             for my_port in range(port, port_end):
                 try:

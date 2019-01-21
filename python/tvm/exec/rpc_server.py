@@ -12,7 +12,7 @@ def main(args):
     """Main function"""
 
     if args.tracker:
-        url, port = args.tracker.split(":")
+        url, port = args.tracker.rsplit(":", 1)
         port = int(port)
         tracker_addr = (url, port)
         if not args.key:

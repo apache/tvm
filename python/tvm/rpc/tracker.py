@@ -366,7 +366,7 @@ class Tracker(object):
         if silent:
             logger.setLevel(logging.WARN)
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
         self.port = None
         self.stop_key = base.random_key("tracker")
         for my_port in range(port, port_end):
@@ -391,7 +391,7 @@ class Tracker(object):
         sock.close()
 
     def _stop_tracker(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(base.get_addr_family((self.host, self.port)), socket.SOCK_STREAM)
         sock.connect((self.host, self.port))
         sock.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
         magic = struct.unpack("<i", base.recvall(sock, 4))[0]
