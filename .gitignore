@@ -167,6 +167,7 @@ cscope*
 # vim temporary files
 *.swp
 *.swo
+.ycm_extra_conf.py
 
 # TVM generated code
 perf

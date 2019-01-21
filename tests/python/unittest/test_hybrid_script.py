@@ -408,6 +408,8 @@ def test_allocate():
         return b
 
     a = tvm.placeholder((32, 32), 'float32', 'a')
+    b = blur2d(a)
+    sch = tvm.create_schedule(b.op)
     run_and_check(blur2d, [a])
 
     if tvm.gpu().exist:

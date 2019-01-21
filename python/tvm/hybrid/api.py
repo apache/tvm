@@ -3,6 +3,7 @@ from __future__ import absolute_import as _abs
 
 from .._ffi.base import decorate
 from .. import _api_internal as _tvm_internal
+from .. import codegen as _codegen
 from ..tensor import Tensor
 
 from .parser import parse_python
@@ -41,3 +42,6 @@ def script(pyfunc):
         return value
 
     return decorate(pyfunc, wrapped_func)
+
+def dump(ir):
+    return _codegen._HybridDump(ir)

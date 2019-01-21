@@ -7,5 +7,5 @@ python semantic emulation.
 2. Developers can build HalideIR by writing Python code.
 """
 
-from .api import script
+from .api import script, dump
 from .parser import parse_python
