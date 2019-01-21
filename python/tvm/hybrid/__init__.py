@@ -56,5 +56,8 @@ def script(pyfunc):
 _init_api("tvm.hybrid")
 
 
-def dump(ir):
-    return _HybridDump(ir)
+def dump(stmt):
+    """Dump a HalideIR node to hybrid script format.
+    To replace the default IRPrint when a mature timing.
+    """
+    return _HybridDump(stmt)

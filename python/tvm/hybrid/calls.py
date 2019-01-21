@@ -111,5 +111,6 @@ def _cast(func_id, args):
                      "Only one expression can be cast")
     return _make.Cast(func_id, args[0])
 
-uint8 = uint16 = uint32 = uint64 = int8 = int16 = int32 = int64 = _cast
-float16 = float32 = float64 = _cast
+float16 = float32 = float64 = _cast #pylint: disable=invalid-name
+int8 = int16 = int32 = int64 = _cast #pylint: disable=invalid-name
+uint8 = uint16 = uint32 = uint64 = _cast #pylint: disable=invalid-name

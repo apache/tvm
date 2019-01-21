@@ -24,7 +24,8 @@ from .. import api  as _api
 from .. import ir_pass as _ir_pass
 
 
-def pack_list_to_block(lst):
+def concat_list_to_block(lst):
+    """Concatenate a list of Python IR nodes to HalideIR Block"""
     n = len(lst)
     if n == 1:
         return lst[0]
@@ -39,12 +40,12 @@ def pack_list_to_block(lst):
 
 
 def visit_list_to_block(visit, lst):
-    """Convert a list of Python IR nodes to HalideIR Block"""
+    """Visit and concatenate a list of Python IR nodes to HalideIR Block"""
     lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
     lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, util.make_nop())]
     if not lst:
         return util.make_nop()
-    return pack_list_to_block(lst)
+    return concat_list_to_block(lst)
 
 
 class Symbol(Enum):
@@ -447,7 +448,7 @@ class HybridParser(ast.NodeVisitor):
                 body = visit_list_to_block(self.visit, node.body)
                 body = self.wrap_up_realize(node, body)
                 bodies.append(body)
-            return pack_list_to_block(bodies)
+            return concat_list_to_block(bodies)
 
         elif iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
