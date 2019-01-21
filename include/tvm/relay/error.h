@@ -10,16 +10,16 @@
 #include <vector>
 #include <sstream>
 #include "./base.h"
+#include "./expr.h"
+#include "./module.h"
 
 namespace tvm {
 namespace relay {
 
 #define RELAY_ERROR(msg) (RelayErrorStream() << msg)
 
-// Forward declaration for error reporting.
+// Forward declaratio for RelayErrorStream.
 struct Error;
-class GlobalVar;
-struct Module;
 
 /*! \brief A wrapper around std::stringstream.
  *
@@ -40,7 +40,7 @@ struct RelayErrorStream {
     return ss.str();
   }
 
-  [[noreturn]] void Raise() const;
+  void Raise() const;
 };
 
 struct Error : public dmlc::Error {
@@ -48,18 +48,6 @@ struct Error : public dmlc::Error {
   explicit Error(const std::string& msg) : dmlc::Error(msg), sp() {}
   Error(const std::stringstream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
   Error(const RelayErrorStream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
-};
-
-struct InternalError : public Error {
-  explicit InternalError(const std::string &msg) : Error(msg) {}
-};
-
-struct FatalTypeError : public Error {
-  explicit FatalTypeError(const std::string &s) : Error(s) {}
-};
-
-struct TypecheckerError : public Error {
-  explicit TypecheckerError(const std::string &msg) : Error(msg) {}
 };
 
 /*! \brief An abstraction around how errors are stored and reported.
