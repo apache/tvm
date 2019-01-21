@@ -228,7 +228,8 @@ void CodeGenCUDA::PrintStorageSync(const Call* op) {
 
     this->stream << "#if __CUDA_ARCH__ >= 600\n";
     this->PrintIndent();
-    this->stream << "atomicAdd_block(&" << vid_global_barrier_expect_ << ", " << num_blocks << ");\n";
+    this->stream << "atomicAdd_block(&" << vid_global_barrier_expect_ << ", "
+                 << num_blocks << ");\n";
     this->stream << "#else\n";
     this->PrintIndent();
     this->stream << "atomicAdd(&" << vid_global_barrier_expect_ << ", " << num_blocks << ");\n";
