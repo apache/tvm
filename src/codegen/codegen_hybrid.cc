@@ -440,7 +440,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const AssertStmt* op) {
-  //TODO(@were): Support AssertStmt in both hybrid parser and here
+  // TODO(@were): Support AssertStmt in both hybrid parser and here
   stream << "assert ";
   PrintExpr(op->condition, stream);
   stream << ", ";
