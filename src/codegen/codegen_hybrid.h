@@ -162,7 +162,7 @@ class CodeGenHybrid :
 
  private:
   /*! \brief whether print a simple form */
-  bool simple_mode_{true};
+  bool simple_mode_{false};
   /*! \brief set of volatile buf access */
   std::unordered_set<const Variable*> volatile_buf_;
 };

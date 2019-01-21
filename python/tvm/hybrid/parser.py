@@ -18,17 +18,23 @@ from ..api import any as _any
 from ..container import Array
 from ..tensor import Tensor, Operation
 from .. import expr as _expr
+from .. import stmt as _stmt
 from .. import make as _make
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
 
 
 def pack_list_to_block(lst):
-    if len(lst) == 1:
+    n = len(lst)
+    if n == 1:
         return lst[0]
-    body = lst[0]
-    for i in lst[1:]:
-        body = _make.Block(body, i)
+    body = lst[n - 1]
+    for i in range(1, n):
+        stmt = lst[n - 1 - i]
+        if isinstance(stmt, _stmt.AssertStmt):
+            body = _make.AssertStmt(stmt.condition, stmt.message, body)
+        else:
+            body = _make.Block(stmt, body)
     return body
 
 
@@ -494,6 +500,12 @@ class HybridParser(ast.NodeVisitor):
 
     def visit_Str(self, node):
         return node.s
+
+
+    def visit_Assert(self, node):
+        test = self.visit(node.test)
+        mesg = _api.convert(self.visit(node.msg))
+        return _make.AssertStmt(test, mesg, util.make_nop())
 
 
 def parse_python(src, symbols, args):

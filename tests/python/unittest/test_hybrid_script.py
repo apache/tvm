@@ -69,6 +69,7 @@ def outer_product(n, m, a, b):
     c = output_tensor((n, m), a.dtype)
     for i in range(n):
         for j in range(m):
+            assert i < n and j < m, "index out of range!"
             c[i, j] = a[i] * b[j]
     return c
 
@@ -100,6 +101,10 @@ def test_outer_product():
     assert ibody.extent.name == 'm'
     #Check loop body
     jbody = ibody.body
+    assert isinstance(jbody, tvm.stmt.AssertStmt)
+    assert isinstance(jbody.message, tvm.expr.StringImm)
+    assert jbody.message.value == "index out of range!"
+    jbody = jbody.body
     assert isinstance(jbody, tvm.stmt.Provide)
     assert jbody.func.name == 'c'
     assert len(jbody.args) == 2

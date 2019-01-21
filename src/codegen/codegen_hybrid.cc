@@ -315,7 +315,7 @@ void CodeGenHybrid::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
       op->call_type == Call::PureExtern) {
     os << op->name << "(";
     for (size_t i = 0; i < op->args.size(); i++) {
-      this->PrintExpr(op->args[i], os);
+      PrintExpr(op->args[i], os);
       if (i < op->args.size() - 1) {
         os << ", ";
       }
@@ -330,7 +330,7 @@ void CodeGenHybrid::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
   } else if (op->is_intrinsic(Call::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(~";
-    this->PrintExpr(op->args[0], os);
+    PrintExpr(op->args[0], os);
     os << ')';
   } else if (op->is_intrinsic(Call::shift_left)) {
     PrintBinaryIntrinsitc(op, " << ", os, this);
@@ -424,8 +424,7 @@ void CodeGenHybrid::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(
 
 void CodeGenHybrid::VisitStmt_(const LetStmt* op) {
   std::string value = PrintExpr(op->value);
-  stream << AllocVarID(op->var.get())
-         << " = " << value << ";\n";
+  stream << AllocVarID(op->var.get()) << " = " << value << ";\n";
   PrintStmt(op->body);
 }
 
@@ -517,6 +516,7 @@ TVM_REGISTER_API("hybrid._HybridDump")
       stmt = Evaluate::make(args[0]);
     }
     CodeGenHybrid generator;
+    generator.Init(true);
     generator.PrintStmt(stmt);
     *ret = generator.Finish();
   });
