@@ -2,7 +2,7 @@
 
 import ast
 import sys
-from .intrin import HYBRID_GLOBALS
+from .runtime import HYBRID_GLOBALS
 from .util import _internal_assert
 
 

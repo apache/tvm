@@ -86,6 +86,11 @@ HYBRID_GLOBALS = {
     'tanh'         : numpy.tanh,
     'power'        : numpy.power,
     'exp'          : numpy.exp,
+    'uint8'        : numpy.uint8,
+    'uint16'       : numpy.uint16,
+    'uint32'       : numpy.uint32,
+    'uint64'       : numpy.uint64,
+    'int8'         : numpy.int8,
     'int16'        : numpy.int16,
     'int32'        : numpy.int32,
     'int64'        : numpy.int64,
@@ -95,3 +100,23 @@ HYBRID_GLOBALS = {
     'sigmoid'      : sigmoid,
     'popcount'     : popcount,
 }
+
+
+def _enter_hybrid_runtime(func):
+    """Put hybrid runtime variables into the global scope"""
+    _globals = func.__globals__
+    intersect = []
+    for elem in list(HYBRID_GLOBALS.keys()):
+        if elem in _globals.keys():
+            intersect.append((elem, _globals[elem]))
+        _globals[elem] = HYBRID_GLOBALS[elem]
+    return intersect
+
+
+def _restore_runtime(func, intersect):
+    """Rollback the modification caused by hybrid runtime"""
+    _globals = func.__globals__
+    for elem in list(HYBRID_GLOBALS.keys()):
+        _globals.pop(elem)
+    for k, v in intersect:
+        _globals[k] = v

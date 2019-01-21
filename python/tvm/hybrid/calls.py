@@ -111,4 +111,5 @@ def _cast(func_id, args):
                      "Only one expression can be cast")
     return _make.Cast(func_id, args[0])
 
-int16 = int32 = int64 = float16 = float32 = float64 = _cast
+uint8 = uint16 = uint32 = uint64 = int8 = int16 = int32 = int64 = _cast
+float16 = float32 = float64 = _cast

@@ -1,6 +1,6 @@
 import tvm, inspect, sys, traceback, numpy, nose, types
 from tvm.hybrid import script
-from tvm.hybrid.intrin import HYBRID_GLOBALS
+from tvm.hybrid.runtime import HYBRID_GLOBALS
 
 @nose.tools.nottest
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):

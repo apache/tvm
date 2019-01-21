@@ -30,7 +30,8 @@ def script(pyfunc):
         A decorated hybrid script function.
     """
     def wrapped_func(func, *args, **kwargs): #pylint: disable=missing-docstring
-        from .util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types
+        from .runtime import _enter_hybrid_runtime, _restore_runtime
+        from .util import _is_tvm_arg_types
         if _is_tvm_arg_types(args):
             src = _pruned_source(func)
             parser = parse_python(src, func.__globals__, args)
