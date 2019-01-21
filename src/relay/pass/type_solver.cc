@@ -463,7 +463,7 @@ TVM_REGISTER_API("relay._ir_pass._test_type_solver")
           });
       } else if (name == "Unify") {
         return TypedPackedFunc<Type(Type, Type)>([solver](Type lhs, Type rhs) {
-            return solver->Unify(lhs, rhs, NodeRef());
+            return solver->Unify(lhs, rhs, lhs);
           });
       } else if (name == "Resolve") {
         return TypedPackedFunc<Type(Type)>([solver](Type t) {
@@ -471,7 +471,9 @@ TVM_REGISTER_API("relay._ir_pass._test_type_solver")
           });
       } else if (name == "AddConstraint") {
         return TypedPackedFunc<void(TypeConstraint)>([solver](TypeConstraint c) {
-            return solver->AddConstraint(c, NodeRef());
+            Expr e = VarNode::make("dummy_var",
+              IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+            return solver->AddConstraint(c, e);
           });
       } else {
         return PackedFunc();
