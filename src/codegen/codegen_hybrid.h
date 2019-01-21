@@ -34,6 +34,7 @@ class CodeGenHybrid :
       public StmtFunctor<void(const Stmt&)>,
       public CodeGenSourceBase {
  public:
+  void Init(bool simple_mode);
   /*!
    * \brief Add the function to the generated module.
    * \param f The function to be compiled.

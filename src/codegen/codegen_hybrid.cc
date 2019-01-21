@@ -12,6 +12,10 @@ namespace codegen {
 
 using namespace ir;
 
+void CodeGenHybrid::Init(bool simple_mode) {
+  simple_mode_ = simple_mode;
+}
+
 void CodeGenHybrid::InitFuncState(LoweredFunc f) {
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
@@ -504,5 +508,17 @@ void CodeGenHybrid::VisitStmt_(const ProducerConsumer *op) {
   PrintStmt(op->body);
 }
 
+TVM_REGISTER_API("hybrid._HybridDump")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    Stmt stmt;
+    if (args[0].IsNodeType<Stmt>()) {
+      stmt = args[0];
+    } else if (args[0].IsNodeType<Expr>()) {
+      stmt = Evaluate::make(args[0]);
+    }
+    CodeGenHybrid generator;
+    generator.PrintStmt(stmt);
+    *ret = generator.Finish();
+  });
 }  // namespace codegen
 }  // namespace tvm

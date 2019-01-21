@@ -47,7 +47,7 @@ class DumpIR(object):
             if not isinstance(retv, (_stmt.Stmt, container.LoweredFunc, container.Array)):
                 return retv
             fname = func.func_name if hasattr(func, 'func_name') else func.__name__
-            pname = str(self._pass_id) + "_" + fname + "_ir.cc"
+            pname = str(self._pass_id) + "_" + fname + "_ir.py"
             with open(pname, "a") as f:
                 out = retv.body if isinstance(retv, container.LoweredFunc) else retv
                 f.write(str(out))
