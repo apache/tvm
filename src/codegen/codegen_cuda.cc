@@ -225,8 +225,15 @@ void CodeGenCUDA::PrintStorageSync(const Call* op) {
     std::string ptr = GetUniqueName("pf");
     this->stream << "volatile unsigned* "
                  << ptr << " = &" << vid_global_barrier_state_<< ";\n";
+
+    this->stream << "#if __CUDA_ARCH__ >= 600\n";
     this->PrintIndent();
-    this->stream << vid_global_barrier_expect_ << " += " << num_blocks << ";\n";
+    this->stream << "atomicAdd_block(&" << vid_global_barrier_expect_ << ", " << num_blocks << ");\n";
+    this->stream << "#else\n";
+    this->PrintIndent();
+    this->stream << "atomicAdd(&" << vid_global_barrier_expect_ << ", " << num_blocks << ");\n";
+    this->stream << "#endif\n";
+
     this->PrintIndent();
     this->stream <<"while (" << ptr << "[0] < " << vid_global_barrier_expect_ << ");\n";
     this->EndScope(wb);
