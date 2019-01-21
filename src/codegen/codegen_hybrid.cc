@@ -34,8 +34,6 @@ std::string CodeGenHybrid::GetVarID(const Variable* v) {
 }
 
 void CodeGenHybrid::ReserveKeywordsAsUnique() {
-  // skip the first underscore, so SSA variable starts from _1
-  GetUniqueName("_");
   GetUniqueName("def");
   GetUniqueName("for");
   GetUniqueName("in");
@@ -336,34 +334,17 @@ void CodeGenHybrid::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     PrintBinaryIntrinsitc(op, " << ", os, this);
   } else if (op->is_intrinsic(Call::shift_right)) {
     PrintBinaryIntrinsitc(op, " >> ", os, this);
-  } /*else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
-    os << "(";
-    PrintExpr(op->args[0], os);
-    os << " ? ";
+  } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
     PrintExpr(op->args[1], os);
-    os << " : ";
+    os << " if ";
+    PrintExpr(op->args[0], os);
+    os << " else ";
     PrintExpr(op->args[2], os);
-    os << ")";
-  } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const Load *l = op->args[0].as<Load>();
-    CHECK(op->args.size() == 1 && l);
-    os << "((";
-    this->PrintType(l->type.element_of(), os);
-    os << " *)" << this->GetVarID(l->buffer_var.get())
-       << " + ";
-    this->PrintExpr(l->index, os);
-    os << ')';
-  } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
-    CHECK_EQ(op->args.size(), 3U);
-    os << GetStructRef(
-        op->type, op->args[0], op->args[1],
-        op->args[2].as<IntImm>()->value);
-  } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
-    CHECK_EQ(op->args.size(), 1U);
-    os << "(";
-    this->PrintExpr(op->args[0], os);
-    os << " == NULL)";
   } else {
+    // TODO(@were): Support tvm runtime intrinsics:
+    // intrinsic::tvm_address_of
+    // intrinsic::tvm_struct_get
+    // intrinsic::tvm_handle_is_null
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
       LOG(FATAL) << "Unresolved intrinsic " << op->name
@@ -371,7 +352,7 @@ void CodeGenHybrid::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     } else {
       LOG(FATAL) << "Unresolved call type " << op->call_type;
     }
-  }*/
+  }
 }
 
 void CodeGenHybrid::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
@@ -443,6 +424,7 @@ void CodeGenHybrid::VisitStmt_(const Allocate* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
+  // TODO(@were): Support thread and buffer binding
   if (op->attr_key == ir::attr::thread_extent) {
     LOG(FATAL) << "Thread binding support yet!\n";
   } else if (op->attr_key == ir::attr::storage_scope) {
@@ -459,7 +441,11 @@ void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
 
 void CodeGenHybrid::VisitStmt_(const AssertStmt* op) {
   //TODO(@were): Support AssertStmt in both hybrid parser and here
-  LOG(FATAL) << "assert to be supported yet!\n";
+  stream << "assert ";
+  PrintExpr(op->condition, stream);
+  stream << ", ";
+  PrintExpr(op->message, stream);
+  stream << "\n";
   PrintStmt(op->body);
 }
 
@@ -504,11 +490,16 @@ void CodeGenHybrid::VisitStmt_(const Evaluate *op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const ProducerConsumer *op) {
+  PrintIndent();
+  stream << "# producing " << op->func->func_name() << "\n";
   PrintStmt(op->body);
+  PrintIndent();
+  stream << "# produced " << op->func->func_name() << "\n";
 }
 
 TVM_REGISTER_API("hybrid._HybridDump")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
+    // If the entrance is Python directly, we dump it as simple_mode.
     Stmt stmt;
     if (args[0].IsNodeType<Stmt>()) {
       stmt = args[0];
