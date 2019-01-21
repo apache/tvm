@@ -1631,8 +1631,8 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
           const auto& src_axis = src_layout[i];
           int dst_major_pos = dst_layout.Indexof(src_axis.to_primal());
           int dst_minor_pos = dst_layout.Indexof(src_axis.to_subordinate());
-          int32_t src_factor = static_cast<int32_t>(src_layout.Subsizeof(src_axis));
-          int32_t dst_factor = static_cast<int32_t>(dst_layout.Subsizeof(src_axis));
+          int32_t src_factor = static_cast<int32_t>(src_layout.GetFactor(src_axis));
+          int32_t dst_factor = static_cast<int32_t>(dst_layout.GetFactor(src_axis));
 
           tvm::Expr src_index(dst_indices[dst_major_pos]);
           if (dst_minor_pos >= 0) {

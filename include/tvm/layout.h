@@ -218,26 +218,9 @@ class Layout : public NodeRef {
   explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
 
   /*! \brief default constructor */
-  Layout() : Layout("__undef__") {} // NOLINT(*)
+  Layout() = default;
 
-  explicit Layout(const Array<IterVar>& axes) {
-    node_ = make_node<LayoutNode>();
-    LayoutNode *node = operator->();
-    node->axis = axes;
-    std::ostringstream repr;
-    for (const IterVar& axis : axes) {
-      if (const auto* factor = axis->dom->extent.as<IntImm>()) {
-        CHECK_GT(factor->value, 0);
-        repr << factor;
-      }
-      CHECK_EQ(axis->var.get()->name_hint.size(), 1) << "Invalid layout axis "
-                                                     << axis->var.get()->name_hint;
-      char c = axis->var.get()->name_hint[0];
-      CHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) << "Invalid layout axis " << c;
-      repr << axis->var.get()->name_hint;
-    }
-    node->name = repr.str();
-  }
+  explicit Layout(const Array<IterVar>& axes);
 
   /*! \brief construct from a string */
   Layout(const char* name) : Layout(std::string(name)) {} // NOLINT(*)
@@ -250,57 +233,7 @@ class Layout : public NodeRef {
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
    */
-  Layout(const std::string& name) { // NOLINT(*)
-    node_ = make_node<LayoutNode>();
-    LayoutNode *node = operator->();
-    node->name = name;
-
-    if (name != "__undef__") {  // parse layout string
-      int64_t factor = 0;
-      for (char c : name) {
-        if (c >= 'A' && c <= 'Z') {
-          CHECK_EQ(factor, 0) << "Invalid layout " << name
-                              << ": invalid factor size " << factor
-                              << " before dimension " << c;
-          std::string shape_name("_shape");
-          shape_name.insert(0, 1, c);
-          IterVar axis = IterVarNode::make(Range(Expr(0), Var(shape_name)),
-                                           Var(std::string(1, c)), kDataPar);
-          node->axis.push_back(axis);
-        } else if (c >= 'a' && c <= 'z') {
-          CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size "
-                              << factor << " for dimension " << c;
-          IterVar axis = IterVarNode::make(Range(Expr(0), Expr(factor)),
-                                           Var(std::string(1, c)), kDataPar);
-          node->axis.push_back(axis);
-          factor = 0;
-        } else if (c >= '0' && c <= '9') {
-          CHECK(factor >= 0) << "Invalid layout " << name << ": _ is adjacent to a number.";
-          factor = factor * 10 + c - '0';
-        } else {
-          LOG(FATAL) << "Invalid layout " << name;
-        }
-      }
-    }
-
-    // validate layout
-    std::vector<bool> exist_axis(256, false);
-    for (const IterVar& v : node->axis) {
-      auto axis_str = v->var.get()->name_hint;
-      CHECK_EQ(axis_str.size(), 1);
-      char axis = axis_str[0];
-      CHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
-      CHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
-      exist_axis[axis] = true;
-    }
-    for (const IterVar& v : node->axis) {
-      char axis = v->var.get()->name_hint[0];
-      if (axis >= 'a' && axis <= 'z') {
-        CHECK(exist_axis[axis-'a'+'A']) << "Invalid layout " << name << ": missing axis "
-                                        << axis - 'a' + 'A';
-      }
-    }
-  }
+  Layout(const std::string& name);
 
   /*!
    * \brief access the internal node container
@@ -328,23 +261,14 @@ class Layout : public NodeRef {
   }
 
   /*!
-   * \brief Returns a sublayout which is the portion of the object
+   * \brief Returns a sub-layout which is the portion of the object
    *        that starts at dimension \p pos and spans \p len dimensions
    *        (or until the end of the layout, whichever comes first).
    * \param pos The start position.
    * \param len The length of the sub-layout.
    * \return A newly constructed Layout object.
    */
-  Layout Sublayout(size_t pos, size_t len) const {
-    if (pos > ndim()) return Layout::Undef();
-    if (pos + len > ndim()) len = ndim() - pos;
-    Array<IterVar> new_layout;
-    const auto axes = operator->()->axis;
-    for (size_t i = pos; i < pos + len; ++i) {
-      new_layout.push_back(axes[i]);
-    }
-    return Layout(new_layout);
-  }
+  Layout SubLayout(size_t pos, size_t len) const;
 
   /*!
    * \brief Split \p axis by \p size and put the sub-axis to position \p target_pos.
@@ -353,39 +277,21 @@ class Layout : public NodeRef {
    * \param factor size of the sub-dimension.
    * \return A newly constructed Layout object.
    */
-  Layout Split(const LayoutAxis& axis, size_t target_pos, int64_t factor) const {
-    const std::string& name = operator->()->name;
-    const auto axes = operator->()->axis;
-    CHECK(target_pos <= this->ndim()) << "Invalid split position "
-                                      << target_pos << " for layout " << name;
-    CHECK(axis.IsPrimal()) << "Cannot split a subordinate axis " << axis;
-    CHECK(this->Contains(axis)) << "Axis " << axis << " does not exist in " << name;
-    CHECK(!this->Contains(axis.to_subordinate())) << "Axis " << axis
-                                                  << " has already been split in " << name;
-    CHECK(factor > 0) << "Invalid split size " << factor;
-    Array<IterVar> new_layout;
-    for (size_t i = 0; i <= this->ndim(); ++i) {
-      if (i == target_pos) {
-        new_layout.push_back(IterVarNode::make(Range(Expr(0), Expr(factor)),
-                                               Var(axis.to_subordinate().name()), kDataPar));
-      }
-      if (i == this->ndim()) break;
-      new_layout.push_back(axes[i]);
-    }
-    return Layout(new_layout);
-  }
+  Layout Split(const LayoutAxis &axis, size_t target_pos, int64_t factor) const;
 
 
   /*! \return number of dimensions */
   inline size_t ndim() const {
+    if (!defined()) return 0;
     return operator->()->axis.size();
   }
 
   /*! \return number of super dimensions */
   inline size_t ndim_primal() const {
+    if (!defined()) return 0;
     size_t ct = 0;
     for (auto x : operator->()->axis) {
-      if (LayoutAxis::Get(x->var.get()->name_hint[0]).IsPrimal()) {
+      if (LayoutAxis::Get(x).IsPrimal()) {
         ct++;
       }
     }
@@ -399,7 +305,7 @@ class Layout : public NodeRef {
    * \param axis the input axis.
    * \return the index or -1 if not found.
    */
-  int32_t Indexof(const LayoutAxis& axis) const {
+  inline int32_t Indexof(const LayoutAxis& axis) const {
     if (!this->defined()) return -1;
     const auto axes = operator->()->axis;
     for (size_t i = 0; i < axes.size(); ++i) {
@@ -414,18 +320,7 @@ class Layout : public NodeRef {
    *         or the size of \p axis itself (if \p axis is a primal-axis).
    *         Return -1 if \p axis is not in the layout or the layout is undefined.
    */
-  int64_t Subsizeof(const LayoutAxis& axis) const {
-    const LayoutAxis& sub = axis.to_subordinate();
-    if (!this->defined()) return -1;
-    for (const IterVar& itvar : operator->()->axis) {
-      if (sub == LayoutAxis::Get(itvar)) {
-        const auto* factor = itvar->dom->extent.as<IntImm>();
-        CHECK(factor);
-        return factor->value;
-      }
-    }
-    return -1;
-  }
+  int64_t GetFactor(const LayoutAxis &axis) const;
 
   /*!
    * \brief Whether the layout contains an axis.
@@ -433,6 +328,7 @@ class Layout : public NodeRef {
    * \return Whether the layout contains the axis.
    */
   bool Contains(const LayoutAxis& axis) const {
+    if (!defined()) return false;
     for (const IterVar var : operator->()->axis) {
       if (var->var.get()->name_hint == axis.name()) {
         return true;
@@ -442,17 +338,14 @@ class Layout : public NodeRef {
   }
 
   const LayoutAxis& operator[](size_t i) const {
+    CHECK(defined()) << "Try to access axis from an undefined layout.";
     const IterVar axis = operator->()->axis[i];
     return LayoutAxis::Get(axis);
   }
 
-  /*! \return whether the layout is defined */
-  bool defined() const {
-    return operator->()->name != "__undef__";
-  }
-
   /*! \return the string description of the layout */
-  const std::string& name() const {
+  inline std::string name() const {
+    if (!defined()) return "__undef__";
     return operator->()->name;
   }
 
@@ -461,16 +354,16 @@ class Layout : public NodeRef {
    * \param rhs Another layout.
    * \return whether the two layouts are equal.
    */
-  bool Equals(const Layout &rhs) const {
-    return operator->()->name == rhs->name;
+  inline bool Equals(const Layout &rhs) const {
+    return name() == rhs.name();
   }
 
   /*!
- * \brief allow output string of layout to ostream
- * \param os the output stream
- * \param l the layout
- * \return the ostream
- */
+   * \brief allow output string of layout to ostream
+   * \param os the output stream
+   * \param l the layout
+   * \return the ostream
+   */
   friend std::ostream& operator<<(std::ostream& os, const Layout& l) {
     os << l.name();
     return os;
@@ -513,26 +406,10 @@ class BijectiveLayout : public NodeRef {
   BijectiveLayout() = default;
   explicit BijectiveLayout(NodePtr<Node> n) : NodeRef(n) {}
 
-  BijectiveLayout(const Layout& orig_layout, const Layout& store_layout) {
-    auto n = make_node<BijectiveLayoutNode>();
-
-    n->orig_layout = orig_layout;
-    n->orig_axis = orig_layout->axis;
-
-    n->store_layout = store_layout;
-    n->store_axis = store_layout->axis;
-
-    if (!GetStoreRule(n->forward_rule, n->orig_layout, n->store_layout)) {
-      // not convertible
-      return;
-    }
-    CHECK(GetStoreRule(n->backward_rule, n->store_layout, n->orig_layout));
-
-    node_ = n;
-  }
+  BijectiveLayout(const Layout& orig_layout, const Layout& store_layout);
 
   // Final shape of the underlying array, given the shape of the normal layout
-  TVM_DLL Array <Expr> ForwardShape(const Array<Expr>& shape) const;
+  TVM_DLL Array<Expr> ForwardShape(const Array<Expr>& shape) const;
   // Given final shape, recover the original shape.
   TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& shape) const;
   // Final index of the underlying array, given the normal layout.
@@ -548,59 +425,11 @@ class BijectiveLayout : public NodeRef {
 
   /*! \brief specify container node */
   using ContainerType = BijectiveLayoutNode;
-
- private:
-  inline static bool GetStoreRule(Array<Expr>& rule,
-                                  const Layout& orig_layout,
-                                  const Layout& store_layout) {
-    for (size_t i = 0; i < store_layout.ndim(); ++i) {
-      const auto& store_axis = store_layout[i];
-      const IterVar& store_axis_impl = store_layout->axis[i];
-      Expr store(0);
-
-      for (size_t j = 0; j < orig_layout.ndim(); ++j) {
-        const auto& orig_axis = orig_layout[j];
-        const IterVar& orig_axis_impl = orig_layout->axis[j];
-        if (store_axis.to_primal() == orig_axis.to_primal()) {
-          if (orig_axis.IsPrimal()) {
-            Expr orig_var = orig_axis_impl->var;
-            const int64_t factor = orig_layout.Subsizeof(orig_axis);
-            if (factor > 0) {
-              orig_var = orig_var * Expr(factor);
-            }
-            store = store + orig_var;
-          } else {
-            store = store + orig_axis_impl->var;
-          }
-        }
-      }
-      if (is_zero(store)) {
-        // Not convertible
-        return false;
-      }
-
-      if (store_axis.IsPrimal()) {
-        const int64_t factor = store_layout.Subsizeof(store_axis);
-        if (factor > 0) {
-          store = store / Expr(factor);
-        }
-      } else {
-        store = store % store_axis_impl->dom->extent;
-      }
-
-      rule.push_back(store);
-    }
-    return true;
-  }
 };
-
-
 
 inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
   return static_cast<const BijectiveLayoutNode*>(node_.get());
 }
-
-
 
 }  // namespace tvm
 

@@ -39,7 +39,8 @@ Array<Array<Layout> > Pool2DInferCorrectLayout(
     }
   }
 
-  return Array<Array<Layout> >{{params->layout}, {params->layout}};
+  Layout inferred_layout(params->layout);
+  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
 }
 
 template <typename AttrType>

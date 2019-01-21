@@ -77,9 +77,9 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
 
     if (old_in_shapes[defined_idx].size() >= old_in_shapes[undef_idx].size()) {
       layouts.Set(undef_idx,
-                  layouts[defined_idx].Sublayout(
-                      old_in_shapes[defined_idx].size() - old_in_shapes[undef_idx].size(),
-                      old_in_shapes[undef_idx].size()));
+                  layouts[defined_idx].SubLayout(
+                  old_in_shapes[defined_idx].size() - old_in_shapes[undef_idx].size(),
+                  old_in_shapes[undef_idx].size()));
       return Array<Array<Layout> > {layouts, {layouts[defined_idx]}};
     } else {
       // only know the tensor with smaller dimensions,
@@ -102,7 +102,7 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
       }
     }
 
-    Layout common_part = layouts[large_idx].Sublayout(i, layouts[large_idx].ndim() - i);
+    Layout common_part = layouts[large_idx].SubLayout(i, layouts[large_idx].ndim() - i);
     if (!BijectiveLayout(layouts[small_idx], common_part).defined()) {  // not convertible
       return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
     }

@@ -92,9 +92,9 @@ class BranchGroupFinder : private ExprVisitor {
     const auto* tweight_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* tweight_b = b->args[1]->type_as<TensorTypeNode>();
     const auto shape_a = BijectiveLayout(
-      attrs_a->kernel_layout, kOIHW).ForwardShape(tweight_a->shape);
+      Layout(attrs_a->kernel_layout), kOIHW).ForwardShape(tweight_a->shape);
     const auto shape_b = BijectiveLayout(
-      attrs_b->kernel_layout, kOIHW).ForwardShape(tweight_b->shape);
+      Layout(attrs_b->kernel_layout), kOIHW).ForwardShape(tweight_b->shape);
 
     return eq(attrs_a->strides, attrs_b->strides) && eq(attrs_a->padding, attrs_b->padding) &&
            eq(attrs_a->dilation, attrs_b->dilation) && eq(attrs_a->groups, attrs_b->groups) &&
