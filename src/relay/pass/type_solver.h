@@ -47,6 +47,7 @@ class TypeSolver {
   /*!
    * \brief Add a type constraint to the solver.
    * \param constraint The constraint to be added.
+   * \param location The location at which the constraint was incurred.
    */
   void AddConstraint(const TypeConstraint& constraint, const NodeRef& lcoation);
   /*!
@@ -64,13 +65,14 @@ class TypeSolver {
    * \brief Unify lhs and rhs.
    * \param lhs The left operand.
    * \param rhs The right operand
+   * \param location The location at which the unification problem arose.
    */
   Type Unify(const Type& lhs, const Type& rhs, const NodeRef& location);
 
   /*!
    * \brief Report an error at the provided location.
    * \param err The error to report.
-   * \param loc The location to report the error.
+   * \param loc The location at which to report the error.
    */
   void ReportError(const Error& err, const NodeRef& location);
 

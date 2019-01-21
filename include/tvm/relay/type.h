@@ -298,7 +298,6 @@ class TypeReporterNode : public Node {
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) final {}
 
-  // Not sure if best design, if not we should recreate a reporter for each relation.
   mutable NodeRef location;
 
   static constexpr const char* _type_key = "relay.TypeReporter";
