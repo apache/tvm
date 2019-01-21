@@ -86,6 +86,12 @@ HYBRID_GLOBALS = {
     'tanh'         : numpy.tanh,
     'power'        : numpy.power,
     'exp'          : numpy.exp,
+    'int16'        : numpy.int16,
+    'int32'        : numpy.int32,
+    'int64'        : numpy.int64,
+    'float16'      : numpy.float16,
+    'float32'      : numpy.float32,
+    'float64'      : numpy.float64,
     'sigmoid'      : sigmoid,
     'popcount'     : popcount,
 }

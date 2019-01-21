@@ -589,19 +589,19 @@ def test_const_range():
     @tvm.hybrid.script
     def foo(a, b):
         c = output_tensor(a.shape, a.dtype)
-        d = output_tensor(a.shape, a.dtype)
+        d = output_tensor(a.shape, 'int32')
 
         for i in const_range(2):
             for j in const_range(5):
-                c[i, j] = a[i, j] + b[i, j]
+                c[i, j] = float32(int32(a[i, j]) + b[i, j])
 
         for i in const_range(len(b)):
             for j in const_range(len(b[0])):
-                d[i, j] = a[i, j] + b[i, j]
+                d[i, j] = int32(a[i, j] + b[i, j])
 
         return c, d
 
-    a = tvm.placeholder((2, 5), name='a', dtype='int32')
+    a = tvm.placeholder((2, 5), name='a', dtype='float32')
     b = [[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]]
     run_and_check(foo, [a, b])
 

@@ -104,3 +104,11 @@ def len(func_id, args):
     except: #pylint: disable=bare-except
         _internal_assert(args[0].shape.__len__() == 1, "Only one-dimension array can get len")
         return _api.convert(args[0].shape[0])
+
+
+def _cast(func_id, args):
+    _internal_assert(args.__len__() == 1 and isinstance(args[0], _expr.Expr), \
+                     "Only one expression can be cast")
+    return _make.Cast(func_id, args[0])
+
+int16 = int32 = int64 = float16 = float32 = float64 = _cast
