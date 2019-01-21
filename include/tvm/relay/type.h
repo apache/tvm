@@ -12,7 +12,6 @@
 #include <string>
 
 #include "base.h"
-#include "error.h"
 #include "../attrs.h"
 
 namespace tvm {
@@ -295,8 +294,6 @@ class TypeReporterNode : public Node {
    *      true if solver can still proceed.
    */
   TVM_DLL virtual bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
-
-  TVM_DLL virtual void ReportError(const Error& err) = 0;
 
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) final {}

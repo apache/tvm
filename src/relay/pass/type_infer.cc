@@ -21,7 +21,6 @@
  */
 
 #include <tvm/relay/error.h>
-#include <tvm/relay/error_reporter.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pass.h>
 #include "type_solver.h"

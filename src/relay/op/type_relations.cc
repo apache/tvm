@@ -71,10 +71,9 @@ Type ConcreteBroadcast(const TensorType& t1,
     } else if (EqualConstInt(s2, 1)) {
       oshape.push_back(s1);
     } else {
-      reporter->ReportError(
-        RELAY_ERROR(
+      RELAY_ERROR(
           "Incompatible broadcast type "
-              << t1 << " and " << t2));
+              << t1 << " and " << t2).Raise();
     }
   }
 

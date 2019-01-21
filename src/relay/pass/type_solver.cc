@@ -35,13 +35,6 @@ class TypeSolver::Reporter : public TypeReporterNode {
     return true;
   }
 
-  void ReportError(const Error& err) final {
-    solver_->err_reporter_->ReportAt(
-      solver_->current_func,
-      location,
-      err);
-  }
-
  private:
   TypeSolver* solver_;
 };
@@ -367,6 +360,13 @@ Type TypeSolver::Unify(const Type& dst, const Type& src, const NodeRef&) {
   return unifier.Unify(dst, src);
 }
 
+void TypeSolver::ReportError(const Error& err, const NodeRef& location)  {
+    this->err_reporter_->ReportAt(
+      this->current_func,
+      location,
+      err);
+  }
+
 // Add type constraint to the solver.
 void TypeSolver::AddConstraint(const TypeConstraint& constraint, const NodeRef& loc) {
   if (auto *op = constraint.as<TypeRelationNode>()) {
@@ -418,19 +418,31 @@ bool TypeSolver::Solve() {
     }
 
     CHECK(rnode->location.defined()) << "undefined location";
-
     reporter_->location = rnode->location;
-    // call the function
-    bool resolved = rel->func(args, rel->num_inputs, rel->attrs, reporter_);
-    // mark inqueue as false after the function call
+
+    try {
+      // Call the Type Relation's function.
+      bool resolved = rel->func(args, rel->num_inputs, rel->attrs, reporter_);
+
+      if (resolved) {
+        ++num_resolved_rels_;
+      }
+
+      rnode->resolved = resolved;
+    } catch (const Error& err) {
+      this->ReportError(err, rnode->location);
+      rnode->resolved = false;
+    } catch (const dmlc::Error& err) {
+      rnode->resolved = false;
+      std::cout << err.what() << std::endl;
+      exit(1);
+    }
+
+    // Mark inqueue as false after the function call
     // so that rnode itself won't get enqueued again.
     rnode->inqueue = false;
-
-    if (resolved) {
-      ++num_resolved_rels_;
-    }
-    rnode->resolved = resolved;
   }
+
   // This criterion is not necessarily right for all the possible cases
   // TODO(tqchen): We should also count the number of in-complete types.
   return num_resolved_rels_ == rel_nodes_.size();

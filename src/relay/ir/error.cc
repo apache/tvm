@@ -6,13 +6,17 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
-#include <tvm/relay/error_reporter.h>
+#include <tvm/relay/error.h>
 #include <string>
 #include <vector>
 #include <rang.hpp>
 
 namespace tvm {
 namespace relay {
+
+void RelayErrorStream::Raise() const {
+  throw Error(*this);
+}
 
 template<typename T, typename U>
 using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;

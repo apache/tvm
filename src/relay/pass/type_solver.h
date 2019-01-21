@@ -9,7 +9,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/pass.h>
-#include <tvm/relay/error_reporter.h>
+#include <tvm/relay/error.h>
 #include <vector>
 #include <queue>
 #include "../../common/arena.h"
@@ -66,6 +66,13 @@ class TypeSolver {
    * \param rhs The right operand
    */
   Type Unify(const Type& lhs, const Type& rhs, const NodeRef& location);
+
+  /*!
+   * \brief Report an error at the provided location.
+   * \param err The error to report.
+   * \param loc The location to report the error.
+   */
+  void ReportError(const Error& err, const NodeRef& location);
 
  private:
   class OccursChecker;
