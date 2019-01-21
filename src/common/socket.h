@@ -45,7 +45,7 @@ inline std::string GetHostName() {
  * \brief Common data structure fornetwork address.
  */
 struct SockAddr {
-  sockaddr_in addr;
+  sockaddr_storage addr;
   SockAddr() {}
   /*!
    * \brief construc address by url and port
@@ -63,30 +63,63 @@ struct SockAddr {
   void Set(const char *host, int port) {
     addrinfo hints;
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
+    hints.ai_family = PF_UNSPEC;
+    hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = SOCK_STREAM;
     addrinfo *res = NULL;
     int sig = getaddrinfo(host, NULL, &hints, &res);
     CHECK(sig == 0 && res != NULL)
         << "cannot obtain address of " <<  host;
-    CHECK(res->ai_family == AF_INET)
-        << "Does not support IPv6";
-    memcpy(&addr, res->ai_addr, res->ai_addrlen);
-    addr.sin_port = htons(port);
+    switch (res->ai_family) {
+      case AF_INET: {
+          sockaddr_in *addr4 = reinterpret_cast<sockaddr_in *>(&addr);
+          memcpy(addr4, res->ai_addr, res->ai_addrlen);
+          addr4->sin_port = htons(port);
+          addr4->sin_family = AF_INET;
+        }
+        break;
+      case AF_INET6: {
+          sockaddr_in6 *addr6 = reinterpret_cast<sockaddr_in6 *>(&addr);
+          memcpy(addr6, res->ai_addr, res->ai_addrlen);
+          addr6->sin6_port = htons(port);
+          addr6->sin6_family = AF_INET6;
+        }
+        break;
+      default:
+        CHECK(false) << "cannot decode address";
+    }
     freeaddrinfo(res);
   }
   /*! \brief return port of the address */
   int port() const {
-    return ntohs(addr.sin_port);
+    return ntohs((addr.ss_family == AF_INET6)? \
+                    reinterpret_cast<const sockaddr_in6 *>(&addr)->sin6_port : \
+                    reinterpret_cast<const sockaddr_in *>(&addr)->sin_port);
+  }
+  /*! \brief return the ip address family */
+  int ss_family() const {
+    return addr.ss_family;
   }
   /*! \return a string representation of the address */
   std::string AsString() const {
     std::string buf; buf.resize(256);
+
+  const void *sinx_addr = nullptr;
+  if (addr.ss_family == AF_INET6) {
+    const in6_addr& addr6 = reinterpret_cast<const sockaddr_in6 *>(&addr)->sin6_addr;
+    sinx_addr = reinterpret_cast<const void *>(&addr6);
+  } else if (addr.ss_family == AF_INET) {
+    const in_addr& addr4 = reinterpret_cast<const sockaddr_in *>(&addr)->sin_addr;
+    sinx_addr = reinterpret_cast<const void *>(&addr4);
+  } else {
+    CHECK(false) << "illegal address";
+  }
+
 #ifdef _WIN32
-    const char *s = inet_ntop(AF_INET, (PVOID)&addr.sin_addr,
+    const char *s = inet_ntop(addr.ss_family, sinx_addr,
                               &buf[0], buf.length());
 #else
-    const char *s = inet_ntop(AF_INET, &addr.sin_addr,
+    const char *s = inet_ntop(addr.ss_family, sinx_addr,
                               &buf[0], static_cast<socklen_t>(buf.length()));
 #endif
     CHECK(s != nullptr) << "cannot decode address";
@@ -294,7 +327,7 @@ class TCPSocket : public Socket {
    * \param af domain
    */
   void Create(int af = PF_INET) {
-    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    sockfd = socket(af, SOCK_STREAM, 0);
     if (sockfd == INVALID_SOCKET) {
       Socket::Error("Create");
     }
