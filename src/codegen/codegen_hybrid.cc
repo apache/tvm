@@ -497,20 +497,5 @@ void CodeGenHybrid::VisitStmt_(const ProducerConsumer *op) {
   PrintIndent();
   stream << "# produced " << op->func->func_name() << "\n";
 }
-
-TVM_REGISTER_API("hybrid._HybridDump")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    // If the entrance is Python directly, we dump it as simple_mode.
-    Stmt stmt;
-    if (args[0].IsNodeType<Stmt>()) {
-      stmt = args[0];
-    } else if (args[0].IsNodeType<Expr>()) {
-      stmt = Evaluate::make(args[0]);
-    }
-    CodeGenHybrid generator;
-    generator.Init(true);
-    generator.PrintStmt(stmt);
-    *ret = generator.Finish();
-  });
 }  // namespace codegen
 }  // namespace tvm

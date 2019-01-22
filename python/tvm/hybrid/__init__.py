@@ -19,7 +19,7 @@ from .util import _pruned_source
 
 
 def script(pyfunc):
-    """Decorate a python function function as  hybrid script.
+    """Decorate a python function function as hybrid script.
 
     The hybrid function support emulation mode and parsing to
     the internal language IR.
@@ -51,13 +51,3 @@ def script(pyfunc):
         return value
 
     return decorate(pyfunc, wrapped_func)
-
-
-_init_api("tvm.hybrid")
-
-
-def dump(stmt):
-    """Dump a HalideIR node to hybrid script format.
-    To replace the default IRPrint when a mature timing.
-    """
-    return _HybridDump(stmt)
