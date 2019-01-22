@@ -98,16 +98,16 @@ std::string CodeGenHybrid::GetStructRef(
   if (kind < intrinsic::kArrKindBound_) {
     std::ostringstream os;
     os << "(((TVMArray*)";
-    this->PrintExpr(buffer, os);
+    PrintExpr(buffer, os);
     os << ")";
     if (kind == intrinsic::kArrAddr) {
       os << " + ";
-      this->PrintExpr(index, os);
+      PrintExpr(index, os);
       os << ")";
       return os.str();
     }
     os << '[';
-    this->PrintExpr(index, os);
+    PrintExpr(index, os);
     os << "].";
     // other case: get fields.
     switch (kind) {
@@ -129,7 +129,7 @@ std::string CodeGenHybrid::GetStructRef(
     CHECK_LT(kind, intrinsic::kTVMValueKindBound_);
     std::ostringstream os;
     os << "(((TVMValue*)";
-    this->PrintExpr(buffer, os);
+    PrintExpr(buffer, os);
     os << ")[" << index << "].";
     if (t.is_handle()) {
       os << "v_handle";
@@ -161,10 +161,25 @@ void CodeGenHybrid::RegisterHandleType(const Variable* buf_var, Type t) {
   }
 }
 
+void CodeGenHybrid::PrintType(Type t, std::ostream &os) {
+  if (t.is_float()) {
+    os << "float";
+    CHECK(t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+  } else if (t.is_int()) {
+    os << "int";
+    CHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+  } else {
+    CHECK(t.is_uint()) << "Unsupported type " << t;
+    os << "uint";
+    CHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+  }
+  os << t.bits();
+}
+
 std::string CodeGenHybrid::CastFromTo(std::string value, Type from, Type target) {
   if (from == target) return value;
   std::ostringstream os;
-  this->PrintType(target, os);
+  PrintType(target, os);
   os << "(" << value << ")";
   return os.str();
 }
@@ -181,31 +196,17 @@ void CodeGenHybrid::PrintStorageScope(const std::string& scope, std::ostream& os
   CHECK_EQ(scope, "global");
 }
 
-void CodeGenHybrid::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
-  CHECK_EQ(t.lanes(), 1) << "do not yet support vector types";
-  CHECK(!t.is_handle()) << "Buffer type cannot be a handle!";
-  if (t.is_float()) {
-    CHECK(t.bits() == 32 || t.bits() == 64);
-    os << "float" << t.bits();
-  } else if (t.is_uint() || t.is_int()) {
-    switch (t.bits()) {
-      case 8: case 16: case 32: case 64: {
-        os << "int" << t.bits(); return;
-      }
-      case 1: os << "int"; return;
-    }
-  }
-  LOG(FATAL) << "Cannot convert type " << t << " to Python type";
-}
-
 void CodeGenHybrid::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
-  os << op->value;
+  PrintType(op->type, os);
+  os << "(" << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
-  os << op->value;
+  PrintType(op->type, os);
+  os << "(" << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
-  os << std::scientific << op->value;
+  PrintType(op->type, os);
+  os << "(" << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
   os << "\"" << op->value << "\"";
@@ -369,9 +370,9 @@ void CodeGenHybrid::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenHybrid::VisitStmt_(const Store* op) {
   Type t = op->value.type();
   if (t.lanes() == 1) {
-    std::string value = this->PrintExpr(op->value);
-    std::string ref  = this->GetBufferRef(t, op->buffer_var.get(), op->index);
-    this->PrintIndent();
+    std::string value = PrintExpr(op->value);
+    std::string ref  = GetBufferRef(t, op->buffer_var.get(), op->index);
+    PrintIndent();
     stream << ref << " = " << value << "\n";
   } else {
     LOG(FATAL) << "Vectorized store is not supported yet...";
@@ -420,7 +421,7 @@ void CodeGenHybrid::VisitStmt_(const Allocate* op) {
   }
   stream << "), \"" << op-> type << "\")\n";
   RegisterHandleType(op->buffer_var.get(), op->type);
-  this->PrintStmt(op->body);
+  PrintStmt(op->body);
 }
 
 void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
