@@ -110,10 +110,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   // type inferencer will populate it up
   std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
 
-  // used to ensure we don't have free type vars hanging around
-  // (a temporary measure until we have proper generalization implemented)
-  Map<TypeVar, Type> instantiation_map_;
-
   // The solver used by the inferencer.
   TypeSolver solver_;
   // relation function
@@ -138,31 +134,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
   }
 
-  // Substitutes every type var in t with a corresponding incomplete type.
-  // This is a temporary measure to ensure type vars behave until
-  // generalization is properly implemented.
-  Type Instantiate(const Type &t) {
-    if (!t.defined()) {
-      return t;
-    }
-    auto* ft = t.as<FuncTypeNode>();
-    if (ft == nullptr) {
-      return Bind(t, instantiation_map_);
-    }
-
-    for (auto type_param : ft->type_params) {
-      instantiation_map_.Set(type_param, IncompleteTypeNode::make(Kind::kType));
-    }
-
-    Type ret_type = ft->ret_type;
-    if (!ret_type.defined()) {
-      ret_type = IncompleteTypeNode::make(Kind::kType);
-    }
-
-    auto strip_tvs = FuncTypeNode::make(ft->arg_types, ret_type, {}, ft->type_constraints);
-    return Bind(strip_tvs, instantiation_map_);
-  }
-
   // Lazily get type for expr
   // expression, we will populate it now, and return the result.
   Type GetType(const Expr &expr) {
@@ -170,7 +141,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (it != type_map_.end() && it->second.checked_type.defined()) {
       return it->second.checked_type;
     }
-    Type ret = Instantiate(this->VisitExpr(expr));
+    Type ret = this->VisitExpr(expr);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
     return ret;
