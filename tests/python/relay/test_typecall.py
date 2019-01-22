@@ -12,7 +12,7 @@ def test_dup_type():
 
 def test_id_type():
     mod = relay.Module()
-    id_type = relay.TypeVar("id")
+    id_type = relay.GlobalTypeVar("id")
     a = relay.TypeVar("a")
     make_id = relay.Var("make_id", relay.FuncType([a], id_type(a), [a]))
     t = relay.scalar_type("float32")
