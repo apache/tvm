@@ -2,11 +2,7 @@
 """Stage class for dynamic programming tuner"""
 import numpy as np
 
-import tvm
-
-from tvm import autotvm
-from ._base import INVALID_LAYOUT_TIME
-from .utils import has_multiple_inputs, shape2layout, is_input_node
+from .utils import is_input_node
 
 
 class DPStage(object):

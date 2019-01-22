@@ -17,9 +17,8 @@ from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.relay.expr import Call, Var
 
-from .utils import get_real_node, is_input_node, shape2layout, \
-    get_in_nodes, get_out_nodes, has_multiple_inputs, get_wkl_map, \
-    bind_inputs, expr2graph
+from .utils import is_input_node, shape2layout, get_in_nodes, get_out_nodes, \
+    has_multiple_inputs, get_wkl_map, bind_inputs, expr2graph
 
 
 @autotvm.template
@@ -190,7 +189,7 @@ class BaseGraphTuner(object):
         self._node_map = get_wkl_map(self._node_list, workload_list, target_op,
                                      graph_workload_list)
 
-        for key, _ in self._in_nodes_dict.items():
+        for key in sorted(self._in_nodes_dict):
             node_name = self._node_list[key]["name"]
             if node_name in self._input_shapes.keys():
                 continue
@@ -202,14 +201,13 @@ class BaseGraphTuner(object):
                     current_sch_list.append(dict(sch_list[j]))
                 self._sch_dict[key] = current_sch_list
             else:
-                leftmost_node = get_real_node(self._in_nodes_dict, self._node_list,
-                                              self._in_nodes_dict[key][0], target_op)
-                self._wkl_dict[key] = workload_list[self._node_map[leftmost_node]]
-                sch_list = sch_dict[self._wkl_dict[key]]
-                current_sch_list = []
-                for j in range(min(self._max_sch_num, len(sch_list))):
-                    current_sch_list.append(dict(sch_list[j]))
-                self._sch_dict[key] = current_sch_list
+                pivot_input_idx = -1
+                for idx in self._in_nodes_dict[key]:
+                    if not is_input_node(self._node_list, idx):
+                        pivot_input_idx = idx
+                        break
+                self._wkl_dict[key] = self._wkl_dict[pivot_input_idx]
+                self._sch_dict[key] = self._sch_dict[pivot_input_idx]
 
         self._global_data_dict = {
             "wkl_dict": self._wkl_dict, "sch_dict": self._sch_dict,
