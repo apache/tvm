@@ -1629,10 +1629,10 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
         std::vector<tvm::Expr> dst_to_src_indices;
         for (size_t i = 0; i < src_layout.ndim(); ++i) {
           const auto& src_axis = src_layout[i];
-          int dst_major_pos = dst_layout.Indexof(src_axis.to_primal());
-          int dst_minor_pos = dst_layout.Indexof(src_axis.to_subordinate());
-          int32_t src_factor = static_cast<int32_t>(src_layout.GetFactor(src_axis));
-          int32_t dst_factor = static_cast<int32_t>(dst_layout.GetFactor(src_axis));
+          int dst_major_pos = dst_layout.IndexOf(src_axis.to_primal());
+          int dst_minor_pos = dst_layout.IndexOf(src_axis.to_subordinate());
+          int32_t src_factor = static_cast<int32_t>(src_layout.FactorOf(src_axis));
+          int32_t dst_factor = static_cast<int32_t>(dst_layout.FactorOf(src_axis));
 
           tvm::Expr src_index(dst_indices[dst_major_pos]);
           if (dst_minor_pos >= 0) {

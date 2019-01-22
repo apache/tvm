@@ -587,6 +587,9 @@ def decl_buffer(shape,
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor)
 
+def layout(layout_str):
+    return _api_internal._Layout(layout_str)
+
 def bijective_layout(src_layout, dst_layout):
     return _api_internal._BijectiveLayout(src_layout, dst_layout)
 

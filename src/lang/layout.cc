@@ -84,7 +84,7 @@ Layout::Layout(const Array<IterVar>& axes) {
 }
 
 Layout::Layout(const std::string& name) { // NOLINT(*)
-  if (name == "__undef__") return;
+  if (name.empty() || name == "__undef__") return;
 
   node_ = make_node<LayoutNode>();
   LayoutNode *node = operator->();
@@ -174,7 +174,7 @@ Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int64_t factor) 
   return Layout(new_layout);
 }
 
-int64_t Layout::GetFactor(const LayoutAxis &axis) const {
+int64_t Layout::FactorOf(const LayoutAxis& axis) const {
   if (!defined()) return -1;
   const LayoutAxis& sub = axis.to_subordinate();
   if (!this->defined()) return -1;
@@ -202,7 +202,7 @@ inline bool GetStoreRule(Array<Expr>& rule,
       if (store_axis.to_primal() == orig_axis.to_primal()) {
         if (orig_axis.IsPrimal()) {
           Expr orig_var = orig_axis_impl->var;
-          const int64_t factor = orig_layout.GetFactor(orig_axis);
+          const int64_t factor = orig_layout.FactorOf(orig_axis);
           if (factor > 0) {
             orig_var = orig_var * Expr(factor);
           }
@@ -218,7 +218,7 @@ inline bool GetStoreRule(Array<Expr>& rule,
     }
 
     if (store_axis.IsPrimal()) {
-      const int64_t factor = store_layout.GetFactor(store_axis);
+      const int64_t factor = store_layout.FactorOf(store_axis);
       if (factor > 0) {
         store = store / Expr(factor);
       }

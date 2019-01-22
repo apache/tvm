@@ -61,8 +61,8 @@ bool Conv2DRel(const Array<Type>& types,
          param->kernel_size[0],
          param->kernel_size[1]});
     wshape = trans_kernel_layout.BackwardShape(wshape);
-    wshape.Set(kernel_layout.Indexof(LayoutAxis::O),
-               wshape[kernel_layout.Indexof(LayoutAxis::O)] * param->groups);
+    wshape.Set(kernel_layout.IndexOf(LayoutAxis::O),
+               wshape[kernel_layout.IndexOf(LayoutAxis::O)] * param->groups);
     channels = param->channels;
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];

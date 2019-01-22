@@ -141,6 +141,32 @@ class Buffer(NodeBase):
 
 
 @register_node
+class Layout(NodeBase):
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return "Layout(" + self.name + ")"
+
+    def __len__(self):
+        return _api_internal._LayoutNdim(self)
+
+    def __contains__(self, axis):
+        return len(axis) == 1 and axis[0].isalpha() and axis[0] in self.name
+
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError("Layout index out of range")
+        return _api_internal._LayoutGetItem(self, index)
+
+    def index_of(self, axis):
+        return _api_internal._LayoutIndexOf(self, axis)
+
+    def factor_of(self, axis):
+        return _api_internal._LayoutFactorOf(self, axis)
+
+
+@register_node
 class BijectiveLayout(NodeBase):
     def forward_index(self, index):
         return _api_internal._BijectiveLayoutForwardIndex(self, index)

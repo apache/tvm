@@ -225,34 +225,39 @@ TVM_REGISTER_API("_BufferVStore")
         .vstore(args[1], args[2]);
   });
 
+TVM_REGISTER_API("_Layout")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = LayoutNode::make(args[0]);
+  });
+
 TVM_REGISTER_API("_BijectiveLayout")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = BijectiveLayoutNode::make(args[0], args[1]);
-});
+    *ret = BijectiveLayoutNode::make(args[0], args[1]);
+  });
 
 TVM_REGISTER_API("_BijectiveLayoutForwardIndex")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = args[0].operator BijectiveLayout()
-      .ForwardIndex(args[1]);
-});
+    *ret = args[0].operator BijectiveLayout()
+        .ForwardIndex(args[1]);
+  });
 
 TVM_REGISTER_API("_BijectiveLayoutBackwardIndex")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = args[0].operator BijectiveLayout()
-      .BackwardIndex(args[1]);
-});
+    *ret = args[0].operator BijectiveLayout()
+        .BackwardIndex(args[1]);
+  });
 
 TVM_REGISTER_API("_BijectiveLayoutForwardShape")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = args[0].operator BijectiveLayout()
-      .ForwardShape(args[1]);
-});
+    *ret = args[0].operator BijectiveLayout()
+        .ForwardShape(args[1]);
+  });
 
 TVM_REGISTER_API("_BijectiveLayoutBackwardShape")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = args[0].operator BijectiveLayout()
-      .BackwardShape(args[1]);
-});
+    *ret = args[0].operator BijectiveLayout()
+        .BackwardShape(args[1]);
+  });
 
 TVM_REGISTER_API("_Tensor")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {

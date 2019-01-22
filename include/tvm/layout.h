@@ -305,7 +305,7 @@ class Layout : public NodeRef {
    * \param axis the input axis.
    * \return the index or -1 if not found.
    */
-  inline int32_t Indexof(const LayoutAxis& axis) const {
+  inline int32_t IndexOf(const LayoutAxis& axis) const {
     if (!this->defined()) return -1;
     const auto axes = operator->()->axis;
     for (size_t i = 0; i < axes.size(); ++i) {
@@ -320,7 +320,7 @@ class Layout : public NodeRef {
    *         or the size of \p axis itself (if \p axis is a primal-axis).
    *         Return -1 if \p axis is not in the layout or the layout is undefined.
    */
-  int64_t GetFactor(const LayoutAxis &axis) const;
+  int64_t FactorOf(const LayoutAxis& axis) const;
 
   /*!
    * \brief Whether the layout contains an axis.
