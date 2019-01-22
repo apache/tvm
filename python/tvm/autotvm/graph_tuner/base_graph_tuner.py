@@ -315,8 +315,8 @@ class BaseGraphTuner(object):
                                 to_sch_idx, args):
         """Create dictionary containing matrix format of layout transformation
         between nodes."""
-        in_shape, out_shape = args[0].shape, args[3]
         args = serialize_args(args)
+        in_shape, out_shape = args[0][1], args[3]
         ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
         idx_pair_key = (from_node_idx, to_node_idx)
 
@@ -432,7 +432,10 @@ class BaseGraphTuner(object):
         def _fetch_args_callback(from_node_idx, to_node_idx, from_sch_idx,
                                  to_sch_idx, args):
             """Callback function to fetch layout transform args"""
-            args_list.append(args)
+            serialized_args = serialize_args(args)
+            in_shape, out_shape = serialized_args[0][1], serialized_args[3]
+            if in_shape != out_shape:
+                args_list.append(args)
 
         self._iterate_layout_transform(_fetch_args_callback)
 
