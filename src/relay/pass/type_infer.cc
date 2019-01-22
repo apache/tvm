@@ -702,6 +702,9 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
   } else {
     auto e = TypeInferencer(mod_ref, mod_ref->entry_func).Infer(expr);
     CHECK(WellFormed(e));
+    auto free_tvars = FreeTypeVars(e);
+    CHECK(free_tvars.size() == 0)
+      << "Found unbound type variables in " << e << ": " << free_tvars;
     EnsureCheckedType(e);
     return e;
   }
@@ -716,6 +719,9 @@ Function InferType(const Function& func,
   Expr func_ret = TypeInferencer(mod, var).Infer(func_copy);
   mod->Remove(var);
   CHECK(WellFormed(func_ret));
+  auto free_tvars = FreeTypeVars(func_ret);
+  CHECK(free_tvars.size() == 0)
+    << "Found unbound type variables in " << func << ": " << free_tvars;
   return Downcast<Function>(func_ret);
 }
 
