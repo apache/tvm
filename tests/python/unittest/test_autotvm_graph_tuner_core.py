@@ -7,7 +7,7 @@ from nnvm import symbol as sym
 from tvm import autotvm
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.measure import MeasureResult, MeasureInput
-from tvm.autotvm.graph_tuner import DPTuner
+from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
 from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
 from test_autotvm_graph_tuner_utils import create_workload
 
@@ -171,6 +171,59 @@ def test_DPTuner_run():
     os.remove(log_file)
 
 
+def test_PBQPTuner_run():
+    target = "llvm"
+    dtype = "float32"
+    layout = "NCHW"
+    dshape = (1, 3, 8, 8)
+    target_op = "conv2d"
+    data_layout = "NCHWc"
+
+    g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
+    costs = [0.02, 0.02, 0.045]
+    config_list = []
+    cfg_dict = {"i": -1,
+                "c": None,
+                "e": [["tile_ic", "sp", [1, 3]],
+                      ["tile_oc", "sp", [2, 8]],
+                      ["tile_ow", "sp", [4, 2]],
+                      ["unroll_kw", "ot", True]],
+                "t": ""}
+    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    cfg_dict = {"i": -1,
+                "c": None,
+                "e": [["tile_ic", "sp", [4, 4]],
+                      ["tile_oc", "sp", [2, 16]],
+                      ["tile_oh", "ot", 1],
+                      ["tile_ow", "sp", [4, 2]]],
+                "t": ""}
+    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    cfg_dict = {"i": -1,
+                "c": None,
+                "e": [["tile_ic", "sp", [16, 2]],
+                      ["tile_oc", "sp", [8, 4]],
+                      ["tile_ow", "sp", [2, 4]],
+                      ["unroll_kw", "ot", False]],
+                "t": ""}
+    config_list.append(ConfigEntity.from_json_dict(cfg_dict))
+    for cost, config, task in zip(costs, config_list, tasks):
+        ms_input = MeasureInput(target=target, task=task, config=config)
+        ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
+        records.append((ms_input, ms_output))
+
+    graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
+    executor = PBQPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
+                         ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx)
+    executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
+    executor.run()
+    out = executor.get_optimal_schedules()
+    expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
+    if expected_out != out:
+        raise RuntimeError("Output mismatch: expecting %s but got %s"
+                           % (str(expected_out), str(out)))
+
+
 if __name__=="__main__":
     test_graph_tuner_layout_transform()
     test_DPTuner_run()
+    test_PBQPTuner_run()
