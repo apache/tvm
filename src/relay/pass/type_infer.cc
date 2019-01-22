@@ -719,7 +719,7 @@ Function InferType(const Function& func,
   Expr func_ret = TypeInferencer(mod, var).Infer(func_copy);
   mod->Remove(var);
   CHECK(WellFormed(func_ret));
-  auto free_tvars = FreeTypeVars(func_ret);
+  auto free_tvars = FreeTypeVars(func_ret, mod);
   CHECK(free_tvars.size() == 0)
     << "Found unbound type variables in " << func << ": " << free_tvars;
   return Downcast<Function>(func_ret);

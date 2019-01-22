@@ -9,6 +9,7 @@ from . import _ir_pass
 from . import _make
 from .expr import Expr
 from .ty import Type
+from .module import Module
 
 def post_order_visit(expr, fvisit):
     """Recursively visit the ir in post DFS order node,
@@ -190,52 +191,61 @@ def all_vars(expr):
     return _ir_pass.all_vars(expr)
 
 
-def free_type_vars(expr):
+def free_type_vars(expr, mod=None):
     """Get free type variables from expression/type e
 
     Parameters
     ----------
     expr: Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
+    mod: tvm.relay.Module, optional
+        The global module
 
     Returns
     -------
     free : List[tvm.relay.TypeVar]
         The list of free type variables in post-DFS order
     """
-    return _ir_pass.free_type_vars(expr)
+    use_mod = mod if mod is not None else Module()
+    return _ir_pass.free_type_vars(expr, use_mod)
 
 
-def bound_type_vars(expr):
+def bound_type_vars(expr, mod=None):
     """Get bound type variables from expression/type e
 
     Parameters
     ----------
     expr: Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
+    mod: tvm.relay.Module, optional
+        The global module
 
     Returns
     -------
     free : List[tvm.relay.TypeVar]
         The list of bound type variables in post-DFS order
     """
-    return _ir_pass.bound_type_vars(expr)
+    use_mod = mod if mod is not None else Module()
+    return _ir_pass.bound_type_vars(expr, use_mod)
 
 
-def all_type_vars(expr):
+def all_type_vars(expr, mod=None):
     """Get all type variables from expression/type e
 
     Parameters
     ----------
     expr: Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
+    mod: tvm.relay.Module, optional
+        The global module
 
     Returns
     -------
     free : List[tvm.relay.TypeVar]
         The list of all type variables in post-DFS order
     """
-    return _ir_pass.all_type_vars(expr)
+    use_mod = mod if mod is not None else Module()
+    return _ir_pass.all_type_vars(expr, use_mod)
 
 
 def simplify_inference(expr):
