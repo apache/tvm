@@ -212,6 +212,7 @@ void ComputeOpNode::GatherBound(
     const Operation& self,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
+  CHECK_EQ(self.operator->(), this);
   const TensorDom& tdom = tensor_dom.at(self.output(0));
   for (size_t i = 0; i < this->axis.size(); ++i) {
     Range r = arith::Union(tdom.data.at(i)).cover_range(this->axis[i]->dom);

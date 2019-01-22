@@ -69,6 +69,10 @@ class IntSet : public NodeRef {
   bool can_prove_positive() const;
   /*! \return Whether the set is proved to be smaller than 0 */
   bool can_prove_negative() const;
+  /*! \return Whether the set is proved to be smaller than or equal to 0 */
+  bool can_prove_non_positive() const;
+  /*! \return Whether the set is proved to be larger than or equal to 0 */
+  bool can_prove_non_negative() const;
   /*! \return The sign of the elements in the integer set */
   SignType sign_type() const;
   /*!

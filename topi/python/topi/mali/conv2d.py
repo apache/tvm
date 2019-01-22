@@ -296,9 +296,10 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
 
     # pack input tile
     input_tile = tvm.compute((CI, P_round // bnb, alpha, alpha, bnb), lambda ci, b, eps, nu, bb: \
-         tvm.select(b * bnb + bb < P,
-                    data_pad[(b*bnb+bb) // (nH*nW)][ci][(b*bnb+bb) // nW % nH * m + eps]
-                    [(b*bnb+bb) % nW * m + nu], tvm.const(0, data_pad.dtype)), name='d')
+         tvm.if_then_else(
+             b * bnb + bb < P,
+             data_pad[(b*bnb+bb) // (nH*nW)][ci][(b*bnb+bb) // nW % nH * m + eps]
+             [(b*bnb+bb) % nW * m + nu], tvm.const(0, data_pad.dtype)), name='d')
 
     # transform kernel
     if pre_computed:
@@ -465,9 +466,9 @@ def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
 
 ##### REGISTER ALTER OP LAYOUT #####
 @conv2d_alter_layout.register(["mali"])
-def _alter_conv2d_layout(attrs, inputs, tinfos):
+def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     try:
-        return _alter_conv2d_layout_arm(attrs, inputs, tinfos)
+        return _alter_conv2d_layout_arm(attrs, inputs, tinfos, F)
     except KeyError:  # to filter out fallback opencl templates
         return None
 

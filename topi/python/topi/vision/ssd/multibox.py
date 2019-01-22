@@ -55,12 +55,13 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
         with ib.for_range(0, in_width, name="j") as j:
             center_w = (j + offset_w) * steps_w
             for k in range(num_sizes + num_ratios - 1):
-                w = tvm.select(k < num_sizes,
-                               size_ratio_concat[k] * in_height / in_width / 2.0,
-                               size_ratio_concat[0] * in_height / in_width *
-                               math.sqrt(size_ratio_concat[k + 1]) / 2.0)
-                h = tvm.select(k < num_sizes, size_ratio_concat[k] / 2.0,
-                               size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0)
+                w = tvm.if_then_else(k < num_sizes,
+                                     size_ratio_concat[k] * in_height / in_width / 2.0,
+                                     size_ratio_concat[0] * in_height / in_width *
+                                     math.sqrt(size_ratio_concat[k + 1]) / 2.0)
+                h = tvm.if_then_else(
+                    k < num_sizes, size_ratio_concat[k] / 2.0,
+                    size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0)
                 count = (i * in_width * (num_sizes + num_ratios - 1) +
                          j * (num_sizes + num_ratios - 1) + k) * 4
                 p_out[count] = center_w - w
@@ -164,10 +165,10 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
         oy = py * vy * ah + ay
         ow = tvm.exp(pw * vw) * aw / 2.0
         oh = tvm.exp(ph * vh) * ah / 2.0
-        return tvm.select(clip, tvm.max(0, tvm.min(1, ox - ow)), ox - ow), \
-               tvm.select(clip, tvm.max(0, tvm.min(1, oy - oh)), oy - oh), \
-               tvm.select(clip, tvm.max(0, tvm.min(1, ox + ow)), ox + ow), \
-               tvm.select(clip, tvm.max(0, tvm.min(1, oy + oh)), oy + oh)
+        return tvm.if_then_else(clip, tvm.max(0, tvm.min(1, ox - ow)), ox - ow), \
+               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, oy - oh)), oy - oh), \
+               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, ox + ow)), ox + ow), \
+               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, oy + oh)), oy + oh)
 
     batch_size = cls_prob.shape[0]
     num_classes = cls_prob.shape[1]
@@ -190,7 +191,7 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
             with ib.for_range(0, num_classes, name="j") as j:
                 with ib.if_scope(j > 0):
                     temp = p_cls_prob[n * num_anchors * num_classes + j * num_anchors + i]
-                    cls_id[0] = tvm.select(temp > score[0], j, cls_id[0])
+                    cls_id[0] = tvm.if_then_else(temp > score[0], j, cls_id[0])
                     score[0] = tvm.max(temp, score[0])
             with ib.if_scope(tvm.all(cls_id[0] > 0, score[0] < threshold)):
                 cls_id[0] = 0

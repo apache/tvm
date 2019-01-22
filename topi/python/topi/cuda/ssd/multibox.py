@@ -77,13 +77,14 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
             center_w = (j + offset_w) * steps_w
 
             for k in range(num_sizes + num_ratios - 1):
-                w = tvm.select(k < num_sizes,
-                               size_ratio_concat[
-                                   k] * in_height / in_width / 2.0,
-                               size_ratio_concat[0] * in_height / in_width *
-                               math.sqrt(size_ratio_concat[k + 1]) / 2.0)
-                h = tvm.select(k < num_sizes, size_ratio_concat[k] / 2.0,
-                               size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0)
+                w = tvm.if_then_else(k < num_sizes,
+                                     size_ratio_concat[
+                                         k] * in_height / in_width / 2.0,
+                                     size_ratio_concat[0] * in_height / in_width *
+                                     math.sqrt(size_ratio_concat[k + 1]) / 2.0)
+                h = tvm.if_then_else(
+                    k < num_sizes, size_ratio_concat[k] / 2.0,
+                    size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0)
                 count = (i * in_width * (num_sizes + num_ratios - 1) +
                          j * (num_sizes + num_ratios - 1) + k) * 4
                 p_out[count] = center_w - w
@@ -278,10 +279,10 @@ def transform_loc_ir(loc_pred, anchor, temp_flag, temp_id, temp_score_in, \
         oy = py * vy * ah + ay
         ow = tvm.exp(pw * vw) * aw / 2.0
         oh = tvm.exp(ph * vh) * ah / 2.0
-        return tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, ox - ow)), ox - ow), \
-            tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, oy - oh)), oy - oh), \
-            tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, ox + ow)), ox + ow), \
-            tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, oy + oh)), oy + oh)
+        return tvm.if_then_else(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, ox - ow)), ox - ow), \
+            tvm.if_then_else(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, oy - oh)), oy - oh), \
+            tvm.if_then_else(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, ox + ow)), ox + ow), \
+            tvm.if_then_else(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, oy + oh)), oy + oh)
 
     max_threads = int(
         tvm.target.current_target(allow_none=False).max_num_threads)

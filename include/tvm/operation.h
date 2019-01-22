@@ -459,6 +459,8 @@ class HybridOpNode : public OperationNode {
   Array<Tensor> inputs;
   /*! \brief Symbolic placeholder representation of outputs */
   Array<Tensor> outputs;
+  /*! \brief The axis of iterations */
+  Array<IterVar> axis;
   /*! \brief the statement that generates the computation. This is
    * slightly different from the body in ExternOpNode. All the output
    * tensors keep its own name specified by users in the script.
@@ -500,6 +502,7 @@ class HybridOpNode : public OperationNode {
     v->Visit("attrs", &attrs);
     v->Visit("inputs", &inputs);
     v->Visit("outputs", &outputs);
+    v->Visit("axis", &axis);
     v->Visit("body", &body);
   }
   EXPORT static Operation make(std::string name,

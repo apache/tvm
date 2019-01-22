@@ -28,6 +28,7 @@ namespace relay {
  * \return A type checked expression with its checked_type field populated.
  */
 Expr InferType(const Expr& expr, const Module& mod);
+
 /*!
  * \brief Infer the type of a function as if it is mapped to var in the mod.
  *
@@ -107,6 +108,17 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  */
 bool WellFormed(const Expr& expr);
 
+/*! \brief Get all bound variables from expression expr.
+ *
+ * Bound variables are all variables that are declared in the expr.
+ * They only have meaning inside that expr, and can only be used in it.
+ *
+ * \param expr the expression.
+ *
+ * \return List of bound vars, in the PostDFS order in the expression.
+ */
+tvm::Array<Var> BoundVars(const Expr& expr);
+
 /*! \brief Get free type parameters from expression expr.
  *
  * Free variables are variables that are not bound by a
@@ -118,6 +130,14 @@ bool WellFormed(const Expr& expr);
  */
 tvm::Array<Var> FreeVars(const Expr& expr);
 
+/*! \brief Get all variables from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of all vars, in the PostDFS order in the expression.
+ */
+tvm::Array<Var> AllVars(const Expr& expr);
+
 /*! \brief Get free TypeVars from expression expr.
  *
  * Free type parameters are type parameters that are not bound by a function
@@ -128,6 +148,55 @@ tvm::Array<Var> FreeVars(const Expr& expr);
  * \return List of free vars, in the PostDFS order visited by expr.
  */
 tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
+
+/*! \brief Get free TypeVars from type t.
+ *
+ * Free type parameters are type parameters that are not bound by a function
+ * type in the context.
+ *
+ * \param t the type.
+ *
+ * \return List of free type vars, in the PostDFS order visited by type.
+ */
+tvm::Array<TypeVar> FreeTypeVars(const Type& t);
+
+/*! \brief Get all bound type variables from expression expr.
+ *
+ * Bound variables are all type variables that are declared in the expr.
+ * They only have meaning inside that expr, and can only be used in it.
+ *
+ * \param expr the expression.
+ *
+ * \return List of bound type vars, in the PostDFS order in the expression.
+ */
+tvm::Array<TypeVar> BoundTypeVars(const Expr& expr);
+
+/*! \brief Get all bound type variables from type t.
+ *
+ * Bound variables are all type variables that are declared in the type.
+ * They only have meaning inside that type, and can only be used in it.
+ *
+ * \param t the type
+ *
+ * \return List of bound type vars, in the PostDFS order visited by type.
+ */
+tvm::Array<TypeVar> BoundTypeVars(const Type& t);
+
+/*! \brief Get all type variables in expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of type vars, in the PostDFS order in the expression.
+ */
+tvm::Array<TypeVar> AllTypeVars(const Expr& expr);
+
+/*! \brief Get all type variables in type t.
+ *
+ * \param t the type.
+ *
+ * \return List of type vars, in the PostDFS order visited by type.
+ */
+tvm::Array<TypeVar> AllTypeVars(const Type& t);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -188,6 +257,21 @@ Expr ForwardRewrite(const Expr& expr,
                     std::function<NodeRef(const Call&)> fcontext = nullptr,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
+/*!
+ * \brief Rewrite the annotated program.
+ * \param expr The expression.
+ * \param fallback_device The fallback device which is the default device for
+ *                        operators without annotation.
+ * \return The updated program.
+ */
+Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
+
+/*!
+ * \brief Collect the device mapping information of each expression.
+ * \param expr The expression.
+ * \return The device mapping.
+ */
+Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {

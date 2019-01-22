@@ -91,13 +91,13 @@ class BranchGroupFinder : private ExprVisitor {
     CHECK(attrs_b);
     const auto* tweight_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* tweight_b = b->args[1]->type_as<TensorTypeNode>();
-    const auto shape_a = ConvertLayout(tweight_a->shape, attrs_a->weight_layout, kOIHW);
-    const auto shape_b = ConvertLayout(tweight_b->shape, attrs_b->weight_layout, kOIHW);
+    const auto shape_a = ConvertLayout(tweight_a->shape, attrs_a->kernel_layout, kOIHW);
+    const auto shape_b = ConvertLayout(tweight_b->shape, attrs_b->kernel_layout, kOIHW);
 
     return eq(attrs_a->strides, attrs_b->strides) && eq(attrs_a->padding, attrs_b->padding) &&
            eq(attrs_a->dilation, attrs_b->dilation) && eq(attrs_a->groups, attrs_b->groups) &&
            eq(attrs_a->data_layout, attrs_b->data_layout) &&
-           eq(attrs_a->weight_layout, attrs_b->weight_layout) &&
+           eq(attrs_a->kernel_layout, attrs_b->kernel_layout) &&
            eq(attrs_a->out_dtype, attrs_b->out_dtype) &&
            eq(attrs_a->out_layout, attrs_b->out_layout) && eq(shape_a[2], shape_b[2]) &&
            eq(shape_a[3], shape_b[3]);
@@ -159,7 +159,7 @@ class ParallelConv2DCombiner {
       auto channels = GetConv2DSuperChannelsDim(conv2d);
       num_filters += channels;
     }
-    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->weight_layout.find('O');
+    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
     return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
                            MakeConstScalar(Int(32), num_filters));
@@ -182,7 +182,7 @@ class ParallelConv2DCombiner {
     new_attrs->groups = attrs->groups;
     new_attrs->kernel_size = attrs->kernel_size;
     new_attrs->data_layout = attrs->data_layout;
-    new_attrs->weight_layout = attrs->weight_layout;
+    new_attrs->kernel_layout = attrs->kernel_layout;
     new_attrs->out_layout = attrs->out_layout;
     new_attrs->out_dtype = attrs->out_dtype;
     new_attrs->channels = new_channels;

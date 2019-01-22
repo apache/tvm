@@ -190,6 +190,7 @@ gallery_dirs = ["tutorials", "vta/tutorials"]
 
 subsection_order = ExplicitOrder(
     ['../tutorials/language',
+     '../tutorials/frontend',
      '../tutorials/optimize',
      '../tutorials/autotvm',
      '../tutorials/dev',

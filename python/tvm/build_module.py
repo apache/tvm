@@ -126,7 +126,8 @@ class BuildConfig(NodeBase):
         "restricted_func": True,
         "double_buffer_split_loop": 1,
         "dump_pass_ir": False,
-        "instrument_bound_checkers": False
+        "instrument_bound_checkers": False,
+        "disable_select_rewriting": False
     }
     _dump_ir = DumpIR()
 
@@ -368,7 +369,8 @@ def lower(sch,
     stmt = ir_pass.Simplify(stmt)
     stmt = ir_pass.LowerStorageAccessInfo(stmt)
     stmt = ir_pass.RemoveNoOp(stmt)
-    stmt = ir_pass.RewriteUnsafeSelect(stmt)
+    if not cfg.disable_select_rewriting:
+        stmt = ir_pass.RewriteUnsafeSelect(stmt)
     for f in lower_phase3:
         stmt = f(stmt)
     # Instrument BoundCheckers

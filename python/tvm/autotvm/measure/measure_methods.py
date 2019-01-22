@@ -140,20 +140,22 @@ class RPCRunner(Runner):
         The host address of RPC Tracker
     port: int
         The port of RPC Tracker
-    number : int, optional
-        Number of times to do measurement for tasking average
+    number: int
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
     repeat : int, optional
-        Number of times to repeat the measurement.
+        The number of times to repeat the measurement.
         In total, the generated code will be run (1 + number x repeat) times,
-        where the first one is warm up. The returned result contains `repeat` costs,
-    min_repeat_ms : float, optional
-        Minimum duration of a timer measurement in milliseconds.
-        When the run time of a measurement trial falls below this time, the
-        `number` parameter will be automatically increased.
-        Set this to improve the accuracy of perf measurement, e.g., when timers
-        are not precise enough to capture short-running tasks. This parameter is
-        also critical when devices need a certain minimum running time to "warm
-        up," such as GPUs that need time to reach a performance power state.
+        where the first "1" is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms: int, optional
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
     cooldown_interval: float, optional
         The cool down interval between two measurements.
     check_correctness: bool, optional
@@ -177,7 +179,6 @@ class RPCRunner(Runner):
         self.number = number
         self.repeat = repeat
         self.min_repeat_ms = min_repeat_ms
-        self.cur_number = number
 
         self.ref_input = None
         self.ref_output = None
@@ -188,7 +189,6 @@ class RPCRunner(Runner):
 
     def set_task(self, task):
         self.task = task
-        self.cur_number = self.number
 
         if check_remote(task.target, self.key, self.host, self.port):
             logger.info("Get devices for measurement successfully!")
@@ -240,8 +240,9 @@ class RPCRunner(Runner):
                 ret = self.executor.submit(run_through_rpc,
                                            measure_inp,
                                            build_res,
-                                           self.cur_number,
+                                           self.number,
                                            self.repeat,
+                                           self.min_repeat_ms,
                                            self.cooldown_interval,
                                            remote_args,
                                            self.ref_input,
@@ -256,32 +257,6 @@ class RPCRunner(Runner):
                 else:
                     results.append(res)
 
-        # If some runs were too fast, do remeasure for them
-        # to meet the requirement of `min_repeat_ms`
-        remeasure = np.zeros((len(measure_inputs),), dtype=np.bool)
-        pre_number = next_number = self.cur_number
-        min_repeat_duration = self.min_repeat_ms / 1000.0
-        for i, res in enumerate(results):
-            if res.error_no == MeasureErrorNo.NO_ERROR:
-                if np.mean(res.costs) * pre_number <= min_repeat_duration:
-                    next_number = max(next_number,
-                                      int(np.ceil(min_repeat_duration / np.mean(res.costs))))
-                    remeasure[i] = True
-
-        if pre_number != next_number:
-            self.cur_number = next_number
-            msg = "increasing number to %d" % self.cur_number
-            logger.info(msg)
-
-            re_measure_inputs = [x for i, x in enumerate(measure_inputs) if remeasure[i]]
-            re_build_results = [x for i, x in enumerate(build_results) if remeasure[i]]
-            re_res = self.run(re_measure_inputs, re_build_results)
-            ct = 0
-            for i, rerun in enumerate(remeasure):
-                if rerun:
-                    results[i] = re_res[ct]
-                    ct += 1
-
         return results
 
 class LocalRunner(RPCRunner):
@@ -291,21 +266,22 @@ class LocalRunner(RPCRunner):
     ----------
     timeout: float
         The timeout of a compilation
-    number : int, optional
-        Number of times to do measurement for tasking average
+    number: int
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
     repeat : int, optional
-        Number of times to repeat the measurement.
+        The number of times to repeat the measurement.
         In total, the generated code will be run (1 + number x repeat) times,
-        where the first one is warm up. The returned result contains `repeat` costs,
-        each of which is the average of `number` test run.
-    min_repeat_ms : float, optional
-        Minimum duration of a timer measurement in milliseconds.
-        When the run time of a measurement trial falls below this time, the
-        `number` parameter will be automatically increased.
-        Set this to improve the accuracy of perf measurement, e.g., when timers
-        are not precise enough to capture short-running tasks. This parameter is
-        also critical when devices need a certain minimum running time to "warm
-        up," such as GPUs that need time to reach a performance power state.
+        where the first one is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms: int, optional
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
     cooldown_interval: float, optional
         The cool down interval between two measurements.
     check_correctness: bool, optional
@@ -416,7 +392,7 @@ def android_ndk_build_func(measure_input, tmp_dir, **kwargs):
 
 
 def run_through_rpc(measure_input, build_result,
-                    number, repeat, cooldown_interval,
+                    number, repeat, min_repeat_ms, cooldown_interval,
                     remote_args, ref_input=None, ref_output=None):
     """Run a generated library through rpc
 
@@ -426,13 +402,22 @@ def run_through_rpc(measure_input, build_result,
         The raw measure input
     build_result: BuildResult
         The result returned from Builder. This contains the path to the generated library.
-    number : int, optional
-        Number of times to do measurement for tasking average
+    number: int
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
     repeat : int, optional
-        Number of times to repeat the measurement.
+        The number of times to repeat the measurement.
         In total, the generated code will be run (1 + number x repeat) times,
-        where the first one is warm up. The returned result contains `repeat` costs,
-        each of which is the average of `number` test run.
+        where the first one is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms: int, optional
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
     cooldown_interval: float
         The cool down interval between two measurements
     remote_args: Tuple
@@ -454,14 +439,14 @@ def run_through_rpc(measure_input, build_result,
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)
         time_f = func.time_evaluator(
-            func.entry_name, ctx, number=number, repeat=repeat)
+            func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
 
         # set input
         if ref_input:
             args = [nd.array(x, ctx=ctx) for x in ref_input]
         else:
             # create empty arrays on the remote device and copy them once.
-            # This can avoid some memory issues that make the measurment results unreliable.
+            # This can avoid some memory issues that make the measurement results unreliable.
             args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
             args = [nd.array(x, ctx=ctx) for x in args]
             ctx.sync()

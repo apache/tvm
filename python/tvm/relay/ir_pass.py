@@ -158,6 +158,38 @@ def free_vars(expr):
     return _ir_pass.free_vars(expr)
 
 
+def bound_vars(expr):
+    """Get bound vars from expression expr in post-DFS order.
+
+    Parameters
+    ----------
+    expr: tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    free : List[tvm.relay.Var]
+        The list of bound variables in post-DFS order.
+    """
+    return _ir_pass.bound_vars(expr)
+
+
+def all_vars(expr):
+    """Get all vars from expression expr in post-DFS order.
+
+    Parameters
+    ----------
+    expr: tvm.relay.Expr
+        The input expression
+
+    Returns
+    -------
+    free : List[tvm.relay.Var]
+        The list of all variables in post-DFS order.
+    """
+    return _ir_pass.all_vars(expr)
+
+
 def free_type_vars(expr):
     """Get free type variables from expression/type e
 
@@ -168,10 +200,42 @@ def free_type_vars(expr):
 
     Returns
     -------
-    free : List[tvm.relay.TypeParam]
-        The list of free type variables
+    free : List[tvm.relay.TypeVar]
+        The list of free type variables in post-DFS order
     """
     return _ir_pass.free_type_vars(expr)
+
+
+def bound_type_vars(expr):
+    """Get bound type variables from expression/type e
+
+    Parameters
+    ----------
+    expr: Union[tvm.relay.Expr,tvm.relay.Type]
+        The input expression/type
+
+    Returns
+    -------
+    free : List[tvm.relay.TypeVar]
+        The list of bound type variables in post-DFS order
+    """
+    return _ir_pass.bound_type_vars(expr)
+
+
+def all_type_vars(expr):
+    """Get all type variables from expression/type e
+
+    Parameters
+    ----------
+    expr: Union[tvm.relay.Expr,tvm.relay.Type]
+        The input expression/type
+
+    Returns
+    -------
+    free : List[tvm.relay.TypeVar]
+        The list of all type variables in post-DFS order
+    """
+    return _ir_pass.all_type_vars(expr)
 
 
 def simplify_inference(expr):
@@ -357,3 +421,79 @@ def alter_op_layout(expr):
         Transformed expression with alternated layout.
     """
     return _ir_pass.AlterOpLayout(expr)
+
+
+def rewrite_annotated_ops(expr, fallback_device):
+    """Rewrite the annotated program where annotation operators, e.g.
+    `on_deivce`, mark which device an expression should be scheduled to.
+    This pass helps heterogeneous execution where different operators may need
+    to be allocated on various devices.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    fallback_device : int
+        The fallback device type. It is also used as the default device for
+        operators with no annotated device.
+
+    Returns
+    -------
+    transformed_expr : tvm.relay.Expr
+        Transformed expression with cross device data copy operators.
+    """
+    return _ir_pass.RewriteDeviceAnnotation(expr, fallback_device)
+
+
+def collect_device_info(expr):
+    """Collect the device allocation map for the given expression. The device
+    ids are propagated from the `device_copy` operators.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    ret : Dict[tvm.relay.expr, int]
+        A dictionary mapping tvm.relay.Expr to device type.
+    """
+    return _ir_pass.CollectDeviceInfo(expr)
+
+
+def collect_device_annotation_ops(expr):
+    """Collect the device annotation ops for the given expression.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    ret : Dict[tvm.relay.expr, int]
+        A dictionary mapping tvm.relay.Expr to device type where the keys are
+        annotation expressions.
+    """
+    return _ir_pass.CollectDeviceAnnotationOps(expr)
+
+
+def gradient(expr, mod=None):
+    """.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, which is a Function or a GlobalVar.
+
+    mod : Optional[tvm.relay.Module]
+        The global module.
+
+    Returns
+    -------
+    ret : tvm.relay.Expr
+        A function that calculate the original result paired with gradient.
+    """
+    return _ir_pass.first_order_gradient(expr, mod)

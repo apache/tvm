@@ -47,7 +47,7 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         y = tvm.max(y, 0.0)
         x = tvm.max(x, 0.0)
         val = bilinear_sample_nchw(data, (i, c, y, x), height - 1, width - 1)
-        return tvm.select(outside, 0.0, val)
+        return tvm.if_then_else(outside, 0.0, val)
 
     def _sample(i, c, ph, pw):
         roi = rois[i]

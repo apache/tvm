@@ -240,10 +240,11 @@ Expr max(Expr a, Expr b) {
   return ir::Max::make(a, b);
 }
 
-Expr select(Expr cond, Expr true_value, Expr false_value) {
+Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
   using ir::IntImm;
   using ir::UIntImm;
-  CHECK(cond.type().is_bool());
+  CHECK(cond.type() == Bool(1))
+      << "if_then_else only accept a single condition";
   BinaryOpMatchTypes(true_value, false_value);
   if (const UIntImm* op = cond.as<UIntImm>()) {
     if (op->value != 0) {
@@ -258,7 +259,11 @@ Expr select(Expr cond, Expr true_value, Expr false_value) {
       return false_value;
     }
   }
-  return ir::Select::make(cond, true_value, false_value);
+  return ir::Call::make(
+      true_value.type(),
+      ir::intrinsic::tvm_if_then_else,
+      {cond, true_value, false_value},
+      ir::Call::PureIntrinsic);
 }
 
 Expr likely(Expr cond) {
@@ -402,7 +407,12 @@ Expr pow(Expr x, Expr y) {
 
 Expr abs(Expr x) {
   if (x.type().is_int()) {
-    return select(x >= make_zero(x.type()), x, -x);
+    using ir::IntImm;
+    const IntImm* px = x.as<IntImm>();
+    if (px) {
+      return ir::IntImm::make(x.type(), std::abs(px->value));
+    }
+    return ir::Select::make(x >= make_zero(x.type()), x, -x);
   } else if (x.type().is_float()) {
     return ir::Call::make(x.type(), "fabs", {x}, ir::Call::PureIntrinsic);
   } else if (x.type().is_uint()) {

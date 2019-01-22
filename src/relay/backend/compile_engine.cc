@@ -7,6 +7,7 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/operation.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
@@ -82,10 +83,23 @@ class ScheduleGetter :
     cache_node->func_name = readable_name_stream_.str();
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
-    Schedule schedule = fschedule[master_op_](
-        master_attrs_, cache_node->outputs, target_);
-    for (const auto& scalar : scalars_) {
-      schedule[scalar].compute_inline();
+    // Fusion over tupled results may leave identity relationships
+    // between inputs and outputs, and those should not be scheduled.
+    // Hence schedule only non PlaceholderOp outputs.
+    tvm::Array<Tensor> tensor_outs;
+    for (const auto& tensor : cache_node->outputs) {
+      if (!tensor->op.as<PlaceholderOpNode>()) {
+        tensor_outs.push_back(tensor);
+      }
+    }
+    Schedule schedule;
+    // No need to register schedule for device copy op.
+    if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
+      schedule =
+          fschedule[master_op_](master_attrs_, tensor_outs, target_);
+      for (const auto& scalar : scalars_) {
+        schedule[scalar].compute_inline();
+      }
     }
     return std::make_pair(schedule, cfunc);
   }
@@ -153,11 +167,18 @@ class ScheduleGetter :
     CHECK(call_node->op.as<OpNode>())
         << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
-    Array<Tensor> outputs = fcompute[op](
-        call_node->attrs,
-        inputs,
-        call_node->checked_type(),
-        target_);
+    // Check if the op is a device copy op.
+    bool is_copy_op = op.same_as(Op::Get("device_copy"));
+    Array<Tensor> outputs;
+    // Skip fcompute for device copy operators as it is not registered.
+    if (is_copy_op) {
+      const auto* copy_input = inputs[0].operator->();
+      outputs.push_back(TensorNode::make(copy_input->shape, copy_input->dtype,
+                                         Operation(), 0));
+    } else {
+      outputs = fcompute[op](call_node->attrs, inputs,
+                             call_node->checked_type(), target_);
+    }
 
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
@@ -176,7 +197,14 @@ class ScheduleGetter :
       CHECK(tuple_type) << "Expect output to be a tuple type";
       CHECK_EQ(tuple_type->fields.size(), outputs.size());
     }
-    readable_name_stream_ << '_' << op->name;
+    // Set the name to `__copy`. It will be detected in graph runtime to perform
+    // data copy across devices.
+    if (is_copy_op) {
+      readable_name_stream_.str(std::string());
+      readable_name_stream_ << "__copy";
+    } else {
+      readable_name_stream_ << '_' << op->name;
+    }
     return outputs;
   }
 
@@ -291,7 +319,17 @@ class CompileEngineImpl : public CompileEngineNode {
     auto spair = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_node<CachedFuncNode>(
         *(spair.second.operator->()));
-    cache_node->func_name = GetUniqeName(cache_node->func_name);
+
+    // Skip lowering for device copy node.
+    const Expr body = (key->source_func)->body;
+    if (const CallNode* call_node = body.as<CallNode>()) {
+      if (call_node->attrs.as<DeviceCopyAttrs>()) {
+        value->cached_func = CachedFunc(cache_node);
+        return value;
+      }
+    }
+
+    cache_node->func_name = GetUniqueName(cache_node->func_name);
     // NOTE: array will copy on write.
     Array<Tensor> all_args = cache_node->inputs;
     for (Tensor arg : cache_node->outputs) {
@@ -302,7 +340,7 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_node->funcs = (*f)(
           spair.first, all_args, cache_node->func_name, key->source_func);
     } else {
-      LOG(FATAL) << "relay.backend._lower is not registred";
+      LOG(FATAL) << "relay.backend.lower is not registred";
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -312,7 +350,7 @@ class CompileEngineImpl : public CompileEngineNode {
    * \param name The orginal name.
    * \return Updated name which is unique.
    */
-  std::string GetUniqeName(std::string name) {
+  std::string GetUniqueName(std::string name) {
     for (size_t i = 0; i < name.length(); ++i) {
       if (name[i] == '.') name[i] = '_';
     }

@@ -47,7 +47,7 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
             (out_tensor[box_a_idx + 3] - out_tensor[box_a_idx + 1]) + \
             (out_tensor[box_b_idx + 2] - out_tensor[box_b_idx]) * \
             (out_tensor[box_b_idx + 3] - out_tensor[box_b_idx + 1]) - i
-        return tvm.select(u <= 0.0, 0.0, i / u)
+        return tvm.expr.Select(u <= 0.0, 0.0, i / u)
 
     ib = tvm.ir_builder.create()
     p_data = ib.buffer_ptr(data)
@@ -64,8 +64,9 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
         with ib.if_scope(tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
                                  p_valid_count[0] > 0)):
             # Reorder output
-            nkeep = tvm.select(tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n]),
-                               nms_topk, p_valid_count[n])
+            nkeep = tvm.if_then_else(
+                tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n]),
+                nms_topk, p_valid_count[n])
             with ib.for_range(0, nkeep, name="l") as l:
                 with ib.for_range(0, 6, name="m") as m:
                     p_out[(n * num_anchors * 6
@@ -145,8 +146,8 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1)
         force_suppress = True
         nms_topk = -1
         out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
-        np_data = np.random.uniform(dshape)
-        np_valid_count = np.array([4])
+        np_data = np.random.uniform(size=dshape).astype("float32")
+        np_valid_count = np.array([4]).astype("int32")
         s = topi.generic.schedule_nms(out)
         f = tvm.build(s, [data, valid_count, out], "llvm")
         ctx = tvm.cpu()

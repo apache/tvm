@@ -31,6 +31,19 @@ class TupleValue(Value):
     def __getitem__(self, field_no):
         return self.fields[field_no]
 
+    def __len__(self):
+        return len(self.fields)
+
+    def __str__(self):
+        body = ','.join(str(f) for f in self.fields)
+        return '({0})'.format(body)
+
+    def __repr__(self):
+        body = ','.join(repr(f) for f in self.fields)
+        return '({0})'.format(body)
+
+    def __iter__(self):
+        return iter(self.fields)
 
 @register_relay_node
 class Closure(Value):
@@ -59,6 +72,12 @@ class TensorValue(Value):
     def __eq__(self, other):
         return self.data == other.data
 
+    def __repr__(self):
+        return repr(self.data)
+
+    def __str__(self):
+        return str(self.data)
+
 
 def _arg_to_ast(arg):
     if isinstance(arg, TensorValue):
@@ -73,6 +92,63 @@ def _arg_to_ast(arg):
 
 class Executor(object):
     """An abstract interface for executing Relay programs."""
+
+    def _convert_args(self, expr, args, kwargs):
+        """
+        Convert the combination of arguments and keyword arguments
+        into a sequence of arguments that may be passed to
+        a Relay evaluator.
+
+        We first provide all positional arguments, and then attempt
+        to fill in the remaining arguments using the keyword arguments. We
+        map the keyword arguments to the corresponding parameters, if there
+        is an ambiguity between positional and keyword arguments this
+        procedure will raise an error.
+
+        Parameters
+        ----------
+        expr: relay.Expr
+            The expression to evaluate
+
+        args: List[tvm.NDArray]
+            The arguments to pass to the evaluator.
+
+        kwargs: Dict[str, tvm.NDArrray]
+            The keyword arguments to pass to the evaluator.
+
+        Returns:
+            args: List[tvm.NDArray]
+                The new arguments with all keyword arguments placed in the correct slot.
+        """
+        if not kwargs:
+            return args
+
+        if kwargs and not isinstance(expr, Function):
+            raise Exception("can only supply keyword parameters for a \
+                             relay.Function, found {0}".format(expr))
+
+        params = expr.params
+        param_names = [p.name_hint for p in params]
+        num_of_args = len(args)
+
+        cargs = list(args)[:]
+        for i, name in enumerate(param_names):
+            if i < num_of_args:
+                if kwargs.get(name):
+                    raise Exception(
+                        "duplicate argument supplied in \
+                         both positional args (at position: {0}), \
+                         and keyword argument (with name: {1})".format(i, name))
+            else:
+                cargs.append(kwargs[name])
+
+        if len(cargs) != len(params):
+            raise Exception(
+                "insufficient arguments, expected" \
+                " {0}, provided {1}".format(len(cargs), len(params)))
+
+        return tuple(cargs)
+
     def _make_executor(self, _):
         """
         Construct a Python function that implements the evaluation
@@ -161,12 +237,16 @@ class Interpreter(Executor):
         """
         # TODO: We need to move this optimization code into the optimizer/pass manager
         ck_expr = ir_pass.infer_type(expr, mod=self.mod)
-        fused_expr = ir_pass.fuse_ops(ck_expr)
+        simp_expr = ir_pass.simplify_inference(ck_expr)
+        ck_simp = ir_pass.infer_type(simp_expr, mod=self.mod)
+        fused_expr = ir_pass.fuse_ops(ck_simp)
         ck_fused = ir_pass.infer_type(fused_expr, mod=self.mod)
         return ck_fused
 
     def _make_executor(self, expr):
-        def _interp_wrapper(*args):
+        def _interp_wrapper(*args, **kwargs):
+            args = self._convert_args(expr, args, kwargs)
+
             relay_args = []
             for arg in args:
                 relay_args.append(_arg_to_ast(arg))

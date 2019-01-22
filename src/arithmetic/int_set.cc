@@ -84,6 +84,25 @@ bool IntSet::can_prove_negative() const {
   return (s_int && is_negative_const(ir::Simplify(s_int->i.max)));
 }
 
+bool IntSet::can_prove_non_positive() const {
+  if (const IntervalSet* s_int = (*this).as<IntervalSet>()) {
+    auto max = ir::Simplify(s_int->i.max);
+    return is_zero(max) || is_negative_const(max);
+  }
+  return false;
+}
+
+bool IntSet::can_prove_non_negative() const {
+  if (const IntervalSet* s_int = (*this).as<IntervalSet>()) {
+    // Any reason why we should or should not use can_prove() to implement
+    // these functions?
+    auto min = ir::Simplify(s_int->i.min);
+    return is_zero(min) || is_positive_const(min);
+  }
+  return false;
+}
+
+
 SignType IntSet::sign_type() const {
   if (can_prove_positive()) {
     return kPositive;
@@ -249,8 +268,9 @@ inline IntSet CombineInterval<Mul>(Interval a, Interval b) {
     } else if (is_negative_const(b.min)) {
       return IntervalSet::make(e2, e1);
     } else if (a.is_bounded()) {
+      using ir::Select;
       Expr cmp = b.min >= make_zero(b.min.type().element_of());
-      return IntervalSet::make(select(cmp, e1, e2), select(cmp, e2, e1));
+      return IntervalSet::make(Select::make(cmp, e1, e2), Select::make(cmp, e2, e1));
     }
   }
   LOG(WARNING) << "Return Everything in CombineInterval Mul";
@@ -275,8 +295,9 @@ inline IntSet CombineInterval<Div>(Interval a, Interval b) {
     } else if (is_negative_const(b.min)) {
       return IntervalSet::make(e2, e1);
     } else if (a.is_bounded()) {
+      using ir::Select;
       Expr cmp = b.min >= make_zero(b.min.type().element_of());
-      return IntervalSet::make(select(cmp, e1, e2), select(cmp, e2, e1));
+      return IntervalSet::make(Select::make(cmp, e1, e2), Select::make(cmp, e2, e1));
     }
   }
   LOG(WARNING) << "Return Everything in CombineInterval Div";

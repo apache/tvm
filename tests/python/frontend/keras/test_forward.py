@@ -1,10 +1,8 @@
 import numpy as np
-import nnvm
-from nnvm import to_relay
 import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
-from nnvm.testing.config import ctx_list
+from tvm.relay.testing.config import ctx_list
 import keras
 
 # prevent keras from using up all gpu memory
@@ -27,17 +25,15 @@ def verify_keras_frontend(keras_model, need_transpose=True):
         return keras_model.predict(xs)
 
     def get_tvm_output(xs, target, ctx, dtype='float32'):
-        sym, params = nnvm.frontend.from_keras(keras_model)
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
+        func, params = relay.frontend.from_keras(keras_model, shape_dict)
         with relay.build_module.build_config(opt_level=2):
-            func, params = to_relay.to_relay(sym, shape_dict, dtype, params)
-            graph, lib, params = relay.build(func, target='llvm', params=params)
+            graph, lib, params = relay.build(func, target, params=params)
         m = graph_runtime.create(graph, lib, ctx)
         for name, x in zip(keras_model.input_names, xs):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))
         m.set_input(**params)
         m.run()
-
         return [m.get_output(i).asnumpy() for i in range(m.get_num_outputs())]
 
     def to_channels_first(arr):
@@ -48,7 +44,6 @@ def verify_keras_frontend(keras_model, need_transpose=True):
 
     xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
-
     keras_out = keras_out if isinstance(keras_out, list) else [keras_out]
     for target, ctx in ctx_list():
         inputs = [to_channels_first(x) for x in xs] if need_transpose else xs
@@ -58,24 +53,48 @@ def verify_keras_frontend(keras_model, need_transpose=True):
                 tout = to_channels_last(tout)
             tvm.testing.assert_allclose(kout, tout, rtol=1e-5, atol=1e-5)
 
-def test_forward_elemwise_add():
-    r = []
+
+def test_forward_merge():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
-    r.append(x)
-    x = keras.layers.Conv2D(8, (3, 3), padding="same")(x)
-    r.append(x)
-    x = keras.layers.Conv2D(8, (3, 3), padding="same")(x)
-    # add two symbols
-    y = keras.layers.add([keras.layers.add([x, r[0]]), r[1]])
-    y = keras.layers.GlobalAveragePooling2D()(y)
-    keras_model = keras.models.Model(data, y)
-    verify_keras_frontend(keras_model)
-    # add three symbols
-    y = keras.layers.add([x, r[0], r[1]])
-    y = keras.layers.GlobalAveragePooling2D()(y)
-    keras_model = keras.models.Model(data, y)
-    verify_keras_frontend(keras_model)
+    y = keras.layers.Conv2D(8, (3, 3), padding="same")(x)
+    z = keras.layers.Conv2D(8, (3, 3), padding="same")(y)
+    merge_funcs = [keras.layers.Add(),
+                   keras.layers.Subtract(),
+                   keras.layers.Multiply(),
+                   keras.layers.Maximum(),
+                   keras.layers.Average(),
+                   keras.layers.Concatenate()]
+    for merge_func in merge_funcs:
+        if isinstance(merge_func, keras.layers.merge.Subtract):
+            out = merge_func([x, y])
+        else:
+            out = merge_func([x, y, z])
+        keras_model = keras.models.Model(data, out)
+        verify_keras_frontend(keras_model)
+
+
+def test_forward_activations():
+    data = keras.layers.Input(shape=(32,32,3))
+    act_funcs = [keras.layers.Activation('softmax'),
+                 keras.layers.Activation('softplus'),
+                 keras.layers.Activation('relu'),
+                 keras.layers.Activation('softsign'),
+                 keras.layers.Activation('hard_sigmoid'),
+                 keras.layers.Activation('sigmoid'),
+                 keras.layers.Activation('tanh'),
+                 keras.layers.Activation('linear'),
+                 keras.layers.Activation('selu'),
+                 keras.layers.ReLU(),
+                 keras.layers.ReLU(max_value=6.),
+                 keras.layers.LeakyReLU(alpha=0.3),
+                 keras.layers.PReLU(weights=np.random.rand(1, 32, 32, 3)),
+                 keras.layers.ELU(alpha=0.5),
+                 keras.layers.ThresholdedReLU(theta=0.5)]
+    for act_func in act_funcs:
+        x = act_func(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model)
 
 
 def test_forward_dense():
@@ -141,59 +160,12 @@ def test_forward_crop():
     verify_keras_frontend(keras_model)
 
 
-def test_forward_vgg16():
-    keras_model = keras.applications.vgg16.VGG16(include_top=True, weights='imagenet',
-        input_shape=(224,224,3), classes=1000)
-    verify_keras_frontend(keras_model)
-
-
-def test_forward_xception():
-    keras_model = keras.applications.xception.Xception(include_top=True, weights='imagenet',
-        input_shape=(299,299,3), classes=1000)
-    verify_keras_frontend(keras_model)
-
-
-def test_forward_resnet50():
-    keras_model = keras.applications.resnet50.ResNet50(include_top=True, weights='imagenet',
-        input_shape=(224,224,3), classes=1000)
-    verify_keras_frontend(keras_model)
-
-
-def test_forward_mobilenet():
-    keras_model = keras.applications.mobilenet.MobileNet(include_top=True, weights='imagenet',
-        input_shape=(224,224,3), classes=1000)
-    verify_keras_frontend(keras_model)
-
-
-def test_forward_activations():
-    data = keras.layers.Input(shape=(32,32,3))
-    weights = np.random.rand(1, 32, 32, 3)
-    act_funcs = [keras.layers.Activation('softmax'),
-                 keras.layers.Activation('softplus'),
-                 keras.layers.ReLU(),
-                 keras.layers.ReLU(max_value=6.),
-                 keras.layers.LeakyReLU(alpha=0.3),
-                 keras.layers.PReLU(weights=weights, alpha_initializer="zero"),
-                 keras.layers.ELU(alpha=0.5),
-                 keras.layers.Activation('selu'),
-                 keras.layers.ThresholdedReLU(theta=0.5),
-                 keras.layers.Activation('softsign'),
-                 keras.layers.Activation('hard_sigmoid'),
-                 keras.layers.Activation('sigmoid'),
-                 keras.layers.Activation('tanh'),
-                 keras.layers.Activation('linear')]
-    for act_func in act_funcs:
-        x = act_func(data)
-        keras_model = keras.models.Model(data, x)
-        verify_keras_frontend(keras_model)
-
-
 def test_forward_multi_inputs():
     data1 = keras.layers.Input(shape=(32,32,3))
     data2 = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Conv2D(8, (3, 3), padding="same")(data1)
     y = keras.layers.Conv2D(8, (3, 3), padding="same")(data2)
-    z = keras.layers.add([x, y])
+    z = keras.layers.Average()([x, y])
     z = keras.layers.GlobalAveragePooling2D()(z)
     keras_model = keras.models.Model([data1, data2], z)
     verify_keras_frontend(keras_model)
@@ -215,11 +187,10 @@ def test_forward_reuse_layers():
     conv2d = keras.layers.Conv2D(8, (3, 3), padding="same")
     x = conv2d(data)
     y = conv2d(data)
-    z = keras.layers.add([x, y])
+    z = keras.layers.Add()([x, y])
     z = keras.layers.GlobalAveragePooling2D()(z)
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
-
     # reuse add
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
@@ -230,89 +201,47 @@ def test_forward_reuse_layers():
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
 
-def _test_LSTM(inputs, hidden, return_state=True):
-    data = keras.layers.Input(shape=(1, inputs))
-    lstm_out = keras.layers.LSTM(hidden,
-                                 return_state=return_state,
-                                 recurrent_activation='sigmoid',
-                                 activation='tanh')
-    x = lstm_out(data)
-    keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model, need_transpose=False)
 
-def _test_LSTM_MultiLayer(inputs, hidden):
-    inputs = keras.layers.Input(shape=(1, inputs))
-    layer = keras.layers.LSTM(hidden, return_state=True, return_sequences=True,
-                                 recurrent_activation='sigmoid',
-                                 activation='tanh')
-    outputs = layer(inputs)
-    output, state = outputs[0], outputs[1:]
-    output = keras.layers.LSTM(hidden, recurrent_activation='sigmoid',
-                               activation='tanh')(output, initial_state=state)
-    keras_model = keras.models.Model(inputs, output)
-    verify_keras_frontend(keras_model, need_transpose=False)
+def test_forward_rnn():
+    data = keras.layers.Input(shape=(1,32))
+    rnn_funcs = [keras.layers.LSTM(units=16, return_state=False,
+                    recurrent_activation='sigmoid', activation='tanh'),
+                 keras.layers.SimpleRNN(units=16, return_state=False,
+                    activation='tanh'),
+                 keras.layers.GRU(units=16, return_state=False,
+                    recurrent_activation='sigmoid', activation='tanh')]
+    for rnn_func in rnn_funcs:
+        x = rnn_func(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, need_transpose=False)
 
 
-def test_forward_LSTM():
-    # TODO(@jroesch): need to modify compile engine to fix return_state=True
-    _test_LSTM(8, 8, return_state=False)
-    _test_LSTM(4, 4, return_state=False)
-    _test_LSTM_MultiLayer(4, 4)
+def test_forward_vgg16():
+    keras_model = keras.applications.VGG16(include_top=True, weights='imagenet',
+        input_shape=(224,224,3), classes=1000)
+    verify_keras_frontend(keras_model)
 
-def _test_RNN(inputs, units):
-    data = keras.layers.Input(shape=(1, inputs))
-    rnn_out = keras.layers.SimpleRNN(units, return_state=True,
-                                 activation='tanh')
-    x = rnn_out(data)
-    keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model, need_transpose=False)
 
-def _test_RNN_MultiLayer(inputs, units):
-    inputs = keras.layers.Input(shape=(1, inputs))
-    layer = keras.layers.SimpleRNN(units, return_state=True, return_sequences=True,
-                                   activation='tanh')
-    outputs = layer(inputs)
-    output, state = outputs[0], outputs[1:]
-    output = keras.layers.SimpleRNN(units, activation='tanh')(output, initial_state=state)
-    keras_model = keras.models.Model(inputs, output)
-    verify_keras_frontend(keras_model, need_transpose=False)
+def test_forward_xception():
+    keras_model = keras.applications.Xception(include_top=True, weights='imagenet',
+        input_shape=(299,299,3), classes=1000)
+    verify_keras_frontend(keras_model)
 
-def test_forward_RNN():
-    _test_RNN(2, 4)
-    _test_RNN(4, 3)
-    _test_RNN_MultiLayer(4, 12)
 
-def _test_GRU(inputs, units):
-    data = keras.layers.Input(shape=(1, inputs))
-    gru_out = keras.layers.GRU(units,
-                               return_state=True,
-                               recurrent_activation='sigmoid',
-                               activation='tanh')
-    x = gru_out(data)
-    keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model, need_transpose=False)
+def test_forward_resnet50():
+    keras_model = keras.applications.ResNet50(include_top=True, weights='imagenet',
+        input_shape=(224,224,3), classes=1000)
+    verify_keras_frontend(keras_model)
 
-def _test_GRU_MultiLayer(inputs, units):
-    inputs = keras.layers.Input(shape=(1, inputs))
-    layer = keras.layers.GRU(units,
-                             return_state=True,
-                             return_sequences=True,
-                             recurrent_activation='sigmoid',
-                             activation='tanh')
-    outputs = layer(inputs)
-    output, state = outputs[0], outputs[1:]
-    output = keras.layers.GRU(units, recurrent_activation='sigmoid',
-                              activation='tanh')(output, initial_state=state)
-    keras_model = keras.models.Model(inputs, output)
-    verify_keras_frontend(keras_model, need_transpose=False)
 
-def test_forward_GRU():
-    _test_GRU(2, 4)
-    _test_GRU(4, 3)
-    _test_GRU_MultiLayer(4, 4)
+def test_forward_mobilenet():
+    keras_model = keras.applications.MobileNet(include_top=True, weights='imagenet',
+        input_shape=(224,224,3), classes=1000)
+    verify_keras_frontend(keras_model)
+
 
 if __name__ == '__main__':
-    test_forward_elemwise_add()
+    test_forward_merge()
     test_forward_activations()
     test_forward_dense()
     test_forward_pool()
@@ -320,13 +249,11 @@ if __name__ == '__main__':
     test_forward_upsample()
     test_forward_reshape()
     test_forward_crop()
+    test_forward_multi_inputs()
+    test_forward_multi_outputs()
+    test_forward_reuse_layers()
+    test_forward_rnn()
     test_forward_vgg16()
     test_forward_xception()
     test_forward_resnet50()
     test_forward_mobilenet()
-    test_forward_multi_inputs()
-    test_forward_multi_outputs()
-    test_forward_reuse_layers()
-    test_forward_LSTM()
-    test_forward_RNN()
-    test_forward_GRU()

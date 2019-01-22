@@ -46,7 +46,7 @@ def test_nms():
         f(tvm_data, tvm_valid_count, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
-    for device in ['llvm', 'opencl']:
+    for device in ['llvm', 'opencl', 'cuda']:
         check_device(device)
 
 
@@ -105,7 +105,7 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
         f(tvm_input_data, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-3)
 
-    for device in ['llvm', 'opencl']:
+    for device in ['llvm', 'opencl', 'cuda']:
         check_device(device)
 
 
