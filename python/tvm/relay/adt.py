@@ -3,7 +3,7 @@
 from .base import RelayNode, register_relay_node, NodeBase
 from . import _make
 from .ty import Type
-from .expr import Expr
+from .expr import Expr, Call
 
 
 class Pattern(RelayNode):
@@ -95,6 +95,21 @@ class Constructor(Expr):
             A constructor.
         """
         self.__init_handle_by_constructor__(_make.Constructor, name_hint, inp, belong_to)
+
+    def __call__(self, *args):
+        """Call the constructor.
+
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            The arguments to the constructor.
+
+        Returns
+        -------
+        call: relay.Call
+            A call to the constructor.
+        """
+        return Call(self, args)
 
 
 @register_relay_node

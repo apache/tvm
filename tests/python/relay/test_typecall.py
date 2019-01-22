@@ -17,7 +17,7 @@ def test_id_type():
     make_id = relay.Var("make_id", relay.FuncType([a], id_type(a), [a]))
     t = relay.scalar_type("float32")
     b = relay.Var("b", t)
-    assert relay.ir_pass.infer_type(relay.Call(make_id, [b]), mod).checked_type == id_type(t)
+    assert relay.ir_pass.infer_type(make_id(b), mod).checked_type == id_type(t)
 
 
 if __name__ == "__main__":
