@@ -68,7 +68,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const TypeRelationNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TupleTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const IncompleteTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-
+  virtual R VisitType_(const RefTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const Node* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->type_key();
     throw;  // unreachable, written to stop compiler warning
@@ -86,6 +86,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     RELAY_TYPE_FUNCTOR_DISPATCH(TypeRelationNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(IncompleteTypeNode);
+    RELAY_TYPE_FUNCTOR_DISPATCH(RefTypeNode);
     return vtable;
   }
 };
@@ -101,6 +102,7 @@ class TypeVisitor : public TypeFunctor<void(const Type& n)> {
   void VisitType_(const FuncTypeNode* op) override;
   void VisitType_(const TupleTypeNode* op) override;
   void VisitType_(const TypeRelationNode* op) override;
+  void VisitType_(const RefTypeNode* op) override;
 };
 
 // Mutator that transform a type to another one.
@@ -112,6 +114,7 @@ class TypeMutator : public TypeFunctor<Type(const Type& n)> {
   Type VisitType_(const FuncTypeNode* op) override;
   Type VisitType_(const TupleTypeNode* op) override;
   Type VisitType_(const TypeRelationNode* type_rel) override;
+  Type VisitType_(const RefTypeNode* op) override;
 
  private:
   Array<Type> MutateArray(Array<Type> arr);

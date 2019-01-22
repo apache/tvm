@@ -431,6 +431,23 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     auto ret = FuncTypeNode::make(arg_types, rtype, f->type_params, {});
     return solver_.Resolve(ret);
   }
+
+  Type VisitExpr_(const RefNewNode* op) final {
+    return RefTypeNode::make(GetType(op->value));
+  }
+
+  Type VisitExpr_(const RefReadNode* op) final {
+    Type it = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    this->Unify(GetType(op->ref), RefTypeNode::make(it), op->span);
+    return it;
+  }
+
+  Type VisitExpr_(const RefWriteNode* op) final {
+    Type it = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    this->Unify(GetType(op->ref), RefTypeNode::make(it), op->span);
+    this->Unify(GetType(op->value), it, op->span);
+    return TupleTypeNode::make({});
+  }
 };
 
 class TypeInferencer::Resolver : public ExprMutator {
@@ -477,6 +494,18 @@ class TypeInferencer::Resolver : public ExprMutator {
   }
 
   Expr VisitExpr_(const IfNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Expr VisitExpr_(const RefNewNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Expr VisitExpr_(const RefReadNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Expr VisitExpr_(const RefWriteNode* op) final {
     return AttachCheckedType(op);
   }
 

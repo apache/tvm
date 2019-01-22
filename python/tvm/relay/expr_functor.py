@@ -41,6 +41,12 @@ class ExprFunctor:
             res = self.visit_constant(expr)
         elif isinstance(expr, Op):
             res = self.visit_op(expr)
+        elif isinstance(expr, RefNew):
+            res = self.visit_ref_new(expr)
+        elif isinstance(expr, RefRead):
+            res = self.visit_ref_read(expr)
+        elif isinstance(expr, RefWrite):
+            res = self.visit_ref_write(expr)
         else:
             raise Exception("warning unhandled case: {0}".format(type(expr)))
 
@@ -81,6 +87,14 @@ class ExprFunctor:
     def visit_constant(self, _):
         raise NotImplementedError()
 
+    def visit_ref_new(self, _):
+        raise NotImplementedError()
+
+    def visit_ref_write(self, _):
+        raise NotImplementedError()
+
+    def visit_ref_read(self, _):
+        raise NotImplementedError()
 
 class ExprMutator(ExprFunctor):
     """

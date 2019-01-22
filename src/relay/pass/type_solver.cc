@@ -116,7 +116,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   }
 
   // default: unify only if alpha-equal
-  Type VisitTypeDefault_(const Node* op, const Type& tn) override {
+  Type VisitTypeDefault_(const Node* op, const Type& tn) final {
     NodeRef nr = GetRef<NodeRef>(op);
     Type t1 = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
     if (!AlphaEqual(t1, tn)) {
@@ -125,7 +125,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return t1;
   }
 
-  Type VisitType_(const TupleTypeNode* op, const Type& tn) override {
+  Type VisitType_(const TupleTypeNode* op, const Type& tn) final {
     const auto* ttn = tn.as<TupleTypeNode>();
     if (!ttn || op->fields.size() != ttn->fields.size()) {
       return Type(nullptr);
@@ -142,7 +142,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return TupleTypeNode::make(new_fields);
   }
 
-  Type VisitType_(const FuncTypeNode* op, const Type& tn) override {
+  Type VisitType_(const FuncTypeNode* op, const Type& tn) final {
     const auto* ftn = tn.as<FuncTypeNode>();
     if (!ftn
         || op->arg_types.size() != ftn->arg_types.size()
@@ -179,6 +179,14 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     return FuncTypeNode::make(arg_types, ret_type, ft1->type_params, type_constraints);
+  }
+
+  Type VisitType_(const RefTypeNode* op, const Type& tn) final {
+    const auto* rtn = tn.as<RefTypeNode>();
+    if (!rtn) {
+      return Type(nullptr);
+    }
+    return RefTypeNode::make(Unify(op->value, rtn->value));
   }
 
  private:

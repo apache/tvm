@@ -210,6 +210,19 @@ class TypeRelation(TypeConstraint):
                                             func, args, num_inputs, attrs)
 
 
+@register_relay_node
+class RefType(Type):
+    """Reference Type in relay.
+
+    Parameters
+    ----------
+    value: Type
+        The value type.
+    """
+    def __init__(self, value):
+        self.__init_handle_by_constructor__(_make.RefType, value)
+
+
 def scalar_type(dtype):
     """Creates a scalar type.
 

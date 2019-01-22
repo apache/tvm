@@ -164,5 +164,24 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "TupleTypeNode(" << node->fields << ")";
 });
 
+RefType RefTypeNode::make(Type value) {
+  NodePtr<RefTypeNode> n = make_node<RefTypeNode>();
+  n->value = std::move(value);
+  return RefType(n);
+}
+
+TVM_REGISTER_API("relay._make.RefType")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = RefTypeNode::make(args[0]);
+});
+
+TVM_REGISTER_NODE_TYPE(RefTypeNode);
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<RefTypeNode>([](const RefTypeNode* node,
+                              tvm::IRPrinter* p) {
+  p->stream << "RefTypeNode(" << node->value << ")";
+});
+
 }  // namespace relay
 }  // namespace tvm
