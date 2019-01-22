@@ -113,6 +113,8 @@ class GraphModule(object):
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
         self._load_params = module["load_params"]
+        self._set_variable = module["set_variable"]
+        self._update_view = module["update_view"]
 
     def set_input(self, key=None, value=None, **params):
         """Set inputs to the module via kwargs
@@ -217,6 +219,18 @@ class GraphModule(object):
             The serialized parameter dict.
         """
         self._load_params(bytearray(params_bytes))
+
+    def set_shape_variable(self, var_map):
+        """Set variables value in symbolic shape
+
+        Parameters
+        ----------
+        var_map : dict
+            The map of input variable name : value
+        """
+        for k, v in var_map.items():
+            self._set_variable(k, v)
+        self._update_view()
 
     def __getitem__(self, key):
         """Get internal module function

@@ -134,14 +134,14 @@ class VarNode : public ExprNode {
    * \brief The unique identifier of the Var.
    *
    * vid will be preserved for the same Var during type inference
-   * and other rewritings, while the VarNode might be recreated
+   * and other rewriting, while the VarNode might be recreated
    * to attach additional information.
    * This property can be used to keep track of parameter Var
    * information across passes.
    */
   Id vid;
   /*!
-   * \brief type annotaion of the variable.
+   * \brief type annotation of the variable.
    * This field records user provided type annotation of the Var.
    * This field is optional and can be None.
    */

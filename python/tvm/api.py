@@ -169,7 +169,6 @@ def var(name="tindex", dtype=int32):
     """
     return _api_internal._Var(name, dtype)
 
-
 def any(*args):
     """Create a new experssion of the union of all conditions in the arguments
 

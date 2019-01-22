@@ -197,7 +197,11 @@ def optimize(func, target, params=None):
     return func
 
 
-def build(func, target=None, target_host=None, params=None):
+def build(func,
+          target=None,
+          target_host=None,
+          params=None,
+          shape_var_bounds=None):
     """Build a function to run on TVM graph runtime.
 
     Parameters
@@ -269,7 +273,9 @@ def build(func, target=None, target_host=None, params=None):
         func = ir_pass.fuse_ops(func, cfg.opt_level)
         # Graph code generation
         func = ir_pass.infer_type(func)
-        graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None, target=target)
+        graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None,
+                                                   target=target,
+                                                   shape_var_bounds=shape_var_bounds)
         graph_json, lowered_funcs, params = graph_gen.codegen(func)
         mod = _tvm_build_module(
             lowered_funcs, target=target, target_host=target_host)
