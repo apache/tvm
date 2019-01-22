@@ -109,13 +109,9 @@ def test_sum():
 def test_tmap():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
-    # cannot infer return type of tmap!
     lhs = mod[tmap].checked_type
     rhs = relay.FuncType([relay.FuncType([a], b), tree(a)], tree(b), [a, b])
-    # print(lhs)
-    # print(rhs)
-    # assert lhs == rhs
-    # this is broken, need some way to add type annotation
+    assert lhs == rhs
 
 def test_size():
     a = relay.TypeVar("a")

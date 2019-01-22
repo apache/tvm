@@ -111,4 +111,3 @@ class Prelude:
         rose_case = Clause(PatternConstructor(self.rose, [PatternWildcard(), PatternVar(z)]),
                            self.s(self.sum(self.map(Function([x], self.size(x)), z))))
         mod[self.size] = Function([t], Match(t, [rose_case]), self.nat(), [a])
-        # cannot infer return type here
