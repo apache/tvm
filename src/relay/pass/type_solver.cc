@@ -189,7 +189,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return RefTypeNode::make(Unify(op->value, rtn->value));
   }
 
-  Type VisitType_(const TypeCallNode* op, const Type& tn) {
+  Type VisitType_(const TypeCallNode* op, const Type& tn) override {
     const auto* tcn = tn.as<TypeCallNode>();
     if (!tcn || tcn->args.size() != op->args.size()) {
       return Type();
