@@ -1,4 +1,4 @@
-# pylint: disable=import-error,too-many-locals,too-many-statements,too-many-branches,arguments-differ,unused-variable
+# pylint: disable=import-error,too-many-locals,too-many-statements,too-many-branches,unused-variable
 """Dynamic programming tuner."""
 import sys
 import numpy as np
@@ -30,6 +30,7 @@ class DPTuner(BaseGraphTuner):
         self._num_states = self._max_num_states = None
 
     def _check_num_states(self, num_states):
+        """Track the number of states."""
         self._num_states += num_states
         if self._max_num_states is not None:
             if self._num_states > self._max_num_states:
@@ -152,18 +153,10 @@ class DPTuner(BaseGraphTuner):
                 self._optimal_sch_dict[node_idx] = 0
         self._logger.info("Finished backward pass...")
 
-    def run(self, max_num_states=None):
+    def run(self, **kwargs):
         """Run dynamic programming solver.
-
-        Parameters
-        ----------
-        max_num_states : int, optional
-            Maximum number of total states during DP.
-            If states number exceeds this argument, an exception will be thrown.
-            This argument prevents out of memory issue or too long execution
-            time of DP.
-
         """
+        max_num_states = None if "max_num_states" not in kwargs else kwargs["max_num_states"]
         self._num_states = 0
         self._max_num_states = max_num_states
         self._logger.info("Start to run dynamic programming algorithm...")
