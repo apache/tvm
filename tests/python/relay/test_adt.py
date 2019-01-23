@@ -1,9 +1,5 @@
 import tvm
 from tvm import relay
-from tvm.relay.ty import GlobalTypeVar, TypeVar, FuncType
-from tvm.relay.expr import Var, Function, GlobalVar
-from tvm.relay.adt import Constructor, TypeData, Clause, Match
-from tvm.relay.adt import PatternConstructor, PatternVar, PatternWildcard
 from tvm.relay.ir_pass import infer_type
 from tvm.relay.backend.interpreter import Value, TupleValue, ConValue
 from tvm.relay import testing, create_executor
@@ -13,43 +9,6 @@ mod = relay.Module()
 p = Prelude(mod)
 ctx = tvm.context("llvm", 0)
 intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
-
-# defines peano nats and related functions for testing purposes
-def add_nat_definitions():
-    p.nat = GlobalTypeVar("nat")
-    p.z = Constructor("z", [], p.nat)
-    p.s = Constructor("s", [p.nat()], p.nat)
-    mod[p.nat] = TypeData(p.nat, [], [p.z, p.s])
-
-    p.double = GlobalVar("double")
-    x = Var("x", p.nat())
-    y = Var("y")
-    z_case = Clause(PatternConstructor(p.z), p.z())
-    s_case = Clause(PatternConstructor(p.s, [PatternVar(y)]), p.s(p.s(p.double(y))))
-    mod[p.double] = Function([x], Match(x, [z_case, s_case]))
-
-    p.add = GlobalVar("add")
-    x = Var("x", p.nat())
-    y = Var("y", p.nat())
-    a = Var("a")
-    z_case = Clause(PatternConstructor(p.z), y)
-    s_case = Clause(PatternConstructor(p.s, [PatternVar(a)]), p.s(p.add(a, y)))
-    mod[p.add] = Function([x, y], Match(x, [z_case, s_case]))
-
-    p.sum = GlobalVar("sum")
-    a = Var("a", p.l(p.nat()))
-    mod[p.sum] = Function([a], p.foldl(p.add, p.z(), a))
-
-    p.length = GlobalVar("length")
-    a = TypeVar("a")
-    x = Var("x", p.l(a))
-    y = Var("y")
-    nil_case = Clause(PatternConstructor(p.nil), p.z())
-    cons_case = Clause(PatternConstructor(p.cons, [PatternWildcard(), PatternVar(y)]),
-                       p.s(p.length(y)))
-    mod[p.length] = Function([x], Match(x, [nil_case, cons_case]), None, [a])
-
-add_nat_definitions()
 
 z = p.z
 s = p.s
@@ -65,6 +24,11 @@ map = p.map
 foldl = p.foldl
 foldr = p.foldr
 sum = p.sum
+
+tree = p.tree
+rose = p.rose
+tmap = p.tmap
+size = p.size
 
 # this is an example of using the adt value in python side
 def count(n):
@@ -101,6 +65,17 @@ def to_list(l):
         else:
             assert val.con.name_hint == 'nil'
             break
+    return ret
+
+def tree_to_dict(t):
+    assert isinstance(t, ConValue)
+    ret = {}
+    assert t.con.name_hint == 'rose'
+    ret['member'] = t.fields[0]
+    ret['children'] = []
+    for subtree in to_list(t.fields[1]):
+        l = tree_to_dict(subtree)
+        ret['children'].append(l)
     return ret
 
 def test_nat_value():
@@ -197,6 +172,43 @@ def test_sum():
     assert count(res) == 3
 
 
+def test_tmap():
+    a = relay.TypeVar("a")
+    b = relay.TypeVar("b")
+    lhs = mod[tmap].checked_type
+    rhs = relay.FuncType([relay.FuncType([a], b), tree(a)], tree(b), [a, b])
+    assert lhs == rhs
+
+    x = relay.Var("x")
+    add_one = relay.Function([x], s(x))
+    res = intrp.evaluate(tmap(add_one,
+                              rose(z(),
+                                   cons(rose(z(), nil()),
+                                        cons(rose(z(), nil()),
+                                             nil())))))
+
+    tree_dict = tree_to_dict(res)
+    assert count(tree_dict['member']) == 1
+    assert len(tree_dict['children']) == 2
+    for subtree in tree_dict['children']:
+        assert count(subtree['member']) == 1
+        assert len(subtree['children']) == 0
+
+
+def test_size():
+    a = relay.TypeVar("a")
+    lhs = mod[size].checked_type
+    rhs = relay.FuncType([tree(a)], nat(), [a])
+    assert lhs == rhs
+
+    root = rose(z(), cons(rose(z(), nil()),
+                                  cons(rose(z(), nil()),
+                                       nil())))
+    t = rose(z(), cons(root, cons(root, cons(root, nil()))))
+    res = intrp.evaluate(size(t))
+    assert count(res) == 10
+
+
 if __name__ == "__main__":
     test_nat_constructor()
     test_double()
@@ -207,3 +219,5 @@ if __name__ == "__main__":
     test_foldl()
     test_foldr()
     test_sum()
+    test_tmap()
+    test_size()
