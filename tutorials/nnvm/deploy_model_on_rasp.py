@@ -6,7 +6,7 @@ Deploy the Pretrained Model on Raspberry Pi
 **Author**: `Ziheng Jiang <https://ziheng.org/>`_
 
 This is an example of using NNVM to compile a ResNet model and deploy
-it on raspberry pi.
+it on Raspberry Pi.
 """
 
 import tvm
