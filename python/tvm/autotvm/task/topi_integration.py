@@ -210,7 +210,7 @@ class TaskExtractEnv:
 def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
     """Register a tunable template for a topi compute function.
 
-    After the registration. This topi compute will become a configuration dispatcher. It uses
+    After the registration, this topi compute will become a configuration dispatcher. It uses
     all its argument as workload and dispatches configurations according to the input workload.
 
     It also stores this "workload" to its final ComputeOp, which can be used to reconstruct
