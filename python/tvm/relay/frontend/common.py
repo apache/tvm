@@ -10,7 +10,6 @@ from .. import op as _op
 
 class RequiredAttr(object):
     """Dummpy class to represent required attr"""
-    pass
 
 
 class StrAttrsDict(object):

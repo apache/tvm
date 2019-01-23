@@ -69,15 +69,14 @@ class Future(object):
 
 class FutureError(RuntimeError):
     """Base error class of all future events"""
-    pass
+
 
 # pylint:disable=redefined-builtin
 class TimeoutError(FutureError):
     """Error raised when a task is timeout."""
-    pass
+
 
 class ExecutionError(FutureError):
     """
     Error raised when future execution crashes or failed.
     """
-    pass

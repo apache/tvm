@@ -32,7 +32,6 @@ class InstantiationError(ValueError):
      raised by cfg.raise_error
      e.g. too many unrolling, too many threads in a block
     """
-    pass
 
 
 class TransformSpace(object):

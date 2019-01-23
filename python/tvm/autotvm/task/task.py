@@ -294,7 +294,7 @@ def get_config():
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""
-    pass
+
 
 def compute_flop(sch):
     """Calculate number of FLOP (floating number operations) of the compute ops in a schedule

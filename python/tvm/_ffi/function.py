@@ -51,7 +51,6 @@ class Function(_FunctionBase):
     tvm.register_func: How to register global function.
     tvm.get_global_func: How to get global function.
     """
-    pass
 
 
 class ModuleBase(object):
