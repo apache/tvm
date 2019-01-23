@@ -1,6 +1,3 @@
-# This example demonstrates Automatic Differentiation for TVM basic operations and TOPI primitives.
-# See `test_autodiff()` and `test_nn_autodiff()` for details.
-
 import tvm
 import topi
 import numpy as np
@@ -40,7 +37,7 @@ def check_equivalence(outputs1, outputs2, inputs, in_range=(-10, 10), iters=10):
         for j, _ in enumerate(outputs1):
             tvm.testing.assert_allclose(arguments1[j].asnumpy(), arguments2[j].asnumpy())
 
-def test_grad(out, inputs, args=[], in_range=(-10,10), perf=None):
+def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None):
     line = inspect.getframeinfo(inspect.stack()[1][0]).lineno
 
     if not isinstance(inputs, (list, tuple)):
@@ -169,40 +166,40 @@ def test_autodiff():
     A1 = tvm.placeholder((10, 10), name='A1')
 
     B = tvm.compute((10, 10), lambda i, j: A0[i, j] + A0[j, i], name='B')
-    test_grad(B, A0, perf=(10100, 10000, 200))
+    check_grad(B, A0, perf=(10100, 10000, 200))
 
     B = tvm.compute((10, 10), lambda i, j: A0[i, j] + tvm.exp(A0[j, i]), name='B')
-    test_grad(B, A0, perf=(10100, 20000, 200))
+    check_grad(B, A0, perf=(10100, 20000, 200))
 
     B = tvm.compute((10, 10), lambda i, j: tvm.log(tvm.abs(A0[i, j] + tvm.exp(A0[j, i]))), name='B')
-    test_grad(B, A0, perf=(10100, 70000, 200))
+    check_grad(B, A0, perf=(10100, 70000, 200))
 
     B = tvm.compute((10, 10), lambda i, j: tvm.sigmoid(A0[i, j]*A0[i, j]*A0[j, i]), name='B')
-    test_grad(B, A0, perf=(10100, 120000, 200))
+    check_grad(B, A0, perf=(10100, 120000, 200))
 
     B = tvm.compute((10, 10), lambda i, j: tvm.tanh(A0[i, j]*A0[i, j]*A0[j, i]), name='B')
-    test_grad(B, A0, perf=(10100, 120000, 200))
+    check_grad(B, A0, perf=(10100, 120000, 200))
 
     B = tvm.compute((10, 10), lambda i, j: A0[i, j] * A0[j, i], name='B')
-    test_grad(B, A0, perf=(10100, 10000, 200))
+    check_grad(B, A0, perf=(10100, 10000, 200))
 
     # TODO: This one needs transforming Sum(a + b) -> Sum(a) + Sum(b)
     B = tvm.compute((10,), lambda i: tvm.sum(A0[i, k]*A0[k, i], axis=k), name='B')
-    test_grad(B, A0, perf=(11010, 1000, 1110))
+    check_grad(B, A0, perf=(11010, 1000, 1110))
 
     B = tvm.compute((10, 10), lambda i, j: tvm.sum(A0[i, k]*A0[k, i] + 5, axis=k), name='B')
-    test_grad(B, A0, perf=(20100, 10000, 1200))
+    check_grad(B, A0, perf=(20100, 10000, 1200))
 
     B = tvm.compute((10, 10), lambda i, j: tvm.max(A0[i, k]*A0[k, j] + 5, axis=k), name='B')
-    test_grad(B, A0, perf=(110100, 310000, 20200))
+    check_grad(B, A0, perf=(110100, 310000, 20200))
 
     B = tvm.compute((10, 10), lambda i, j: A0[i, j] * (A1[j, i] + A0[j, i]), name='B')
-    test_grad(B, A0, [A1], perf=(10100, 10000, 200))
+    check_grad(B, A0, [A1], perf=(10100, 10000, 200))
 
     B = tvm.compute((10, 10), lambda i, j: tvm.sum(A0[k, k] - A0[tvm.min(j + k, 9), j]*A0[i, k],
                                                    axis=k),
                     name='B')
-    test_grad(B, A0, perf=(110100, 10000, 10200))
+    check_grad(B, A0, perf=(110100, 10000, 10200))
 
     def fcombine(x, y):
         return x*y
@@ -212,13 +209,13 @@ def test_autodiff():
 
     prod = tvm.comm_reducer(fcombine, fidentity, name='prod')
     B = tvm.compute((10, 10), lambda i, j: prod(A0[i, k] + A0[k, i], axis=k), name='B')
-    test_grad(B, A0, perf=(20100, 40000, 2200))
+    check_grad(B, A0, perf=(20100, 40000, 2200))
 
     X = tvm.placeholder((10,), name='X')
     A = tvm.compute((10,), lambda i: X[i] + X[9 - i])
     B = tvm.compute((10,), lambda i: X[i] * X[9 - i])
     Y = topi.tensordot(A, B, 1)
-    test_grad(Y, X, perf=(251, 230, 71))
+    check_grad(Y, X, perf=(251, 230, 71))
 
 def test_topi_autodiff():
     X = tvm.placeholder((1, 2, 4, 4), name='X')
@@ -227,62 +224,62 @@ def test_topi_autodiff():
     W2 = tvm.placeholder((1,), name='W1')
 
     R = topi.nn.conv2d(X, W, 1, 1, 1)
-    test_grad(R, [X, W], perf=(3410, 2880, 652))
+    check_grad(R, [X, W], perf=(3410, 2880, 652))
 
     R1 = topi.nn.conv2d(topi.nn.relu(R), W1, 1, 0, 1)
-    test_grad(R1, [X, W, W1], perf=(6198, 5320, 1250))
+    check_grad(R1, [X, W, W1], perf=(6198, 5320, 1250))
 
     R = topi.broadcast_to(W2, (5, 2, 3, 3))
-    test_grad(R, [W2], perf=(180, 0, 91))
+    check_grad(R, [W2], perf=(180, 0, 91))
 
     R = topi.nn.conv2d(X, topi.broadcast_to(W2, (5, 2, 3, 3)), 1, 1, 1)
-    test_grad(R, [X, W2], perf=(3590, 2880, 743))
+    check_grad(R, [X, W2], perf=(3590, 2880, 743))
 
     R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], 'avg')
-    test_grad(R, X, perf=(40, 224, 40))
+    check_grad(R, X, perf=(40, 224, 40))
 
     R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], 'max')
-    test_grad(R, X, perf=(168, 1248, 104))
+    check_grad(R, X, perf=(168, 1248, 104))
 
     X = tvm.placeholder((1, 2, 5, 5), name='X')
     R = topi.reshape(X, (1, 32))
-    test_grad(R, [X], perf=(82, 1200, 82))
+    check_grad(R, [X], perf=(82, 1200, 82))
 
     X = tvm.placeholder((1, 2, 5, 5), name='X')
     W = tvm.placeholder((2, 2, 3, 3), name='W')
 
     S = topi.reshape(X, (1, 50))
-    test_grad(S, [X], perf=(100, 700, 100))
+    check_grad(S, [X], perf=(100, 700, 100))
 
     R = X + topi.nn.conv2d(X + topi.nn.conv2d(X, W, 1, 1, 1), W, 1, 1, 1)
-    test_grad(R, [X, W], perf=(6854, 5400, 1726))
+    check_grad(R, [X, W], perf=(6854, 5400, 1726))
 
     S = topi.nn.softmax(topi.reshape(R, (1, 50)))
-    test_grad(S, [X, W], perf=(10956, 14201, 2333))
+    check_grad(S, [X, W], perf=(10956, 14201, 2333))
 
     S = topi.sigmoid(topi.reshape(R, (1, 50)))
-    test_grad(S, [X, W], perf=(8004, 8350, 2026))
+    check_grad(S, [X, W], perf=(8004, 8350, 2026))
 
     S = topi.tanh(topi.reshape(R, (1, 50)))
-    test_grad(S, [X, W], perf=(8004, 8350, 2026))
+    check_grad(S, [X, W], perf=(8004, 8350, 2026))
 
     S = topi.nn.log_softmax(topi.reshape(R, (1, 50)))
-    test_grad(S, [X, W], perf=(10906, 13601, 2283))
-    test_grad(S, [W], [X], perf=(8920, 11101, 1997))
+    check_grad(S, [X, W], perf=(10906, 13601, 2283))
+    check_grad(S, [W], [X], perf=(8920, 11101, 1997))
 
     X = tvm.placeholder((1, 2, 3, 5), name='X')
     Y = tvm.placeholder((1, 2, 7, 5), name='Y')
     S = topi.concatenate((X, Y), 2)
-    test_grad(S, [X, Y], perf=(100, 0, 100))
+    check_grad(S, [X, Y], perf=(100, 0, 100))
 
     X = tvm.placeholder((1, 2, 6, 5), name='X')
     (S, R) = topi.split(X, 2, 2)
-    test_grad(S, [X], perf=(120, 0, 120))
-    test_grad(R, [X], perf=(120, 0, 120))
+    check_grad(S, [X], perf=(120, 0, 120))
+    check_grad(R, [X], perf=(120, 0, 120))
     R1 = topi.concatenate((S, R), 2)
-    test_grad(R1, [X], perf=(300, 0, 300))
+    check_grad(R1, [X], perf=(300, 0, 300))
     R2 = topi.concatenate((R, S), 2)
-    test_grad(R2, [X], perf=(300, 0, 300))
+    check_grad(R2, [X], perf=(300, 0, 300))
 
 def test_stride_dilation():
     X = tvm.placeholder((1, 2, 10, 10), name='X')
@@ -290,84 +287,84 @@ def test_stride_dilation():
     W = tvm.placeholder((2, 2, 1, 1), name='W')
 
     Y = topi.nn.conv2d(X, W, 1, 0, 1)
-    test_grad(Y, [X, W], perf=(1404, 800, 808))
+    check_grad(Y, [X, W], perf=(1404, 800, 808))
     Y = topi.nn.conv2d(X, W, 2, 0, 1)
-    test_grad(Y, [X, W], perf=(928, 1572, 670))
+    check_grad(Y, [X, W], perf=(928, 1572, 670))
     Y = topi.nn.conv2d(X, W, 3, 0, 1)
-    test_grad(Y, [X, W], perf=(932, 1728, 672))
+    check_grad(Y, [X, W], perf=(932, 1728, 672))
     Y = topi.nn.conv2d(X, W, 1, 0, 2)
-    test_grad(Y, [X, W], perf=(1404, 800, 808))
+    check_grad(Y, [X, W], perf=(1404, 800, 808))
     Y = topi.nn.conv2d(X, W, 2, 0, 2)
-    test_grad(Y, [X, W], perf=(928, 1572, 670))
+    check_grad(Y, [X, W], perf=(928, 1572, 670))
     Y = topi.nn.conv2d(X, W, 3, 0, 2)
-    test_grad(Y, [X, W], perf=(932, 1728, 672))
+    check_grad(Y, [X, W], perf=(932, 1728, 672))
     Y = topi.nn.conv2d(X, W, 1, 0, 3)
-    test_grad(Y, [X, W], perf=(1404, 800, 808))
+    check_grad(Y, [X, W], perf=(1404, 800, 808))
     Y = topi.nn.conv2d(X, W, 2, 0, 3)
-    test_grad(Y, [X, W], perf=(928, 1572, 670))
+    check_grad(Y, [X, W], perf=(928, 1572, 670))
     Y = topi.nn.conv2d(X, W, 3, 0, 3)
-    test_grad(Y, [X, W], perf=(932, 1728, 672))
+    check_grad(Y, [X, W], perf=(932, 1728, 672))
 
     W = tvm.placeholder((2, 2, 2, 2), name='W')
 
     Y = topi.nn.conv2d(X, W, 1, 0, 1)
-    test_grad(Y, [X, W], perf=(3922, 2896, 1242))
+    check_grad(Y, [X, W], perf=(3922, 2896, 1242))
     Y = topi.nn.conv2d(X, W, 2, 0, 1)
-    test_grad(Y, [X, W], perf=(1650, 2800, 1066))
+    check_grad(Y, [X, W], perf=(1650, 2800, 1066))
     Y = topi.nn.conv2d(X, W, 3, 0, 1)
-    test_grad(Y, [X, W], perf=(1146, 2880, 890))
+    check_grad(Y, [X, W], perf=(1146, 2880, 890))
     Y = topi.nn.conv2d(X, W, 1, 0, 2)
-    test_grad(Y, [X, W], perf=(3500, 19720, 1092))
+    check_grad(Y, [X, W], perf=(3500, 19720, 1092))
     Y = topi.nn.conv2d(X, W, 2, 0, 2)
-    test_grad(Y, [X, W], perf=(3408, 88848, 2034))
+    check_grad(Y, [X, W], perf=(3408, 88848, 2034))
     Y = topi.nn.conv2d(X, W, 3, 0, 2)
-    test_grad(Y, [X, W], perf=(2254, 65232, 992))
+    check_grad(Y, [X, W], perf=(2254, 65232, 992))
     Y = topi.nn.conv2d(X, W, 1, 0, 3)
-    test_grad(Y, [X, W], perf=(3138, 17696, 970))
+    check_grad(Y, [X, W], perf=(3138, 17696, 970))
     Y = topi.nn.conv2d(X, W, 2, 0, 3)
-    test_grad(Y, [X, W], perf=(3816, 82368, 2176))
+    check_grad(Y, [X, W], perf=(3816, 82368, 2176))
     Y = topi.nn.conv2d(X, W, 3, 0, 3)
-    test_grad(Y, [X, W], perf=(3834, 104432, 2306))
+    check_grad(Y, [X, W], perf=(3834, 104432, 2306))
 
     W = tvm.placeholder((2, 2, 3, 3), name='W')
 
     Y = topi.nn.conv2d(X, W, 1, 0, 1)
-    test_grad(Y, [X, W], perf=(7420, 5904, 1752))
+    check_grad(Y, [X, W], perf=(7420, 5904, 1752))
     Y = topi.nn.conv2d(X, W, 2, 0, 1)
-    test_grad(Y, [X, W], perf=(3888, 58592, 2214))
+    check_grad(Y, [X, W], perf=(3888, 58592, 2214))
     Y = topi.nn.conv2d(X, W, 3, 0, 1)
-    test_grad(Y, [X, W], perf=(1552, 2268, 1102))
+    check_grad(Y, [X, W], perf=(1552, 2268, 1102))
     Y = topi.nn.conv2d(X, W, 1, 0, 2)
-    test_grad(Y, [X, W], perf=(5916, 42392, 1256))
+    check_grad(Y, [X, W], perf=(5916, 42392, 1256))
     Y = topi.nn.conv2d(X, W, 2, 0, 2)
-    test_grad(Y, [X, W], perf=(6736, 21784, 3694))
+    check_grad(Y, [X, W], perf=(6736, 21784, 3694))
     Y = topi.nn.conv2d(X, W, 3, 0, 2)
-    test_grad(Y, [X, W], perf=(2672, 146096, 1668))
+    check_grad(Y, [X, W], perf=(2672, 146096, 1668))
     Y = topi.nn.conv2d(X, W, 1, 0, 3)
-    test_grad(Y, [X, W], perf=(2896, 89152, 956))
+    check_grad(Y, [X, W], perf=(2896, 89152, 956))
     Y = topi.nn.conv2d(X, W, 2, 0, 3)
-    test_grad(Y, [X, W], perf=(2280, 12856, 1992))
+    check_grad(Y, [X, W], perf=(2280, 12856, 1992))
     Y = topi.nn.conv2d(X, W, 3, 0, 3)
-    test_grad(Y, [X, W], perf=(2224, 12032, 716))
+    check_grad(Y, [X, W], perf=(2224, 12032, 716))
 
     Y = topi.nn.pool(X, [1, 1], [1, 1], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(200, 0, 200))
+    check_grad(Y, [X], perf=(200, 0, 200))
     Y = topi.nn.pool(X, [1, 1], [2, 2], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(412, 1124, 412))
+    check_grad(Y, [X], perf=(412, 1124, 412))
     Y = topi.nn.pool(X, [1, 1], [3, 3], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(232, 1200, 232))
+    check_grad(Y, [X], perf=(232, 1200, 232))
     Y = topi.nn.pool(X, [2, 2], [1, 1], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(4162, 7200, 1962))
+    check_grad(Y, [X], perf=(4162, 7200, 1962))
     Y = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(1050, 7800, 650))
+    check_grad(Y, [X], perf=(1050, 7800, 650))
     Y = topi.nn.pool(X, [2, 2], [3, 3], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(858, 6304, 602))
+    check_grad(Y, [X], perf=(858, 6304, 602))
     Y = topi.nn.pool(X, [3, 3], [1, 1], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(18128, 34200, 3928))
+    check_grad(Y, [X], perf=(18128, 34200, 3928))
     Y = topi.nn.pool(X, [3, 3], [2, 2], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(6712, 131312, 1690))
+    check_grad(Y, [X], perf=(6712, 131312, 1690))
     Y = topi.nn.pool(X, [3, 3], [3, 3], [0, 0, 0, 0], 'max')
-    test_grad(Y, [X], perf=(1838, 12950, 704))
+    check_grad(Y, [X], perf=(1838, 12950, 704))
 
 def test_some_conv2d_net():
     batch_size = 1
@@ -401,13 +398,13 @@ def test_some_conv2d_net():
 
     weights = [w1, b1, w2, b2, w3, b3, w4, b4]
 
-    test_grad(t, weights, [x, y], in_range=(-1.0, 1.0), perf=(194865, 179089, 28194))
+    check_grad(t, weights, [x, y], in_range=(-1.0, 1.0), perf=(194865, 179089, 28194))
 
 if __name__ == "__main__":
     if "-v" in sys.argv:
         verbose = True
 
-    #  test_differentiate_function()
+    test_differentiate_function()
     test_autodiff()
     test_topi_autodiff()
     test_stride_dilation()
