@@ -162,7 +162,7 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
         }
       }
     }
-    return Kind::kType;
+    return Kind::kTypeData;
   }
 
   Kind Check(const Type& t) {
