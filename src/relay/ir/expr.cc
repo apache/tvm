@@ -134,7 +134,7 @@ FuncType FunctionNode::func_type_annotation() const {
       : IncompleteTypeNode::make(Kind::kType);
     param_types.push_back(param_type);
   }
-  
+
   Type ret_type = (this->ret_type.defined()) ? this->ret_type
     : IncompleteTypeNode::make(Kind::kType);
   return FuncTypeNode::make(param_types, ret_type, this->type_params, {});
