@@ -175,7 +175,7 @@ class Concat(Caffe2OpConverter):
             order = order if isinstance(order, str) else order.decode('UTF-8')
             if order == 'NCHW':
                 return 1
-            elif order == 'NHWC':
+            if order == 'NHWC':
                 return 3
             else:
                 raise RuntimeError(

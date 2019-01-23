@@ -428,7 +428,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
         )
         dispatch_ctx.update(target, new_workload, cfg)
         return F.nn.contrib_conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
-    elif groups != CI:
+    if groups != CI:
         workload = autotvm.task.args_to_workload(
             [tinfos[0], tinfos[1], strides, padding, dilation, groups, out_dtype],
             group_conv2d_nchw)

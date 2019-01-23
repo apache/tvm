@@ -179,27 +179,27 @@ class ParseTreeToRelayIR(RelayVisitor):
         # variables
         if node_type == RelayLexer.GLOBAL_VAR:
             return lookup(deque([self.global_var_scope]), node_text[1:])
-        elif node_type == RelayLexer.LOCAL_VAR:
+        if node_type == RelayLexer.LOCAL_VAR:
             # Remove the leading '%' and lookup the name.
             var = lookup(self.var_scopes, name)
             if var is None:
                 raise ParseError("Couldn't resolve `{}`.".format(name))
             return var
-        elif node_type == RelayLexer.GRAPH_VAR:
+        if node_type == RelayLexer.GRAPH_VAR:
             try:
                 return self.graph_expr[int(name)]
             except IndexError:
                 raise ParseError("Couldn't resolve `{}`".format(name))
 
         # data types
-        elif node_type == RelayLexer.NAT:
+        if node_type == RelayLexer.NAT:
             return int(node_text)
-        elif node_type == RelayLexer.FLOAT:
+        if node_type == RelayLexer.FLOAT:
             return float(node_text)
-        elif node_type == RelayLexer.BOOL_LIT:
+        if node_type == RelayLexer.BOOL_LIT:
             if node_text == "True":
                 return True
-            elif node_text == "False":
+            if node_text == "False":
                 return False
             else:
                 raise ParseError("Unrecognized BOOL_LIT: `{}`".format(node_text))

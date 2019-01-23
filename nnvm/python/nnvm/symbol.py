@@ -50,7 +50,7 @@ class Symbol(SymbolBase):
         """x.__add__(y) <=> x+y"""
         if isinstance(other, Symbol):
             return __add_symbol__(self, other)
-        elif isinstance(other, _Number):
+        if isinstance(other, _Number):
             return __add_scalar__(self, scalar=other)
         else:
             raise TypeError("type %s not supported" % str(type(other)))
@@ -238,9 +238,9 @@ class Symbol(SymbolBase):
         """internal function to get list option"""
         if option == 'all':
             return _ctypes.c_int(0)
-        elif option == 'read_only':
+        if option == 'read_only':
             return _ctypes.c_int(1)
-        elif option == 'aux_state':
+        if option == 'aux_state':
             return _ctypes.c_int(2)
         else:
             raise ValueError("option need to be in {'all', 'read_only, 'aux_state'}")

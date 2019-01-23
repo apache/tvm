@@ -83,7 +83,7 @@ def encode(inp, result, protocol='json'):
             "v": AUTOTVM_LOG_VERSION
         }
         return json.dumps(json_dict)
-    elif protocol == 'pickle':
+    if protocol == 'pickle':
         row = (str(inp.target),
                str(base64.b64encode(pickle.dumps([inp.task.name,
                                                   inp.task.args,
@@ -136,7 +136,7 @@ def decode(row, protocol='json'):
         result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["r"]])
 
         return inp, result
-    elif protocol == 'pickle':
+    if protocol == 'pickle':
         items = row.split("\t")
         tgt = _target.create(items[0])
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))

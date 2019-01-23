@@ -95,15 +95,15 @@ def schedule_conv2d(attrs, outs, target):
     with target:
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
-        elif groups == 1 and layout == "NCHW4c":
+        if groups == 1 and layout == "NCHW4c":
             return topi.generic.schedule_conv2d_nchw(outs)
-        elif groups == 1 and layout == "NHWC":
+        if groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
-        elif groups != 1:
+        if groups != 1:
             if layout == "NCHW":
                 # TODO(leyuan, merrymercy, Huyuwei): fold depthwise topi into conv2d.
                 return topi.generic.schedule_depthwise_conv2d_nchw(outs)
-            elif layout == "NHWC" and kernel_layout == "HWOI":
+            if layout == "NHWC" and kernel_layout == "HWOI":
                 return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
     raise ValueError("No compatible schedule")
 

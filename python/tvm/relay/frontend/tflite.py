@@ -126,10 +126,10 @@ class OperatorConverter(object):
         if tensor_wrapper.tensor.Type() == TensorType.UINT8:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.uint8).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
-        elif tensor_wrapper.tensor.Type() == TensorType.FLOAT32:
+        if tensor_wrapper.tensor.Type() == TensorType.FLOAT32:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.float32).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
-        elif tensor_wrapper.tensor.Type() == TensorType.INT32:
+        if tensor_wrapper.tensor.Type() == TensorType.INT32:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int32).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
         else:
@@ -145,9 +145,9 @@ class OperatorConverter(object):
 
         if tensor_type == TensorType.UINT8:
             return "uint8"
-        elif tensor_type == TensorType.FLOAT32:
+        if tensor_type == TensorType.FLOAT32:
             return "float32"
-        elif tensor_type == TensorType.INT32:
+        if tensor_type == TensorType.INT32:
             return "int32"
         else:
             raise NotImplementedError("Not support tensor type {}".format(str(tensor_type)))
@@ -320,11 +320,11 @@ class OperatorConverter(object):
         assert fused_activation_fn != ActivationFunctionType.NONE
         if fused_activation_fn == ActivationFunctionType.RELU6:
             return _op.clip(in_expr, a_min=0, a_max=6)
-        elif fused_activation_fn == ActivationFunctionType.RELU:
+        if fused_activation_fn == ActivationFunctionType.RELU:
             return _op.nn.relu(in_expr)
-        elif fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
+        if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
             return _op.clip(in_expr, a_min=-1, a_max=1)
-        elif fused_activation_fn == ActivationFunctionType.TANH:
+        if fused_activation_fn == ActivationFunctionType.TANH:
             return _op.tanh(in_expr)
         else:
             fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
