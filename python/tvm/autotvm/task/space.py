@@ -441,7 +441,7 @@ class AnnotateSpace(TransformSpace):
         if now == self.num_axis:
             # only vectorize inner most dimension
             vec_ct = tmp_stack.count('vec')
-            if vec_ct == 0 or vec_ct == 1:
+            if vec_ct in (0, 1):
                 self.entities.append(AnnotateEntity(list(tmp_stack)))
         else:
             for ann in self.anns[now]:

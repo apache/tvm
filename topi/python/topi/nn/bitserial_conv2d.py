@@ -99,7 +99,7 @@ def bitserial_conv2d(data, kernel, stride, padding, activation_bits, weight_bits
 
 def _get_workload(data, kernel, stride, padding, out_dtype, layout):
     """ Get the workload structure. """
-    assert layout == "NCHW" or layout == "NHWC", \
+    assert layout in ("NCHW", "NHWC"), \
         "Only support layouts NCHW and NHWC"
     if layout == "NCHW":
         _, CI, IH, IW = [x.value for x in data.shape]

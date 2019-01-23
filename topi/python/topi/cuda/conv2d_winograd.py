@@ -362,7 +362,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     data_layout_key = "data_layout" if "data_layout" in new_attrs else "layout"
     layout = attrs[data_layout_key]
     out_dtype = attrs["out_dtype"]
-    if out_dtype == "" or out_dtype == "same":
+    if out_dtype in ("", "same"):
         out_dtype = tinfos[0].dtype
 
     data, kernel = tinfos[0:2]

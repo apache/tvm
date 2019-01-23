@@ -192,7 +192,7 @@ class OperatorConverter(object):
 
         in_expr = self.get_expr(input_tensor_idx)
 
-        if input_shape_length == 1 or input_shape_length == 2:
+        if input_shape_length in (1, 2):
             # The rule is channel first (after N but before H, W).
             # length of 1 means N*H*W*C, do nothing.
             # length of 2 means N*H*W, C, do nothing.
@@ -275,7 +275,7 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
 
         # TFLite is N H W C, our layout is N C H W
-        if input_shape_length == 1 or input_shape_length == 2:
+        if input_shape_length in (1, 2):
             # The rule is channel first (after N but before H, W).
             # length of 1 means N*H*W*C, do nothing.
             # length of 2 means N*H*W, C, do nothing.
@@ -299,7 +299,7 @@ class OperatorConverter(object):
         # 3: N H W C, reshape to N H*W C, transpose to N C H*W
         # 4: N H W C, transpose to N C H W
         # add more if we need target shapes in future
-        if output_shape_length == 1 or output_shape_length == 2:
+        if output_shape_length in (1, 2):
             pass
         elif output_shape_length == 3:
             out = _op.transpose(out, axes=(0, 2, 1))
@@ -401,7 +401,7 @@ class OperatorConverter(object):
 
         # weight tensor type should be UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type == TensorType.UINT8 or weight_tensor_type == TensorType.FLOAT32
+        assert weight_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         in_expr = self.get_expr(input_tensor_idx)
@@ -434,7 +434,7 @@ class OperatorConverter(object):
             bias_tensor = input_tensors[2]
             bias_tensor_type = bias_tensor.tensor.Type()
             # bias tensor type should be INT32 (quantization) or FLOAT32
-            assert bias_tensor_type == TensorType.INT32 or bias_tensor_type == TensorType.FLOAT32
+            assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
             bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
                                                dtype=bias_tensor_type_str)

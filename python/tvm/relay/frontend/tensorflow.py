@@ -1385,7 +1385,7 @@ class GraphProto(object):
                                            shape=self._params[name].shape,
                                            dtype=self._params[name].dtype)]
         else:
-            if key != 'dtype' and key != '_output_shapes' and key != '_class':
+            if key not in ('dtype', '_output_shapes', '_class'):
                 raise NotImplementedError \
                     ("Other attributes for a Const(param) Node {} ? .".format(key))
 
