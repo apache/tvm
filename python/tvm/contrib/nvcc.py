@@ -158,7 +158,7 @@ def find_libdevice_path(arch):
             if not fn.startswith("libdevice"):
                 continue
             ver = int(fn.split(".")[-3].split("_")[-1])
-            if ver > selected_ver and ver <= arch:
+            if selected_ver < ver <= arch:
                 selected_ver = ver
                 selected_path = fn
         if selected_path is None:
