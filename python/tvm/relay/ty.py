@@ -88,6 +88,7 @@ class Kind(IntEnum):
     ShapeVar = 1
     BaseType = 2
     Shape = 3
+    Constraint = 4
 
 @register_relay_node
 class TypeVar(Type):

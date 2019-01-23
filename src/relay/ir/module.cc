@@ -98,8 +98,7 @@ void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
 
   // need to kind check at the end because the check can look up
   // a definition potentially
-  CHECK(KindCheck(type, GetRef<Module>(this)))
-    << "Kind-checking fails for the type data given: " << type;
+  KindCheck(type, GetRef<Module>(this));
 }
 
 void ModuleNode::Update(const GlobalVar& var, const Function& func) {

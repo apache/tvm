@@ -56,9 +56,9 @@ TVM_DLL Function InferType(const Function& f, const Module& mod,
  * \param t The type to check.
  * \param mod The global module.
  *
- * \return true if the rules are satisified otherwise false
+ * \return The kind of the passed type.
  */
-TVM_DLL bool KindCheck(const Type& t, const Module& mod);
+TVM_DLL Kind KindCheck(const Type& t, const Module& mod);
 
 /*! \brief Compare two expressions for structural equivalence.
  *

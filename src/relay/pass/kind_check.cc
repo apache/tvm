@@ -21,143 +21,156 @@ namespace relay {
 
 using namespace tvm::runtime;
 
-struct KindChecker : TypeVisitor {
-  bool valid;
+struct KindChecker : TypeFunctor<Kind(const Type&)> {
   const Module& mod;
 
-  explicit KindChecker(const Module& mod) : valid(true), mod(mod) {}
+  explicit KindChecker(const Module& mod) : mod(mod) {}
 
-  // checks if t is an incomplete node of kind k or a type param of kind k
-  bool MatchKind(const Type& t, Kind k) {
-    if (const IncompleteTypeNode* tv = t.as<IncompleteTypeNode>()) {
-      return tv->kind == k;
-    }
-
-    if (const TypeVarNode* tp = t.as<TypeVarNode>()) {
-      return tp->kind == k;
-    }
-
-    if (const GlobalTypeVarNode* gtp = t.as<GlobalTypeVarNode>()) {
-      return gtp->kind == k;
-    }
-
-    return false;
+  Kind VisitType_(const IncompleteTypeNode* op) override {
+    return op->kind;
   }
 
-  bool IsTypeKind(const Type& t) {
-    if (MatchKind(t, Kind::kType)) {
-      return true;
-    }
-
-    return t.as_derived<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>()
-      || t.as<TypeCallNode>();
+  Kind VisitType_(const TypeVarNode* op) override {
+    return op->kind;
   }
 
-  void VisitType_(const TupleTypeNode* op) override {
+  Kind VisitType_(const GlobalTypeVarNode* op) override {
+    return op->kind;
+  }
+
+  Kind VisitType_(const TensorTypeNode* op) override {
+    return Kind::kType;
+  }
+
+  Kind VisitType_(const TupleTypeNode* op) override {
     // tuples should only contain normal types
     for (const Type& t : op->fields) {
-      this->VisitType(t);
-      valid = valid && IsTypeKind(t);
-      if (!valid) {
-        return;
-      }
+      Kind k = this->VisitType(t);
+      CHECK(k == Kind::kType)
+        << "All types in tuple type must be of a type kind but "
+        << t << " in " << GetRef<TupleType>(op) << " is of kind " << k;
     }
+    return Kind::kType;
   }
 
-  void VisitType_(const FuncTypeNode* op) override {
+  Kind VisitType_(const FuncTypeNode* op) override {
     // Func types should only take normal types for arguments
     // and only return a normal type. They should also have
     // well-formed constraints
+    FuncType ft = GetRef<FuncType>(op);
     for (const Type& t : op->arg_types) {
-      this->VisitType(t);
-      valid = valid && IsTypeKind(t);
-      if (!valid) {
-        return;
-      }
+      Kind k = this->VisitType(t);
+      CHECK(k == Kind::kType)
+        << "Function parameters must be of the type kind but parameter "
+        << t << " of " << ft << " is of kind " << k;
     }
+
+    Kind ret_kind = this->VisitType(ft->ret_type);
+    CHECK(ret_kind == Kind::kType)
+      << "The function return type must be of the type kind but "
+      << ft->ret_type << " of " << ft << " is of kind " << ret_kind;
 
     for (const TypeConstraint& tc : op->type_constraints) {
-      this->VisitType(tc);
-      if (!valid) {
-        return;
-      }
+      Kind k = this->VisitType(tc);
+      CHECK(k == Kind::kConstraint)
+        << "All function type constraints are of the constraint kind but "
+        << tc << " of " << ft << " is of kind " << k;
     }
 
-    this->VisitType(op->ret_type);
-    valid = valid && IsTypeKind(op->ret_type);
+    return Kind::kType;
   }
 
-  void VisitType_(const RefTypeNode* op) override {
-    // tuples should only contain normal types
-    this->VisitType(op->value);
-    valid = valid && IsTypeKind(op->value);
+  Kind VisitType_(const RefTypeNode* op) override {
+    // ref types should only contain normal types
+    Kind k = this->VisitType(op->value);
+    CHECK(k == Kind::kType)
+      << "The value inside a ref must be of the type kind but "
+      << op->value << " of " << GetRef<RefType>(op) << " is of kind " << k;
+    return Kind::kType;
   }
 
-  void VisitType_(const TypeRelationNode* op) override {
+  Kind VisitType_(const TypeRelationNode* op) override {
     // arguments to type relation should be normal types
     for (const Type& t : op->args) {
-      this->VisitType(t);
-      valid = valid && IsTypeKind(t);
-      if (!valid) {
-        return;
-      }
+      Kind k = this->VisitType(t);
+      CHECK(k == Kind::kType)
+        << "All arguments to type relations must be of the type kind but "
+        << t << " of " << GetRef<TypeRelation>(op) << " is of kind " << k;
     }
+    return Kind::kConstraint;
   }
 
-  void VisitType_(const TypeCallNode* op) override {
+  Kind VisitType_(const TypeCallNode* op) override {
     // type call func should be a global type var, args should be type
+    TypeCall tc = GetRef<TypeCall>(op);
     const auto* gtv = op->func.as<GlobalTypeVarNode>();
-    valid = valid && gtv != nullptr && IsTypeKind(op->func);
-    if (!valid) {
-      return;
-    }
+    CHECK(gtv != nullptr)
+      << "Type call must be calling a global type var";
+
+    Kind func_kind = this->VisitType(op->func);
+    CHECK(func_kind == Kind::kType)
+      << "Type calls must call a global type var of the type kind but "
+      << op->func << " of " << tc << " is of kind " << func_kind;
+
     for (const Type& t : op->args) {
-      this->VisitType(t);
-      valid = valid && IsTypeKind(t);
-      if (!valid) {
-        return;
-      }
+      Kind k = this->VisitType(t);
+      CHECK(k == Kind::kType)
+        << "Type call arguments must be of the type kind but "
+        << t << " of " << tc << " is of kind " << k;
     }
 
     // finally we need to check the module to check the number of type params
     auto var = GetRef<GlobalTypeVar>(gtv);
     auto data = mod->LookupDef(var);
-    valid = valid && data->tv.size() == op->args.size();
+    CHECK(data->tv.size() == op->args.size())
+      << "Incorrect arity in " << tc
+      << " Expected: " << data->tv.size()
+      << " Given: " << op->args.size();
+    return Kind::kType;
   }
 
-  void VisitType_(const TypeDataNode* op) override {
+  Kind VisitType_(const TypeDataNode* op) override {
     // Constructors can reference the header var, but no other GlobalTypeVars.
     // In theory, a TypeData could be nested, so the header scope
     // should be tracked recursively, but it is unclear that we need
     // to support it.
-    valid = valid && op->header->kind == Kind::kType;
+    TypeData td = GetRef<TypeData>(op);
+    Kind header_kind = this->VisitType(op->header);
+    CHECK(header_kind == Kind::kType)
+      << "The header for ADT type data must be of the type kind but "
+      << op->header << " of " << td << " is of kind " << header_kind;
+
     for (const auto& var : op->tv) {
-      valid = valid && IsTypeKind(var);
-      if (!valid) {
-        return;
-      }
+      Kind k = this->VisitType(var);
+      CHECK(k == Kind::kType)
+        << "All type params for ADT type data must be of the type kind but "
+        << var << " of " << td << " is of kind " << k;
     }
+
     for (const auto& con : op->constructors) {
-      valid = valid && con->belong_to.same_as(op->header);
+      CHECK(con->belong_to.same_as(op->header))
+        << "Constructors should have same global type var as type data";
+
       for (const Type& t : con->inp) {
-        valid = valid && IsTypeKind(t);
+        Kind k = this->VisitType(t);
+        CHECK(k == Kind::kType)
+          << "All inputs to a constructor must be of the type kind but"
+          << t << " of " << con << " is of kind " << k;
         if (const auto* gtv = t.as<GlobalTypeVarNode>()) {
-          valid = valid && GetRef<GlobalTypeVar>(gtv).same_as(op->header);
-        }
-        if (!valid) {
-          return;
+          CHECK(GetRef<GlobalTypeVar>(gtv).same_as(op->header))
+            << "A global type var taken by a constructor must be the one the constructor makes";
         }
       }
     }
+    return Kind::kType;
   }
 
-  bool Check(const Type& t) {
-    this->VisitType(t);
-    return valid;
+  Kind Check(const Type& t) {
+    return this->VisitType(t);
   }
 };
 
-bool KindCheck(const Type& t, const Module& mod) {
+Kind KindCheck(const Type& t, const Module& mod) {
   KindChecker kc(mod);
   return kc.Check(t);
 }

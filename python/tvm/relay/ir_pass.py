@@ -108,7 +108,7 @@ def well_formed(expr):
 
 
 def check_kind(t, mod=None):
-    """Check that the type is well kinded.
+    """Check that the type is well kinded and return the kind.
     For example, this mean type cannot has tensor of tensor, or is a tuple type of 2 shapes.
 
     Parameters
@@ -121,15 +121,15 @@ def check_kind(t, mod=None):
 
     Returns
     -------
-    well_kinded : bool
-        whether the input type is well kinded.
+    kind : Kind
+        the kind of t
 
     Examples
     --------
     .. code:: python
 
-        assert not check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Shape)]))
-        assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Type)]))
+        assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Shape)])) == Shape
+        assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Type)])) == Type
     """
     if mod is not None:
         return _ir_pass.check_kind(t, mod)

@@ -104,7 +104,8 @@ enum Kind : int {
   kType = 0,
   kShapeVar = 1,
   kBaseType = 2,
-  kShape = 3
+  kShape = 3,
+  kConstraint = 4
 };
 
 /*!
