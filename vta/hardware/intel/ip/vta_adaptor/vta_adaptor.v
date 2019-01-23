@@ -1,51 +1,80 @@
-module vta_adaptor (input                clock_clk,
-                    input                reset_reset,
-						  input                fetch_insn_count_avs_address,
-						  output               fetch_insn_count_avs_waitrequest,
-						  input                fetch_insn_count_avs_write,
-						  input        [31:0]  fetch_insn_count_avs_writedata,
-						  output  reg  [31:0]  fetch_insn_count_data,
-						  output  reg  [31:0]  fetch_insn_count_2_data,
-						  input                fetch_call_avs_address,
-						  output               fetch_call_avs_waitrequest,
-						  input                fetch_call_avs_write,
-						  input        [7:0]   fetch_call_avs_writedata,
-						  output               fetch_call_valid,
-						  input                fetch_call_stall,
-						  input                fetch_insns_avs_address,
-						  output               fetch_insns_avs_waitrequest,
-						  input                fetch_insns_avs_write,
-						  input        [31:0]  fetch_insns_avs_writedata,
-						  output       [31:0]  fetch_insns_data,
-						  // outputs_cfg slave
-						  input                outputs_cfg_address,
-						  output  reg          outputs_cfg_waitrequest,
-						  input                outputs_cfg_write,
-						  input        [31:0]  outputs_cfg_writedata,
-						  input                outputs_cfg_read,
-						  output  reg  [31:0]  outputs_cfg_readdata,
-						  // f2h_axi_master
-						  output wire  [31:0]  f2h_axi_master_address,
-						  input                f2h_axi_master_waitrequest,
-						  output wire          f2h_axi_master_write,
-						  output wire [127:0]  f2h_axi_master_writedata,
-						  output wire          f2h_axi_master_read,
-						  input       [127:0]  f2h_axi_master_readdata,
-						  // avalon_csr_master
-						  output  reg          avalon_csr_master_address,
-						  input                avalon_csr_master_waitrequest,
-						  output  reg          avalon_csr_master_write,
-						  output  reg  [31:0]  avalon_csr_master_writedata,
-						  output  reg          avalon_csr_master_read,
-						  input        [31:0]  avalon_csr_master_readdata,
-						  // outputs slave
-						  input        [31:0]  outputs_address,
-						  output wire          outputs_waitrequest,
-						  input                outputs_write,
-						  input       [127:0]  outputs_writedata,
-						  input                outputs_read,
-						  output wire [127:0]  outputs_readdata
-						  );
+module vta_adaptor (
+ input                clock_clk
+,input                reset_reset
+,input                fetch_insn_count_avs_address
+,output               fetch_insn_count_avs_waitrequest
+,input                fetch_insn_count_avs_write
+,input        [31:0]  fetch_insn_count_avs_writedata
+,output  reg  [31:0]  fetch_insn_count_data
+,output  reg  [31:0]  fetch_insn_count_2_data
+,input                fetch_call_avs_address
+,output               fetch_call_avs_waitrequest
+,input                fetch_call_avs_write
+,input        [7:0]   fetch_call_avs_writedata
+,output               fetch_call_valid
+,input                fetch_call_stall
+,input                fetch_insns_avs_address
+,output               fetch_insns_avs_waitrequest
+,input                fetch_insns_avs_write
+,input        [31:0]  fetch_insns_avs_writedata
+,output       [31:0]  fetch_insns_data
+//=================================================
+// configure ACP
+//=================================================
+// acp_cfg_master  
+,output  reg          acp_cfg_master_address
+,input                acp_cfg_master_waitrequest
+,output  reg          acp_cfg_master_write
+,output  reg  [31:0]  acp_cfg_master_writedata
+//=================================================
+// map base address
+//=================================================
+// uops_cfg slave 
+,input                uops_cfg_address
+,output  reg          uops_cfg_waitrequest
+,input                uops_cfg_write
+,input        [31:0]  uops_cfg_writedata
+// uops slave
+,input        [31:0]  uops_address
+,output wire          uops_waitrequest
+,input                uops_read
+,output       [31:0]  uops_readdata
+// uop_master
+,output wire  [31:0]  uop_master_address
+,input                uop_master_waitrequest
+,output wire          uop_master_read
+,input wire   [31:0]  uop_master_readdata
+// biases_cfg slave 
+,input                biases_cfg_address
+,output  reg          biases_cfg_waitrequest
+,input                biases_cfg_write
+,input        [31:0]  biases_cfg_writedata
+// biases slave
+,input        [31:0]  biases_address
+,output wire          biases_waitrequest
+,input                biases_read
+,output      [127:0]  biases_readdata
+// acc_master
+,output wire  [31:0]  acc_master_address
+,input                acc_master_waitrequest
+,output wire          acc_master_read
+,input wire  [127:0]  acc_master_readdata
+// outputs_cfg slave 
+,input                outputs_cfg_address
+,output  reg          outputs_cfg_waitrequest
+,input                outputs_cfg_write
+,input        [31:0]  outputs_cfg_writedata
+// outputs slave
+,input        [31:0]  outputs_address
+,output wire          outputs_waitrequest
+,input                outputs_write
+,input       [127:0]  outputs_writedata
+// out_master
+,output wire  [31:0]  out_master_address
+,input                out_master_waitrequest
+,output wire          out_master_write
+,output wire [127:0]  out_master_writedata
+);
 
 reg   [3:0]    awcache = 4'b1111;
 reg   [4:0]    awuser = 5'b00001;
@@ -53,8 +82,12 @@ reg   [3:0]    arcache = 4'b1111;
 reg   [4:0]    aruser = 5'b00001;
 reg   [2:0]    awprot = 3'b100;
 reg   [2:0]    arprot = 3'b100;
+
 reg   [7:0]    cfg_state;
-reg   [31:0]   base_address = 0;
+
+reg   [31:0]   uops_base_address = 0;
+reg   [31:0]   biases_base_address = 0;
+reg   [31:0]   outputs_base_address = 0;
 						  
 assign fetch_insn_count_avs_waitrequest = 1'b0;
 assign fetch_call_avs_waitrequest = 1'b0;
@@ -63,12 +96,20 @@ assign fetch_insns_avs_waitrequest = 1'b0;
 assign fetch_call_valid = fetch_call_avs_writedata[0];
 assign fetch_insns_data[31:0] = fetch_insns_avs_writedata[31:0];
 
-assign f2h_axi_master_address[31:0] = outputs_address[31:0] + base_address[31:0];
-assign outputs_waitrequest = f2h_axi_master_waitrequest;
-assign f2h_axi_master_write = outputs_write;
-assign f2h_axi_master_writedata[127:0] = outputs_writedata[127:0];
-assign f2h_axi_master_read = outputs_read;
-assign outputs_readdata[127:0] = f2h_axi_master_readdata[127:0];
+assign uop_master_address[31:0] = uops_address[31:0] + uops_base_address[31:0];
+assign uops_waitrequest = uop_master_waitrequest;
+assign uop_master_read = uops_read;
+assign uops_readdata[31:0] = uop_master_readdata[31:0];
+
+assign acc_master_address[31:0] = biases_address[31:0] + biases_base_address[31:0];
+assign biases_waitrequest = acc_master_waitrequest;
+assign acc_master_read = biases_read;
+assign biases_readdata[127:0] = acc_master_readdata[127:0];
+
+assign out_master_address[31:0] = outputs_address[31:0] + outputs_base_address[31:0];
+assign outputs_waitrequest = out_master_waitrequest;
+assign out_master_write = outputs_write;
+assign out_master_writedata[127:0] = outputs_writedata[127:0];
 
 always @(posedge clock_clk or posedge reset_reset)
 begin
@@ -89,14 +130,14 @@ end
 
 always @(posedge clock_clk or posedge reset_reset) begin
 	if (reset_reset) begin
-	  cfg_state <= 7;
+	  cfg_state <= 8'h15;
 	end
 	else begin
 	  if (outputs_cfg_write) begin
 		 cfg_state <= 0;
 	  end
-	  if (!avalon_csr_master_waitrequest) begin
-	    if (cfg_state == 7) begin
+	  if (!acp_cfg_master_waitrequest) begin
+	    if (cfg_state == 8'h15) begin
 	      cfg_state <= cfg_state;
 	    end
 	    else begin
@@ -112,11 +153,19 @@ end
 
 always @(posedge clock_clk or posedge reset_reset) begin
 	if (reset_reset) begin
-	  base_address <= 0;
+	  uops_base_address <= 0;
+	  biases_base_address <= 0;
+	  outputs_base_address <= 0;
 	end
 	else begin
+     if (uops_cfg_write) begin
+		 uops_base_address <= uops_cfg_writedata;
+     end
+     if (biases_cfg_write) begin
+		 biases_base_address <= biases_cfg_writedata;
+     end
      if (outputs_cfg_write) begin
-		 base_address <= outputs_cfg_writedata;
+		 outputs_base_address <= outputs_cfg_writedata;
      end
 	end
 end
@@ -127,21 +176,34 @@ end
 
 always @(posedge clock_clk or posedge reset_reset) begin
 	if (reset_reset) begin
-	  avalon_csr_master_writedata <= 0;
-	  avalon_csr_master_address <= 0;
-	  avalon_csr_master_write <= 0;
-	  avalon_csr_master_read <= 0; 
+	  acp_cfg_master_writedata <= 0;
+	  acp_cfg_master_address <= 0;
+	  acp_cfg_master_write <= 0;
 	end
 	else begin
 	  case (cfg_state) 
-	    8'h00: begin avalon_csr_master_address <= 8'h00; avalon_csr_master_write <= 1; avalon_csr_master_read <= 0; avalon_csr_master_writedata <= awcache; end
-	    8'h01: begin avalon_csr_master_address <= 8'h04; avalon_csr_master_write <= 1; avalon_csr_master_read <= 0; avalon_csr_master_writedata <= awprot ; end
-	    8'h02: begin avalon_csr_master_address <= 8'h08; avalon_csr_master_write <= 1; avalon_csr_master_read <= 0; avalon_csr_master_writedata <= awuser ; end
-	    8'h03: begin avalon_csr_master_address <= 8'h10; avalon_csr_master_write <= 1; avalon_csr_master_read <= 0; avalon_csr_master_writedata <= arcache; end
-	    8'h04: begin avalon_csr_master_address <= 8'h14; avalon_csr_master_write <= 1; avalon_csr_master_read <= 0; avalon_csr_master_writedata <= arprot ; end
-	    8'h05: begin avalon_csr_master_address <= 8'h18; avalon_csr_master_write <= 1; avalon_csr_master_read <= 0; avalon_csr_master_writedata <= aruser ; end
-	    8'h06: begin avalon_csr_master_address <= 8'h1C; avalon_csr_master_write <= 1; avalon_csr_master_read <= 0; avalon_csr_master_writedata <= 0      ; end
-		 8'h07: begin                                     avalon_csr_master_write <= 0; avalon_csr_master_read <= 0; end
+	    8'h00: begin acp_cfg_master_address <= 8'h00; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awcache; end
+	    8'h01: begin acp_cfg_master_address <= 8'h04; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awprot ; end
+	    8'h02: begin acp_cfg_master_address <= 8'h08; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awuser ; end
+	    8'h03: begin acp_cfg_master_address <= 8'h10; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arcache; end
+	    8'h04: begin acp_cfg_master_address <= 8'h14; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arprot ; end
+	    8'h05: begin acp_cfg_master_address <= 8'h18; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= aruser ; end
+	    8'h06: begin acp_cfg_master_address <= 8'h1C; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= 0      ; end
+	    8'h07: begin acp_cfg_master_address <= 8'h20; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awcache; end
+	    8'h08: begin acp_cfg_master_address <= 8'h24; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awprot ; end
+	    8'h09: begin acp_cfg_master_address <= 8'h28; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awuser ; end
+	    8'h0a: begin acp_cfg_master_address <= 8'h30; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arcache; end
+	    8'h0b: begin acp_cfg_master_address <= 8'h34; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arprot ; end
+	    8'h0c: begin acp_cfg_master_address <= 8'h38; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= aruser ; end
+	    8'h0d: begin acp_cfg_master_address <= 8'h3C; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= 0      ; end
+	    8'h0e: begin acp_cfg_master_address <= 8'h40; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awcache; end
+	    8'h0f: begin acp_cfg_master_address <= 8'h44; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awprot ; end
+	    8'h10: begin acp_cfg_master_address <= 8'h48; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awuser ; end
+	    8'h11: begin acp_cfg_master_address <= 8'h50; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arcache; end
+	    8'h12: begin acp_cfg_master_address <= 8'h54; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arprot ; end
+	    8'h13: begin acp_cfg_master_address <= 8'h58; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= aruser ; end
+	    8'h14: begin acp_cfg_master_address <= 8'h5C; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= 0      ; end
+		 8'h15: begin                                  acp_cfg_master_write <= 0; end
 	  endcase
 	end
 end

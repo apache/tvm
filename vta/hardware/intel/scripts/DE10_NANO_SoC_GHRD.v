@@ -197,8 +197,8 @@ soc_system u0(
                .hps_0_f2h_stm_hw_events_stm_hwevents(stm_hw_events),        //        hps_0_f2h_stm_hw_events.stm_hwevents
                .hps_0_f2h_warm_reset_req_reset_n(~hps_warm_reset)          //       hps_0_f2h_warm_reset_req.reset_n
 
-					, .uops_stream_0_data_length_data(32'h10)
-					, .biases_stream_0_data_length_data(32'h80)
+//					, .uops_stream_0_data_length_data(32'h10)
+//					, .biases_stream_0_data_length_data(32'h80)
 					// , .outputs_stream_0_data_length_data(32'h80)
            );
 
