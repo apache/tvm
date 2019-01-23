@@ -18,9 +18,6 @@ import os.path
 
 # Tensorflow imports
 import tensorflow as tf
-from tensorflow.core.framework import graph_pb2
-from tensorflow.python.framework import dtypes
-from tensorflow.python.framework import tensor_util
 
 # Tensorflow utility functions
 import tvm.relay.testing.tf as tf_testing

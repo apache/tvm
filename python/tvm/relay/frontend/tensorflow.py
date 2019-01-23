@@ -80,11 +80,6 @@ class AttrCvt(object):
         self._ignores.append('_node_name')
         self._ignores.append('is_training')
         self._ignores.append('_target_layout')
-        # Retain the names
-        #try:
-        #    attrs['name'] = attrs['_node_name']
-        #except KeyError:
-        #    pass
 
         # apply custom check
         if self._custom_check:
@@ -513,13 +508,19 @@ def _reshape():
             # Shape operator is already pruned, hence
             # try to infer shape by precompute prune if possible.
             if all(in_node in params for in_node in inputs[1].list_input_names()):
-                graph = _graph.create(_op.Group(inputs[1]))
-                params_pre = {k: params[k] for k in inputs[1].list_input_names()}
-                params_new = build_module._run_graph(graph, params_pre)
+                func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
+                with relay.build_config(opt_level=0):
+                    graph, lib, params = relay.build(func, target="llvm", params=params)
+                ctx = tvm.context("llvm", 0)
+                from tvm.contrib import graph_runtime
+                m = graph_runtime.create(graph, lib, ctx)
+                m.set_input(**params)
+                m.run()
+                params_new = m.get_output(0)
                 inputs.pop(1)
                 return AttrCvt(
                     op_name="reshape",
-                    extras={'newshape':tuple(params_new[0].asnumpy().flatten())},
+                    extras={'newshape':tuple(params_new.asnumpy().flatten())},
                     ignores=['Tshape'])(inputs, attr)
             else:
                 raise RuntimeError("Reshape with dynamic shape input not supported yet.")
