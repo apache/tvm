@@ -47,8 +47,11 @@ void GraphRuntime::Init(const std::string& graph_json,
   this->Load(&reader);
   module_ = module;
   ctxs_ = ctxs;
+  if (attrs_.symbolic_shape_) {
+    this->SetupSymbolicShape();
+  }
   this->SetupStorage();
-  this->SetupOpExecs();
+  this->UpdateView();
 }
 /*!
  * \brief Get the input index given the name of input.
@@ -75,6 +78,97 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   data_entry_[eid].CopyFrom(data_in);
 }
+/*!
+ * \brief Set shape variable a value
+ * 
+ * \param key variable name
+ * \param value value
+ */
+void GraphRuntime::SetShapeVariable(const std::string& key, int32_t value) {
+  CHECK(attrs_.symbolic_shape_) << "Only graph with symbolic shape is "
+       << "supported for SetVariables method.";
+  CHECK_GT(sym_shape_evaluator_.vars.count(key), 0) << "Incorrect variable name.";
+  CHECK_LE(value, attrs_.var_upper_bound.at(key)) << "Value exceeds variable upper bound";
+  sym_shape_evaluator_.vars.at(key)->SetValue(value);
+}
+/*!
+ * \brief Update NDArray view according to shape variable change
+ * 
+ */
+void GraphRuntime::UpdateView() {
+  // Create hash of current view stamp
+  size_t stamp = sym_shape_evaluator_.vars.size();
+  for (const auto& kv : sym_shape_evaluator_.vars) {
+    stamp = ViewSnapshot::hash(std::get<1>(kv)->GetValue(), stamp);
+  }
+
+  if (view_cache_.count(stamp)) {
+    // View existing in cache
+    const auto &snapshot = view_cache_.at(stamp);
+    data_entry_ = snapshot->views;
+    op_execs_ = snapshot->ops;
+  } else {
+    // Assign the pooled entries. A unified memory pool is used to simplify
+    // memory assignment for each node entry. The allocated memory on each device
+    // is mapped to this pool.
+    data_entry_.resize(num_node_entries());
+    if (attrs_.symbolic_shape_) {
+      for (size_t i = 0; i < sym_shape_evaluator_.dim_exprs.size(); ++i) {
+        auto val = sym_shape_evaluator_.eval.Eval(sym_shape_evaluator_.dim_exprs.at(i));
+        const auto &loc = sym_shape_evaluator_.dim_location.at(i);
+        attrs_.shape[loc.first][loc.second] = val;
+      }
+    }
+    for (size_t i = 0; i < data_entry_.size(); ++i) {
+      int storage_id = attrs_.storage_id[i];
+      CHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
+      data_entry_[i] =
+          storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype_[i]);
+    }
+    this->SetupOpExecs();
+    // create cache
+    view_cache_[stamp] = std::make_shared<ViewSnapshot>();
+    view_cache_[stamp]->views = data_entry_;
+    view_cache_[stamp]->ops = op_execs_;
+  }
+}
+/*!
+ * \brief Setup symbolic shape, prepare postfix expression for each symbolic dim
+ * 
+ */
+void GraphRuntime::SetupSymbolicShape() {
+  attrs_.shape.resize(attrs_.sym_shape.size());
+  for (size_t i = 0; i < attrs_.sym_shape.size(); ++i) {
+    const auto &v = attrs_.sym_shape[i];
+    attrs_.shape[i].resize(v.size());
+    auto &sv = attrs_.shape[i];
+    for (size_t j = 0; j < v.size(); ++j) {
+      const auto& str_expr = v[j];
+      if (std::all_of(str_expr.begin(), str_expr.end(), ::isdigit)) {
+        // numerical shape
+        sv[j] = std::atol(str_expr.c_str());
+      } else {
+        // symbolic shape
+        if (attrs_.var_upper_bound.count(str_expr)) {
+          // variable dim
+          int32_t upper_bound = attrs_.var_upper_bound.at(str_expr);
+          auto expr = expr::PostfixExpr::make<expr::Operand>(upper_bound);
+          sym_shape_evaluator_.vars[str_expr] = expr;
+          std::vector<expr::ExprPtr> ret{expr};
+          sym_shape_evaluator_.dim_exprs.emplace_back(std::move(ret));
+        } else {
+          // expression dim
+          sym_shape_evaluator_.dim_exprs.emplace_back(std::vector<expr::ExprPtr>());
+          expr::PostfixExpr::ParseExpr(v[j],
+                        sym_shape_evaluator_.vars,
+                        std::addressof(sym_shape_evaluator_.dim_exprs.back()));
+        }
+        sym_shape_evaluator_.dim_location.emplace_back(i, j);
+      }
+    }
+  }
+}
+
 /*!
  * \brief Get the number of outputs
  *
@@ -165,9 +259,8 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
 
 void GraphRuntime::SetupStorage() {
   // Grab saved optimization plan from graph.
-  std::vector<TVMType> vtype;
   for (const std::string& s_type : attrs_.dltype) {
-    vtype.push_back(tvm::runtime::String2TVMType(s_type));
+    vtype_.push_back(tvm::runtime::String2TVMType(s_type));
   }
 
   // Size and device type of each storage pool entry.
@@ -180,16 +273,20 @@ void GraphRuntime::SetupStorage() {
     if (!attrs_.device_index.empty()) {
       device_type = attrs_.device_index[i];
     }
+    DLDataType t = vtype_[i];
     size_t size = 1;
-    for (int64_t sz : attrs_.shape[i]) {
-      size *= static_cast<size_t>(sz);
-    }
+    size_t bytes = 0;
     CHECK_GE(storage_id, 0) << "Do not support runtime shape op";
-    DLDataType t = vtype[i];
-    size_t bits = t.bits * t.lanes;
-    CHECK(bits % 8U ==  0U || bits ==1U);
-    size_t bytes = ((bits + 7U) / 8U) * size;
-
+    if (attrs_.symbolic_shape_) {
+      bytes = attrs_.max_bytes[i];
+    } else {
+      for (int64_t sz : attrs_.shape[i]) {
+        size *= static_cast<size_t>(sz);
+      }
+      size_t bits = t.bits * t.lanes;
+      CHECK(bits % 8U ==  0U || bits ==1U);
+      bytes = ((bits + 7U) / 8U) * size;
+    }
     uint32_t sid = static_cast<uint32_t>(storage_id);
     if (sid >= pool_entry.size()) {
       pool_entry.resize(sid + 1, {0, -1});
@@ -215,17 +312,6 @@ void GraphRuntime::SetupStorage() {
     shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
     storage_pool_.push_back(
         NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
-  }
-
-  // Assign the pooled entries. A unified memory pool is used to simplifiy
-  // memory assignment for each node entry. The allocated memory on each device
-  // is mapped to this pool.
-  data_entry_.resize(num_node_entries());
-  for (size_t i = 0; i < data_entry_.size(); ++i) {
-    int storage_id = attrs_.storage_id[i];
-    CHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    data_entry_[i] =
-        storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
   }
 }
 
@@ -350,6 +436,14 @@ PackedFunc GraphRuntime::GetFunction(
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->LoadParams(args[0].operator std::string());
+      });
+  } else if (name == "set_shape_variable") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->SetShapeVariable(args[0], args[1]);
+    });
+  } else if (name == "update_view") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        this->UpdateView();
       });
   } else {
     return PackedFunc();

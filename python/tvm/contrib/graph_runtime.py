@@ -113,6 +113,8 @@ class GraphModule(object):
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
         self._load_params = module["load_params"]
+        self._set_shape_variable = module["set_shape_variable"]
+        self._update_view = module["update_view"]
 
     def set_input(self, key=None, value=None, **params):
         """Set inputs to the module via kwargs
@@ -137,6 +139,18 @@ class GraphModule(object):
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
                 self._get_input(k).copyfrom(params[k])
+
+    def set_shape_variable(self, var_bounds):
+        """Set variables value in symbolic shape
+
+        Parameters
+        ----------
+        var_bounds : dict pf str to int
+            shape variable bounds : value
+        """
+        for k, v in var_bounds.items():
+            self._set_shape_variable(k, v)
+        self._update_view()
 
     def run(self, **input_dict):
         """Run forward execution of the graph

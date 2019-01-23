@@ -16,6 +16,9 @@
 
 #include <vector>
 #include <string>
+#include <utility>
+
+#include "tiny_expr.h"
 
 namespace tvm {
 namespace runtime {
@@ -76,14 +79,18 @@ class GraphRuntime : public ModuleNode {
   void Init(const std::string& graph_json,
             tvm::runtime::Module module,
             const std::vector<TVMContext>& ctxs);
-
   /*!
    * \brief Get the input index given the name of input.
    * \param name The name of the input.
    * \return The index of input.
    */
   int GetInputIndex(const std::string& name);
-
+    /*!
+   * \brief Set variables in symbolic shape
+   * \param name The name of variable
+   * \param value The value of variable
+   */
+  void SetShapeVariable(const std::string& key, int32_t value);
   /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
@@ -161,6 +168,8 @@ class GraphRuntime : public ModuleNode {
   std::string GetNodeName(uint32_t nid) const {
     return nodes_[nid].name;
   }
+  /*! \brief Setup view according to new shape */
+  void UpdateView();
 
 
  private:
@@ -169,6 +178,24 @@ class GraphRuntime : public ModuleNode {
     size_t size;
     int device_type;
     PoolEntry(int s, int dev_type) : size(s), device_type(dev_type) {}
+  };
+  // Symbolic Shape Evaluator
+  struct SymbolicShapeEvaluator {
+    std::unordered_map<std::string, expr::ExprPtr> vars;
+    std::vector<std::vector<expr::ExprPtr> > dim_exprs;
+    std::vector<std::pair<int, int> > dim_location;
+    expr::PostfixExpr eval;
+  };
+  // Execution view
+  struct ViewSnapshot {
+    std::vector<NDArray> views;
+    std::vector<std::function<void()> > ops;
+    std::vector<int32_t> shape_val;
+    // hash function of variable values
+    static size_t hash(size_t i, size_t seed) {
+      seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      return seed;
+    }
   };
   // Node entry
   struct NodeEntry {
@@ -252,11 +279,15 @@ class GraphRuntime : public ModuleNode {
     }
   };
   struct GraphAttr {
+    bool symbolic_shape_{false};
     size_t storage_num_not_alloctaed{0};
     std::vector<int> storage_id;
     std::vector<int> device_index;
+    std::vector<size_t> max_bytes;
     std::vector<std::string> dltype;
     std::vector<std::vector<int64_t> > shape;
+    std::vector<std::vector<std::string> > sym_shape;
+    std::unordered_map<std::string, size_t> var_upper_bound;
     // The graph attribute fields.
     void Load(dmlc::JSONReader *reader) {
       reader->BeginObject();
@@ -281,14 +312,32 @@ class GraphRuntime : public ModuleNode {
           reader->Read(&storage_id);
           CHECK(!reader->NextArrayItem());
           bitmask |= 2;
-        } else if (key == "shape") {
+        } else if (key == "max_bytes") {
           reader->BeginArray();
           CHECK(reader->NextArrayItem());
           reader->Read(&type);
-          CHECK_EQ(type, "list_shape");
+          CHECK_EQ(type, "list_int");
           CHECK(reader->NextArrayItem());
-          reader->Read(&shape);
+          reader->Read(&max_bytes);
           CHECK(!reader->NextArrayItem());
+        } else if (key == "shape") {
+          if (!symbolic_shape_) {
+            reader->BeginArray();
+            CHECK(reader->NextArrayItem());
+            reader->Read(&type);
+            CHECK_EQ(type, "list_shape");
+            CHECK(reader->NextArrayItem());
+            reader->Read(&shape);
+            CHECK(!reader->NextArrayItem());
+          } else {
+            reader->BeginArray();
+            CHECK(reader->NextArrayItem());
+            reader->Read(&type);
+            CHECK_EQ(type, "list_shape");
+            CHECK(reader->NextArrayItem());
+            reader->Read(&sym_shape);
+            CHECK(!reader->NextArrayItem());
+          }
           bitmask |= 4;
         } else if (key == "device_index") {
           reader->BeginArray();
@@ -298,6 +347,16 @@ class GraphRuntime : public ModuleNode {
           CHECK(reader->NextArrayItem());
           reader->Read(&device_index);
           CHECK(!reader->NextArrayItem());
+        } else if (key == "symbolic_shape") {
+          reader->ReadNumber(&symbolic_shape_);
+        } else if (key == "var_upper_bound") {
+          std::string var_key;
+          size_t upper_bound{0};
+          reader->BeginObject();
+          while (reader->NextObjectItem(&var_key)) {
+            reader->ReadNumber(&upper_bound);
+            var_upper_bound[var_key] = upper_bound;
+          }
         } else {
           reader->BeginArray();
           CHECK(reader->NextArrayItem());
@@ -346,6 +405,8 @@ class GraphRuntime : public ModuleNode {
       }
       CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
   }
+  /*! \brief Setup symbolic shape */
+  void SetupSymbolicShape();
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors. */
@@ -390,8 +451,14 @@ class GraphRuntime : public ModuleNode {
   std::vector<NDArray> storage_pool_;
   /*! \brief Data entry of each node. */
   std::vector<NDArray> data_entry_;
+  /*! \brief types */
+  std::vector<TVMType> vtype_;
   /*! \brief Operator on each node. */
   std::vector<std::function<void()> > op_execs_;
+  /*! \brief symbolic shape evaluator */
+  SymbolicShapeEvaluator sym_shape_evaluator_;
+  /*! \brief view cache */
+  std::unordered_map<size_t, std::shared_ptr<ViewSnapshot> > view_cache_;
 };
 
 std::vector<TVMContext> GetAllContext(const TVMArgs& args);

@@ -22,6 +22,7 @@ from __future__ import absolute_import
 import json
 from collections import defaultdict
 import attr
+import tvm
 from . import _backend
 from . import compile_engine
 from ..op import Op
@@ -90,27 +91,37 @@ class OpNode(Node):
         }
 
 
-def shape_to_json(shape):
-    """Convert symbolic shape to json compatible forma."""
-    return [sh.value for sh in shape]
-
+def shape_to_json(shape, var_bound_dict, bound_hint):
+    """Convert symbolic shape to json compatible format."""
+    ret = []
+    for dim in shape:
+        if var_bound_dict is None:
+            ret.append(dim.value)
+        else:
+            ret.append(str(dim))
+        if isinstance(dim, tvm.expr.Var):
+            assert bound_hint is not None
+            var_bound_dict[str(dim)] = bound_hint[dim]
+    return ret
 
 class GraphRuntimeCodegen(ExprFunctor):
     """The compiler from Relay to the TVM runtime system."""
     nodes = attr.ib()
     var_map = attr.ib()
 
-    def __init__(self, mod, target):
+    def __init__(self, mod, target, shape_var_bounds=None):
         ExprFunctor.__init__(self)
         self.mod = mod
         self.target = target
         self.nodes = []
         self.var_map = {}
         self.params = {}
+        self.sym_shape = False
         self.storage_device_map = None
         self.compile_engine = compile_engine.get()
         self.lowered_funcs = defaultdict(set)
         self._name_map = {}
+        self.shape_var_bounds = shape_var_bounds
 
     def add_node(self, node, expr):
         """
@@ -133,8 +144,9 @@ class GraphRuntimeCodegen(ExprFunctor):
         # setup storage ids
         assert expr in self.storage_device_map
         storage_device_info = self.storage_device_map[expr]
-        assert len(storage_device_info) == 2
+        assert len(storage_device_info) == 3
         node.attrs["storage_id"] = [x.value for x in storage_device_info[0]]
+        node.attrs["max_bytes"] = [x.value for x in storage_device_info[2]]
         device_types = [x.value for x in storage_device_info[1]]
         num_unknown_devices = device_types.count(0)
         if num_unknown_devices != 0 and num_unknown_devices != len(device_types):
@@ -145,6 +157,11 @@ class GraphRuntimeCodegen(ExprFunctor):
         # Add the `device_index` attribute when the graph is annotated.
         if num_unknown_devices == 0:
             node.attrs["device_index"] = device_types
+
+        if self.sym_shape:
+            var_bound_dict = {}
+        else:
+            var_bound_dict = None
 
         node_id = len(self.nodes)
         self.nodes.append(node)
@@ -157,7 +174,9 @@ class GraphRuntimeCodegen(ExprFunctor):
                 if not isinstance(typ, TensorType):
                     raise RuntimeError("type %s not supported" % typ)
                 ret.append(NodeRef(node_id, i))
-                shape.append(shape_to_json(typ.shape))
+                shape.append(shape_to_json(typ.shape,
+                                           var_bound_dict,
+                                           self.shape_var_bounds))
                 dtype.append(typ.dtype)
             node.attrs["shape"] = shape
             node.attrs["dtype"] = dtype
@@ -167,8 +186,12 @@ class GraphRuntimeCodegen(ExprFunctor):
         # Normal tensor return type
         if not isinstance(checked_type, TensorType):
             raise RuntimeError("type %s not supported" % checked_type)
-        node.attrs["shape"] = [shape_to_json(checked_type.shape)]
+        node.attrs["shape"] = [shape_to_json(checked_type.shape,
+                                             var_bound_dict,
+                                             self.shape_var_bounds)]
         node.attrs["dtype"] = [checked_type.dtype]
+        if self.sym_shape:
+            node.attrs["var_upper_bound"] = var_bound_dict.items()
         node.num_outputs = 1
         return NodeRef(node_id, 0)
 
@@ -312,23 +335,32 @@ class GraphRuntimeCodegen(ExprFunctor):
         num_entry = 0
         shapes = []
         storage_ids = []
+        max_bytes = []
         device_types = []
         dltypes = []
+        var_upper_bound = []
         node_row_ptr = [0]
         for node in self.nodes:
             assert node.num_outputs == len(node.attrs["shape"])
             shapes += node.attrs["shape"]
             dltypes += node.attrs["dtype"]
             storage_ids += node.attrs["storage_id"]
+            max_bytes += node.attrs["max_bytes"]
             if "device_index" in node.attrs:
                 device_types += node.attrs["device_index"]
             num_entry += node.num_outputs
             node_row_ptr.append(num_entry)
+            if self.sym_shape:
+                var_upper_bound += node.attrs["var_upper_bound"]
 
         # Compute "attrs" field.
         attrs = {}
+        attrs["symbolic_shape"] = 1 if self.sym_shape else 0
         attrs["shape"] = ["list_shape", shapes]
         attrs["storage_id"] = ["list_int", storage_ids]
+        if self.sym_shape:
+            attrs["max_bytes"] = ["list_int", max_bytes]
+            attrs["var_upper_bound"] = dict(var_upper_bound)
         if device_types:
             attrs["device_index"] = ["list_int", device_types]
         attrs["dltype"] = ["list_str", dltypes]
@@ -383,8 +415,17 @@ class GraphRuntimeCodegen(ExprFunctor):
         params : Dict[str, tvm.nd.NDArray]
             Additional constant parameters.
         """
-        self.storage_device_map = _backend.GraphPlanMemory(func)
-        # First we convert all the parameters into input nodes.
+        self.storage_device_map = _backend.GraphPlanMemoryEx(func,
+                                                             self.shape_var_bounds)
+        # First we check whether there is symbolic shape
+        for param in func.params:
+            if self.sym_shape:
+                break
+            for dim in param._checked_type_.shape:
+                if isinstance(dim, tvm.expr.Var):
+                    self.sym_shape = True
+                    break
+        # Second we convert all the parameters into input nodes.
         for param in func.params:
             node = InputNode(param.name_hint, {})
             self.var_map[param] = self.add_node(node, param)
