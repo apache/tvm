@@ -274,12 +274,12 @@ class HybridParser(ast.NodeVisitor):
                 buf, args = lhs
                 return _make.Provide(buf.op, 0, rhs, args)
             return util.make_nop()
-        else:
-            lhs, args = self.visit(lhs)
-            _internal_assert(isinstance(lhs, Tensor), \
-                             "An array access's LHS is expected to be a expr.Call!")
-            res = _make.Provide(lhs.op, lhs.value_index, rhs, args)
-            return res
+
+        lhs, args = self.visit(lhs)
+        _internal_assert(isinstance(lhs, Tensor), \
+                         "An array access's LHS is expected to be a expr.Call!")
+        res = _make.Provide(lhs.op, lhs.value_index, rhs, args)
+        return res
 
 
     def visit_Index(self, node):

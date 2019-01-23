@@ -132,9 +132,8 @@ class OperatorConverter(object):
         if tensor_wrapper.tensor.Type() == TensorType.INT32:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int32).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
-        else:
-            raise NotImplementedError("Not support tensor type {}"
-                                      .format(str(tensor_wrapper.tensor.Type())))
+        raise NotImplementedError("Not support tensor type {}"
+                                  .format(str(tensor_wrapper.tensor.Type())))
 
     def get_tensor_type_str(self, tensor_type):
         """Get tensor type string representation when given TFLite tensor type"""
@@ -149,8 +148,7 @@ class OperatorConverter(object):
             return "float32"
         if tensor_type == TensorType.INT32:
             return "int32"
-        else:
-            raise NotImplementedError("Not support tensor type {}".format(str(tensor_type)))
+        raise NotImplementedError("Not support tensor type {}".format(str(tensor_type)))
 
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
@@ -326,10 +324,9 @@ class OperatorConverter(object):
             return _op.clip(in_expr, a_min=-1, a_max=1)
         if fused_activation_fn == ActivationFunctionType.TANH:
             return _op.tanh(in_expr)
-        else:
-            fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
-            raise NotImplementedError("Unsupported fused activation fn {}"
-                                      .format(fused_activation_fn_str))
+        fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
+        raise NotImplementedError("Unsupported fused activation fn {}"
+                                  .format(fused_activation_fn_str))
 
     def convert_conv(self, op, conv_type):
         """convolution implementation."""

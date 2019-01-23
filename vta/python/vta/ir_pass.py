@@ -77,10 +77,9 @@ def fold_uop_loop(stmt_in):
                         args.append(m[1])
                 args += op.args[base_args+3:]
                 return tvm.call_extern("int32", "VTAUopPush", *args)
-            else:
-                if op.name not in ("VTATLSCommandHandle", "tvm_thread_context"):
-                    raise RuntimeError("unexpected op %s" % op)
-                return op
+            if op.name not in ("VTATLSCommandHandle", "tvm_thread_context"):
+                raise RuntimeError("unexpected op %s" % op)
+            return op
 
         ret = tvm.ir_pass.IRTransform(
             stmt.body, None, _post_order, ["Call"])
@@ -179,8 +178,7 @@ def cpu_access_rewrite(stmt_in):
                     buffer_var.name + "_ptr", "handle")
             new_var = rw_info[buffer_var]
             return tvm.make.Store(new_var, op.value, op.index)
-        else:
-            raise RuntimeError("not reached")
+        raise RuntimeError("not reached")
     stmt = tvm.ir_pass.IRTransform(
         stmt_in, None, _post_order, ["Allocate", "Load", "Store"])
     for buffer_var, new_var in rw_info.items():
@@ -248,8 +246,7 @@ def lift_alloc_to_scope_begin(stmt_in):
             return op
         if isinstance(op, tvm.stmt.For):
             return _merge_block(lift_stmt.pop() + [op], op.body)
-        else:
-            raise RuntimeError("not reached")
+        raise RuntimeError("not reached")
     stmt = tvm.ir_pass.IRTransform(
         stmt_in, _pre_order, _post_order, ["Allocate", "AttrStmt", "For"])
     assert len(lift_stmt) == 1

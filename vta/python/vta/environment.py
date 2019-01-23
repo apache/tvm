@@ -225,8 +225,7 @@ class Environment(object):
             return "llvm -target=armv7-none-linux-gnueabihf"
         if self.TARGET == "sim":
             return "llvm"
-        else:
-            raise ValueError("Unknown target %s" % self.TARGET)
+        raise ValueError("Unknown target %s" % self.TARGET)
 
 
 def get_env():

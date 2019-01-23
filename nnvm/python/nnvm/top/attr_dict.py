@@ -135,8 +135,7 @@ class AttrDict(object):
             return True
         if lowercase == "false":
             return False
-        else:
-            raise ValueError("Wrong bool format for key %s" % key)
+        raise ValueError("Wrong bool format for key %s" % key)
 
     def get_str(self, key):
         """Get string from attr dict

@@ -281,8 +281,7 @@ def schedule_conv2d(attrs, outs, target):
             return schedule_packed_conv2d(outs)
         if str(target).startswith("llvm"):
             return tvm.create_schedule([x.op for x in outs])
-        else:
-            raise RuntimeError("not support target %s" % target)
+        raise RuntimeError("not support target %s" % target)
     return _nn.schedule_conv2d(attrs, outs, target)
 
 

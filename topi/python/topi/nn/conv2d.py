@@ -52,8 +52,7 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
         return conv2d_hwcn(input, filter, strides, padding, dilation, out_dtype)
     if layout == 'NHWC':
         return conv2d_nhwc(input, filter, strides, padding, dilation, out_dtype)
-    else:
-        raise ValueError("not support this layout {} yet".format(layout))
+    raise ValueError("not support this layout {} yet".format(layout))
 
 
 @tvm.target.generic_func

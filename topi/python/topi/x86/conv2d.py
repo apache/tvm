@@ -75,8 +75,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
     if layout == 'NHWC':
         return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
-    else:
-        raise ValueError("not support this layout {} yet".format(layout))
+    raise ValueError("not support this layout {} yet".format(layout))
 
 
 def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):

@@ -136,8 +136,7 @@ def ActivationParams(op, insym, symtab):
         betasym = symtab.new_const(beta)
         return _sym.broadcast_mul(_sym.log(_sym.broadcast_add(
             _sym.exp(insym), betasym)), alphasym)
-    else:
-        raise NotImplementedError('%s not implemented' % whichActivation)
+    raise NotImplementedError('%s not implemented' % whichActivation)
 
 def ScaleLayerParams(op, insym, symtab):
     """Scale layer params."""
@@ -159,8 +158,7 @@ def PoolingLayerParams(op, insym, symtab):
             return _sym.global_max_pool2d(insym)
         if op.type == 1:
             return _sym.global_avg_pool2d(insym)
-        else:
-            raise NotImplementedError("Only max and average pooling implemented")
+        raise NotImplementedError("Only max and average pooling implemented")
 
     else:
         params = {'pool_size':list(op.kernelSize),
@@ -192,8 +190,7 @@ def PoolingLayerParams(op, insym, symtab):
             return _sym.max_pool2d(insym, **params)
         if op.type == 1:
             return _sym.avg_pool2d(insym, **params)
-        else:
-            raise NotImplementedError("Only max and average pooling implemented")
+        raise NotImplementedError("Only max and average pooling implemented")
 
 def SoftmaxLayerParams(op, insym, symtab):
     return _sym.softmax(_sym.flatten(insym))

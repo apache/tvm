@@ -24,5 +24,4 @@ def upsampling_python(data, scale, layout='NCHW'):
             for c in range(oshape[3]):
                 output_np[b, :, :, c] = upsample_nearest(data[b, :, :, c], scale)
         return output_np
-    else:
-        raise ValueError("not support this layout {} yet".format(layout))
+    raise ValueError("not support this layout {} yet".format(layout))

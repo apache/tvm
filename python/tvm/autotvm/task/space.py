@@ -320,17 +320,17 @@ class ReorderSpace(TransformSpace):
         if np.sum(tmp_pt) == size:
             merged.append(list(tmp_stack))
             return
-        else:
-            for i in range(len(chains)):
-                # use i == np.argmax(....) here to take spatial order into consideration
-                # if we don't want to consider spatial order, we can use tmp_pt[i] == np.max(....)
-                if (tmp_pt[i] < len(chains[i]) and
-                        (i == np.argmax([len(chains[x]) - tmp_pt[x] for x in range(len(chains))]))):
-                    tmp_stack.append(chains[i][tmp_pt[i]])
-                    tmp_pt[i] += 1
-                    self._merge_dfs(chains, size, tmp_pt, tmp_stack, merged)
-                    tmp_pt[i] -= 1
-                    tmp_stack.pop()
+
+        for i in range(len(chains)):
+            # use i == np.argmax(....) here to take spatial order into consideration
+            # if we don't want to consider spatial order, we can use tmp_pt[i] == np.max(....)
+            if (tmp_pt[i] < len(chains[i]) and
+                    (i == np.argmax([len(chains[x]) - tmp_pt[x] for x in range(len(chains))]))):
+                tmp_stack.append(chains[i][tmp_pt[i]])
+                tmp_pt[i] += 1
+                self._merge_dfs(chains, size, tmp_pt, tmp_stack, merged)
+                tmp_pt[i] -= 1
+                tmp_stack.pop()
 
 
 class ReorderEntity(object):

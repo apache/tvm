@@ -58,8 +58,8 @@ def convert_to_node(value):
         return value.asnode()
     if value is None:
         return None
-    else:
-        raise ValueError("don't know how to convert type %s to node" % type(value))
+
+    raise ValueError("don't know how to convert type %s to node" % type(value))
 
 
 def const(value, dtype=None):

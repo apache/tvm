@@ -446,5 +446,4 @@ def create_executor(kind="debug",
         return _interpreter.Interpreter(mod, ctx, target)
     if kind == "graph":
         return GraphExecutor(mod, ctx, target)
-    else:
-        raise RuntimeError("unknown mode {0}".format(mode))
+    raise RuntimeError("unknown mode {0}".format(mode))

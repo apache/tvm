@@ -142,8 +142,7 @@ def _ActivationParams(op, inexpr, etab):
         alpha_expr = etab.new_const(alpha)
         beta_expr = etab.new_const(beta)
         return _op.multiply(_op.log(_op.add(_op.exp(inexpr), beta_expr)), alpha_expr)
-    else:
-        raise NotImplementedError('%s not implemented' % whichActivation)
+    raise NotImplementedError('%s not implemented' % whichActivation)
 
 
 def _ScaleLayerParams(op, inexpr, etab):
@@ -165,8 +164,7 @@ def _PoolingLayerParams(op, inexpr, etab):
             return _op.nn.global_max_pool2d(inexpr)
         if op.type == 1:
             return _op.nn.global_avg_pool2d(inexpr)
-        else:
-            raise NotImplementedError("Only max and average pooling implemented")
+        raise NotImplementedError("Only max and average pooling implemented")
 
     else:
         params = {'pool_size':list(op.kernelSize),
@@ -198,8 +196,7 @@ def _PoolingLayerParams(op, inexpr, etab):
             return _op.nn.max_pool2d(inexpr, **params)
         if op.type == 1:
             return _op.nn.avg_pool2d(inexpr, **params)
-        else:
-            raise NotImplementedError("Only max and average pooling implemented")
+        raise NotImplementedError("Only max and average pooling implemented")
 
 
 def _SoftmaxLayerParams(op, inexpr, etab):

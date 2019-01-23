@@ -18,8 +18,7 @@ def dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        else:
-            raise NotImplementedError("Only 2d kernel supported.")
+        raise NotImplementedError("Only 2d kernel supported.")
 
     return _impl
 

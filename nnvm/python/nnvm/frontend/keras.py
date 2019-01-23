@@ -74,8 +74,7 @@ def _convert_activation(insym, keras_layer, _):
     if act_type == 'hard_sigmoid':
         transformX = (0.2 * insym) + 0.5
         return _sym.clip(transformX, a_min=0, a_max=1)
-    else:
-        raise TypeError("Unsupported activation type : {}".format(act_type))
+    raise TypeError("Unsupported activation type : {}".format(act_type))
 
 
 def _convert_advanced_activation(insym, keras_layer, symtab):
@@ -101,8 +100,7 @@ def _convert_advanced_activation(insym, keras_layer, symtab):
         theta = keras_layer.theta if hasattr(keras_layer, "theta") else 1.0
         theta_tensor = _sym.full_like(insym[0], fill_value=float(theta))
         return _sym.elemwise_mul(insym[0], _sym.greater(insym[0], theta_tensor, out_type="float32"))
-    else:
-        raise TypeError("Unsupported advanced activation type : {}".format(act_type))
+    raise TypeError("Unsupported advanced activation type : {}".format(act_type))
 
 
 def _convert_merge(insym, keras_layer, _):
@@ -282,29 +280,27 @@ def _convert_pooling(insym, keras_layer, symtab):
         return _convert_flatten(_sym.global_max_pool2d(insym), keras_layer, symtab)
     if pool_type == 'GlobalAveragePooling2D':
         return _convert_flatten(_sym.global_avg_pool2d(insym), keras_layer, symtab)
+    pool_h, pool_w = keras_layer.pool_size
+    stride_h, stride_w = keras_layer.strides
+    params = {'pool_size': [pool_h, pool_w],
+              'strides': [stride_h, stride_w],
+              'padding': [0, 0]}
+    if keras_layer.padding == 'valid':
+        pass
+    elif keras_layer.padding == 'same':
+        in_h = keras_layer.input_shape[1]
+        in_w = keras_layer.input_shape[2]
+        pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
+        pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
+        params['padding'] = [pad_t, pad_l, pad_b, pad_r]
     else:
-        pool_h, pool_w = keras_layer.pool_size
-        stride_h, stride_w = keras_layer.strides
-        params = {'pool_size': [pool_h, pool_w],
-                  'strides': [stride_h, stride_w],
-                  'padding': [0, 0]}
-        if keras_layer.padding == 'valid':
-            pass
-        elif keras_layer.padding == 'same':
-            in_h = keras_layer.input_shape[1]
-            in_w = keras_layer.input_shape[2]
-            pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
-            pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
-            params['padding'] = [pad_t, pad_l, pad_b, pad_r]
-        else:
-            raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
-        if pool_type == 'MaxPooling2D':
-            return _sym.max_pool2d(insym, **params)
-        if pool_type == 'AveragePooling2D':
-            # TODO: in keras, padded zeros are not calculated
-            return _sym.avg_pool2d(insym, **params)
-        else:
-            raise TypeError("Unsupported pooling type : {}".format(keras_layer))
+        raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
+    if pool_type == 'MaxPooling2D':
+        return _sym.max_pool2d(insym, **params)
+    if pool_type == 'AveragePooling2D':
+        # TODO: in keras, padded zeros are not calculated
+        return _sym.avg_pool2d(insym, **params)
+    raise TypeError("Unsupported pooling type : {}".format(keras_layer))
 
 
 def _convert_upsample(insym, keras_layer, _):

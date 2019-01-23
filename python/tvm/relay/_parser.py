@@ -201,11 +201,9 @@ class ParseTreeToRelayIR(RelayVisitor):
                 return True
             if node_text == "False":
                 return False
-            else:
-                raise ParseError("Unrecognized BOOL_LIT: `{}`".format(node_text))
+            raise ParseError("Unrecognized BOOL_LIT: `{}`".format(node_text))
 
-        else:
-            raise ParseError("todo: {}".format(node_text))
+        raise ParseError("todo: {}".format(node_text))
 
     def visit_list(self, ctx_list):
         # type: (List[ParserRuleContext]) -> List[Any]

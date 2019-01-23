@@ -349,8 +349,8 @@ def compute_flop(sch):
                                                     _count_flop(exp.false_value))
         if isinstance(exp, expr.Call):
             return sum([_count_flop(x) for x in exp.args])
-        else:
-            raise FlopCalculationError("Found unsupported operator in the compute expr")
+
+        raise FlopCalculationError("Found unsupported operator in the compute expr")
 
     def traverse(ops):
         """accumulate flops"""
