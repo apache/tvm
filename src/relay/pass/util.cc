@@ -139,7 +139,7 @@ class TypeVarEVisitor : private ExprVisitor {
   const Module& mod_;
 };
 
-class VarVisitor : protected ExprVisitor {
+class VarVisitor : protected ExprVisitor, protected PatternVisitor {
  public:
   Array<Var> Free(const Expr& expr) {
     this->VisitExpr(expr);
@@ -190,6 +190,14 @@ class VarVisitor : protected ExprVisitor {
     MarkBounded(op->var);
     VisitExpr(op->value);
     VisitExpr(op->body);
+  }
+
+  void VisitPattern(const Pattern& p) final {
+    PatternVisitor::VisitPattern(p);
+  }
+
+  void VisitPattern_(const PatternVarNode* op) final {
+    MarkBounded(op->var);
   }
 
  private:
