@@ -43,8 +43,8 @@ try:
     from antlr4.tree.Tree import TerminalNode
 except ImportError:
     raise ParseError("Couldn't find ANTLR runtime." +
-                     "Try running `pip{} install antlr4-python{}-runtime`."
-                     .format(PYTHON_VERSION, PYTHON_VERSION))
+                     "Try running `pip{version} install antlr4-python{version}-runtime`."
+                     .format(version=PYTHON_VERSION))
 
 BINARY_OPS = {
     RelayParser.MUL: op.multiply,
