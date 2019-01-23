@@ -438,8 +438,11 @@ bool TypeSolver::Solve() {
       rnode->resolved = false;
     } catch (const dmlc::Error& err) {
       rnode->resolved = false;
-      std::cout << err.what() << std::endl;
-      exit(1);
+      this->ReportError(
+          RELAY_ERROR(
+            "an internal invariant was violdated while" \
+            "typechecking your program" <<
+            err.what()), rnode->location);
     }
 
     // Mark inqueue as false after the function call
