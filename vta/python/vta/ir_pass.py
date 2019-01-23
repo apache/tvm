@@ -231,8 +231,6 @@ def lift_alloc_to_scope_begin(stmt_in):
             if op.attr_key == "virtual_thread":
                 lift_stmt.append([])
 
-        return None
-
     def _post_order(op):
         if isinstance(op, tvm.stmt.Allocate):
             lift_stmt[-1].append(op)

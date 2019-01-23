@@ -88,7 +88,6 @@ def _get_yolo_detections(l, im_shape, net_shape, thresh, relative, dets):
         before_correct_dets.append(detection)
     dets.extend(_correct_boxes(before_correct_dets, im_shape[0], im_shape[1],
                                net_shape[0], net_shape[1], relative))
-    return
 
 def _get_region_detections(l, im_shape, net_shape, thresh, relative, dets):
     data = l['output']
@@ -114,7 +113,6 @@ def _get_region_detections(l, im_shape, net_shape, thresh, relative, dets):
     _correct_boxes(before_correct_dets, im_shape[0], im_shape[1],
                    net_shape[0], net_shape[1], relative)
     dets.extend(before_correct_dets)
-    return
 
 def fill_network_boxes(net_shape, im_shape,
                        thresh, relative, tvm_out):
