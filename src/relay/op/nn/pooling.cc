@@ -85,7 +85,7 @@ bool Pool2DRel(const Array<Type>& types,
 
   std::vector<IndexExpr> oshape;
   for (const auto& e : dshape) {
-      oshape.push_back(e);
+    oshape.push_back(e);
   }
 
   if (param->ceil_mode) {
