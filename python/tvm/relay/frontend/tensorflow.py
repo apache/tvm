@@ -1306,7 +1306,7 @@ class GraphProto(object):
                 elif isinstance(op, _expr.Expr):
                     op = [op]
                 else:
-                    raise RuntimeError("unexpected type %s" % type(res))
+                    raise RuntimeError("unexpected type %s" % type(op))
 
                 self._nodes[node.name] = op
 
