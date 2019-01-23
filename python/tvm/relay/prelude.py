@@ -1,49 +1,30 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
-"""Include some preloaded term/type definitions."""
+"""Adds certain standard global functions and ADT definitions to the module."""
 from .ty import GlobalTypeVar, TypeVar, FuncType
 from .expr import Var, Function, GlobalVar
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
 
 class Prelude:
-    """Contain standard definitions."""
-    def __init__(self, mod):
-        self.mod = mod
-        self.nat = GlobalTypeVar("nat")
-        self.z = Constructor("z", [], self.nat)
-        self.s = Constructor("s", [self.nat()], self.nat)
-        mod[self.nat] = TypeData(self.nat, [], [self.z, self.s])
+    """Contains standard definitions."""
 
-        self.double = GlobalVar("double")
-        x = Var("x", self.nat())
-        y = Var("y")
-        z_case = Clause(PatternConstructor(self.z), self.z())
-        s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]), self.s(self.s(self.double(y))))
-        mod[self.double] = Function([x], Match(x, [z_case, s_case]))
-
-        self.add = GlobalVar("add")
-        x = Var("x", self.nat())
-        y = Var("y", self.nat())
-        a = Var("a")
-        z_case = Clause(PatternConstructor(self.z), y)
-        s_case = Clause(PatternConstructor(self.s, [PatternVar(a)]), self.s(self.add(a, y)))
-        mod[self.add] = Function([x, y], Match(x, [z_case, s_case]))
-
+    def define_list_adt(self):
+        """Defines a LISP-style list ADT. An empty list is
+        represented by nil(). A member x can be appended to the
+        front of a list l via the constructor cons(x, l)."""
         self.l = GlobalTypeVar("list")
         a = TypeVar("a")
         self.nil = Constructor("nil", [], self.l)
         self.cons = Constructor("cons", [a, self.l(a)], self.l)
-        mod[self.l] = TypeData(self.l, [a], [self.nil, self.cons])
+        self.mod[self.l] = TypeData(self.l, [a], [self.nil, self.cons])
 
-        self.length = GlobalVar("length")
-        a = TypeVar("a")
-        x = Var("x", self.l(a))
-        y = Var("y")
-        nil_case = Clause(PatternConstructor(self.nil), self.z())
-        cons_case = Clause(PatternConstructor(self.cons, [PatternWildcard(), PatternVar(y)]),
-                           self.s(self.length(y)))
-        mod[self.length] = Function([x], Match(x, [nil_case, cons_case]), None, [a])
+    def define_list_map(self):
+        """Defines a function for mapping a function over a list's
+        elements. That is, map(f, l) returns a new list where
+        the ith member is f applied to the ith member of l.
 
+        map(f, l) : fun<a, b>(fun(a) -> b, list<a>) -> list<b>
+        """
         self.map = GlobalVar("map")
         a = TypeVar("a")
         b = TypeVar("b")
@@ -54,8 +35,16 @@ class Prelude:
         nil_case = Clause(PatternConstructor(self.nil), self.nil())
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
                            self.cons(f(y), self.map(f, z)))
-        mod[self.map] = Function([f, x], Match(x, [nil_case, cons_case]), None, [a, b])
+        self.mod[self.map] = Function([f, x], Match(x, [nil_case, cons_case]), None, [a, b])
 
+    def define_list_foldl(self):
+        """Defines a left-way fold over a list.
+
+        foldl(f, z, l) : fun<a, b>(fun(b, a) -> b, b, list<a>) -> b
+
+        foldl(f, z, cons(a1, cons(a2, cons(a3, cons(..., nil)))))
+        evaluates to f(...f(f(f(z, a1), a2), a3)...)
+        """
         self.foldl = GlobalVar("foldl")
         a = TypeVar("a")
         b = TypeVar("b")
@@ -67,13 +56,17 @@ class Prelude:
         nil_case = Clause(PatternConstructor(self.nil), av)
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
                            self.foldl(f, f(av, y), z))
-        mod[self.foldl] = Function([f, av, bv], Match(bv, [nil_case, cons_case]), None, [a, b])
+        self.mod[self.foldl] = Function([f, av, bv],
+                                        Match(bv, [nil_case, cons_case]), None, [a, b])
 
-        self.tree = GlobalTypeVar("tree")
-        a = TypeVar("a")
-        self.rose = Constructor("rose", [a, self.l(self.tree(a))], self.tree)
-        mod[self.tree] = TypeData(self.tree, [a], [self.rose])
+    def define_list_foldr(self):
+        """Defines a right-way fold over a list.
 
+        foldr(f, l, z) : fun<a, b>(fun(a, b) -> b, list<a>, b) -> b
+
+        foldr(f, cons(a1, cons(a2, cons(..., cons(an, nil)))), z)
+        evalutes to f(a1, f(a2, f(..., f(an, z)))...)
+        """
         self.foldr = GlobalVar("foldr")
         a = TypeVar("a")
         b = TypeVar("b")
@@ -85,29 +78,12 @@ class Prelude:
         nil_case = Clause(PatternConstructor(self.nil), bv)
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
                            f(y, self.foldr(f, bv, z)))
-        mod[self.foldr] = Function([f, bv, av], Match(av, [nil_case, cons_case]), None, [a, b])
+        self.mod[self.foldr] = Function([f, bv, av],
+                                        Match(av, [nil_case, cons_case]), None, [a, b])
 
-        self.sum = GlobalVar("sum")
-        a = Var("a", self.l(self.nat()))
-        mod[self.sum] = Function([a], self.foldl(self.add, self.z(), a))
-
-        self.tmap = GlobalVar("tmap")
-        a = TypeVar("a")
-        b = TypeVar("b")
-        t = Var("t", self.tree(a))
-        f = Var("f", FuncType([a], b))
-        x = Var("x", self.tree(a))
-        y = Var("y")
-        z = Var("z")
-        rose_case = Clause(PatternConstructor(self.rose, [PatternVar(y), PatternVar(z)]),
-                           self.rose(f(y), self.map(Function([x], self.tmap(f, x)), z)))
-        mod[self.tmap] = Function([f, t], Match(t, [rose_case]), self.tree(b), [a, b])
-
-        self.size = GlobalVar("size")
-        a = TypeVar("a")
-        t = Var("t", self.tree(a))
-        x = Var("x", self.tree(a))
-        z = Var("z")
-        rose_case = Clause(PatternConstructor(self.rose, [PatternWildcard(), PatternVar(z)]),
-                           self.s(self.sum(self.map(Function([x], self.size(x)), z))))
-        mod[self.size] = Function([t], Match(t, [rose_case]), self.nat(), [a])
+    def __init__(self, mod):
+        self.mod = mod
+        self.define_list_adt()
+        self.define_list_map()
+        self.define_list_foldl()
+        self.define_list_foldr()
