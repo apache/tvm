@@ -134,19 +134,20 @@ def argsort_ir(data_buf, out_index_buf):
     """
     batch, num_bbox = get_const_tuple(data_buf.shape)
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
     ib = tvm.ir_builder.create()
-    temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
-    temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
     p_data = ib.buffer_ptr(data_buf)
     index_out = ib.buffer_ptr(out_index_buf)
     nthread_tx = max_threads
     nthread_bx = num_bbox // max_threads + 1
+    tx = tvm.thread_axis("threadIdx.x")
+    bx = tvm.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * nthread_tx + tx
+    temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
+    temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
 
+    ib.emit(tvm.make.Call(None, 'tvm_global_barrier_kinit', None, tvm.expr.Call.Intrinsic, None, 0))
     with ib.for_range(0, batch, for_type="unroll") as b:
         start = b * num_bbox
         with ib.if_scope(tid < num_bbox):
@@ -163,7 +164,9 @@ def argsort_ir(data_buf, out_index_buf):
                     temp_index[0] = index_out[offset]
                     index_out[offset] = index_out[offset + 1]
                     index_out[offset + 1] = temp_index[0]
-
+            ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
+                                  tvm.convert(['global', True, nthread_bx]),
+                                  tvm.expr.Call.Intrinsic, None, 0))
     return ib.get()
 
 
