@@ -9,6 +9,7 @@ source:
 
 build:
   number: 0
+  string: cuda{{ cuda_version }}  # [cuda]
 
 requirements:
   build:
