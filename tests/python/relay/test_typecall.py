@@ -14,7 +14,10 @@ def test_id_type():
     mod = relay.Module()
     id_type = relay.GlobalTypeVar("id")
     a = relay.TypeVar("a")
-    make_id = relay.Var("make_id", relay.FuncType([a], id_type(a), [a]))
+    mod[id_type] = relay.TypeData(id_type, [a], [])
+    
+    b = relay.TypeVar("b")
+    make_id = relay.Var("make_id", relay.FuncType([b], id_type(b), [b]))
     t = relay.scalar_type("float32")
     b = relay.Var("b", t)
     assert relay.ir_pass.infer_type(make_id(b), mod).checked_type == id_type(t)
