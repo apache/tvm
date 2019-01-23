@@ -114,7 +114,13 @@ class Constructor(Expr):
 
 @register_relay_node
 class TypeData(Type):
-    """Stores the definition for an Algebraic Data Type (ADT) in Relay."""
+    """Stores the definition for an Algebraic Data Type (ADT) in Relay.
+
+    Note that ADT definitions are treated as type-level functions because
+    the type parameters need to be given for an instance of the ADT. Thus,
+    any global type var that is an ADT header needs to be wrapped in a
+    type call that passes in the type params.
+    """
 
     def __init__(self, header, tv, constructors):
         """Defines a TypeData object.

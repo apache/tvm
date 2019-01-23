@@ -144,6 +144,14 @@ RELAY_DEFINE_NODE_REF(PatternConstructor, PatternConstructorNode, Pattern);
 
 /*!
  * \brief Stores all data for an Algebraic Data Type (ADT).
+ *
+ * In particular, it stores the handle (global type var) for an ADT
+ * and the constructors used to build it and is kept in the module. Note
+ * that type parameters are also indicated in the type data: this means that
+ * for any instance of an ADT, the type parameters must be indicated. That is,
+ * an ADT definition is treated as a type-level function, so an ADT handle
+ * must be wrapped in a TypeCall node that instantiates the type-level arguments.
+ * The kind checker enforces this.
  */
 class TypeData;
 /*! \brief TypeData container node */

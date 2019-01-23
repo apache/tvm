@@ -108,8 +108,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
       << "Type call must be calling a global type var";
 
     Kind func_kind = this->VisitType(op->func);
-    CHECK(func_kind == Kind::kType)
-      << "Type calls must call a global type var of the type kind but "
+    CHECK(func_kind == Kind::kAdtHandle)
+      << "Type calls must call a global type var that is an ADT handle but "
       << op->func << " of " << tc << " is of kind " << func_kind;
 
     for (const Type& t : op->args) {
@@ -136,8 +136,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     // to support it.
     TypeData td = GetRef<TypeData>(op);
     Kind header_kind = this->VisitType(op->header);
-    CHECK(header_kind == Kind::kType)
-      << "The header for ADT type data must be of the type kind but "
+    CHECK(header_kind == Kind::kAdtHandle)
+      << "The header for ADT type data must be an ADT handle but "
       << op->header << " of " << td << " is of kind " << header_kind;
 
     for (const auto& var : op->tv) {

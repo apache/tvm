@@ -89,7 +89,8 @@ class Kind(IntEnum):
     BaseType = 2
     Shape = 3
     Constraint = 4
-    TypeData = 5
+    AdtHandle = 5
+    TypeData = 6
 
 @register_relay_node
 class TypeVar(Type):
@@ -128,7 +129,7 @@ class GlobalTypeVar(Type):
     stored in the environment.
     """
 
-    def __init__(self, var, kind=Kind.Type):
+    def __init__(self, var, kind=Kind.AdtHandle):
         """Construct a GlobalTypeVar.
 
         Parameters
@@ -136,7 +137,7 @@ class GlobalTypeVar(Type):
         var: tvm.Var
             The tvm.Var which backs the type parameter.
         kind: Kind, optional
-            The kind of the type parameter, Kind.Type by default.
+            The kind of the type parameter, Kind.AdtHandle by default.
 
         Returns
         -------
