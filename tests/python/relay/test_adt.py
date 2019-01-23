@@ -46,6 +46,26 @@ def make_nat(n):
     else:
         return ConValue(z, [], [])
 
+def build_nat(n):
+    assert n >= 0
+    ret = z()
+    while n > 0:
+        ret = s(ret)
+        n = n - 1
+    return ret
+
+def to_list(l):
+    assert isinstance(l, ConValue)
+    val = l
+    ret = []
+    while True:
+        if val.con.name_hint == 'cons':
+            ret.append(val.fields[0])
+            val = val.fields[1]
+        else:
+            assert val.con.name_hint == 'nil'
+            break
+    return ret
 
 def test_nat_value():
     assert count(make_nat(10)) == 10
@@ -59,6 +79,8 @@ def test_nat_constructor():
 
 def test_double():
     assert mod[double].checked_type == relay.FuncType([nat()], nat())
+    res = intrp.evaluate(double(s(z())))
+    assert count(res) == 2
 
 
 def test_add():
@@ -76,6 +98,8 @@ def test_list_constructor():
 def test_length():
     a = relay.TypeVar("a")
     assert mod[length].checked_type == relay.FuncType([l(a)], nat(), [a])
+    res = intrp.evaluate(length(cons(z(), cons(z(), cons(z(), nil())))))
+    assert count(res) == 3
 
 
 def test_map():
@@ -85,6 +109,13 @@ def test_map():
     rhs = relay.FuncType([relay.FuncType([a], b), l(a)], l(b), [a, b])
     assert lhs == rhs
 
+    x = relay.Var("x")
+    add_one = relay.Function([x], s(x))
+    res = intrp.evaluate(map(add_one, cons(z(), cons(z(), nil()))))
+    ones = to_list(res)
+    assert len(ones) == 2
+    assert count(ones[0]) == 1 and count(ones[1]) == 1
+
 
 def test_foldl():
     a = relay.TypeVar("a")
@@ -92,6 +123,17 @@ def test_foldl():
     lhs = mod[foldl].checked_type
     rhs = relay.FuncType([relay.FuncType([a, b], a), a, l(b)], a, [a, b])
     assert lhs == rhs
+
+    x = relay.Var("x")
+    y = relay.Var("y")
+    rev = relay.Function([y, x], cons(x, y))
+    res = intrp.evaluate(foldl(rev, nil(),
+                               cons(build_nat(1),
+                                    cons(build_nat(2),
+                                         cons(build_nat(3), nil())))))
+    reversed = to_list(res)
+    assert len(reversed) == 3
+    assert count(reversed[0]) == 3 and count(reversed[1]) == 2 and count(reversed[2]) == 1
 
 
 def test_foldr():
@@ -101,9 +143,22 @@ def test_foldr():
     rhs = relay.FuncType([relay.FuncType([a, b], b), b, l(a)], b, [a, b])
     assert lhs == rhs
 
+    x = relay.Var("x")
+    y = relay.Var("y")
+    identity = relay.Function([x, y], cons(x, y))
+    res = intrp.evaluate(foldr(identity, nil(),
+                               cons(build_nat(1),
+                                    cons(build_nat(2),
+                                         cons(build_nat(3), nil())))))
+    same = to_list(res)
+    assert len(same) == 3
+    assert count(same[0]) == 1 and count(same[1]) == 2 and count(same[2]) == 3
+
 
 def test_sum():
     assert mod[sum].checked_type == relay.FuncType([l(nat())], nat())
+    res = intrp.evaluate(sum(cons(build_nat(1), cons(build_nat(2), nil()))))
+    assert count(res) == 3
 
 
 def test_tmap():
@@ -112,6 +167,7 @@ def test_tmap():
     lhs = mod[tmap].checked_type
     rhs = relay.FuncType([relay.FuncType([a], b), tree(a)], tree(b), [a, b])
     assert lhs == rhs
+
 
 def test_size():
     a = relay.TypeVar("a")
