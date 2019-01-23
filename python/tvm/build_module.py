@@ -292,6 +292,24 @@ def get_binds(args, binds=None):
     return binds, arg_list
 
 
+def form_body(sch):
+    """According to the given schedule, form the raw body
+    Parameters
+    ----------
+    sch : tvm.schedule.Schedule
+    The given scheduler to form the raw body
+
+    Returns
+    -------
+    The body formed according to the given schedule
+    """
+    # normalize schedule first
+    sch = sch.normalize()
+    bounds = schedule.InferBound(sch)
+    stmt = schedule.ScheduleOps(sch, bounds)
+    stmt = ir_pass.InjectPrefetch(stmt)
+
+
 def lower(sch,
           args,
           name="default_function",
@@ -337,11 +355,7 @@ def lower(sch,
 
     # Phase 0
     if isinstance(sch, schedule.Schedule):
-        # normalize schedule first
-        sch = sch.normalize()
-        bounds = schedule.InferBound(sch)
-        stmt = schedule.ScheduleOps(sch, bounds)
-        stmt = ir_pass.InjectPrefetch(stmt)
+        stmt = form_body(sch)
 
     for f in lower_phase0:
         stmt = f(stmt)
@@ -533,6 +547,8 @@ def build(inputs,
     if isinstance(inputs, schedule.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
+        if target == 'hybrid':
+            return form_body(sch)
         flist = lower(inputs, args,
                       name=name,
                       binds=binds)

@@ -86,6 +86,8 @@ HYBRID_GLOBALS = {
     'tanh'         : numpy.tanh,
     'power'        : numpy.power,
     'exp'          : numpy.exp,
+    'sigmoid'      : sigmoid,
+    'popcount'     : popcount,
     'uint8'        : numpy.uint8,
     'uint16'       : numpy.uint16,
     'uint32'       : numpy.uint32,
@@ -97,8 +99,7 @@ HYBRID_GLOBALS = {
     'float16'      : numpy.float16,
     'float32'      : numpy.float32,
     'float64'      : numpy.float64,
-    'sigmoid'      : sigmoid,
-    'popcount'     : popcount,
+    'ceil_div'     : lambda a, b: (a + b - 1) / b
 }
 
 

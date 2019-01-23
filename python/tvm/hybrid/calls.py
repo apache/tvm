@@ -114,3 +114,11 @@ def _cast(func_id, args):
 float16 = float32 = float64 = _cast #pylint: disable=invalid-name
 int8 = int16 = int32 = int64 = _cast #pylint: disable=invalid-name
 uint8 = uint16 = uint32 = uint64 = _cast #pylint: disable=invalid-name
+
+
+def ceil_div(func_id, args):
+    _internal_assert(args.__len__() == 2, \
+                     "Only one expression can be cast")
+    for i in range(2):
+        _internal_assert(isinstance(args[0], _expr.Expr), "Only expressions can div")
+    return (a + b - 1) / b
