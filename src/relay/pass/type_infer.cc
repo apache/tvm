@@ -142,6 +142,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       return it->second.checked_type;
     }
     Type ret = this->VisitExpr(expr);
+    KindCheck(ret, mod_);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
     return ret;
@@ -441,6 +442,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (f->ret_type.defined()) {
       rtype = this->Unify(f->ret_type, rtype, GetRef<Function>(f));
     }
+    CHECK(rtype.defined());
     auto ret = FuncTypeNode::make(arg_types, rtype, f->type_params, {});
     return solver_.Resolve(ret);
   }
