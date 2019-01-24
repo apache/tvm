@@ -363,7 +363,7 @@ class Canonical::Internal : public IRMutator {
       return Binary_(op, e, a.value, b.value);
     }
     if (is_const(a.value) && is_const(b.value)) {
-      return ComputeExpr<Mul>(a.value, b.value);
+      return ComputeExpr<Mod>(a.value, b.value);
     } else if (is_const(b.value)) {
       return SumModConst(a.AsSum(), b.value);
     } else {
