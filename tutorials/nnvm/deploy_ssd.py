@@ -1,7 +1,7 @@
 """
 Deploy Single Shot Multibox Detector(SSD) model
 ===============================================
-**Author**: `Yao Wang <https://github.com/kevinthesun>`_
+**Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Leyuan Wang <https://github.com/Laurawly>`_
 
 This article is an introductory tutorial to deploy SSD models with TVM.
 We will use mxnet pretrained SSD model with Resnet50 as body network and
@@ -32,17 +32,20 @@ from mxnet.model import load_checkpoint
 #   echo "set(USE_SORT ON)" > config.mk
 #   make -j8
 #
-# .. note::
-#
-#   Currently we support compiling SSD on CPU only.
-#   GPU support is in progress.
-#
 
 model_name = "ssd_resnet50_512"
 model_file = "%s.zip" % model_name
 test_image = "dog.jpg"
 dshape = (1, 3, 512, 512)
 dtype = "float32"
+
+# Target settings
+# Use these commented settings to build for cuda.
+#target = 'cuda'
+#ctx = tvm.gpu(0)
+# Use these commented settings to build for opencl.
+#target = 'opencl'
+#ctx = tvm.gpu(0)
 target = "llvm"
 ctx = tvm.cpu()
 
@@ -134,6 +137,7 @@ def display(img, out, thresh=0.5):
     import random
     import matplotlib as mpl
     import matplotlib.pyplot as plt
+    plt.switch_backend('agg')
     mpl.rcParams['figure.figsize'] = (10,10)
     pens = dict()
     plt.clf()
