@@ -32,7 +32,6 @@ fi
 if [ ${TASK} == "cpp_test" ] || [ ${TASK} == "all_test" ]; then
     make -f dmlc-core/scripts/packages.mk gtest
     ./tests/scripts/task_cpp_unittest.sh || exit -1
-    ./tests/scripts/task_cpp_topi.sh || exit -1
 fi
 
 if [ ${TASK} == "python_test" ] || [ ${TASK} == "all_test" ]; then
