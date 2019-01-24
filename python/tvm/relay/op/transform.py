@@ -92,7 +92,7 @@ def squeeze(data, axis=None):
     return _make.squeeze(data, axis)
 
 
-def reshape(data, newshape):
+def reshape(data, newshape, reverse=False):
     """Reshapes the input array.
 
     Example::
@@ -144,6 +144,13 @@ def reshape(data, newshape):
     - data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape =(1,2,3,4)
     - data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
 
+    - If the argument reverse is set to True, then the special values are inferred from right to left.
+
+    Example::
+
+    - with reverse=False, for input shape = (10,5,4), shape = (-1,0), output shape would be (40,5).
+    - with reverse=True, output shape will be (50,4).
+
     Parameters
     ----------
     data : relay.Expr
@@ -152,6 +159,9 @@ def reshape(data, newshape):
     newshape : Union[int, Tuple[int], List[int]]
         The new shape. Should be compatible with the original shape.
 
+    reverse : bool
+        Infer the special values from right to left if set to be True.
+
     Returns
     -------
     result : relay.Expr
@@ -159,7 +169,7 @@ def reshape(data, newshape):
     """
     if isinstance(newshape, int):
         newshape = [newshape]
-    return _make.reshape(data, list(newshape))
+    return _make.reshape(data, list(newshape), reverse)
 
 
 def reshape_like(data, shape_like):
