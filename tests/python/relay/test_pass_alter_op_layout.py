@@ -82,6 +82,8 @@ def test_alter_layout():
         # a useless tuple, which will be eliminated
         y = relay.Tuple([y])[0]
         y = relay.nn.relu(y)
+        y = relay.nn.max_pool2d(y, pool_size=(2, 2))
+        y = relay.cast(y, 'int32')
         y = relay.nn.batch_flatten(y)
         y = relay.Function(free_vars(y), y)
         return y
@@ -112,6 +114,8 @@ def test_alter_layout():
         y = relay.add(y, b)
 
         y = relay.nn.relu(y)
+        y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout="NCHW16c")
+        y = relay.cast(y, 'int32')
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
         y = relay.nn.batch_flatten(y)
         y = relay.Function(free_vars(y), y)

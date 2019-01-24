@@ -6,7 +6,7 @@ Deploy the Pretrained Model on Raspberry Pi
 **Author**: `Ziheng Jiang <https://ziheng.org/>`_
 
 This is an example of using NNVM to compile a ResNet model and deploy
-it on raspberry pi.
+it on Raspberry Pi.
 """
 
 import tvm
@@ -153,7 +153,7 @@ if local_demo:
 else:
     target = tvm.target.arm_cpu('rasp3b')
     # The above line is a simple form of
-    # target = tvm.target.create('llvm -devcie=arm_cpu -model=bcm2837 -target=armv7l-linux-gnueabihf -mattr=+neon')
+    # target = tvm.target.create('llvm -device=arm_cpu -model=bcm2837 -target=armv7l-linux-gnueabihf -mattr=+neon')
 
 with nnvm.compiler.build_config(opt_level=3):
     graph, lib, params = nnvm.compiler.build(
