@@ -7,11 +7,11 @@
  *  to the new layout system
  *
  *  The layout is composed of upper cases, lower cases and numbers,
- *  where upper case indicates a (primal) axis and
- *  the corresponding lower case with factor size indicates the split (subordinate) axis.
+ *  where upper case indicates a primal axis and
+ *  the corresponding lower case with factor size indicates the subordinate axis.
  *  For example, NCHW16c can describe a 5-D tensor of
  *  [batch_size, channel, height, width, channel_block].
- *  Here subordinate axis channel_block=16 is the split of the primal axis C (channel).
+ *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
  */
 #ifndef TVM_RELAY_OP_LAYOUT_H_
 #define TVM_RELAY_OP_LAYOUT_H_
@@ -145,14 +145,17 @@ class LayoutAxis {
     return A;
   }
 
-  inline static const LayoutAxis& Get(const char* name) {
-    return LayoutAxis::Get(*name);
-  }
-
+  // Get the singleton LayoutAxis using itvar->var->name_hint
   inline static const LayoutAxis& Get(const IterVar& itvar) {
     const std::string axis = itvar->var.get()->name_hint;
     CHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
     return LayoutAxis::Get(axis[0]);
+  }
+
+  // Get the singleton LayoutAxis using name[0] (size of name must be 1).
+  inline static const LayoutAxis& make(const std::string& name) {
+    CHECK_EQ(name.length(), 1) << "Invalid axis " << name;
+    return LayoutAxis::Get(name[0]);
   }
 
   inline bool IsPrimal() const { return name_ >= 'A' && name_ <= 'Z'; }
@@ -318,7 +321,7 @@ class Layout : public NodeRef {
    * \param axis the input primal-axis or subordinate-axis.
    * \return the size of the subordinate-axis of \p axis (if \p axis is a primal-axis),
    *         or the size of \p axis itself (if \p axis is a primal-axis).
-   *         Return -1 if \p axis is not in the layout or the layout is undefined.
+   *         Return -1 if \p axis is not in the layout the layout is undefined.
    */
   int64_t FactorOf(const LayoutAxis& axis) const;
 
@@ -337,9 +340,11 @@ class Layout : public NodeRef {
     return false;
   }
 
-  const LayoutAxis& operator[](size_t i) const {
+  const LayoutAxis& operator[](int32_t i) const {
     CHECK(defined()) << "Try to access axis from an undefined layout.";
-    const IterVar axis = operator->()->axis[i];
+    int32_t index = i < 0 ? static_cast<int32_t>(ndim() + i) : i;
+    CHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
+    const IterVar axis = operator->()->axis[index];
     return LayoutAxis::Get(axis);
   }
 

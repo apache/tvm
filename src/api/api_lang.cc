@@ -230,6 +230,29 @@ TVM_REGISTER_API("_Layout")
     *ret = LayoutNode::make(args[0]);
   });
 
+TVM_REGISTER_API("_LayoutIndexOf")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator Layout()
+      .IndexOf(LayoutAxis::make(args[1]));
+});
+
+TVM_REGISTER_API("_LayoutFactorOf")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator Layout()
+      .FactorOf(LayoutAxis::make(args[1]));
+});
+
+TVM_REGISTER_API("_LayoutNdim")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = static_cast<int64_t>(args[0].operator Layout().ndim());
+});
+
+TVM_REGISTER_API("_LayoutGetItem")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  const LayoutAxis& axis = args[0].operator Layout()[args[1]];
+  *ret = axis.name();
+});
+
 TVM_REGISTER_API("_BijectiveLayout")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = BijectiveLayoutNode::make(args[0], args[1]);
