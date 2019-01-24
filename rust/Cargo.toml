@@ -7,7 +7,7 @@ repository = "https://github.com/dmlc/tvm"
 readme = "README.md"
 keywords = ["tvm", "nnvm"]
 categories = ["api-bindings", "science"]
-authors = ["Nick Hynes <nhynes@berkeley.edu>"]
+authors = ["TVM Contributors"]
 
 [features]
 default = ["nom/std"]
