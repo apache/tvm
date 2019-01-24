@@ -83,7 +83,11 @@ bool Pool2DRel(const Array<Type>& types,
     return false;
   }
 
-  std::vector<IndexExpr> oshape({dshape[0], dshape[1], dshape[2], dshape[3]});
+  std::vector<IndexExpr> oshape;
+  for (const auto& e : dshape) {
+    oshape.push_back(e);
+  }
+
   if (param->ceil_mode) {
     oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] +
                     param->strides[0] - 1) / param->strides[0]) + 1;
