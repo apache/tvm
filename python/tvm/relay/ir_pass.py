@@ -19,6 +19,7 @@ def post_order_visit(expr, fvisit):
     ----------
     expr : tvm.relay.Expr
         The input expression.
+
     fvisit : function
         The visitor function to be applied.
     """
@@ -34,7 +35,6 @@ def infer_type(expr, mod=None):
 
     mod: Optional[tvm.relay.Module]
         The global module.
-
 
     Returns
     -------
@@ -112,11 +112,11 @@ def check_kind(t, mod=None):
 
     Parameters
     ----------
-    t: tvm.relay.Type
+    t : tvm.relay.Type
         The type to check
 
-    mod: tvm.relay.Module, optional
-        The global module
+    mod : Optional[tvm.relay.Module]
+        The global module.
 
     Returns
     -------
@@ -480,8 +480,35 @@ def collect_device_annotation_ops(expr):
     return _ir_pass.CollectDeviceAnnotationOps(expr)
 
 
+def to_anf(expr, mod=None):
+    """
+    Turn Graph Normal Form expression into A Normal Form Expression.
+
+    The scope of the root expression is the global scope.
+
+    The scope of any non root expression is the least common ancestor of all it's scope.
+
+    Values are ordered by post-DFS order in each scope.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    mod: Optional[tvm.relay.Module]
+        The global module.
+
+    Returns
+    -------
+    expr: tvm.relay.Expr
+      The output expression.
+    """
+    return _ir_pass.to_anf(expr, mod)
+
+
 def gradient(expr, mod=None):
-    """.
+    """
+    Transform a function to return original result paired with gradient of input.
 
     Parameters
     ----------
@@ -489,11 +516,10 @@ def gradient(expr, mod=None):
         The input expression, which is a Function or a GlobalVar.
 
     mod : Optional[tvm.relay.Module]
-        The global module.
 
     Returns
     -------
-    ret : tvm.relay.Expr
-        A function that calculate the original result paired with gradient.
+    expr : tvm.relay.Expr
+      The output expression.
     """
     return _ir_pass.first_order_gradient(expr, mod)
