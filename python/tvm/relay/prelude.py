@@ -81,6 +81,15 @@ class Prelude:
         self.mod[self.foldr] = Function([f, bv, av],
                                         Match(av, [nil_case, cons_case]), None, [a, b])
 
+    def define_option_adt(self):
+        """Defines an option ADT, which can either contain some other
+        type or nothing at all."""
+        self.option = GlobalTypeVar("option")
+        a = TypeVar("a")
+        self.some = Constructor("some", [a], self.option)
+        self.none = Constructor("none", [], self.option)
+        self.mod[self.option] = TypeData(self.option, [a], [self.some, self.none])
+
     def define_nat_adt(self):
         """Defines a Peano (unary) natural number ADT.
         Zero is represented by z(). s(n) adds 1 to a nat n."""
@@ -176,6 +185,8 @@ class Prelude:
         self.define_list_map()
         self.define_list_foldl()
         self.define_list_foldr()
+
+        self.define_option_adt()
 
         self.define_nat_adt()
         self.define_nat_double()

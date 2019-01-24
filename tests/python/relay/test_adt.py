@@ -16,6 +16,9 @@ nat = p.nat
 double = p.double
 add = p.add
 
+some = p.some
+none = p.none
+
 nil = p.nil
 cons = p.cons
 l = p.l
@@ -170,6 +173,27 @@ def test_sum():
     assert mod[sum].checked_type == relay.FuncType([l(nat())], nat())
     res = intrp.evaluate(sum(cons(build_nat(1), cons(build_nat(2), nil()))))
     assert count(res) == 3
+
+
+def test_option_matching():
+    x = relay.Var('x')
+    y = relay.Var('y')
+    v = relay.Var('v')
+    condense = relay.Function(
+        [x, y],
+        relay.Match(x, [
+            relay.Clause(relay.PatternConstructor(some, [relay.PatternVar(v)]), cons(v, y)),
+            relay.Clause(relay.PatternConstructor(none), y)
+        ]))
+
+    res = intrp.evaluate(foldr(condense, nil(), cons(
+        some(build_nat(3)),
+        cons(none(), cons(some(build_nat(1)), nil())))))
+
+    reduced = to_list(res)
+    assert len(reduced) == 2
+    assert count(reduced[0]) == 3
+    assert count(reduced[1]) == 1
 
 
 def test_tmap():
