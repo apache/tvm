@@ -1619,7 +1619,7 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
   CHECK(src_layout.defined() && dst_layout.defined())
     << "cannot convert from/to undefined layout";
 
-  auto layout_converter = BijectiveLayout(src_layout, dst_layout);
+  auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
   CHECK(layout_converter.defined())
     << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
 
@@ -1665,7 +1665,7 @@ bool LayoutTransformRel(const Array<Type>& types,
   CHECK(src_layout.defined() && dst_layout.defined())
     << "cannot convert from/to undefined layout";
 
-  auto layout_converter = BijectiveLayout(src_layout, dst_layout);
+  auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
   CHECK(layout_converter.defined())
     << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
 

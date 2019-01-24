@@ -32,7 +32,7 @@ bool UpSamplingRel(const Array<Type>& types,
   CHECK(param != nullptr);
   const Layout in_layout(param->layout);
 
-  auto layout_converter = BijectiveLayout(in_layout, kNCHW);
+  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
   CHECK(layout_converter.defined())
     << "UpSampling only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;

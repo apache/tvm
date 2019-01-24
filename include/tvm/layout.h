@@ -203,11 +203,11 @@ class Layout;
 class LayoutNode : public Node {
  public:
   std::string name;
-  Array<IterVar> axis;
+  Array<IterVar> axes;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
-    v->Visit("axis", &axis);
+    v->Visit("axes", &axes);
   }
 
   TVM_DLL static Layout make(const std::string& layout);
@@ -286,14 +286,14 @@ class Layout : public NodeRef {
   /*! \return number of dimensions */
   inline size_t ndim() const {
     if (!defined()) return 0;
-    return operator->()->axis.size();
+    return operator->()->axes.size();
   }
 
   /*! \return number of super dimensions */
   inline size_t ndim_primal() const {
     if (!defined()) return 0;
     size_t ct = 0;
-    for (auto x : operator->()->axis) {
+    for (auto x : operator->()->axes) {
       if (LayoutAxis::Get(x).IsPrimal()) {
         ct++;
       }
@@ -310,7 +310,7 @@ class Layout : public NodeRef {
    */
   inline int32_t IndexOf(const LayoutAxis& axis) const {
     if (!this->defined()) return -1;
-    const auto axes = operator->()->axis;
+    const auto axes = operator->()->axes;
     for (size_t i = 0; i < axes.size(); ++i) {
       if (axes[i]->var.get()->name_hint == axis.name()) return static_cast<int32_t>(i);
     }
@@ -318,9 +318,10 @@ class Layout : public NodeRef {
   }
 
   /*!
+   * \brief Get the factor size of the subordinate axis.
    * \param axis the input primal-axis or subordinate-axis.
    * \return the size of the subordinate-axis of \p axis (if \p axis is a primal-axis),
-   *         or the size of \p axis itself (if \p axis is a primal-axis).
+   *         or the size of \p axis itself (if \p axis is a subordinate-axis).
    *         Return -1 if \p axis is not in the layout the layout is undefined.
    */
   int64_t FactorOf(const LayoutAxis& axis) const;
@@ -332,7 +333,7 @@ class Layout : public NodeRef {
    */
   bool Contains(const LayoutAxis& axis) const {
     if (!defined()) return false;
-    for (const IterVar var : operator->()->axis) {
+    for (const IterVar var : operator->()->axes) {
       if (var->var.get()->name_hint == axis.name()) {
         return true;
       }
@@ -344,7 +345,7 @@ class Layout : public NodeRef {
     CHECK(defined()) << "Try to access axis from an undefined layout.";
     int32_t index = i < 0 ? static_cast<int32_t>(ndim() + i) : i;
     CHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
-    const IterVar axis = operator->()->axis[index];
+    const IterVar axis = operator->()->axes[index];
     return LayoutAxis::Get(axis);
   }
 
@@ -380,30 +381,25 @@ class Layout : public NodeRef {
 class BijectiveLayout;
 class BijectiveLayoutNode : public Node {
 public:
-  // The original axis, with symbolic shape
-  Array<IterVar> orig_axis;
-  Array<IterVar> store_axis;
   // expression of each location, on how original location can be mapped
   // to the store location, example
   // [i0 / 16, i1, i0 % 16]
   Array<Expr> forward_rule;
   Array<Expr> backward_rule;
 
-  Layout orig_layout;
-  Layout store_layout;
+  Layout src_layout;
+  Layout dst_layout;
 
   void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("orig_axis", &orig_axis);
-    v->Visit("store_axis", &store_axis);
-    v->Visit("orig_layout", &orig_layout);
-    v->Visit("store_layout", &store_layout);
+    v->Visit("src_layout", &src_layout);
+    v->Visit("dst_layout", &dst_layout);
   }
 
   static constexpr const char* _type_key = "BijectiveLayout";
   TVM_DECLARE_NODE_TYPE_INFO(BijectiveLayoutNode, Node);
 
-  TVM_DLL static BijectiveLayout make(const std::string& orig_layout,
-                                      const std::string& store_layout);
+  TVM_DLL static BijectiveLayout make(const Layout& src_layout,
+                                      const Layout& dst_layout);
 };
 
 class BijectiveLayout : public NodeRef {
@@ -411,21 +407,19 @@ class BijectiveLayout : public NodeRef {
   BijectiveLayout() = default;
   explicit BijectiveLayout(NodePtr<Node> n) : NodeRef(n) {}
 
-  BijectiveLayout(const Layout& orig_layout, const Layout& store_layout);
-
-  // Final shape of the underlying array, given the shape of the normal layout
+  // Given the shape of the original layout, infer the store shape.
   TVM_DLL Array<Expr> ForwardShape(const Array<Expr>& shape) const;
-  // Given final shape, recover the original shape.
+  // Given the store shape, recover the original shape.
   TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& shape) const;
-  // Final index of the underlying array, given the normal layout.
+  // Given the indices of the original layout, infer the store index.
   TVM_DLL Array<Expr> ForwardIndex(const Array<Expr>& index) const;
-  // Given store index, recover the original representation space index.
+  // Given the store indices, recover the original representation space index.
   TVM_DLL Array<Expr> BackwardIndex(const Array<Expr>& store_index) const;
 
   /*!
-  * \brief access the internal node container
-  * \return the pointer to the internal node container
-  */
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
   inline const BijectiveLayoutNode* operator->() const;
 
   /*! \brief specify container node */

@@ -114,7 +114,7 @@ inline bool IsDepthwiseConv2D(const Call& call,
                               const Conv2DAttrs* param,
                               const Layout& kernel_layout) {
   static const Layout kOIHW("OIHW");
-  const auto bilayout = BijectiveLayout(kernel_layout, kOIHW);
+  const auto bilayout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
   auto wshape = bilayout.ForwardShape(call->args[1]->type_as<TensorTypeNode>()->shape);
   return is_const_int(wshape[0], param->groups) &&
       is_const_int(wshape[1], 1);

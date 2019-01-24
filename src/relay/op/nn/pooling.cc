@@ -122,6 +122,7 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
                             const Array<Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
+  static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
   auto pool_size = param->pool_size;
@@ -130,7 +131,7 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
 
-  CHECK(BijectiveLayout(layout, Layout("NCHW")).defined())
+  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
       << "max_pool2d currently only supports layouts that are convertible from NCHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::h), -1)
       << "max_pool2d does not support input split on height";
@@ -293,10 +294,11 @@ Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
                                   const Array<Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
+  static const Layout kNCHW("kNCHW");
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
-  CHECK(BijectiveLayout(layout, Layout("NCHW")).defined())
+  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
     << "global_avg_pool2d currently only supports layouts that are convertible from NCHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::h), -1)
     << "global_avg_pool2d does not support input split on height";

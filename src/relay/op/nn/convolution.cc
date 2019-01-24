@@ -32,18 +32,18 @@ bool Conv2DRel(const Array<Type>& types,
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
-  const auto trans_in_layout = BijectiveLayout(in_layout, kNCHW);
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
   CHECK(trans_in_layout.defined())
     << "Conv only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
 
-  const auto trans_kernel_layout = BijectiveLayout(kernel_layout, kOIHW);
+  const auto trans_kernel_layout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
   CHECK(trans_kernel_layout.defined())
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
-  const auto trans_out_layout = BijectiveLayout(out_layout, kNCHW);
+  const auto trans_out_layout = BijectiveLayoutNode::make(out_layout, kNCHW);
   CHECK(trans_out_layout.defined())
       << "Conv only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
@@ -200,18 +200,18 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
-  const auto trans_in_layout = BijectiveLayout(in_layout, kNCHW);
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
   CHECK(trans_in_layout.defined())
     << "Conv only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
 
-  const auto trans_kernel_layout = BijectiveLayout(kernel_layout, kOIHW);
+  const auto trans_kernel_layout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
   CHECK(trans_kernel_layout.defined())
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
-  const auto trans_out_layout = BijectiveLayout(out_layout, kNCHW);
+  const auto trans_out_layout = BijectiveLayoutNode::make(out_layout, kNCHW);
   CHECK(trans_out_layout.defined())
     << "Conv only support output layouts that are convertible from NCHW."
     << " But got " << out_layout;
@@ -361,18 +361,18 @@ bool Conv2DWinogradRel(const Array<Type>& types,
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
-  const auto trans_in_layout = BijectiveLayout(in_layout, kNCHW);
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
   CHECK(trans_in_layout.defined())
     << "Conv only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
 
-  const auto trans_kernel_layout = BijectiveLayout(kernel_layout, kOIHW);
+  const auto trans_kernel_layout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
   CHECK(trans_kernel_layout.defined())
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
-  const auto trans_out_layout = BijectiveLayout(out_layout, kNCHW);
+  const auto trans_out_layout = BijectiveLayoutNode::make(out_layout, kNCHW);
   CHECK(trans_out_layout.defined())
       << "Conv only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;

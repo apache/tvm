@@ -39,7 +39,6 @@ def test_bilayout_convertible():
 
 def test_bilayout_shape():
     bilayout = tvm.bijective_layout("NCHW", "NCHW16c")
-
     assert isinstance(bilayout, tvm.schedule.BijectiveLayout)
 
     dst_shape = bilayout.forward_shape((1, 32, 7, 7))
@@ -50,9 +49,12 @@ def test_bilayout_shape():
 
 def test_bilayout_index():
     bilayout = tvm.bijective_layout("NCHW", "NCHW16c")
-    dst_index = bilayout.forward_index([tvm.var("N"), tvm.var("C"), tvm.var("H"), tvm.var("W")])
-    print(dst_index)
-    assert dst_index == [tvm.var("N"), tvm.var("C")/16, tvm.var("H"), tvm.var("W"), tvm.var("C")%16]
+
+    dst_index = bilayout.forward_index([0, 18, 6, 6])
+    assert [x.value for x in dst_index] == [0, 1, 6, 6, 2]
+
+    src_index = bilayout.backward_index([0, 1, 6, 6, 2])
+    assert [x.value for x in src_index] == [0, 18, 6, 6]
 
 if __name__ == "__main__":
     test_layout()

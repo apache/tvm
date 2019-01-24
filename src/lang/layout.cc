@@ -67,7 +67,7 @@ const LayoutAxis LayoutAxis::z = LayoutAxis('z');
 Layout::Layout(const Array<IterVar>& axes) {
   node_ = make_node<LayoutNode>();
   LayoutNode *node = operator->();
-  node->axis = axes;
+  node->axes = axes;
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
     if (const auto* factor = axis->dom->extent.as<IntImm>()) {
@@ -101,13 +101,13 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
       shape_name.insert(0, 1, c);
       IterVar axis = IterVarNode::make(Range(Expr(0), Var(shape_name)),
                                        Var(std::string(1, c)), kDataPar);
-      node->axis.push_back(axis);
+      node->axes.push_back(axis);
     } else if (c >= 'a' && c <= 'z') {
       CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                           << factor << " for dimension " << c;
       IterVar axis = IterVarNode::make(Range(Expr(0), Expr(factor)),
                                        Var(std::string(1, c)), kDataPar);
-      node->axis.push_back(axis);
+      node->axes.push_back(axis);
       factor = 0;
     } else if (c >= '0' && c <= '9') {
       CHECK(factor >= 0) << "Invalid layout " << name << ": _ is adjacent to a number.";
@@ -119,7 +119,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
 
   // validate layout
   std::vector<bool> exist_axis(256, false);
-  for (const IterVar& v : node->axis) {
+  for (const IterVar& v : node->axes) {
     auto axis_str = v->var.get()->name_hint;
     CHECK_EQ(axis_str.size(), 1);
     char axis = axis_str[0];
@@ -127,7 +127,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
     CHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
     exist_axis[axis] = true;
   }
-  for (const IterVar& v : node->axis) {
+  for (const IterVar& v : node->axes) {
     char axis = v->var.get()->name_hint[0];
     if (axis >= 'a' && axis <= 'z') {
       CHECK(exist_axis[axis-'a'+'A']) << "Invalid layout " << name << ": missing axis "
@@ -144,7 +144,7 @@ Layout Layout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return Layout::Undef();
   if (pos + len > ndim()) len = ndim() - pos;
   Array<IterVar> new_layout;
-  const auto axes = operator->()->axis;
+  const auto axes = operator->()->axes;
   for (size_t i = pos; i < pos + len; ++i) {
     new_layout.push_back(axes[i]);
   }
@@ -154,7 +154,7 @@ Layout Layout::SubLayout(size_t pos, size_t len) const {
 Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int64_t factor) const {
   if (!defined()) return Layout::Undef();
   const std::string& name = operator->()->name;
-  const auto axes = operator->()->axis;
+  const auto axes = operator->()->axes;
   CHECK(target_pos <= this->ndim()) << "Invalid split position "
                                     << target_pos << " for layout " << name;
   CHECK(axis.IsPrimal()) << "Cannot split a subordinate axis " << axis;
@@ -178,7 +178,7 @@ int64_t Layout::FactorOf(const LayoutAxis& axis) const {
   if (!defined()) return -1;
   const LayoutAxis& sub = axis.to_subordinate();
   if (!this->defined()) return -1;
-  for (const IterVar& itvar : operator->()->axis) {
+  for (const IterVar& itvar : operator->()->axes) {
     if (sub == LayoutAxis::Get(itvar)) {
       const auto* factor = itvar->dom->extent.as<IntImm>();
       CHECK(factor);
@@ -189,20 +189,20 @@ int64_t Layout::FactorOf(const LayoutAxis& axis) const {
 }
 
 inline bool GetStoreRule(Array<Expr>& rule,
-                         const Layout& orig_layout,
-                         const Layout& store_layout) {
-  for (size_t i = 0; i < store_layout.ndim(); ++i) {
-    const auto& store_axis = store_layout[i];
-    const IterVar& store_axis_impl = store_layout->axis[i];
+                         const Layout& src_layout,
+                         const Layout& dst_layout) {
+  for (size_t i = 0; i < dst_layout.ndim(); ++i) {
+    const auto& store_axis = dst_layout[i];
+    const IterVar& store_axis_impl = dst_layout->axes[i];
     Expr store(0);
 
-    for (size_t j = 0; j < orig_layout.ndim(); ++j) {
-      const auto& orig_axis = orig_layout[j];
-      const IterVar& orig_axis_impl = orig_layout->axis[j];
+    for (size_t j = 0; j < src_layout.ndim(); ++j) {
+      const auto& orig_axis = src_layout[j];
+      const IterVar& orig_axis_impl = src_layout->axes[j];
       if (store_axis.to_primal() == orig_axis.to_primal()) {
         if (orig_axis.IsPrimal()) {
           Expr orig_var = orig_axis_impl->var;
-          const int64_t factor = orig_layout.FactorOf(orig_axis);
+          const int64_t factor = src_layout.FactorOf(orig_axis);
           if (factor > 0) {
             orig_var = orig_var * Expr(factor);
           }
@@ -218,7 +218,7 @@ inline bool GetStoreRule(Array<Expr>& rule,
     }
 
     if (store_axis.IsPrimal()) {
-      const int64_t factor = store_layout.FactorOf(store_axis);
+      const int64_t factor = dst_layout.FactorOf(store_axis);
       if (factor > 0) {
         store = store / Expr(factor);
       }
@@ -229,24 +229,6 @@ inline bool GetStoreRule(Array<Expr>& rule,
     rule.push_back(store);
   }
   return true;
-}
-
-BijectiveLayout::BijectiveLayout(const Layout& orig_layout, const Layout& store_layout) {
-  auto n = make_node<BijectiveLayoutNode>();
-
-  n->orig_layout = orig_layout;
-  n->orig_axis = orig_layout->axis;
-
-  n->store_layout = store_layout;
-  n->store_axis = store_layout->axis;
-
-  if (!GetStoreRule(n->forward_rule, n->orig_layout, n->store_layout)) {
-    // not convertible
-    return;
-  }
-  CHECK(GetStoreRule(n->backward_rule, n->store_layout, n->orig_layout));
-
-  node_ = n;
 }
 
 inline Array<Expr> TransformIndex(const Array<Expr>& src_index,
@@ -263,21 +245,21 @@ inline Array<Expr> TransformIndex(const Array<Expr>& src_index,
   return result;
 }
 
-Array<Expr> BijectiveLayout::ForwardIndex(const Array<Expr>& orig_index) const {
+Array<Expr> BijectiveLayout::ForwardIndex(const Array<Expr>& src_index) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  CHECK_EQ(orig_index.size(), self->orig_axis.size())
-    << "Input mismatch with layout " << self->orig_layout;
-  return TransformIndex(orig_index, self->orig_axis, self->forward_rule);
+  CHECK_EQ(src_index.size(), self->src_layout->axes.size())
+    << "Input mismatch with layout " << self->src_layout;
+  return TransformIndex(src_index, self->src_layout->axes, self->forward_rule);
 }
 
 
-Array<Expr> BijectiveLayout::BackwardIndex(const Array<Expr>& store_index) const {
+Array<Expr> BijectiveLayout::BackwardIndex(const Array<Expr>& dst_index) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  CHECK_EQ(store_index.size(), self->store_axis.size())
-    << "Output mismatch with layout " << self->store_layout;
-  return TransformIndex(store_index, self->store_axis, self->backward_rule);
+  CHECK_EQ(dst_index.size(), self->dst_layout->axes.size())
+    << "Output mismatch with layout " << self->dst_layout;
+  return TransformIndex(dst_index, self->dst_layout->axes, self->backward_rule);
 }
 
 inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
@@ -326,18 +308,31 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
 Array<Expr> BijectiveLayout::ForwardShape(const Array<Expr>& shape) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  return TransformShape(shape, self->orig_axis, self->store_axis, self->forward_rule);
+  return TransformShape(shape, self->src_layout->axes,
+                        self->dst_layout->axes, self->forward_rule);
 }
 
 Array<Expr> BijectiveLayout::BackwardShape(const Array<Expr>& shape) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
-  return TransformShape(shape, self->store_axis, self->orig_axis, self->backward_rule);
+  return TransformShape(shape, self->dst_layout->axes,
+                        self->src_layout->axes, self->backward_rule);
 }
 
-BijectiveLayout BijectiveLayoutNode::make(const std::string& orig_layout,
-                                          const std::string& store_layout) {
-  return BijectiveLayout(Layout(orig_layout), Layout(store_layout));
+BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
+                                          const Layout& dst_layout) {
+  auto n = make_node<BijectiveLayoutNode>();
+
+  n->src_layout = src_layout;
+  n->dst_layout = dst_layout;
+
+  if (!GetStoreRule(n->forward_rule, n->src_layout, n->dst_layout)) {
+    // not convertible
+    return BijectiveLayout();
+  }
+  CHECK(GetStoreRule(n->backward_rule, n->dst_layout, n->src_layout));
+
+  return BijectiveLayout(n);
 }
 
 }  // namespace tvm
