@@ -296,6 +296,26 @@ struct StructuralHash {
   size_t operator()(const Expr& expr) const;
 };
 
+/*! \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
+ *
+ * It will turn an expression that is in a graph form (with sharing implicit),
+ * to an expression with explicit sharing (A-Normal Form).
+ *
+ * The scope of the root expression is the global scope.
+
+ * The scope of any non root expression is the least common ancestor of all it's scope.
+ *
+ * Values are ordered by post-DFS order in each scope.
+ *
+ * \param e the expression to observably share
+ *
+ * \param mod The module used for referencing global functions, can be
+ * None.
+ *
+ * \return expression in A-Normal Form
+ */
+Expr ToANF(const Expr& e, const Module& mod);
+
 }  // namespace relay
 }  // namespace tvm
 
