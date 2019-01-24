@@ -175,7 +175,8 @@ class Socket {
    */
   void Bind(const SockAddr &addr) {
     if (bind(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
-             sizeof(addr.addr)) == -1) {
+             (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) :
+                                                sizeof(sockaddr_in))) == -1) {
       Socket::Error("Bind");
     }
   }
@@ -189,7 +190,8 @@ class Socket {
     for (int port = start_port; port < end_port; ++port) {
       SockAddr addr("0.0.0.0", port);
       if (bind(sockfd, reinterpret_cast<sockaddr*>(&addr.addr),
-               sizeof(addr.addr)) == 0) {
+               (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) :
+                                                  sizeof(sockaddr_in))) == 0) {
         return port;
       }
 #if defined(_WIN32)
@@ -371,7 +373,8 @@ class TCPSocket : public Socket {
    */
   bool Connect(const SockAddr &addr) {
     return connect(sockfd, reinterpret_cast<const sockaddr*>(&addr.addr),
-                   sizeof(addr.addr)) == 0;
+                   (addr.addr.ss_family == AF_INET6 ? sizeof(sockaddr_in6) :
+                                                      sizeof(sockaddr_in))) == 0;
   }
   /*!
    * \brief send data using the socket
