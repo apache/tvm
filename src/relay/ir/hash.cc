@@ -368,7 +368,7 @@ class RelayHashHandler:
 
   size_t VisitPattern_(const PatternVarNode* pvn) final {
     size_t hash = std::hash<std::string>()(PatternVarNode::_type_key);
-    hash = Combine(hash, ExprHash(pvn->var));
+    hash = Combine(hash, BindVar(pvn->var));
     return hash;
   }
 

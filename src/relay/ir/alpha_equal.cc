@@ -425,18 +425,18 @@ class AlphaEqualHandler:
     return VisitPattern(l, r);
   }
 
-  bool VisitPattern_(const PatternWildcardNode* op, const Pattern& r) {
+  bool VisitPattern_(const PatternWildcardNode* op, const Pattern& r) final {
     return r.as<PatternWildcardNode>();
   }
 
-  bool VisitPattern_(const PatternVarNode* op, const Pattern& e2) {
+  bool VisitPattern_(const PatternVarNode* op, const Pattern& e2) final {
     if (const auto* r = e2.as<PatternVarNode>()) {
-      return ExprEqual(op->var, r->var);
+      return MergeVarDecl(op->var, r->var);
     }
     return false;
   }
 
-  bool VisitPattern_(const PatternConstructorNode* op, const Pattern& e2) {
+  bool VisitPattern_(const PatternConstructorNode* op, const Pattern& e2) final {
     const auto* r = e2.as<PatternConstructorNode>();
     if (r == nullptr
         || !ExprEqual(op->con, r->con)
