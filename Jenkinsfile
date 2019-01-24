@@ -220,7 +220,6 @@ stage('Integration Test') {
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_topi.sh"
-          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_cpp_topi.sh"
         }
       }
     }
