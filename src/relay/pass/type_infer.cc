@@ -207,7 +207,16 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       << "Cannot do type inference without a environment:"
       << con->con->name_hint;
     TypeData td = mod_->type_definitions.at(con->con->belong_to);
-    auto* tc = t.as<TypeCallNode>();
+
+    // we can expect a certain number of arguments
+    Array<Type> unknown_args;
+    for (size_t i = 0; i < td->tv.size(); i++) {
+      unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
+    }
+    Type expected = TypeCallNode::make(con->con->belong_to, unknown_args);
+    Type unified = Unify(t, expected, con->span);
+
+    auto* tc = unified.as<TypeCallNode>();
     CHECK(tc) << "must be type call";
     CHECK_EQ(td->header, tc->func);
     CHECK(td->tv.size() == tc->args.size()) << "both side must be equal";
