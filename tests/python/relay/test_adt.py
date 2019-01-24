@@ -209,6 +209,78 @@ def test_size():
     assert count(res) == 10
 
 
+def test_wildcard_match_solo():
+    x = relay.Var('x', nat())
+    copy = relay.Function([x],
+                          relay.Match(x, [relay.Clause(relay.PatternWildcard(), x)]),
+                          nat())
+
+    res = intrp.evaluate(copy(s(s(s(z())))))
+    assert count(res) == 3
+
+
+def test_wildcard_match_order():
+    x = relay.Var('x', l(nat()))
+    y = relay.Var('y')
+    a = relay.Var('a')
+    return_zero = relay.Function(
+        [x],
+        relay.Match(x, [
+            relay.Clause(relay.PatternWildcard(), z()),
+            relay.Clause(
+                relay.PatternConstructor(
+                    cons, [relay.PatternVar(y), relay.PatternVar(a)]),
+                y),
+            relay.Clause(relay.PatternConstructor(nil), s(z()))
+        ]),
+        nat())
+
+    res = intrp.evaluate(return_zero(cons(s(z()), nil())))
+    # wildcard pattern is evaluated first
+    assert count(res) == 0
+
+
+def test_nested_matches():
+    a = relay.TypeVar('a')
+    x = relay.Var('x', l(l(a)))
+    y = relay.Var('y')
+    w = relay.Var('w')
+    h = relay.Var('h')
+    t = relay.Var('t')
+    flatten = relay.GlobalVar('flatten')
+
+    # flatten could be written using a fold, but this way has nested matches
+    inner_match = relay.Match(
+        y, [
+            relay.Clause(relay.PatternConstructor(nil), flatten(w)),
+            relay.Clause(relay.PatternConstructor(
+                cons, [relay.PatternVar(h), relay.PatternVar(t)]),
+                cons(h, flatten(cons(t, w))))
+        ])
+
+    mod[flatten] = relay.Function(
+        [x],
+        relay.Match(x, [
+            relay.Clause(relay.PatternConstructor(nil), nil()),
+            relay.Clause(relay.PatternConstructor(
+                cons, [relay.PatternVar(y), relay.PatternVar(w)]),
+                         inner_match)
+        ]), l(a), [a])
+
+    first_list = cons(build_nat(1), cons(build_nat(2),
+                                         cons(build_nat(3), nil())))
+    second_list = cons(build_nat(4), cons(build_nat(5),
+                                          cons(build_nat(6), nil())))
+    final_list = cons(first_list, cons(second_list, nil()))
+
+    res = intrp.evaluate(flatten(final_list))
+
+    flat = to_list(res)
+    assert len(flat) == 6
+    for i in range(6):
+        assert count(flat[i]) == i + 1
+
+
 if __name__ == "__main__":
     test_nat_constructor()
     test_double()
