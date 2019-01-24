@@ -29,7 +29,7 @@ dependencies {
 Now use Gradle to compile JNI, resolve Java dependencies and build the Android application together with tvm4j. Run following script to generate the apk file.
 
 ```bash
-export ANDROID_HOME=[Path to your Android SDK, e.g., ~/Android/sdk]
+export ANDROID_HOME=[Path to your Android SDK, e.g., ~/Android/sdk/ndk-bundle]
 cd apps/android_rpc
 gradle clean build
 ```
