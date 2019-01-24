@@ -231,7 +231,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   }
 
   void VisitPattern_(const PatternVarNode* pv, const Type& t) {
-    type_map_[pv->var] = ResolvedTypeInfo(t, {});
+    Type vt = GetType(pv->var);
+    Unify(vt, t, pv->span);
   }
 
   void VisitPattern_(const PatternWildcardNode* wc, const Type& t) { }

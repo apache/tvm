@@ -241,6 +241,26 @@ def test_adt_match():
     assert mt.checked_type == relay.TupleType([])
 
 
+def test_adt_match_type_annotations():
+    mod = relay.Module()
+    box, constructor = initialize_box_adt(mod)
+
+    # the only type annotation is inside the match pattern var
+    # but that should be enough info
+    tt = relay.TensorType((2, 2), 'float32')
+    x = relay.Var('x')
+    mv = relay.Var('mv', tt)
+    match = relay.Match(constructor(x),
+                        [relay.Clause(
+                            relay.PatternConstructor(constructor,
+                                                     [relay.PatternVar(mv)]),
+                                                     relay.Tuple([]))])
+
+    func = relay.Function([x], match)
+    ft = relay.ir_pass.infer_type(func, mod)
+    assert ft.checked_type == relay.FuncType([tt], relay.TupleType([]))
+
+
 if __name__ == "__main__":
     test_free_expr()
     test_dual_op()
