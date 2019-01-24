@@ -540,8 +540,8 @@ Example::
 
 Example::
 
-- with reverse=false, for input shape = (10,5,4), shape = (-1,0), output shape would be (40,5).
-- with reverse=true, output shape will be (50,4).
+- with reverse = False, data.shape = (10,5,4), newshape = (-1,0), result.shape = (40,5)
+- with reverse = True, result.shape = (50,4)
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)

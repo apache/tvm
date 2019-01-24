@@ -141,15 +141,16 @@ def reshape(data, newshape, reverse=False):
 
     Example::
 
-    - data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape =(1,2,3,4)
+    - data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape = (1,2,3,4)
     - data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
 
-    - If the argument reverse is set to True, then the special values are inferred from right to left.
+    - If the argument reverse is set to True, then the special values are inferred
+    from right to left.
 
     Example::
 
-    - with reverse=False, for input shape = (10,5,4), shape = (-1,0), output shape would be (40,5).
-    - with reverse=True, output shape will be (50,4).
+    - with reverse = False, data.shape = (10,5,4), newshape = (-1,0), result.shape = (40,5)
+    - with reverse = True, result.shape = (50,4)
 
     Parameters
     ----------
