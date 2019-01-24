@@ -281,6 +281,52 @@ def test_nested_matches():
         assert count(flat[i]) == i + 1
 
 
+def test_match_full_var():
+    x = relay.Var('x')
+    v = relay.Var('v')
+    id_func = relay.Function([x],
+                             relay.Match(x,
+                                         [relay.Clause(relay.PatternVar(v),
+                                                       v)]))
+
+    res1 = intrp.evaluate(id_func(nil()))
+    res2 = intrp.evaluate(id_func(cons(z(), cons(z(), nil()))))
+
+    empty = to_list(res1)
+    assert len(empty) == 0
+
+    zeroes = to_list(res2)
+    assert len(zeroes) == 2
+    assert count(zeroes[0]) == 0
+    assert count(zeroes[1]) == 0
+
+
+def test_nested_pattern_match():
+    x = relay.Var('x', l(nat()))
+    h1 = relay.Var('h1')
+    h2 = relay.Var('h2')
+    t = relay.Var('t')
+    match = relay.Match(
+        x,
+        [relay.Clause(
+            relay.PatternConstructor(
+                cons,
+                [relay.PatternVar(h1),
+                 relay.PatternConstructor(
+                    cons,
+                     [relay.PatternVar(h2), relay.PatternVar(t)])]),
+            h2),
+         relay.Clause(relay.PatternWildcard(), z())
+        ])
+    get_second = relay.Function([x], match)
+
+    res = intrp.evaluate(get_second(cons(s(z()),
+                                         cons(s(s(z())),
+                                              nil()))))
+
+    assert count(res) == 2
+
+
 if __name__ == "__main__":
     test_nat_constructor()
     test_double()
