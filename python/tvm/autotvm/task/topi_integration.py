@@ -17,7 +17,7 @@ from .task import args_to_workload, dispatcher, register
 from ..util import get_const_tuple
 
 # A table that records all registered dispatcher for all targets
-_REGISTED_DISPATHCER = {
+_REGISTERED_DISPATCHER = {
 }
 
 
@@ -210,7 +210,7 @@ class TaskExtractEnv:
 def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
     """Register a tunable template for a topi compute function.
 
-    After the registration. This topi compute will become a configuration dispatcher. It uses
+    After the registration, this topi compute will become a configuration dispatcher. It uses
     all its argument as workload and dispatches configurations according to the input workload.
 
     It also stores this "workload" to its final ComputeOp, which can be used to reconstruct
@@ -243,18 +243,18 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
     def _decorator(f):
         targets = [target_keys] if isinstance(target_keys, str) else target_keys
         for target_key in targets:
-            if target_key not in _REGISTED_DISPATHCER:
-                _REGISTED_DISPATHCER[target_key] = {}
-            if topi_compute not in _REGISTED_DISPATHCER[target_key]:
+            if target_key not in _REGISTERED_DISPATCHER:
+                _REGISTERED_DISPATCHER[target_key] = {}
+            if topi_compute not in _REGISTERED_DISPATCHER[target_key]:
                 @topi_compute.register(target_key)
                 @dispatcher
                 def config_dispatcher(*args, **kwargs):
                     """override topi call as a config dispatcher"""
                     assert not kwargs, "Do not support kwargs in template function call"
                     return args_to_workload(args, topi_compute)
-                _REGISTED_DISPATHCER[target_key][topi_compute] = config_dispatcher
+                _REGISTERED_DISPATCHER[target_key][topi_compute] = config_dispatcher
 
-            config_dispatcher = _REGISTED_DISPATHCER[target_key][topi_compute]
+            config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_compute]
 
             @config_dispatcher.register(template_keys)
             def template_call(cfg, *args, **kwargs):
@@ -331,9 +331,9 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
     def _decorator(f):
         targets = [target_keys] if isinstance(target_keys, str) else target_keys
         for target_key in targets:
-            if target_key not in _REGISTED_DISPATHCER:
-                _REGISTED_DISPATHCER[target_key] = {}
-            if topi_schedule not in _REGISTED_DISPATHCER[target_key]:
+            if target_key not in _REGISTERED_DISPATCHER:
+                _REGISTERED_DISPATCHER[target_key] = {}
+            if topi_schedule not in _REGISTERED_DISPATCHER[target_key]:
                 @topi_schedule.register(target_key)
                 @dispatcher
                 def config_dispatcher(outs, *args, **kwargs):
@@ -357,9 +357,9 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
 
                     return args_to_workload(workload)
 
-                _REGISTED_DISPATHCER[target_key][topi_schedule] = config_dispatcher
+                _REGISTERED_DISPATCHER[target_key][topi_schedule] = config_dispatcher
 
-            config_dispatcher = _REGISTED_DISPATHCER[target_key][topi_schedule]
+            config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_schedule]
 
             @config_dispatcher.register(template_keys)
             def template_call(cfg, outs, *args, **kwargs):

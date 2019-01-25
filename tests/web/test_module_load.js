@@ -1,7 +1,7 @@
 // Load Emscripten Module, need to change path to root/lib
 const path = require("path");
-process.chdir(path.join(__dirname, "../../lib"));
-var Module = require("../../lib/test_module.js");
+process.chdir(path.join(__dirname, "../../build"));
+var Module = require("../../build/test_module.js");
 // Bootstrap TVMruntime with emscripten module.
 const tvm_runtime = require("../../web/tvm_runtime.js");
 const tvm = tvm_runtime.create(Module);

@@ -1,3 +1,5 @@
+.. _relay-dev-intro:
+
 Introduction to Relay IR
 ========================
 This article introduces Relay IR -- the second generation of NNVM.

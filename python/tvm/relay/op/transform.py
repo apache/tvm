@@ -231,7 +231,7 @@ def full(fill_value, shape=(), dtype=""):
 
 
 def full_like(data, fill_value):
-    """Return an scalar value array with the same shape and type as the input array.
+    """Return a scalar value array with the same shape and type as the input array.
 
     Parameters
     ----------
@@ -288,7 +288,7 @@ def where(condition, x, y):
     return _make.where(condition, x, y)
 
 def broadcast_to(data, shape):
-    """Return an scalar value array with the same type, broadcast to
+    """Return a scalar value array with the same type, broadcast to
     the provided shape.
 
     Parameters
@@ -307,7 +307,7 @@ def broadcast_to(data, shape):
     return _make.broadcast_to(data, shape)
 
 def broadcast_to_like(data, broadcast_type):
-    """Return an scalar value array with the same shape and type as the input array.
+    """Return a scalar value array with the same shape and type as the input array.
 
     Parameters
     ----------
@@ -326,7 +326,7 @@ def broadcast_to_like(data, broadcast_type):
 
 
 def collapse_sum_like(data, collapse_type):
-    """Return an scalar value array with the same shape and type as the input array.
+    """Return a scalar value array with the same shape and type as the input array.
 
     Parameters
     ----------
@@ -377,7 +377,7 @@ def split(data, indices_or_sections, axis=0):
 
 
 def strided_slice(data, begin, end, strides=None):
-    """Strided slice of an array..
+    """Strided slice of an array.
 
     Parameters
     ----------

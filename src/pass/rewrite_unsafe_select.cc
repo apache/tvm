@@ -95,8 +95,10 @@ class UnsafeSelectRewriter : public IRMutator {
     Expr expr = IRMutator::Mutate_(op, e);
     op = expr.as<Select>();
     UnsafeExprDetector unsafe;
-    if (unsafe.VisitExpr(op->true_value) ||
-        unsafe.VisitExpr(op->false_value)) {
+    bool cond_is_scalar_bool = op->condition.type().is_bool() && op->condition.type().is_scalar();
+    if ((unsafe.VisitExpr(op->true_value) ||
+        unsafe.VisitExpr(op->false_value)) &&
+        cond_is_scalar_bool) {
       return Call::make(
           op->type,
           intrinsic::tvm_if_then_else,

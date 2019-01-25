@@ -3,6 +3,8 @@
 from __future__ import absolute_import as _abs
 from . import _make
 from ..expr import Tuple
+from ... import nd as _nd
+from ... import TVMContext as _TVMContext
 
 # We create a wrapper function for each operator in the
 # python side to call into the positional _make.OpName function.
@@ -59,6 +61,7 @@ def sqrt(data):
         The computed result.
     """
     return _make.sqrt(data)
+
 
 def sigmoid(data):
     """Compute elementwise sigmoid of data.
@@ -213,6 +216,7 @@ def add(lhs, rhs):
     """
     return _make.add(lhs, rhs)
 
+
 def subtract(lhs, rhs):
     """Subtraction with numpy-style broadcasting.
 
@@ -229,6 +233,7 @@ def subtract(lhs, rhs):
         The computed result.
     """
     return _make.subtract(lhs, rhs)
+
 
 def multiply(lhs, rhs):
     """Multiplication with numpy-style broadcasting.
@@ -551,6 +556,7 @@ def ones_like(data):
     """
     return _make.ones_like(data)
 
+
 def clip(a, a_min, a_max):
     """Clip the elements in `a` between `a_min` and `a_max`.
     `a_min` and `a_max` are cast to `a`'s dtype.
@@ -616,3 +622,42 @@ def copy(data):
         The copied result.
     """
     return _make.copy(data)
+
+
+def device_copy(data, src_dev, dst_dev):
+    """Copy data from the source device to the destination device. This
+    operator helps data transferring between difference contexts for
+    heterogeneous execution.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The tensor to be copied.
+
+    src_dev : Union[:py:class:`TVMContext`, str]
+        The source device where the data is copied from.
+
+    dst_dev : Union[:py:class:`TVMContext`, str]
+        The destination device where the data is copied to.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The copied result.
+    """
+    if isinstance(src_dev, _TVMContext):
+        src_dev = src_dev.device_type
+    elif isinstance(src_dev, str):
+        src_dev = _nd.context(src_dev).device_type
+    else:
+        raise ValueError("src_dev is expected to be the type of TVMContext or "
+                         "str, but received %s" % (type(src_dev)))
+
+    if isinstance(dst_dev, _TVMContext):
+        dst_dev = dst_dev.device_type
+    elif isinstance(dst_dev, str):
+        dst_dev = _nd.context(dst_dev).device_type
+    else:
+        raise ValueError("dst_dev is expected to be the type of TVMContext or "
+                         "str, but received %s" % (type(dst_dev)))
+    return _make.device_copy(data, src_dev, dst_dev)

@@ -393,6 +393,42 @@ def fmod(x, y):
     """
     return call_pure_intrin(x.dtype, "fmod", x, y)
 
+
+def if_then_else(cond, t, f):
+    """Conditional selection expression.
+
+    Parameters
+    ----------
+    cond : Expr
+        The condition
+
+    t : Expr
+        The result expression if cond is true.
+
+    f : Expr
+        The result expression if cond is false.
+
+    Returns
+    -------
+    result : Node
+        The result of conditional expression.
+
+    Note
+    ----
+    Unlike Select, if_then_else will not execute
+    the branch that does not satisfy the condition.
+    You can use it to guard against out of bound access.
+    Unlike Select, if_then_else cannot be vectorized
+    if some lanes in the vector have different conditions.
+    """
+    t = convert(t)
+    f = convert(f)
+    cond = convert(cond)
+    if cond.dtype != "bool":
+        raise TypeError("The condition's data type has to be bool")
+    return call_pure_intrin(t.dtype, "tvm_if_then_else", cond, t, f)
+
+
 # Intrinsic rule related code
 def register_intrin_rule(target, intrin, f=None, override=False):
     """Register an intrinsic function generation rule.
@@ -487,6 +523,42 @@ def _rule_float_direct(op):
     if str(op.dtype).startswith("float"):
         return call_pure_extern(op.dtype, op.name, *op.args)
     return None
+
+@_register_func("tvm.default_trace_action")
+def _tvm_default_trace_action(*args):
+    print(list(args))
+
+def trace(args, trace_action="tvm.default_trace_action"):
+    """Trace tensor data at the runtime.
+
+    The trace function allows to trace specific tensor at the
+    runtime. The tracing value should come as last argument.
+    The trace action should be specified, by default
+    tvm.default_trace_action is used.
+
+    Parameters
+    ----------
+    args : list of Expr or Buffers.
+        Positional arguments.
+
+    trace_action : str.
+        The name of the trace action.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+
+    See Also
+    --------
+    tvm.call_packed : Creates packed function.
+    """
+    if not isinstance(args, list):
+        raise Exception("tvm.trace consumes the args as list type")
+    call_args = [_pack_buffer(x) if isinstance(x, _Buffer) else x for x in args]
+    call_args.insert(0, trace_action)
+    return _make.Call(
+        args[-1].dtype, "tvm_call_trace_packed", call_args, _Call.Intrinsic, None, 0)
 
 # opencl pattern for exp
 register_intrin_rule("opencl", "exp", _rule_float_direct, override=True)

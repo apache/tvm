@@ -76,7 +76,8 @@ RELAY_REGISTER_OP("cast")
 .set_support_level(3)
 .add_type_rel("Cast", CastRel)
 .set_attr<FTVMCompute>("FTVMCompute", CastCompute)
-.set_attr<TOpPattern>("TOpPattern", kElemWise);
+.set_attr<TOpPattern>("TOpPattern", kElemWise)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 // relay.expand_dims
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);

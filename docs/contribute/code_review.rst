@@ -1,3 +1,5 @@
+.. _code_review_guide:
+
 Perform Code Reviews
 ====================
 
@@ -8,9 +10,36 @@ Open source code is maintained by a community with diverse backend, and it is ev
 Here are some checklists for code reviews, it is also helpful reference for contributors
 
 
+
 Hold the Highest Standard
 -------------------------
 The first rule for code reviewers is to always keep the highest standard, and do not approve code just to "be friendly". Good, informative critics each other learn and prevents technical debt in early stages.
+
+Deliberate on API and Data Structures
+-------------------------------------
+A minimum and stable API is critical to the project’s life. A good API makes a huge difference. Always think very carefully about all the aspects including naming, argument definitions and behavior.
+
+When possible, pay more time and thoughts into the API design during code reviews.
+Remember, it is easier to improve code implementation, but it is extremely hard to change an API.
+We should do the same for data structures that are shared across modules(e.g. AST).
+When uncertain, start a conversation with more developers.
+
+Here are some useful principles for designing APIs:
+
+- Be consistent with existing well-known package’s APIs if the feature overlap.
+  For example, tensor operation APIs should always be consistent with the numpy API.
+- Be consistent with existing APIs in the same project.
+  For example, we should use the same argument ordering across all the optimization passes,
+  so there is no "surprise" when using them.
+- Think about whether the API will change in the future.
+  For example, we will have more options like loop_unrolling and device placement policy
+  as we add more optimizations in build. We can package optimization knobs into a build
+  configuration object. So that the build API is stable over time.
+- Write down documents. Documents are mandatory for APIs and sometimes writing documents helps
+  us to think about whether we need clarification.
+- Minimum. Think about how many lines of code a user has to write to use the API.
+  Remove layers of abstraction when possible.
+
 
 Ensure Test Coverage
 --------------------
@@ -19,10 +48,6 @@ Each new change of features should introduce test cases, bug fixes should includ
 Documentations are Mandatory
 ----------------------------
 Documentation is usually a place we overlooked, new functions or change to a function should be directly updated in documents. A new feature is meaningless without documentation to make it accessible. See more at :ref:`doc_guide`
-
-Deliberate on User-facing API
------------------------------
-A good, minimum and stable API is critical to the project’s life. A good API makes a huge difference. Always think very carefully about all the aspects including naming, arguments definitions and behavior. One good rule to check is to be consistent with existing well-known package’s APIs if the feature overlap. For example, tensor operation APIs should always be consistent with the numpy.
 
 Minimum Dependency
 ------------------

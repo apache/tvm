@@ -287,12 +287,12 @@ def test_multiple_func():
 
 
 
-def test_llvm_select():
+def test_llvm_condition():
     def check_llvm(n, offset):
         if not tvm.module.enabled("llvm"):
             return
         A = tvm.placeholder((n, ), name='A')
-        C = tvm.compute((n,), lambda i: tvm.select(i >= offset, A[i], 0.0), name='C')
+        C = tvm.compute((n,), lambda i: tvm.if_then_else(i >= offset, A[i], 0.0), name='C')
         s = tvm.create_schedule(C.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
@@ -422,6 +422,39 @@ def test_llvm_div():
                 check_llvm(123, 133, d, 'uint8')
                 check_llvm(0, 256, d, 'uint8')
 
+def test_llvm_fp_math():
+    def check_llvm_reciprocal(n):
+        A = tvm.placeholder((n,), name='A')
+        B = tvm.compute((n,), lambda i: 1.0/(1e+37*A[i]), name='B')
+
+        s = tvm.create_schedule(B.op)
+        f = tvm.build(s, [A, B], "llvm")
+
+        a = tvm.nd.array(np.full((n,), 100, 'float32'))
+        b = tvm.nd.empty((n,), 'float32')
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), np.zeros((n,), 'float32'))
+
+    check_llvm_reciprocal(4)
+    check_llvm_reciprocal(8)
+    check_llvm_reciprocal(16)
+
+    def check_llvm_sigmoid(n):
+        A = tvm.placeholder((n,), name='A')
+        B = tvm.compute((n,), lambda i: tvm.sigmoid(A[i]), name='B')
+
+        s = tvm.create_schedule(B.op)
+        f = tvm.build(s, [A, B], "llvm")
+
+        a = tvm.nd.array(np.full((n,), -1000, 'float32'))
+        b = tvm.nd.empty((n,), 'float32')
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), np.zeros((n,), 'float32'))
+
+    check_llvm_sigmoid(4)
+    check_llvm_sigmoid(8)
+    check_llvm_sigmoid(16)
+
 if __name__ == "__main__":
     test_llvm_import()
     test_alignment()
@@ -429,7 +462,7 @@ if __name__ == "__main__":
     test_rank_zero_bound_checkers()
     test_llvm_bool()
     test_llvm_persist_parallel()
-    test_llvm_select()
+    test_llvm_condition()
     test_llvm_vadd_pipeline()
     test_llvm_add_pipeline()
     test_llvm_intrin()
@@ -439,3 +472,4 @@ if __name__ == "__main__":
     test_llvm_temp_space()
     test_llvm_lookup_intrin()
     test_llvm_div()
+    test_llvm_fp_math()

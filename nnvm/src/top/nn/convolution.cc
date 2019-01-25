@@ -73,14 +73,12 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(param.channels % param.groups, 0U)
       << "output channels must divide group size";
 
-  TShape wshape({param.channels / param.groups,
+  TShape wshape({param.channels,
                  dshape[1] / param.groups,
                  param.kernel_size[0],
                  param.kernel_size[1]});
 
   wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
-
-  wshape[kernel_layout.indexof('O')] *= param.groups;
 
   if (in_shape->at(Conv2DParam::kWeight).ndim() == 0) {
     NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);

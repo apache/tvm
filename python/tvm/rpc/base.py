@@ -42,6 +42,11 @@ class TrackerCode(object):
 RPC_SESS_MASK = 128
 
 
+def get_addr_family(addr):
+    res = socket.getaddrinfo(addr[0], addr[1], 0, 0, socket.IPPROTO_TCP)
+    return res[0][0]
+
+
 def recvall(sock, nbytes):
     """Receive all nbytes from socket.
 
@@ -142,7 +147,7 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
     tstart = time.time()
     while True:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(get_addr_family(addr), socket.SOCK_STREAM)
             sock.connect(addr)
             return sock
         except socket.error as sock_err:

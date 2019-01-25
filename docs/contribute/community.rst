@@ -1,7 +1,10 @@
+.. _community_guide:
+
 TVM Community Guideline
 =======================
 
 TVM adopts the Apache style model and governs by merit. We believe that it is important to create an inclusive community where everyone can use, contribute to, and influence the direction of the project. See `CONTRIBUTORS.md <https://github.com/dmlc/tvm/blob/master/CONTRIBUTORS.md>`_ for the current list of contributors.
+
 
 
 General Development Process

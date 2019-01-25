@@ -62,9 +62,9 @@ def test_recursion():
                         relay.Call(f, [subtract(n, relay.const(1.0)),
                                        log(data)]))
     value = relay.Function([n, data], funcbody, e.float32, [])
-    orig = relay.Let(f, funcbody, relay.Call(f, [relay.const(2.0), relay.const(10000.0)]))
+    orig = relay.Let(f, value, relay.Call(f, [relay.const(2.0), relay.const(10000.0)]))
     assert alpha_equal(dead_code_elimination(orig), orig)
-    assert alpha_equal(dead_code_elimination(relay.Let(f, funcbody, e.three)), e.three)
+    assert alpha_equal(dead_code_elimination(relay.Let(f, value, e.three)), e.three)
 
 
 def test_op_let():

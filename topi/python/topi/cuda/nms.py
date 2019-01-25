@@ -315,11 +315,11 @@ def sort_ir_out(data, index, new_index, loc, output, axis_mul_before, axis_mul_a
                     start = 0
                 with ib.else_scope():
                     start = sizes[tid-1]
-                p_out[base_idx + k * axis_mul_after] = tvm.select(
+                p_out[base_idx + k * axis_mul_after] = tvm.if_then_else(
                     k < p_index[tid], index_new[k+start], k)
     with ib.else_scope():
         with ib.if_scope(tid < data.shape[axis]):
-            p_out[tid] = tvm.select(tid < p_index[0], index_new[tid], tid)
+            p_out[tid] = tvm.if_then_else(tid < p_index[0], index_new[tid], tid)
 
     body = ib.get()
     return body
@@ -470,7 +470,7 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
             (out_tensor[box_a_idx + 3] - out_tensor[box_a_idx + 1]) + \
             (out_tensor[box_b_idx + 2] - out_tensor[box_b_idx]) * \
             (out_tensor[box_b_idx + 3] - out_tensor[box_b_idx + 1]) - i
-        return tvm.select(u <= 0.0, 0.0, i / u)
+        return tvm.expr.Select(u <= 0.0, 0.0, i / u)
 
     max_threads = int(math.sqrt(
         tvm.target.current_target(allow_none=False).max_num_threads))
@@ -506,7 +506,7 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
             tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
                     p_valid_count[0] > 0)):
             # Reorder output
-            nkeep = tvm.select(
+            nkeep = tvm.if_then_else(
                 tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n]),
                 nms_topk, p_valid_count[n])
             with ib.if_scope(i < nkeep):

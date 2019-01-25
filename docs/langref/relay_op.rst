@@ -2,9 +2,9 @@ Relay Core Tensor Operators
 ===========================
 
 This page contains the list of core tensor operator primitives pre-defined in tvm.relay.
-The core tensor operator primitives covers typical workloads in deep learning.
-They can represent workloads in front-end frameworks, and provide basic building blocks for optimization.
-Since deep learning is a fast evolving field and it is that possible to have operators that are not in here.
+The core tensor operator primitives cover typical workloads in deep learning.
+They can represent workloads in front-end frameworks and provide basic building blocks for optimization.
+Since deep learning is a fast evolving field, it is possible to have operators that are not in here.
 
 
 .. note::
@@ -148,6 +148,8 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.broadcast_to_like
    tvm.relay.collapse_sum_like
    tvm.relay.slice_like
+   tvm.relay.device_copy
+   tvm.relay.annotation.on_device
 
 
 Level 1 Definitions

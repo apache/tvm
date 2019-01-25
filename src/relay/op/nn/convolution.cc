@@ -56,13 +56,11 @@ bool Conv2DRel(const Array<Type>& types,
     CHECK_EQ(param->kernel_size.size(), 2);
     CHECK_EQ(param->dilation.size(), 2);
     Array<IndexExpr> wshape(
-       {param->channels / param->groups,
+       {param->channels,
          dshape_nchw[1] / param->groups,
          param->kernel_size[0],
          param->kernel_size[1]});
     wshape = trans_kernel_layout.BackwardShape(wshape);
-    wshape.Set(kernel_layout.IndexOf(LayoutAxis::O),
-               wshape[kernel_layout.IndexOf(LayoutAxis::O)] * param->groups);
     channels = param->channels;
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
