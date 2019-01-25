@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file tvm/layout.h
  * \brief Layout expression.
  *
@@ -13,8 +13,8 @@
  *  [batch_size, channel, height, width, channel_block].
  *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
  */
-#ifndef TVM_RELAY_OP_LAYOUT_H_
-#define TVM_RELAY_OP_LAYOUT_H_
+#ifndef TVM_LAYOUT_H_
+#define TVM_LAYOUT_H_
 
 #include <tvm/base.h>
 #include <tvm/expr.h>
@@ -236,7 +236,7 @@ class Layout : public NodeRef {
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
    */
-  Layout(const std::string& name);
+  Layout(const std::string& name); // NOLINT(*)
 
   /*!
    * \brief access the internal node container
@@ -380,7 +380,7 @@ class Layout : public NodeRef {
 
 class BijectiveLayout;
 class BijectiveLayoutNode : public Node {
-public:
+ public:
   // expression of each location, on how original location can be mapped
   // to the store location, example
   // [i0 / 16, i1, i0 % 16]
@@ -432,4 +432,4 @@ inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
 
 }  // namespace tvm
 
-#endif  // TVM_RELAY_OP_LAYOUT_H_
+#endif  // TVM_LAYOUT_H_

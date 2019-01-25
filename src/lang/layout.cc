@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file src/lang/layout.cc
  * \brief Layout expression.
  */
@@ -188,7 +188,7 @@ int64_t Layout::FactorOf(const LayoutAxis& axis) const {
   return -1;
 }
 
-inline bool GetStoreRule(Array<Expr>& rule,
+inline bool GetStoreRule(Array<Expr>* rule,
                          const Layout& src_layout,
                          const Layout& dst_layout) {
   for (size_t i = 0; i < dst_layout.ndim(); ++i) {
@@ -226,7 +226,7 @@ inline bool GetStoreRule(Array<Expr>& rule,
       store = store % store_axis_impl->dom->extent;
     }
 
-    rule.push_back(store);
+    rule->push_back(store);
   }
   return true;
 }
@@ -326,11 +326,11 @@ BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
   n->src_layout = src_layout;
   n->dst_layout = dst_layout;
 
-  if (!GetStoreRule(n->forward_rule, n->src_layout, n->dst_layout)) {
+  if (!GetStoreRule(&n->forward_rule, n->src_layout, n->dst_layout)) {
     // not convertible
     return BijectiveLayout();
   }
-  CHECK(GetStoreRule(n->backward_rule, n->dst_layout, n->src_layout));
+  CHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
 
   return BijectiveLayout(n);
 }
