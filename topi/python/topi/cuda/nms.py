@@ -37,13 +37,12 @@ def sort_ir(data, index, output):
     nthread_tx = max_threads
     nthread_bx = num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    bx = tvm.thread_axis("vthread")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "thread_extent", nthread_bx)
-    tid = bx * max_threads + tx
+    ib.scope_attr(bx, "virtual_thread", nthread_bx)
+    tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
-    ib.emit(tvm.make.Call(None, 'tvm_global_barrier_kinit', None, tvm.expr.Call.Intrinsic, None, 0))
 
     with ib.for_range(0, batch, for_type="unroll") as b:
         start = b * num_anchors
@@ -62,7 +61,7 @@ def sort_ir(data, index, output):
                     p_out[offset] = p_out[offset + 1]
                     p_out[offset + 1] = temp_index[0]
             ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                                  tvm.convert(['global', True, nthread_bx]),
+                                  tvm.convert(['shared']),
                                   tvm.expr.Call.Intrinsic, None, 0))
 
     body = ib.get()
