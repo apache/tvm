@@ -64,8 +64,7 @@ def sort_ir(data, index, output):
                                   tvm.convert(['shared']),
                                   tvm.expr.Call.Intrinsic, None, 0))
 
-    body = ib.get()
-    return body 
+    return ib.get()
 
 def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, nms_topk):
     """Low level IR routing for transform location in multibox_detection operator.
@@ -102,9 +101,9 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
         """Calculate overlap of two boxes.
         """
         w = tvm.max(0.0, tvm.min(out_tensor[box_a_idx + 2], out_tensor[box_b_idx + 2])
-                         - tvm.max(out_tensor[box_a_idx], out_tensor[box_b_idx]))
+                    - tvm.max(out_tensor[box_a_idx], out_tensor[box_b_idx]))
         h = tvm.max(0.0, tvm.min(out_tensor[box_a_idx + 3], out_tensor[box_b_idx + 3])
-                         - tvm.max(out_tensor[box_a_idx + 1], out_tensor[box_b_idx + 1]))
+                    - tvm.max(out_tensor[box_a_idx + 1], out_tensor[box_b_idx + 1]))
         i = w * h
         u = (out_tensor[box_a_idx + 2] - out_tensor[box_a_idx]) * \
             (out_tensor[box_a_idx + 3] - out_tensor[box_a_idx + 1]) + \
