@@ -98,7 +98,7 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
             min_size = p_im_info[b * 3 + 2] * rpn_min_size
 
             pred_score = p_score[((b * num_anchors * 2 + num_anchors + k) * height + h) * width + w]
-            pred_score = tvm.select(tvm.any(h >= real_height, w >= real_width), -1.0, pred_score)
+            pred_score = tvm.expr.Select(tvm.any(h >= real_height, w >= real_width), -1.0, pred_score)
 
             p_out[out_index * 5 + 0] = pred_x1
             p_out[out_index * 5 + 1] = pred_y1
@@ -140,32 +140,30 @@ def argsort_ir(data_buf, out_index_buf):
     nthread_tx = max_threads
     nthread_bx = num_bbox // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    bx = tvm.thread_axis("vthread")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    ib.scope_attr(bx, "virtual_thread", nthread_bx)
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
 
-    ib.emit(tvm.make.Call(None, 'tvm_global_barrier_kinit', None, tvm.expr.Call.Intrinsic, None, 0))
     with ib.for_range(0, batch, for_type="unroll") as b:
         start = b * num_bbox
         with ib.if_scope(tid < num_bbox):
             index_out[start + tid] = tid
 
         with ib.for_range(0, num_bbox) as k:
-            with ib.if_scope(tid < (num_bbox + 1) // 2):
-                offset = start + 2 * tid + (k % 2)
-                with ib.if_scope(
-                    tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
-                    temp_data[0] = p_data[offset]
-                    p_data[offset] = p_data[offset + 1]
-                    p_data[offset + 1] = temp_data[0]
-                    temp_index[0] = index_out[offset]
-                    index_out[offset] = index_out[offset + 1]
-                    index_out[offset + 1] = temp_index[0]
+            offset = start + 2 * tid + (k % 2)
+            with ib.if_scope(
+                tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
+                temp_data[0] = p_data[offset]
+                p_data[offset] = p_data[offset + 1]
+                p_data[offset + 1] = temp_data[0]
+                temp_index[0] = index_out[offset]
+                index_out[offset] = index_out[offset + 1]
+                index_out[offset + 1] = temp_index[0]
             ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                                  tvm.convert(['global', True, nthread_bx]),
+                                  tvm.convert(['shared']),
                                   tvm.expr.Call.Intrinsic, None, 0))
     return ib.get()
 
