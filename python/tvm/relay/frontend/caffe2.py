@@ -1,7 +1,6 @@
 # pylint: disable=import-self, invalid-name, line-too-long, unused-argument
 """Caffe2 frontend"""
 from __future__ import absolute_import as _abs
-import tvm
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
