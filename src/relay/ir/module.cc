@@ -23,6 +23,8 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs) {
         << "Duplicate global function name " << kv.first->name_hint;
     n->global_var_map_.Set(kv.first->name_hint, kv.first);
   }
+
+  n->entry_func = GlobalVarNode::make("main");
   return Module(n);
 }
 
@@ -94,6 +96,21 @@ void ModuleNode::Update(const Module& mod) {
   for (auto pair : mod->functions) {
     this->Update(pair.first, pair.second);
   }
+}
+
+Module ModuleNode::FromExpr(
+  const Expr& expr,
+  const tvm::Map<GlobalVar, Function>& global_funcs) {
+  auto mod = ModuleNode::make(global_funcs);
+  auto func_node = expr.as<FunctionNode>();
+  Function func;
+  if (func_node) {
+    func = GetRef<Function>(func_node);
+  } else {
+    func = FunctionNode::make({}, expr, Type(), {}, {});
+  }
+  mod->Add(mod->entry_func, func);
+  return mod;
 }
 
 TVM_REGISTER_NODE_TYPE(ModuleNode);
