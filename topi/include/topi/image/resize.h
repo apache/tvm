@@ -54,10 +54,10 @@ inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices
   auto C = input(indices[0], indices[1], y1, x0);
   auto D = input(indices[0], indices[1], y1, x1);
 
-  auto top = A + (B - A) * x_lerp;
-  auto bottom = C + (D - C) * x_lerp;
-
-  return (top + (bottom - top) * y_lerp);
+  return A * ( 1 - x_lerp) * ( 1 - y_lerp) +
+         B * x_lerp * (1 - y_lerp) +
+         C * (1 - x_lerp) * y_lerp +
+         D * x_lerp * y_lerp;
 }
 
 /*!
@@ -231,10 +231,10 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
     auto C = input(indices[0], y1, x0, indices[3]);
     auto D = input(indices[0], y1, x1, indices[3]);
 
-    auto top = A + (B - A) * x_lerp;
-    auto bottom = C + (D - C) * x_lerp;
-
-    return  (top + (bottom - top) * y_lerp);
+    return A * ( 1 - x_lerp) * ( 1 - y_lerp) +
+           B * x_lerp * (1 - y_lerp) +
+           C * (1 - x_lerp) * y_lerp +
+           D * x_lerp * y_lerp;
     }, name, tag);
 }
 
