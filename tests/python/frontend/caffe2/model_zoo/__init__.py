@@ -15,7 +15,7 @@ for model in models:
     try:
         locals()['c2_' + model] = importlib.import_module('caffe2.python.models.' + model)
     except ImportError:
-        os.system("python -m caffe2.python.models.download -i -f " + model)
+        os.system("python3 -m caffe2.python.models.download -i -f " + model)
         locals()['c2_' + model] = importlib.import_module('caffe2.python.models.' + model)
 
 # squeezenet
