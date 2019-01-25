@@ -1,7 +1,8 @@
 """
 Deploy Single Shot Multibox Detector(SSD) model
 ===============================================
-**Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Leyuan Wang <https://github.com/Laurawly>`_
+**Author**: `Yao Wang <https://github.com/kevinthesun>`_, \
+`Leyuan Wang <https://github.com/Laurawly>`_
 
 This article is an introductory tutorial to deploy SSD models with TVM.
 We will use mxnet pretrained SSD model with Resnet50 as body network and
@@ -59,7 +60,8 @@ model_url = "https://github.com/zhreshold/mxnet-ssd/releases/download/v0.6/" \
             "resnet50_ssd_512_voc0712_trainval.zip"
 image_url = "https://cloud.githubusercontent.com/assets/3307514/20012567/" \
             "cbb60336-a27d-11e6-93ff-cbc3f09f5c9e.jpg"
-inference_symbol_folder = "c1904e900848df4548ce5dfb18c719c7-a28c4856c827fe766aa3da0e35bad41d44f0fb26"
+inference_symbol_folder = \
+"c1904e900848df4548ce5dfb18c719c7-a28c4856c827fe766aa3da0e35bad41d44f0fb26"
 inference_symbol_url = "https://gist.github.com/kevinthesun/c1904e900848df4548ce5dfb18c719c7/" \
                        "archive/a28c4856c827fe766aa3da0e35bad41d44f0fb26.zip"
 
@@ -95,7 +97,8 @@ parser.add_argument(
     default="nnvm")
 args = parser.parse_args()
 if args.frontend == "relay":
-    net, params = relay.frontend.from_mxnet(sym, {"data": dshape}, arg_params=arg_params, aux_params=aux_params)
+    net, params = relay.frontend.from_mxnet(sym, {"data": dshape}, arg_params=arg_params, \
+                                            aux_params=aux_params)
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(net, target, params=params)
 elif args.frontend == "nnvm":
@@ -137,7 +140,7 @@ def display(img, out, thresh=0.5):
     import random
     import matplotlib as mpl
     import matplotlib.pyplot as plt
-    mpl.rcParams['figure.figsize'] = (10,10)
+    mpl.rcParams['figure.figsize'] = (10, 10)
     pens = dict()
     plt.clf()
     plt.imshow(img)
