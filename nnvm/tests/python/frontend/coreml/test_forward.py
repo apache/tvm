@@ -17,7 +17,7 @@ import model_zoo
 def get_tvm_output(symbol, x, params, target, ctx,
                    out_shape=(1, 1000), input_name='image', dtype='float32'):
     shape_dict = {input_name : x.shape}
-    with nnvm.compiler.build_config(opt_level=3):
+    with nnvm.compiler.build_config(opt_level=2):
         graph, lib, params = nnvm.compiler.build(symbol, target, shape_dict, params=params)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
