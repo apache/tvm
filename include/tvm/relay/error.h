@@ -125,7 +125,7 @@ class ErrorReporter {
    * \param module The module to report errors on.
    * \param use_color Controls whether to colorize the output.
    */
-  [[noreturn]] void RenderErrors(const Module& module, bool use_color = true);
+  void RenderErrors(const Module& module, bool use_color = true);
 
   inline bool AnyErrors() {
     return errors_.size() != 0;

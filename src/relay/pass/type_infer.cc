@@ -173,7 +173,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     return ret;
   }
 
-  [[noreturn]] void ReportFatalError(const Expr& expr, const Error& err) {
+  void ReportFatalError(const Expr& expr, const Error& err) {
     CHECK(this->current_func_.defined());
     this->err_reporter.ReportAt(this->current_func_, expr, err);
     this->err_reporter.RenderErrors(this->mod_);

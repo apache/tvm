@@ -295,10 +295,14 @@ class TypeReporterNode : public Node {
    */
   TVM_DLL virtual bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
 
+  /*!
+   * \brief Set the location at which to report unification errors.
+   * \param ref The program node to report the error.
+   */
+  TVM_DLL virtual void SetLocation(const NodeRef& ref) = 0;
+
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) final {}
-
-  mutable NodeRef location;
 
   static constexpr const char* _type_key = "relay.TypeReporter";
   TVM_DECLARE_NODE_TYPE_INFO(TypeReporterNode, Node);

@@ -21,7 +21,7 @@ void RelayErrorStream::Raise() const {
 template<typename T, typename U>
 using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;
 
-[[noreturn]] void ErrorReporter::RenderErrors(const Module& module, bool use_color) {
+void ErrorReporter::RenderErrors(const Module& module, bool use_color) {
   // First we pick an error reporting strategy for each error.
   // TODO(@jroesch): Spanned errors are currently not supported.
   for (auto err : this->errors_) {
@@ -110,9 +110,6 @@ using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;
   // Finally we report the error, currently we do so to LOG(FATAL),
   // it may be good to instead report it to std::cout.
   LOG(FATAL) << annotated_prog.str() << std::endl;
-
-  // NB(@jroesch): this is to ensure that the function does not return.
-  exit(1);
 }
 
 void ErrorReporter::ReportAt(const GlobalVar& global, const NodeRef& node, const Error& err) {
