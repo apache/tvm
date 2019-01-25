@@ -115,13 +115,6 @@ class ModuleNode : public RelayNode {
    */
   void Update(const Module& other);
 
-  /*!
-   * \brief Get the entry point of the module.
-   *
-   * \returns The entry point function, (i.e. main).
-   */
-  Expr EntryPoint();
-
   /*! \brief Construct a module from a standalone expression.
    *
    * Allows one to optionally pass a global function map as

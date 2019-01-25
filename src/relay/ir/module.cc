@@ -98,10 +98,6 @@ void ModuleNode::Update(const Module& mod) {
   }
 }
 
-Expr ModuleNode::EntryPoint() {
-  return this->Lookup(this->entry_func);
-}
-
 Module ModuleNode::FromExpr(
   const Expr& expr,
   const tvm::Map<GlobalVar, Function>& global_funcs) {
