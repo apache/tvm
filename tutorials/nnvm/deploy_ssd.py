@@ -137,7 +137,6 @@ def display(img, out, thresh=0.5):
     import random
     import matplotlib as mpl
     import matplotlib.pyplot as plt
-    plt.switch_backend('agg')
     mpl.rcParams['figure.figsize'] = (10,10)
     pens = dict()
     plt.clf()
