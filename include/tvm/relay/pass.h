@@ -6,8 +6,8 @@
 #ifndef TVM_RELAY_PASS_H_
 #define TVM_RELAY_PASS_H_
 
-#include <tvm/relay/module.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/op_attr_types.h>
 #include <string>
 
