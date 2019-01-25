@@ -11,7 +11,7 @@ Dataflow and Control Fragments
 For the purposes of comparing Relay to traditional computational graph-based IRs, it
 can be useful to consider Relay exrpessions in terms of dataflow and control fragments.
 Each portion of a Relay program containing expressions that only affect the dataflow can
-be viewed as a traditional comptuation graph when writing and expressing transformations.
+be viewed as a traditional computation graph when writing and expressing transformations.
 
 The dataflow fragment covers the set of Relay expressions that do not involve
 control flow. That is, any portion of a program containing only the following
@@ -31,8 +31,8 @@ fragment in Relay includes the following constructs:
 - Recursive Calls in Functions
 
 From the point of view of a computation graph, a function is a subgraph and a function call inlines the subgraph, substituting its arguments for the free variables in the subgraph with corresponding names.
-Thus if a function's body uses only dataflow constructs
-, a call to that function is in the dataflow fragment; conversely, if the
+Thus, if a function's body uses only dataflow constructs,
+a call to that function is in the dataflow fragment; conversely, if the
 function's body contains control flow, a call to that function is not part of the dataflow fragment.
 
 Variables
@@ -205,6 +205,7 @@ For example, one can define a polymorphic identity function for
 any Relay type as follows:
 
 .. code-block:: python
+
     fn<t : Type>(%x : t) -> t {
         %x
     }
@@ -213,13 +214,14 @@ The below definition is also polymorphic, but restricts its
 arguments to tensor types:
 
 .. code-block:: python
+
     fn<s : Shape, bt : BaseType>(%x : Tensor[s, bt]) {
         %x
     }
 
 Notice that the return type is omitted and will be inferred.
 
-*Note: :code:`where` syntax is not yet supported in the text format.*
+*Note: "where" syntax is not yet supported in the text format.*
 
 A function may also be subject to one or more type relations, such as in
 the following:
