@@ -14,6 +14,8 @@ productivity-focused deep learning frameworks, and the performance- and efficien
 TVM works with deep learning frameworks to provide end to end compilation to different backends.
 Checkout the [tvm stack homepage](https://tvm.ai/)  for more information.
 
+Neo-ai/tvm is a AWS-managed fork of TVM, that hosts vendor- and product-oriented features on top of upstream codebase.
+
 License
 -------
 © Contributors Licensed under an [Apache-2.0](https://github.com/dmlc/tvm/blob/master/LICENSE) license.
