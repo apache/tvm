@@ -159,8 +159,14 @@ file(GLOB_RECURSE NNVM_COMPILER_SRCS
     nnvm/src/core/*.cc
     nnvm/src/pass/*.cc
     nnvm/src/compiler/*.cc
+    nnvm/src/frontend/*.cc
     nnvm/src/top/*.cc
-    )
+    3rdparty/dmlc-core/src/*.cc
+    3rdparty/dmlc-core/include/*.h
+)
+list(FILTER NNVM_COMPILER_SRCS EXCLUDE REGEX ".*/io/azure_filesys.cc")
+list(FILTER NNVM_COMPILER_SRCS EXCLUDE REGEX ".*/io/hdfs_filesys.cc")
+list(FILTER NNVM_COMPILER_SRCS EXCLUDE REGEX ".*/io/s3_filesys.cc")
 
 file(GLOB TOPI_SRCS
     topi/src/*.cc
@@ -224,6 +230,7 @@ include(cmake/modules/contrib/TensorRT.cmake)
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
+add_library(tvm_runtime_static STATIC ${RUNTIME_SRCS})
 if(NOT USE_SGX STREQUAL "OFF")
   add_dependencies(tvm sgx_edl)
   add_dependencies(tvm_runtime sgx_edl tvm_t)
@@ -234,6 +241,7 @@ add_library(nnvm_compiler SHARED ${NNVM_COMPILER_SRCS})
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_runtime_static ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(nnvm_compiler tvm)
 
 # Related headers
@@ -275,6 +283,7 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_topi DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm_runtime_static DESTINATION lib${LIB_SUFFIX})
 install(TARGETS nnvm_compiler DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
