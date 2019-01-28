@@ -5,9 +5,9 @@ Compile TFLite Models
 
 This article is an introductory tutorial to deploy TFLite models with Relay.
 
-For us to begin with, Flatbuffers and TFLite package must be installed.
+To get started, Flatbuffers and TFLite package needs to be installed as prerequisites.
 
-A quick solution is to install Flatbuffers
+A quick solution is to install Flatbuffers via pip
 
 .. code-block:: bash
 
@@ -31,8 +31,8 @@ or you could generate TFLite package by yourself. The steps are as following:
 .. code-block:: bash
 
     # Get the flatc compiler.
-    # You could go to https://github.com/google/flatbuffers to know how to do it.
-    # And you should make sure flatc compiler is installed successfully.
+    # Please refer to https://github.com/google/flatbuffers for details
+    # and make sure it is properly installed.
     flatc --version
 
     # Get the TFLite schema.
@@ -41,12 +41,13 @@ or you could generate TFLite package by yourself. The steps are as following:
     # Generate TFLite package.
     flatc --python schema.fbs
 
-    # Make PYTHONPATH could find generated TFLite package. For example:
-    export PYTHONPATH=/home/someone/tflite
+    # Add it to PYTHONPATH.
+    export PYTHONPATH=/path/to/tflite
 
 
-After these steps, you could check TFLite package is installed successfully or not.
-For example: ``python -c "import tflite"``
+Now please check if TFLite package is installed successfully, ``python -c "import tflite"``
+
+Below you can find an example for how to compile TFLite model using TVM.
 """
 ######################################################################
 # Utils for downloading and extracting zip files
@@ -120,6 +121,12 @@ image_data[:, 0, :, :] = 2.0 / 255.0 * image_data[:, 0, :, :] - 1
 image_data[:, 1, :, :] = 2.0 / 255.0 * image_data[:, 1, :, :] - 1
 image_data[:, 2, :, :] = 2.0 / 255.0 * image_data[:, 2, :, :] - 1
 print('input', image_data.shape)
+
+####################################################################
+#
+# .. note:: Input layout:
+#
+#   Currently, TVM TFLite frontend accepts ``NCHW`` as input layout.
 
 ######################################################################
 # Compile the model with relay
