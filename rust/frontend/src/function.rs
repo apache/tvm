@@ -7,7 +7,7 @@
 //! See the tests and examples repository for more examples.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     ffi::{CStr, CString},
     mem,
     os::raw::{c_char, c_int, c_void},
@@ -25,7 +25,7 @@ use TVMTypeCode;
 use TVMValue;
 
 lazy_static! {
-    static ref GLOBAL_FUNCTIONS: Mutex<HashMap<&'static str, Option<Function>>> = {
+    static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<&'static str, Option<Function>>> = {
         let mut out_size = 0 as c_int;
         let name = ptr::null_mut() as *mut c_char;
         let mut out_array = name as *mut _;
@@ -494,19 +494,16 @@ macro_rules! call_packed {
 mod tests {
     use super::*;
 
+    static CANARY: &str = "module._LoadFromFile";
+
     #[test]
     fn list_global_func() {
-        assert!(
-            GLOBAL_FUNCTIONS
-                .lock()
-                .unwrap()
-                .contains_key("tvm.graph_runtime.create")
-        );
+        assert!(GLOBAL_FUNCTIONS.lock().unwrap().contains_key(CANARY));
     }
 
     #[test]
     fn get_fn() {
-        assert!(Function::get("tvm.graph_runtime.remote_create", true).is_some());
+        assert!(Function::get(CANARY, true).is_some());
         assert!(Function::get("does not exists!", false).is_none());
     }
 

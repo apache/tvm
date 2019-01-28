@@ -3,6 +3,7 @@ extern crate bindgen;
 use std::path::PathBuf;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=TVM_HOME");
     println!("cargo:rustc-link-lib=dylib=tvm_runtime");
     println!("cargo:rustc-link-search={}/build", env!("TVM_HOME"));
     let bindings = bindgen::Builder::default()
