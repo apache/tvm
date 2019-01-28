@@ -18,7 +18,6 @@ use ffi::runtime::TVMValue as _TVMValue;
 #[cfg(feature = "frontend")]
 use ffi::ts::TVMValue as _TVMValue;
 
-#[cfg(any(feature = "runtime", feature = "frontend"))]
 use errors::*;
 
 use ty::TVMTypeCode;

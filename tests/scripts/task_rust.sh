@@ -41,12 +41,12 @@ cd -
 
 # test frontend
 cd $RUST_DIR/frontend
+cargo clean
 cargo fmt -- --check
 
 # run unit tests
 cargo build
-cargo test
-cd -
+cargo test -- --test-threads=1
 
 # run basic tests on cpu
 cd tests/basics
