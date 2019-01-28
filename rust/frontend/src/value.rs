@@ -90,7 +90,7 @@ impl<'a, 'b> TryFrom<&'b TVMArgValue<'a>> for Module {
     fn try_from(arg: &TVMArgValue<'a>) -> Result<Self> {
         if arg.type_code == TVMTypeCode::kModuleHandle {
             let handle = unsafe { arg.value.inner.v_handle };
-            Ok(Self::new(handle, false, None))
+            Ok(Self::new(handle, false))
         } else {
             bail!(ErrorKind::TryFromTVMArgValueError(
                 stringify!(Module).to_string(),
@@ -183,7 +183,7 @@ impl TryFrom<TVMRetValue> for Module {
     type Error = Error;
     fn try_from(ret: TVMRetValue) -> Result<Module> {
         if let Ok(handle) = ret.box_value.downcast::<ts::TVMModuleHandle>() {
-            Ok(Module::new(*handle, false, None))
+            Ok(Module::new(*handle, false))
         } else {
             bail!(ErrorKind::TryFromTVMRetValueError(
                 stringify!(TVMTypeCode::kModuleHandle).to_string(),

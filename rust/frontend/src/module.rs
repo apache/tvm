@@ -3,7 +3,6 @@
 use std::{
     convert::TryInto,
     ffi::CString,
-    mem,
     os::raw::{c_char, c_int},
     path::Path,
     ptr,
@@ -12,7 +11,6 @@ use std::{
 use ts;
 
 use function::Function;
-use internal_api;
 use ErrorKind;
 use Result;
 
@@ -28,27 +26,23 @@ const ENTRY_FUNC: &'static str = "__tvm_main__";
 pub struct Module {
     pub(crate) handle: ts::TVMModuleHandle,
     is_released: bool,
-    pub(crate) entry: Option<Function>,
+    entry_func: Option<Function>,
 }
 
 impl Module {
-    pub(crate) fn new(
-        handle: ts::TVMModuleHandle,
-        is_released: bool,
-        entry: Option<Function>,
-    ) -> Self {
+    pub(crate) fn new(handle: ts::TVMModuleHandle, is_released: bool) -> Self {
         Self {
             handle,
             is_released,
-            entry,
+            entry_func: None,
         }
     }
 
-    /// Sets the entry function of a module.
-    pub fn entry_func(&mut self) {
-        if self.entry.is_none() {
-            self.entry = self.get_function(ENTRY_FUNC, false).ok();
+    pub fn entry(&mut self) -> Option<&Function> {
+        if self.entry_func.is_none() {
+            self.entry_func = self.get_function(ENTRY_FUNC, false).ok();
         }
+        self.entry_func.as_ref()
     }
 
     /// Gets a function by name from a registered module.
@@ -64,7 +58,6 @@ impl Module {
         if fhandle.is_null() {
             bail!(ErrorKind::NullHandle(format!("{}", name.into_string()?)))
         } else {
-            mem::forget(name);
             Ok(Function::new(fhandle, false, false))
         }
     }
@@ -75,19 +68,18 @@ impl Module {
     }
 
     /// Loads a module shared library from path.
-    pub fn load(path: &Path) -> Result<Module> {
-        let path = path.to_owned();
-        let path_str = path.to_str()?.to_owned();
-        let ext = path.extension()?.to_str()?.to_owned();
-        let func = internal_api::get_api("module._LoadFromFile".to_owned());
-        let ret: Module = call_packed!(func, &path_str, &ext)?.try_into()?;
-        mem::forget(path);
+    pub fn load<P: AsRef<Path>>(path: &P) -> Result<Module> {
+        let ext = path.as_ref().extension()?.to_str()?;
+        let func = Function::get("module._LoadFromFile", true /* is_global */)
+            .expect("API function always exists");
+        let ret: Module = call_packed!(func, path.as_ref().to_str()?, ext)?.try_into()?;
         Ok(ret)
     }
 
     /// Checks if a target device is enabled for a module.
     pub fn enabled(&self, target: &str) -> bool {
-        let func = internal_api::get_api("module._Enabled".to_owned());
+        let func = Function::get("module._Enabled", true /* is_global */)
+            .expect("API function always exists");
         // `unwrap` is safe here because if there is any error during the
         // function call, it would occur in `call_packed!`.
         let ret: i64 = call_packed!(func, target).unwrap().try_into().unwrap();

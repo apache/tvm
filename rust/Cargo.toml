@@ -5,7 +5,7 @@ members = [
 	"runtime/tests/test_tvm_basic",
 	"runtime/tests/test_nnvm",
 	"frontend",
-	"frontend/tests/basics", 
+	"frontend/tests/basics",
 	"frontend/tests/callback",
 	"frontend/examples/resnet"
 ]

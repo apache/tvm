@@ -62,7 +62,6 @@ pub mod function;
 pub mod bytearray;
 pub mod context;
 pub mod errors;
-mod internal_api;
 pub mod module;
 pub mod ndarray;
 pub mod ty;

@@ -24,7 +24,6 @@ use std::{
 };
 
 use function;
-use internal_api;
 use ts;
 use Result;
 
@@ -186,7 +185,8 @@ impl<'a> From<&'a str> for TVMContext {
 impl TVMContext {
     /// Checks whether the context exists or not.
     pub fn exist(&self) -> bool {
-        let func = internal_api::get_api("_GetDeviceAttr".to_owned());
+        let func = function::Function::get("_GetDeviceAttr", true /* is_global */)
+            .expect("API function always exists");
         let dt = self.device_type.0 as usize;
         // `unwrap` is ok here because if there is any error,
         // if would occure inside `call_packed!`
@@ -212,7 +212,8 @@ macro_rules! impl_device_attrs {
         $(
             impl TVMContext {
                 pub fn $attr_name(&self) -> usize {
-                    let func = ::internal_api::get_api("_GetDeviceAttr".to_owned());
+                    let func = function::Function::get("_GetDeviceAttr", true /* is_global */)
+                        .expect("API function always exists");
                     let dt = self.device_type.0 as usize;
                     // `unwrap` is ok here because if there is any error,
                     // if would occur in function call.

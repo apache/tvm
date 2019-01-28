@@ -1,27 +1,13 @@
 extern crate bindgen;
 
-use std::{env, error::Error, path::PathBuf, process, result::Result};
-
-const TVM_RUNTIME: &'static str = "tvm_runtime";
+use std::path::PathBuf;
 
 fn main() {
-    match run() {
-        Ok(_) => (),
-        Err(err) => {
-            eprintln!("error occured during the build: {:?}", err);
-            process::exit(1)
-        }
-    }
-}
-
-fn run() -> Result<(), Box<dyn Error>> {
-    println!("cargo:rustc-link-lib=dylib={}", TVM_RUNTIME);
-    let lib = format!("lib{}", TVM_RUNTIME);
-    println!("cargo:rustc-link-search=native={}", lib);
-    let tvm_home = env::var("TVM_HOME").expect("TVM_HOME not found!");
+    println!("cargo:rustc-link-lib=dylib=tvm_runtime");
+    println!("cargo:rustc-link-search={}/build", env!("TVM_HOME"));
     let bindings = bindgen::Builder::default()
-        .header(format!("{}/include/tvm/runtime/c_runtime_api.h", tvm_home))
-        .clang_arg(format!("-I{}/3rdparty/dlpack/include/", tvm_home))
+        .header(format!("{}/include/tvm/runtime/c_runtime_api.h", env!("TVM_HOME")))
+        .clang_arg(format!("-I{}/3rdparty/dlpack/include/", env!("TVM_HOME")))
         .blacklist_type("max_align_t") // https://github.com/rust-lang-nursery/rust-bindgen/issues/550
         .layout_tests(false)
         .derive_partialeq(true)
@@ -32,6 +18,4 @@ fn run() -> Result<(), Box<dyn Error>> {
     bindings
         .write_to_file(PathBuf::from("src/bindgen.rs"))
         .expect("can not write the bindings!");
-
-    Ok(())
 }

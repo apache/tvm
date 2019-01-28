@@ -7,6 +7,7 @@
 //! See the tests and examples repository for more examples.
 
 use std::{
+    collections::HashMap,
     ffi::{CStr, CString},
     mem,
     os::raw::{c_char, c_int, c_void},
@@ -24,7 +25,7 @@ use TVMTypeCode;
 use TVMValue;
 
 lazy_static! {
-    static ref GLOBAL_FUNCTION_NAMES: Mutex<Vec<&'static str>> = {
+    static ref GLOBAL_FUNCTIONS: Mutex<HashMap<&'static str, Option<Function>>> = {
         let mut out_size = 0 as c_int;
         let name = ptr::null_mut() as *mut c_char;
         let mut out_array = name as *mut _;
@@ -36,26 +37,10 @@ lazy_static! {
         Mutex::new(
             names_list
                 .into_iter()
-                .map(|&p| unsafe { CStr::from_ptr(p).to_str().unwrap() })
+                .map(|&p| (unsafe { CStr::from_ptr(p).to_str().unwrap() }, None))
                 .collect(),
         )
     };
-}
-
-/// Returns a registered TVM function by name.
-pub fn get_global_func(name: &str, is_global: bool) -> Option<Function> {
-    let name = CString::new(name).expect("function name should not contain any `0` byte");
-    let mut handle = ptr::null_mut() as ts::TVMFunctionHandle;
-    check_call!(ts::TVMFuncGetGlobal(
-        name.as_ptr() as *const c_char,
-        &mut handle as *mut _
-    ));
-    if !(handle.is_null()) {
-        mem::forget(name);
-        return Some(Function::new(handle, is_global, false));
-    } else {
-        None
-    }
 }
 
 /// Wrapper around TVM function handle which includes `is_global`
@@ -74,6 +59,9 @@ pub struct Function {
     is_cloned: bool,
 }
 
+unsafe impl Send for Function {}
+unsafe impl Sync for Function {}
+
 impl Function {
     pub(crate) fn new(handle: ts::TVMFunctionHandle, is_global: bool, is_released: bool) -> Self {
         Function {
@@ -85,10 +73,26 @@ impl Function {
     }
 
     /// For a given function, it returns a function by name.
-    pub fn get_function(name: &str, is_global: bool) -> Option<Function> {
-        let gnames = GLOBAL_FUNCTION_NAMES.lock().unwrap();
-        let fn_name = gnames.iter().find(|&&s| s == name)?;
-        get_global_func(fn_name, is_global)
+    pub fn get<S: AsRef<str>>(name: S, is_global: bool) -> Option<&'static Function> {
+        let mut globals = GLOBAL_FUNCTIONS.lock().unwrap();
+        globals.get_mut(name.as_ref()).and_then(|maybe_func| {
+            if maybe_func.is_none() {
+                let name = CString::new(name.as_ref()).unwrap();
+                let mut handle = ptr::null_mut() as ts::TVMFunctionHandle;
+                check_call!(ts::TVMFuncGetGlobal(
+                    name.as_ptr() as *const c_char,
+                    &mut handle as *mut _
+                ));
+                maybe_func.replace(Function::new(
+                    handle, is_global, false, /* is_released */
+                ));
+            }
+            unsafe {
+                std::mem::transmute::<Option<&Function>, Option<&'static Function>>(
+                    maybe_func.as_ref(),
+                )
+            }
+        })
     }
 
     /// Returns the underlying TVM function handle.
@@ -142,15 +146,15 @@ impl Drop for Function {
 ///
 /// *Note:* Currently TVM functions accept *at most* one return value.
 #[derive(Debug, Clone, Default)]
-pub struct Builder<'a> {
-    pub func: Option<Function>,
+pub struct Builder<'a, 'm> {
+    pub func: Option<&'m Function>,
     pub arg_buf: Option<Box<[TVMArgValue<'a>]>>,
     pub ret_buf: Option<TVMRetValue>,
 }
 
-impl<'a> Builder<'a> {
+impl<'a, 'm> Builder<'a, 'm> {
     pub fn new(
-        func: Option<Function>,
+        func: Option<&'m Function>,
         arg_buf: Option<Box<[TVMArgValue<'a>]>>,
         ret_buf: Option<TVMRetValue>,
     ) -> Self {
@@ -161,8 +165,8 @@ impl<'a> Builder<'a> {
         }
     }
 
-    pub fn get_function(&mut self, name: &str, is_global: bool) -> &mut Self {
-        self.func = Function::get_function(name, is_global);
+    pub fn get_function(&mut self, name: &'m str, is_global: bool) -> &mut Self {
+        self.func = Function::get(name, is_global);
         self
     }
 
@@ -224,7 +228,7 @@ impl<'a> Builder<'a> {
     }
 }
 
-impl<'a> FnOnce<((),)> for Builder<'a> {
+impl<'a, 'm> FnOnce<((),)> for Builder<'a, 'm> {
     type Output = Result<TVMRetValue>;
     extern "rust-call" fn call_once(self, _: ((),)) -> Self::Output {
         if self.func.is_none() {
@@ -283,16 +287,16 @@ impl<'a> FnOnce<((),)> for Builder<'a> {
 
 /// Converts a [`Function`] to builder. Currently, this is the best way to work with
 /// TVM functions.
-impl<'a> From<Function> for Builder<'a> {
-    fn from(func: Function) -> Self {
+impl<'a, 'm> From<&'m Function> for Builder<'a, 'm> {
+    fn from(func: &'m Function) -> Self {
         Builder::new(Some(func), None, None)
     }
 }
 
 /// Converts a mutable reference of a [`Module`] to [`Builder`].
-impl<'a: 'b, 'b> From<&'b mut Module> for Builder<'a> {
-    fn from(module: &mut Module) -> Self {
-        Builder::new(module.entry.take(), None, None)
+impl<'a, 'm> From<&'m mut Module> for Builder<'a, 'm> {
+    fn from(module: &'m mut Module) -> Self {
+        Builder::new(module.entry(), None, None)
     }
 }
 
@@ -492,14 +496,10 @@ mod tests {
 
     #[test]
     fn list_global_func() {
-        assert!(
-            GLOBAL_FUNCTION_NAMES
-                .lock()
-                .unwrap()
-                .iter()
-                .find(|ref s| ***s == "tvm.graph_runtime.create")
-                .is_some()
-        );
+        assert!(GLOBAL_FUNCTIONS
+            .lock()
+            .unwrap()
+            .contains_key("tvm.graph_runtime.create"));
     }
 
     #[test]
