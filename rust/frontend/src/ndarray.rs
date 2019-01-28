@@ -13,7 +13,7 @@
 //! let a = Array::from_shape_vec((2, 2), vec![1f32, 2., 3., 4.])
 //!     .unwrap()
 //!     .into_dyn(); // Rust's ndarray
-//! let nd = NDArray::from_rust_ndarray(&a, TVMContext::cpu(0), TVMType::from("float")).unwrap();
+//! let nd = NDArray::from_rust_ndarray(&a, TVMContext::cpu(0), TVMType::from("float32")).unwrap();
 //! assert_eq!(nd.shape(), Some(&mut [2, 2]));
 //! let rnd: ArrayD<f32> = ArrayD::try_from(&nd).unwrap();
 //! assert!(rnd.all_close(&a, 1e-8f32));
@@ -138,7 +138,7 @@ impl NDArray {
     /// let shape = &mut [4];
     /// let mut data = vec![1i32, 2, 3, 4];
     /// let ctx = TVMContext::cpu(0);
-    /// let mut ndarray = empty(shape, ctx, TVMType::from("int"));
+    /// let mut ndarray = empty(shape, ctx, TVMType::from("int32"));
     /// ndarray.copy_from_buffer(&mut data);
     /// assert_eq!(ndarray.shape(), Some(shape));
     /// assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
@@ -174,7 +174,7 @@ impl NDArray {
     /// let shape = &mut [2];
     /// let mut data = vec![1f32, 2];
     /// let ctx = TVMContext::gpu(0);
-    /// let mut ndarray = empty(shape, ctx, TVMType::from("int"));
+    /// let mut ndarray = empty(shape, ctx, TVMType::from("int32"));
     /// ndarray.copy_from_buffer(&mut data);
     /// ```
     ///

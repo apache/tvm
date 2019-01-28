@@ -77,41 +77,31 @@ impl<'a> From<&'a str> for TVMType {
             return TVMType::new(1, 1, 1);
         }
 
-        let arr: Vec<&str> = type_str.split("x").collect();
-        let mut head = arr[0];
-        let lanes: u16 = if { arr.len() > 1 } {
-            str::parse::<u16>(arr[1]).expect("Cannot parse `lane` from TVMType into u16!")
-        } else {
-            1
+        let mut type_lanes = type_str.split("x");
+        let typ = type_lanes.next().expect("Missing dtype");
+        let lanes = type_lanes
+            .next()
+            .map(|l| u16::from_str_radix(l, 10).expect(&format!("Bad dtype lanes: {}", l)))
+            .unwrap_or(1);
+        let (type_name, bits) = match typ.find(char::is_numeric) {
+            Some(idx) => {
+                let (name, bits_str) = typ.split_at(idx);
+                (
+                    name,
+                    u8::from_str_radix(bits_str, 10)
+                        .expect(&format!("Bad dtype bits: {}", bits_str)),
+                )
+            }
+            None => (typ, 32),
         };
 
-        let mut bits = 32;
-        let mut type_code = 0;
-        if head.starts_with("int") {
-            head = &head[..3];
-        } else if head.starts_with("uint") {
-            type_code = 1;
-            head = &head[..4];
-        } else if head.starts_with("float") {
-            type_code = 2;
-            head = &head[..5];
-        } else if head.starts_with("handle") {
-            type_code = 4;
-            bits = 64;
-            head = "";
-        } else {
-            panic!("Do not know how to handle type {:?}", type_str);
-        }
-
-        if { head.len() > 0 } {
-            bits = match head {
-                "int" => 32,
-                "uint" => 32,
-                "float" => 32,
-                "handle" => 64,
-                _ => unreachable!(),
-            }
-        }
+        let type_code = match type_name {
+            "int" => 0,
+            "uint" => 1,
+            "float" => 2,
+            "handle" => 3,
+            _ => unimplemented!(),
+        };
 
         TVMType::new(type_code, bits, lanes)
     }

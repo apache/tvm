@@ -148,9 +148,9 @@ use tvm::*;
 fn main() {
     let shape = &mut [2];
     let mut data = vec![3f32, 4.0];
-    let mut arr = empty(shape, TVMContext::gpu(0), TVMType::from("float"));
+    let mut arr = empty(shape, TVMContext::gpu(0), TVMType::from("float32"));
     arr.copy_from_buffer(data.as_mut_slice());
-    let mut ret = empty(shape, TVMContext::gpu(0), TVMType::from("float"));
+    let mut ret = empty(shape, TVMContext::gpu(0), TVMType::from("float32"));
     let mut fadd = Module::load(&Path::new("add_gpu.so")).unwrap();
     let fadd_dep = Module::load(&Path::new("add_gpu.ptx")).unwrap();
     assert!(fadd.enabled("gpu"));
@@ -189,7 +189,7 @@ fn main() {
             let mut ret = 0f32;
             let shape = &mut [2];
             for arg in args.iter() {
-                let e = empty(shape, TVMContext::cpu(0), TVMType::from("float"));
+                let e = empty(shape, TVMContext::cpu(0), TVMType::from("float32"));
                 let arg: NDArray = arg.try_into()?;
                 let arr = arg.copy_to_ndarray(e).unwrap();
                 let rnd: ArrayD<f32> = ArrayD::try_from(&arr).unwrap();
@@ -202,7 +202,7 @@ fn main() {
 
     let shape = &mut [2];
     let mut data = vec![3f32, 4.0];
-    let mut arr = empty(shape, TVMContext::cpu(0), TVMType::from("float"));
+    let mut arr = empty(shape, TVMContext::cpu(0), TVMType::from("float32"));
     arr.copy_from_buffer(data.as_mut_slice());
     let mut registered = function::Builder::default();
     let ret: f64 = registered
