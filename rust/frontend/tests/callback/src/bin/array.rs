@@ -16,7 +16,7 @@ fn main() {
             let mut ret = 0f32;
             let shape = &mut [2];
             for arg in args.iter() {
-                let e = empty(shape, TVMContext::cpu(0), TVMType::from("float32"));
+                let e = NDArray::empty(shape, TVMContext::cpu(0), TVMType::from("float32"));
                 let arg: NDArray = arg.try_into()?;
                 let arr = arg.copy_to_ndarray(e)?;
                 let rnd: ArrayD<f32> = ArrayD::try_from(&arr)?;
@@ -28,7 +28,7 @@ fn main() {
 
     let shape = &mut [2];
     let mut data = vec![3f32, 4.0];
-    let mut arr = empty(shape, TVMContext::cpu(0), TVMType::from("float32"));
+    let mut arr = NDArray::empty(shape, TVMContext::cpu(0), TVMType::from("float32"));
     arr.copy_from_buffer(data.as_mut_slice());
 
     let mut registered = function::Builder::default();
