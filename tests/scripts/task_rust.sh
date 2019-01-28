@@ -11,6 +11,7 @@ export RUST_DIR="$TVM_HOME/rust"
 
 # test common
 cd $RUST_DIR/common
+cargo clean
 cargo fmt -- --check
 
 cargo build --features runtime
