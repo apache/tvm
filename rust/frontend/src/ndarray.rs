@@ -231,15 +231,15 @@ impl NDArray {
     pub fn empty(shape: &[usize], ctx: TVMContext, dtype: TVMType) -> NDArray {
         let mut handle = ptr::null_mut() as ts::TVMArrayHandle;
         check_call!(ts::TVMArrayAlloc(
-                shape.as_ptr() as *const i64,
-                shape.len() as c_int,
-                dtype.inner.code as c_int,
-                dtype.inner.bits as c_int,
-                dtype.inner.lanes as c_int,
-                ctx.device_type.0 as c_int,
-                ctx.device_id as c_int,
-                &mut handle as *mut _,
-                ));
+            shape.as_ptr() as *const i64,
+            shape.len() as c_int,
+            dtype.inner.code as c_int,
+            dtype.inner.bits as c_int,
+            dtype.inner.lanes as c_int,
+            ctx.device_type.0 as c_int,
+            ctx.device_id as c_int,
+            &mut handle as *mut _,
+        ));
         NDArray::new(handle, false)
     }
 }

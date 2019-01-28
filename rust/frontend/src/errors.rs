@@ -5,7 +5,7 @@ use std::{ffi, option};
 use common_errors;
 use rust_ndarray;
 
-error_chain!{
+error_chain! {
     errors {
         EmptyArray {
             description("cannot convert from an empty array")
