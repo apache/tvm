@@ -397,15 +397,15 @@ fn convert_to_tvm_func(f: fn(&[TVMArgValue]) -> Result<TVMRetValue>) -> Function
 /// let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
 /// assert_eq!(ret, 60);
 /// ```
-pub fn register(
+pub fn register<S: AsRef<str>>(
     f: fn(&[TVMArgValue]) -> Result<TVMRetValue>,
-    name: String,
+    name: S,
     override_: bool,
 ) -> Result<()> {
     let func = convert_to_tvm_func(f);
-    let name = CString::new(name)?;
+    let name = CString::new(name.as_ref())?;
     check_call!(ts::TVMFuncRegisterGlobal(
-        name.as_ptr() as *const c_char,
+        name.as_ref().as_ptr() as *const c_char,
         func.handle(),
         override_ as c_int
     ));
@@ -481,7 +481,7 @@ macro_rules! register_global_func {
 /// ```
 #[macro_export]
 macro_rules! call_packed {
-    ($fn_name:ident, $($arg:expr),*) => {{
+    ($fn_name:expr, $($arg:expr),*) => {{
         let mut builder = $crate::function::Builder::from($fn_name);
         $(
             builder.arg($arg);

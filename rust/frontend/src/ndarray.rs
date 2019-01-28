@@ -147,7 +147,7 @@ impl NDArray {
         if self.shape().is_none() {
             bail!("{}", ErrorKind::EmptyArray);
         }
-        let earr = empty(self.shape()?, TVMContext::cpu(0), self.dtype());
+        let earr = NDArray::empty(self.shape()?, TVMContext::cpu(0), self.dtype());
         let target = self.copy_to_ndarray(earr)?;
         let arr = unsafe { *(target.handle) };
         let sz = self.size()? as usize;
@@ -209,7 +209,7 @@ impl NDArray {
 
     /// Copies the NDArray to a target context.
     pub fn copy_to_ctx(&self, target: &TVMContext) -> Result<NDArray> {
-        let tmp = empty(self.shape()?, target.clone(), self.dtype());
+        let tmp = NDArray::empty(self.shape()?, target.clone(), self.dtype());
         let copy = self.copy_to_ndarray(tmp)?;
         Ok(copy)
     }
@@ -221,27 +221,27 @@ impl NDArray {
         dtype: TVMType,
     ) -> Result<Self> {
         let mut shape = rnd.shape().to_vec();
-        let mut nd = empty(&mut shape, ctx, dtype);
+        let mut nd = NDArray::empty(&mut shape, ctx, dtype);
         let mut buf = Array::from_iter(rnd.into_iter().map(|&v| v as T));
         nd.copy_from_buffer(buf.as_slice_mut()?);
         Ok(nd)
     }
-}
 
-/// Allocates and creates an empty NDArray given the shape, context and dtype.
-pub fn empty(shape: &mut [usize], ctx: TVMContext, dtype: TVMType) -> NDArray {
-    let mut handle = ptr::null_mut() as ts::TVMArrayHandle;
-    check_call!(ts::TVMArrayAlloc(
-        shape.as_ptr() as *const i64,
-        shape.len() as c_int,
-        dtype.inner.code as c_int,
-        dtype.inner.bits as c_int,
-        dtype.inner.lanes as c_int,
-        ctx.device_type.0 as c_int,
-        ctx.device_id as c_int,
-        &mut handle as *mut _,
-    ));
-    NDArray::new(handle, false)
+    /// Allocates and creates an empty NDArray given the shape, context and dtype.
+    pub fn empty(shape: &[usize], ctx: TVMContext, dtype: TVMType) -> NDArray {
+        let mut handle = ptr::null_mut() as ts::TVMArrayHandle;
+        check_call!(ts::TVMArrayAlloc(
+                shape.as_ptr() as *const i64,
+                shape.len() as c_int,
+                dtype.inner.code as c_int,
+                dtype.inner.bits as c_int,
+                dtype.inner.lanes as c_int,
+                ctx.device_type.0 as c_int,
+                ctx.device_id as c_int,
+                &mut handle as *mut _,
+                ));
+        NDArray::new(handle, false)
+    }
 }
 
 macro_rules! impl_from_ndarray_rustndarray {

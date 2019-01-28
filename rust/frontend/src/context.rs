@@ -174,7 +174,9 @@ impl_ctxs!((cpu, 1);
             (opencl, 4);
             (metal, 8);
             (vpi, 9);
-            (rocm, 10));
+            (rocm, 10);
+            (opengl, 11);
+            (ext_dev, 12));
 
 impl<'a> From<&'a str> for TVMContext {
     fn from(target: &str) -> Self {

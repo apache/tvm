@@ -70,6 +70,26 @@ impl<'a> TryFrom<TVMArgValue<'a>> for Tensor<'a> {
     }
 }
 
+impl From<*const _> for TVMRetValue {
+    fn from(ptr: *const _) -> Self {
+        TVMRetValue {
+            prim_value: ptr,
+            box_value: box (),
+            type_code: TVMTypeCode::kHandle,
+        }
+    }
+}
+
+impl From<&T> for TVMRetValue {
+    fn from(val: &T) -> Self {
+        TVMRetValue {
+            prim_value: val as *const c_void,
+            box_value: box (),
+            type_code: TVMTypeCode::kHandle,
+        }
+    }
+}
+
 impl<'a, 't> From<&'t Tensor<'a>> for TVMRetValue {
     fn from(val: &'t Tensor<'a>) -> Self {
         TVMRetValue {

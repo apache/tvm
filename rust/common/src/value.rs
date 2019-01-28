@@ -474,6 +474,37 @@ impl_prim_ret_value!(usize, TVMTypeCode::kDLUInt);
 impl_prim_ret_value!(f32, TVMTypeCode::kDLFloat);
 impl_prim_ret_value!(f64, TVMTypeCode::kDLFloat);
 
+macro_rules! impl_ptr_ret_value {
+    ($type:ty) => {
+        impl From<$type> for TVMRetValue {
+            fn from(ptr: $type) -> Self {
+                TVMRetValue {
+                    prim_value: ptr as usize,
+                    box_value: box (),
+                    type_code: TVMTypeCode::kHandle,
+                }
+            }
+        }
+
+        impl TryFrom<TVMRetValue> for $type {
+            type Error = Error;
+            fn try_from(ret: TVMRetValue) -> Result<$type> {
+                if ret.type_code == TVMTypeCode::kHandle {
+                    Ok(ret.prim_value as $type)
+                } else {
+                    bail!(ErrorKind::TryFromTVMRetValueError(
+                        stringify!($type).to_string(),
+                        ret.type_code.to_string(),
+                    ))
+                }
+            }
+        }
+    };
+}
+
+impl_ptr_ret_value!(*const c_void);
+impl_ptr_ret_value!(*mut c_void);
+
 impl From<String> for TVMRetValue {
     fn from(val: String) -> Self {
         let pval = val.as_ptr() as *const c_char as usize;

@@ -84,7 +84,7 @@ pub use context::{TVMContext, TVMDeviceType};
 pub use errors::*;
 pub use function::Function;
 pub use module::Module;
-pub use ndarray::{empty, NDArray};
+pub use ndarray::NDArray;
 pub use ty::TVMType;
 
 /// Outputs the current TVM version.
