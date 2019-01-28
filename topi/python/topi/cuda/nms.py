@@ -49,8 +49,8 @@ def sort_ir(data, index, output):
         with ib.if_scope(tid < num_anchors):
             p_out[start + tid] = tid
         # OddEvenTransposeSort
-        with ib.for_range(0, p_index[0]) as k:
-            with ib.if_scope(tid < (p_index[0] + 1) // 2):
+        with ib.for_range(0, p_index[b]) as k:
+            with ib.if_scope(tid < (p_index[b] + 1) // 2):
                 offset = start + 2 * tid + (k % 2)
                 with ib.if_scope(
                     tvm.all(offset + 1 < p_index[0], p_data[offset] < p_data[offset + 1])):
