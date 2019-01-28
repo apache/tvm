@@ -307,7 +307,7 @@ unsafe extern "C" fn tvm_callback(
     ret: ts::TVMRetValueHandle,
     fhandle: *mut c_void,
 ) -> c_int {
-    // turning of incorrect linter complaints
+    // turning off the incorrect linter complaints
     #![allow(unused_assignments)]
     let len = num_args as usize;
     let args_list = slice::from_raw_parts_mut(args, len);
@@ -496,16 +496,18 @@ mod tests {
 
     #[test]
     fn list_global_func() {
-        assert!(GLOBAL_FUNCTIONS
-            .lock()
-            .unwrap()
-            .contains_key("tvm.graph_runtime.create"));
+        assert!(
+            GLOBAL_FUNCTIONS
+                .lock()
+                .unwrap()
+                .contains_key("tvm.graph_runtime.create")
+        );
     }
 
     #[test]
     fn get_fn() {
-        assert!(Function::get_function("tvm.graph_runtime.remote_create", true).is_some());
-        assert!(Function::get_function("does not exists!", false).is_none());
+        assert!(Function::get("tvm.graph_runtime.remote_create", true).is_some());
+        assert!(Function::get("does not exists!", false).is_none());
     }
 
     #[test]

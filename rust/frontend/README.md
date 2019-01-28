@@ -44,52 +44,50 @@ Now, we need to input the artifacts to create and run the *Graph Runtime* to det
 as demostrated in the following Rust snippet
 
 ```rust
+    let graph = fs::read_to_string("deploy_graph.json")?;
+    // load the built module
+    let lib = Module::load(&Path::new("deploy_lib.so"))?;
+    // get the global TVM graph runtime function
+    let runtime_create_fn = Function::get("tvm.graph_runtime.create", true).unwrap();
+    let runtime_create_fn_ret = call_packed!(
+        runtime_create_fn,
+        &graph,
+        &lib,
+        &ctx.device_type,
+        &ctx.device_id
+    )?;
+    // get graph runtime module
+    let graph_runtime_module: Module = runtime_create_fn_ret.try_into()?;
+    // get the registered `load_params` from runtime module
+    let ref load_param_fn = graph_runtime_module
+        .get_function("load_params", false)
+        .unwrap();
+    // parse parameters and convert to TVMByteArray
+    let params: Vec<u8> = fs::read("deploy_param.params")?;
+    let barr = TVMByteArray::from(&params);
+    // load the parameters
+    call_packed!(load_param_fn, &barr)?;
+    // get the set_input function
+    let ref set_input_fn = graph_runtime_module
+        .get_function("set_input", false)
+        .unwrap();
 
-let graph = fs::read_to_string("deploy_graph.json")?;
-// load module
-let lib = Module::load(&Path::new("deploy_lib.so"))?;
-// get the global TVM graph runtime function
-let runtime_create_fn = Function::get_function("tvm.graph_runtime.create", true).unwrap();
-
-let runtime_create_fn_ret = call_packed!(
-    runtime_create_fn,
-    &graph,
-    &lib,
-    &ctx.device_type,
-    &ctx.device_id
-)?;
-// get graph runtime module
-let graph_runtime_module: Module = runtime_create_fn_ret.try_into()?;
-// get the registered `load_params` from runtime module
-let load_param_fn = graph_runtime_module
-    .get_function("load_params", false)
-    .unwrap();
-// parse parameters and convert to TVMByteArray
-let params: Vec<u8> = fs::read("deploy_param.params")?;
-let barr = TVMByteArray::from(&params);
-// load the parameters
-call_packed!(load_param_fn, &barr)?;
-// get the set_input function
-let set_input_fn = graph_runtime_module
-    .get_function("set_input", false)
-    .unwrap();
-
-call_packed!(set_input_fn, "data", &input)?;
-// get `run` function from runtime module
-let run_fn = graph_runtime_module.get_function("run", false).unwrap();
-// execute the run function. Note that it has no argument.
-call_packed!(run_fn,)?;
-// prepare to get the output
-let output_shape = &mut [1, 1000];
-let output = empty(output_shape, TVMContext::cpu(0), TVMType::from("float"));
-// get the `get_output` function from runtime module
-let get_output_fn = graph_runtime_module
-    .get_function("get_output", false)
-    .unwrap();
-// execute the get_output_fn
-call_packed!(get_output_fn, &0, &output)?;
-// flatten the output as Vec<f32> to get the predictions
-let output = output.to_vec::<f32>()?;
+    call_packed!(set_input_fn, "data", &input)?;
+    // get `run` function from runtime module
+    let ref run_fn = graph_runtime_module.get_function("run", false).unwrap();
+    // execute the run function. Note that it has no argument
+    call_packed!(run_fn,)?;
+    // prepare to get the output
+    let output_shape = &mut [1, 1000];
+    let output = empty(output_shape, TVMContext::cpu(0), TVMType::from("float32"));
+    // get the `get_output` function from runtime module
+    let ref get_output_fn = graph_runtime_module
+        .get_function("get_output", false)
+        .unwrap();
+    // execute the get output function
+    call_packed!(get_output_fn, &0, &output)?;
+    // flatten the output as Vec<f32>
+    let output = output.to_vec::<f32>()?;
 ```
 
 and the model correctly predicts the input image as **tiger cat**.
@@ -153,13 +151,11 @@ fn main() {
     let mut arr = empty(shape, TVMContext::gpu(0), TVMType::from("float"));
     arr.copy_from_buffer(data.as_mut_slice());
     let mut ret = empty(shape, TVMContext::gpu(0), TVMType::from("float"));
-    let path = Path::new("add_gpu.so");
-    let ptx = Path::new("add_gpu.ptx");
-    let mut fadd = Module::load(path).unwrap();
-    let fadd_dep = Module::load(ptx).unwrap();
+    let mut fadd = Module::load(&Path::new("add_gpu.so")).unwrap();
+    let fadd_dep = Module::load(&Path::new("add_gpu.ptx")).unwrap();
     assert!(fadd.enabled("gpu"));
     fadd.import_module(fadd_dep);
-    fadd.entry_func();
+    fadd.entry();
     function::Builder::from(&mut fadd)
         .arg(&arr)
         .arg(&arr)

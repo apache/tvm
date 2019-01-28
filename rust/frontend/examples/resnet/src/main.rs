@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<Error>> {
     // load the built module
     let lib = Module::load(&Path::new("deploy_lib.so"))?;
     // get the global TVM graph runtime function
-    let runtime_create_fn = Function::get_function("tvm.graph_runtime.create", true).unwrap();
+    let runtime_create_fn = Function::get("tvm.graph_runtime.create", true).unwrap();
     let runtime_create_fn_ret = call_packed!(
         runtime_create_fn,
         &graph,
@@ -66,7 +66,7 @@ fn main() -> Result<(), Box<Error>> {
     // get graph runtime module
     let graph_runtime_module: Module = runtime_create_fn_ret.try_into()?;
     // get the registered `load_params` from runtime module
-    let load_param_fn = graph_runtime_module
+    let ref load_param_fn = graph_runtime_module
         .get_function("load_params", false)
         .unwrap();
     // parse parameters and convert to TVMByteArray
@@ -75,20 +75,20 @@ fn main() -> Result<(), Box<Error>> {
     // load the parameters
     call_packed!(load_param_fn, &barr)?;
     // get the set_input function
-    let set_input_fn = graph_runtime_module
+    let ref set_input_fn = graph_runtime_module
         .get_function("set_input", false)
         .unwrap();
 
     call_packed!(set_input_fn, "data", &input)?;
     // get `run` function from runtime module
-    let run_fn = graph_runtime_module.get_function("run", false).unwrap();
+    let ref run_fn = graph_runtime_module.get_function("run", false).unwrap();
     // execute the run function. Note that it has no argument
     call_packed!(run_fn,)?;
     // prepare to get the output
     let output_shape = &mut [1, 1000];
     let output = empty(output_shape, TVMContext::cpu(0), TVMType::from("float32"));
     // get the `get_output` function from runtime module
-    let get_output_fn = graph_runtime_module
+    let ref get_output_fn = graph_runtime_module
         .get_function("get_output", false)
         .unwrap();
     // execute the get output function
