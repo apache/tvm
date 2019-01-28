@@ -1,12 +1,13 @@
-use std::process::Command;
-
 fn main() {
-    #[cfg(feature = "cpu")]
-    let script_path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/tvm_add_cpu.py");
-    #[cfg(feature = "gpu")]
-    let script_path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/tvm_add_gpu.py");
-    let output = Command::new("python")
-        .args(&[&script_path, env!("CARGO_MANIFEST_DIR")])
+    let output = std::process::Command::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/tvm_add.py"))
+        .args(&[
+            if cfg!(feature = "cpu") {
+                "llvm"
+            } else {
+                "cuda"
+            },
+            &std::env::var("OUT_DIR").unwrap(),
+        ])
         .output()
         .expect("Failed to execute command");
     if output.stderr.len() > 0 {

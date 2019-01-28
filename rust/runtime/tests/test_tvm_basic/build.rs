@@ -15,9 +15,6 @@ fn main() {
     .arg(&out_dir)
     .output()
     .expect("Failed to execute command");
-    if output.stderr.len() > 0 {
-        panic!(String::from_utf8(output.stderr).unwrap());
-    }
 
     let in_path: PathBuf = [&out_dir, "test.o"].iter().collect();
     let out_path: PathBuf = [&out_dir, "libtest.a"].iter().collect();

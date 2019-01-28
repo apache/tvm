@@ -10,5 +10,6 @@ ndarray = "0.12.1"
 tvm-frontend = { path = "../../" }
 
 [features]
+default = ["cpu"]
 cpu = []
 gpu = []
