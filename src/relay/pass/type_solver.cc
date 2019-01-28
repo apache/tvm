@@ -518,7 +518,7 @@ TVM_REGISTER_API("relay._ir_pass._test_type_solver")
       } else if (name == "AddConstraint") {
         return TypedPackedFunc<void(TypeConstraint)>([solver](TypeConstraint c) {
             Expr e = VarNode::make("dummy_var",
-              IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+              IncompleteTypeNode::make(Kind::kType));
             return solver->AddConstraint(c, e);
           });
       } else {

@@ -118,7 +118,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   // Perform unification on two types and report the error at the expression
   // or the span of the expression.
-  Type Unify(const Type& t1, const Type& t2, const Expr& expr) {
+  Type Unify(const Type& t1, const Type& t2, const NodeRef& expr) {
     // TODO(tqchen, jroesch): propagate span to solver
     try {
       return solver_.Unify(t1, t2, expr);
@@ -148,7 +148,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     return ret;
   }
 
-  void ReportFatalError(const Expr& expr, const Error& err) {
+  void ReportFatalError(const NodeRef& expr, const Error& err) {
     CHECK(this->current_func_.defined());
     this->err_reporter.ReportAt(this->current_func_, expr, err);
     this->err_reporter.RenderErrors(this->mod_);
@@ -214,7 +214,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
     }
     Type expected = TypeCallNode::make(con->con->belong_to, unknown_args);
-    Type unified = Unify(t, expected, con->span);
+    Type unified = Unify(t, expected, GetRef<NodeRef>(con));
 
     auto* tc = unified.as<TypeCallNode>();
     CHECK(tc) << "must be type call";
@@ -259,7 +259,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // if the definition is a function literal, permit recursion
     bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;
     if (is_functional_literal) {
-      type_map_[op->var].checked_type = IncompleteTypeNode::make(Kind::kType);
+      type_map_[let->var].checked_type = IncompleteTypeNode::make(Kind::kType);
     }
 
     Type vtype = GetType(let->value);
@@ -714,7 +714,7 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
   } else {
     auto e = TypeInferencer(mod_ref, mod_ref->entry_func).Infer(expr);
     CHECK(WellFormed(e));
-    auto free_tvars = FreeTypeVars(e);
+    auto free_tvars = FreeTypeVars(e, mod_ref);
     CHECK(free_tvars.size() == 0)
       << "Found unbound type variables in " << e << ": " << free_tvars;
     EnsureCheckedType(e);
