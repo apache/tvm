@@ -22,7 +22,7 @@ def verify_get_valid_counts(dshape, score_threshold):
         inter_idx = 0
         for j in range(num_anchor):
             score = np_data[i, j, 1]
-            if score >= score_threshold:
+            if score > score_threshold:
                 for k in range(elem_length):
                     np_out2[i, inter_idx, k] = np_data[i, j, k]
                 np_out1[i] += 1
