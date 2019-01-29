@@ -767,6 +767,30 @@ def batch_norm(data,
     return TupleWrapper(result, 3)
 
 
+def batch_dot(x, y):
+    r"""
+    Computes dot product of `x` and `y` when `x` and `y` are data in batch.
+
+    .. math::
+
+        \mbox{batch_dot}(x, y)[i, :, :] = \mbox{dot}(x[i, :, :], y[i, :, :]^T)
+
+    Parameters
+    ----------
+    x : tvm.relay.Expr
+        The first input.
+
+    y : tvm.relay.Expr
+        The second input.
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        The computed result.
+    """
+    return _make.batch_dot(x, y)
+
+
 def contrib_conv2d_winograd_without_weight_transform(data,
                                                      weight,
                                                      tile_size,

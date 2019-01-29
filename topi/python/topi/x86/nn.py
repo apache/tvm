@@ -5,7 +5,7 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 
-from .util import get_fp32_len
+from .util import get_fp32_len, get_max_power2_factor
 from .. import generic, tag, nn
 from ..util import traverse_inline, get_const_tuple
 
@@ -112,7 +112,6 @@ def _declaration_dense_nopack(cfg, data, weight, bias=None):
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct")
 def _schedule_dense(cfg, outs):
     s = tvm.create_schedule([x.op for x in outs])
-    scheduled_ops = []
 
     def _callback(op):
         if "dense_pack" in op.tag:
@@ -126,7 +125,6 @@ def _schedule_dense(cfg, outs):
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct_pack")
 def _schedule_dense_pack(cfg, outs):
     s = tvm.create_schedule([x.op for x in outs])
-    scheduled_ops = []
 
     def _callback(op):
         if "dense_pack" in op.tag:
@@ -138,7 +136,6 @@ def _schedule_dense_pack(cfg, outs):
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct_nopack")
 def _schedule_dense_nopack(cfg, outs):
     s = tvm.create_schedule([x.op for x in outs])
-    scheduled_ops = []
 
     def _callback(op):
         if 'dense_nopack' in op.tag:
@@ -239,3 +236,50 @@ def _default_dense_nopack_config(cfg, M, N, K):
     cfg["tile_k"] = SplitEntity([K // tilek_bn, tilek_bn])
     cfg["tile_x"] = SplitEntity([N, 1])
     cfg["tile_y"] = SplitEntity([1, M])
+
+
+@generic.schedule_batch_dot.register(["cpu"])
+def schedule_batch_dot(outs):
+    """Schedule for softmax
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of softmax
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if "batch_dot" in op.tag:
+            C = op.output(0)
+            A, B = s[C].op.input_tensors
+            _, M, N = get_const_tuple(C.shape)
+            k, = s[C].op.reduce_axis
+            ko, ki = s[C].split(k, 16)
+            CC = s.rfactor(C, ki)
+
+            b, y, x = s[C].op.axis
+            y_bn = get_max_power2_factor(M, 8)
+            x_bn = get_max_power2_factor(N, 8)
+            yo, yi = s[C].split(y, y_bn)
+            xo, xi = s[C].split(x, x_bn)
+            s[C].reorder(b, yo, xo, yi, xi)
+            bxyo = s[C].fuse(b, yo, xo)
+            s[C].parallel(bxyo)
+            s[C].fuse(yi, xi)
+
+            s[CC].compute_at(s[C], bxyo)
+            _, _, y, x = s[CC].op.axis
+            s[CC].fuse(y, x)
+            s[CC].vectorize(s[CC].op.axis[0])
+            s[C].pragma(bxyo, 'auto_unroll_max_step', 16)
+    
+    traverse_inline(s, outs[0].op, _callback)
+    
+    return s

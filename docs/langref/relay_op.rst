@@ -39,6 +39,7 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.nn.relu
    tvm.relay.nn.dropout
    tvm.relay.nn.batch_norm
+   tvm.relay.nn.batch_dot
    tvm.relay.nn.bias_add
 
 
@@ -171,6 +172,7 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.nn.relu
 .. autofunction:: tvm.relay.nn.dropout
 .. autofunction:: tvm.relay.nn.batch_norm
+.. autofunction:: tvm.relay.nn.batch_dot
 .. autofunction:: tvm.relay.nn.bias_add
 
 

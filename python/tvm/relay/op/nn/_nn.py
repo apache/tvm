@@ -46,6 +46,21 @@ def schedule_dense(attrs, outputs, target):
 reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# batch_dot
+@reg.register_compute("nn.batch_dot")
+def compute_batch_dot(attrs, inputs, out_type, target):
+    """Compute definition of batch_dot"""
+    return [topi.nn.batch_dot(inputs[0], inputs[1])]
+
+@reg.register_schedule("nn.batch_dot")
+def schedule_batch_dot(attrs, outputs, target):
+    """Schedule definition of dense"""
+    with target:
+        return topi.generic.schedule_batch_dot(outputs)
+
+reg.register_pattern("nn.batch_dot", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # conv2d
 @reg.register_compute("nn.conv2d")
 def compute_conv2d(attrs, inputs, out_type, target):

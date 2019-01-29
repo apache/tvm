@@ -306,6 +306,49 @@ def test_dense():
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 
+def test_batch_dot():
+    # TODO!!!
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    w = relay.var("w", relay.TensorType((2, w), "float32"))
+    y = relay.nn.dense(x, w, units=2)
+    "units=2" in y.astext()
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
+
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    wh, ww = tvm.var("wh"), tvm.var("ww")
+    w = relay.var("w", relay.TensorType((ww, wh), "float32"))
+    y = relay.nn.dense(x, w)
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, h, ww), "float32")
+
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    w = relay.var("w", relay.IncompleteType())
+    y = relay.nn.dense(x, w, units=2)
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
+
+    x = relay.var("x", shape=(10, 5))
+    w = relay.var("w", shape=(2, 5))
+    z = relay.nn.dense(x, w)
+
+    # Check result.
+    func = relay.Function([x, w], z)
+    x_data = np.random.rand(10, 5).astype('float32')
+    w_data = np.random.rand(2, 5).astype('float32')
+    ref_res = np.dot(x_data, w_data.T)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data, w_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data, w_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+
 
 if __name__ == "__main__":
     test_concatenate()
@@ -319,3 +362,4 @@ if __name__ == "__main__":
     test_dropout()
     test_batch_norm()
     test_dense()
+    test_batch_dot()
