@@ -1,14 +1,14 @@
 use std::process::Command;
 
 fn main() {
-    let script_path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py");
-    let output = Command::new("python")
-        .arg(script_path)
+    let output = Command::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
         .output()
         .expect("Failed to execute command");
-
-    println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-    eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_lib.o")).exists(),
+        "Could not prepare demo: {}",
+        String::from_utf8(output.stderr).unwrap().trim()
+    );
     println!(
         "cargo:rustc-link-search=native={}",
         env!("CARGO_MANIFEST_DIR")

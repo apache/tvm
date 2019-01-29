@@ -2,28 +2,25 @@
 
 set -e
 
-export LD_LIBRARY_PATH=lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=build:$LD_LIBRARY_PATH
-
 export TVM_HOME="$(git rev-parse --show-toplevel)"
+
+export LD_LIBRARY_PATH="$TVM_HOME/lib":"$TVM_HOME/build":"$TVM_HOME/nnvm":$LD_LIBRARY_PATH
 export PYTHONPATH="$TVM_HOME/python":"$TVM_HOME/nnvm/python":"$TVM_HOME/topi/python"
 export RUST_DIR="$TVM_HOME/rust"
 
-# test common
-cd $RUST_DIR/common
-cargo clean
+cd $RUST_DIR
 cargo fmt -- --check
 
+# test common
+cd $RUST_DIR/common
 cargo build --features runtime
 cargo test --features runtime --tests
 
 cargo build --features frontend
 cargo test --features frontend --tests
-cd -
 
 # test runtime
 cd $RUST_DIR/runtime
-cargo fmt -- --check
 
 # run basic tests
 python3 tests/build_model.py
@@ -41,12 +38,8 @@ cd -
 
 # test frontend
 cd $RUST_DIR/frontend
-cargo clean
-cargo fmt -- --check
 
-# run unit tests
-cargo build
-cargo test -- --test-threads=1
+cargo test --tests -- --test-threads=1
 
 # run basic tests on cpu
 cd tests/basics
@@ -65,11 +58,9 @@ cargo run --bin int
 cargo run --bin float
 cargo run --bin array
 cargo run --bin string
-cargo run --bin error
 cd -
 
 # run resnet example
 cd examples/resnet
-cargo build
 cargo run
 cd -
