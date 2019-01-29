@@ -98,7 +98,7 @@ impl<'a> TryFrom<TVMRetValue> for Tensor<'a> {
 }
 
 // @see `WrapPackedFunc` in `llvm_module.cc`.
-pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
+pub(crate) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
     box move |args: &[TVMArgValue]| {
         func(
             args.iter()

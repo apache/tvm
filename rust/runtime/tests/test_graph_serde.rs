@@ -3,11 +3,11 @@
 extern crate serde;
 extern crate serde_json;
 
-extern crate tvm;
+extern crate tvm_runtime;
 
 use std::{convert::TryFrom, fs, io::Read};
 
-use tvm::runtime::Graph;
+use tvm_runtime::Graph;
 
 #[test]
 fn test_load_graph() {
@@ -16,7 +16,7 @@ fn test_load_graph() {
         .expect("Could not find TVM graph. Did you run `tests/build_model.py`?")
         .read_to_end(&mut params_bytes)
         .unwrap();
-    let _params = tvm::runtime::load_param_dict(&params_bytes);
+    let _params = tvm_runtime::load_param_dict(&params_bytes);
 
     let graph = Graph::try_from(
         &fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/graph.json")).unwrap(),

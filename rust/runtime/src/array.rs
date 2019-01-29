@@ -9,7 +9,7 @@ use std::{
 
 use ndarray;
 
-use super::allocator::Allocation;
+use crate::allocator::Allocation;
 use errors::*;
 use ffi::runtime::{
     DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt,
@@ -120,15 +120,15 @@ impl<'d, 's, T> From<&'d [T]> for Storage<'s> {
 #[derive(PartialEq)]
 pub struct Tensor<'a> {
     /// The bytes which contain the data this `Tensor` represents.
-    pub(super) data: Storage<'a>,
-    pub(super) ctx: TVMContext,
-    pub(super) dtype: DataType,
-    pub(super) shape: Vec<i64>, // not usize because `typedef int64_t tvm_index_t` in c_runtime_api.h
+    pub(crate) data: Storage<'a>,
+    pub(crate) ctx: TVMContext,
+    pub(crate) dtype: DataType,
+    pub(crate) shape: Vec<i64>, // not usize because `typedef int64_t tvm_index_t` in c_runtime_api.h
     /// The `Tensor` strides. Can be `None` if the `Tensor` is contiguous.
-    pub(super) strides: Option<Vec<usize>>,
-    pub(super) byte_offset: isize,
+    pub(crate) strides: Option<Vec<usize>>,
+    pub(crate) byte_offset: isize,
     /// The number of elements in the `Tensor`.
-    pub(super) size: usize,
+    pub(crate) size: usize,
 }
 
 unsafe impl<'a> Send for Tensor<'a> {}
@@ -286,7 +286,7 @@ impl DLTensor {
         Self { inner: raw }
     }
 
-    pub(super) fn from_tensor<'a>(tensor: &'a Tensor, flatten: bool) -> Self {
+    pub(crate) fn from_tensor<'a>(tensor: &'a Tensor, flatten: bool) -> Self {
         assert!(!flatten || tensor.is_contiguous());
         Self {
             inner: _DLTensor {
@@ -324,9 +324,9 @@ impl<'a, 't> From<&'a mut Tensor<'t>> for DLTensor {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DataType {
-    pub(super) code: usize,
-    pub(super) bits: usize,
-    pub(super) lanes: usize,
+    pub(crate) code: usize,
+    pub(crate) bits: usize,
+    pub(crate) lanes: usize,
 }
 
 impl DataType {
@@ -388,8 +388,8 @@ make_dtype_const!(DTYPE_FLOAT64, DLDataTypeCode_kDLFloat, 64, 1);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TVMContext {
-    pub(super) device_type: usize,
-    pub(super) device_id: usize,
+    pub(crate) device_type: usize,
+    pub(crate) device_id: usize,
 }
 
 impl<'a> From<&'a TVMContext> for DLContext {

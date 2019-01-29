@@ -1,9 +1,9 @@
 extern crate ndarray;
 #[macro_use]
-extern crate tvm;
+extern crate tvm_runtime;
 
 use ndarray::Array;
-use tvm::runtime::{DLTensor, Module, SystemLibModule};
+use tvm_runtime::{DLTensor, Module, SystemLibModule};
 
 fn main() {
     let syslib = SystemLibModule::default();

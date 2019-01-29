@@ -5,11 +5,11 @@ extern crate ndarray;
 extern crate serde;
 extern crate serde_json;
 
-extern crate tvm;
+extern crate tvm_runtime;
 use std::{collections::HashMap, convert::TryFrom, fs, io::Read};
 
 use ndarray::Array;
-use tvm::runtime::{Graph, GraphExecutor, SystemLibModule, Tensor};
+use tvm_runtime::{Graph, GraphExecutor, SystemLibModule, Tensor};
 
 const BATCH_SIZE: usize = 4;
 const IN_DIM: usize = 8;
@@ -38,7 +38,7 @@ fn main() {
         .unwrap()
         .read_to_end(&mut params_bytes)
         .unwrap();
-    let params = tvm::runtime::load_param_dict(&params_bytes)
+    let params = tvm_runtime::load_param_dict(&params_bytes)
         .unwrap()
         .into_iter()
         .map(|(k, v)| (k, v.to_owned()))

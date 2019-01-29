@@ -3,7 +3,7 @@ use std::{
 };
 
 use ffi::runtime::BackendPackedCFunc;
-use runtime::packed_func::{wrap_backend_packed_func, PackedFunc};
+use packed_func::{wrap_backend_packed_func, PackedFunc};
 
 pub trait Module {
     fn get_function<S: AsRef<str>>(&self, name: S) -> Option<PackedFunc>;

@@ -1,8 +1,8 @@
 [package]
-name = "tvm"
+name = "tvm-runtime"
 version = "0.1.0"
 license = "Apache-2.0"
-description = "TVM Rust runtime"
+description = "A static TVM runtime"
 repository = "https://github.com/dmlc/tvm"
 readme = "README.md"
 keywords = ["tvm", "nnvm"]

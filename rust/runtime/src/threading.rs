@@ -19,7 +19,7 @@ use std::{collections::VecDeque, ptr, sync::Mutex};
 
 use bounded_spsc_queue::{self, Producer};
 
-use super::super::errors::*;
+use errors::*;
 use ffi::runtime::TVMParallelGroupEnv;
 
 #[cfg(target_env = "sgx")]

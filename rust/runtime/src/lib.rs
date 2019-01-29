@@ -41,8 +41,34 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate tvm_common as common;
 
+mod allocator;
+mod array;
 pub mod errors;
-pub mod runtime;
+mod module;
+#[macro_use]
+mod packed_func;
+mod graph;
+#[cfg(target_env = "sgx")]
+#[macro_use]
+pub mod sgx;
+mod threading;
+mod workspace;
 
 pub use common::{errors::*, ffi, TVMArgValue, TVMRetValue};
-pub use errors::*;
+
+pub use self::{
+    array::*, errors::*, graph::*, module::*, packed_func::*, threading::*, workspace::*,
+};
+
+#[cfg(target_env = "sgx")]
+use self::sgx::ocall_packed_func;
+
+#[no_mangle]
+pub extern "C" fn TVMAPISetLastError(cmsg: *const i8) {
+    #[cfg(not(target_env = "sgx"))]
+    unsafe {
+        panic!(std::ffi::CStr::from_ptr(cmsg).to_str().unwrap());
+    }
+    #[cfg(target_env = "sgx")]
+    ocall_packed!("__sgx_set_last_error__", cmsg);
+}
