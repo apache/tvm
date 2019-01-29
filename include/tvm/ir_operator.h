@@ -333,26 +333,6 @@ TVM_DLL Expr max(Expr a, Expr b);
  */
 TVM_DLL Expr min(Expr a, Expr b);
 /*!
- * \brief right shift
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL Expr operator>>(Expr a, Expr b);
-/*!
- * \brief left shift
- *
- * \param a left operand
- * \param b right operand
- * \return The result expression.
- * \note this function does eager constant folding for
- *       index types(int32, int64) when possible.
- */
-TVM_DLL Expr operator<<(Expr a, Expr b);
-/*!
  * \brief take bitwise and of two values
  *
  * \param a left operand
