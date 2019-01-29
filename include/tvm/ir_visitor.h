@@ -131,7 +131,7 @@ class TVM_DLL IRVisitor {
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
-void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit);
+TVM_DLL void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit);
 
 }  // namespace ir
 }  // namespace tvm

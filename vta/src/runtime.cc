@@ -10,6 +10,7 @@
 #include <vta/hw_spec.h>
 #include <vta/runtime.h>
 #include <dmlc/logging.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 #include <cassert>
 #include <cstring>
