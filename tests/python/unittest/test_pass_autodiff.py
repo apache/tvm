@@ -122,7 +122,7 @@ def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None):
                                                size=get_shape(a)).astype(a.dtype))
                 for a in args]
 
-    def fun(*arguments, arg_vals=arg_vals):
+    def fun(*arguments):
         arrays = [tvm.nd.empty(get_shape(out), out.dtype)] + \
             [tvm.nd.array(a) for a in list(arguments) + arg_vals]
         mout(*arrays)
