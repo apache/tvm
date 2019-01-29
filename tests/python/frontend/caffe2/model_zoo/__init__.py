@@ -40,11 +40,9 @@ def _download(model, overwrite=False):
 # skip download if model exist
 for model in models:
     try:
-        raise ImportError
         locals()['c2_' + model] = importlib.import_module('caffe2.python.models.' + model)
     except ImportError:
         try:
-            raise ModuleNotFoundError
             os.system("python3 -m caffe2.python.models.download -i -f " + model)
             locals()['c2_' + model] = importlib.import_module('caffe2.python.models.' + model)
         except ModuleNotFoundError:
