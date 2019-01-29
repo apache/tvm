@@ -37,12 +37,6 @@ def _download(model, overwrite=False):
     return model_dir
 
 
-
-def _as_abs_path(fname):
-    cur_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(cur_dir, fname)
-
-
 # skip download if model exist
 for model in models:
     try:
