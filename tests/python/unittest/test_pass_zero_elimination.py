@@ -231,13 +231,13 @@ def test_solve_system_of_inequalities():
     for i in range(3):
         _check(2, 3)
 
-    for i in range(5):
-        _check(3, 3)
-    for i in range(5):
-        _check(3, 4)
-
     # Somewhere here coefficients in the results become too large, leading to overflow,
     # so we use smaller initial coefficients
+
+    for i in range(5):
+        _check(3, 3, coef=(-2,2))
+    for i in range(5):
+        _check(3, 4, coef=(-2,2))
 
     for i in range(5):
         _check(4, 3, coef=(-1,1))
