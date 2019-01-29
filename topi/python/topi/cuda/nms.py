@@ -52,8 +52,8 @@ def sort_ir(data, index, output):
         with ib.for_range(0, p_index[b]) as k:
             with ib.if_scope(tid < (p_index[b] + 1) // 2):
                 offset = start + 2 * tid + (k % 2)
-                with ib.if_scope(
-                    tvm.all(offset + 1 < p_index[0], p_data[offset] < p_data[offset + 1])):
+                with ib.if_scope( \
+                        tvm.all(offset + 1 < p_index[0], p_data[offset] < p_data[offset + 1])):
                     temp_data[0] = p_data[offset]
                     p_data[offset] = p_data[offset + 1]
                     p_data[offset + 1] = temp_data[0]
@@ -134,50 +134,47 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     force_suppress_node = tvm.make.node(
         "IntImm", dtype="int32", value=1 if force_suppress else 0)
     with ib.for_range(0, batch_size, for_type="unroll") as b:
-        with ib.if_scope(
-            tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
-                    p_valid_count[0] > 0)):
+        base_idx = b * num_anchors * 6
+        with ib.if_scope( \
+                tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
+                        p_valid_count[0] > 0)):
             # Reorder output
-            nkeep = tvm.if_then_else(
-                tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[b]),
-                nms_topk, p_valid_count[b])
+            nkeep = tvm.if_then_else( \
+                    tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[b]),
+                    nms_topk, p_valid_count[b])
             with ib.for_range(0, nkeep) as l:
                 with ib.if_scope(i < 6):
-                    p_out[(b * num_anchors * 6
-                           + l * 6 + i)] = p_data[(b * num_anchors * 6
-                                                   + p_sort_result[b * num_anchors + l] * 6 + i)]
+                    p_out[(base_idx + l * 6 + i)] = \
+                            p_data[(base_idx + p_sort_result[b * num_anchors + l] * 6 + i)]
             with ib.if_scope(tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[b])):
                 with ib.for_range(0, p_valid_count[b] - nkeep) as l:
                     with ib.if_scope(i < 6):
-                        p_out[(b * num_anchors * 6
-                               + (l + nkeep) * 6 + i)] = p_data[(b * num_anchors * 6
-                                                                 + (l + nkeep) * 6 + i)]
+                        p_out[(base_idx + (l + nkeep) * 6 + i)] = \
+                                p_data[(base_idx + (l + nkeep) * 6 + i)]
             # Apply nms
             with ib.for_range(0, p_valid_count[b]) as l:
                 offset_l = l * 6
-                with ib.if_scope(p_out[b * num_anchors * 6 + offset_l] >= 0):
+                with ib.if_scope(p_out[base_idx + offset_l] >= 0):
                     with ib.if_scope(i < p_valid_count[b]):
                         offset_i = i * 6
-                        with ib.if_scope(tvm.all(i > l, p_out[b * num_anchors * 6
+                        with ib.if_scope(tvm.all(i > l, p_out[base_idx
                                                               + offset_i] >= 0)):
                             with ib.if_scope(tvm.any(force_suppress_node > 0,
-                                                     p_out[b * num_anchors * 6 + offset_l] ==
-                                                     p_out[b * num_anchors * 6 + offset_i])):
+                                                     p_out[base_idx + offset_l] ==
+                                                     p_out[base_idx + offset_i])):
                                 # When force_suppress == True or class_id equals
-                                iou = calculate_overlap(p_out, b * num_anchors * 6 + offset_l + 2,
-                                                        b * num_anchors * 6 + offset_i + 2)
+                                iou = calculate_overlap(p_out, base_idx + offset_l + 2,
+                                                        base_idx + offset_i + 2)
                                 with ib.if_scope(iou >= nms_threshold):
-                                    p_out[b * num_anchors * 6 + offset_i] = -1.0
+                                    p_out[base_idx + offset_i] = -1.0
         with ib.else_scope():
             with ib.for_range(0, p_valid_count[b]) as c:
                 with ib.if_scope(i < 6):
-                    p_out[(b * num_anchors * 6
-                           + c * 6 + i)] = p_data[b * num_anchors * 6 + c * 6 + i]
+                    p_out[(base_idx + c * 6 + i)] = p_data[base_idx + c * 6 + i]
         # Set invalid entry to be -1
         with ib.for_range(0, num_anchors - p_valid_count[b]) as c:
             with ib.if_scope(i < 6):
-                p_out[b * num_anchors * 6 + (c +
-                                             p_valid_count[b]) * 6 + i] = -1.0
+                p_out[base_idx + (c + p_valid_count[b]) * 6 + i] = -1.0
     body = ib.get()
     return body
 
