@@ -68,7 +68,7 @@ fn main() {
     let expected_o1 = &right - 1f32;
 
     exec.load_params(params);
-    exec.set_input("data", x.clone().into());
+    exec.set_input("data", (&x).into());
 
     check_sum!(exec, data, x);
     check_sum!(exec, dense0_weight, w);

@@ -82,14 +82,14 @@ impl<'a> Storage<'a> {
         let s = Storage::new(self.size(), Some(self.align())).unwrap();
         unsafe {
             s.as_mut_ptr()
-                .copy_from_nonoverlapping(self.as_ptr(), self.size())
+                .copy_from_nonoverlapping(self.as_ptr(), self.size());
         }
         s
     }
 }
 
-impl<'a, T> From<&'a [T]> for Storage<'a> {
-    fn from(data: &'a [T]) -> Self {
+impl<'d, 's, T> From<&'d [T]> for Storage<'s> {
+    fn from(data: &'d [T]) -> Self {
         let data = unsafe {
             slice::from_raw_parts_mut(
                 data.as_ptr() as *const u8 as *mut u8,
@@ -143,18 +143,10 @@ impl<'a> Tensor<'a> {
     /// # Panics
     ///
     /// Panics if the `Tensor` is not contiguous or does not contain elements of type `T`.
-    pub fn to_vec<T: 'static>(&self) -> Vec<T> {
+    pub fn to_vec<T: 'static + std::fmt::Debug + Clone>(&self) -> Vec<T> {
         assert!(self.is_contiguous());
         assert!(self.dtype.is_type::<T>());
-        let mut vec: Vec<T> = Vec::with_capacity(self.size * self.dtype.itemsize());
-        unsafe {
-            vec.as_mut_ptr().copy_from_nonoverlapping(
-                self.data.as_ptr().offset(self.byte_offset) as *const T,
-                self.size,
-            );
-            vec.set_len(self.size);
-        }
-        vec
+        unsafe { slice::from_raw_parts(self.data.as_ptr() as *const T, self.size).to_vec() }
     }
 
     /// Returns `true` iff this `Tensor` is represented by a contiguous region of memory.
@@ -454,22 +446,14 @@ macro_rules! impl_tensor_from_ndarray {
     ($type:ty, $typecode:expr) => {
         impl<D: ndarray::Dimension> From<ndarray::Array<$type, D>> for Tensor<'static> {
             fn from(arr: ndarray::Array<$type, D>) -> Self {
-                assert!(arr.is_standard_layout(), "Array must be contiguous.");
-                let size = arr.len() * mem::size_of::<$type>() as usize;
-                let storage = Storage::from(unsafe {
-                    slice::from_raw_parts(arr.as_ptr() as *const u8, size)
-                });
-                Tensor::from_array_storage(&arr, storage, $typecode as usize)
+                let storage = Storage::from(arr.as_slice().expect("NDArray must be contiguous"));
+                Tensor::from_array_storage(&arr, storage.to_owned(), $typecode as usize)
             }
         }
         impl<'a, D: ndarray::Dimension> From<&'a ndarray::Array<$type, D>> for Tensor<'a> {
             fn from(arr: &'a ndarray::Array<$type, D>) -> Self {
-                assert!(arr.is_standard_layout(), "Array must be contiguous.");
-                Tensor::from_array_storage(
-                    arr,
-                    Storage::from(arr.as_slice().unwrap()),
-                    $typecode as usize,
-                )
+                let storage = Storage::from(arr.as_slice().expect("NDArray must be contiguous"));
+                Tensor::from_array_storage(arr, storage, $typecode as usize)
             }
         }
     };

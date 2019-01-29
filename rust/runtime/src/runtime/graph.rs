@@ -281,13 +281,13 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         Ok(op_execs)
     }
 
-    pub fn load_params(&mut self, params: HashMap<String, Tensor<'t>>) {
+    pub fn load_params(&mut self, params: HashMap<String, Tensor>) {
         params.into_iter().for_each(|(name, param)| {
             self.set_input(name, param);
         })
     }
 
-    pub fn set_input<S: AsRef<str>>(&mut self, name: S, value: Tensor<'t>) {
+    pub fn set_input<S: AsRef<str>>(&mut self, name: S, value: Tensor) {
         if let Some(idx) = self.get_input_index(name.as_ref()) {
             // TODO: consider `new_with_params` to avoid ever allocating
             let ptr = self.tensors[idx].data.as_ptr();

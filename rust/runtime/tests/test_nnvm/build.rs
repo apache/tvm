@@ -1,11 +1,6 @@
 extern crate ar;
 
-use std::{
-    env,
-    fs::File,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{env, fs::File, path::Path, process::Command};
 
 use ar::Builder;
 
@@ -30,10 +25,8 @@ fn main() {
             .unwrap_or("")
     );
 
-    let in_path: PathBuf = [&out_dir, "graph.o"].iter().collect();
-    let out_path: PathBuf = [&out_dir, "libgraph.a"].iter().collect();
-    let mut builder = Builder::new(File::create(out_path.to_str().unwrap()).unwrap());
-    builder.append_path(in_path.to_str().unwrap()).unwrap();
+    let mut builder = Builder::new(File::create(format!("{}/libgraph.a", out_dir)).unwrap());
+    builder.append_path(format!("{}/graph.o", out_dir)).unwrap();
 
     println!("cargo:rustc-link-lib=static=graph");
     println!("cargo:rustc-link-search=native={}", out_dir);
