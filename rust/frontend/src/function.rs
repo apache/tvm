@@ -15,14 +15,7 @@ use std::{
     sync::Mutex,
 };
 
-use ts;
-use ErrorKind;
-use Module;
-use Result;
-use TVMArgValue;
-use TVMRetValue;
-use TVMTypeCode;
-use TVMValue;
+use crate::{ts, ErrorKind, Module, Result, TVMArgValue, TVMRetValue, TVMTypeCode, TVMValue};
 
 lazy_static! {
     static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<&'static str, Option<Function>>> = {
@@ -334,7 +327,7 @@ unsafe extern "C" fn tvm_callback(
     let rv = match rust_fn(local_args.as_slice()) {
         Ok(v) => v,
         Err(msg) => {
-            ::set_last_error(&msg);
+            crate::set_last_error(&msg);
             return -1;
         }
     };

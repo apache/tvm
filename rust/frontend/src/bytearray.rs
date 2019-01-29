@@ -5,7 +5,7 @@
 
 use std::os::raw::c_char;
 
-use ts;
+use crate::ts;
 
 /// A struct holding TVM byte-array.
 ///

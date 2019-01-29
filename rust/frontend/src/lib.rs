@@ -36,7 +36,7 @@ use std::{
     str,
 };
 
-use common::ffi::ts;
+use crate::common::ffi::ts;
 
 // Macro to check the return call to TVM runtime shared library.
 macro_rules! check_call {
@@ -74,18 +74,20 @@ pub mod ndarray;
 pub mod ty;
 pub mod value;
 
-pub use bytearray::TVMByteArray;
-pub use common::{
-    errors as common_errors,
-    ty::TVMTypeCode,
-    value::{TVMArgValue, TVMRetValue, TVMValue},
+pub use crate::{
+    bytearray::TVMByteArray,
+    common::{
+        errors as common_errors,
+        ty::TVMTypeCode,
+        value::{TVMArgValue, TVMRetValue, TVMValue},
+    },
+    context::{TVMContext, TVMDeviceType},
+    errors::*,
+    function::Function,
+    module::Module,
+    ndarray::NDArray,
+    ty::TVMType,
 };
-pub use context::{TVMContext, TVMDeviceType};
-pub use errors::*;
-pub use function::Function;
-pub use module::Module;
-pub use ndarray::NDArray;
-pub use ty::TVMType;
 
 /// Outputs the current TVM version.
 pub fn version() -> &'static str {

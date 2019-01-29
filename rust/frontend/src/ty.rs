@@ -8,15 +8,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use ts;
+use crate::ts;
 
-use Function;
-use Module;
-use NDArray;
-use TVMByteArray;
-use TVMContext;
-use TVMDeviceType;
-use TVMTypeCode;
+use crate::{Function, Module, NDArray, TVMByteArray, TVMContext, TVMDeviceType, TVMTypeCode};
 
 macro_rules! impl_prim_type {
     ($type:ty, $variant:ident) => {

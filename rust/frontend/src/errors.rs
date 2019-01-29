@@ -2,8 +2,7 @@
 
 use std::{ffi, option};
 
-use common_errors;
-use rust_ndarray;
+use crate::{common_errors, rust_ndarray};
 
 error_chain! {
     errors {

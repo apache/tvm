@@ -8,11 +8,9 @@ use std::{
     ptr,
 };
 
-use ts;
+use crate::ts;
 
-use function::Function;
-use ErrorKind;
-use Result;
+use crate::{function::Function, ErrorKind, Result};
 
 const ENTRY_FUNC: &'static str = "__tvm_main__";
 

@@ -23,9 +23,7 @@ use std::{
     ptr,
 };
 
-use function;
-use ts;
-use Result;
+use crate::{function, ts, Result};
 
 /// Device type can be from a supported device name. See the supported devices
 /// in [TVM](https://github.com/dmlc/tvm).

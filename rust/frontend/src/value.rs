@@ -4,19 +4,10 @@
 
 use std::{convert::TryFrom, mem, os::raw::c_void};
 
-use common_errors::*;
-use ts;
-use Function;
-use Module;
-use NDArray;
-use TVMArgValue;
-use TVMByteArray;
-use TVMContext;
-use TVMDeviceType;
-use TVMRetValue;
-use TVMType;
-use TVMTypeCode;
-use TVMValue;
+use crate::{
+    common_errors::*, ts, Function, Module, NDArray, TVMArgValue, TVMByteArray, TVMContext,
+    TVMDeviceType, TVMRetValue, TVMType, TVMTypeCode, TVMValue,
+};
 
 macro_rules! impl_tvm_val_from_handle {
     ($($ty:ty),+) => {

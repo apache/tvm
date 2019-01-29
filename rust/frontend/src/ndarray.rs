@@ -25,17 +25,12 @@
 
 use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice};
 
+use crate::rust_ndarray::{Array, ArrayD};
 use num_traits::Num;
-use rust_ndarray::{Array, ArrayD};
 
-use ts;
+use crate::ts;
 
-use Error;
-use ErrorKind;
-use Result;
-use TVMByteArray;
-use TVMContext;
-use TVMType;
+use crate::{Error, ErrorKind, Result, TVMByteArray, TVMContext, TVMType};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 ///
