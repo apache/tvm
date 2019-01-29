@@ -46,7 +46,7 @@ dtype = "float32"
 #ctx = tvm.gpu(0)
 # Use these commented settings to build for opencl.
 #target = 'opencl'
-#ctx = tvm.gpu(0)
+#ctx = tvm.opencl(0)
 target = "llvm"
 ctx = tvm.cpu()
 
