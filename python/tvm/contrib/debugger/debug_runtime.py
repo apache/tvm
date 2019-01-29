@@ -7,6 +7,7 @@ from datetime import datetime
 from tvm._ffi.base import string_types
 from tvm._ffi.function import get_global_func
 from tvm.contrib import graph_runtime
+from tvm.ndarray import array
 from tvm.rpc import base as rpc_base
 from . import debug_result
 
@@ -172,6 +173,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 out_tensor = self._get_output_by_layer(i, j)
+                out_tensor = array(out_tensor)
                 self.debug_datum._output_tensor_list.append(out_tensor)
 
     def debug_get_output(self, node, out):
