@@ -115,20 +115,25 @@ def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None):
                                  "worse than the reference ones (by {}): estimated {}, expected {}"
                                  .format(line, EST_RTOL, est.as_tuple(), ref_est.as_tuple()))
 
-    def fun(*arguments):
-        arrays = [tvm.nd.empty(get_shape(out), out.dtype)] + [tvm.nd.array(a) for a in arguments]
+    input_vals = [tvm.nd.array(np.random.uniform(in_range[0], in_range[1],
+                                                 size=get_shape(a)).astype(a.dtype))
+                  for a in inputs]
+    arg_vals = [tvm.nd.array(np.random.uniform(in_range[0], in_range[1],
+                                               size=get_shape(a)).astype(a.dtype))
+                for a in args]
+
+    def fun(*arguments, arg_vals=arg_vals):
+        arrays = [tvm.nd.empty(get_shape(out), out.dtype)] + \
+            [tvm.nd.array(a) for a in list(arguments) + arg_vals]
         mout(*arrays)
         return arrays[0].asnumpy().sum()
 
-    arg_vals = [tvm.nd.array(np.random.uniform(in_range[0], in_range[1],
-                                               size=get_shape(a)).astype(a.dtype))
-                for a in inputs + args]
-
-    g_arg_vals = [tvm.nd.empty(get_shape(i), g.dtype) for i, g in zip(inputs, grads)] + arg_vals
+    g_arg_vals = [tvm.nd.empty(get_shape(i), g.dtype) for i, g in zip(inputs, grads)] + \
+        input_vals + arg_vals
     mgrad(*g_arg_vals)
     g_res = [g_arg_vals[g].asnumpy() for g, _ in enumerate(grads)]
 
-    check_numerical_grads(fun, [a.asnumpy() for a in arg_vals], g_res)
+    check_numerical_grads(fun, [a.asnumpy() for a in input_vals], g_res)
 
 def test_differentiate_function():
     x = tvm.placeholder((32, 3, 28, 28), name='x')
@@ -280,6 +285,11 @@ def test_topi_autodiff():
     check_grad(R1, [X], perf=(300, 0, 300))
     R2 = topi.concatenate((R, S), 2)
     check_grad(R2, [X], perf=(300, 0, 300))
+
+    X = tvm.placeholder((4, 5), name='X')
+    I = tvm.placeholder((100,), name='I', dtype='int32')
+    R = topi.take(X, topi.abs(I))
+    check_grad(R, [X], [I], perf=(2200, 6000, 220))
 
 def test_stride_dilation():
     X = tvm.placeholder((1, 2, 10, 10), name='X')

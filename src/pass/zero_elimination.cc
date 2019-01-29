@@ -653,7 +653,11 @@ class EliminateDivModMutator : public IRMutator {
       }
 
       Expr mutated_a = Mutate(op->a);
-      return AddNewVarPair(op->a, mutated_a, imm->value).first;
+      if (auto var_pair_opt = AddNewVarPair(op->a, mutated_a, imm->value)) {
+        return var_pair_opt.value().first;
+      } else {
+        return Div::make(mutated_a, Mutate(op->b));
+      }
     }
 
     return Div::make(Mutate(op->a), Mutate(op->b));
@@ -668,16 +672,36 @@ class EliminateDivModMutator : public IRMutator {
       }
 
       Expr mutated_a = Mutate(op->a);
-      return AddNewVarPair(op->a, mutated_a, imm->value).second;
+      if (auto var_pair_opt = AddNewVarPair(op->a, mutated_a, imm->value)) {
+        return var_pair_opt.value().second;
+      } else {
+        return Mod::make(mutated_a, Mutate(op->b));
+      }
     }
 
     return Mod::make(Mutate(op->a), Mutate(op->b));
   }
 
  private:
-  std::pair<Var, Var> AddNewVarPair(const Expr& e, const Expr& mut, int64_t val) {
+  dmlc::optional<std::pair<Var, Var>> AddNewVarPair(const Expr& e, const Expr& mut, int64_t val) {
+    using tresult = dmlc::optional<std::pair<Var, Var>>;
+
     Expr val_e = make_const(e.type(), val);
     idx_ += 1;
+
+    std::unordered_map<const Variable*, IntSet> var_intsets;
+    for (const auto& p : ranges) {
+      var_intsets[p.first.get()] = IntSet::range(p.second);
+    }
+
+    Range div_range = EvalSet(mut / val_e, var_intsets).cover_range(Range());
+    Range mod_range = EvalSet(mut % val_e, var_intsets).cover_range(Range());
+
+    if (!div_range.get() || !mod_range.get()) {
+      LOG(WARNING) << "EliminateDivMod: won't eliminate div or mod of expr " << e
+                   << "  because its bounds cannot be inferred";
+      return tresult();
+    }
 
     auto div = Var("div" + std::to_string(idx_), e.type());
     auto mod = Var("mod" + std::to_string(idx_), e.type());
@@ -687,14 +711,6 @@ class EliminateDivModMutator : public IRMutator {
 
     substitution.Set(div, mut / val_e);
     substitution.Set(mod, mut % val_e);
-
-    std::unordered_map<const Variable*, IntSet> var_intsets;
-    for (const auto& p : ranges) {
-      var_intsets[p.first.get()] = IntSet::range(p.second);
-    }
-
-    Range div_range = EvalSet(mut / val_e, var_intsets).cover_range(Range());
-    Range mod_range = EvalSet(mut % val_e, var_intsets).cover_range(Range());
 
     ranges.Set(div, div_range);
     ranges.Set(mod, mod_range);
@@ -710,7 +726,7 @@ class EliminateDivModMutator : public IRMutator {
 
     auto p = std::make_pair(div, mod);
     expr_to_vars_[{e.get(), val}] = p;
-    return p;
+    return tresult(p);
   }
 
   int idx_{0};
