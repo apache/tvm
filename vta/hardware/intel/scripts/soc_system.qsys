@@ -30,20 +30,12 @@
          type = "String";
       }
    }
-   element biases_acp_bridge
+   element acp_bridge
    {
       datum _sortIndex
       {
-         value = "22";
+         value = "20";
          type = "int";
-      }
-   }
-   element biases_acp_bridge.avalon_csr_slave
-   {
-      datum baseAddress
-      {
-         value = "64";
-         type = "String";
       }
    }
    element button_pio
@@ -290,14 +282,6 @@
       datum _sortIndex
       {
          value = "16";
-         type = "int";
-      }
-   }
-   element outputs_acp_bridge
-   {
-      datum _sortIndex
-      {
-         value = "20";
          type = "int";
       }
    }
@@ -812,22 +796,6 @@
          type = "String";
       }
    }
-   element uops_acp_bridge
-   {
-      datum _sortIndex
-      {
-         value = "21";
-         type = "int";
-      }
-   }
-   element uops_acp_bridge.avalon_csr_slave
-   {
-      datum baseAddress
-      {
-         value = "32";
-         type = "String";
-      }
-   }
    element vta_adaptor_0
    {
       datum _sortIndex
@@ -967,14 +935,14 @@
   <parameter name="IRQ_PORT_CNT" value="3" />
  </module>
  <module
-   name="biases_acp_bridge"
+   name="acp_bridge"
    kind="AXI_cache_secruity_bridge"
    version="1.0"
    enabled="1">
   <parameter name="ADDRESS_WIDTH" value="32" />
   <parameter name="AXUSER_WIDTH" value="5" />
   <parameter name="DATA_WIDTH" value="128" />
-  <parameter name="ID_WIDTH" value="1" />
+  <parameter name="ID_WIDTH" value="3" />
  </module>
  <module name="button_pio" kind="altera_avalon_pio" version="18.0" enabled="1">
   <parameter name="bitClearingEdgeCapReg" value="true" />
@@ -1738,16 +1706,6 @@
   <parameter name="useShallowMemBlocks" value="false" />
   <parameter name="writable" value="true" />
  </module>
- <module
-   name="outputs_acp_bridge"
-   kind="AXI_cache_secruity_bridge"
-   version="1.0"
-   enabled="1">
-  <parameter name="ADDRESS_WIDTH" value="32" />
-  <parameter name="AXUSER_WIDTH" value="5" />
-  <parameter name="DATA_WIDTH" value="128" />
-  <parameter name="ID_WIDTH" value="1" />
- </module>
  <module name="store_0" kind="store" version="1.0" enabled="1" />
  <module
    name="sysid_qsys"
@@ -1755,16 +1713,6 @@
    version="18.0"
    enabled="1">
   <parameter name="id" value="-1395322110" />
- </module>
- <module
-   name="uops_acp_bridge"
-   kind="AXI_cache_secruity_bridge"
-   version="1.0"
-   enabled="1">
-  <parameter name="ADDRESS_WIDTH" value="32" />
-  <parameter name="AXUSER_WIDTH" value="5" />
-  <parameter name="DATA_WIDTH" value="128" />
-  <parameter name="ID_WIDTH" value="1" />
  </module>
  <module name="vta_adaptor_0" kind="vta_adaptor" version="1.0" enabled="1" />
  <module
@@ -1803,7 +1751,7 @@
    kind="avalon"
    version="18.0"
    start="vta_adaptor_0.acc_master"
-   end="biases_acp_bridge.axi_slave">
+   end="acp_bridge.axi_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
@@ -1812,25 +1760,7 @@
    kind="avalon"
    version="18.0"
    start="vta_adaptor_0.acp_cfg_master"
-   end="biases_acp_bridge.avalon_csr_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0040" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="vta_adaptor_0.acp_cfg_master"
-   end="uops_acp_bridge.avalon_csr_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0020" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="vta_adaptor_0.acp_cfg_master"
-   end="outputs_acp_bridge.avalon_csr_slave">
+   end="acp_bridge.avalon_csr_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
@@ -1847,25 +1777,7 @@
  <connection
    kind="avalon"
    version="18.0"
-   start="outputs_acp_bridge.axi_master"
-   end="hps_0.f2h_axi_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="uops_acp_bridge.axi_master"
-   end="hps_0.f2h_axi_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="biases_acp_bridge.axi_master"
+   start="acp_bridge.axi_master"
    end="hps_0.f2h_axi_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
@@ -2154,7 +2066,7 @@
    kind="avalon"
    version="18.0"
    start="vta_adaptor_0.out_master"
-   end="outputs_acp_bridge.axi_slave">
+   end="acp_bridge.axi_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
@@ -2186,7 +2098,7 @@
    kind="avalon"
    version="18.0"
    start="vta_adaptor_0.uop_master"
-   end="uops_acp_bridge.axi_slave">
+   end="acp_bridge.axi_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
@@ -2276,21 +2188,7 @@
    end="vta_adaptor_0.clock" />
  <connection kind="clock" version="18.0" start="clk_0.clk" end="store_0.clock" />
  <connection kind="clock" version="18.0" start="clk_0.clk" end="compute_0.clock" />
- <connection
-   kind="clock"
-   version="18.0"
-   start="clk_0.clk"
-   end="outputs_acp_bridge.clock" />
- <connection
-   kind="clock"
-   version="18.0"
-   start="clk_0.clk"
-   end="uops_acp_bridge.clock" />
- <connection
-   kind="clock"
-   version="18.0"
-   start="clk_0.clk"
-   end="biases_acp_bridge.clock" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="acp_bridge.clock" />
  <connection
    kind="clock"
    version="18.0"
@@ -2464,17 +2362,7 @@
    kind="reset"
    version="18.0"
    start="clk_0.clk_reset"
-   end="outputs_acp_bridge.reset_sink" />
- <connection
-   kind="reset"
-   version="18.0"
-   start="clk_0.clk_reset"
-   end="uops_acp_bridge.reset_sink" />
- <connection
-   kind="reset"
-   version="18.0"
-   start="clk_0.clk_reset"
-   end="biases_acp_bridge.reset_sink" />
+   end="acp_bridge.reset_sink" />
  <interconnectRequirement for="$system" name="qsys_mm.clockCrossingAdapter" value="HANDSHAKE" />
  <interconnectRequirement for="$system" name="qsys_mm.maxAdditionalLatency" value="1" />
 </system>
