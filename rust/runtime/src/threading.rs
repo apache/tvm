@@ -19,8 +19,7 @@ use std::{collections::VecDeque, ptr, sync::Mutex};
 
 use bounded_spsc_queue::{self, Producer};
 
-use crate::errors::*;
-use crate::ffi::runtime::TVMParallelGroupEnv;
+use crate::{errors::*, ffi::runtime::TVMParallelGroupEnv};
 
 #[cfg(target_env = "sgx")]
 use super::{sgx::ocall_packed_func, TVMArgValue, TVMRetValue};

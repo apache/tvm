@@ -7,8 +7,10 @@ use crate::ffi::runtime::{
 };
 
 use super::DLTensor;
-use crate::common::{TVMArgValue, TVMRetValue, TVMTypeCode, TVMValue};
-use crate::errors::*;
+use crate::{
+    common::{TVMArgValue, TVMRetValue, TVMTypeCode, TVMValue},
+    errors::*,
+};
 
 pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> TVMRetValue + Send + Sync>;
 

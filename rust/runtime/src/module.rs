@@ -2,8 +2,10 @@ use std::{
     collections::HashMap, convert::AsRef, ffi::CStr, os::raw::c_char, string::String, sync::Mutex,
 };
 
-use crate::ffi::runtime::BackendPackedCFunc;
-use crate::packed_func::{wrap_backend_packed_func, PackedFunc};
+use crate::{
+    ffi::runtime::BackendPackedCFunc,
+    packed_func::{wrap_backend_packed_func, PackedFunc},
+};
 
 pub trait Module {
     fn get_function<S: AsRef<str>>(&self, name: S) -> Option<PackedFunc>;
