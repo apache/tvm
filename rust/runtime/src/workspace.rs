@@ -5,7 +5,7 @@ use std::{
 };
 
 use super::allocator::Allocation;
-use errors::*;
+use crate::errors::*;
 
 const WS_ALIGN: usize = 64; // taken from `kTempAllocaAlignment` in `device_api.h`
 

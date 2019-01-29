@@ -1,14 +1,14 @@
 use std::{convert::TryFrom, marker::PhantomData, os::raw::c_void};
 
 use super::Tensor;
-use ffi::runtime::{
+use crate::ffi::runtime::{
     BackendPackedCFunc, DLTensor as _DLTensor, TVMTypeCode_kArrayHandle,
     TVMTypeCode_kNDArrayContainer, TVMValue as _TVMValue,
 };
 
 use super::DLTensor;
-use common::{TVMArgValue, TVMRetValue, TVMTypeCode, TVMValue};
-use errors::*;
+use crate::common::{TVMArgValue, TVMRetValue, TVMTypeCode, TVMValue};
+use crate::errors::*;
 
 pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> TVMRetValue + Send + Sync>;
 

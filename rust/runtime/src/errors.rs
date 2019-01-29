@@ -4,7 +4,7 @@ use alloc::alloc;
 use std::alloc;
 use std::num;
 
-use common::errors as common_errors;
+use crate::common::errors as common_errors;
 use ndarray;
 use serde_json;
 

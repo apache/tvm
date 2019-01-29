@@ -5,9 +5,9 @@ use serde;
 use serde_json;
 
 use super::{DLTensor, DataType, Module, Storage, TVMContext, Tensor};
-use common::value::TVMArgValue;
-use errors::{Error, ErrorKind, Result};
-use ffi::runtime::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt};
+use crate::common::value::TVMArgValue;
+use crate::errors::{Error, ErrorKind, Result};
+use crate::ffi::runtime::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt};
 
 // Magic number for NDArray file. For more details, see `kTVMNDArrayMagic` in `ndarray.h`
 const _NDARRAY_MAGIC: u64 = 0xDD5E40F096B4A13F;

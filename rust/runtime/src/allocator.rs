@@ -3,7 +3,7 @@ use alloc::alloc::{self, Layout};
 #[cfg(not(target_env = "sgx"))]
 use std::alloc::{self, Layout};
 
-use errors::*;
+use crate::errors::*;
 
 const DEFAULT_ALIGN_BYTES: usize = 4;
 

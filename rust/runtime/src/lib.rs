@@ -54,7 +54,7 @@ pub mod sgx;
 mod threading;
 mod workspace;
 
-pub use common::{errors::*, ffi, TVMArgValue, TVMRetValue};
+pub use crate::common::{errors::*, ffi, TVMArgValue, TVMRetValue};
 
 pub use self::{
     array::*, errors::*, graph::*, module::*, packed_func::*, threading::*, workspace::*,

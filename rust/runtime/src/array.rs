@@ -10,8 +10,8 @@ use std::{
 use ndarray;
 
 use crate::allocator::Allocation;
-use errors::*;
-use ffi::runtime::{
+use crate::errors::*;
+use crate::ffi::runtime::{
     DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt,
     DLDeviceType_kDLCPU, DLTensor as _DLTensor,
 };
