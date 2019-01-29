@@ -67,6 +67,9 @@ RUN bash /install/ubuntu_install_onnx.sh
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
 
+COPY install/ubuntu_install_caffe2.sh /install/ubuntu_install_caffe2.sh
+RUN bash /install/ubuntu_install_caffe2.sh
+
 RUN pip3 install Pillow
 
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
