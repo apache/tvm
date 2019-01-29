@@ -45,7 +45,7 @@ for model in models:
         try:
             os.system("python3 -m caffe2.python.models.download -i -f " + model)
             locals()['c2_' + model] = importlib.import_module('caffe2.python.models.' + model)
-        except ModuleNotFoundError:
+        except (PermissionError, ModuleNotFoundError):
             _download(model)
             if model_base_dir not in sys.path:
                 sys.path.append(model_base_dir)
