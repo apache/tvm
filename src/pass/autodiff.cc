@@ -3,7 +3,7 @@
  * \file autodiff.cc
  * \brief Automatic differentiation of IR Expr
  */
-#include "autodiff.h"
+#include <tvm/autodiff.h>
 
 #include <tvm/api_registry.h>
 #include <topi/broadcast.h>

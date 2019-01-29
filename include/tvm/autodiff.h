@@ -3,8 +3,8 @@
  * \file autodiff.h
  * \brief Automatic differentiation of IR Expr.
  */
-#ifndef TVM_PASS_AUTODIFF_H_
-#define TVM_PASS_AUTODIFF_H_
+#ifndef TVM_AUTODIFF_H_
+#define TVM_AUTODIFF_H_
 
 #include <tvm/ir.h>
 #include <tvm/tensor.h>
@@ -143,4 +143,4 @@ EXPORT DifferentiationResult Differentiate(const Tensor& output,
 
 }  // namespace ir
 }  // namespace tvm
-#endif  // TVM_PASS_AUTODIFF_H_
+#endif  // TVM_AUTODIFF_H_
