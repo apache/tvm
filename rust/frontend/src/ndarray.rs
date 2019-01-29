@@ -311,7 +311,7 @@ mod tests {
     fn basics() {
         let shape = &mut [1, 2, 3];
         let ctx = TVMContext::cpu(0);
-        let ndarray = empty(shape, ctx, TVMType::from("int32"));
+        let ndarray = NDArray::empty(shape, ctx, TVMType::from("int32"));
         assert_eq!(ndarray.shape().unwrap(), shape);
         assert_eq!(
             ndarray.size().unwrap(),
@@ -327,7 +327,7 @@ mod tests {
         let shape = &mut [4];
         let mut data = vec![1i32, 2, 3, 4];
         let ctx = TVMContext::cpu(0);
-        let mut ndarray = empty(shape, ctx, TVMType::from("int32"));
+        let mut ndarray = NDArray::empty(shape, ctx, TVMType::from("int32"));
         assert!(ndarray.to_vec::<i32>().is_ok());
         ndarray.copy_from_buffer(&mut data);
         assert_eq!(ndarray.shape().unwrap(), shape);
@@ -336,7 +336,7 @@ mod tests {
         assert!(ndarray.is_contiguous().is_ok());
         assert_eq!(ndarray.byte_offset(), 0);
         let mut shape = vec![4];
-        let e = empty(&mut shape, TVMContext::cpu(0), TVMType::from("int32"));
+        let e = NDArray::empty(&mut shape, TVMContext::cpu(0), TVMType::from("int32"));
         let nd = ndarray.copy_to_ndarray(e);
         assert!(nd.is_ok());
         assert_eq!(nd.unwrap().to_vec::<i32>().unwrap(), data);
@@ -348,9 +348,9 @@ mod tests {
         let mut shape = vec![4];
         let mut data = vec![1f32, 2., 3., 4.];
         let ctx = TVMContext::cpu(0);
-        let mut nd_float = empty(&mut shape, ctx.clone(), TVMType::from("float32"));
+        let mut nd_float = NDArray::empty(&mut shape, ctx.clone(), TVMType::from("float32"));
         nd_float.copy_from_buffer(&mut data);
-        let empty_int = empty(&mut shape, ctx, TVMType::from("int32"));
+        let empty_int = NDArray::empty(&mut shape, ctx, TVMType::from("int32"));
         nd_float.copy_to_ndarray(empty_int).unwrap();
     }
 
