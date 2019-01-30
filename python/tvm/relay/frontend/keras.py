@@ -625,7 +625,7 @@ def keras_op_to_relay(inexpr, keras_layer, outname, etab):
         etab.set_expr(name, out)
 
 
-def from_keras(model, shape_dict):
+def from_keras(model, shape=None):
     """Convert keras model to relay Function.
 
     Parameters
@@ -633,8 +633,8 @@ def from_keras(model, shape_dict):
     model : keras.engine.training.Model
         The keras model to be converted.
 
-    shape_dict : dict of str to int list/tuple
-        Input shapes of the model.
+    shape: dict of str to int list/tuple
+        Input shapes of the model, optional
 
     Returns
     -------
@@ -642,7 +642,7 @@ def from_keras(model, shape_dict):
         Compatible relay Function.
 
     params : dict of str to tvm.NDArray
-        The parameter dict to be used by relay.
+        The parameter dict to be used by Relay.
     """
     try:
         import keras
@@ -659,8 +659,8 @@ def from_keras(model, shape_dict):
     for keras_layer in model.layers:
         if isinstance(keras_layer, keras.engine.InputLayer):
             input_name = keras_layer.name
-            shape = shape_dict[input_name] if input_name in shape_dict else None
-            etab.set_expr(input_name, _expr.var(input_name, shape=shape))
+            input_shape = shape[input_name] if shape is not None and input_name in shape else None
+            etab.set_expr(input_name, _expr.var(input_name, shape=input_shape))
         else:
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
                        else keras_layer._inbound_nodes if hasattr(keras_layer, '_inbound_nodes') \

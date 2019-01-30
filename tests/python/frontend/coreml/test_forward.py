@@ -7,18 +7,16 @@ import tvm
 from tvm.contrib import graph_runtime
 import topi
 import topi.testing
-import nnvm.symbol as sym
-import nnvm.compiler
-from nnvm.testing.config import ctx_list
-from nnvm import frontend
+from tvm import relay
+from tvm.relay.testing.config import ctx_list
+
 import coremltools as cm
 import model_zoo
 
-def get_tvm_output(symbol, x, params, target, ctx,
+def get_tvm_output(func, x, params, target, ctx,
                    out_shape=(1, 1000), input_name='image', dtype='float32'):
-    shape_dict = {input_name : x.shape}
-    with nnvm.compiler.build_config(opt_level=2):
-        graph, lib, params = nnvm.compiler.build(symbol, target, shape_dict, params=params)
+    with relay.build_module.build_config(opt_level=3):
+        graph, lib, params = relay.build(func, target, params=params)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
     m.set_input(input_name, tvm.nd.array(x.astype(dtype)))
@@ -28,12 +26,13 @@ def get_tvm_output(symbol, x, params, target, ctx,
     out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
     return out.asnumpy()
 
-def run_model_checkonly(model_file, model_name=''):
+def run_model_checkonly(model_file, model_name='', input_name='image'):
     model = cm.models.MLModel(model_file)
-    sym, params = nnvm.frontend.from_coreml(model)
     x = model_zoo.get_cat_image()
+    shape_dict = {input_name : x.shape}
+    func, params = relay.frontend.from_coreml(model, shape_dict)
     for target, ctx in ctx_list():
-        tvm_output = get_tvm_output(sym, x, params, target, ctx)
+        tvm_output = get_tvm_output(func, x, params, target, ctx)
         print(target, ctx, model_name, 'prediction id: ', np.argmax(tvm_output.flat))
 
 def test_mobilenet_checkonly():
@@ -44,11 +43,8 @@ def test_resnet50_checkonly():
     model_file = model_zoo.get_resnet50()
     run_model_checkonly(model_file, 'resnet50')
 
-def run_tvm_graph(graph_def, input_data, input_name, output_shape, output_dtype='float32'):
-    """ Generic function to compile on nnvm and execute on tvm """
-
-    sym, params = nnvm.frontend.from_coreml(graph_def)
-    target = 'llvm'
+def run_tvm_graph(coreml_model, target, ctx, input_data, input_name, output_shape, output_dtype='float32'):
+    """ Generic function to compile on relay and execute on tvm """
     if isinstance(input_data, list):
         shape_dict = {}
         dtype_dict = {}
@@ -59,10 +55,10 @@ def run_tvm_graph(graph_def, input_data, input_name, output_shape, output_dtype=
         shape_dict = {input_name: input_data.shape}
         dtype_dict = {input_name: input_data.dtype}
 
-    graph, lib, params = nnvm.compiler.build(sym, target, shape_dict,
-                                             dtype=dtype_dict, params=params)
+    func, params = relay.frontend.from_coreml(coreml_model, shape_dict)
+    with relay.build_module.build_config(opt_level=3):
+        graph, lib, params = relay.build(func, target, params=params)
 
-    ctx = tvm.cpu(0)
     from tvm.contrib import graph_runtime
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
@@ -104,11 +100,7 @@ def verify_AddLayerParams(input_dim, alpha=2):
                             mode='ADD')
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model,
-                           [a_np1, a_np2],
-                           ['input1', 'input2'],
-                           b_np.shape,
-                           dtype)
+        out = run_tvm_graph(model, target, ctx, [a_np1, a_np2], ['input1', 'input2'], b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_AddLayerParams():
@@ -134,11 +126,7 @@ def verify_MultiplyLayerParams(input_dim, alpha):
                             mode='MULTIPLY')
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model,
-                           [a_np1, a_np2],
-                           ['input1', 'input2'],
-                           b_np.shape,
-                           dtype)
+        out = run_tvm_graph(model, target, ctx, [a_np1, a_np2], ['input1', 'input2'], b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_MultiplyLayerParams():
@@ -163,11 +151,7 @@ def verify_ConcatLayerParams(input1_dim, input2_dim):
                             mode='CONCAT')
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model,
-                           [a_np1, a_np2],
-                           ['input1', 'input2'],
-                           b_np.shape,
-                           dtype)
+        out = run_tvm_graph(model, target, ctx, [a_np1, a_np2], ['input1', 'input2'], b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_ConcatLayerParams():
@@ -197,7 +181,7 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
 
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
+        out = run_tvm_graph(model, target, ctx, a_np, 'input', b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_UpsampleLayerParams():
@@ -217,7 +201,7 @@ def verify_l2_normalize(input_dim, eps):
 
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
+        out = run_tvm_graph(model, target, ctx, a_np, 'input', b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_l2_normalize():
@@ -242,7 +226,7 @@ def verify_lrn(input_dim, size, bias, alpha, beta):
 
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
+        out = run_tvm_graph(model, target, ctx, a_np, 'input', b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_lrn():
@@ -266,11 +250,7 @@ def verify_average(input_dim1, input_dim2, axis=0):
                             mode='AVE')
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model,
-                           [a_np1, a_np2],
-                           ['input1', 'input2'],
-                           b_np.shape,
-                           dtype)
+        out = run_tvm_graph(model, target, ctx, [a_np1, a_np2], ['input1', 'input2'], b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_average():
@@ -298,11 +278,8 @@ def verify_max(input_dim):
                             mode='MAX')
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model,
-                           [a_np1, a_np2, a_np3],
-                           ['input1', 'input2', 'input3'],
-                           b_np.shape,
-                           dtype)
+        out = run_tvm_graph(model, target, ctx, [a_np1, a_np2, a_np3],
+                            ['input1', 'input2', 'input3'], b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_max():
@@ -329,11 +306,8 @@ def verify_min(input_dim):
                             mode='MIN')
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
-        out = run_tvm_graph(model,
-                           [a_np1, a_np2, a_np3],
-                           ['input1', 'input2', 'input3'],
-                           b_np.shape,
-                           dtype)
+        out = run_tvm_graph(model, target, ctx, [a_np1, a_np2, a_np3],
+                            ['input1', 'input2', 'input3'], b_np.shape, dtype)
         tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_min():
@@ -341,8 +315,6 @@ def test_forward_min():
     verify_min((20, 20))
 
 if __name__ == '__main__':
-    test_mobilenet_checkonly()
-    test_resnet50_checkonly()
     test_forward_AddLayerParams()
     test_forward_ConcatLayerParams()
     test_forward_MultiplyLayerParams()
@@ -352,3 +324,5 @@ if __name__ == '__main__':
     test_forward_average()
     test_forward_max()
     test_forward_min()
+    test_mobilenet_checkonly()
+    test_resnet50_checkonly()

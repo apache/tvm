@@ -27,6 +27,9 @@ python3 -m nose -v nnvm/tests/python/frontend/keras || exit -1
 echo "Running nnvm Tensorflow frontend test..."
 python3 -m nose -v nnvm/tests/python/frontend/tensorflow || exit -1
 
+echo "Running nnvm CoreML frontend test..."
+python3 -m nose -v nnvm/tests/python/frontend/coreml || exit -1
+
 echo "Running relay MXNet frontend test..."
 python3 -m nose -v tests/python/frontend/mxnet || exit -1
 
@@ -35,6 +38,9 @@ python3 -m nose -v tests/python/frontend/keras || exit -1
 
 echo "Running relay ONNX frondend test..."
 python3 -m nose -v tests/python/frontend/onnx || exit -1
+
+echo "Running relay CoreML frondend test..."
+python3 -m nose -v tests/python/frontend/coreml || exit -1
 
 echo "Running nnvm to relay frontend test..."
 python3 -m nose -v tests/python/frontend/nnvm_to_relay || exit -1
