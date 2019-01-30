@@ -317,7 +317,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
       const auto& init = op.as<ScanOpNode>()->init;
       for (size_t i = 0; i < update.size(); ++i) {
         Tensor t = op.output(i);
-        for (size_t k = 1; i < update[i]->shape.size(); ++k) {
+        for (size_t k = 1; k < update[i]->shape.size(); ++k) {
           f_merge_key(TensorDimKey(t, k), TensorDimKey(update[i], k));
           f_merge_key(TensorDimKey(t, k), TensorDimKey(init[i], k));
         }

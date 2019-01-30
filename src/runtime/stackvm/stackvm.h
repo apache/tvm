@@ -331,7 +331,7 @@ class StackVM {
       case EQ_I64: return EQ_F64;
       case LT_I64: return LT_F64;
       case LE_I64: return LE_F64;
-      case MOD_I64: LOG(FATAL) << "cannot handle mod for float";
+      case MOD_I64: LOG(FATAL) << "cannot handle mod for float"; return ADD_F64;
       default: LOG(FATAL) << "cannot handle op " << code; return ADD_F64;
     }
   }
