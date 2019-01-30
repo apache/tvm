@@ -295,6 +295,12 @@ class TypeReporterNode : public Node {
    */
   TVM_DLL virtual bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
 
+  /*!
+   * \brief Set the location at which to report unification errors.
+   * \param ref The program node to report the error.
+   */
+  TVM_DLL virtual void SetLocation(const NodeRef& ref) = 0;
+
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) final {}
 

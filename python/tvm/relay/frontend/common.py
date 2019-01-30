@@ -240,6 +240,7 @@ class ExprTable(object):
         self.exprs = {}
         self.params = {}
         self.const_ctr = 1
+        self.in_padding = False
 
     def new_const(self, value, shape=None, dtype="float32"):
         name = "_param_%d" % (self.const_ctr)
@@ -256,6 +257,13 @@ class ExprTable(object):
     def set_expr(self, name, expr):
         assert isinstance(expr, _expr.Expr)
         self.exprs[name] = expr
+
+    def set_padding(self, paddings):
+        self.paddings = paddings
+        self.in_padding = True
+
+    def clear_padding(self):
+        self.in_padding = False
 
 
 class AttrCvt(object):

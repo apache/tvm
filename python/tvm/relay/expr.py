@@ -231,7 +231,7 @@ class Function(Expr):
             _make.Function, params, body, ret_type, type_params, attrs)
 
     def __call__(self, *args):
-        """Invoke the gobal function.
+        """Invoke the global function.
 
         Parameters
         ----------
