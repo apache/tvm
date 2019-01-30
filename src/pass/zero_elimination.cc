@@ -240,6 +240,8 @@ Array<IterVar> IterVarsFromMap(const Array<Var>& vars, const Map<Var, Range>& vr
                                IterVarType iter_type = kDataPar, std::string thread_tag = "") {
   Array<IterVar> res;
   for (const Var& v : vars) {
+    CHECK(vranges.count(v)) << "A range for the variable " << v
+      << " was not provided in map " << vranges;
     res.push_back(IterVarNode::make(vranges[v], v, iter_type, thread_tag));
   }
   return res;
@@ -1198,7 +1200,7 @@ DomainSimplificationResult SimplifyDomain(const Expr& cond,
           new_var_intsets[new_var.get()] = IntSet::interval(make_zero(new_var.type()), diff);
 
           // Add the new var to the resulting axis
-          auto range = Range(make_zero(new_var.type()), diff + 1);
+          auto range = Range(make_zero(new_var.type()), SuperSimplify(diff + 1, vranges));
           res.axis.push_back(new_var);
           res.ranges.Set(new_var, range);
           vranges.Set(new_var, range);
@@ -1457,11 +1459,15 @@ std::pair<Expr, Expr> LiftConditionsThroughReduction(const Expr& cond,
 
 class ExtractReductionsMutator : public IRMutator {
  public:
-  explicit ExtractReductionsMutator(Map<Var, Range> vranges, std::string name = "extracted")
-    : vranges_(std::move(vranges)), name_(std::move(name)) {}
+  explicit ExtractReductionsMutator(const Array<Var>& outer_axis,
+                                    Map<Var, Range> vranges,
+                                    std::string name = "extracted")
+    : outer_axis_(outer_axis), vranges_(std::move(vranges)), name_(std::move(name)) {}
 
   Expr Mutate_(const Reduce* op, const Expr& e) {
-    ExtractReductionsMutator new_mutator(Merge(vranges_, IterVarsToMap(op->axis)), name_);
+    ExtractReductionsMutator new_mutator(Concat(IterVarsToVars(op->axis), outer_axis_),
+                                         Merge(vranges_, IterVarsToMap(op->axis)),
+                                         name_);
 
     Array<Expr> new_source;
     for (const Expr& src : op->source) {
@@ -1470,7 +1476,18 @@ class ExtractReductionsMutator : public IRMutator {
 
     Expr new_reduce =
       Reduce::make(op->combiner, new_source, op->axis, op->condition, op->value_index);
-    Array<Var> vars = ExprFreeVars(new_reduce);
+
+    ExprFreeVarsVisitor fv_visitor;
+    fv_visitor.Visit(new_reduce);
+
+    // Vars of the tensor we are going to create for this reduction
+    Array<Var> vars;
+    for (const Var& v : outer_axis_) {
+      // We take variables from the outer_axis_ which are also present in the new reduction
+      if (fv_visitor.free.count(v.get())) {
+        vars.push_back(v);
+      }
+    }
 
     auto newaxis_vmap_pair = CloneIterVars(IterVarsFromMap(vars, vranges_));
     Array<IterVar> new_axis = newaxis_vmap_pair.first;
@@ -1489,6 +1506,7 @@ class ExtractReductionsMutator : public IRMutator {
   }
 
  private:
+  Array<Var> outer_axis_;
   Map<Var, Range> vranges_;
   std::string name_;
   std::string tag_;
@@ -1496,23 +1514,28 @@ class ExtractReductionsMutator : public IRMutator {
 };
 
 // Extract reductions as separate tensors.
-Expr ExtractReductions(const Expr& expr, const Map<Var, Range>& vranges) {
-  return ExtractReductionsMutator(vranges).Mutate(expr);
+Expr ExtractReductions(const Expr& expr,
+                       const Array<Var>& outer_axis,
+                       const Map<Var, Range>& vranges) {
+  return ExtractReductionsMutator(outer_axis, vranges).Mutate(expr);
 }
 
-Expr ExtractNonTopReductions(const Expr& expr, const Map<Var, Range>& vranges) {
+Expr ExtractNonTopReductions(const Expr& expr,
+                             const Array<Var>& outer_axis,
+                             const Map<Var, Range>& vranges) {
   if (const Reduce* red = expr.as<Reduce>()) {
+    Array<Var> new_outer_axis = Concat(IterVarsToVars(red->axis), outer_axis);
     Map<Var, Range> new_vranges = Merge(vranges, IterVarsToMap(red->axis));
     Array<Expr> new_source;
     for (const Expr& src : red->source) {
-      new_source.push_back(ExtractReductions(src, new_vranges));
+      new_source.push_back(ExtractReductions(src, new_outer_axis, new_vranges));
     }
-    Expr new_condition = ExtractReductions(red->condition, new_vranges);
+    Expr new_condition = ExtractReductions(red->condition, new_outer_axis, new_vranges);
 
     return Reduce::make(red->combiner, new_source, red->axis,
                         new_condition, red->value_index);
   } else {
-    return ExtractReductions(expr, vranges);
+    return ExtractReductions(expr, outer_axis, vranges);
   }
 }
 
@@ -1591,7 +1614,8 @@ Expr OptimizeAndLiftNonzeronessConditionsImpl(const Expr& expr, const Array<Iter
   // Sometimes ExtractAsTensorMaybe doesn't perform extraction, so there may be some non-top
   // reductions left, take care of them
   Map<Var, Range> vrange = IterVarsToMap(axis);
-  return SuperSimplify(ExtractReductions(result, vrange), vrange);
+  return SuperSimplify(ExtractReductions(result, IterVarsToVars(axis), vrange),
+                       vrange);
 }
 
 Tensor OptimizeAndLiftNonzeronessConditions(const Tensor& tensor) {
@@ -1665,12 +1689,12 @@ TVM_REGISTER_API("ir_pass.ExtractAsTensorMaybe")
 
 TVM_REGISTER_API("ir_pass.ExtractReductions")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = ExtractReductions(args[0], args[1]);
+    *ret = ExtractReductions(args[0], args[1], args[2]);
   });
 
 TVM_REGISTER_API("ir_pass.ExtractNonTopReductions")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = ExtractNonTopReductions(args[0], args[1]);
+    *ret = ExtractNonTopReductions(args[0], args[1], args[2]);
   });
 
 TVM_REGISTER_API("ir_pass.OptimizeAndLiftNonzeronessConditions")

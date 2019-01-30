@@ -206,20 +206,26 @@ EXPORT Expr ExtractAsTensorMaybe(const Expr& expr, const Expr& cond,
  *  are created.
  *
  * \param expr The expression from which to extract reductions.
+ * \param outer_axis Input variables of the enclosing tensor.
  * \param vranges Information about ranges of variables.
  * \return An expression without non-top-level reductions.
  */
-EXPORT Expr ExtractReductions(const Expr& expr, const Map<Var, Range>& vranges);
+EXPORT Expr ExtractReductions(const Expr& expr,
+                              const Array<Var>& outer_axis,
+                              const Map<Var, Range>& vranges);
 
 /*!
  * \brief Extract reductions as separate tensors, but if the expr itself is a reduction, leave it
  *  intact.
  *
  * \param expr The expression from which to extract reductions.
+ * \param outer_axis Input variables of the enclosing tensor.
  * \param vranges Information about ranges of variables.
  * \return An expression without non-top-level reductions.
  */
-EXPORT Expr ExtractNonTopReductions(const Expr& expr, const Map<Var, Range>& vranges);
+EXPORT Expr ExtractNonTopReductions(const Expr& expr,
+                                    const Array<Var>& outer_axis,
+                                    const Map<Var, Range>& vranges);
 
 /*!
  * \brief Perform lifting of conditions of being possible to be non-zero together with

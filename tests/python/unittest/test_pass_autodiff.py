@@ -9,8 +9,11 @@ import sys
 # Whether to dump the generated code
 verbose = False
 
-def get_shape(tensor):
-    return [tvm.ir_pass.Simplify(s).value for s in tensor.shape]
+def get_shape(tensor, param_values=None):
+    if param_values is None:
+        param_values = {}
+    return [tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(s, param_values)).value
+            for s in tensor.shape]
 
 def check_equivalence(outputs1, outputs2, inputs, in_range=(-10, 10), iters=10):
     outputs1 = list(outputs1)
@@ -37,11 +40,14 @@ def check_equivalence(outputs1, outputs2, inputs, in_range=(-10, 10), iters=10):
         for j, _ in enumerate(outputs1):
             tvm.testing.assert_allclose(arguments1[j].asnumpy(), arguments2[j].asnumpy())
 
-def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None):
+def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None, param_values=None):
     line = inspect.getframeinfo(inspect.stack()[1][0]).lineno
 
     if not isinstance(inputs, (list, tuple)):
         inputs = [inputs]
+
+    if param_values is None:
+        param_values = {}
 
     if verbose:
         print("\n" + 80*"=" + "\n")
@@ -72,63 +78,66 @@ def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None):
         print(lowered)
         print()
 
-    est = estimate_performance(grads)
-    est_lowered = estimate_performance(lowered)
+    if perf != False:
+        est = estimate_performance(grads, param_values=param_values)
+        est_lowered = estimate_performance(lowered, param_values=param_values)
 
-    if verbose:
-        print("Note: performance tuples are (iterations, multiplications, memory)")
-        print("Expected performance of grads: {}".format(perf))
-        print("Estimated performance of grads: {}".format(est.as_tuple()))
-        print("Estimated performance of lowered grads: {}".format(est_lowered.as_tuple()))
-        print()
+        if verbose:
+            print("Note: performance tuples are (iterations, multiplications, memory)")
+            print("Expected performance of grads: {}".format(perf))
+            print("Estimated performance of grads: {}".format(est.as_tuple()))
+            print("Estimated performance of lowered grads: {}".format(est_lowered.as_tuple()))
+            print()
 
-    if est_lowered.memory > est.memory:
-        print("WARNING: Line {}: The estimated memory consumption increased after lowering, "
-              "this may indicate that tensor bounds have been expanded too much".format(line))
-        print("before: {}  after: {}".format(est, est_lowered))
+        if est_lowered.memory > est.memory:
+            print("WARNING: Line {}: The estimated memory consumption increased after lowering, "
+                  "this may indicate that tensor bounds have been expanded too much".format(line))
+            print("before: {}  after: {}".format(est, est_lowered))
 
-    (iters, mults, mem) = est.as_tuple()
-    if perf is None or isinstance(perf, str):
-        print("WARNING: Line {}: No performance information, you may set it to {}"
-              .format(line, est.as_tuple()))
-        if isinstance(perf, str):
-            print("0,/{!r}/{{s/{!r}/{}/}}".format(perf, perf, (iters, mults, mem)))
-    elif perf != (iters, mults, mem):
-        (ref_iters, ref_mults, ref_mem) = perf
-        ref_est = PerformanceEstimate(*perf)
+        (iters, mults, mem) = est.as_tuple()
+        if perf is None or isinstance(perf, str):
+            print("WARNING: Line {}: No performance information, you may set it to {}"
+                  .format(line, est.as_tuple()))
+            if isinstance(perf, str):
+                print("0,/{!r}/{{s/{!r}/{}/}}".format(perf, perf, (iters, mults, mem)))
+        elif perf != (iters, mults, mem):
+            (ref_iters, ref_mults, ref_mem) = perf
+            ref_est = PerformanceEstimate(*perf)
 
-        if est <= ref_est:
-            print("WARNING: Line {}: Estimated performance {} is better than {}. "
-                  "Use this with sed:"
-                  .format(line, est.as_tuple(), ref_est.as_tuple()))
-            print("0,/{}/{{s/{}/{}/}}".format(perf, perf, (iters, mults, mem)))
-        elif est >= ref_est:
-            print("WARNING: Line {}: Estimated performance {} IS WORSE THAN {}"
-                  .format(line, est.as_tuple(), ref_est.as_tuple()))
-        else:
-            print("WARNING: Line {}: Estimated performance {} does not match {}"
-                  .format(line, est.as_tuple(), ref_est.as_tuple()))
+            if est <= ref_est:
+                print("WARNING: Line {}: Estimated performance {} is better than {}. "
+                      "Use this with sed:"
+                      .format(line, est.as_tuple(), ref_est.as_tuple()))
+                print("0,/{}/{{s/{}/{}/}}".format(perf, perf, (iters, mults, mem)))
+            elif est >= ref_est:
+                print("WARNING: Line {}: Estimated performance {} IS WORSE THAN {}"
+                      .format(line, est.as_tuple(), ref_est.as_tuple()))
+            else:
+                print("WARNING: Line {}: Estimated performance {} does not match {}"
+                      .format(line, est.as_tuple(), ref_est.as_tuple()))
 
-        EST_RTOL = 1.5
-        if iters > ref_iters*EST_RTOL or mults > ref_mults*EST_RTOL or mem > ref_mem*EST_RTOL:
-            raise AssertionError("Line {}: Some of the estimated performance metrics are much "
-                                 "worse than the reference ones (by {}): estimated {}, expected {}"
-                                 .format(line, EST_RTOL, est.as_tuple(), ref_est.as_tuple()))
+            EST_RTOL = 1.5
+            if iters > ref_iters*EST_RTOL or mults > ref_mults*EST_RTOL or mem > ref_mem*EST_RTOL:
+                raise AssertionError("Line {}: Some of the estimated performance metrics are much "
+                                     "worse than the reference ones (by {}): "
+                                     "estimated {}, expected {}"
+                                     .format(line, EST_RTOL, est.as_tuple(), ref_est.as_tuple()))
 
     input_vals = [tvm.nd.array(np.random.uniform(in_range[0], in_range[1],
-                                                 size=get_shape(a)).astype(a.dtype))
+                                                 size=get_shape(a, param_values)).astype(a.dtype))
                   for a in inputs]
     arg_vals = [tvm.nd.array(np.random.uniform(in_range[0], in_range[1],
-                                               size=get_shape(a)).astype(a.dtype))
+                                               size=get_shape(a, param_values)).astype(a.dtype))
                 for a in args]
 
     def fun(*arguments):
-        arrays = [tvm.nd.empty(get_shape(out), out.dtype)] + \
+        arrays = [tvm.nd.empty(get_shape(out, param_values), out.dtype)] + \
             [tvm.nd.array(a) for a in list(arguments) + arg_vals]
         mout(*arrays)
         return arrays[0].asnumpy().sum()
 
-    g_arg_vals = [tvm.nd.empty(get_shape(i), g.dtype) for i, g in zip(inputs, grads)] + \
+    g_arg_vals = \
+        [tvm.nd.empty(get_shape(i, param_values), g.dtype) for i, g in zip(inputs, grads)] + \
         input_vals + arg_vals
     mgrad(*g_arg_vals)
     g_res = [g_arg_vals[g].asnumpy() for g, _ in enumerate(grads)]
@@ -226,7 +235,7 @@ def test_topi_autodiff():
     X = tvm.placeholder((1, 2, 4, 4), name='X')
     W = tvm.placeholder((5, 2, 3, 3), name='W')
     W1 = tvm.placeholder((2, 5, 3, 3), name='W1')
-    W2 = tvm.placeholder((1,), name='W1')
+    W2 = tvm.placeholder((1,), name='W2')
 
     R = topi.nn.conv2d(X, W, 1, 1, 1)
     check_grad(R, [X, W], perf=(3410, 2880, 652))
@@ -410,6 +419,36 @@ def test_some_conv2d_net():
 
     check_grad(t, weights, [x, y], in_range=(-1.0, 1.0), perf=(194865, 179089, 28194))
 
+def test_free_vars():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A = tvm.placeholder((m, n), name='A')
+    B = tvm.placeholder((n,), name='B')
+
+    Y = topi.add(A, B)
+    check_grad(Y, [A, B], perf=(160, 0, 120), param_values={m: 5, n: 10})
+
+    param_values = {m: 10}
+    x = tvm.var("x", dtype='float32')
+    k = tvm.reduce_axis((0, m), name="k")
+    A0 = tvm.placeholder((m, m), name='A0')
+    A1 = tvm.placeholder((m, m), name='A1')
+
+    B = tvm.compute((m, m), lambda i, j: A0[i, j] + A0[j, i], name='B')
+    check_grad(B, A0, perf=(10200, 10000, 300), param_values=param_values)
+
+    B = tvm.compute((m,), lambda i: tvm.sum(A0[i, k]*A0[k, i], axis=k), name='B')
+    check_grad(B, A0, perf=(11110, 1000, 1210), param_values=param_values)
+
+    X = tvm.placeholder((m, n, 4, 4), name='X')
+    param_values = {m: 1, n: 2}
+
+    R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], 'avg')
+    check_grad(R, X, perf=(72, 224, 72), param_values=param_values)
+
+    R = topi.nn.pool(X, [2, 2], [2, 2], [0, 0, 0, 0], 'max')
+    check_grad(R, X, perf=(200, 1248, 136), param_values=param_values)
+
 if __name__ == "__main__":
     if "-v" in sys.argv:
         verbose = True
@@ -419,3 +458,4 @@ if __name__ == "__main__":
     test_topi_autodiff()
     test_stride_dilation()
     test_some_conv2d_net()
+    test_free_vars()

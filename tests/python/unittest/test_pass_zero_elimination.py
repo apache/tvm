@@ -46,7 +46,7 @@ def compute(shape, fcompute):
     """Like tvm.compute but automatically extracts reductions."""
     return tvm.compute(shape,
                        lambda *vs: ExtractNonTopReductions(
-                           fcompute(*vs), {v: tvm.Range(0, s) for v, s in zip(vs, shape)}))
+                           fcompute(*vs), vs, {v: tvm.Range(0, s) for v, s in zip(vs, shape)}))
 
 def check_tensor_symeq(A, B):
     if not isinstance(B, tvm.tensor.Tensor):
@@ -383,6 +383,7 @@ def test_extract_reductions():
     A = tvm.compute((10, 10),
                     lambda i, j:
                         ExtractReductions(sum_combiner(i + k + xor_combiner(j*k + l, l), k),
+                                          [i, j],
                                           {i: tvm.Range(0, 10), j: tvm.Range(0, 10)}))
     B = tvm.compute((10, 10), lambda j, k: xor_combiner(j*k + l, l))
     C = tvm.compute((10, 10), lambda i, j: sum_combiner(i + k + B[j, k], k))
@@ -391,6 +392,7 @@ def test_extract_reductions():
     fcompute = lambda i, j: \
         ExtractReductions(sum_both_combiner((prod_derivative_combiner((i*n + 2*k, j + k), k)[1],
                                              xor_combiner(j*n + l, l)), n)[1],
+                          [i, j],
                           {i: tvm.Range(0, 10), j: tvm.Range(0, 10)})
     A = tvm.compute((10, 10), fcompute)
     _, B = tvm.compute((10, 10, 10),

@@ -197,16 +197,19 @@ class PerformanceEstimate:
             self.memory <= other.memory
 
 
-def estimate_performance(s, processed_ops=None):
+def estimate_performance(s, param_values=None, processed_ops=None):
     """Statically estimate performance of statements, expressions and tensors. Note that the
     estimate is very rough, it mustn't be used to predict future performance, its only purpose is
     to detect possible performance regressions.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     s
         A statement, an expression, a tensor, an operation, or a list
         of any of the above.
+
+    param_values : Dict[tvm.expr.Var, int], optional
+        Values for parameters (free variables).
 
     Returns
     -------
@@ -215,14 +218,23 @@ def estimate_performance(s, processed_ops=None):
     from tvm import stmt
     from tvm import expr
 
+    if param_values is None:
+        param_values = {}
+
     if processed_ops is None:
         processed_ops = {}
-        res = estimate_performance(s, processed_ops)
+        res = estimate_performance(s, param_values=param_values, processed_ops=processed_ops)
         for op_est in processed_ops.values():
             res += op_est
         return res
 
-    est = lambda e, processed_ops=processed_ops: estimate_performance(e, processed_ops)
+    def est(expression, param_values=param_values, processed_ops=processed_ops):
+        return estimate_performance(expression,
+                                    param_values=param_values,
+                                    processed_ops=processed_ops)
+
+    def _eval(expression, param_values=param_values):
+        return tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(expression, param_values)).value
 
     def _prod(elems):
         res = 1
@@ -241,7 +253,7 @@ def estimate_performance(s, processed_ops=None):
     elif s in processed_ops:
         return PerformanceEstimate()
     elif isinstance(s, stmt.Allocate):
-        mem = _prod([e.value for e in s.extents])
+        mem = _prod([_eval(e) for e in s.extents])
         return est(s.condition) + est(s.body) + PerformanceEstimate(memory=mem)
     elif isinstance(s, stmt.Block):
         return est(s.first) + est(s.rest)
@@ -250,7 +262,7 @@ def estimate_performance(s, processed_ops=None):
     elif isinstance(s, stmt.For):
         body_est = est(s.body)
         body_est.iterations = max(1, body_est.iterations)
-        return body_est.times(s.extent.value)
+        return body_est.times(_eval(s.extent))
     elif isinstance(s, stmt.IfThenElse):
         return est(s.condition) + est(s.then_case) + est(s.else_case)
     elif isinstance(s, stmt.LetStmt):
@@ -289,7 +301,7 @@ def estimate_performance(s, processed_ops=None):
     elif isinstance(s, expr.Select):
         return est(s.condition) + est(s.true_value) + est(s.false_value)
     elif isinstance(s, expr.Reduce):
-        iterations = _prod([iv.dom.extent.value for iv in s.axis])
+        iterations = _prod([_eval(iv.dom.extent) for iv in s.axis])
         res = PerformanceEstimate()
         for id_elem in s.combiner.identity_element:
             res += est(id_elem)
@@ -303,7 +315,7 @@ def estimate_performance(s, processed_ops=None):
     elif isinstance(s, tvm.tensor.Tensor):
         return est(s.op)
     elif isinstance(s, tvm.tensor.ComputeOp):
-        iterations = _prod([iv.dom.extent.value for iv in s.axis])
+        iterations = _prod([_eval(iv.dom.extent) for iv in s.axis])
         if s.reduce_axis:
             res = est(s.body[0])
         else:
