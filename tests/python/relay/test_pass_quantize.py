@@ -4,6 +4,23 @@ import tvm
 from tvm import relay
 from tvm.relay import quantize as qtz
 
+
+def make_dataset(graph, size=100):
+    args = relay.ir_pass.infer_type(graph).params
+    def create_arr(var):
+        ttype = var.type_annotation
+        np_arr = np.random.uniform(-1.0, 1.0, size=ttype.concrete_shape).astype(ttype.dtype)
+        return tvm.ndarray.array(np_arr)
+
+    params = {}
+    for arg in args:
+        if arg.name_hint == 'data':
+            dataset = [{'data': create_arr(arg)} for _ in range(size)]
+        else:
+            params[arg.name_hint] = create_arr(arg)
+    return dataset, params
+
+
 def test_simulated_quantize():
     data = relay.var("data", relay.ty.TensorType((3, 4, 5, 6), "float32"))
     out = qtz._annotate.attach_simulated_quantize(data, 1)
@@ -15,21 +32,6 @@ def test_simulated_quantize():
 
 
 def test_quantize_pass():
-    def make_dataset(graph, size=100):
-        args = relay.ir_pass.infer_type(graph).params
-        def create_arr(var):
-            ttype = var.type_annotation
-            np_arr = np.random.uniform(-1.0, 1.0, size=ttype.concrete_shape).astype(ttype.dtype)
-            return tvm.ndarray.array(np_arr)
-
-        params = {}
-        for arg in args:
-            if arg.name_hint == 'data':
-                dataset = [{'data': create_arr(arg)} for _ in range(size)]
-            else:
-                params[arg.name_hint] = create_arr(arg)
-        return dataset, params
-
     def quantize_weight(arr):
         maximum = np.amax(np.abs(arr.asnumpy()))
         scale = 2**math.ceil(math.log(maximum, 2))
@@ -70,7 +72,10 @@ def test_quantize_pass():
     qgraph1 = make_qgraph(data, conv_weight)
     qgraph1 = relay.ir_pass.infer_type(qgraph1)
 
-    assert relay.ir_pass.alpha_equal(qgraph0, qgraph1)
+    graph = relay.create_executor('graph')
+    res0 = graph.evaluate(qgraph0)(dataset[0]['data'])
+    res1 = graph.evaluate(qgraph1)(dataset[0]['data'])
+    tvm.testing.assert_allclose(res0.asnumpy(), res1.asnumpy())
 
 
 if __name__ == "__main__":
