@@ -1,5 +1,6 @@
 #include "datatype_registry.h"
 #include <tvm/api_registry.h>
+#include "topi/detail/extern.h"
 
 namespace tvm {
 
@@ -59,12 +60,39 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
   return runtime::Registry::Get(ss.str());
 }
 
-const runtime::PackedFunc* GetAddLowerFunc(const std::string& target,
-                                           uint8_t type_code) {
-  internal_assert(DatatypeRegistry::Global()->DatatypeRegistered(type_code));
-  return runtime::Registry::Get(
-      "tvm.datatypes." + target + ".lower.add." +
-      DatatypeRegistry::Global()->GetTypeName(type_code));
-}
+TVM_REGISTER_GLOBAL("_register_cast")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      const std::string target = args[0];
+      const std::string type = args[1];
+      const std::string src_type = args[2];
+      const std::string extern_func_name = args[3];
+      auto lower_cast_name =
+          "tvm.datatypes.lower." + target + ".cast." + type + "." + src_type;
+      runtime::Registry::Register(lower_cast_name)
+          .set_body([extern_func_name](TVMArgs args, TVMRetValue* rv) {
+            Expr e = args[0];
+            const ir::Cast* cast = e.as<ir::Cast>();
+            internal_assert(cast);
+            // TODO(gus) UInt(32) here is the resulting storage class, maybe.
+            // They should probably be able to specify this themselves. Or it should
+            // be given when the datatype is originally registered.
+            *rv = ir::Call::make(UInt(32), extern_func_name, {cast->value},
+                                 ir::Call::Extern);
+          });
+      });
 
+TVM_REGISTER_GLOBAL("_register_op").set_body([](TVMArgs args, TVMRetValue* rv) {
+  const std::string target = args[0];
+  const std::string op = args[1];
+  PackedFunc ext_func = args[2];
+  auto ext_func_name = "tvm.datatypes.lower." + target + "." + op + ".external";
+  runtime::Registry::Register(ext_func_name).set_body(ext_func);
+  runtime::Registry::Register("tvm.datatypes.lower." + target + "." + op)
+      .set_body([ext_func_name](TVMArgs args, TVMRetValue* rv) {
+        Expr e = args[0];
+        const ir::Add* add = e.as<ir::Add>();
+        internal_assert(add);
+        return topi::detail::call_packed({Expr(ext_func_name), add->a, add->b});
+      });
+});
 }  // namespace tvm

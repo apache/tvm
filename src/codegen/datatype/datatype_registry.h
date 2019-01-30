@@ -1,17 +1,12 @@
 #ifndef DATATYPE_REGISTRY_H_
 #define DATATYPE_REGISTRY_H_
 
+#include <tvm/api_registry.h>
 #include <tvm/runtime/packed_func.h>
 #include <string>
 #include <unordered_map>
 
 namespace tvm {
-
-const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
-                                            uint8_t type_code,
-                                            uint8_t src_type_code);
-const runtime::PackedFunc* GetAddLowerFunc(const std::string& target,
-                                           uint8_t type_code);
 
 /*!
  * \brief Registry for custom datatypes.
@@ -52,6 +47,42 @@ class DatatypeRegistry {
   std::unordered_map<uint8_t, std::string> code_to_name;
   std::unordered_map<std::string, uint8_t> name_to_code;
 };
+
+const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
+                                            uint8_t type_code,
+                                            uint8_t src_type_code);
+
+#define DEFINE_GET_LOWER_FUNC_(OP)                                  \
+  inline const runtime::PackedFunc* Get##OP##LowerFunc(             \
+      const std::string& target, uint8_t type_code) {               \
+    internal_assert(                                                \
+        DatatypeRegistry::Global()->DatatypeRegistered(type_code)); \
+    return runtime::Registry::Get(                                  \
+        "tvm.datatypes. ## OP ## .lower.add." +                     \
+        DatatypeRegistry::Global()->GetTypeName(type_code));        \
+  }
+
+DEFINE_GET_LOWER_FUNC_(Add)
+DEFINE_GET_LOWER_FUNC_(Sub)
+DEFINE_GET_LOWER_FUNC_(Mul)
+DEFINE_GET_LOWER_FUNC_(Div)
+DEFINE_GET_LOWER_FUNC_(Mod)
+DEFINE_GET_LOWER_FUNC_(Min)
+DEFINE_GET_LOWER_FUNC_(Max)
+DEFINE_GET_LOWER_FUNC_(EQ)
+DEFINE_GET_LOWER_FUNC_(NE)
+DEFINE_GET_LOWER_FUNC_(LT)
+DEFINE_GET_LOWER_FUNC_(LE)
+DEFINE_GET_LOWER_FUNC_(GT)
+DEFINE_GET_LOWER_FUNC_(GE)
+DEFINE_GET_LOWER_FUNC_(Select)
+DEFINE_GET_LOWER_FUNC_(Load)
+DEFINE_GET_LOWER_FUNC_(Ramp)
+DEFINE_GET_LOWER_FUNC_(Broadcast)
+DEFINE_GET_LOWER_FUNC_(Let)
+DEFINE_GET_LOWER_FUNC_(Call)
+DEFINE_GET_LOWER_FUNC_(Variable)
+DEFINE_GET_LOWER_FUNC_(Shuffle)
 
 }  // namespace tvm
 

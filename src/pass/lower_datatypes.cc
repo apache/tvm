@@ -35,16 +35,42 @@ class DatatypesLowerer : public IRMutator {
     return e;
   }
 
-  inline Expr Mutate_(const Add* op, const Expr& e) final {
-    auto type_code = op->type.code();
-    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {
-      auto lower = GetAddLowerFunc(target_, type_code);
-      internal_assert(lower);
-      Expr r = (*lower)(e);
-      return Mutate(r);
-    }
-    return e;
+#define DEFINE_MUTATE__(OP)                                          \
+  inline Expr Mutate_(const OP* op, const Expr& e) final {           \
+    auto type_code = op->type.code();                                \
+    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) { \
+      auto lower = Get##OP##LowerFunc(target_, type_code);           \
+      internal_assert(lower);                                        \
+      Expr r = (*lower)(e);                                          \
+      return Mutate(r);                                              \
+    }                                                                \
+    return e;                                                        \
   }
+
+  // TODO(gus) this list should be the same as the list of
+  // DEFINE_GET_LOWER_FUNC_ in datatypes_registry.h. We should avoid the
+  // duplication.
+  DEFINE_MUTATE__(Add)
+  DEFINE_MUTATE__(Sub)
+  DEFINE_MUTATE__(Mul)
+  DEFINE_MUTATE__(Div)
+  DEFINE_MUTATE__(Mod)
+  DEFINE_MUTATE__(Min)
+  DEFINE_MUTATE__(Max)
+  DEFINE_MUTATE__(EQ)
+  DEFINE_MUTATE__(NE)
+  DEFINE_MUTATE__(LT)
+  DEFINE_MUTATE__(LE)
+  DEFINE_MUTATE__(GT)
+  DEFINE_MUTATE__(GE)
+  DEFINE_MUTATE__(Select)
+  DEFINE_MUTATE__(Load)
+  DEFINE_MUTATE__(Ramp)
+  DEFINE_MUTATE__(Broadcast)
+  DEFINE_MUTATE__(Let)
+  DEFINE_MUTATE__(Call)
+  DEFINE_MUTATE__(Variable)
+  DEFINE_MUTATE__(Shuffle)
 
  private:
   std::string target_;
