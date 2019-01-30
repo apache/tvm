@@ -22,11 +22,7 @@ for model in models:
     try:
         locals()['c2_' + model] = importlib.import_module('caffe2.python.models.' + model)
     except ImportError:
-        try:
-            os.system("python3 -m caffe2.python.models.download -i -f " + model)
-            locals()['c2_' + model] = importlib.import_module('caffe2.python.models.' + model)
-        except (PermissionError, ModuleNotFoundError):
-            locals()['c2_' + model] = Model(model)
+        locals()['c2_' + model] = Model(model)
 
 # squeezenet
 def relay_squeezenet():
