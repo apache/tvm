@@ -386,7 +386,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     }
 
     for (auto cs : fn_ty->type_constraints) {
-      if (auto tr = cs.as<TypeRelationNode>()) {
+      if (const auto* tr = cs.as<TypeRelationNode>()) {
         solver_.AddConstraint(
           TypeRelationNode::make(tr->func, tr->args, tr->num_inputs, call->attrs),
           GetRef<Call>(call));

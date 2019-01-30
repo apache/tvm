@@ -15,7 +15,7 @@ namespace tvm {
 namespace relay {
 
 TensorType ToTensorType(const Type& t) {
-  if (auto tt_node = t.as<TensorTypeNode>()) {
+  if (const auto* tt_node = t.as<TensorTypeNode>()) {
     return GetRef<TensorType>(tt_node);
   } else {
     return TensorType(nullptr);

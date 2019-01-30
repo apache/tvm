@@ -544,7 +544,7 @@ void InjectInline(ScheduleNode* sch) {
         const ComputeOpNode* compute = s->op.as<ComputeOpNode>();
         if (compute) {
           if (!new_body[j].size()) {
-            new_body[j] = s->op.as<ComputeOpNode>()->body;
+            new_body[j] = compute->body;
           }
           if (new_body[j][0]->is_type<ir::Reduce>()) {
             // specially handle reduction inline for multiplre reductions.

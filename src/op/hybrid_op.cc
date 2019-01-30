@@ -435,7 +435,7 @@ Stmt ApplySchedule(const Stage &stage,
   // Gather rebased variables
   std::unordered_map<IterVar, IterVar> rebased;
   for (auto rel : stage->relations) {
-    if (auto rebase = rel.as<RebaseNode>()) {
+    if (const auto* rebase = rel.as<RebaseNode>()) {
       rebased[rebase->rebased] = rebase->parent;
       CHECK(rebase->parent->dom.defined());
       CHECK(dom_map.count(rebase->rebased));

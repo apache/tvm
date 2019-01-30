@@ -470,8 +470,8 @@ void CodeGenStackVM::VisitExpr_(const Select *op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const AssertStmt *op) {
-  if (op->message.as<StringImm>()) {
-    int sid = this->GetStrID(op->message.as<StringImm>()->value);
+  if (const auto* str = op->message.as<StringImm>()) {
+    int sid = this->GetStrID(str->value);
     this->Push(op->condition);
     this->PushOp(StackVM::ASSERT, sid);
   }
