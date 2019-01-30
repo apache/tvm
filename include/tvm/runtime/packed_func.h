@@ -606,7 +606,6 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator NDArray;
-  // Disable copy and assign from another value, but allow move.
   TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {
     this->Assign(other);
   }
