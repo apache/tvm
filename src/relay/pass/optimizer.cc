@@ -4,160 +4,237 @@
  * \brief Relay optimizer implementation.
  */
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/expr.h>
 #include <tvm/relay/optimizer.h>
-#include <tvm/relay/type.h>
 
 namespace tvm {
 namespace relay {
+namespace optimize {
 
 using tvm::IRPrinter;
 
-template <typename T>
-FunctionPass<T> FunctionPassNode<T>::make(std::string name,
-                                          PassFunc<T> pass_func) {
-  auto n = make_node<FunctionPassNode<T>>();
-  n->name = std::move(name);
-  n->pass_kind = PassKind::kFunctionKind;
-  n->pass_func = std::move(pass_func);
-  return FunctionPass<T>(n);
+PassState PassStateNode::make(Module mod) {
+  auto n = make_node<PassStateNode>();
+  n->mod = std::move(mod);
+  return PassState(n);
 }
 
-TVM_REGISTER_API("relay._make.FunctionPass")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+ModulePass ModulePassNode::make(std::string name, int opt_level,
+                                PassFunc<Module> pass_func) {
+  auto n = make_node<ModulePassNode>();
+  n->name = std::move(name);
+  n->opt_level = std::move(opt_level);
+  n->pass_kind = PassKind::kModuleKind;
+  n->pass_func = std::move(pass_func);
+  return ModulePass(n);
+}
+
+// PassState: Module -> Module
+void ModulePassNode::run(PassState* state) const {
+  LOG(INFO) << "Executing Module pass : " << this->name
+            << " with opt level: " << opt_level << "\n";
+  const auto& pass_st_node = (*state).operator->();
+  CHECK(pass_st_node != nullptr);
+  auto foreach = pass_func(*state);
+  Module updated_module = foreach(pass_st_node->mod);
+  CHECK(updated_module.defined());
+  // Update pass state
+  *state = PassStateNode::make(updated_module);;
+}
+
+FunctionPass FunctionPassNode::make(std::string name, int opt_level,
+                                    PassFunc<Function> pass_func) {
+  auto n = make_node<FunctionPassNode>();
+  n->name = std::move(name);
+  n->opt_level = std::move(opt_level);
+  n->pass_kind = PassKind::kFunctionKind;
+  n->pass_func = std::move(pass_func);
+  return FunctionPass(n);
+}
+
+// PassState: Function -> Function
+void FunctionPassNode::run(PassState* state) const {
+  std::cout << "Executing function pass : " << this->name
+            << " with opt level: " << this->opt_level << std::endl;
+  const auto pass_st_node = (*state).operator->();
+  CHECK(pass_st_node != nullptr);
+  auto foreach = pass_func(*state);
+  ModuleNode* mod = pass_st_node->mod.operator->();
+  for (const auto& it : mod->functions) {
+    auto updated_item = foreach(it.second);
+    CHECK(updated_item.defined());
+    mod->Update(it.first, updated_item);
+  }
+  *state = PassStateNode::make(GetRef<Module>(mod));
+}
+
+// TODO(zhiics) Create an enum attribute for FunctionNode
+// enum Attribute {kPrimitive, kSkipOptimization}
+bool FunctionPassNode::SkipFunction(const Function& func) const {
+  NodeRef res = FunctionGetAttr(func, "SkipOptimization");
+  const ir::IntImm* pval = res.as<ir::IntImm>();
+  return pval && pval->value != 0;
+}
+
+ExprPass ExprPassNode::make(std::string name, int opt_level,
+                            PassFunc<Expr> pass_func) {
+  auto n = make_node<ExprPassNode>();
+  n->name = std::move(name);
+  n->opt_level = std::move(opt_level);
+  n->pass_kind = PassKind::kExprKind;
+  n->pass_func = std::move(pass_func);
+  return ExprPass(n);
+}
+
+// PassState: Expr -> Expr
+void ExprPassNode::run(PassState* state) const {
+  std::cout << "Executing Expr pass on PassState: " << this->name << std::endl;
+}
+
+void Optimizer::Optimize() const {
+  for (const Pass& pass : passes_) {
+    CHECK(pass.defined()) << "Found undefined pass for optimization.";
+    pass->run(&state_);
+  }
+}
+
+void Optimize(const tvm::Array<Pass>& passes, PassState* state) {
+  std::cout << "Optimize" << std::endl;
+  Optimizer pm(*state, passes);
+  pm.Optimize();
+  *state = pm.state_;
+}
+
+TVM_REGISTER_NODE_TYPE(ModulePassNode);
+
+TVM_REGISTER_API("relay._optimize.ModulePass")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string pass_name = args[0];
-  PackedFunc py_pass_func = args[1];
-  PassFunc<Module> pass_func = [py_pass_func](const Module& mod) {
-    PackedFunc py_for_each = py_pass_func(mod);
+  int opt_level = args[1];
+  PackedFunc py_pass_func = args[2];
+  PassFunc<Module> pass_func = [py_pass_func](const PassState& state) {
+    PackedFunc py_for_each = py_pass_func(state);
+    return [py_for_each](Module m) {
+      Module r = py_for_each(m);
+      CHECK(r.defined());
+      return r;
+    };
+  };
+  *ret = ModulePassNode::make(pass_name, opt_level, pass_func);
+});
+
+TVM_REGISTER_API("relay._optimize.RunModulePass")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  ModulePass pass = args[0];
+  PassState state = args[1];
+  CHECK(pass.defined())
+      << "Running a pass on undefined ExprPass is not allowed."
+      << "\n";
+  pass->run(&state);
+  *ret = state;
+});
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<ModulePassNode>([](const ModulePassNode* node,
+                                 tvm::IRPrinter* p) {
+  p->stream << "Run Module pass: " << node->name
+            << " at the optimization level " << node->opt_level;
+});
+
+TVM_REGISTER_NODE_TYPE(FunctionPassNode);
+
+TVM_REGISTER_API("relay._optimize.FunctionPass")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string pass_name = args[0];
+  int opt_level = args[1];
+  PackedFunc py_pass_func = args[2];
+  PassFunc<Function> pass_func = [py_pass_func](const PassState& state) {
+    PackedFunc py_for_each = py_pass_func(state);
     return [py_for_each](Function i) {
       Function r = py_for_each(i);
       CHECK(r.defined());
       return r;
     };
   };
-  *ret = FunctionPassNode<Module>::make(pass_name, pass_func);
+  *ret = FunctionPassNode::make(pass_name, opt_level, pass_func);
+});
+
+TVM_REGISTER_API("relay._optimize.RunFunctionPass")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  FunctionPass pass = args[0];
+  PassState state = args[1];
+  CHECK(pass.defined())
+      << "Running a pass on undefined ExprPass is not allowed."
+      << "\n";
+  pass->run(&state);
+  *ret = state;
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<FunctionPassNode<Module>>(
-  [](const FunctionPassNode<Module>* node, tvm::IRPrinter* p) {
-  p->stream << "FunctionPass(TODO)";
+.set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
+                                   tvm::IRPrinter* p) {
+  p->stream << "Run Function pass: " << node->name
+            << " at the optimization level " << node->opt_level;
 });
 
-template <>
-void FunctionPassNode<Module>::run(const Module& unit) const {
-  std::cout << "Executing function Pass on Module: " << this->name << std::endl;
-  auto foreach = this->pass_func(unit);
-  for (const auto& it : unit.operator->()->functions) {
-    auto updated_item = foreach(it.second);
-    CHECK(updated_item.defined());
-    unit->Update(it.first, updated_item);
-  }
-}
+TVM_REGISTER_NODE_TYPE(ExprPassNode);
 
-template <>
-void FunctionPassNode<PassState>::run(const PassState& unit) const {
-  std::cout << "Executing function Pass on PassState: " << this->name
-            << std::endl;
-  auto foreach = this->pass_func(unit);
-  ModuleNode* mod = unit.operator->()->mod.operator->();
-  for (const auto& it : mod->functions) {
-    auto updated_item = foreach(it.second);
-    CHECK(updated_item.defined());
-    mod->Update(it.first, updated_item);
-  }
-}
-
-// TODO(zhiics) Create an enum attribute for FunctionNode
-// enum Attribute {kPrimitive, kSkipOptimization}
-template <typename T>
-bool FunctionPassNode<T>::SkipFunction(const Function& func) const {
-  NodeRef res = FunctionGetAttr(func, "SkipOptimization");
-  const ir::IntImm* pval = res.as<ir::IntImm>();
-  return pval && pval->value != 0;
-}
-
-template <typename T>
-ExprPass<T> ExprPassNode<T>::make(std::string name,
-                            PassFunc<T, Expr, Expr> pass_func) {
-  NodePtr<ExprPassNode<T>> n = make_node<ExprPassNode<T>>();
-  n->name = std::move(name);
-  n->pass_kind = PassKind::kExprKind;
-  n->pass_func = std::move(pass_func);
-  return ExprPass<T>(n);
-}
-
-TVM_REGISTER_API("relay._make.ExprPass")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+TVM_REGISTER_API("relay._optimize.ExprPass")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string pass_name = args[0];
-  PackedFunc py_pass_func = args[1];
-  PassFunc<Module, Expr, Expr> pass_func = [py_pass_func](const Module& mod) {
-    PackedFunc py_for_each = py_pass_func(mod);
+  int opt_level = args[1];
+  PackedFunc py_pass_func = args[2];
+  PassFunc<Expr> pass_func = [py_pass_func](const PassState& state) {
+    PackedFunc py_for_each = py_pass_func(state);
     return [py_for_each](Expr i) {
       Expr r = py_for_each(i);
       CHECK(r.defined());
       return r;
     };
   };
-  *ret = ExprPassNode<Module>::make(pass_name, pass_func);
+  *ret = ExprPassNode::make(pass_name, opt_level, pass_func);
 });
 
-template <typename T>
-void ExprPassNode<T>::run(const Module& mod) const {
-  std::cout << "Executing Expr Pass: " << this->name << std::endl;
-  // TODO(zhiics) what are the target expression for optimization?
-  // function body?
-}
+TVM_REGISTER_API("relay._optimize.RunExprPass")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  ExprPass pass = args[0];
+  CHECK(pass.defined())
+      << "Running a pass on undefined ExprPass is not allowed."
+      << "\n";
+  PassState state = args[1];
+  pass->run(&state);
+  *ret = state;
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<ExprPassNode<Module>>([](const ExprPassNode<Module>* node,
-                                       const tvm::IRPrinter* p) {
-  p->stream << "ExprPass(TODO) what to print?";
+.set_dispatch<ExprPassNode>([](const ExprPassNode* node,
+                               tvm::IRPrinter* p) {
+  p->stream << "Run Expr pass: " << node->name
+            << " at the optimization level " << node->opt_level;
 });
 
-PassState PassStateNode::make(Module mod, GlobalVar current_func) {
-  auto node = make_node<PassStateNode>();
-  node->mod = std::move(mod);
-  node->current_func = current_func;
-  return PassState(node);
-}
+TVM_REGISTER_NODE_TYPE(PassStateNode);
+
+TVM_REGISTER_API("relay._optimize.PassState")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  Module mod = args[0];
+  *ret = PassStateNode::make(mod);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PassStateNode>([](const PassStateNode* node,
-                                const tvm::IRPrinter* p) {
-  p->stream << "PassState(TODO)";
+                                tvm::IRPrinter* p) {
+  LOG(FATAL) << "here";
+  p->stream << "Printing pass state: " << "\n";
 });
 
-PassManager PassManagerNode::make(tvm::Array<Pass> passes) {
-  auto node = make_node<PassManagerNode>();
-  node->passes = std::move(passes);
-  return PassManager(node);
-}
-
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<PassManagerNode>([](const PassManagerNode* node,
-                                  const tvm::IRPrinter* p) {
-  p->stream << "PassManager(TODO)";
-});
-
-void Optimize(const Module& mod, tvm::Array<Pass> passes) {
-  std::cout << "Optimize" << std::endl;
-  PassManager pm = PassManagerNode::make(passes);
-  for (const Pass& pass : pm.operator->()->passes) {
-    pass->run(mod);
-  }
-}
-
-TVM_REGISTER_API("relay._make.PassManager")
+TVM_REGISTER_API("relay._optimize.Optimize")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-  *ret = PassManagerNode::make(args[0]);
+  tvm::Array<Pass> passes = args[0];
+  PassState state = args[1];
+  Optimize(passes, &state);
+  *ret = state;
 });
 
-TVM_REGISTER_API("relay._opt.optimize")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  tvm::Array<Pass> passes = args[1];
-  Optimize(args[0], passes);
-});
-
+}  // namespace optimize
 }  // namespace relay
 }  // namespace tvm

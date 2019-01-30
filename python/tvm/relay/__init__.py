@@ -11,6 +11,7 @@ from . import adt
 from . import ir_pass
 from .build_module import build, build_config, create_executor, optimize
 from . import prelude
+from . import optimizer
 from . import parser
 from . import debug
 from . import param_dict
@@ -79,6 +80,8 @@ Match = adt.Match
 var = expr.var
 const = expr.const
 bind = expr.bind
+build_pass = optimizer.build_pass
+optimize = optimizer.optimize
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
