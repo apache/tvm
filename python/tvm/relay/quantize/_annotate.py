@@ -2,6 +2,7 @@
 """Internal module for registering attribute for annotation."""
 from __future__ import absolute_import
 
+import topi
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig
 from .quantize import _conv_counter, _set_conv_counter
@@ -10,7 +11,6 @@ from .. import op as _op
 from ..op import op as _reg
 from ..base import register_relay_node
 from ..._ffi.function import register_func
-import topi
 
 
 @_reg.register_compute("simulated_quantize")
