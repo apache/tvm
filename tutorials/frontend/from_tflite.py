@@ -18,11 +18,11 @@ To install TFlite packages, you could use our prebuilt wheel:
 .. code-block:: bash
 
     # For python3:
-    wget https://github.com/dmlc/web-data/tree/master/tensorflow/tflite/whl/tflite-0.0.1-py3-none-any.whl
+    wget https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/tflite/whl/tflite-0.0.1-py3-none-any.whl
     pip install tflite-0.0.1-py3-none-any.whl --user
 
     # For python2:
-    wget https://github.com/dmlc/web-data/tree/master/tensorflow/tflite/whl/tflite-0.0.1-py2-none-any.whl
+    wget https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/tflite/whl/tflite-0.0.1-py2-none-any.whl
     pip install tflite-0.0.1-py2-none-any.whl --user
 
 
