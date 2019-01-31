@@ -190,6 +190,7 @@ include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/Random.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
+include(cmake/modules/contrib/HybridDump.cmake)
 
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})

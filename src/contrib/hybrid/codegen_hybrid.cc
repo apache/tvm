@@ -4,161 +4,27 @@
 #include <iomanip>
 #include <cctype>
 #include "codegen_hybrid.h"
-#include "../pass/ir_util.h"
-#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
-namespace codegen {
+namespace contrib {
 
 using namespace ir;
 
-void CodeGenHybrid::Init(bool simple_mode) {
-  simple_mode_ = simple_mode;
-}
-
-void CodeGenHybrid::InitFuncState(LoweredFunc f) {
-  alloc_storage_scope_.clear();
-  handle_data_type_.clear();
-  CodeGenSourceBase::ClearFuncState();
-}
-
-std::string CodeGenHybrid::GetVarID(const Variable* v) {
-  auto it = var_idmap_.find(v);
-  if (!simple_mode_) {
-    CHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
-  } else {
-    if (it == var_idmap_.end())
-      return AllocVarID(v);
+std::string CodeGenHybrid::GetUniqueName(std::string name) {
+  for (size_t i = 0; i < name.size(); ++i) {
+    if (name[i] == '.')
+      name[i] = '_';
   }
-  return it->second;
-}
-
-void CodeGenHybrid::ReserveKeywordsAsUnique() {
-  GetUniqueName("def");
-  GetUniqueName("for");
-  GetUniqueName("in");
-  GetUniqueName("range");
-  GetUniqueName("unroll");
-  GetUniqueName("vectorize");
-  GetUniqueName("parallel");
-  GetUniqueName("if");
-  GetUniqueName("else");
-  GetUniqueName("and");
-  GetUniqueName("or");
-  GetUniqueName("not");
-}
-
-void CodeGenHybrid::AddFunction(LoweredFunc f) {
-  // clear previous generated state.
-  InitFuncState(f);
-  // reserve keywords
-  ReserveKeywordsAsUnique();
-  // add to alloc buffer type.
-  for (const auto & kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.type());
+  auto iter = ids_allocated_.find(name);
+  if (iter == ids_allocated_.end()) {
+    ids_allocated_[name] = 1;
+    return name;
   }
-
-  stream << "def " << f->name << "(";
-  for (size_t i = 0; i < f->args.size(); ++i) {
-    Var v = f->args[i];
-    stream << ' ' << v->name_hint;
-  }
-  stream << "):\n";
-  int func_scope = BeginScope();
-  PrintStmt(f->body);
-  EndScope(func_scope);
+  return name + std::to_string(ids_allocated_[name]++);
 }
 
 std::string CodeGenHybrid::Finish() {
-  return decl_stream.str() + stream.str();
-}
-
-void CodeGenHybrid::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
-  VisitExpr(n, os);
-}
-
-void CodeGenHybrid::PrintSSAAssign(const std::string& target, const std::string& src, Type t) {
-  LOG(FATAL) << "Python backend does not support SSA format.";
-}
-
-// Print a reference expression to a buffer.
-std::string CodeGenHybrid::GetBufferRef(
-    Type t, const Variable* buffer, Expr index) {
-  std::ostringstream os;
-  std::string vid = GetVarID(buffer);
-  os << vid << "[";
-  PrintExpr(index, os);
-  os << "]";
-  return os.str();
-}
-
-// Print a reference expression to a buffer.
-std::string CodeGenHybrid::GetStructRef(
-    Type t, const Expr& buffer, const Expr& index, int kind) {
-  if (kind < intrinsic::kArrKindBound_) {
-    std::ostringstream os;
-    os << "(((TVMArray*)";
-    PrintExpr(buffer, os);
-    os << ")";
-    if (kind == intrinsic::kArrAddr) {
-      os << " + ";
-      PrintExpr(index, os);
-      os << ")";
-      return os.str();
-    }
-    os << '[';
-    PrintExpr(index, os);
-    os << "].";
-    // other case: get fields.
-    switch (kind) {
-      case intrinsic::kArrData: os << "data"; break;
-      case intrinsic::kArrShape: os << "shape"; break;
-      case intrinsic::kArrStrides: os << "strides"; break;
-      case intrinsic::kArrNDim: os << "ndim"; break;
-      case intrinsic::kArrTypeCode: os << "dtype.code"; break;
-      case intrinsic::kArrTypeBits: os << "dtype.bits"; break;
-      case intrinsic::kArrByteOffset: os << "byte_offset"; break;
-      case intrinsic::kArrTypeLanes: os << "dtype.lanes"; break;
-      case intrinsic::kArrDeviceId: os << "ctx.device_id"; break;
-      case intrinsic::kArrDeviceType: os << "ctx.device_type"; break;
-      default: LOG(FATAL) << "unknown field code";
-    }
-    os << ')';
-    return os.str();
-  } else {
-    CHECK_LT(kind, intrinsic::kTVMValueKindBound_);
-    std::ostringstream os;
-    os << "(((TVMValue*)";
-    PrintExpr(buffer, os);
-    os << ")[" << index << "].";
-    if (t.is_handle()) {
-      os << "v_handle";
-    } else if (t.is_float()) {
-      os << "v_float64";
-    } else if (t.is_int()) {
-      os << "v_int64";
-    } else {
-      LOG(FATAL) << "Do not know how to handle type" << t;
-    }
-    os << ")";
-    return os.str();
-  }
-}
-
-
-bool CodeGenHybrid::HandleTypeMatch(const Variable* buf_var, Type t) const {
-  auto it = handle_data_type_.find(buf_var);
-  if (it == handle_data_type_.end()) return false;
-  return it->second == t;
-}
-
-void CodeGenHybrid::RegisterHandleType(const Variable* buf_var, Type t) {
-  auto it = handle_data_type_.find(buf_var);
-  if (it == handle_data_type_.end()) {
-    handle_data_type_[buf_var] = t;
-  } else {
-    CHECK(it->second == t) << "conflicting buf var type";
-  }
+  return stream.str();
 }
 
 void CodeGenHybrid::PrintType(Type t, std::ostream &os) {
@@ -174,26 +40,6 @@ void CodeGenHybrid::PrintType(Type t, std::ostream &os) {
     CHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
   }
   os << t.bits();
-}
-
-std::string CodeGenHybrid::CastFromTo(std::string value, Type from, Type target) {
-  if (from == target) return value;
-  std::ostringstream os;
-  PrintType(target, os);
-  os << "(" << value << ")";
-  return os.str();
-}
-
-void CodeGenHybrid::BindThreadIndex(const IterVar& iv) {
-  LOG(FATAL) << "to be implemented";
-}
-
-void CodeGenHybrid::PrintStorageSync(const Call* op) { // NOLINT(*)
-  LOG(FATAL) << "to be implemented";
-}
-
-void CodeGenHybrid::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
-  CHECK_EQ(scope, "global");
 }
 
 void CodeGenHybrid::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
@@ -251,11 +97,19 @@ inline void PrintBinaryIntrinsitc(const Call* op,
     LOG(FATAL) << "vec bin intrin to be implemented";
   }
 }
+
 void CodeGenHybrid::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
-  std::stringstream value;
-  PrintExpr(op->value, value);
-  os << CastFromTo(value.str(), op->value.type(), op->type);
+  if (op->type == op->value.type()) {
+    PrintExpr(op->value, stream);
+  } else {
+    PrintType(op->type, stream);
+    stream << op->type;
+    os << "(";
+    PrintExpr(op->value, stream);
+    os << ")";
+  }
 }
+
 void CodeGenHybrid::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
@@ -310,16 +164,18 @@ void CodeGenHybrid::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenHybrid::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
-  if (op->call_type == Call::Extern ||
-      op->call_type == Call::PureExtern) {
-    os << op->name << "(";
-    for (size_t i = 0; i < op->args.size(); i++) {
-      PrintExpr(op->args[i], os);
-      if (i < op->args.size() - 1) {
-        os << ", ";
-      }
+  if (op->call_type == Call::Halide) {
+    os << GetTensorID(op->func, op->value_index);
+    os << "[";
+    for (size_t i = 0; i < op->args.size(); ++i) {
+      if (i) os << ", ";
+      std::stringstream idx;
+      PrintExpr(op->args[i], idx);
+      os << idx.str();
     }
-    os << ")";
+    os << "]";
+  } if (op->call_type == Call::Extern ||
+      op->call_type == Call::PureExtern) {
   } else if (op->is_intrinsic(Call::bitwise_and)) {
     PrintBinaryIntrinsitc(op, " & ", os, this);
   } else if (op->is_intrinsic(Call::bitwise_xor)) {
@@ -342,53 +198,35 @@ void CodeGenHybrid::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
     os << " else ";
     PrintExpr(op->args[2], os);
   } else {
-    // TODO(@were): Support tvm runtime intrinsics:
-    // intrinsic::tvm_address_of
-    // intrinsic::tvm_struct_get
-    // intrinsic::tvm_handle_is_null
-    if (op->call_type == Call::Intrinsic ||
-        op->call_type == Call::PureIntrinsic) {
-      LOG(FATAL) << "Unresolved intrinsic " << op->name
-                 << " with return type " << op->type;
-    } else {
-      LOG(FATAL) << "Unresolved call type " << op->call_type;
+    os << op->name << "(";
+    for (size_t i = 0; i < op->args.size(); i++) {
+      PrintExpr(op->args[i], os);
+      if (i < op->args.size() - 1) {
+        os << ", ";
+      }
     }
+    os << ")";
   }
 }
 
 void CodeGenHybrid::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
-  // int lanes = op->type.lanes();
-  // delcare type.
-  if (op->type.lanes() == 1) {
-    std::string ref = GetBufferRef(op->type, op->buffer_var.get(), op->index);
-    os << ref;
-  } else {
-    LOG(FATAL) << "vec load to be supported";
-  }
+  LOG(FATAL) << "Phase 0 has no Load(s)!";
 }
 
 void CodeGenHybrid::VisitStmt_(const Store* op) {
-  Type t = op->value.type();
-  if (t.lanes() == 1) {
-    std::string value = PrintExpr(op->value);
-    std::string ref  = GetBufferRef(t, op->buffer_var.get(), op->index);
-    PrintIndent();
-    stream << ref << " = " << value << "\n";
-  } else {
-    LOG(FATAL) << "Vectorized store is not supported yet...";
-  }
+  LOG(FATAL) << "Phase 0 has no Store(s)!";
 }
 
 void CodeGenHybrid::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
-  std::string value = PrintExpr(op->value);
-  CHECK(!var_idmap_.count(op->var.get()));
-  var_idmap_[op->var.get()] = value;
-  os << PrintExpr(op->body);
+  LOG(FATAL) << "Phase 0 has no Let(s)!";
+}
+
+void CodeGenHybrid::VisitStmt_(const Allocate* op) {
+  LOG(FATAL) << "Phase 0 has no Allocate(s)!";
 }
 
 void CodeGenHybrid::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
-  // TODO(@were): Support vectorization access in both frontend and backend
-  LOG(FATAL) << "ramp to be supported yet";
+  LOG(FATAL) << "Ramp to be supported yet";
 }
 
 void CodeGenHybrid::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
@@ -406,21 +244,7 @@ void CodeGenHybrid::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(
 
 void CodeGenHybrid::VisitStmt_(const LetStmt* op) {
   std::string value = PrintExpr(op->value);
-  stream << AllocVarID(op->var.get()) << " = " << value << ";\n";
-  PrintStmt(op->body);
-}
-
-void CodeGenHybrid::VisitStmt_(const Allocate* op) {
-  CHECK(!is_zero(op->condition));
-  std::string vid = AllocVarID(op->buffer_var.get());
-  PrintIndent();
-  stream << vid << " = allocate((";
-  for (size_t i = 0; i < op->extents.size(); ++i) {
-    if (!i) stream << ", ";
-    stream << PrintExpr(op->extents[i]);
-  }
-  stream << "), \"" << op-> type << "\")\n";
-  RegisterHandleType(op->buffer_var.get(), op->type);
+  stream << GetVarID(op->var.get()) << " = " << value << ";\n";
   PrintStmt(op->body);
 }
 
@@ -428,20 +252,29 @@ void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
   // TODO(@were): Support thread and buffer binding
   if (op->attr_key == ir::attr::thread_extent) {
     LOG(FATAL) << "Thread binding support yet!\n";
-  } else if (op->attr_key == ir::attr::storage_scope) {
-    const Variable* v = op->node.as<Variable>();
-    CHECK(v);
+  } else if (op->attr_key == ir::attr::realize_scope) {
+    auto v = FunctionRef(op->node.node_);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
-  } else if (op->attr_key == ir::attr::volatile_scope) {
-    const Variable* v = op->node.as<Variable>();
-    CHECK(v);
-    volatile_buf_.insert(v);
   }
   PrintStmt(op->body);
 }
 
+void CodeGenHybrid::VisitStmt_(const Realize *op) {
+  PrintIndent();
+  stream << GetTensorID(op->func, op->value_index) << " = allocate((";
+  for (size_t i = 0; i < op->bounds.size(); ++i) {
+    if (i) stream << ", ";
+    stream << PrintExpr(op->bounds[i]->extent);
+  }
+  stream << "), \"";
+  PrintType(op->type, stream); 
+  stream << "\", ";
+  CHECK(alloc_storage_scope_.count(op->func));
+  stream << alloc_storage_scope_[op->func] << ")\n";
+}
+
 void CodeGenHybrid::VisitStmt_(const AssertStmt* op) {
-  // TODO(@were): Support AssertStmt in both hybrid parser and here
+  PrintIndent();
   stream << "assert ";
   PrintExpr(op->condition, stream);
   stream << ", ";
@@ -450,31 +283,43 @@ void CodeGenHybrid::VisitStmt_(const AssertStmt* op) {
   PrintStmt(op->body);
 }
 
+void CodeGenHybrid::VisitStmt_(const Provide* op) {
+  PrintIndent();
+  stream << GetTensorID(op->func, op->value_index);
+  stream << "[";
+  for (size_t i = 0; i < op->args.size(); ++i) {
+    if (i) stream << ", ";
+    PrintExpr(op->args[i], stream);
+  }
+  stream << "]";
+  PrintExpr(op->value, stream);
+  stream << "\n";
+}
+
 void CodeGenHybrid::VisitStmt_(const For* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
-  std::string vid = AllocVarID(op->loop_var.get());
+  std::string vid = GetVarID(op->loop_var.get());
   stream << "for " << vid << " in " << "range(" << extent << "):\n";
-  int for_scope = BeginScope();
+  indent_ += tab_;
   PrintStmt(op->body);
-  EndScope(for_scope);
-  PrintIndent();
+  indent_ -= tab_;
 }
 
 void CodeGenHybrid::VisitStmt_(const IfThenElse* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   stream << "if " << cond << ":\n";
-  int then_scope = BeginScope();
+  indent_ += tab_;
   PrintStmt(op->then_case);
-  EndScope(then_scope);
+  indent_ -= tab_;
 
   if (op->else_case.defined()) {
     PrintIndent();
     stream << "else:\n";
-    int else_scope = BeginScope();
+    indent_ += tab_;
     PrintStmt(op->else_case);
-    EndScope(else_scope);
+    indent_ -= tab_;
   }
 }
 
@@ -497,5 +342,29 @@ void CodeGenHybrid::VisitStmt_(const ProducerConsumer *op) {
   PrintIndent();
   stream << "# produced " << op->func->func_name() << "\n";
 }
-}  // namespace codegen
+
+void CodeGenHybrid::PrintIndent() {
+  stream << std::string(indent_, ' ');
+}
+
+std::string CodeGenHybrid::GetVarID(const Variable *v) {
+  auto node = v->GetNodePtr().get();
+  if (id_map_.count(node)) {
+    return id_map_[node];
+  }
+  return id_map_[node] = GetUniqueName(v->name_hint);
+}
+
+std::string CodeGenHybrid::GetTensorID(const FunctionRef &func, int value_index) {
+  auto node = func.get();
+  if (id_map_.count(node)) {
+    return id_map_[node];
+  }
+  std::string name_hint = func->func_name();
+  if (func->num_outputs() != 0) {
+    name_hint += ".v" + std::to_string(value_index);
+  }
+  return id_map_[node] = GetUniqueName(name_hint);
+}
+}  // namespace contrib
 }  // namespace tvm

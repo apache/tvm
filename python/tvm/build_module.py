@@ -308,6 +308,7 @@ def form_body(sch):
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
     stmt = ir_pass.InjectPrefetch(stmt)
+    return stmt
 
 
 def lower(sch,
@@ -547,8 +548,6 @@ def build(inputs,
     if isinstance(inputs, schedule.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
-        if target == 'hybrid':
-            return form_body(sch)
         flist = lower(inputs, args,
                       name=name,
                       binds=binds)

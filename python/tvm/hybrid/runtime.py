@@ -73,7 +73,6 @@ def sigmoid(x):
 
 
 HYBRID_GLOBALS = {
-    'len'          : len,
     'unroll'       : range,
     'vectorize'    : range,
     'parallel'     : range,

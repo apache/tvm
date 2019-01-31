@@ -10,36 +10,31 @@
 #include <tvm/ir_functor_ext.h>
 #include <tvm/codegen.h>
 #include <tvm/lowered_func.h>
+#include <tvm/schedule.h>
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include "codegen_source_base.h"
 
 namespace tvm {
-namespace codegen {
+namespace contrib {
 
 using namespace ir;
 /*!
- * \brief A base class to generate Python script.
- *
- *  Unlike C-family generators, CodeGenHybrid does not generate SSA formed Python script.
- *  Only normal form is supported.
+ * \brief A base class to generate Hybrid Script.
  *
  * **NOTE** CodeGenHybrid does not aim at generating Python scripts consumed by Python2/3.
  * For runtime support, please refer the decorator in ``tvm/python/hybrid/api.py``.
  */
 class CodeGenHybrid :
       public ExprFunctor<void(const Expr&, std::ostream&)>,
-      public StmtFunctor<void(const Stmt&)>,
-      public CodeGenSourceBase {
+      public StmtFunctor<void(const Stmt&)> {
  public:
-  void Init(bool simple_mode);
   /*!
-   * \brief Add the function to the generated module.
-   * \param f The function to be compiled.
+   * \brief Dump the given schedule to hybrid script.
+   * \param sch The schedule to be dumped to hybrid script.
    */
-  void AddFunction(LoweredFunc f);
+  void DumpSchedule(const Schedule &sch);
   /*!
    * \brief Finalize the compilation and return the code.
    * \return The code.
@@ -49,29 +44,26 @@ class CodeGenHybrid :
    * \brief Print the Stmt n to CodeGenHybrid->stream
    * \param n The statement to be printed.
    */
-  void PrintStmt(const Stmt& n) {
-    VisitStmt(n);
+  void PrintStmt(const Stmt &n) {
+    this->VisitStmt(n);
   }
   /*!
    * \brief Print the expression n(or its ssa id if in ssa mode) into os
    * \param n The expression to be printed.
    * \param os The output stream
    */
-  void PrintExpr(const Expr& n, std::ostream& os);
+  void PrintExpr(const Expr &n, std::ostream &os) {
+    this->VisitExpr(n, os);
+  }
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
    */
-  std::string PrintExpr(const Expr& n) {
+  std::string PrintExpr(const Expr &n) {
     std::ostringstream os;
     PrintExpr(n, os);
     return os.str();
   }
-  /*!
-   * \brief Initialize codegen state for generating f.
-   * \param f The function to be compiled.
-   */
-  virtual void InitFuncState(LoweredFunc f);
   // expression
   void VisitExpr_(const Variable* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Load* op, std::ostream& os) override;  // NOLINT(*)
@@ -104,9 +96,11 @@ class CodeGenHybrid :
   // statment
   void VisitStmt_(const LetStmt* op) override;
   void VisitStmt_(const Store* op) override;
+  void VisitStmt_(const Provide* op) override;
   void VisitStmt_(const For* op) override;
   void VisitStmt_(const IfThenElse* op) override;
   void VisitStmt_(const Allocate* op) override;
+  void VisitStmt_(const Realize* op) override;
   void VisitStmt_(const AttrStmt* op) override;
   void VisitStmt_(const AssertStmt* op) override;
   void VisitStmt_(const Evaluate* op) override;
@@ -118,55 +112,30 @@ class CodeGenHybrid :
    * \param os The stream to print the ctype into
    */
   virtual void PrintType(Type t, std::ostream& os); // NOLINT(*)
-  /*!
-   * \brief Print expr representing the thread tag
-   * \param IterVar iv The thread index to be binded;
-   */
-  virtual void BindThreadIndex(const IterVar& iv); // NOLINT(*)
-  virtual void PrintStorageScope(const std::string& scope, std::ostream& os); // NOLINT(*)
-  virtual void PrintStorageSync(const Call* op);  // NOLINT(*)
   // Get a cast type from to
   virtual std::string CastFromTo(std::string value, Type from, Type target);
 
- protected:
-  std::string GetVarID(const Variable* v);
-  // Print reference to struct location
-  std::string GetStructRef(
-      Type t, const Expr& buffer, const Expr& index, int kind);
-  // print reference to a buffer as type t in index.
-  virtual std::string GetBufferRef(
-      Type t, const Variable* buffer, Expr index);
-  /*!
-   * \brief If buffer is allocated as type t.
-   * \param buf_var The buffer variable.
-   * \param t The type to be checked.
-   */
-  bool HandleTypeMatch(const Variable* buf_var, Type t) const;
-  /*!
-   * \brief Register the data type of buf_var
-   * \param buf_var The buffer variable.
-   * \param t The type to be checked.
-   */
-  void RegisterHandleType(const Variable* buf_var, Type t);
-  // override
-  void PrintSSAAssign(
-      const std::string& target, const std::string& src, Type t) final;
-  /*! \brief restrict keyword */
-  std::string restrict_keyword_{""};
+ private:
+  //
+  int indent_{0};
+  const int tab_{2};
+  inline void PrintIndent();
+  //
+  std::map<std::string, int> ids_allocated_;
+  std::map<const Node *, std::string> id_map_;
+  //
+  std::string GetUniqueName(std::string s);
+  //
+  std::stringstream stream;
+  // 
+  std::string GetVarID(const Variable *v);
+  std::string GetTensorID(const FunctionRef &func, int value_index);
   /*! \brief the storage scope of allocation */
-  std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
+  std::map<FunctionRef, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const Variable*, Type> handle_data_type_;
-  /*! \brief reserves common C keywords */
-  void ReserveKeywordsAsUnique();
-
- private:
-  /*! \brief whether print a simple form */
-  bool simple_mode_{false};
-  /*! \brief set of volatile buf access */
-  std::unordered_set<const Variable*> volatile_buf_;
 };
 
-}  // namespace codegen
+}  // namespace contrib
 }  // namespace tvm
 #endif  // TVM_CODEGEN_CODEGEN_HYBRID_H_

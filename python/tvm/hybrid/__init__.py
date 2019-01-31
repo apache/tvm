@@ -4,8 +4,14 @@ This package maps a subset of python to HalideIR so that:
 1. Users can write some preliminary versions of the computation patterns
 have not been supported yet and verify it across the real execution and
 python semantic emulation.
-2. Developers can build HalideIR by writing Python code.
+2. So far, it is a text format dedicated to HalideIR Phase 0. Refer tvm.lower
+for more details. A larger ambition of this module is to support all levels of
+HalideIR.
 """
+
+# TODO(@were): Make this module more complete.
+# 1. Support HalideIR dumping to Hybrid Script
+# 2. Support multi-level HalideIR
 
 from __future__ import absolute_import as _abs
 
@@ -16,6 +22,7 @@ from ..tensor import Tensor
 
 from .parser import parse_python
 from .util import _pruned_source
+from .dump import dump
 
 
 def script(pyfunc):
