@@ -53,16 +53,22 @@ FunctionPass FunctionPassNode::make(std::string name, int opt_level,
 
 // PassState: Function -> Function
 void FunctionPassNode::run(PassState* state) const {
-  std::cout << "Executing function pass : " << this->name
-            << " with opt level: " << this->opt_level << std::endl;
+  LOG(INFO) << "Executing function pass : " << this->name
+            << " with opt level: " << this->opt_level << "\n";
   const auto pass_st_node = (*state).operator->();
   CHECK(pass_st_node != nullptr);
   auto foreach = pass_func(*state);
   ModuleNode* mod = pass_st_node->mod.operator->();
+  std::vector<std::pair<GlobalVar, Function>> updated_funcs;
   for (const auto& it : mod->functions) {
     auto updated_item = foreach(it.second);
     CHECK(updated_item.defined());
-    mod->Update(it.first, updated_item);
+    updated_funcs.push_back({std::move(it.first), std::move(updated_item)});
+  }
+
+  // Update the optimized functions.
+  for (const auto& it : updated_funcs) {
+    mod->Update(it.first, it.second);
   }
   *state = PassStateNode::make(GetRef<Module>(mod));
 }
@@ -87,7 +93,7 @@ ExprPass ExprPassNode::make(std::string name, int opt_level,
 
 // PassState: Expr -> Expr
 void ExprPassNode::run(PassState* state) const {
-  std::cout << "Executing Expr pass on PassState: " << this->name << std::endl;
+  LOG(INFO) << "Executing Expr pass on PassState: " << this->name << "\n";
 }
 
 void Optimizer::Optimize() const {
@@ -98,7 +104,7 @@ void Optimizer::Optimize() const {
 }
 
 void Optimize(const tvm::Array<Pass>& passes, PassState* state) {
-  std::cout << "Optimize" << std::endl;
+  LOG(INFO) << "Start executing optimization passes." << "\n";
   Optimizer pm(*state, passes);
   pm.Optimize();
   *state = pm.state_;
@@ -223,7 +229,6 @@ TVM_REGISTER_API("relay._optimize.PassState")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PassStateNode>([](const PassStateNode* node,
                                 tvm::IRPrinter* p) {
-  LOG(FATAL) << "here";
   p->stream << "Printing pass state: " << "\n";
 });
 

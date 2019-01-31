@@ -23,7 +23,7 @@ namespace tvm {
 namespace relay {
 namespace optimize {
 
-/*! \brief A enumerator to represent the granularity of different passes. */
+/*! \brief An enumerator to represent the granularity of different passes. */
 enum PassKind : int {
   kModuleKind = 1,
   kFunctionKind = 2,
