@@ -67,6 +67,9 @@ class RelayNode(NodeBase):
     def set_span(self, span):
         _base.set_span(self, span)
 
+    def __str__(self):
+        return self.astext(show_meta_data=False)
+
 
 @register_relay_node
 class Span(RelayNode):

@@ -486,6 +486,18 @@ std::string RelayPrint(
     const NodeRef& node,
     bool show_meta_data = true,
     runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+
+/*!
+ * \brief Print node as text format. This function prints AST nodes only and
+ *        the metadata is omitted.
+ * \param node The node to be printed.
+ * \param annotate An optional callback function for attaching
+ *        additional comment block to an expr.
+ * \return The text representation.
+ */
+std::string Print(const NodeRef& node,
+    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_

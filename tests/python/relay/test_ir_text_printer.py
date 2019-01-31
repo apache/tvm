@@ -32,7 +32,9 @@ def test_env():
     env["myf"] = f
     text = env.astext()
     assert "def @myf" in text
+    assert "def @myf" in str(env)
     assert "%1 = add(%0, %0) # ty=float32" in text
+    assert "%1 = add(%0, %0) # ty=float32" in str(env)
     show(env.astext(annotate=lambda x: str(x.checked_type.dtype)))
     show(text)
 
@@ -47,9 +49,15 @@ def test_meta_data():
                         channels=2)
     f = relay.Function([x, w], z)
     text = f.astext()
+    text_no_meta = str(f)
     assert "channels=2" in text
+    assert "channels=2" in text_no_meta
     assert "meta[Variable][0]" in text
+    assert "meta[Variable][0]" in text_no_meta
+    assert "type_key" in text
+    assert "type_key" not in text_no_meta
     show(text)
+    show(f)
 
     text = relay.const([1,2,3]).astext()
     assert "meta[relay.Constant][0]" in text

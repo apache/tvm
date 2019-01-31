@@ -810,6 +810,11 @@ std::string RelayPrint(const NodeRef& node,
   return TextPrinter(show_meta_data, annotate).Print(node);
 }
 
+std::string Print(const NodeRef& node,
+                  runtime::TypedPackedFunc<std::string(Expr)> annotate) {
+  return TextPrinter(false, annotate).Print(node);
+}
+
 TVM_REGISTER_API("relay._expr.RelayPrint")
 .set_body_typed<std::string(
     const NodeRef&, bool,
