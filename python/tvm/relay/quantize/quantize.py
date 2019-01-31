@@ -197,7 +197,7 @@ def calibrate(graph, dataset=None):
 
     cfg = current_qconfig()
     const_params = {}
-    quantize_op = _op.get("simulated_quantize")
+    quantize_op = _op.get("relay.op.annotation.simulated_quantize")
 
     def visit_func(expr):
         """Internal visit function"""

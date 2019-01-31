@@ -60,7 +60,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   return true;
 }
 
-RELAY_REGISTER_OP("simulated_quantize")
+RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .describe(R"code(simulated quantize op)code" TVM_ADD_FILELINE)
 .set_num_inputs(4)
 .add_argument("data", "Tensor", "The input data.")
@@ -79,7 +79,7 @@ TVM_REGISTER_API("relay._quantize.simulated_quantize")
     attrs->kind = kind;
     attrs->sign = sign;
     attrs->rounding = rounding;
-    static const Op& op = Op::Get("simulated_quantize");
+    static const Op& op = Op::Get("relay.op.annotation.simulated_quantize");
     return CallNode::make(op, {data, dom_scale, clip_min, clip_max}, Attrs(attrs), {});
   });
 

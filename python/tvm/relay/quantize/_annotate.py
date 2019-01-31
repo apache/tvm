@@ -13,7 +13,7 @@ from ..base import register_relay_node
 from ..._ffi.function import register_func
 
 
-@_reg.register_compute("simulated_quantize")
+@_reg.register_compute("relay.op.annotation.simulated_quantize")
 def simulated_quantize_compute(attrs, inputs, out_type, target):
     """Compiler for simulated_quantize."""
     assert len(inputs) == 4
@@ -32,8 +32,10 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     return [rdata]
 
 
-_reg.register_schedule("simulated_quantize", _reg.schedule_injective)
-_reg.register_pattern("simulated_quantize", _reg.OpPattern.OPAQUE)
+_reg.register_schedule("relay.op.annotation.simulated_quantize",
+                       _reg.schedule_injective)
+_reg.register_pattern("relay.op.annotation.simulated_quantize",
+                      _reg.OpPattern.OPAQUE)
 
 
 @register_relay_node
