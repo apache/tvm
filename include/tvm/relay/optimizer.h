@@ -64,10 +64,10 @@ class PassState : public NodeRef {
   using ContainerType = PassStateNode;
 };
 
-// We use currying here. The pass state is captured as for optimizations. It
-// produces a function from T to R. For example, PassFunc<Function, Function>
-// indicates we perform Function to Function transformation on the captured
-// Module.
+// We use currying here. The pass state is captured for optimizations. It
+// runs on a Relay node type T and yields a new node type R. For example,
+// PassFunc<Function, Function> indicates we perform a Function to Function
+// transformation on the given pass state.
 template <
     typename T, typename R = T,
     typename = std::enable_if<
@@ -81,8 +81,9 @@ using PassFunc = runtime::TypedPackedFunc<runtime::TypedPackedFunc<R(T)>(
 class Pass;
 
 /*!
- * \brief PassNode is the base type of the Relay type hierarchy. It is
- * implemented by different pass subclasses.
+ * \brief PassNode is the base type of differnt types of optimization passes.
+ * It is implemented by different pass subclasses at different granularity of
+ * Relay nodes.
  */
 class PassNode : public RelayNode {
  public:
@@ -197,8 +198,12 @@ RELAY_DEFINE_NODE_REF(FunctionPass, FunctionPassNode, Pass);
 class ExprPass;
 
 /*!
- * \brief TODO(zhiics) Should we design expr passes as the basic block passes in
- * LLVM? Basic block passes are mainly focusing on local optimizations.
+ * \brief We design expression-based passes similarly to the basic block passes
+ * in LLVM. However, Relay doesn't have the concept of basic block. We can treat
+ * the whole body of a function as a basic block.
+ *
+ * This level mainly focuses on the local optimizations that do not change
+ * the control flow graph of a function.
  */
 class ExprPassNode : public PassNode {
  public:

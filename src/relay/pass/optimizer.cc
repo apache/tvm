@@ -30,7 +30,7 @@ ModulePass ModulePassNode::make(std::string name, int opt_level,
 
 // PassState: Module -> Module
 void ModulePassNode::run(PassState* state) const {
-  LOG(INFO) << "Executing Module pass : " << this->name
+  LOG(INFO) << "Executing module pass : " << this->name
             << " with opt level: " << opt_level << "\n";
   const auto& pass_st_node = (*state).operator->();
   CHECK(pass_st_node != nullptr);
@@ -61,9 +61,11 @@ void FunctionPassNode::run(PassState* state) const {
   ModuleNode* mod = pass_st_node->mod.operator->();
   std::vector<std::pair<GlobalVar, Function>> updated_funcs;
   for (const auto& it : mod->functions) {
-    auto updated_item = foreach(it.second);
-    CHECK(updated_item.defined());
-    updated_funcs.push_back({std::move(it.first), std::move(updated_item)});
+    if (!SkipFunction(it.second)) {
+      auto updated_func = foreach(it.second);
+      CHECK(updated_func.defined());
+      updated_funcs.push_back({std::move(it.first), std::move(updated_func)});
+    }
   }
 
   // Update the optimized functions.
@@ -94,6 +96,25 @@ ExprPass ExprPassNode::make(std::string name, int opt_level,
 // PassState: Expr -> Expr
 void ExprPassNode::run(PassState* state) const {
   LOG(INFO) << "Executing Expr pass on PassState: " << this->name << "\n";
+  const auto pass_st_node = (*state).operator->();
+  CHECK(pass_st_node != nullptr);
+  auto foreach = pass_func(*state);
+  ModuleNode* mod = pass_st_node->mod.operator->();
+  std::vector<std::pair<GlobalVar, Function>> updated_funcs;
+  for (const auto& it : mod->functions) {
+    const auto& fn = it.second.operator->();
+    auto updated_body = foreach(fn->body);
+    CHECK(updated_body.defined());
+    auto new_func = FunctionNode::make(fn->params, updated_body, fn->ret_type,
+                                       fn->type_params, fn->attrs);
+    updated_funcs.push_back({std::move(it.first), std::move(new_func)});
+  }
+
+  // Update the optimized functions.
+  for (const auto& it : updated_funcs) {
+    mod->Update(it.first, it.second);
+  }
+  *state = PassStateNode::make(GetRef<Module>(mod));
 }
 
 void Optimizer::Optimize() const {
@@ -229,7 +250,12 @@ TVM_REGISTER_API("relay._optimize.PassState")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PassStateNode>([](const PassStateNode* node,
                                 tvm::IRPrinter* p) {
-  p->stream << "Printing pass state: " << "\n";
+  if (node->mod.defined()) {
+    p->stream << "Pass state with module: " << "\n";
+    p->stream << RelayPrint(node->mod);
+  } else {
+    p->stream << "Skip printing as no module is defined in the pass state.";
+  }
 });
 
 TVM_REGISTER_API("relay._optimize.Optimize")

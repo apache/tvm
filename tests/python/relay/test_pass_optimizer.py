@@ -4,9 +4,9 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import ExprFunctor
-from tvm.relay import Function, Call, Let, Var, GlobalVar, If, Tuple, TupleGetItem, Constant
-from tvm.relay.ir_pass import infer_type, graph_equal
-from tvm.relay import create_executor, optimizer
+from tvm.relay import Function, Call
+from tvm.relay.ir_pass import infer_type, graph_equal, fold_constant
+from tvm.relay import optimizer
 from tvm.relay.testing import ctx_list
 
 
@@ -17,6 +17,12 @@ def get_var_func():
     gv = relay.GlobalVar("myAbs")
     func = relay.Function([x], relay.abs(x))
     return gv, func
+
+
+def extrac_var_func(state, name):
+    var = state.mod.get_global_var(name)
+    func = state.mod[var]
+    return var, func
 
 
 def update_func(func):
@@ -77,7 +83,10 @@ class OptTester():
         if isinstance(node, relay.Function):
             return update_func(node)
         if isinstance(node, relay.Expr):
-            return node
+            # Perform constant folding on the expression.
+            return fold_constant(node)
+
+        raise TypeError("Found not supported node type.")
 
 
 def get_rand(shape, dtype='float32'):
@@ -116,6 +125,9 @@ def test_pass_state():
     state_func = state.mod[gv]
     check_func(func, state_func)
 
+    text = state.astext()
+    assert "myAdd" in text
+
 
 def test_module_pass():
     shape = (5, 10)
@@ -143,6 +155,8 @@ def test_module_pass():
 
     def test_pass_run():
         module_pass = optimizer.ModulePass(pass_name, opt_level, pass_func)
+        assert pass_name in module_pass.astext()
+
         updated_pass = module_pass.run(state)
         assert isinstance(updated_pass, optimizer.PassState)
 
@@ -157,6 +171,12 @@ def test_module_pass():
         new_v_add = updated_pass.mod.get_global_var(v_add.name_hint)
         new_add = updated_pass.mod[new_v_add]
         check_func(new_add, func)
+        
+        # Check the add function in the python currying module.
+        ret = pass_function(state)(mod)
+        currying_v_add = ret.get_global_var(v_add.name_hint)
+        currying_add = mod[currying_v_add]
+        check_func(new_add, currying_add)
 
         # Execute the add function.
         x_nd = get_rand(shape, dtype)
@@ -203,6 +223,8 @@ def test_function_pass():
 
     def test_pass_run():
         function_pass = optimizer.FunctionPass(pass_name, opt_level, pass_func)
+        assert pass_name in function_pass.astext()
+
         updated_pass = function_pass.run(state)
         assert isinstance(updated_pass, optimizer.PassState)
 
@@ -210,6 +232,10 @@ def test_function_pass():
         new_v_log = updated_pass.mod.get_global_var(v_log.name_hint)
         new_log = updated_pass.mod[new_v_log]
         check_func(new_log, get_ref_log())
+
+        # Check the log function in the python currying function.
+        ret = pass_function(state)(log)
+        check_func(new_log, ret)
 
         # Execute the add function.
         x_nd = get_rand(shape, dtype)
@@ -221,6 +247,72 @@ def test_function_pass():
             tvm.testing.assert_allclose(res1.asnumpy(), ref_res, rtol=1e-5)
             res2 = exe2.evaluate(new_log)(x_nd)
             tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
+
+    test_pass_registration()
+    test_pass_run()
+
+
+def test_expr_pass():
+    shape = (10, )
+    dtype = 'float32'
+    tp = relay.TensorType(shape, dtype)
+    x = relay.var("x", tp)
+    y = relay.var("y", tp)
+    c_val = np.full(shape, 2, dtype)
+    const = relay.const(c_val)
+    c_add = relay.add(const, const)
+    add = relay.add(x, c_add)
+    add = relay.add(y, add)
+    add = relay.add(add, c_add)
+    mod = relay.Module.from_expr(add)
+    state = optimizer.PassState(mod)
+
+    pass_name = "expr_pass_test"
+    opt_level = 2
+    pass_kind = optimizer.PassKind.ExprKind
+    pass_func = pass_function
+
+    def get_ref_expr():
+        # Fold const + const to c_val * 2.
+        con = relay.const(c_val * 2)
+        ref_expr = relay.add(x, con)
+        ref_expr = relay.add(y, ref_expr)
+        ref_expr = relay.add(ref_expr, con)
+        return ref_expr
+
+    def test_pass_registration():
+        expr_pass = optimizer.build_pass(pass_name, opt_level, pass_kind,
+                                         pass_func)
+        assert isinstance(expr_pass, optimizer.ExprPass)
+        assert expr_pass.name == pass_name
+        assert expr_pass.opt_level == opt_level
+        assert expr_pass.pass_kind == pass_kind
+
+    def test_pass_run():
+        expr_pass = optimizer.ExprPass(pass_name, opt_level, pass_func)
+        assert pass_name in expr_pass.astext()
+
+        updated_pass = expr_pass.run(state)
+        assert isinstance(updated_pass, optimizer.PassState)
+
+        # Check the main function in the updated module.
+        _, main_func = extrac_var_func(updated_pass, "main")
+        check_func(main_func.body, get_ref_expr())
+
+        # Check the main function in the currying module.
+        ret = pass_function(state)(add)
+        check_func(ret, main_func.body)
+
+        # Execute the add function.
+        x_nd = get_rand(shape, dtype)
+        y_nd = get_rand(shape, dtype)
+        ref_res = x_nd.asnumpy() + y_nd.asnumpy() + 4 * c_val
+        intrp = relay.create_executor("debug", mod=updated_pass.mod)
+        free_vars = relay.ir_pass.free_vars(main_func.body)
+        assert len(free_vars) == 2
+        res = intrp.evaluate(main_func.body, binds={free_vars[0]:x_nd,
+                                                    free_vars[1]: y_nd}).asnumpy()
+        tvm.testing.assert_allclose(res, ref_res, rtol=1e-5)
 
     test_pass_registration()
     test_pass_run()
@@ -273,11 +365,6 @@ def test_pass_optimize():
         ret_state = optimizer.optimize(passes, state)
         state_func = ret_state.mod[v_sub]
         check_func(sub, state_func)
-
-    def extrac_var_func(state, name):
-        var = state.mod.get_global_var(name)
-        func = state.mod[var]
-        return var, func
 
     def test_only_module_pass():
         passes = [module_pass]
@@ -346,7 +433,6 @@ def test_pass_optimize():
             res2 = exe2.evaluate(new_abs)(x_nd)
             tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
 
-
     test_no_pass()
     test_only_module_pass()
     test_only_function_pass()
@@ -357,4 +443,5 @@ if __name__ == "__main__":
     test_pass_state()
     test_module_pass()
     test_function_pass()
+    test_expr_pass()
     test_pass_optimize()

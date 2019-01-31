@@ -154,7 +154,7 @@ class ExprPass(Pass):
     """
 
     def __init__(self, name, opt_level, pass_func):
-        self.__init_handle_by_constructor__(_opt.FunctionPass, name, opt_level,
+        self.__init_handle_by_constructor__(_opt.ExprPass, name, opt_level,
                                             pass_func)
 
     def run(self, pass_state):

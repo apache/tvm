@@ -224,6 +224,11 @@ TVM_REGISTER_API("relay._module.Module_Update")
     mod->Update(args[1]);
   });
 
+TVM_REGISTER_API("relay._module.Module_FromExpr")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = ModuleNode::FromExpr(args[0]);
+  });
+
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ModuleNode>(
     [](const ModuleNode *node, tvm::IRPrinter *p) {
