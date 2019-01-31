@@ -547,7 +547,7 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
   }
 
   Expr VisitExpr_(const ConstructorNode* op) final {
-    return AttachCheckedType(op);
+    return GetRef<Constructor>(op);
   }
 
   Expr VisitExpr_(const MatchNode* op) final {
@@ -686,6 +686,7 @@ struct AllCheckTypePopulated : ExprVisitor {
   void VisitExpr(const Expr& e) {
     if (e.as<OpNode>()) { return; }
     if (e.as<GlobalVarNode>()) { return; }
+    if (e.as<ConstructorNode>()) { return; }
     CHECK(e->checked_type_.defined()) << "Expression: " << e;
     return ExprVisitor::VisitExpr(e);
   }
