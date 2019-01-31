@@ -8,7 +8,7 @@ from . import expr
 from . import expr_functor
 from . import module
 from . import ir_pass
-from .build_module import build, build_config, create_executor
+from .build_module import build, build_config, create_executor, optimize
 from . import parser
 from . import debug
 
@@ -23,6 +23,7 @@ from . import vision
 from . import image
 from . import frontend
 from . import backend
+from . import quantize
 
 from .scope_builder import ScopeBuilder
 

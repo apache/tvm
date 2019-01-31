@@ -139,7 +139,6 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   }
 };
 
-
 struct SliceLikeAttrs : public tvm::AttrsNode<SliceLikeAttrs> {
   Array<Integer> axes;
 
@@ -151,16 +150,16 @@ struct SliceLikeAttrs : public tvm::AttrsNode<SliceLikeAttrs> {
   }
 };
 
-// Clip
+/*! \brief Attributes for Clip operator */
 struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
   double a_min;
   double a_max;
 
   TVM_DECLARE_ATTRS(ClipAttrs, "relay.attrs.ClipAttrs") {
-  TVM_ATTR_FIELD(a_min)
-    .describe("The minimum clip value.");
-  TVM_ATTR_FIELD(a_max)
-    .describe("The maximum clip value.");
+    TVM_ATTR_FIELD(a_min)
+      .describe("The minimum clip value.");
+    TVM_ATTR_FIELD(a_max)
+      .describe("The maximum clip value.");
   }
 };
 

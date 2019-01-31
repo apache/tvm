@@ -103,7 +103,9 @@ This function takes a tensor, a minimum value `a_min`, and a maximum value `a_ma
 .set_attr<TOpPattern>("TOpPattern", kElemWise)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+.set_attrs_type_key("relay.attrs.ClipAttrs")
 .set_support_level(3);
+
 
 RELAY_REGISTER_UNARY_OP("floor")
 .describe(R"code(Returns the floor of input array, computed element-wise.
