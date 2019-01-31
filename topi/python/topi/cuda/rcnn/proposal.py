@@ -98,8 +98,8 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
             min_size = p_im_info[b * 3 + 2] * rpn_min_size
 
             pred_score = p_score[((b * num_anchors * 2 + num_anchors + k) * height + h) * width + w]
-            pred_score = tvm.expr.Select(tvm.any(h >= real_height, w >= real_width), -1.0, pred_score)
-
+            pred_score = tvm.expr.Select(tvm.any(h >= real_height, w >= real_width),
+                                         -1.0, pred_score)
             p_out[out_index * 5 + 0] = pred_x1
             p_out[out_index * 5 + 1] = pred_y1
             p_out[out_index * 5 + 2] = pred_x2
