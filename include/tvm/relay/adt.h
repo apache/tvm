@@ -123,15 +123,15 @@ class PatternConstructor;
 /*! \brief PatternVar container node */
 class PatternConstructorNode : public PatternNode {
  public:
-  Constructor con;
+  Constructor constructor;
   tvm::Array<Pattern> pat;
 
   PatternConstructorNode() {}
 
-  TVM_DLL static PatternConstructor make(Constructor con, tvm::Array<Pattern> var);
+  TVM_DLL static PatternConstructor make(Constructor constructor, tvm::Array<Pattern> var);
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("con", &con);
+    v->Visit("constructor", &constructor);
     v->Visit("pat", &pat);
     v->Visit("span", &span);
   }

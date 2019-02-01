@@ -417,7 +417,7 @@ class TextPrinter :
   }
 
   TextValue VisitPattern_(const PatternConstructorNode* p) final {
-    TextValue ret(p->con->name_hint + "(");
+    TextValue ret(p->constructor->name_hint + "(");
     for (const Pattern& pat : p->pat) {
       ret = ret + " " + GetValue(pat);
     }

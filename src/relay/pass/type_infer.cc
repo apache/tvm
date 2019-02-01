@@ -205,15 +205,15 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   void VisitPattern_(const PatternConstructorNode* con, const Type& t) {
     CHECK(mod_.defined())
       << "Cannot do type inference without a environment:"
-      << con->con->name_hint;
-    TypeData td = mod_->type_definitions.at(con->con->belong_to);
+      << con->constructor->name_hint;
+    TypeData td = mod_->type_definitions.at(con->constructor->belong_to);
 
     // we can expect a certain number of arguments
     Array<Type> unknown_args;
     for (size_t i = 0; i < td->tv.size(); i++) {
       unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
     }
-    Type expected = TypeCallNode::make(con->con->belong_to, unknown_args);
+    Type expected = TypeCallNode::make(con->constructor->belong_to, unknown_args);
     Type unified = Unify(t, expected, GetRef<NodeRef>(con));
 
     auto* tc = unified.as<TypeCallNode>();
@@ -224,9 +224,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     for (size_t i = 0; i < td->tv.size(); ++i) {
       type_var_map_[td->tv[i]] = tc->args[i];
     }
-    CHECK(con->con->inp.size() == con->pat.size()) << "not enough pattern";
-    for (size_t i = 0; i < con->con->inp.size(); ++i) {
-      VisitPattern(con->pat[i], Bind(con->con->inp[i], type_var_map_));
+    CHECK(con->constructor->inp.size() == con->pat.size()) << "not enough pattern";
+    for (size_t i = 0; i < con->constructor->inp.size(); ++i) {
+      VisitPattern(con->pat[i], Bind(con->constructor->inp[i], type_var_map_));
     }
   }
 

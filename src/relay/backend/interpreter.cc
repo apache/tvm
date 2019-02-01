@@ -513,9 +513,9 @@ class Interpreter :
   bool VisitPattern_(const PatternConstructorNode* op, const Value& v) final {
     const ConValueNode* cvn = v.as<ConValueNode>();
     CHECK(cvn) << "need to be a constructor for match";
-    CHECK_NE(op->con->tag, -1);
+    CHECK_NE(op->constructor->tag, -1);
     CHECK_NE(cvn->con->tag, -1);
-    if (op->con->tag == cvn->con->tag) {
+    if (op->constructor->tag == cvn->con->tag) {
       // todo(M.K.): should use ptr equality but it is broken
       CHECK(op->pat.size() == cvn->fields.size());
       for (size_t i = 0; i < op->pat.size(); ++i) {

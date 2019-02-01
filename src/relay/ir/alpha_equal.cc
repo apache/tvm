@@ -439,7 +439,7 @@ class AlphaEqualHandler:
   bool VisitPattern_(const PatternConstructorNode* op, const Pattern& e2) final {
     const auto* r = e2.as<PatternConstructorNode>();
     if (r == nullptr
-        || !ExprEqual(op->con, r->con)
+        || !ExprEqual(op->constructor, r->constructor)
         || op->pat.size() != r->pat.size()) {
       return false;
     }

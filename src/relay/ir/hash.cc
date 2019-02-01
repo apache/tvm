@@ -359,7 +359,7 @@ class RelayHashHandler:
 
   size_t VisitPattern_(const PatternConstructorNode* pcn) final {
     size_t hash = std::hash<std::string>()(PatternConstructorNode::_type_key);
-    hash = Combine(hash, ExprHash(pcn->con));
+    hash = Combine(hash, ExprHash(pcn->constructor));
     for (const auto& p : pcn->pat) {
       hash = Combine(hash, PatternHash(p));
     }

@@ -46,9 +46,10 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "PatternVarNode(" << node->var << ")";
 });
 
-PatternConstructor PatternConstructorNode::make(Constructor con, tvm::Array<Pattern> pat) {
+PatternConstructor PatternConstructorNode::make(Constructor constructor,
+                                                tvm::Array<Pattern> pat) {
   NodePtr<PatternConstructorNode> n = make_node<PatternConstructorNode>();
-  n->con = std::move(con);
+  n->constructor = std::move(constructor);
   n->pat = std::move(pat);
   return PatternConstructor(n);
 }
@@ -63,7 +64,7 @@ TVM_REGISTER_API("relay._make.PatternConstructor")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PatternConstructorNode>([](const PatternConstructorNode* node,
                                          tvm::IRPrinter* p) {
-  p->stream << "PatternConstructorNode(" << node->con
+  p->stream << "PatternConstructorNode(" << node->constructor
             << ", " << node->pat << ")";
 });
 

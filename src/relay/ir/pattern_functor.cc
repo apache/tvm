@@ -26,7 +26,7 @@ Pattern PatternMutator::VisitPattern_(const PatternConstructorNode* op) {
   for (const auto& p : op->pat) {
     pat.push_back(VisitPattern(p));
   }
-  return PatternConstructorNode::make(VisitConstructor(op->con), pat);
+  return PatternConstructorNode::make(VisitConstructor(op->constructor), pat);
 }
 
 Type PatternMutator::VisitType(const Type& t) {
@@ -53,7 +53,7 @@ void PatternVisitor::VisitPattern_(const PatternVarNode* op) {
 }
 
 void PatternVisitor::VisitPattern_(const PatternConstructorNode* op) {
-  VisitConstructor(op->con);
+  VisitConstructor(op->constructor);
   for (const auto& p : op->pat) {
     VisitPattern(p);
   }
