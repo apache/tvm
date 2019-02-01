@@ -149,7 +149,9 @@ class GlobalTypeVar(Type):
 
 @register_relay_node
 class TypeCall(Type):
-    """Type-level function application in Relay."""
+    """Type-level function application in Relay.
+    A type call applies argument types to a constructor (type-level function).
+    """
 
     def __init__(self, func, args):
         """Construct a TypeCall.
