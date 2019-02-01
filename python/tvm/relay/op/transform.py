@@ -92,7 +92,7 @@ def squeeze(data, axis=None):
     return _make.squeeze(data, axis)
 
 
-def reshape(data, newshape, reverse=False):
+def reshape(data, newshape):
     """Reshapes the input array.
 
     Example::
@@ -144,14 +144,6 @@ def reshape(data, newshape, reverse=False):
     - data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape = (1,2,3,4)
     - data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
 
-    - If the argument reverse is set to True, then the special values are inferred
-    from right to left.
-
-    Example::
-
-    - with reverse = False, data.shape = (10,5,4), newshape = (-1,0), result.shape = (40,5)
-    - with reverse = True, result.shape = (50,4)
-
     Parameters
     ----------
     data : relay.Expr
@@ -160,9 +152,6 @@ def reshape(data, newshape, reverse=False):
     newshape : Union[int, Tuple[int], List[int]]
         The new shape. Should be compatible with the original shape.
 
-    reverse : bool
-        Infer the special values from right to left if set to be True.
-
     Returns
     -------
     result : relay.Expr
@@ -170,7 +159,7 @@ def reshape(data, newshape, reverse=False):
     """
     if isinstance(newshape, int):
         newshape = [newshape]
-    return _make.reshape(data, list(newshape), reverse)
+    return _make.reshape(data, list(newshape))
 
 
 def reshape_like(data, shape_like):
@@ -460,3 +449,34 @@ def layout_transform(data, src_layout, dst_layout):
         The transformed tensor.
     """
     return _make.layout_transform(data, src_layout, dst_layout)
+
+
+def reverse_reshape(data, newshape):
+    """Reshapes the input array where the special values are inferred from
+    right to left.
+
+    Example::
+
+    The special values have the same semantics as :py:class:`tvm.relay.reshape`.
+    The difference is that special values are inferred from right to left. It 
+    can be explained in the example below::
+
+    - data.shape = (10,5,4), newshape = (-1,0), reshape results in (40,5)
+    - data.shape = (10,5,4), newshape = (-1,0), reverse_reshape results in (40,5)
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    newshape : Union[int, Tuple[int], List[int]]
+        The new shape. Should be compatible with the original shape.
+
+    Returns
+    -------
+    result : relay.Expr
+        The reshaped result.
+    """
+    if isinstance(newshape, int):
+        newshape = [newshape]
+    return _make._contrib_reverse_reshape(data, list(newshape))

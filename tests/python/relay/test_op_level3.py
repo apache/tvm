@@ -152,9 +152,9 @@ def test_reshape_infer_type():
         (n, t, 2000), "float32")
 
 def test_reshape():
-    def verify_reshape(shape, newshape, oshape, reverse=False):
+    def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
-        z = relay.reshape(x, newshape=newshape, reverse=reverse)
+        z = relay.reshape(x, newshape=newshape)
         zz = relay.ir_pass.infer_type(z)
         assert "newshape=" in z.astext()
         assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
@@ -170,19 +170,14 @@ def test_reshape():
     verify_reshape((2, 3, 4), (8, 3), (8, 3))
     verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
     verify_reshape((2, 3, 4), (4, 0, 2), (4, 3, 2))
-    verify_reshape((2, 3, 4), (4, 0, 2), (4, 3, 2), True)
     verify_reshape((2, 3, 4), (2, 0, 0), (2, 3, 4))
-    verify_reshape((2, 3, 4), (2, 0, 0), (2, 3, 4), True)
     verify_reshape((2, 3, 4), (0, -1), (2, 12))
-    verify_reshape((2, 3, 4), (0, -1), (3, 8), True)
     verify_reshape((2, 3, 4), (-1, 0), (8, 3))
-    verify_reshape((2, 3, 4), (-1, 0), (6, 4), True)
     verify_reshape((2, 3, 4), (2, -2), (2, 3, 4))
     verify_reshape((2, 3, 4), (-2, 1, 1), (2, 3, 4, 1, 1))
     verify_reshape((2, 3, 4), (-3, 4), (6, 4))
     verify_reshape((2, 3, 4, 5), (-3, -3), (6, 20))
     verify_reshape((2, 3, 4), (0, -3), (2, 12))
-    verify_reshape((2, 3, 4), (0, -3), (2, 12), True)
     verify_reshape((2, 3, 4), (-3, -2), (6, 4))
     verify_reshape((2, 3, 4), (-4, 1, 2, -2), (1, 2, 3, 4))
     verify_reshape((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))

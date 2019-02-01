@@ -472,18 +472,17 @@ Array<Tensor> ReshapeCompute(const Attrs& attrs,
 }
 
 Expr MakeReshape(Expr data,
-                 Array<Integer> newshape,
-                 bool reverse) {
+                 Array<Integer> newshape) {
   auto attrs = make_node<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
-  attrs->reverse = reverse;
+  attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_API("relay.op._make.reshape")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeReshape, args, rv);
+    runtime::detail::unpack_call<Expr, 2>(MakeReshape, args, rv);
 });
 
 RELAY_REGISTER_OP("reshape")
@@ -535,13 +534,6 @@ Example::
 
 - data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape =(1,2,3,4)
 - data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
-
-- If the argument reverse is set to true, then the special values are inferred from right to left.
-
-Example::
-
-- with reverse = False, data.shape = (10,5,4), newshape = (-1,0), result.shape = (40,5)
-- with reverse = True, result.shape = (50,4)
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
@@ -1725,6 +1717,44 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 .add_type_rel("layout_transform", LayoutTransformRel)
 .set_support_level(5)
 .set_attr<FTVMCompute>("FTVMCompute", LayoutTransformCompute);
+
+
+/* relay._contrib_reverse_reshape */
+Expr MakeReverseReshape(Expr data,
+                        Array<Integer> newshape) {
+  auto attrs = make_node<ReshapeAttrs>();
+  attrs->newshape = std::move(newshape);
+  attrs->reverse = true;
+  static const Op& op = Op::Get("_contrib_reverse_reshape");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make._contrib_reverse_reshape")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeReverseReshape, args, rv);
+});
+
+RELAY_REGISTER_OP("_contrib_reverse_reshape")
+.describe(R"code(Reshapes the input array where the special values are inferred from
+right to left.
+
+Example::
+
+The special values have the same semantics as reshape. The difference is that
+special values are inferred from right to left. It can be explained in the
+example below::
+
+- data.shape = (10,5,4), newshape = (-1,0), reshape results in (40,5)
+- data.shape = (10,5,4), newshape = (-1,0), reverse_reshape results in (40,5)
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ReshapeAttrs")
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(10)
+.add_type_rel("Reshape", ReshapeRel)
+.set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm

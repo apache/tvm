@@ -24,7 +24,9 @@ def _rename(new_op):
 def _reshape(inputs, attrs):
     shape = attrs.get_int_tuple("shape")
     reverse = attrs.get_bool("reverse", False)
-    return _op.reshape(inputs[0], newshape=shape, reverse=reverse)
+    if reverse:
+        return _op.reverse_reshape(inputs[0], newshape=shape)
+    return _op.reshape(inputs[0], newshape=shape)
 
 
 def _init_op(new_op):
