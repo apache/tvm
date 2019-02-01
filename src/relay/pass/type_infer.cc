@@ -478,7 +478,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     CHECK(mod_.defined())
       << "Cannot do type inference without a environment:"
       << c->name_hint;
-    TypeData td = mod_->type_definitions.at(c->belong_to);
+    TypeData td = mod_->LookupDef(c->belong_to);
     std::vector<Type> types;
     for (const auto & t : td->tv) {
       types.push_back(t);
