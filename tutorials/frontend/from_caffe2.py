@@ -54,7 +54,6 @@ resnet50 = Model('resnet50')
 # A single cat dominates the examples!
 from PIL import Image
 from matplotlib import pyplot as plt
-from keras.applications.resnet50 import preprocess_input
 import numpy as np
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
 download(img_url, 'cat.png')
@@ -62,8 +61,14 @@ img = Image.open('cat.png').resize((224, 224))
 plt.imshow(img)
 plt.show()
 # input preprocess
-data = np.array(img)[np.newaxis, :].astype('float32')
-data = preprocess_input(data).transpose([0, 3, 1, 2])
+def transform_image(image):
+    image = np.array(image) - np.array([123., 117., 104.])
+    image /= np.array([58.395, 57.12, 57.375])
+    image = image.transpose((2, 0, 1))
+    image = image[np.newaxis, :].astype('float32')
+    return image
+
+data = transform_image(img)
 
 ######################################################################
 # Compile the model on Relay
