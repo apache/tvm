@@ -7,19 +7,21 @@ This article is an introductory tutorial to deploy Caffe2 models with Relay.
 
 For us to begin with, Caffe2 should be installed.
 
-A quick solution is to install via pip
+A quick solution is to install via conda
 
 .. code-block:: bash
 
-
+    # for cpu
+    conda install pytorch-nightly-cpu -c pytorch
+    # for gpu with CUDA 8
+    conda install pytorch-nightly cuda80 -c pytorch
 
 or please refer to official site
 https://caffe2.ai/docs/getting-started.html
 """
-import tvm
-from tvm import relay
-import numpy as np
-
+######################################################################
+# Utils for downloading files
+# ----------------------------
 def download(url, path, overwrite=False):
     import os
     if os.path.isfile(path) and not overwrite:
@@ -34,9 +36,9 @@ def download(url, path, overwrite=False):
         urllib.urlretrieve(url, path)
 
 ######################################################################
-# Load pretrained caffe2 model
+# Load pretrained Caffe2 model
 # ----------------------------
-# We load a pretrained resnet50 classification model provided by caffe2.
+# We load a pretrained resnet50 classification model provided by Caffe2.
 from caffe2.python.models.download import ModelDownloader
 mf = ModelDownloader()
 
@@ -46,7 +48,6 @@ class Model:
 
 resnet50 = Model('resnet50')
 
-
 ######################################################################
 # Load a test image
 # ------------------
@@ -54,6 +55,7 @@ resnet50 = Model('resnet50')
 from PIL import Image
 from matplotlib import pyplot as plt
 from keras.applications.resnet50 import preprocess_input
+import numpy as np
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
 download(img_url, 'cat.png')
 img = Image.open('cat.png').resize((224, 224))
@@ -62,19 +64,23 @@ plt.show()
 # input preprocess
 data = np.array(img)[np.newaxis, :].astype('float32')
 data = preprocess_input(data).transpose([0, 3, 1, 2])
-print('input_1', data.shape)
 
 ######################################################################
 # Compile the model on Relay
 # --------------------------
-# We should be familiar with the process now.
 
-# convert the caffe2 model(NHWC layout) to relay functions.
-target = 'cuda'
-shape_dict = {'input_1': data.shape}
-dtype_dict = {'input_1': data.dtype}
+# Caffe2 input tensor name, shape and type
+input_name = resnet50.predict_net.op[0].input[0]
+shape_dict = {input_name: data.shape}
+dtype_dict = {input_name: data.dtype}
+
+# parse Caffe2 model and convert into Relay computation graph
+from tvm import relay
 func, params = relay.frontend.from_caffe2(resnet50.init_net, resnet50.predict_net, shape_dict, dtype_dict)
+
 # compile the model
+# target x86 cpu
+target = 'llvm'
 with relay.build_config(opt_level=3):
     graph, lib, params = relay.build(func, target, params=params)
 
@@ -82,11 +88,15 @@ with relay.build_config(opt_level=3):
 # Execute on TVM
 # ---------------
 # The process is no different from other examples.
+import tvm
 from tvm.contrib import graph_runtime
-ctx = tvm.gpu(0)
+# context x86 cpu, use tvm.gpu(0) if you run on GPU
+ctx = tvm.cpu(0)
+# create a runtime executor module
 m = graph_runtime.create(graph, lib, ctx)
 # set inputs
-m.set_input('input_1', tvm.nd.array(data.astype('float32')))
+m.set_input(input_name, tvm.nd.array(data.astype('float32')))
+# set related params
 m.set_input(**params)
 # execute
 m.run()
@@ -110,6 +120,6 @@ with open(synset_name) as f:
 print('Relay top-1 id: {}, class name: {}'.format(top1_tvm, synset[top1_tvm]))
 # confirm correctness with caffe2 output
 p = workspace.Predictor(resnet50.init_net, resnet50.predict_net)
-caffe2_out = p.run({'data': data.transpose([0, 2, 3, 1])})
+caffe2_out = p.run({input_name: data})
 top1_caffe2 = np.argmax(caffe2_out)
 print('Caffe2 top-1 id: {}, class name: {}'.format(top1_caffe2, synset[top1_caffe2]))
