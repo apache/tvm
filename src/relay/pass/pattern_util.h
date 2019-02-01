@@ -318,6 +318,13 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
+
+inline Expr Copy(Expr data) {
+  static const Op& op = Op::Get("copy");
+  return CallNode::make(op, {data}, Attrs(), {});
+}
+
+
 Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
