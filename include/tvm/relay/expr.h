@@ -488,15 +488,13 @@ std::string RelayPrint(
     runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 
 /*!
- * \brief Print node as text format. This function prints AST nodes only and
- *        the metadata is omitted.
- * \param node The node to be printed.
- * \param annotate An optional callback function for attaching
- *        additional comment block to an expr.
+ * \brief Print node as text format. This overloaded operator prints AST nodes
+ *        only. The metadata and additional comment information are omitted.
+ * \param os The ostream to print an AST expression.
+ * \param expr The expression to be printed.
  * \return The text representation.
  */
-std::string Print(const NodeRef& node,
-    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+std::ostream& operator<<(std::ostream& os, const Expr& expr);
 
 }  // namespace relay
 }  // namespace tvm

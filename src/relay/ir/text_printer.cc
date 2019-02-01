@@ -810,9 +810,9 @@ std::string RelayPrint(const NodeRef& node,
   return TextPrinter(show_meta_data, annotate).Print(node);
 }
 
-std::string Print(const NodeRef& node,
-                  runtime::TypedPackedFunc<std::string(Expr)> annotate) {
-  return TextPrinter(false, annotate).Print(node);
+std::ostream& operator<<(std::ostream& os, const Expr& expr) {
+  os << TextPrinter(false, nullptr).Print(expr);
+  return os;
 }
 
 TVM_REGISTER_API("relay._expr.RelayPrint")

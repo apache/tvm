@@ -54,7 +54,7 @@ class RelayNode(NodeBase):
         Note
         ----
         The metadata section is necessary to fully parse the text format.
-        However, it can contain dumps that are big (e.g constant weights)a,
+        However, it can contain dumps that are big (e.g constant weights),
         so it can be helpful to skip printing the meta data section.
 
         Returns
