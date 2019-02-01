@@ -87,7 +87,6 @@ def test_nat_value():
 
 def test_nat_constructor():
     assert relay.ir_pass.infer_type(z(), mod).checked_type == nat()
-    assert relay.ir_pass.infer_type(s, mod).checked_type == relay.FuncType([nat()], nat())
     assert relay.ir_pass.infer_type(s(z()), mod).checked_type == nat()
 
 
@@ -105,7 +104,6 @@ def test_add():
 
 def test_list_constructor():
     a = relay.TypeVar("a")
-    assert relay.ir_pass.infer_type(nil, mod).checked_type == relay.FuncType([], l(a), [a])
     assert relay.ir_pass.infer_type(cons(z(), nil()), mod).checked_type == l(nat())
 
 

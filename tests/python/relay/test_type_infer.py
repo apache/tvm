@@ -204,8 +204,10 @@ def test_constructor_type():
     mod = relay.Module()
     box, constructor = initialize_box_adt(mod)
 
-    ct = relay.ir_pass.infer_type(constructor, mod)
     a = relay.TypeVar('a')
+    x = relay.Var('x', a)
+    ct = relay.ir_pass.infer_type(
+        relay.Function([x], constructor(x), box(a), [a]), mod)
     expected = relay.FuncType([a], box(a), [a])
     assert ct.checked_type == expected
 
