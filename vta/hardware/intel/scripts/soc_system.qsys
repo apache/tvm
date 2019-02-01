@@ -757,6 +757,30 @@
          type = "String";
       }
    }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
    element store_0
    {
       datum _sortIndex
@@ -1750,8 +1774,8 @@
  <connection
    kind="avalon"
    version="18.0"
-   start="vta_adaptor_0.acc_master"
-   end="acp_bridge.axi_slave">
+   start="vta_adaptor_0.acp_cfg_master"
+   end="acp_bridge.avalon_csr_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
@@ -1759,8 +1783,8 @@
  <connection
    kind="avalon"
    version="18.0"
-   start="vta_adaptor_0.acp_cfg_master"
-   end="acp_bridge.avalon_csr_slave">
+   start="vta_adaptor_0.axi_master"
+   end="acp_bridge.axi_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
@@ -2065,15 +2089,6 @@
  <connection
    kind="avalon"
    version="18.0"
-   start="vta_adaptor_0.out_master"
-   end="acp_bridge.axi_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
    start="compute_0.out_mem"
    end="out_mem.s1">
   <parameter name="arbitrationPriority" value="1" />
@@ -2090,15 +2105,6 @@
    version="18.0"
    start="store_0.outputs"
    end="vta_adaptor_0.outputs">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
-   kind="avalon"
-   version="18.0"
-   start="vta_adaptor_0.uop_master"
-   end="acp_bridge.axi_slave">
   <parameter name="arbitrationPriority" value="1" />
   <parameter name="baseAddress" value="0x0000" />
   <parameter name="defaultConnection" value="false" />
