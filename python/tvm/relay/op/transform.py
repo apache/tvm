@@ -458,7 +458,7 @@ def reverse_reshape(data, newshape):
     Example::
 
     The special values have the same semantics as :py:class:`tvm.relay.reshape`.
-    The difference is that special values are inferred from right to left. It 
+    The difference is that special values are inferred from right to left. It
     can be explained in the example below::
 
     - data.shape = (10,5,4), newshape = (-1,0), reshape results in (40,5)
