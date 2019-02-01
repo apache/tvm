@@ -43,6 +43,7 @@ class ModuleNode : public RelayNode {
  public:
   /*! \brief A map from ids to all global functions. */
   tvm::Map<GlobalVar, Function> functions;
+  /*! \brief A map from global type vars to ADT type data. */
   tvm::Map<GlobalTypeVar, TypeData> type_definitions;
 
   /*! \brief The entry function (i.e. "main"). */
@@ -170,6 +171,10 @@ class ModuleNode : public RelayNode {
    * ensures global uniqueness.
    */
   tvm::Map<std::string, GlobalVar> global_var_map_;
+
+  /*! \brief A map from string names to global type variables (ADT names)
+   * that ensures global uniqueness.
+   */
   tvm::Map<std::string, GlobalTypeVar> global_type_var_map_;
 };
 
