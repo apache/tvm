@@ -47,3 +47,7 @@ python3 -m nose -v tests/python/frontend/nnvm_to_relay || exit -1
 
 echo "Running relay TFLite frontend test..."
 python3 -m nose -v tests/python/frontend/tflite || exit -1
+
+echo "Running relay caffe2 frondend test..."
+python3 -m nose -v tests/python/frontend/caffe2 || exit -1
+
