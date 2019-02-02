@@ -283,7 +283,6 @@ class Interpreter :
     TVMArgsSetter setter(values.data(), codes.data());
 
     auto fset_input = [&](size_t i, Value val) {
-      using runtime::operator<<;
       const TensorValueNode* tv = val.as<TensorValueNode>();
       CHECK(tv != nullptr) << "expect Tensor argument";
       setter(i, tv->data);
