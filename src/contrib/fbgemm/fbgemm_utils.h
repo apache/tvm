@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file Use external nnpack library call.
+ * \file Use external fbgemm library call.
  */
 #ifndef TVM_CONTRIB_FBGEMM_FBGEMM_UTILS_H_
 #define TVM_CONTRIB_FBGEMM_FBGEMM_UTILS_H_

@@ -92,7 +92,7 @@ set(USE_GRAPH_RUNTIME_DEBUG OFF)
 # - ON: enable llvm with cmake's find search
 # - OFF: disbale llvm
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-# set(USE_LLVM OFF)
+set(USE_LLVM OFF)
 
 #---------------------------------------------
 # Contrib libraries
@@ -112,7 +112,7 @@ set(USE_RANDOM OFF)
 set(USE_NNPACK OFF)
 
 # Whether use FBGemm
-set(USE_FBGEMM ON)
+set(USE_FBGEMM OFF)
 
 # set(FBGEMM_PATH /root/FBGEMM/install/)
 
