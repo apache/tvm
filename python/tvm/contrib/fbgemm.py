@@ -30,4 +30,14 @@ def matmul_fp16(A, B, nthreads=1):
             ins[0], ins[1], outs[0], nthreads), name="C")
 
 
+def fully_connected_int8(X, X_qparams, W, W_qparams, B, Y_qparams, nthreads=1):
+    m = X.shape[0]
+    n = W.shape[0]
+    ReQuant_multiplier = X_qparams.scale * W_qparams.scale / Y_qparams.scale
+    return _api.extern(
+        (m, n), [X, W, B],
+        lambda ins, outs: _intrin.call_packed(
+            "tvm.contrib.fbgemm.fully_connected_int8",
+            ins[0], ins[1], ins[2], outs[0], X_qparams.zero_point, W_qparams.zero_point, Y_qparams.zero_point, ReQuant_multiplier, nthreads), name="C", dtype="int8")
+
 _init_api("tvm.contrib.fbgemm")

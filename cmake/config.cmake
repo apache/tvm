@@ -113,8 +113,9 @@ set(USE_RANDOM OFF)
 set(USE_NNPACK OFF)
 
 # Whether use FBGemm
-set(USE_FBGEMM OFF)
-# set(FBGEMM_PATH /root/FBGEMM/install/)
+set(USE_FBGEMM ON)
+
+set(FBGEMM_PATH /root/FBGEMM/install/)
 
 # Whether use CuDNN
 set(USE_CUDNN OFF)
