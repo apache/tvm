@@ -59,6 +59,7 @@ We do encourage everyone to work anything they are interested in.
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
+- [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/dmlc/tvm/graphs/contributors)
