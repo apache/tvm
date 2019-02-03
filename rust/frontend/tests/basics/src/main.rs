@@ -1,5 +1,9 @@
+#![feature(try_from)]
+
 extern crate ndarray as rust_ndarray;
 extern crate tvm_frontend as tvm;
+
+use std::convert::TryInto;
 
 use tvm::*;
 
@@ -23,12 +27,14 @@ fn main() {
     if cfg!(feature = "gpu") {
         fadd.import_module(Module::load(&concat!(env!("OUT_DIR"), "/test_add.ptx")).unwrap());
     }
-    function::Builder::from(&mut fadd)
+    let ret: NDArray = function::Builder::from(&mut fadd)
         .arg(&arr)
         .arg(&arr)
-        .set_output(&mut ret)
+        .set_output(ret)
         .unwrap()
         .invoke()
+        .unwrap()
+        .try_into()
         .unwrap();
 
     assert_eq!(ret.to_vec::<f32>().unwrap(), vec![6f32, 8.0]);

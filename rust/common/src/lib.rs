@@ -13,27 +13,18 @@ extern crate error_chain;
 pub mod ffi {
     #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals, unused)]
 
-    #[cfg(feature = "frontend")]
-    pub extern crate tvm_sys as ts;
+    use std::os::raw::{c_char, c_int, c_void};
 
-    #[cfg(feature = "runtime")]
-    pub mod runtime {
-        use std::os::raw::{c_char, c_int, c_void};
+    include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/c_runtime_api.rs"));
 
-        include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/c_runtime_api.rs"));
-
-        pub type BackendPackedCFunc = extern "C" fn(
-            args: *const TVMValue,
-            type_codes: *const c_int,
-            num_args: c_int,
-        ) -> c_int;
-    }
+    pub type BackendPackedCFunc =
+        extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
 }
 
 pub mod errors;
-pub mod ty;
+pub mod packed_func;
 pub mod value;
 
 pub use errors::*;
-pub use ty::TVMTypeCode;
-pub use value::{TVMArgValue, TVMRetValue, TVMValue};
+pub use ffi::TVMType;
+pub use packed_func::{TVMArgValue, TVMRetValue};

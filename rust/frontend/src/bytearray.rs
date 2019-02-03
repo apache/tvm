@@ -5,7 +5,7 @@
 
 use std::os::raw::c_char;
 
-use crate::ts;
+use tvm_common::ffi;
 
 /// A struct holding TVM byte-array.
 ///
@@ -19,11 +19,11 @@ use crate::ts;
 /// ```
 #[derive(Debug, Clone)]
 pub struct TVMByteArray {
-    pub(crate) inner: ts::TVMByteArray,
+    pub(crate) inner: ffi::TVMByteArray,
 }
 
 impl TVMByteArray {
-    pub(crate) fn new(barr: ts::TVMByteArray) -> TVMByteArray {
+    pub(crate) fn new(barr: ffi::TVMByteArray) -> TVMByteArray {
         TVMByteArray { inner: barr }
     }
 
@@ -46,7 +46,7 @@ impl TVMByteArray {
 
 impl<'a> From<&'a Vec<u8>> for TVMByteArray {
     fn from(arg: &Vec<u8>) -> Self {
-        let barr = ts::TVMByteArray {
+        let barr = ffi::TVMByteArray {
             data: arg.as_ptr() as *const c_char,
             size: arg.len(),
         };

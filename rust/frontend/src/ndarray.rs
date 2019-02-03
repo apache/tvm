@@ -27,30 +27,29 @@ use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice};
 
 use crate::rust_ndarray::{Array, ArrayD};
 use num_traits::Num;
+use tvm_common::{ffi, TVMType};
 
-use crate::ts;
-
-use crate::{Error, ErrorKind, Result, TVMByteArray, TVMContext, TVMType};
+use crate::{Error, ErrorKind, Result, TVMByteArray, TVMContext};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 ///
 /// Wrapper around TVM array handle.
 #[derive(Debug)]
 pub struct NDArray {
-    pub(crate) handle: ts::TVMArrayHandle,
+    pub(crate) handle: ffi::TVMArrayHandle,
     is_view: bool,
 }
 
 impl NDArray {
-    pub(crate) fn new(handle: ts::TVMArrayHandle, is_view: bool) -> Self {
+    pub(crate) fn new(handle: ffi::TVMArrayHandle) -> Self {
         NDArray {
             handle: handle,
-            is_view: is_view,
+            is_view: true,
         }
     }
 
     /// Returns the underlying array handle.
-    pub fn handle(&self) -> ts::TVMArrayHandle {
+    pub fn handle(&self) -> ffi::TVMArrayHandle {
         self.handle
     }
 
@@ -176,7 +175,7 @@ impl NDArray {
     /// *Note*: if something goes wrong during the copy, it will panic
     /// from TVM side. See `TVMArrayCopyFromBytes` in `include/tvm/runtime/c_runtime_api.h`.
     pub fn copy_from_buffer<T: Num32>(&mut self, data: &mut [T]) {
-        check_call!(ts::TVMArrayCopyFromBytes(
+        check_call!(ffi::TVMArrayCopyFromBytes(
             self.handle,
             data.as_ptr() as *mut _,
             data.len() * mem::size_of::<T>()
@@ -194,10 +193,10 @@ impl NDArray {
                 )
             );
         }
-        check_call!(ts::TVMArrayCopyFromTo(
+        check_call!(ffi::TVMArrayCopyFromTo(
             self.handle,
             target.handle,
-            ptr::null_mut() as ts::TVMStreamHandle
+            ptr::null_mut() as ffi::TVMStreamHandle
         ));
         Ok(target)
     }
@@ -224,18 +223,21 @@ impl NDArray {
 
     /// Allocates and creates an empty NDArray given the shape, context and dtype.
     pub fn empty(shape: &[usize], ctx: TVMContext, dtype: TVMType) -> NDArray {
-        let mut handle = ptr::null_mut() as ts::TVMArrayHandle;
-        check_call!(ts::TVMArrayAlloc(
+        let mut handle = ptr::null_mut() as ffi::TVMArrayHandle;
+        check_call!(ffi::TVMArrayAlloc(
             shape.as_ptr() as *const i64,
             shape.len() as c_int,
-            dtype.inner.code as c_int,
-            dtype.inner.bits as c_int,
-            dtype.inner.lanes as c_int,
+            dtype.code as c_int,
+            dtype.bits as c_int,
+            dtype.lanes as c_int,
             ctx.device_type.0 as c_int,
             ctx.device_id as c_int,
             &mut handle as *mut _,
         ));
-        NDArray::new(handle, false)
+        NDArray {
+            handle,
+            is_view: false,
+        }
     }
 }
 
@@ -272,7 +274,7 @@ impl_from_ndarray_rustndarray!(f32, "float");
 impl Drop for NDArray {
     fn drop(&mut self) {
         if !self.is_view {
-            check_call!(ts::TVMArrayFree(self.handle));
+            check_call!(ffi::TVMArrayFree(self.handle));
         }
     }
 }
