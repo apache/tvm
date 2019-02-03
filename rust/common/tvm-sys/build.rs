@@ -7,9 +7,12 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=tvm_runtime");
     println!("cargo:rustc-link-search={}/build", env!("TVM_HOME"));
     let bindings = bindgen::Builder::default()
-        .header(format!("{}/include/tvm/runtime/c_runtime_api.h", env!("TVM_HOME")))
+        .header(format!(
+            "{}/include/tvm/runtime/c_runtime_api.h",
+            env!("TVM_HOME")
+        ))
         .clang_arg(format!("-I{}/3rdparty/dlpack/include/", env!("TVM_HOME")))
-        .blacklist_type("max_align_t") // https://github.com/rust-lang-nursery/rust-bindgen/issues/550
+        .blacklist_type("max_align_t") // @see rust-bindgen#550
         .layout_tests(false)
         .derive_partialeq(true)
         .derive_eq(true)

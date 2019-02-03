@@ -125,7 +125,8 @@ pub struct Tensor<'a> {
     pub(crate) data: Storage<'a>,
     pub(crate) ctx: TVMContext,
     pub(crate) dtype: DataType,
-    pub(crate) shape: Vec<i64>, // not usize because `typedef int64_t tvm_index_t` in c_runtime_api.h
+    pub(crate) shape: Vec<i64>,
+    // ^ not usize because `typedef int64_t tvm_index_t` in c_runtime_api.h
     /// The `Tensor` strides. Can be `None` if the `Tensor` is contiguous.
     pub(crate) strides: Option<Vec<usize>>,
     pub(crate) byte_offset: isize,
@@ -156,7 +157,8 @@ impl<'a> Tensor<'a> {
         match self.strides {
             None => true,
             Some(ref strides) => {
-                // check that stride for each dimension is the product of all trailing dimensons' shapes
+                // check that stride for each dimension is the
+                // product of all trailing dimensons' shapes
                 self.shape
                     .iter()
                     .zip(strides)

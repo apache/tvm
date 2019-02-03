@@ -11,9 +11,9 @@ use crate::{
     ffi::runtime::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt},
 };
 
-// Magic number for NDArray file. For more details, see `kTVMNDArrayMagic` in `ndarray.h`
+// @see `kTVMNDArrayMagic` in `ndarray.h`
 const _NDARRAY_MAGIC: u64 = 0xDD5E40F096B4A13F;
-// Magic number for NDArray list file. For more details, see `kTVMNDArrayListMagic` in `graph_runtime.h`
+// @see `kTVMNDArrayListMagic` in `graph_runtime.h`
 const _NDARRAY_LIST_MAGIC: u64 = 0xF7E58D4F05049CB7;
 
 /// A TVM computation graph.

@@ -62,5 +62,5 @@ cd -
 
 # run resnet example
 cd examples/resnet
-cargo run
+cargo build
 cd -
