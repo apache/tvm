@@ -16,7 +16,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import variables
 from tensorflow.contrib.lite.python import interpreter as interpreter_wrapper
 
-import nnvm.testing.tf
+import tvm.relay.testing.tf as tf_testing
 
 #######################################################################
 # Generic run functions for TVM & TFLite
@@ -344,7 +344,7 @@ def test_forward_mobilenet():
     '''test mobilenet v1 tflite model'''
     # MobilenetV1
     temp = util.tempdir()
-    tflite_model_file = nnvm.testing.tf.get_workload_official(
+    tflite_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz",
         "mobilenet_v1_1.0_224.tflite", temp)
     tflite_model_buf = open(tflite_model_file, "rb").read()
