@@ -8,15 +8,12 @@ use std::{
 };
 
 use ndarray;
-
-use crate::{
-    allocator::Allocation,
-    errors::*,
-    ffi::runtime::{
-        DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt,
-        DLDataTypeCode_kDLUInt, DLDeviceType_kDLCPU, DLTensor as _DLTensor,
-    },
+use tvm_common::ffi::{
+    DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt,
+    DLDeviceType_kDLCPU, DLTensor as _DLTensor,
 };
+
+use crate::{allocator::Allocation, errors::*};
 
 /// A `Storage` is a container which holds `Tensor` data.
 #[derive(PartialEq)]

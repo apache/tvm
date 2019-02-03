@@ -4,11 +4,13 @@ use nom::{alpha1, digit1, le_i32, le_i64, le_u16, le_u32, le_u64, le_u8, types::
 use serde;
 use serde_json;
 
-use super::{DLTensor, DataType, Module, Storage, TVMContext, Tensor};
 use crate::{
-    common::value::TVMArgValue,
     errors::{Error, ErrorKind, Result},
-    ffi::runtime::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt},
+    DLTensor, DataType, Module, Storage, TVMContext, Tensor,
+};
+use tvm_common::{
+    ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt},
+    TVMArgValue,
 };
 
 // @see `kTVMNDArrayMagic` in `ndarray.h`

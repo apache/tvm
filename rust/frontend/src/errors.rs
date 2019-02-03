@@ -40,7 +40,10 @@ error_chain! {
         ShapeError(rust_ndarray::ShapeError);
         NulError(ffi::NulError);
         IntoStringError(ffi::IntoStringError);
-        CommonError(common_errors::Error);
+    }
+
+    links {
+        CommonError(common_errors::Error, common_errors::ErrorKind);
     }
 }
 

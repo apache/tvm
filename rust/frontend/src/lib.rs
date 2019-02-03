@@ -12,20 +12,12 @@
 //! Checkout the `examples` repository for more details.
 
 #![crate_name = "tvm_frontend"]
-#![recursion_limit = "1024"]
 #![allow(non_camel_case_types, unused_unsafe)]
-#![feature(
-    try_from,
-    try_trait,
-    fn_traits,
-    unboxed_closures,
-    box_syntax,
-    option_replace
-)]
+#![feature(try_from, try_trait, fn_traits, unboxed_closures, box_syntax)]
 
 #[macro_use]
 extern crate error_chain;
-extern crate tvm_common as common;
+extern crate tvm_common;
 #[macro_use]
 extern crate lazy_static;
 extern crate ndarray as rust_ndarray;
@@ -36,7 +28,19 @@ use std::{
     str,
 };
 
-use crate::common::ffi::ts;
+pub use crate::{
+    bytearray::TVMByteArray,
+    context::{TVMContext, TVMDeviceType},
+    errors::*,
+    function::Function,
+    module::Module,
+    ndarray::NDArray,
+    tvm_common::{
+        errors as common_errors,
+        ffi::{self, TVMType},
+        packed_func::{TVMArgValue, TVMRetValue},
+    },
+};
 
 // Macro to check the return call to TVM runtime shared library.
 macro_rules! check_call {
@@ -50,7 +54,7 @@ macro_rules! check_call {
 /// Gets the last error message.
 pub fn get_last_error() -> &'static str {
     unsafe {
-        match CStr::from_ptr(ts::TVMGetLastError()).to_str() {
+        match CStr::from_ptr(ffi::TVMGetLastError()).to_str() {
             Ok(s) => s,
             Err(_) => "Invalid UTF-8 message",
         }
@@ -60,7 +64,7 @@ pub fn get_last_error() -> &'static str {
 pub(crate) fn set_last_error(err: &Error) {
     let c_string = CString::new(err.to_string()).unwrap();
     unsafe {
-        ts::TVMAPISetLastError(c_string.as_ptr());
+        ffi::TVMAPISetLastError(c_string.as_ptr());
     }
 }
 
@@ -71,27 +75,11 @@ pub mod context;
 pub mod errors;
 pub mod module;
 pub mod ndarray;
-pub mod ty;
 pub mod value;
-
-pub use crate::{
-    bytearray::TVMByteArray,
-    common::{
-        errors as common_errors,
-        ty::TVMTypeCode,
-        value::{TVMArgValue, TVMRetValue, TVMValue},
-    },
-    context::{TVMContext, TVMDeviceType},
-    errors::*,
-    function::Function,
-    module::Module,
-    ndarray::NDArray,
-    ty::TVMType,
-};
 
 /// Outputs the current TVM version.
 pub fn version() -> &'static str {
-    match str::from_utf8(ts::TVM_VERSION) {
+    match str::from_utf8(ffi::TVM_VERSION) {
         Ok(s) => s,
         Err(_) => "Invalid UTF-8 string",
     }
