@@ -59,8 +59,3 @@ cargo run --bin float
 cargo run --bin array
 cargo run --bin string
 cd -
-
-# run resnet example
-cd examples/resnet
-cargo build
-cd -

@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(description='Resnet build example')
 aa = parser.add_argument
 aa('--batch-size', type=int, default=1, help='input image batch size')
 aa('--opt-level', type=int, default=3,
-    help='level of optimization. 0 is unoptimized and 3 is the highest level')
+   help='level of optimization. 0 is unoptimized and 3 is the highest level')
 aa('--target', type=str, default='llvm', help='target context for compilation')
 aa('--image-shape', type=str, default='3,224,224', help='input image dimensions')
 aa('--image-name', type=str, default='cat.png', help='name of input image to download')
@@ -38,6 +38,9 @@ data_shape = (batch_size,) + image_shape
 
 def build(target_dir):
     """ Compiles resnet18 with TVM"""
+    deploy_lib = osp.join(target_dir, 'deploy_lib.o')
+    if osp.exists(deploy_lib):
+        return
     # download the pretrained resnet18 trained on imagenet1k dataset for
     # image classification task
     block = get_model('resnet18_v1', pretrained=True)
@@ -50,7 +53,7 @@ def build(target_dir):
         graph, lib, params = nnvm.compiler.build(
             net, target, shape={"data": data_shape}, params=params)
     # save the model artifacts
-    lib.save(osp.join(target_dir, "deploy_lib.o"))
+    lib.save(deploy_lib)
     cc.create_shared(osp.join(target_dir, "deploy_lib.so"),
                     [osp.join(target_dir, "deploy_lib.o")])
 
@@ -92,8 +95,6 @@ def test_build(target_dir):
 
 
 if __name__ == '__main__':
-    if osp.exists(osp.join(target_dir, "deploy_lib.o"))):
-        return
     logger.info("building the model")
     build(target_dir)
     logger.info("build was successful")
