@@ -48,11 +48,11 @@ def test_meta_data():
     f = relay.Function([x, w], z)
     text = f.astext()
     assert "channels=2" in text
-    assert "meta.Variable(id=0)" in text
+    assert "meta[Variable][0]" in text
     show(text)
 
     text = relay.const([1,2,3]).astext()
-    assert "meta.relay.Constant(id=0)" in text
+    assert "meta[relay.Constant][0]" in text
     show(text)
 
 
