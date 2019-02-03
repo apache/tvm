@@ -42,7 +42,7 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  * we support a meta-data section in the text format.
  * We allow the text format to refer to a node in the meta-data section.
  *
- * The meta-data section is a json serialized string of an Array<NodeRef>.
+ * The meta-data section is a json serialized string of an Map<string, Array<NodeRef>>.
  * Each element in the meta-data section can be referenced by the text format.
  * Each meta data node is printed in the following format.
  *
