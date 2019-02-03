@@ -379,7 +379,7 @@ class Interpreter :
     //
     // We have some functions cotaining chunks of operators
     // which will be loaded into operator map.
-    if (auto op_node = call->op.as<OpNode>()) {
+    if (const auto* op_node = call->op.as<OpNode>()) {
       LOG(FATAL) << "found " << op_node->name
                  << "; operators should be removed by future passes; try "
                     "fusing and lowering";

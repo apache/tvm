@@ -376,7 +376,7 @@ void TypeSolver::ReportError(const Error& err, const NodeRef& location)  {
 
 // Add type constraint to the solver.
 void TypeSolver::AddConstraint(const TypeConstraint& constraint, const NodeRef& loc) {
-  if (auto *op = constraint.as<TypeRelationNode>()) {
+  if (const auto* op = constraint.as<TypeRelationNode>()) {
     // create a new relation node.
     RelationNode* rnode = arena_.make<RelationNode>();
     rnode->location = loc;

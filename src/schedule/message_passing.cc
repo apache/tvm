@@ -419,8 +419,7 @@ void PassUpBoundCheck(const Stage& s,
   using HalideIR::Internal::can_prove;
   for (size_t i = s->relations.size(); i != 0; --i) {
     IterVarRelation rel = s->relations[i - 1];
-    if (rel.as<SplitNode>()) {
-      const SplitNode* s = rel.as<SplitNode>();
+    if (const SplitNode* s = rel.as<SplitNode>()) {
       bool outer = state.at(s->outer);
       bool inner = state.at(s->inner);
 
@@ -439,13 +438,11 @@ void PassUpBoundCheck(const Stage& s,
       } else {
         state[s->parent] = true;
       }
-    } else if (rel.as<FuseNode>()) {
-      const FuseNode* s = rel.as<FuseNode>();
+    } else if (const FuseNode* s = rel.as<FuseNode>()) {
       bool fused = state.at(s->fused);
       state[s->outer] = fused;
       state[s->inner] = fused;
-    } else if (rel.as<RebaseNode>()) {
-      const RebaseNode* s = rel.as<RebaseNode>();
+    } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
       state[s->parent] = state.at(s->rebased);
     } else if (rel.as<SingletonNode>()) {
       // nop

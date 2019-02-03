@@ -42,13 +42,13 @@ inline std::string GetHostName() {
 }
 
 /*!
- * \brief Common data structure fornetwork address.
+ * \brief Common data structure for network address.
  */
 struct SockAddr {
   sockaddr_storage addr;
   SockAddr() {}
   /*!
-   * \brief construc address by url and port
+   * \brief construct address by url and port
    * \param url The url of the address
    * \param port The port of the address.
    */
