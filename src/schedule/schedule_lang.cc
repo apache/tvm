@@ -710,8 +710,7 @@ Schedule ScheduleNode::make(Array<Operation> ops) {
     n->stages.push_back(stage);
     n->stage_map.Set(op, stage);
     // mark scan updates.
-    if (op.as<ScanOpNode>()) {
-      const ScanOpNode* scan = op.as<ScanOpNode>();
+    if (const ScanOpNode* scan = op.as<ScanOpNode>()) {
       Array<Tensor> inputs;
       for (Tensor t : scan->state_placeholder) {
         inputs.push_back(t);

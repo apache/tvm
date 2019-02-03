@@ -20,8 +20,8 @@ NodePtr<SourceNameNode> GetSourceNameNode(const std::string& name) {
   auto sn = source_map.find(name);
   if (sn == source_map.end()) {
     NodePtr<SourceNameNode> n = make_node<SourceNameNode>();
-    n->name = std::move(name);
     source_map[name] = n;
+    n->name = std::move(name);
     return n;
   } else {
     return sn->second;

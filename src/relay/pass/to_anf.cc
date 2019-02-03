@@ -385,7 +385,7 @@ Expr ToANFAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
 }
 
 Expr ToANF(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
-  if (auto f = e.as<FunctionNode>()) {
+  if (const auto* f = e.as<FunctionNode>()) {
     return FunctionNode::make(f->params,
                               ToANFAux(f->body, m, gv),
                               f->ret_type,
