@@ -25,11 +25,11 @@ class GraphRuntimeDebug : public GraphRuntime {
    * \return the elapsed time.
    */
   double DebugRun(size_t index) {
-    CHECK(index < op_execs().size());
-    TVMContext ctx = data_entry()[GetEntryId(index, 0)].operator->()->ctx;
+    CHECK(index < op_execs_.size());
+    TVMContext ctx = data_entry_[entry_id(index, 0)]->ctx;
     auto tbegin = std::chrono::high_resolution_clock::now();
-    if (op_execs()[index]) {
-      op_execs()[index]();
+    if (op_execs_[index]) {
+      op_execs_[index]();
     }
     TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
     auto tend = std::chrono::high_resolution_clock::now();
@@ -44,7 +44,7 @@ class GraphRuntimeDebug : public GraphRuntime {
    * \param eid The Entry id of the op.
    */
   NDArray GetOutputByLayer(int index, int eid) {
-    return data_entry()[GetEntryId(index, eid)];
+    return data_entry_[entry_id(index, eid)];
   }
 
   /*!
@@ -81,15 +81,15 @@ class GraphRuntimeDebug : public GraphRuntime {
  * \param data_out the node data.
  */
 void DebugGetNodeOutput(int index, DLTensor* data_out) {
-  CHECK_LT(static_cast<size_t>(index), op_execs().size());
+  CHECK_LT(static_cast<size_t>(index), op_execs_.size());
   uint32_t eid = index;
 
-  for (size_t i = 0; i < op_execs().size(); ++i) {
-    if (op_execs()[i]) op_execs()[i]();
+  for (size_t i = 0; i < op_execs_.size(); ++i) {
+    if (op_execs_[i]) op_execs_[i]();
     if (static_cast<int>(i) == index) break;
   }
 
-  data_entry()[eid].CopyTo(data_out);
+  data_entry_[eid].CopyTo(data_out);
 }
 };
 

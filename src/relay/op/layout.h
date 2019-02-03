@@ -73,9 +73,9 @@ class Layout : public NodeRef {
   Layout(const std::string& name) { // NOLINT(*)
     node_ = make_node<LayoutNode>();
 
-    std::vector<uint32_t> superdim_pos(kUniqueDim, -1);
-    std::vector<uint32_t> subdim_pos(kUniqueDim, -1);
-    std::vector<uint32_t> subdim_size(kUniqueDim, -1);
+    std::vector<int32_t> superdim_pos(kUniqueDim, -1);
+    std::vector<int32_t> subdim_pos(kUniqueDim, -1);
+    std::vector<int32_t> subdim_size(kUniqueDim, -1);
     std::vector<char> layout_simplified;
 
     if (name != "__undef__") {  // parse layout string

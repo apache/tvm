@@ -173,7 +173,7 @@ class TVM_DLL DeviceAPI {
    * \param allow_missing Whether allow missing
    * \return The corresponding device API.
    */
-  TVM_DLL static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
+  static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
 };
 
 /*! \brief The device type bigger than this is RPC device */

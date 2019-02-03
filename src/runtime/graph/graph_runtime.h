@@ -126,30 +126,6 @@ class GraphRuntime : public ModuleNode {
    * \param param_blob A binary blob of parameter.
    */
   void LoadParams(const std::string& param_blob);
-
-  /*!
-   * \brief Get the tensor vector pointer.
-   */
-  std::vector<NDArray>& data_entry() {
-      return data_entry_;
-  }
-
-  /*!
-   * \brief Get the execution function pointer.
-   */
-  std::vector<std::function<void()> >& op_execs() {
-        return op_execs_;
-  }
-
-  /*!
-   * \brief Get node entry index.
-   * \param nid Node id.
-   * \param index Index of the nodes.
-   */
-  uint32_t GetEntryId(uint32_t nid, uint32_t index) const {
-    return node_row_ptr_[nid] + index;
-  }
-
  /*!
   * \brief Get total number of nodes.
   * \return Total number of nodes.
@@ -163,7 +139,7 @@ class GraphRuntime : public ModuleNode {
   }
 
 
- private:
+ protected:
   // Memory pool entry.
   struct PoolEntry {
     size_t size;
