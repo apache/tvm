@@ -718,10 +718,10 @@ class StoragePlanRewriter : public IRMutator {
                     src_entry->attach_scope_ == thread_scope_ &&
                     src_entry->elem_type == ae.alloc->type.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
-                  uint64_t const_nbits = static_cast<uint64_t>(
-                      ae.alloc->constant_allocation_size() *
+                  uint64_t const_nbits =
+                      static_cast<uint64_t>(ae.alloc->constant_allocation_size()) *
                       ae.alloc->type.bits() *
-                      ae.alloc->type.lanes());
+                      ae.alloc->type.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
