@@ -15,9 +15,14 @@ error_chain! {
             display("requested `{}` handle is null", name)
         }
 
-        FunctionNotFound {
-            description("function not found")
-            display("function was not set in `function::Builder`")
+        FunctionNotSet {
+            description("packed function not set")
+            display("packed function was not set in `function::Builder` or does not exist in the global registry")
+        }
+
+        FunctionNotFound(name: String) {
+            description("packed function not found")
+            display("packed function `{}` does not exist in the global registry", name)
         }
 
         TypeMismatch(expected: String, found: String) {

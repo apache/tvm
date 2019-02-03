@@ -7,7 +7,7 @@
 //! See the tests and examples repository for more examples.
 
 use std::{
-    collections::BTreeMap,
+    collections::{HashMap, hash_map},
     ffi::{CStr, CString},
     mem,
     os::raw::{c_char, c_int, c_void},
@@ -18,21 +18,8 @@ use std::{
 use crate::{ts, ErrorKind, Module, Result, TVMArgValue, TVMRetValue, TVMTypeCode, TVMValue};
 
 lazy_static! {
-    static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<&'static str, Option<Function>>> = {
-        let mut out_size = 0 as c_int;
-        let name = ptr::null_mut() as *mut c_char;
-        let mut out_array = name as *mut _;
-        check_call!(ts::TVMFuncListGlobalNames(
-            &mut out_size as *mut _,
-            &mut out_array
-        ));
-        let names_list = unsafe { slice::from_raw_parts(out_array, out_size as usize) };
-        Mutex::new(
-            names_list
-                .into_iter()
-                .map(|&p| (unsafe { CStr::from_ptr(p).to_str().unwrap() }, None))
-                .collect(),
-        )
+    static ref GLOBAL_FUNCTIONS: Mutex<HashMap<String, Function>> = {
+        Mutex::new(HashMap::new())
     };
 }
 
@@ -66,25 +53,33 @@ impl Function {
     }
 
     /// For a given function, it returns a function by name.
-    pub fn get<S: AsRef<str>>(name: S, is_global: bool) -> Option<&'static Function> {
-        let mut globals = GLOBAL_FUNCTIONS.lock().unwrap();
-        globals.get_mut(name.as_ref()).and_then(|maybe_func| {
-            if maybe_func.is_none() {
-                let name = CString::new(name.as_ref()).unwrap();
-                let mut handle = ptr::null_mut() as ts::TVMFunctionHandle;
-                check_call!(ts::TVMFuncGetGlobal(
-                    name.as_ptr() as *const c_char,
-                    &mut handle as *mut _
-                ));
-                maybe_func.replace(Function::new(
-                    handle, is_global, false, /* is_released */
-                ));
-            }
-            unsafe {
-                std::mem::transmute::<Option<&Function>, Option<&'static Function>>(
-                    maybe_func.as_ref(),
-                )
-            }
+    pub fn get<S: AsRef<str>>(name: S, is_global: bool) -> Result<&'static Function> {
+        let mut globals = GLOBAL_FUNCTIONS.lock().expect("global function registry lock poisoned");
+        let name = name.as_ref();
+
+        if let Some(function) = globals.get(name) {
+            return Ok(unsafe {
+                 std::mem::transmute::<&Function, &'static Function>(function)
+            });
+        }
+        let c_name = CString::new(name)?;
+        let mut handle = ptr::null_mut() as ts::TVMFunctionHandle;
+        check_call!(ts::TVMFuncGetGlobal(
+            c_name.as_ptr() as *const c_char,
+            &mut handle as *mut _
+        ));
+        if handle.is_null() {
+            bail!(ErrorKind::FunctionNotFound(name.to_string()));
+        }
+
+        let function = Function::new(
+            handle, is_global, false, /* is_released */
+        );
+        globals.insert(name.to_string(), function);
+
+        let function = globals.get(name).expect("impossible error");
+        Ok(unsafe {
+                std::mem::transmute::<&Function, &'static Function>(function)
         })
     }
 
@@ -159,7 +154,7 @@ impl<'a, 'm> Builder<'a, 'm> {
     }
 
     pub fn get_function(&mut self, name: &'m str, is_global: bool) -> &mut Self {
-        self.func = Function::get(name, is_global);
+        self.func = Function::get(name, is_global).ok();
         self
     }
 
@@ -225,7 +220,7 @@ impl<'a, 'm> FnOnce<((),)> for Builder<'a, 'm> {
     type Output = Result<TVMRetValue>;
     extern "rust-call" fn call_once(self, _: ((),)) -> Self::Output {
         if self.func.is_none() {
-            bail!("{}", ErrorKind::FunctionNotFound);
+            bail!("{}", ErrorKind::FunctionNotSet);
         }
 
         let mut ret_val = unsafe { mem::uninitialized::<ts::TVMValue>() };
@@ -496,8 +491,8 @@ mod tests {
 
     #[test]
     fn get_fn() {
-        assert!(Function::get(CANARY, true).is_some());
-        assert!(Function::get("does not exists!", false).is_none());
+        assert!(Function::get(CANARY, true).is_ok());
+        assert!(Function::get("does not exists!", false).is_err());
     }
 
     #[test]
