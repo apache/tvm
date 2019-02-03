@@ -1,0 +1,13 @@
+[package]
+name = "tvm-common"
+version = "0.1.0"
+authors = ["TVM Contributors"]
+license = "Apache-2.0"
+
+[features]
+runtime = []
+frontend = ["tvm-sys"]
+
+[dependencies]
+error-chain = { version = "0.12.0", default-features = false }
+tvm-sys = { version = "0.1.0", path = "tvm-sys", optional = true }
