@@ -144,8 +144,42 @@ def test_reverse_reshape():
     verify_reverse_reshape((2, 3, 4), (-1, 0), (6, 4))
     verify_reverse_reshape((2, 3, 4), (0, -3), (2, 12))
 
+def verify_batch_dot(x_shape, y_shape, out_shape, dtype="float32"):
+    x = relay.var("x", relay.TensorType(x_shape, dtype))
+    y = relay.var("y", relay.TensorType(y_shape, dtype))
+    z = relay.nn.batch_dot(x, y)
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.ty.TensorType(out_shape, dtype)
+
+    func = relay.Function([x, y], z)
+    x_np = np.random.uniform(size=x_shape).astype(dtype)
+    y_np = np.random.uniform(size=y_shape).astype(dtype)
+    z_np = np.zeros(out_shape).astype(dtype)
+    for i in range(x_shape[0]):
+        z_np[i] = np.dot(x_np[i], y_np[i].T)
+
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            z = intrp.evaluate(func)(x_np, y_np)
+            tvm.testing.assert_allclose(z.asnumpy(), z_np, rtol=1e-5)
+
+def test_batch_dot():
+    b, m, n, k = tvm.var("b"), tvm.var("m"), tvm.var("n"), tvm.var("k")
+    x = relay.var("x", relay.TensorType((b, m, k), "float32"))
+    y = relay.var("y", relay.TensorType((b, n, k), "float32"))
+    z = relay.nn.batch_dot(x, y)
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.TensorType((b, m, n), "float32")
+
+    verify_batch_dot((1, 16, 32), (1, 16, 32), (1, 16, 16))
+    verify_batch_dot((5, 16, 32), (5, 16, 32), (5, 16, 16))
+    verify_batch_dot((5, 16, 32), (5, 20, 32), (5, 16, 20))
+
+
 if __name__ == "__main__":
     test_collapse_sum_like()
     test_broadcast_to_like()
     test_slice_like()
     test_reverse_reshape()
+    test_batch_dot()

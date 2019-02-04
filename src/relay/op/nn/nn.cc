@@ -713,7 +713,7 @@ in batch.
 .set_num_inputs(2)
 .add_argument("x", "3D Tensor", "First input.")
 .add_argument("y", "3D Tensor", "Second input.")
-.set_support_level(1)
+.set_support_level(10)
 .add_type_rel("BatchDot", BatchDotRel);
 
 

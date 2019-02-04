@@ -39,7 +39,6 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.nn.relu
    tvm.relay.nn.dropout
    tvm.relay.nn.batch_norm
-   tvm.relay.nn.batch_dot
    tvm.relay.nn.bias_add
 
 
@@ -151,6 +150,7 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.device_copy
    tvm.relay.annotation.on_device
    tvm.relay.reverse_reshape
+   tvm.relay.nn.batch_dot
 
 
 Level 1 Definitions
@@ -172,7 +172,6 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.nn.relu
 .. autofunction:: tvm.relay.nn.dropout
 .. autofunction:: tvm.relay.nn.batch_norm
-.. autofunction:: tvm.relay.nn.batch_dot
 .. autofunction:: tvm.relay.nn.bias_add
 
 
@@ -262,3 +261,4 @@ Level 10 Definitions
 .. autofunction:: tvm.relay.device_copy
 .. autofunction:: tvm.relay.annotation.on_device
 .. autofunction:: tvm.relay.reverse_reshape
+.. autofunction:: tvm.relay.nn.batch_dot

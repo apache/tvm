@@ -268,23 +268,6 @@ def _mx_multibox_detection(inputs, attrs):
     return _op.vision.nms(ret[0], ret[1], **new_attrs1)
 
 
-def _mx_div_sqrt_dim(inputs, attrs):
-    ty = ir_pass.infer_type(inputs[0])._checked_type_
-    sqrt_dim = _op.sqrt(_expr.const(int(ty.shape[-1]), ty.dtype))
-    out = inputs[0] / sqrt_dim
-    print(out.astext())
-    return out
-
-
-def _mx_batch_dot(inputs, attrs):
-    a = ir_pass.infer_type(inputs[0])
-    b = ir_pass.infer_type(inputs[1])
-    
-    print(a.astext())
-    print(b.astext())
-    exit()
-
-
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -298,6 +281,7 @@ _identity_list = [
     "slice_like",
     "zeros_like",
     "ones_like",
+    "batch_dot",
 ]
 
 _convert_map = {
@@ -380,8 +364,6 @@ _convert_map = {
     # "broadcast_to",
     # "gather_nd",
     # "Crop"          : _crop_like,
-    "_contrib_div_sqrt_dim": _mx_div_sqrt_dim,
-    "batch_dot": _mx_batch_dot,
 }
 
 # set identity list
