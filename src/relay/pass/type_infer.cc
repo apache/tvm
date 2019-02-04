@@ -207,6 +207,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       << "Cannot do type inference without a environment:"
       << con->constructor->name_hint;
     TypeData td = mod_->type_definitions.at(con->constructor->belong_to);
+    auto pc = GetRef<PatternConstructor>(con);
 
     // we can expect a certain number of arguments
     Array<Type> unknown_args;
@@ -217,14 +218,28 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     Type unified = Unify(t, expected, GetRef<NodeRef>(con));
 
     auto* tc = unified.as<TypeCallNode>();
-    CHECK(tc) << "must be type call";
-    CHECK_EQ(td->header, tc->func);
-    CHECK(td->tv.size() == tc->args.size()) << "both side must be equal";
+    if (!tc) {
+      this->ReportFatalError(pc, RELAY_ERROR("Expected a type call, got " << unified));
+    }
+    if (td->header != tc->func) {
+      this->ReportFatalError(pc, RELAY_ERROR("ADT headers must match, but we have "
+                                             << td->header << " and " << tc->func));
+    }
+    if (td->tv.size() != tc->args.size()) {
+      this->ReportFatalError(pc, RELAY_ERROR("The number of type args must match"
+                                             << "the number of type vars in the type data: "
+                                             << td->tv.size() << " != " << tc->args.size()));
+    }
     std::unordered_map<TypeVar, Type, NodeHash, NodeEqual> type_var_map_;
     for (size_t i = 0; i < td->tv.size(); ++i) {
       type_var_map_[td->tv[i]] = tc->args[i];
     }
     CHECK(con->constructor->inp.size() == con->pat.size()) << "not enough pattern";
+    if (con->constructor->inp.size() != con->pat.size()) {
+      this->ReportFatalError(pc, RELAY_ERROR("Not enough inputs for the constructor; "
+                                             << "expected " << con->constructor->inp.size()
+                                             << ", got " << con->pat.size()));
+    }
     for (size_t i = 0; i < con->constructor->inp.size(); ++i) {
       VisitPattern(con->pat[i], Bind(con->constructor->inp[i], type_var_map_));
     }
