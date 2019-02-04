@@ -46,6 +46,7 @@ error_chain! {
         NulError(ffi::NulError);
         IntoStringError(ffi::IntoStringError);
         CommonError(common_errors::Error);
+        IoError(std::io::Error);
     }
 }
 

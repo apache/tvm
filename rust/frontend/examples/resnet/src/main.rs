@@ -16,6 +16,7 @@ use image::{FilterType, GenericImageView};
 use ndarray::{Array, ArrayD, Axis};
 
 use tvm::*;
+use tvm::graph_runtime::GraphModule;
 
 fn main() {
     let ctx = TVMContext::cpu(0);
@@ -50,55 +51,15 @@ fn main() {
         "input size is {:?}",
         input.shape().expect("cannot get the input shape")
     );
-    let graph =
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_graph.json")).unwrap();
-    // load the built module
-    let lib = Module::load(&Path::new(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/deploy_lib.so"
-    )))
-    .unwrap();
-    // get the global TVM graph runtime function
-    let runtime_create_fn = Function::get("tvm.graph_runtime.create", true).unwrap();
-    let runtime_create_fn_ret = call_packed!(
-        runtime_create_fn,
-        &graph,
-        &lib,
-        &ctx.device_type,
-        &ctx.device_id
-    )
-    .unwrap();
-    // get graph runtime module
-    let graph_runtime_module: Module = runtime_create_fn_ret.try_into().unwrap();
-    // get the registered `load_params` from runtime module
-    let ref load_param_fn = graph_runtime_module
-        .get_function("load_params", false)
-        .unwrap();
-    // parse parameters and convert to TVMByteArray
-    let params: Vec<u8> =
-        fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params")).unwrap();
-    let barr = TVMByteArray::from(&params);
-    // load the parameters
-    call_packed!(load_param_fn, &barr).unwrap();
-    // get the set_input function
-    let ref set_input_fn = graph_runtime_module
-        .get_function("set_input", false)
-        .unwrap();
+    let mut module = GraphModule::from_paths(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_graph.json"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_lib.so"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params"),
+        ctx
+    ).unwrap();
+    let mut result: Vec<NDArray> = module.apply(&[&input]);
+    let output = result.pop().unwrap();
 
-    call_packed!(set_input_fn, "data", &input).unwrap();
-    // get `run` function from runtime module
-    let ref run_fn = graph_runtime_module.get_function("run", false).unwrap();
-    // execute the run function. Note that it has no argument
-    call_packed!(run_fn,).unwrap();
-    // prepare to get the output
-    let output_shape = &mut [1, 1000];
-    let output = NDArray::empty(output_shape, TVMContext::cpu(0), TVMType::from("float32"));
-    // get the `get_output` function from runtime module
-    let ref get_output_fn = graph_runtime_module
-        .get_function("get_output", false)
-        .unwrap();
-    // execute the get output function
-    call_packed!(get_output_fn, &0, &output).unwrap();
     // flatten the output as Vec<f32>
     let output = output.to_vec::<f32>().unwrap();
     // find the maximum entry in the output and its index

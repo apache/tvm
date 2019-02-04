@@ -19,8 +19,7 @@
     try_trait,
     fn_traits,
     unboxed_closures,
-    box_syntax,
-    option_replace
+    box_syntax
 )]
 
 #[macro_use]
@@ -68,11 +67,14 @@ pub(crate) fn set_last_error(err: &Error) {
 pub mod function;
 pub mod bytearray;
 pub mod context;
+#[allow(deprecated)]
 pub mod errors;
 pub mod module;
 pub mod ndarray;
 pub mod ty;
 pub mod value;
+
+pub mod graph_runtime;
 
 pub use crate::{
     bytearray::TVMByteArray,

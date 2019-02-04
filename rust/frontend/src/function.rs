@@ -7,8 +7,8 @@
 //! See the tests and examples repository for more examples.
 
 use std::{
-    collections::{HashMap, hash_map},
-    ffi::{CStr, CString},
+    collections::HashMap,
+    ffi::CString,
     mem,
     os::raw::{c_char, c_int, c_void},
     ptr, slice, str,
@@ -478,6 +478,51 @@ macro_rules! call_packed {
     }}
 }
 
+/// Wrap a set of global packed functions with known argument and return types.
+/// 
+/// Usage:
+/// ```no_build
+/// wrap_packed_globals {
+///     /// Create a graph runtime module.
+///     fn tvm.graph_runtime::create(graph: &str, lib: &Module, TVM) -> Result<Module>;
+/// }
+/// ```
+/// 
+/// Creates a submodule:
+/// ```
+/// mod packed {
+///     /// Create a graph runtime module.
+///     fn create(graph: &str, lib: &Module, TVM) -> Result<Module> {
+///         // ... load the function, call it with our args ...
+///     }
+/// }
+/// 
+/// Note that only the last segment of the function path is used for the function name.
+#[macro_export]
+macro_rules! wrap_packed_globals {
+    ($(
+        $(#[doc = $doc:expr])*
+        fn $( $seg:ident ).* :: $final:ident ( $( $arg:ident : $arg_ty:ty ),+ ) -> $ret:ty;
+      )+) => {
+        mod packed {
+            use std::convert::TryInto;
+            use super::*;
+            use $crate::{ Module, Result, Function };
+            $(
+                $(#[doc = $doc])*
+                pub fn $final( $($arg:$arg_ty),+ ) -> $ret {
+                    let name = concat!($(stringify!($seg) , "."),+, stringify!($final));
+                    let target = Function::get(name, true)
+                        .expect("global function missing");
+                    let result = call_packed!(target, $($arg),+)?;
+                    Ok(result.try_into()?)
+                }
+            )+
+        }
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -486,7 +531,7 @@ mod tests {
 
     #[test]
     fn list_global_func() {
-        assert!(GLOBAL_FUNCTIONS.lock().unwrap().contains_key(CANARY));
+        assert!(GLOBAL_FUNCTIONS.lock().unwrap().contains_key(&*CANARY));
     }
 
     #[test]
