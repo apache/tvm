@@ -509,8 +509,8 @@ def _reshape():
             # try to infer shape by precompute prune if possible.
             if all(in_node in params for in_node in inputs[1].list_input_names()):
                 func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
-                with relay.build_config(opt_level=0):
-                    graph, lib, params = relay.build(func, target="llvm", params=params)
+                with tvm.relay.build_config(opt_level=0):
+                    graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
                 ctx = tvm.context("llvm", 0)
                 from tvm.contrib import graph_runtime
                 m = graph_runtime.create(graph, lib, ctx)

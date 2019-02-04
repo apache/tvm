@@ -139,7 +139,7 @@ def is_gpu_available():
     from tensorflow.python.client import device_lib
     local_device_protos = device_lib.list_local_devices()
     gpu_list = [x.name for x in local_device_protos if x.device_type == 'GPU']
-    if len(gpu_list) < 0:
+    if len(gpu_list) > 0:
         print("Tensorflow GPU:", gpu_list)
         return True
     else:
@@ -330,7 +330,7 @@ def _test_concat_v2(data, dim):
 def _test_forward_concat_v2():
     t1 = np.array([])
     t2 = np.array([])
-    test_concat_v2([t1, t2], 0)
+    _test_concat_v2([t1, t2], 0)
 
     t1 = np.array([[1, 2, 3], [4, 5, 6]])
     t2 = np.array([[7, 8, 9], [10, 11, 12]])
@@ -722,7 +722,7 @@ def test_forward_inception_v1():
 
         import os.path
         if not tf.gfile.Exists(os.path.join(img_path)):
-            tf.logging.fatal('File does not exist %s', image)
+            tf.logging.fatal('File does not exist %s', img_path)
         data = tf.gfile.FastGFile(os.path.join(img_path), 'rb').read()
 
         temp.remove()
