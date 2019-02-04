@@ -457,12 +457,12 @@ class AlphaEqualHandler:
 
     if (r == nullptr
         || !ExprEqual(op->data, r->data)
-        || op->pattern.size() != r->pattern.size()) {
+        || op->clauses.size() != r->clauses.size()) {
       return false;
     }
 
-    for (size_t i = 0; i < op->pattern.size(); ++i) {
-      if (!ClauseEqual(op->pattern[i], r->pattern[i])) {
+    for (size_t i = 0; i < op->clauses.size(); ++i) {
+      if (!ClauseEqual(op->clauses[i], r->clauses[i])) {
         return false;
       }
     }

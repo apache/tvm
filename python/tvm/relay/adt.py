@@ -122,7 +122,7 @@ class TypeData(Type):
     type call that passes in the type params.
     """
 
-    def __init__(self, header, tv, constructors):
+    def __init__(self, header, ty_vars, constructors):
         """Defines a TypeData object.
 
         Parameters
@@ -131,7 +131,7 @@ class TypeData(Type):
             The name of the ADT.
             ADTs with the same constructors but different names are
             treated as different types.
-        tv: List[TypeVar]
+        ty_vars: List[TypeVar]
             Type variables that appear in constructors.
         constructors: List[tvm.relay.Constructor]
             The constructors for the ADT.
@@ -141,7 +141,7 @@ class TypeData(Type):
         type_data: TypeData
             The adt declaration.
         """
-        self.__init_handle_by_constructor__(_make.TypeData, header, tv, constructors)
+        self.__init_handle_by_constructor__(_make.TypeData, header, ty_vars, constructors)
 
 
 @register_relay_node
@@ -170,18 +170,18 @@ class Clause(NodeBase):
 class Match(Expr):
     """Pattern matching expression in Relay."""
 
-    def __init__(self, data, pattern):
+    def __init__(self, data, clauses):
         """Construct a Match.
 
         Parameters
         ----------
         data: tvm.relay.Expr
             The value being deconstructed and matched.
-        pattern: [tvm.relay.Clause]
+        clauses: List[tvm.relay.Clause]
             The pattern match clauses.
         Returns
         -------
         match: tvm.relay.Expr
             The match expression.
         """
-        self.__init_handle_by_constructor__(_make.Match, data, pattern)
+        self.__init_handle_by_constructor__(_make.Match, data, clauses)

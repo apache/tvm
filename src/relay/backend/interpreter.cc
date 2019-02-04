@@ -501,7 +501,7 @@ class Interpreter :
 
   Value VisitExpr_(const MatchNode* op) final {
     Value v = Eval(op->data);
-    for (const Clause& c : op->pattern) {
+    for (const Clause& c : op->clauses) {
       if (VisitPattern(c->lhs, v)) {
         return VisitExpr(c->rhs);
       }

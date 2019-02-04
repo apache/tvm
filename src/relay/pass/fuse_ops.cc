@@ -299,7 +299,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   void VisitExpr_(const MatchNode* op) final {
     this->Update(op->data, nullptr, kOpaque);
-    for (const Clause& c : op->pattern) {
+    for (const Clause& c : op->clauses) {
       this->Update(c->rhs, nullptr, kOpaque);
     }
     ExprVisitor::VisitExpr_(op);

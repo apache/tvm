@@ -408,7 +408,7 @@ class TextPrinter :
     TextValue id = this->AllocTempVar();
     stream_ << id << " = " << "Match " << data << " with";
     this->PrintEndInst("\n");
-    for (const auto& c : op->pattern) {
+    for (const auto& c : op->clauses) {
       this->PrintIndent();
       stream_ << GetValue(c->lhs) << " to " << GetValue(c->rhs);
       this->PrintEndInst("\n");

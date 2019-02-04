@@ -211,7 +211,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     // we can expect a certain number of arguments
     Array<Type> unknown_args;
-    for (size_t i = 0; i < td->tv.size(); i++) {
+    for (size_t i = 0; i < td->ty_vars.size(); i++) {
       unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
     }
     Type expected = TypeCallNode::make(con->constructor->belong_to, unknown_args);
@@ -225,14 +225,14 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       this->ReportFatalError(pc, RELAY_ERROR("ADT headers must match, but we have "
                                              << td->header << " and " << tc->func));
     }
-    if (td->tv.size() != tc->args.size()) {
+    if (td->ty_vars.size() != tc->args.size()) {
       this->ReportFatalError(pc, RELAY_ERROR("The number of type args must match"
                                              << "the number of type vars in the type data: "
-                                             << td->tv.size() << " != " << tc->args.size()));
+                                             << td->ty_vars.size() << " != " << tc->args.size()));
     }
     std::unordered_map<TypeVar, Type, NodeHash, NodeEqual> type_var_map_;
-    for (size_t i = 0; i < td->tv.size(); ++i) {
-      type_var_map_[td->tv[i]] = tc->args[i];
+    for (size_t i = 0; i < td->ty_vars.size(); ++i) {
+      type_var_map_[td->ty_vars[i]] = tc->args[i];
     }
     CHECK(con->constructor->inp.size() == con->pat.size()) << "not enough pattern";
     if (con->constructor->inp.size() != con->pat.size()) {
@@ -254,11 +254,11 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   Type VisitExpr_(const MatchNode* op) final {
     Type dtype = GetType(op->data);
-    for (const auto& c : op->pattern) {
+    for (const auto& c : op->clauses) {
       VisitPattern(c->lhs, dtype);
     }
     Type rtype = IncompleteTypeNode::make(Kind::kType);
-    for (const auto& c : op->pattern) {
+    for (const auto& c : op->clauses) {
       rtype = this->Unify(rtype,
                           GetType(c->rhs),
                           op->span);
@@ -495,10 +495,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       << c->name_hint;
     TypeData td = mod_->LookupDef(c->belong_to);
     std::vector<Type> types;
-    for (const auto & t : td->tv) {
+    for (const auto & t : td->ty_vars) {
       types.push_back(t);
     }
-    return FuncTypeNode::make(c->inp, TypeCallNode::make(c->belong_to, types), td->tv, {});
+    return FuncTypeNode::make(c->inp, TypeCallNode::make(c->belong_to, types), td->ty_vars, {});
   }
 };
 

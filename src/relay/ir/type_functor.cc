@@ -60,7 +60,7 @@ void TypeVisitor::VisitType_(const TypeCallNode* op) {
 
 void TypeVisitor::VisitType_(const TypeDataNode* op) {
   this->VisitType(op->header);
-  for (const auto& v : op->tv) {
+  for (const auto& v : op->ty_vars) {
     this->VisitType(v);
   }
 

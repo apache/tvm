@@ -93,11 +93,11 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 TypeData TypeDataNode::make(GlobalTypeVar header,
-                            tvm::Array<TypeVar> tv,
+                            tvm::Array<TypeVar> ty_vars,
                             tvm::Array<Constructor> constructors) {
   NodePtr<TypeDataNode> n = make_node<TypeDataNode>();
   n->header = std::move(header);
-  n->tv = std::move(tv);
+  n->ty_vars = std::move(ty_vars);
   n->constructors = std::move(constructors);
   return TypeData(n);
 }
@@ -112,7 +112,7 @@ TVM_REGISTER_API("relay._make.TypeData")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TypeDataNode>([](const TypeDataNode* node,
                                tvm::IRPrinter* p) {
-  p->stream << "TypeDataNode(" << node->header << ", " << node->tv << ", "
+  p->stream << "TypeDataNode(" << node->header << ", " << node->ty_vars << ", "
             << node->constructors << ")";
 });
 
@@ -137,10 +137,10 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << node->rhs << ")";
   });
 
-Match MatchNode::make(Expr data, tvm::Array<Clause> pattern) {
+Match MatchNode::make(Expr data, tvm::Array<Clause> clauses) {
   NodePtr<MatchNode> n = make_node<MatchNode>();
   n->data = std::move(data);
-  n->pattern = std::move(pattern);
+  n->clauses = std::move(clauses);
   return Match(n);
 }
 
@@ -155,7 +155,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<MatchNode>([](const MatchNode* node,
                             tvm::IRPrinter* p) {
   p->stream << "MatchNode(" << node->data << ", "
-            << node->pattern << ")";
+            << node->clauses << ")";
 });
 
 }  // namespace relay

@@ -190,11 +190,11 @@ Expr ExprMutator::VisitExpr_(const ConstructorNode* c) {
 }
 
 Expr ExprMutator::VisitExpr_(const MatchNode* m) {
-  std::vector<Clause> pattern;
-  for (const Clause& p : m->pattern) {
-    pattern.push_back(VisitClause(p));
+  std::vector<Clause> clauses;
+  for (const Clause& p : m->clauses) {
+    clauses.push_back(VisitClause(p));
   }
-  return MatchNode::make(VisitExpr(m->data), pattern);
+  return MatchNode::make(VisitExpr(m->data), clauses);
 }
 
 Clause ExprMutator::VisitClause(const Clause& c) {
@@ -294,7 +294,7 @@ void ExprVisitor::VisitExpr_(const ConstructorNode* op) {
 
 void ExprVisitor::VisitExpr_(const MatchNode* op) {
   this->VisitExpr(op->data);
-  for (const Clause& c : op->pattern) {
+  for (const Clause& c : op->clauses) {
     this->VisitClause(c);
   }
 }

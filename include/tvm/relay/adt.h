@@ -29,7 +29,7 @@ class PatternNode : public RelayNode {
  * Given an ADT value, a pattern might accept it and bind the pattern variable to some value
  * (typically a subnode of the input or the input). Otherwise, the pattern rejects the value.
  *
- * ADT pattern matching thus takes a list of values and bings to the first that accepts the value.
+ * ADT pattern matching thus takes a list of values and binds to the first that accepts the value.
  */
 class Pattern : public NodeRef {
  public:
@@ -65,6 +65,7 @@ class PatternVarNode : public PatternNode {
  public:
   PatternVarNode() {}
 
+  /*! \brief Variable that stores the matched value. */
   tvm::relay::Var var;
 
   TVM_DLL static PatternVar make(tvm::relay::Var var);
@@ -123,7 +124,9 @@ class PatternConstructor;
 /*! \brief PatternVar container node */
 class PatternConstructorNode : public PatternNode {
  public:
+  /*! Constructor matched by the pattern. */
   Constructor constructor;
+  /*! Sub-patterns to match against each input to the constructor. */
   tvm::Array<Pattern> pat;
 
   PatternConstructorNode() {}
@@ -165,13 +168,13 @@ class TypeDataNode : public TypeNode {
    */
   GlobalTypeVar header;
   /*! \brief The type variables (to allow for polymorphism). */
-  tvm::Array<TypeVar> tv;
+  tvm::Array<TypeVar> ty_vars;
   /*! \brief The constructors. */
   tvm::Array<Constructor> constructors;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("header", &header);
-    v->Visit("tv", &tv);
+    v->Visit("ty_vars", &ty_vars);
     v->Visit("constructors", &constructors);
     v->Visit("span", &span);
   }
@@ -191,7 +194,9 @@ class Clause;
 /*! \brief Clause container node. */
 class ClauseNode : public Node {
  public:
+  /*! \brief The pattern the clause matches. */
   Pattern lhs;
+  /*! \brief The resulting value. */
   Expr rhs;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -212,13 +217,15 @@ class Match;
 /*! \brief Match container node. */
 class MatchNode : public ExprNode {
  public:
+  /*! \brief The input being deconstructed. */
   Expr data;
 
-  tvm::Array<Clause> pattern;
+  /*! \brief The match node clauses. */
+  tvm::Array<Clause> clauses;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("data", &data);
-    v->Visit("pattern", &pattern);
+    v->Visit("clause", &clauses);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }

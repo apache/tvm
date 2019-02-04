@@ -315,7 +315,7 @@ class RelayHashHandler:
   size_t VisitExpr_(const MatchNode* mn) final {
     size_t hash = std::hash<std::string>()(MatchNode::_type_key);
     hash = Combine(hash, ExprHash(mn->data));
-    for (const auto& c : mn->pattern) {
+    for (const auto& c : mn->clauses) {
       hash = Combine(hash, PatternHash(c->lhs));
       hash = Combine(hash, ExprHash(c->rhs));
     }
@@ -340,7 +340,7 @@ class RelayHashHandler:
   size_t VisitType_(const TypeDataNode* tdn) final {
     size_t hash = std::hash<std::string>()(TypeDataNode::_type_key);
     hash = Combine(hash, TypeHash(tdn->header));
-    for (const auto& tv : tdn->tv) {
+    for (const auto& tv : tdn->ty_vars) {
       hash = Combine(hash, TypeHash(tv));
     }
     for (const auto& cn : tdn->constructors) {
