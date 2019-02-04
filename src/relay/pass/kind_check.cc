@@ -14,6 +14,7 @@
  * contains a data type such as `int`, `float`, `uint`.
  */
 #include <tvm/relay/pass.h>
+#include <tvm/relay/error.h>
 #include "../ir/type_functor.h"
 
 namespace tvm {
@@ -23,8 +24,26 @@ using namespace tvm::runtime;
 
 struct KindChecker : TypeFunctor<Kind(const Type&)> {
   const Module& mod;
+  ErrorReporter err_reporter;
 
-  explicit KindChecker(const Module& mod) : mod(mod) {}
+  explicit KindChecker(const Module& mod) : mod(mod), err_reporter() {}
+
+  void ReportFatalError(const Error& err) {
+    this->err_reporter.Report(err);
+    this->err_reporter.RenderErrors(mod);
+  }
+
+  void CheckKindMatches(const Type& t, const Type& outer,
+                        Kind expected, const std::string& description) {
+    Kind k = this->VisitType(t);
+    if (k != expected) {
+      ReportFatalError(RELAY_ERROR("Incorrect kind for a " << description
+                                   << ". Type " << t << " inside " << outer
+                                   << " is of kind " << k
+                                   << " but was expected to be "
+                                   << expected));
+    }
+  }
 
   Kind VisitType_(const IncompleteTypeNode* op) override {
     return op->kind;
@@ -45,10 +64,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
   Kind VisitType_(const TupleTypeNode* op) override {
     // tuples should only contain normal types
     for (const Type& t : op->fields) {
-      Kind k = this->VisitType(t);
-      CHECK(k == Kind::kType)
-        << "All types in tuple type must be of a type kind but "
-        << t << " in " << GetRef<TupleType>(op) << " is of kind " << k;
+      CheckKindMatches(t, GetRef<TupleType>(op), Kind::kType,
+                       "tuple member");
     }
     return Kind::kType;
   }
@@ -59,22 +76,13 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     // well-formed constraints
     FuncType ft = GetRef<FuncType>(op);
     for (const Type& t : op->arg_types) {
-      Kind k = this->VisitType(t);
-      CHECK(k == Kind::kType)
-        << "Function parameters must be of the type kind but parameter "
-        << t << " of " << ft << " is of kind " << k;
+      CheckKindMatches(t, ft, Kind::kType, "function type parameter");
     }
 
-    Kind ret_kind = this->VisitType(ft->ret_type);
-    CHECK(ret_kind == Kind::kType)
-      << "The function return type must be of the type kind but "
-      << ft->ret_type << " of " << ft << " is of kind " << ret_kind;
+    CheckKindMatches(ft->ret_type, ft, Kind::kType, "function return type");
 
     for (const TypeConstraint& tc : op->type_constraints) {
-      Kind k = this->VisitType(tc);
-      CHECK(k == Kind::kConstraint)
-        << "All function type constraints are of the constraint kind but "
-        << tc << " of " << ft << " is of kind " << k;
+      CheckKindMatches(tc, ft, Kind::kConstraint, "function type constraint");
     }
 
     return Kind::kType;
@@ -92,10 +100,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
   Kind VisitType_(const TypeRelationNode* op) override {
     // arguments to type relation should be normal types
     for (const Type& t : op->args) {
-      Kind k = this->VisitType(t);
-      CHECK(k == Kind::kType)
-        << "All arguments to type relations must be of the type kind but "
-        << t << " of " << GetRef<TypeRelation>(op) << " is of kind " << k;
+      CheckKindMatches(t, GetRef<TypeRelation>(op), Kind::kType,
+                       "argument to type relation");
     }
     return Kind::kConstraint;
   }
@@ -104,28 +110,24 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     // type call func should be a global type var, args should be type
     TypeCall tc = GetRef<TypeCall>(op);
     const auto* gtv = op->func.as<GlobalTypeVarNode>();
-    CHECK(gtv != nullptr)
-      << "Type call must be calling a global type var";
+    if (gtv == nullptr) {
+      ReportFatalError(RELAY_ERROR("The callee in " << tc
+                                   << " is not a global type var, but is " << op->func));
+    }
 
-    Kind func_kind = this->VisitType(op->func);
-    CHECK(func_kind == Kind::kAdtHandle)
-      << "Type calls must call a global type var that is an ADT handle but "
-      << op->func << " of " << tc << " is of kind " << func_kind;
+    CheckKindMatches(op->func, tc, Kind::kAdtHandle, "type call function");
 
     for (const Type& t : op->args) {
-      Kind k = this->VisitType(t);
-      CHECK(k == Kind::kType)
-        << "Type call arguments must be of the type kind but "
-        << t << " of " << tc << " is of kind " << k;
+      CheckKindMatches(t, tc, Kind::kType, "type call argument");
     }
 
     // finally we need to check the module to check the number of type params
     auto var = GetRef<GlobalTypeVar>(gtv);
     auto data = mod->LookupDef(var);
-    CHECK(data->tv.size() == op->args.size())
-      << "Incorrect arity in " << tc
-      << " Expected: " << data->tv.size()
-      << " Given: " << op->args.size();
+    if (data->tv.size() != op->args.size()) {
+      ReportFatalError(RELAY_ERROR("Expected " << data->tv.size() << "arguments for " << tc
+                                   << "; got " << op->args.size()));
+    }
     return Kind::kType;
   }
 
@@ -135,31 +137,20 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     // should be tracked recursively, but it is unclear that we need
     // to support it.
     TypeData td = GetRef<TypeData>(op);
-    Kind header_kind = this->VisitType(op->header);
-    CHECK(header_kind == Kind::kAdtHandle)
-      << "The header for ADT type data must be an ADT handle but "
-      << op->header << " of " << td << " is of kind " << header_kind;
+    CheckKindMatches(op->header, td, Kind::kAdtHandle, "type data header");
 
     for (const auto& var : op->tv) {
-      Kind k = this->VisitType(var);
-      CHECK(k == Kind::kType)
-        << "All type params for ADT type data must be of the type kind but "
-        << var << " of " << td << " is of kind " << k;
+      CheckKindMatches(var, td, Kind::kType, "ADT type var");
     }
 
     for (const auto& con : op->constructors) {
-      CHECK(con->belong_to.same_as(op->header))
-        << "Constructors should have same global type var as type data";
+      if (!con->belong_to.same_as(op->header)) {
+        ReportFatalError(RELAY_ERROR(con << " has header " << con->belong_to
+                                     << " but " << op << "has header " << op->header));
+      }
 
       for (const Type& t : con->inp) {
-        Kind k = this->VisitType(t);
-        CHECK(k == Kind::kType)
-          << "All inputs to a constructor must be of the type kind but"
-          << t << " of " << con << " is of kind " << k;
-        if (const auto* gtv = t.as<GlobalTypeVarNode>()) {
-          CHECK(GetRef<GlobalTypeVar>(gtv).same_as(op->header))
-            << "A global type var taken by a constructor must be the one the constructor makes";
-        }
+        CheckKindMatches(t, td, Kind::kType, "ADT constructor input");
       }
     }
     return Kind::kTypeData;
