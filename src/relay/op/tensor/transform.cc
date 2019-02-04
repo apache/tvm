@@ -382,20 +382,29 @@ bool ReshapeRel(const Array<Type>& types,
   }
 
   const auto* param = attrs.as<ReshapeAttrs>();
+  Array<IndexExpr> data_shape;
+  Array<Integer> newshape;
+  if (param->reverse) {
+    data_shape.assign(data->shape.rbegin(), data->shape.rend());
+    newshape.assign(param->newshape.rbegin(), param->newshape.rend());
+  } else {
+    data_shape = data->shape;
+    newshape = param->newshape;
+  }
   Array<IndexExpr> oshape;
   size_t src_idx = 0;
   int infer_idx = -1;
 
-  for (size_t i = 0; i < param->newshape.size(); ++i) {
-    int svalue = param->newshape[i]->value;
+  for (size_t i = 0; i < newshape.size(); ++i) {
+    int svalue = newshape[i]->value;
     // special flag handling for shape inference.
     if (svalue > 0) {
-      oshape.push_back(param->newshape[i]);
+      oshape.push_back(newshape[i]);
       ++src_idx;
     } else if (svalue == 0) {
       // keep same
-      CHECK_LT(src_idx, data->shape.size());
-      oshape.push_back(data->shape[src_idx++]);
+      CHECK_LT(src_idx, data_shape.size());
+      oshape.push_back(data_shape[src_idx++]);
     } else if (svalue == -1) {
       // inference based on rest
       CHECK_LT(infer_idx, 0)
@@ -405,42 +414,51 @@ bool ReshapeRel(const Array<Type>& types,
       ++src_idx;
     } else if (svalue == -2) {
       // copy all remaining dims from source
-      while (src_idx < data->shape.size()) {
-        oshape.push_back(data->shape[src_idx++]);
+      while (src_idx < data_shape.size()) {
+        oshape.push_back(data_shape[src_idx++]);
       }
     } else if (svalue == -3) {
       // merge two dims from source
-      CHECK_LT(src_idx + 1, data->shape.size());
-      IndexExpr d1 = data->shape[src_idx++];
-      IndexExpr d2 = data->shape[src_idx++];
+      CHECK_LT(src_idx + 1, data_shape.size());
+      IndexExpr d1 = data_shape[src_idx++];
+      IndexExpr d2 = data_shape[src_idx++];
       oshape.push_back(d1 * d2);
     } else if (svalue == -4) {
       // split the source dim s into two dims
       // read the left dim and then the right dim (either can be -1)
-      CHECK_LT(i + 2, param->newshape.size());
-      CHECK_LT(src_idx, data->shape.size());
-      IndexExpr d0 = data->shape[src_idx++];
-      Integer d1 = param->newshape[++i];
-      Integer d2 = param->newshape[++i];
+      CHECK_LT(i + 2, newshape.size());
+      CHECK_LT(src_idx, data_shape.size());
+      IndexExpr d0 = data_shape[src_idx++];
+      Integer d1 = newshape[++i];
+      Integer d2 = newshape[++i];
       if (d1->value == -1) {
         CHECK(d2->value != -1)
             << "Split dims cannot both be -1.";
         oshape.push_back(d0 / d2);
         oshape.push_back(d2);
       } else {
-        CHECK_EQ(d2->value, -1);
         oshape.push_back(d1);
-        oshape.push_back(d0 / d1);
+        if (d2->value == -1) {
+          oshape.push_back(d0 / d1);
+        } else {
+          oshape.push_back(d2);
+        }
       }
     }
   }
 
   if (infer_idx >= 0) {
     IndexExpr new_size = arith::ComputeReduce<tvm::ir::Mul>(oshape, 1);
-    IndexExpr old_size = arith::ComputeReduce<tvm::ir::Mul>(data->shape, 1);
+    IndexExpr old_size = arith::ComputeReduce<tvm::ir::Mul>(data_shape, 1);
     oshape.Set(infer_idx, old_size / new_size);
   }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+
+  if (param->reverse) {
+    reporter->Assign(types[1], TensorTypeNode::make(
+        Array<IndexExpr>(oshape.rbegin(), oshape.rend()), data->dtype));
+  } else {
+    reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  }
   return true;
 }
 
@@ -457,6 +475,7 @@ Expr MakeReshape(Expr data,
                  Array<Integer> newshape) {
   auto attrs = make_node<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
+  attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -1698,6 +1717,44 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 .add_type_rel("layout_transform", LayoutTransformRel)
 .set_support_level(5)
 .set_attr<FTVMCompute>("FTVMCompute", LayoutTransformCompute);
+
+
+/* relay._contrib_reverse_reshape */
+Expr MakeReverseReshape(Expr data,
+                        Array<Integer> newshape) {
+  auto attrs = make_node<ReshapeAttrs>();
+  attrs->newshape = std::move(newshape);
+  attrs->reverse = true;
+  static const Op& op = Op::Get("_contrib_reverse_reshape");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make._contrib_reverse_reshape")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeReverseReshape, args, rv);
+});
+
+RELAY_REGISTER_OP("_contrib_reverse_reshape")
+.describe(R"code(Reshapes the input array where the special values are inferred from
+right to left.
+
+Example::
+
+The special values have the same semantics as reshape. The difference is that
+special values are inferred from right to left. It can be explained in the
+example below::
+
+- data.shape = (10,5,4), newshape = (-1,0), reshape results in (40,5)
+- data.shape = (10,5,4), newshape = (-1,0), reverse_reshape results in (40,5)
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ReshapeAttrs")
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(10)
+.add_type_rel("Reshape", ReshapeRel)
+.set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm
