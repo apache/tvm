@@ -434,7 +434,7 @@ def test_loop_dep_reduce_cache_write():
 
 def test_reduction_and_dummy_fuse_split():
     n = 10
-    X = tvm.placeholder(shape=(10,), dtype='int32', name="X")
+    X = tvm.placeholder(shape=(n,), dtype='int32', name="X")
     k = tvm.reduce_axis((0, n))
     Y = tvm.compute((), lambda: tvm.sum(X[k], k), name="Y")
     s = tvm.create_schedule([Y.op])
@@ -445,6 +445,19 @@ def test_reduction_and_dummy_fuse_split():
     args = [tvm.nd.empty((), 'int32')] + [tvm.ndarray.array(np.ones((n,), dtype='int32'))]
     f(*args)
     assert args[0].asnumpy() == n
+
+    n = 10
+    X = tvm.placeholder(shape=(n,), dtype='int32', name="X")
+    k = tvm.reduce_axis((0, n))
+    Y = tvm.compute((n,), lambda i: tvm.sum(X[k], k), name="Y")
+    s = tvm.create_schedule([Y.op])
+    ax = s[Y.op].fuse(*(list(Y.op.axis) + list(Y.op.reduce_axis)))
+    f = tvm.build(s, [Y, X])
+
+    args = [tvm.ndarray.array(np.ones((n,), dtype='int32'))] + \
+        [tvm.ndarray.array(np.ones((n,), dtype='int32'))]
+    f(*args)
+    assert np.all(args[0].asnumpy() == n)
 
 if __name__ == "__main__":
     test_loop_dep_reduce()
