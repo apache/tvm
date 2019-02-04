@@ -201,12 +201,18 @@ impl TryFrom<TVMRetValue> for Function {
 impl TryFrom<TVMRetValue> for NDArray {
     type Error = Error;
     fn try_from(ret: TVMRetValue) -> Result<NDArray> {
-        if let Ok(handle) = ret.box_value.downcast::<ts::TVMArrayHandle>() {
-            Ok(NDArray::new(*handle, false))
+        // TODO: not sure if this is correct, but it didn't handle returned kNDArrayContainers the other way
+
+        if TVMTypeCode::kArrayHandle == ret.type_code {
+            let handle = ret.box_value.downcast::<*mut c_void>().expect("mismatched types");
+            Ok(NDArray::new((*handle) as *mut _, false))
+        } else if TVMTypeCode::kNDArrayContainer == ret.type_code {
+            let handle = ret.box_value.downcast::<*mut c_void>().expect("mismatched types");
+            Ok(NDArray::new((*handle) as *mut _, true))
         } else {
             bail!(ErrorKind::TryFromTVMRetValueError(
                 stringify!(TVMTypeCode::kArrayHandle).to_string(),
-                ret.type_code.to_string()
+                format!("{:?}", ret.type_code)
             ))
         }
     }

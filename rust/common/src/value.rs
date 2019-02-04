@@ -329,6 +329,7 @@ impl TVMRetValue {
             | TVMTypeCode::kArrayHandle
             | TVMTypeCode::kNodeHandle
             | TVMTypeCode::kModuleHandle
+            | TVMTypeCode::kNDArrayContainer
             | TVMTypeCode::kFuncHandle => {
                 Self::new(value.v_handle as usize, box value.v_handle, type_code)
             }
