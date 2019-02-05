@@ -343,6 +343,13 @@ PackedFunc GraphRuntime::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->NumOutputs();
       });
+  } else if (name == "get_output_name") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      int index = args[0];
+      CHECK_LT(static_cast<size_t>(index), outputs_.size());
+      uint32_t eid = this->entry_id(outputs_[index]);
+      *rv = this->GetNodeName(eid);
+    });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();
