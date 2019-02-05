@@ -42,6 +42,9 @@ python3 -m nose -v tests/python/frontend/onnx || exit -1
 echo "Running relay CoreML frondend test..."
 python3 -m nose -v tests/python/frontend/coreml || exit -1
 
+echo "Running relay Tensorflow frontend test..."
+python3 -m nose -v tests/python/frontend/tensorflow || exit -1
+
 echo "Running nnvm to relay frontend test..."
 python3 -m nose -v tests/python/frontend/nnvm_to_relay || exit -1
 
@@ -50,4 +53,3 @@ python3 -m nose -v tests/python/frontend/tflite || exit -1
 
 echo "Running relay caffe2 frondend test..."
 python3 -m nose -v tests/python/frontend/caffe2 || exit -1
-

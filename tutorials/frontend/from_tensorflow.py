@@ -8,9 +8,9 @@ For us to begin with, tensorflow python module is required to be installed.
 Please refer to https://www.tensorflow.org/install
 """
 
-# tvm and nnvm
-import nnvm
+# tvm, relay
 import tvm
+from tvm import relay
 
 # os and numpy
 import numpy as np
@@ -18,9 +18,6 @@ import os.path
 
 # Tensorflow imports
 import tensorflow as tf
-from tensorflow.core.framework import graph_pb2
-from tensorflow.python.framework import dtypes
-from tensorflow.python.framework import tensor_util
 
 # Tensorflow utility functions
 import tvm.relay.testing.tf as tf_testing
@@ -35,12 +32,6 @@ image_url = os.path.join(repo_base, img_name)
 ######################################################################
 # Tutorials
 # ---------
-# .. note::
-#
-#   protobuf should be exported with :any:`add_shapes=True` option.
-#   Could use https://github.com/dmlc/web-data/tree/master/tensorflow/scripts/tf-to-nnvm.py
-#   to add shapes for existing models.
-#
 # Please refer docs/frontend/tensorflow.md for more details for various models
 # from tensorflow.
 
@@ -108,19 +99,21 @@ image = Image.open(img_name).resize((299, 299))
 x = np.array(image)
 
 ######################################################################
-# Import the graph to NNVM
-# ------------------------
-# Import tensorflow graph definition to nnvm.
+# Import the graph to Relay
+# -------------------------
+# Import tensorflow graph definition to relay frontend.
 #
 # Results:
-#   sym: nnvm graph for given tensorflow protobuf.
+#   sym: relay expr for given tensorflow protobuf.
 #   params: params converted from tensorflow params (tensor protobuf).
-sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout)
+shape_dict = {'DecodeJpeg/contents': x.shape}
+dtype_dict = {'DecodeJpeg/contents': 'uint8'}
+sym, params = relay.frontend.from_tensorflow(graph_def, layout=layout, shape=shape_dict)
 
-print ("Tensorflow protobuf imported as nnvm graph")
+print ("Tensorflow protobuf imported to relay frontend.")
 ######################################################################
-# NNVM Compilation
-# ----------------
+# Relay Build
+# -----------
 # Compile the graph to llvm target with given input specification.
 #
 # Results:
@@ -128,15 +121,13 @@ print ("Tensorflow protobuf imported as nnvm graph")
 #   params: final params after compilation.
 #   lib: target library which can be deployed on target with tvm runtime.
 
-import nnvm.compiler
-shape_dict = {'DecodeJpeg/contents': x.shape}
-dtype_dict = {'DecodeJpeg/contents': 'uint8'}
-graph, lib, params = nnvm.compiler.build(sym, shape=shape_dict, target=target, target_host=target_host, dtype=dtype_dict, params=params)
+with relay.build_config(opt_level=3):
+    graph, lib, params = relay.build(sym, target=target, target_host=target_host, params=params)
 
 ######################################################################
 # Execute the portable graph on TVM
 # ---------------------------------
-# Now we can try deploying the NNVM compiled model on target.
+# Now we can try deploying the compiled model on target.
 
 from tvm.contrib import graph_runtime
 dtype = 'uint8'

@@ -13,3 +13,4 @@ from .onnx import from_onnx
 from .tflite import from_tflite
 from .coreml import from_coreml
 from .caffe2 import from_caffe2
+from .tensorflow import from_tensorflow
