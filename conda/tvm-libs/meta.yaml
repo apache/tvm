@@ -24,6 +24,8 @@ requirements:
     - cmake
     - llvmdev ==6.0.0  # [linux]
     - zlib  # [linux]
+  run:
+    - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
 
 about:
   home: https://github.com/dmlc/tvm
