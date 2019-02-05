@@ -26,6 +26,7 @@ _reg.register_schedule("split", schedule_injective)
 _reg.register_schedule("take", schedule_injective)
 _reg.register_schedule("transpose", schedule_injective)
 _reg.register_schedule("where", schedule_broadcast)
+_reg.register_schedule("_contrib_reverse_reshape", schedule_injective)
 
 # layout_transform
 _reg.register_schedule("layout_transform", schedule_injective)

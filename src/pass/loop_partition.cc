@@ -326,7 +326,8 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
 
   Expr body_begin;
   Stmt pre_stmt;
-  if (true_itrv.as<arith::IntervalSet>()->i.has_lower_bound()) {
+  arith::Interval true_itrv_i = true_itrv.as<arith::IntervalSet>()->i;
+  if (true_itrv_i.has_lower_bound()) {
     body_begin = ir::Simplify(true_itrv.min());
     if (!can_prove(body_begin == min)) {
       Expr cond = (body_begin - min >= 0);
@@ -347,7 +348,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
 
   Expr post_doubt_begin;
   Stmt post_stmt;
-  if (true_itrv.as<arith::IntervalSet>()->i.has_upper_bound()) {
+  if (true_itrv_i.has_upper_bound()) {
     post_doubt_begin = ir::Simplify(true_itrv.max() + 1);
     if (!can_prove(true_itrv.max() == max)) {
       // require the extent to be non-negative

@@ -16,6 +16,6 @@ cd -
 
 git clone https://github.com/baidu/rust-sgx-sdk.git /opt/rust-sgx-sdk
 cd /opt/rust-sgx-sdk
-git checkout v1.0.4
-curl 'https://gist.githubusercontent.com/nhynes/37164039c5d3f33aa4f123e4ba720036/raw/5b7fc24d4faa0bd6efce19f8324f79d5562991e0/rust-sgx-sdk.diff' | git apply
+git checkout 6098af # v1.0.5
+curl 'https://gist.githubusercontent.com/nhynes/37164039c5d3f33aa4f123e4ba720036/raw/b0de575fe937231799930764e76c664b92975163/rust-sgx-sdk.diff' | git apply
 cd -

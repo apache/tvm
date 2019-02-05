@@ -361,7 +361,7 @@ Expr AddSubForwardRewrite(const Call& ref_call,
     rnode->scale = slhs->scale;
     rnode->axes = slhs->axes;
   } else {
-    CHECK(slhs != nullptr);
+    CHECK(srhs != nullptr);
     CHECK(MatchBroadcastToLeftAxes(trhs, tlhs, srhs->axes));
     Expr scale = ExpandBiasToMatchAxis(
         srhs->scale, trhs->shape.size(), srhs->axes);

@@ -228,11 +228,11 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
 
 void ExprVisitor::VisitType(const Type& t) { return; }
 
-
 // visitor to implement apply
 class ExprApplyVisit : public ExprVisitor {
  public:
   explicit ExprApplyVisit(std::function<void(const Expr&)> f) : f_(f) {}
+
   void VisitExpr(const Expr& e) final {
     if (visited_.count(e.get()) != 0) return;
     visited_.insert(e.get());
@@ -256,7 +256,6 @@ TVM_REGISTER_API("relay._ir_pass.post_order_visit")
         f(n);
       });
   });
-
 
 // Implement bind.
 class ExprBinder : public ExprMutator {

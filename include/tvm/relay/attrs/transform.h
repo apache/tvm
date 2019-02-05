@@ -63,9 +63,13 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   Array<Integer> newshape;
+  bool reverse;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape)
         .describe("The new shape. Should be compatible with the original shape.");
+    TVM_ATTR_FIELD(reverse)
+        .describe("Infer the special values from right to left if true")
+        .set_default(false);
   }
 };  // struct ReshapeAttrs
 
@@ -139,7 +143,6 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   }
 };
 
-
 struct SliceLikeAttrs : public tvm::AttrsNode<SliceLikeAttrs> {
   Array<Integer> axes;
 
@@ -151,16 +154,16 @@ struct SliceLikeAttrs : public tvm::AttrsNode<SliceLikeAttrs> {
   }
 };
 
-// Clip
+/*! \brief Attributes for Clip operator */
 struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
   double a_min;
   double a_max;
 
   TVM_DECLARE_ATTRS(ClipAttrs, "relay.attrs.ClipAttrs") {
-  TVM_ATTR_FIELD(a_min)
-    .describe("The minimum clip value.");
-  TVM_ATTR_FIELD(a_max)
-    .describe("The maximum clip value.");
+    TVM_ATTR_FIELD(a_min)
+      .describe("The minimum clip value.");
+    TVM_ATTR_FIELD(a_max)
+      .describe("The maximum clip value.");
   }
 };
 

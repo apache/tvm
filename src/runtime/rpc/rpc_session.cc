@@ -486,29 +486,28 @@ class RPCSession::EventHandler : public dmlc::Stream {
           arg_recv_stage_ = 1;
           this->RequestBytes(len);
           break;
-        break;
-      }
-      case kArrayHandle: {
-        temp_array_.reset(new RPCDataArrayBuffer());
-        uint64_t handle;
-        this->Read(&handle);
-        DLTensor& tensor = temp_array_->tensor;
-        tensor.data = reinterpret_cast<void*>(handle);
-        this->Read(&(tensor.ctx));
-        this->Read(&(tensor.ndim));
-        this->Read(&(tensor.dtype));
-        temp_array_->shape.resize(tensor.ndim);
-        tensor.shape = temp_array_->shape.data();
-        arg_recv_stage_ = 1;
-        tensor.strides = nullptr;
-        tensor.byte_offset = 0;
-        this->RequestBytes(sizeof(int64_t) * tensor.ndim);
-        break;
-      }
-      default: {
-        LOG(FATAL) << "RPC cannot handle type " << TypeCode2Str(tcode);
-        break;
-      }
+        }
+        case kArrayHandle: {
+          temp_array_.reset(new RPCDataArrayBuffer());
+          uint64_t handle;
+          this->Read(&handle);
+          DLTensor& tensor = temp_array_->tensor;
+          tensor.data = reinterpret_cast<void*>(handle);
+          this->Read(&(tensor.ctx));
+          this->Read(&(tensor.ndim));
+          this->Read(&(tensor.dtype));
+          temp_array_->shape.resize(tensor.ndim);
+          tensor.shape = temp_array_->shape.data();
+          arg_recv_stage_ = 1;
+          tensor.strides = nullptr;
+          tensor.byte_offset = 0;
+          this->RequestBytes(sizeof(int64_t) * tensor.ndim);
+          break;
+        }
+        default: {
+          LOG(FATAL) << "RPC cannot handle type " << TypeCode2Str(tcode);
+          break;
+        }
       }
     } else {
       CHECK_EQ(arg_recv_stage_, 1);

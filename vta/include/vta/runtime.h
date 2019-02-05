@@ -11,6 +11,7 @@
 extern "C" {
 #endif
 
+#include <tvm/runtime/c_runtime_api.h>
 #include "driver.h"
 
 #define VTA_MEMCPY_H2D 1
@@ -28,13 +29,13 @@ extern "C" {
  * \param size Buffer size.
  * \return A pointer to the allocated buffer.
  */
-void* VTABufferAlloc(size_t size);
+TVM_DLL void* VTABufferAlloc(size_t size);
 
 /*!
  * \brief Free data buffer.
  * \param buffer The data buffer to be freed.
  */
-void VTABufferFree(void* buffer);
+TVM_DLL void VTABufferFree(void* buffer);
 
 /*!
  * \brief Copy data buffer from one location to another.
@@ -45,24 +46,24 @@ void VTABufferFree(void* buffer);
  * \param size Size of copy.
  * \param kind_mask The memory copy kind.
  */
-void VTABufferCopy(const void* from,
-                   size_t from_offset,
-                   void* to,
-                   size_t to_offset,
-                   size_t size,
-                   int kind_mask);
+TVM_DLL void VTABufferCopy(const void* from,
+                           size_t from_offset,
+                           void* to,
+                           size_t to_offset,
+                           size_t size,
+                           int kind_mask);
 
 /*! \brief VTA command handle */
 typedef void* VTACommandHandle;
 
 /*! \brief Shutdown hook of VTA to cleanup resources */
-void VTARuntimeShutdown();
+TVM_DLL void VTARuntimeShutdown();
 
 /*!
  * \brief Get thread local command handle.
  * \return A thread local command handle.
  */
-VTACommandHandle VTATLSCommandHandle();
+TVM_DLL VTACommandHandle VTATLSCommandHandle();
 
 /*!
  * \brief Get the buffer access pointer on CPU.
@@ -70,7 +71,7 @@ VTACommandHandle VTATLSCommandHandle();
  * \param buffer The data buffer.
  * \return The pointer that can be accessed by the CPU.
  */
-void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer);
+TVM_DLL void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer);
 
 /*!
  * \brief Perform a write barrier to make a memory region visible to the CPU.
@@ -80,11 +81,11 @@ void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer);
  * \param start The start of the region (in elements).
  * \param extent The end of the region (in elements).
  */
-void VTAWriteBarrier(VTACommandHandle cmd,
-                     void* buffer,
-                     uint32_t elem_bits,
-                     uint32_t start,
-                     uint32_t extent);
+TVM_DLL void VTAWriteBarrier(VTACommandHandle cmd,
+                             void* buffer,
+                             uint32_t elem_bits,
+                             uint32_t start,
+                             uint32_t extent);
 /*!
  * \brief Perform a read barrier to a memory region visible to VTA.
  * \param cmd The VTA command handle.
@@ -93,18 +94,18 @@ void VTAWriteBarrier(VTACommandHandle cmd,
  * \param start The start of the region (in elements).
  * \param extent The end of the region (in elements).
  */
-void VTAReadBarrier(VTACommandHandle cmd,
-                    void* buffer,
-                    uint32_t elem_bits,
-                    uint32_t start,
-                    uint32_t extent);
+TVM_DLL void VTAReadBarrier(VTACommandHandle cmd,
+                            void* buffer,
+                            uint32_t elem_bits,
+                            uint32_t start,
+                            uint32_t extent);
 
 /*!
  * \brief Set debug mode on the command handle.
  * \param cmd The VTA command handle.
  * \param debug_flag The debug flag.
  */
-void VTASetDebugMode(VTACommandHandle cmd, int debug_flag);
+TVM_DLL void VTASetDebugMode(VTACommandHandle cmd, int debug_flag);
 
 /*!
  * \brief Perform a 2D data load from DRAM.
@@ -122,18 +123,18 @@ void VTASetDebugMode(VTACommandHandle cmd, int debug_flag);
  * \param dst_sram_index Destination SRAM index.
  * \param dst_memory_type Destination memory type.
  */
-void VTALoadBuffer2D(VTACommandHandle cmd,
-                     void* src_dram_addr,
-                     uint32_t src_elem_offset,
-                     uint32_t x_size,
-                     uint32_t y_size,
-                     uint32_t x_stride,
-                     uint32_t x_pad_before,
-                     uint32_t y_pad_before,
-                     uint32_t x_pad_after,
-                     uint32_t y_pad_after,
-                     uint32_t dst_sram_index,
-                     uint32_t dst_memory_type);
+TVM_DLL void VTALoadBuffer2D(VTACommandHandle cmd,
+                             void* src_dram_addr,
+                             uint32_t src_elem_offset,
+                             uint32_t x_size,
+                             uint32_t y_size,
+                             uint32_t x_stride,
+                             uint32_t x_pad_before,
+                             uint32_t y_pad_before,
+                             uint32_t x_pad_after,
+                             uint32_t y_pad_after,
+                             uint32_t dst_sram_index,
+                             uint32_t dst_memory_type);
 
 /*!
  * \brief Perform a 2D data store into DRAM
@@ -147,14 +148,14 @@ void VTALoadBuffer2D(VTACommandHandle cmd,
  * \param y_size The number of rows.
  * \param x_stride The x axis stride.
  */
-void VTAStoreBuffer2D(VTACommandHandle cmd,
-                      uint32_t src_sram_index,
-                      uint32_t src_memory_type,
-                      void* dst_dram_addr,
-                      uint32_t dst_elem_offset,
-                      uint32_t x_size,
-                      uint32_t y_size,
-                      uint32_t x_stride);
+TVM_DLL void VTAStoreBuffer2D(VTACommandHandle cmd,
+                              uint32_t src_sram_index,
+                              uint32_t src_memory_type,
+                              void* dst_dram_addr,
+                              uint32_t dst_elem_offset,
+                              uint32_t x_size,
+                              uint32_t y_size,
+                              uint32_t x_stride);
 
 /*!
  * \brief Push uop into kernel buffer.
@@ -187,14 +188,14 @@ void VTAStoreBuffer2D(VTACommandHandle cmd,
  * \param use_imm Use immediate in ALU mode if set to true.
  * \param imm_val Immediate value in ALU mode.
  */
-void VTAUopPush(uint32_t mode,
-                uint32_t reset_out,
-                uint32_t dst_index,
-                uint32_t src_index,
-                uint32_t wgt_index,
-                uint32_t opcode,
-                uint32_t use_imm,
-                int32_t imm_val);
+TVM_DLL void VTAUopPush(uint32_t mode,
+                        uint32_t reset_out,
+                        uint32_t dst_index,
+                        uint32_t src_index,
+                        uint32_t wgt_index,
+                        uint32_t opcode,
+                        uint32_t use_imm,
+                        int32_t imm_val);
 
 /*!
  * \brief Mark start of a micro op loop.
@@ -203,15 +204,15 @@ void VTAUopPush(uint32_t mode,
  * \param src_factor The input factor.
  * \param wgt_factor The weight factor.
  */
-void VTAUopLoopBegin(uint32_t extent,
-                     uint32_t dst_factor,
-                     uint32_t src_factor,
-                     uint32_t wgt_factor);
+TVM_DLL void VTAUopLoopBegin(uint32_t extent,
+                             uint32_t dst_factor,
+                             uint32_t src_factor,
+                             uint32_t wgt_factor);
 
 /*!
  * \brief Mark end of a micro op loop.
  */
-void VTAUopLoopEnd();
+TVM_DLL void VTAUopLoopEnd();
 
 /*!
  * \brief Push GEMM uop kernel into the command handle.
@@ -221,10 +222,10 @@ void VTAUopLoopEnd();
  * \param nbytes Number of bytes to in the closure arguments.
  * \return 0 if success.
  */
-int VTAPushGEMMOp(void** uop_handle,
-                  int (*finit)(void*),
-                  void* signature,
-                  int nbytes);
+TVM_DLL int VTAPushGEMMOp(void** uop_handle,
+                          int (*finit)(void*),
+                          void* signature,
+                          int nbytes);
 
 /*!
  * \brief Push ALU uop kernel into the command handle.
@@ -234,10 +235,10 @@ int VTAPushGEMMOp(void** uop_handle,
  * \param nbytes Number of bytes to in the closure arguments.
  * \return 0 if success.
  */
-int VTAPushALUOp(void** uop_handle,
-                 int (*finit)(void*),
-                 void* signature,
-                 int nbytes);
+TVM_DLL int VTAPushALUOp(void** uop_handle,
+                         int (*finit)(void*),
+                         void* signature,
+                         int nbytes);
 
 /*!
  * \brief Push dependence token.
@@ -246,7 +247,7 @@ int VTAPushALUOp(void** uop_handle,
  * \param to_qid The destination queue.
  * \return 0 if success.
  */
-int VTADepPush(VTACommandHandle cmd, int from_qid, int to_qid);
+TVM_DLL int VTADepPush(VTACommandHandle cmd, int from_qid, int to_qid);
 
 /*!
  * \brief Pop dependence signal.
@@ -255,7 +256,7 @@ int VTADepPush(VTACommandHandle cmd, int from_qid, int to_qid);
  * \param to_qid The destination queue.
  * \return 0 if success.
  */
-int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid);
+TVM_DLL int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid);
 
 /*!
  * \brief Synchronize the command handle.
@@ -266,7 +267,7 @@ int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid);
  * \param wait_cycles The limit of poll cycles.
  *
  */
-void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles);
+TVM_DLL void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles);
 
 #ifdef __cplusplus
 }

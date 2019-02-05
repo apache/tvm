@@ -161,8 +161,9 @@ def test_tuple_root():
 
         p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
         p1 = relay.var("p1", shape=(dshape[0], dshape[1], dshape[2], dshape[3]))
+        p1_copy = relay.copy(p1)
         upsampled = relay.nn.upsampling(p0, scale=2, layout="NCHW")
-        out = relay.Tuple((upsampled, p1))
+        out = relay.Tuple((upsampled, p1_copy))
         f1 = relay.Function([p0, p1], out)
 
         x = relay.var("x", shape=dshape)

@@ -10,6 +10,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
+#include "./pattern_util.h"
 #include "../../common/arena.h"
 
 
@@ -738,7 +739,6 @@ class FuseMutator : private ExprMutator {
   Expr VisitExpr_(const TupleNode* tuple) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
     Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
-    Tuple new_tuple = TupleNode::make(new_fields);
     if (ret_group == gmap_.at(tuple)) {
       // This tuple is the root of its group. Check if all fields come from other groups.
       bool isolated = new_fields.size() == ginfo_[ret_group].params.size();
@@ -750,10 +750,18 @@ class FuseMutator : private ExprMutator {
         return ExprMutator::VisitExpr_(tuple);
       }
       // This tuple has been fused with other ops before it
-      return MakeNewFunction(ret_group, tuple->checked_type(), new_tuple);
+      for (size_t i = 0; i < new_fields.size(); i++) {
+        // Copy function arguments to tuple field of the output because currently graph memory
+        // planer doesn't support inplace operations
+        if (new_fields[i].as<VarNode>()) {
+          auto copy = Copy(new_fields[i]);
+          new_fields.Set(i, copy);
+        }
+      }
+      return MakeNewFunction(ret_group, tuple->checked_type(), TupleNode::make(new_fields));
     }
     // This tuple is an intermediate node in the group
-    return new_tuple;
+    return TupleNode::make(new_fields);
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {

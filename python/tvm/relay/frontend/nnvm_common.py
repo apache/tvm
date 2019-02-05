@@ -22,9 +22,10 @@ def _rename(new_op):
 
 
 def _reshape(inputs, attrs):
-    if attrs.get_bool("reverse", False):
-        raise RuntimeError("reshape do not support option reverse")
     shape = attrs.get_int_tuple("shape")
+    reverse = attrs.get_bool("reverse", False)
+    if reverse:
+        return _op.reverse_reshape(inputs[0], newshape=shape)
     return _op.reshape(inputs[0], newshape=shape)
 
 

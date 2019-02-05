@@ -129,7 +129,7 @@ def _bind_params_by_name(func, params):
     return expr.bind(func, bind_dict)
 
 
-def optimize(func, target, params=None):
+def optimize(func, target=None, params=None):
     """Perform target invariant optimizations.
 
     Parameters
@@ -400,7 +400,7 @@ class GraphExecutor(_interpreter.Executor):
         graph_json, mod, params = build(func, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
         if params:
-            gmodule.set_input(*params)
+            gmodule.set_input(**params)
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(func, args, kwargs)

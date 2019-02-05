@@ -61,7 +61,7 @@ Type WithGradientType(const Type& t) {
 
 //! \brief if the expression is a GlobalVar, transform to it's expression.
 Expr DeGlobal(const Module& mod, const Expr& e) {
-  if (auto x = e.as<GlobalVarNode>()) {
+  if (const auto* x = e.as<GlobalVarNode>()) {
     return mod->Lookup(GetRef<GlobalVar>(x))->body;
   } else {
     return e;

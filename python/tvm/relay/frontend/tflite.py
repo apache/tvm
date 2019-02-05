@@ -546,7 +546,7 @@ def get_pad_value(data, kernel, stride):
         pad tuple of value
     """
 
-    out = math.ceil(float(data) / float(stride))
+    out = int(math.ceil(float(data) / float(stride)))
     pad = max(0, (out - 1) * stride + kernel - data)
     pad_before = pad // 2
     pad_after = pad - pad_before

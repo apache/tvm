@@ -1,0 +1,15 @@
+[package]
+name = "basics"
+version = "0.0.0"
+authors = ["TVM Contributors"]
+license = "Apache-2.0"
+build = "build.rs"
+
+[dependencies]
+ndarray = "0.12.1"
+tvm-frontend = { path = "../../" }
+
+[features]
+default = ["cpu"]
+cpu = []
+gpu = []
