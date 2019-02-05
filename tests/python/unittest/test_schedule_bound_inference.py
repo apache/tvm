@@ -259,6 +259,7 @@ def test_gemm_bound():
     assert(bounds[CC.op.axis[0]].extent.value == 8)
     assert(bounds[CC.op.axis[1]].extent.value == 8)
 
+
 def test_bound_tensor_compute_op():
     def intrin_test():
       m1 = tvm.var("m1")
@@ -283,11 +284,11 @@ def test_bound_tensor_compute_op():
     test_func = intrin_test()
     A = tvm.placeholder((20,20), name='A')
     B = tvm.compute(A.shape, lambda i,j : A[i,j], name='B')
-    C = tvm.compute((10, 20), lambda i : test_func(B[i:(i+3), 0:20]), name='C')
+    C = tvm.compute((10, 20), lambda i : test_func(B[i:10, 0:20]), name='C')
     s = tvm.create_schedule(C.op)
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
-    assert(bounds[B.op.axis[0]].extent.value == 12)
+    assert(bounds[B.op.axis[0]].extent.value == 10)
 
 if __name__ == "__main__":
     test_bound_nest_thread()
