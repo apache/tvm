@@ -12,3 +12,5 @@ ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
 
 WORKDIR /workspace
 RUN chmod -R a+w /workspace
+
+CMD conda build --output-folder /workspace/conda/pkg --variants '{cuda: True, cuda_version: 9.2}' /workspace/conda/tvm-libs
