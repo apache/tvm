@@ -230,7 +230,7 @@ class Layout : public NodeRef {
 
   /*!
    * \brief construct from a string.
-   * \param layout input in layout convention:
+   * \param name input in layout convention:
    *        upper case indicates a dimension and
    *        the corresponding lower case with factor size
    *        indicates the split dimension.
@@ -407,13 +407,13 @@ class BijectiveLayout : public NodeRef {
   BijectiveLayout() = default;
   explicit BijectiveLayout(NodePtr<Node> n) : NodeRef(n) {}
 
-  // Given the shape of the original layout, infer the store shape.
+  // Given the shape of the source layout, infer the target shape.
   TVM_DLL Array<Expr> ForwardShape(const Array<Expr>& shape) const;
-  // Given the store shape, recover the original shape.
+  // Given the target shape, recover the source shape.
   TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& shape) const;
-  // Given the indices of the original layout, infer the store index.
+  // Given the indices of the source layout, infer the target index.
   TVM_DLL Array<Expr> ForwardIndex(const Array<Expr>& index) const;
-  // Given the store indices, recover the original representation space index.
+  // Given the target indices, recover the source index.
   TVM_DLL Array<Expr> BackwardIndex(const Array<Expr>& store_index) const;
 
   /*!
