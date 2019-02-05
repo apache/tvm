@@ -70,3 +70,8 @@ tvm.make
 ~~~~~~~~
 .. automodule:: tvm.make
    :members:
+
+tvm.testing
+~~~~~~~~~~~
+.. automodule:: tvm.testing
+   :members:

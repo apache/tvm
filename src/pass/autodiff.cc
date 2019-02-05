@@ -282,6 +282,16 @@ Expr Derivative(const Expr& expr, const VarExpr& var) {
 
 Tensor Jacobian(const Tensor& output, const Tensor& input, bool optimize) {
   if (const ComputeOpNode* op = output->op.as<ComputeOpNode>()) {
+    bool is_input_tensor = false;
+    for (const Tensor& child : op->InputTensors()) {
+      if (input == child) {
+        is_input_tensor = true;
+        break;
+      }
+    }
+    CHECK(is_input_tensor) << "Jacobian is called on a pair of tensors such that the output "
+      << "does not depend on the input. This is probably a mistake.";
+
     // We have to clone the iteration axes because otherwise the original expression
     // cannot be used together with the derivative (it will lead to errors during lowering)
     Array<IterVar> new_axis;
@@ -365,7 +375,8 @@ Tensor DiffBuildingBlock(const Tensor& output, const Tensor& input, const Tensor
 DifferentiationResult Differentiate(const Tensor& output,
                                     const Array<Tensor>& inputs,
                                     const Tensor& head_or_null,
-                                    const FDiffBuildingBlock& fdiff) {
+                                    const FDiffBuildingBlock& fdiff,
+                                    const Map<Tensor, Array<Tensor>>& override_deps) {
   Tensor head = head_or_null;
 
   // If the head is a null pointer, create an identity tensor
@@ -389,13 +400,22 @@ DifferentiationResult Differentiate(const Tensor& output,
   // bodies)
   std::unordered_map<Tensor, std::vector<Tensor>> reverse_dependencies;
 
+  // Map doesn't work correctly for Tensors, so convert it to std::unordered_map
+  std::unordered_map<Tensor, Array<Tensor>> override_deps_map;
+  for (auto pair : override_deps) {
+    override_deps_map.insert(pair);
+  }
+
   // Collect reverse dependencies
   std::vector<Tensor> stack({output});
   while (!stack.empty()) {
     Tensor tensor = stack.back();
     stack.pop_back();
 
-    for (const Tensor& child : tensor->op->InputTensors()) {
+    auto it = override_deps_map.find(tensor);
+    Array<Tensor> deps = it != override_deps_map.end() ? it->second : tensor->op->InputTensors();
+
+    for (const Tensor& child : deps) {
       if (!reverse_dependencies.count(child)) {
         stack.push_back(child);
       }
@@ -507,7 +527,11 @@ TVM_REGISTER_API("autodiff.Differentiate")
         [pfunc](const Tensor& o, const Tensor& i, const Tensor& h) {
           return pfunc(o, i, h);
         };
-      *ret = Differentiate(args[0], args[1], args[2], fdiff);
+      if (args.size() >= 5) {
+        *ret = Differentiate(args[0], args[1], args[2], fdiff, args[4]);
+      } else {
+        *ret = Differentiate(args[0], args[1], args[2], fdiff);
+      }
     }
   });
 

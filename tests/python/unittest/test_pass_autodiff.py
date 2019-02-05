@@ -15,7 +15,7 @@ def get_shape(tensor, param_values=None):
     return [tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(s, param_values)).value
             for s in tensor.shape]
 
-def check_equivalence(outputs1, outputs2, inputs, in_range=(-10, 10), iters=10):
+def check_equivalence(outputs1, outputs2, inputs, in_range=(-10, 10), iters=3):
     outputs1 = list(outputs1)
     outputs2 = list(outputs2)
     sched1 = tvm.create_schedule([o.op for o in outputs1])
@@ -160,17 +160,18 @@ def test_differentiate_function():
 
     check_equivalence([dx1, dw1], [dx2, dw2], [x, w])
 
-    def mydiff(out, inp, head):
-        return tvm.compute(inp.shape,
-                           lambda ax0, ax1, ax2, ax3: head[ax0, ax3 + ax2*26 + ax1*676])
+    def mydiff(out, inp, head, t1=t1, t2=t2):
+        assert out == t2 and inp == [t1]
+        return [tvm.compute(t1.shape,
+                            lambda ax0, ax1, ax2, ax3: head[ax0, ax3 + ax2*26 + ax1*676])]
 
-    res = tvm.differentiate(t3, [x, w], manual={(t2, t1): mydiff})
+    res = tvm.differentiate(t3, [x, w], override={t2: ([t1], mydiff)})
     check_equivalence(res.result, [dx1, dw1], [x, w])
 
-    res = tvm.differentiate(t3, [x, w], manual={(t2, None): mydiff})
-    check_equivalence(res.result, [dx1, dw1], [x, w])
+    def mydiff2(out, inputs, head):
+        return tvm.differentiate(out, inputs, head)
 
-    res = tvm.differentiate(t3, [x, w], manual={(None, t1): mydiff})
+    res = tvm.differentiate(t3, [x, w], override={t1: ([x, w], mydiff2)})
     check_equivalence(res.result, [dx1, dw1], [x, w])
 
 # Test some simple expressions

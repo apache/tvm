@@ -129,6 +129,10 @@ EXPORT Tensor DiffBuildingBlock(const Tensor& output, const Tensor& input, const
  *             `output.shape + output.shape` will be used.
  * \param fdiff The function performing differentiation and multiplication, see
  *              ::FDiffBuildingBlock.
+ * \param override_deps A map from tensors to their dependencies (`InputTensors()` are used by
+ *                      default). Overriding dependencies may be useful to treat a group of tensors
+ *                      as a single supertensor. In this case the fdiff functions should also be
+ *                      modified accordingly.
  * \return An object of type DifferentiationResult which contains three fields:
  *         - `result` An array of adjoints corresponding to \p inputs.
  *         - `adjoints` A map from tensors to the corresponding adjoints (includes intermediate
@@ -136,10 +140,12 @@ EXPORT Tensor DiffBuildingBlock(const Tensor& output, const Tensor& input, const
  *         - `adjoint_summands` A map from tensors to maps from parent tensors to individual
  *            summands of the adjoint.
  */
-EXPORT DifferentiationResult Differentiate(const Tensor& output,
-                                           const Array<Tensor>& inputs = Array<Tensor>(),
-                                           const Tensor& head = Tensor(),
-                                           const FDiffBuildingBlock& fdiff = DiffBuildingBlock);
+EXPORT DifferentiationResult Differentiate(
+    const Tensor& output,
+    const Array<Tensor>& inputs = Array<Tensor>(),
+    const Tensor& head = Tensor(),
+    const FDiffBuildingBlock& fdiff = DiffBuildingBlock,
+    const Map<Tensor, Array<Tensor>>& override_deps = Map<Tensor, Array<Tensor>>());
 
 }  // namespace ir
 }  // namespace tvm
