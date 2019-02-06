@@ -129,6 +129,7 @@ setup(name='tvm',
       install_requires=[
         'numpy',
         'decorator',
+        'attrs',
         ],
       packages=find_packages(),
       distclass=BinaryDistribution,
