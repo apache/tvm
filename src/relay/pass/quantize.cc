@@ -231,7 +231,7 @@ Expr QuantizeRealize(const Call& ref_call,
   return QRealizeIntExprNode::make(round_data, dom_scale, Float(32));
 }
 
-RELAY_REGISTER_OP("simulated_quantize")
+RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", QuantizeRealize);
 
 
@@ -350,7 +350,6 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& args,
   Expr dom_scale = MakeConstantScalar(Float(32), s);
   for (size_t i = 0; i < ret.size(); ++i) {
     float cur_s = GetScalarFromConstant<float>(nptrs[i]->dom_scale);
-    LOG(INFO) << "unify data scale from " << cur_s << " to " << s;
     ret.Set(i, MulAndDiv(ret[i], cur_s, s));
   }
 
@@ -504,7 +503,7 @@ void QConfig::ExitQConfigScope() {
   entry->context_stack.pop();
 }
 
-QConfig QConfig::Current() {
+QConfig& QConfig::Current() {
   TVMQConfigThreadLocalEntry *entry = TVMQConfigThreadLocalStore::Get();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
