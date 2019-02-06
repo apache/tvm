@@ -101,7 +101,7 @@ func (parray Array) CopyFrom(val interface{}) (err error) {
             datalen = len(sliceVal) * int(dtype.bits / 8)
             return parray.nativeCopyFrom(data, datalen)
         default:
-            err = fmt.Errorf("Given type not supported : %v\n", reflect.TypeOf(val))
+            err = fmt.Errorf("Given type not supported : %v", reflect.TypeOf(val))
             return
     }
     return
@@ -195,7 +195,7 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
             err = parray.nativeCopyTo(data, datalen)
             retVal = sliceVal
         default:
-            err = fmt.Errorf("Given type not supported : %v\n", parray.GetDType())
+            err = fmt.Errorf("Given type not supported : %v", parray.GetDType())
             return
     }
     return
@@ -279,7 +279,7 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
     ctx := Context{KDLCPU, 0}
 
     if len(shape) < 1 {
-        err = fmt.Errorf("Invalid shape for Array creation: %v\n", len(shape))
+        err = fmt.Errorf("Invalid shape for Array creation: %v", len(shape))
         return
     }
 
@@ -290,7 +290,7 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
             case Context:
                 ctx = args[i].(Context)
             default:
-                err = fmt.Errorf("Invalid Optional Argument Type: %T\n", val)
+                err = fmt.Errorf("Invalid Optional Argument Type: %T", val)
                 return
         }
     }
