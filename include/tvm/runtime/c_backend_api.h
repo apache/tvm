@@ -104,7 +104,9 @@ typedef int (*FTVMParallelLambda)(
  *
  * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_DLL int TVMBackendParallelLaunch(FTVMParallelLambda flambda,
+#define TVM_DLL_PARALLEL_LAUNCH
+
+TVM_DLL_PARALLEL_LAUNCH int TVMBackendParallelLaunch(FTVMParallelLambda flambda,
                                      void* cdata,
                                      int num_task);
 
