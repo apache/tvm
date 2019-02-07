@@ -72,7 +72,7 @@ Layout::Layout(const Array<IterVar>& axes) {
   for (const IterVar& axis : axes) {
     if (const auto* factor = axis->dom->extent.as<IntImm>()) {
       CHECK_GT(factor->value, 0);
-      repr << factor;
+      repr << factor->value;
     }
     CHECK_EQ(axis->var.get()->name_hint.size(), 1) << "Invalid layout axis "
                                                    << axis->var.get()->name_hint;
