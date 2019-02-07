@@ -333,7 +333,7 @@ The following left fold flattens a list of lists (using concatenation):
   # directly written
   def @flatten<a>(%ll : List[List[a]]) -> List[a] {
     match(%ll) {
-      case Cons(%h, %t)) { @concat(%h, @flatten(%t) }
+      case Cons(%h, %t) { @concat(%h, @flatten(%t)) }
       case Nil() { Nil() }
     }
 
