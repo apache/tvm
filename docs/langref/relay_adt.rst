@@ -21,6 +21,11 @@ which takes certain types as arguments and returns an instance of the
 named ADT. A call to one of the constructors in the program where the
 ADT is defined produces an instance of the ADT.
 
+*Implementation detail: Relay ADT definitions are global and are stored in the module,
+ similarly to global function definitions. An ADT name is, in fact, a global type variable
+ (just as a global function name is a global variable). The module keeps a mapping of ADT names
+ (global type variables) to the list of constructors for that ADT.*
+
 An ADT "value" simply contains the values of the arguments passed
 to the constructor used to produce it. An ADT value is opaque until
 it is *deconstructed*, allowing the arguments to the
@@ -152,7 +157,7 @@ designed data structure could make it easy to concisely express a
 computation with a recursive function.
 
 Many commonly used ADTs involve recursion; some of these are given
-in `Stanard ADTs and Their Uses`_. As an example here, we will
+in `Common ADT Uses`_. As an example here, we will
 examine the list ADT, ubiquitous in functional languages:
 
 .. code-block:: python
@@ -177,31 +182,167 @@ For example, the following function sums a list of integers:
 
    def @list_sum(%l : List[Tensor[(), int32]]) -> Tensor[(), int32] {
      match(%l) {
-       case Nil() { 0 } # base case
-       # induction: add the head of the list to the sum of the tail
+       case Nil() { 0 }
+       # add the head of the list to the sum of the tail
        case Cons(%h, %t) { %h + @list_sum(%t) }
      }
    }
 
 As it happens, many recursive functions on lists like the one just given
 share structures that can be factored out into generic, easily
-usable functions that will be discussed under `Standard ADTs and Their Uses`_.
-
-The above example refers to the :code:`Nil` match case as a "base case";
-this is because the :code:`Nil` constructor does not require an instance
-of a list to be called. It is possible to give an ADT definition where
-every constructor case has an argument that is a recursive reference
-to the ADT, but it will never be possible to create an instance of
-such an ADT, since there is no way to start building up the nesting.
+usable functions that will be discussed under `Common ADT Uses`_.
 
 Pattern Matching in Match Expressions
 =====================================
 
-Standard ADTs and Their Uses
-============================
+Match expressions in Relay, as in other functional languages, are capable of
+more versatile pattern matching than simply having one case for each constructor
+for the datatype of the value being deconstructed.
 
-Implementation Details: Module Type Data
-========================================
+In particular, the patterns in match cases can be built up recursively:
 
-Optimizations for ADTs
-======================
+- Constructor patterns match for a particular ADT constructor. If a value matches the constructor, each argument to the constructor will be matched against a nested pattern.
+- Wildcard patterns will match any value and will not bind to a variable.
+- Variable patterns will match any value and bind it to a local variable, scoped to the match clause.
+
+In the simple case of :code:`@list_sum` above, the first match case has a :code:`Nil` pattern constructor (with no nested arguments)
+and the second has a :code:`Cons` pattern constructor that uses variable patterns for each of the arguments to :code:`Cons`.
+
+The below example uses a wildcard pattern to ignore one of the arguments to :code:`Cons`:
+
+.. code_block:: python
+
+   def @first<a>(%l : List[a]) -> Option[a] {
+     match(%l) {
+       case Nil() { None() }
+       case Cons(%h, _) { Some(%h) } # list tail is unused and ignored
+     }
+   }
+
+Here, a constructor pattern is nested inside another constructor pattern to avoid nested match expressions for a list option.
+A top-level wildcard pattern is also used to handle all cases that do not match the first clause:
+
+.. code_block:: python
+
+   def @second_opt<a>(%ll : Option[List[a]]) -> Option[a] {
+     match(%ll) {
+       # we only need the second member of the list if there is one
+       case Some(Cons(_, Cons(%s, _))) { Some(%s) }
+       case _ { None() }
+     }
+   }
+
+   # @second_opt(Some(Cons(1, Nil()))) evaluates to None()
+   # @second_opt(Some(Cons(1, Cons(2, Nil())))) evaluates to Some(2)
+   # @second_opt(Some(Nil())) evaluates to None()
+   # @second_opt(None()) evaluates to None()
+
+Note that a match expression checks its patterns in the order the cases are listed: the first clause whose pattern
+that matches the queried value is the one that is evaluated. Here, a top-level variable pattern binds the whole
+queried value:
+
+.. code_block:: python
+
+   def @match_order_beware<a>(%l : List[a]) -> List[a] {
+     match(%l) {
+       case %v { %v }
+       # the above matches everything so neither of these runs
+       case Cons(%h, %t) { Cons(%h, @match_order_beware(%t)) }
+       case Nil() { Nil() }
+     }
+   }
+  
+Common ADT Uses
+===============
+
+In functional programming languages, certain ADTs provide useful facilities for writing common programs.
+Parametric polymorphism and higher-order functions allow these ADTs to be easily reuseable and for generic
+functions to manipulate them in common situations. Relay includes a "Prelude" of certain pre-defined ADTs
+and functions for them that correspond to the indispensable ADTs of other languages.
+
+The option type defined under `Type-Checking ADTs and Polymorphism`_ is one such ADT, used
+whenever it can make sense for a function to only return a value under certain circumstances. Having
+the option type allows for the type system to keep track of which functions always return a value
+of a certain type versus returning an option of that type, ensuring that any options are always
+explicitly checked (contrast with :code:`None` in Python).
+
+Lists (defined in `Recursion with ADTs`_) can be manipulated by generic functions in a manner similar to
+list comprehensions and certain library functions in Python. Below are very common functions for iterating
+through lists, which are included in Relay's Prelude. (Naturally, these have all been extensively characterized
+in the functional programming literature, so this document will not attempt to recapitulate that work.)
+
+.. code_block:: python
+
+   # Map: for [h1, h2, ..., hn] returns [f(h1), f(h2), ..., f(hn)]
+   def @map<a, b>(%f : fun(a) -> b, %l : List[a]) -> List[b] {
+     match(%l) {
+       case Nil() { Nil() }
+       case Cons(%h, %t) { Cons(%f(%h), @map(%f, %t)) }
+     }
+   }
+
+   # Left fold: for [h1, h2, ..., hn] returns f(...(f(f(z, h1), h2)...), hn)
+   def @foldl<a, b>(%f : fun(b, a) -> b, %z : b, %l : List[a]) -> b {
+     match(%l) {
+       case Nil() { %z }
+       case Cons(%h, %t) { @foldl(%f, %f(%z, %h), %t) }
+     }
+   }
+
+   # Right fold: for [h1, h2, ..., hn] returns f(h1, f(h2, f(..., (f(hn, z)...)
+   def @foldr<a, b>(%f : fun(a, b) -> b, %z : b, %l : List[a] -> b {
+     match(%l) {
+       case Nil() { %z }
+       case Cons(%h, %t) { %f(%h, @foldr(%f, %z, %t)) }
+     }
+   }
+
+Using these iteration constructs, many common operations over list can be expressed compactly.
+For example, the following map doubles all members of a list:
+
+.. code_block:: python
+
+   # directly written
+   def @double(%l : List[Tensor[(), int32]]) -> List[Tensor[(), int32]] {
+     match(%l) {
+       case Nil() { Nil() }
+       case Cons(%h, %t) { Cons(%h * 2, @double(%t)) }
+     }
+   }
+
+   # no recursion needed
+   @map(fun(%i) { %i * 2 }, %l)
+
+The following right fold concatenates two lists:
+
+.. code_block:: python
+
+   # directly written
+   def @concat<a>(%l1 : List[a], %l2 : List[a]) -> List[a] {
+     match(%l1) {
+       case Nil() { %l2 }
+       case Cons(%h, %t) { Cons(%h, @concat(%t, %l2) }
+     }
+   }
+
+   # no recursion needed
+   @foldr(fun(%h, %z) { Cons(%h, %z) }, %l2, %l1)
+
+The following left fold flattens a list of lists (using concatenation):
+
+  # directly written
+  def @flatten<a>(%ll : List[List[a]]) -> List[a] {
+    match(%ll) {
+      case Cons(%h, %t)) { @concat(%h, @flatten(%t) }
+      case Nil() { Nil() }
+    }
+
+  # no recursion needed
+  @foldl(@concat, Nil(), %ll)
+
+Note that these iteration constructs can be implemented directly in Relay's
+source language and more can easily be defined (and for more data types, like trees),
+rather than being constructs built into the language (e.g.,
+`"foreach" in MXNet <https://mxnet.incubator.apache.org/versions/master/tutorials/control_flow/ControlFlowTutorial.html>`__).
+ADTs and their extensibility allow for a broad range of iterations and data structures to be expressed
+in Relay and supported by the type system without having to modify the language implementation.
