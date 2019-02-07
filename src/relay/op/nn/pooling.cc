@@ -298,7 +298,7 @@ Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
                                   const Array<Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
-  static const Layout kNCHW("kNCHW");
+  static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
