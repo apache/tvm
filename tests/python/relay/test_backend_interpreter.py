@@ -121,7 +121,7 @@ def test_ref():
     body = relay.Let(uv, relay.RefRead(i), body)
     body = relay.Let(u, relay.RefWrite(i, relay.const(2)), body)
     body = relay.Let(iv, relay.RefRead(i), body)
-    body = relay.Let(i, relay.RefNew(relay.const(1)), body)
+    body = relay.Let(i, relay.RefCreate(relay.const(1)), body)
     mod[three_with_ref] = relay.Function([], body)
     check_eval(three_with_ref, [], 3, mod=mod)
 

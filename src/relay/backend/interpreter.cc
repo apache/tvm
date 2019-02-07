@@ -460,7 +460,7 @@ class Interpreter :
     }
   }
 
-  Value VisitExpr_(const RefNewNode* op) final {
+  Value VisitExpr_(const RefCreateNode* op) final {
     return RefValueNode::make(Eval(op->value));
   }
 

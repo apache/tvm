@@ -369,8 +369,8 @@ class AlphaEqualHandler:
     }
   }
 
-  bool VisitExpr_(const RefNewNode* op, const Expr& e2) final {
-    if (const RefNewNode* nr = e2.as<RefNewNode>()) {
+  bool VisitExpr_(const RefCreateNode* op, const Expr& e2) final {
+    if (const RefCreateNode* nr = e2.as<RefCreateNode>()) {
       return ExprEqual(op->value, nr->value);
     } else {
       return false;

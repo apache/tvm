@@ -363,11 +363,11 @@ class TextPrinter :
     return id;
   }
 
-  TextValue VisitExpr_(const RefNewNode* op) final {
+  TextValue VisitExpr_(const RefCreateNode* op) final {
     TextValue value = GetValue(op->value);
     TextValue id = this->AllocTempVar();
     this->PrintIndent();
-    stream_ << id << " = " << "RefNew(" << op->value << ")";
+    stream_ << id << " = " << "RefCreate(" << op->value << ")";
     this->PrintEndInst("\n");
     return id;
   }

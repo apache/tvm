@@ -271,19 +271,19 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
 });
 
-RefNew RefNewNode::make(Expr value) {
-  NodePtr<RefNewNode> n = make_node<RefNewNode>();
+RefCreate RefCreateNode::make(Expr value) {
+  NodePtr<RefCreateNode> n = make_node<RefCreateNode>();
   n->value = std::move(value);
-  return RefNew(n);
+  return RefCreate(n);
 }
 
-TVM_REGISTER_API("relay._make.RefNew").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = RefNewNode::make(args[0]);
+TVM_REGISTER_API("relay._make.RefCreate").set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = RefCreateNode::make(args[0]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<RefNewNode>([](const RefNewNode* node, tvm::IRPrinter* p) {
-  p->stream << "RefNewNode(" << node->value << ")";
+.set_dispatch<RefCreateNode>([](const RefCreateNode* node, tvm::IRPrinter* p) {
+  p->stream << "RefCreateNode(" << node->value << ")";
 });
 
 RefRead RefReadNode::make(Expr ref) {
@@ -309,7 +309,8 @@ RefWrite RefWriteNode::make(Expr ref, Expr value) {
   return RefWrite(n);
 }
 
-TVM_REGISTER_API("relay._make.RefWrite").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_API("relay._make.RefWrite")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = RefWriteNode::make(args[0], args[1]);
 });
 

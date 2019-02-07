@@ -432,7 +432,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     return solver_.Resolve(ret);
   }
 
-  Type VisitExpr_(const RefNewNode* op) final {
+  Type VisitExpr_(const RefCreateNode* op) final {
     return RefTypeNode::make(GetType(op->value));
   }
 
@@ -497,7 +497,7 @@ class TypeInferencer::Resolver : public ExprMutator {
     return AttachCheckedType(op);
   }
 
-  Expr VisitExpr_(const RefNewNode* op) final {
+  Expr VisitExpr_(const RefCreateNode* op) final {
     return AttachCheckedType(op);
   }
 

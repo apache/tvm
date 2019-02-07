@@ -57,7 +57,7 @@ Call = expr.Call
 Let = expr.Let
 If = expr.If
 TupleGetItem = expr.TupleGetItem
-RefNew = expr.RefNew
+RefCreate = expr.RefCreate
 RefRead = expr.RefRead
 RefWrite = expr.RefWrite
 

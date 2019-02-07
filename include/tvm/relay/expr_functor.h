@@ -89,7 +89,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const OpNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const RefNewNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RefCreateNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const RefReadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const RefWriteNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Node* op, Args...) {
@@ -111,7 +111,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAY_EXPR_FUNCTOR_DISPATCH(IfNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(OpNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
-    RELAY_EXPR_FUNCTOR_DISPATCH(RefNewNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(RefCreateNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(RefReadNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(RefWriteNode);
     return vtable;
@@ -139,7 +139,7 @@ class ExprVisitor
   void VisitExpr_(const IfNode* op) override;
   void VisitExpr_(const OpNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
-  void VisitExpr_(const RefNewNode* op) override;
+  void VisitExpr_(const RefCreateNode* op) override;
   void VisitExpr_(const RefReadNode* op) override;
   void VisitExpr_(const RefWriteNode* op) override;
   virtual void VisitType(const Type& t);
@@ -177,7 +177,7 @@ class ExprMutator
   Expr VisitExpr_(const LetNode* op) override;
   Expr VisitExpr_(const IfNode* op) override;
   Expr VisitExpr_(const TupleGetItemNode* op) override;
-  Expr VisitExpr_(const RefNewNode* op) override;
+  Expr VisitExpr_(const RefCreateNode* op) override;
   Expr VisitExpr_(const RefReadNode* op) override;
   Expr VisitExpr_(const RefWriteNode* op) override;
   /*!

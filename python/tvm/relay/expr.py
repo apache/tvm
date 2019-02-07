@@ -328,7 +328,7 @@ class TupleGetItem(Expr):
 
 
 @register_relay_node
-class RefNew(Expr):
+class RefCreate(Expr):
     """Create a new reference from initial value.
     Parameters
     ----------
@@ -336,7 +336,7 @@ class RefNew(Expr):
        The initial value.
     """
     def __init__(self, value):
-        self.__init_handle_by_constructor__(_make.RefNew, value)
+        self.__init_handle_by_constructor__(_make.RefCreate, value)
 
 
 @register_relay_node

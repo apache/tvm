@@ -286,8 +286,8 @@ class RelayHashHandler:
     return hash;
   }
 
-  size_t VisitExpr_(const RefNewNode* rn) final {
-    size_t hash = std::hash<std::string>()(RefNewNode::_type_key);
+  size_t VisitExpr_(const RefCreateNode* rn) final {
+    size_t hash = std::hash<std::string>()(RefCreateNode::_type_key);
     hash = Combine(hash, ExprHash(rn->value));
     return hash;
   }

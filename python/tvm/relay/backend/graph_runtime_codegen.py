@@ -283,7 +283,7 @@ class GraphRuntimeCodegen(ExprFunctor):
     def visit_op(self, _):
         raise Exception("can not compile op in non-eta expanded form")
 
-    def visit_ref_new(self, _):
+    def visit_ref_create(self, _):
         raise RuntimeError("reference not supported")
 
     def visit_ref_read(self, _):

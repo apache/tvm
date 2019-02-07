@@ -134,7 +134,7 @@ def test_tuple():
 def test_ref():
     x = relay.var("x", "float32")
     y = relay.var("y", "float32")
-    r = relay.RefNew(x)
+    r = relay.RefCreate(x)
     st = relay.scalar_type("float32")
     assert relay.ir_pass.infer_type(r).checked_type == relay.RefType(st)
     g = relay.RefRead(r)

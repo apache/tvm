@@ -435,8 +435,8 @@ class TupleGetItemNode : public ExprNode {
 RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
 
 /*! \brief Create a new Reference out of initial value. */
-class RefNew;
-class RefNewNode : public ExprNode {
+class RefCreate;
+class RefCreateNode : public ExprNode {
  public:
   /*! \brief The initial value of the Reference. */
   Expr value;
@@ -447,13 +447,13 @@ class RefNewNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static RefNew make(Expr value);
+  TVM_DLL static RefCreate make(Expr value);
 
-  static constexpr const char* _type_key = "relay.RefNew";
-  TVM_DECLARE_NODE_TYPE_INFO(RefNewNode, ExprNode);
+  static constexpr const char* _type_key = "relay.RefCreate";
+  TVM_DECLARE_NODE_TYPE_INFO(RefCreateNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(RefNew, RefNewNode, Expr);
+RELAY_DEFINE_NODE_REF(RefCreate, RefCreateNode, Expr);
 
 /*! \brief Get value out of Reference. */
 class RefRead;
@@ -476,7 +476,7 @@ class RefReadNode : public ExprNode {
 
 RELAY_DEFINE_NODE_REF(RefRead, RefReadNode, Expr);
 
-/*! \brief Set value of Reference. The whole expression evaluate to an Empty Tuple. */
+/*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
 class RefWrite;
 class RefWriteNode : public ExprNode {
  public:

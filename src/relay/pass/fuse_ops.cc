@@ -278,7 +278,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     this->AddNode(op);
   }
 
-  void VisitExpr_(const RefNewNode* op) final {
+  void VisitExpr_(const RefCreateNode* op) final {
     this->Update(op->value, nullptr, kOpaque);
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);
