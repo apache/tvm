@@ -40,7 +40,7 @@ will nevertheless be distinct data types from the point of view of
 the typechecker.
 
 Below is a simple example of defining an ADT and using it in a function
-via a match construction.
+via a match expression:
 
 .. code-block:: python
 
@@ -75,7 +75,7 @@ Type-Checking ADTs and Polymorphism
 ===================================
 
 This section will go into more specific detail about the typing of ADTs.
-Most of the complexity involved here results from the fact that ADTs
+Most of the complexity involved results from the fact that ADTs
 can be polymorphic and take type parameters, like functions.
 
 For example, one of the standard ADTs commonly used in functional
