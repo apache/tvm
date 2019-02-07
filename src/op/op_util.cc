@@ -206,6 +206,34 @@ Expr ReplaceTensor(Expr expr,
 }
 
 
+void ReplaceTensorRecursivelyImpl(Tensor tensor,
+                                  std::unordered_map<Tensor, Tensor>* replace) {
+  if (!replace->count(tensor)) {
+    for (const Tensor& subtensor : tensor->op->InputTensors()) {
+      ReplaceTensorRecursivelyImpl(subtensor, replace);
+    }
+    Operation new_op = tensor->op->ReplaceInputs(tensor->op, *replace);
+    if (new_op.same_as(tensor->op)) {
+      (*replace)[tensor] = tensor;
+    } else {
+      (*replace)[tensor] =
+        TensorNode::make(tensor->shape, tensor->dtype, new_op, tensor->value_index);
+    }
+  }
+}
+
+Array<Tensor> ReplaceTensorRecursively(Array<Tensor> tensors,
+                                       const std::unordered_map<Tensor, Tensor>& replace) {
+  auto new_replace = replace;
+  Array<Tensor> res;
+  for (const Tensor& t : tensors) {
+    ReplaceTensorRecursivelyImpl(t, &new_replace);
+    res.push_back(new_replace[t]);
+  }
+  return res;
+}
+
+
 Stmt Substitute(Stmt s,
                 const std::unordered_map<IterVar, Expr>& value_map) {
   std::unordered_map<const Variable*, Expr> init;

@@ -65,6 +65,15 @@ Expr ReplaceTensor(Expr expr,
                    const std::unordered_map<Tensor, Tensor>& replace);
 
 /*!
+ * \brief Replace tensor references in the given tensors recursively (not only in their bodies
+ *  but also in the bodies of its dependencies).
+ * \param tensors The tensors to be processed.
+ * \param replace The replacement rule.
+ */
+Array<Tensor> ReplaceTensorRecursively(Array<Tensor> tensors,
+                                       const std::unordered_map<Tensor, Tensor>& replace);
+
+/*!
  * \brief Substitute the variables of stmt by value map.
  * \param stmt the statment
  * \param value_map The value map.
