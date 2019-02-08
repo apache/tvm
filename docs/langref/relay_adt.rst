@@ -1,3 +1,5 @@
+.. _adt-overview:
+
 =============================
 Algebraic Data Types in Relay
 =============================
@@ -192,6 +194,8 @@ As it happens, many recursive functions on lists like the one just given
 share structures that can be factored out into generic, easily
 usable functions that will be discussed under `Common ADT Uses`_.
 
+.. _adt-pattern:
+
 Pattern Matching in Match Expressions
 =====================================
 
@@ -264,7 +268,8 @@ The option type defined under `Type-Checking ADTs and Polymorphism`_ is one such
 whenever it can make sense for a function to only return a value under certain circumstances. Having
 the option type allows for the type system to keep track of which functions always return a value
 of a certain type versus returning an option of that type, ensuring that any options are always
-explicitly checked (contrast with :code:`None` in Python).
+explicitly checked (contrast with returning null pointers or throwing
+exceptions as other ways to addressing that problem).
 
 Lists (defined in `Recursion with ADTs`_) can be manipulated by generic functions in a manner similar to
 list comprehensions and certain library functions in Python. Below are very common functions for iterating
