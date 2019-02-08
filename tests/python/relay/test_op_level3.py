@@ -25,7 +25,8 @@ def test_unary_identity():
                (relay.round, np.round),
                (relay.abs, np.abs),
                (relay.copy, None), # np.copy
-               (relay.negative, np.negative)]:
+               (relay.negative, np.negative),
+               (relay.sign, np.sign)]:
         shape = (8, 9, 4)
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = op(x)
