@@ -613,7 +613,7 @@ For example, suppose we have an ADT for Peano natural numbers:
 
    data Nat {
      Z : () -> Nat # zero
-     S : Nat -> Nat # successor (+1) to a nat
+     S : (Nat) -> Nat # successor (+1) to a nat
    }
 
 Then the following function subtracts one from a passed nat:
