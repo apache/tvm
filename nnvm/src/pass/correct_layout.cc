@@ -114,10 +114,10 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
         nnvm::NodePtr tnode = CreateLayoutTransformNode(produce, request);
         tnode->attrs.name = idx[e.node_id].source->attrs.name + "_" + request.name();
         tnode->inputs.emplace_back(new_node->inputs[i]);
-        nnvm::NodeEntry tnode_output{tnode, 0, 0};
+        nnvm::NodeEntry tnode_output(std::move(tnode), 0, 0);
         new_node->inputs[i] = tnode_output;
         // layout produced by LayoutTransformNode
-        new_layouts[tnode.get()] = {request};
+        new_layouts[tnode_output.node.get()] = {request};
       } else if (!produce.defined()) {
         // do reverse infer
         new_layouts[in.get()][e.index] = request;
