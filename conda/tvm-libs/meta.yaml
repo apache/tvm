@@ -9,7 +9,7 @@ source:
 
 build:
   number: 1
-  string: cuda{{ cuda_version }}  # [cuda]
+  string: cuda{{ cuda_version }}_{{ PKG_BUILDNUM }}  # [cuda]
 
 requirements:
   build:
@@ -24,6 +24,7 @@ requirements:
     - cmake
     - llvmdev ==6.0.0  # [linux]
     - zlib  # [linux]
+  run:
     - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
 
 about:
