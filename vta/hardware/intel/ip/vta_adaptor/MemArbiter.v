@@ -67,45 +67,45 @@ module MemArbiter(
   wire  _T_117; // @[Mux.scala 46:19]
   wire [31:0] _T_118; // @[Mux.scala 46:16]
   wire  _T_119; // @[Mux.scala 46:19]
-  wire  _T_123; // @[MemArbiter.scala 46:77]
-  wire [2:0] _T_129; // @[Mux.scala 46:16]
-  wire [2:0] _T_131; // @[Mux.scala 46:16]
-  wire [2:0] _T_133; // @[Mux.scala 46:16]
-  wire [2:0] _T_135; // @[Mux.scala 46:16]
+  wire  _T_122; // @[MemArbiter.scala 46:77]
+  wire [2:0] _T_128; // @[Mux.scala 46:16]
+  wire [2:0] _T_130; // @[Mux.scala 46:16]
+  wire [2:0] _T_132; // @[Mux.scala 46:16]
+  wire [2:0] _T_134; // @[Mux.scala 46:16]
   wire [2:0] axi_master_read; // @[Mux.scala 46:16]
-  wire  _T_137; // @[MemArbiter.scala 62:58]
-  wire  _T_139; // @[MemArbiter.scala 62:81]
-  wire  _T_140; // @[MemArbiter.scala 62:97]
-  wire  _T_142; // @[MemArbiter.scala 63:58]
-  wire  _T_144; // @[MemArbiter.scala 63:81]
-  wire  _T_145; // @[MemArbiter.scala 63:97]
-  wire  _T_147; // @[MemArbiter.scala 64:58]
-  wire  _T_149; // @[MemArbiter.scala 64:81]
-  wire  _T_150; // @[MemArbiter.scala 64:97]
-  wire  _T_152; // @[MemArbiter.scala 65:58]
-  wire  _T_154; // @[MemArbiter.scala 65:81]
-  wire  _T_155; // @[MemArbiter.scala 65:97]
-  wire  _T_157; // @[MemArbiter.scala 66:58]
-  wire  _T_159; // @[MemArbiter.scala 66:81]
-  wire  _T_160; // @[MemArbiter.scala 66:97]
-  wire [2:0] _GEN_0; // @[MemArbiter.scala 82:40]
+  wire  _T_136; // @[MemArbiter.scala 62:58]
+  wire  _T_138; // @[MemArbiter.scala 62:81]
+  wire  _T_139; // @[MemArbiter.scala 62:97]
+  wire  _T_141; // @[MemArbiter.scala 63:58]
+  wire  _T_143; // @[MemArbiter.scala 63:81]
+  wire  _T_144; // @[MemArbiter.scala 63:97]
+  wire  _T_146; // @[MemArbiter.scala 64:58]
+  wire  _T_148; // @[MemArbiter.scala 64:81]
+  wire  _T_149; // @[MemArbiter.scala 64:97]
+  wire  _T_151; // @[MemArbiter.scala 65:58]
+  wire  _T_153; // @[MemArbiter.scala 65:81]
+  wire  _T_154; // @[MemArbiter.scala 65:97]
+  wire  _T_156; // @[MemArbiter.scala 66:58]
+  wire  _T_158; // @[MemArbiter.scala 66:81]
+  wire  _T_159; // @[MemArbiter.scala 66:97]
+  wire [2:0] _GEN_0; // @[MemArbiter.scala 82:39]
   wire [2:0] _GEN_1; // @[MemArbiter.scala 80:39]
   wire [2:0] _GEN_2; // @[MemArbiter.scala 78:39]
   wire [2:0] _GEN_3; // @[MemArbiter.scala 76:39]
   wire [2:0] _GEN_4; // @[MemArbiter.scala 74:39]
-  wire [2:0] _GEN_5; // @[MemArbiter.scala 72:39]
+  wire [2:0] _GEN_5; // @[MemArbiter.scala 72:40]
   wire [2:0] _GEN_6; // @[MemArbiter.scala 70:32]
-  wire  _T_165; // @[MemArbiter.scala 89:13]
+  wire  _T_164; // @[MemArbiter.scala 89:13]
   wire [2:0] _GEN_7; // @[MemArbiter.scala 89:41]
   wire [2:0] _GEN_12; // @[MemArbiter.scala 114:41]
+  wire [2:0] _GEN_13; // @[Conditional.scala 39:67]
   wire [2:0] _GEN_14; // @[Conditional.scala 39:67]
   wire [2:0] _GEN_15; // @[Conditional.scala 39:67]
   wire [2:0] _GEN_16; // @[Conditional.scala 39:67]
   wire [2:0] _GEN_17; // @[Conditional.scala 39:67]
   wire [2:0] _GEN_18; // @[Conditional.scala 39:67]
   wire [2:0] _GEN_19; // @[Conditional.scala 39:67]
-  wire [2:0] _GEN_20; // @[Conditional.scala 39:67]
-  wire [2:0] _GEN_21; // @[Conditional.scala 40:58]
+  wire [2:0] _GEN_20; // @[Conditional.scala 40:58]
   assign ins_cache_read = state == 3'h1; // @[MemArbiter.scala 25:31]
   assign inp_cache_read = state == 3'h2; // @[MemArbiter.scala 26:31]
   assign wgt_cache_read = state == 3'h3; // @[MemArbiter.scala 27:31]
@@ -127,56 +127,56 @@ module MemArbiter(
   assign _T_117 = 3'h2 == state; // @[Mux.scala 46:19]
   assign _T_118 = _T_117 ? io_inp_cache_address : _T_116; // @[Mux.scala 46:16]
   assign _T_119 = 3'h1 == state; // @[Mux.scala 46:19]
-  assign _T_123 = out_cache_write | out_cache_ack; // @[MemArbiter.scala 46:77]
-  assign _T_129 = _T_111 ? {{2'd0}, io_acc_cache_read} : 3'h0; // @[Mux.scala 46:16]
-  assign _T_131 = _T_113 ? {{2'd0}, io_uop_cache_read} : _T_129; // @[Mux.scala 46:16]
-  assign _T_133 = _T_115 ? {{2'd0}, io_wgt_cache_read} : _T_131; // @[Mux.scala 46:16]
-  assign _T_135 = _T_117 ? {{2'd0}, io_inp_cache_read} : _T_133; // @[Mux.scala 46:16]
-  assign axi_master_read = _T_119 ? {{2'd0}, io_ins_cache_read} : _T_135; // @[Mux.scala 46:16]
-  assign _T_137 = io_axi_master_waitrequest & ins_cache_read; // @[MemArbiter.scala 62:58]
-  assign _T_139 = ins_cache_read == 1'h0; // @[MemArbiter.scala 62:81]
-  assign _T_140 = _T_139 & io_ins_cache_read; // @[MemArbiter.scala 62:97]
-  assign _T_142 = io_axi_master_waitrequest & inp_cache_read; // @[MemArbiter.scala 63:58]
-  assign _T_144 = inp_cache_read == 1'h0; // @[MemArbiter.scala 63:81]
-  assign _T_145 = _T_144 & io_inp_cache_read; // @[MemArbiter.scala 63:97]
-  assign _T_147 = io_axi_master_waitrequest & wgt_cache_read; // @[MemArbiter.scala 64:58]
-  assign _T_149 = wgt_cache_read == 1'h0; // @[MemArbiter.scala 64:81]
-  assign _T_150 = _T_149 & io_wgt_cache_read; // @[MemArbiter.scala 64:97]
-  assign _T_152 = io_axi_master_waitrequest & uop_cache_read; // @[MemArbiter.scala 65:58]
-  assign _T_154 = uop_cache_read == 1'h0; // @[MemArbiter.scala 65:81]
-  assign _T_155 = _T_154 & io_uop_cache_read; // @[MemArbiter.scala 65:97]
-  assign _T_157 = io_axi_master_waitrequest & acc_cache_read; // @[MemArbiter.scala 66:58]
-  assign _T_159 = acc_cache_read == 1'h0; // @[MemArbiter.scala 66:81]
-  assign _T_160 = _T_159 & io_acc_cache_read; // @[MemArbiter.scala 66:97]
-  assign _GEN_0 = io_out_cache_write ? 3'h6 : 3'h0; // @[MemArbiter.scala 82:40]
-  assign _GEN_1 = io_acc_cache_read ? 3'h5 : _GEN_0; // @[MemArbiter.scala 80:39]
-  assign _GEN_2 = io_uop_cache_read ? 3'h4 : _GEN_1; // @[MemArbiter.scala 78:39]
-  assign _GEN_3 = io_wgt_cache_read ? 3'h3 : _GEN_2; // @[MemArbiter.scala 76:39]
-  assign _GEN_4 = io_inp_cache_read ? 3'h3 : _GEN_3; // @[MemArbiter.scala 74:39]
-  assign _GEN_5 = io_inp_cache_read ? 3'h2 : _GEN_4; // @[MemArbiter.scala 72:39]
+  assign _T_122 = out_cache_write | out_cache_ack; // @[MemArbiter.scala 46:77]
+  assign _T_128 = _T_111 ? {{2'd0}, io_acc_cache_read} : 3'h0; // @[Mux.scala 46:16]
+  assign _T_130 = _T_113 ? {{2'd0}, io_uop_cache_read} : _T_128; // @[Mux.scala 46:16]
+  assign _T_132 = _T_115 ? {{2'd0}, io_wgt_cache_read} : _T_130; // @[Mux.scala 46:16]
+  assign _T_134 = _T_117 ? {{2'd0}, io_inp_cache_read} : _T_132; // @[Mux.scala 46:16]
+  assign axi_master_read = _T_119 ? {{2'd0}, io_ins_cache_read} : _T_134; // @[Mux.scala 46:16]
+  assign _T_136 = io_axi_master_waitrequest & ins_cache_read; // @[MemArbiter.scala 62:58]
+  assign _T_138 = ins_cache_read == 1'h0; // @[MemArbiter.scala 62:81]
+  assign _T_139 = _T_138 & io_ins_cache_read; // @[MemArbiter.scala 62:97]
+  assign _T_141 = io_axi_master_waitrequest & inp_cache_read; // @[MemArbiter.scala 63:58]
+  assign _T_143 = inp_cache_read == 1'h0; // @[MemArbiter.scala 63:81]
+  assign _T_144 = _T_143 & io_inp_cache_read; // @[MemArbiter.scala 63:97]
+  assign _T_146 = io_axi_master_waitrequest & wgt_cache_read; // @[MemArbiter.scala 64:58]
+  assign _T_148 = wgt_cache_read == 1'h0; // @[MemArbiter.scala 64:81]
+  assign _T_149 = _T_148 & io_wgt_cache_read; // @[MemArbiter.scala 64:97]
+  assign _T_151 = io_axi_master_waitrequest & uop_cache_read; // @[MemArbiter.scala 65:58]
+  assign _T_153 = uop_cache_read == 1'h0; // @[MemArbiter.scala 65:81]
+  assign _T_154 = _T_153 & io_uop_cache_read; // @[MemArbiter.scala 65:97]
+  assign _T_156 = io_axi_master_waitrequest & acc_cache_read; // @[MemArbiter.scala 66:58]
+  assign _T_158 = acc_cache_read == 1'h0; // @[MemArbiter.scala 66:81]
+  assign _T_159 = _T_158 & io_acc_cache_read; // @[MemArbiter.scala 66:97]
+  assign _GEN_0 = io_acc_cache_read ? 3'h5 : 3'h0; // @[MemArbiter.scala 82:39]
+  assign _GEN_1 = io_uop_cache_read ? 3'h4 : _GEN_0; // @[MemArbiter.scala 80:39]
+  assign _GEN_2 = io_wgt_cache_read ? 3'h3 : _GEN_1; // @[MemArbiter.scala 78:39]
+  assign _GEN_3 = io_inp_cache_read ? 3'h3 : _GEN_2; // @[MemArbiter.scala 76:39]
+  assign _GEN_4 = io_inp_cache_read ? 3'h2 : _GEN_3; // @[MemArbiter.scala 74:39]
+  assign _GEN_5 = io_out_cache_write ? 3'h6 : _GEN_4; // @[MemArbiter.scala 72:40]
   assign _GEN_6 = io_ins_cache_read ? 3'h1 : _GEN_5; // @[MemArbiter.scala 70:32]
-  assign _T_165 = io_axi_master_waitrequest == 1'h0; // @[MemArbiter.scala 89:13]
-  assign _GEN_7 = _T_165 ? 3'h0 : state; // @[MemArbiter.scala 89:41]
-  assign _GEN_12 = _T_165 ? 3'h7 : state; // @[MemArbiter.scala 114:41]
-  assign _GEN_14 = _T_107 ? _GEN_7 : state; // @[Conditional.scala 39:67]
-  assign _GEN_15 = _T_109 ? _GEN_12 : _GEN_14; // @[Conditional.scala 39:67]
-  assign _GEN_16 = _T_111 ? _GEN_7 : _GEN_15; // @[Conditional.scala 39:67]
-  assign _GEN_17 = _T_113 ? _GEN_7 : _GEN_16; // @[Conditional.scala 39:67]
-  assign _GEN_18 = _T_115 ? _GEN_7 : _GEN_17; // @[Conditional.scala 39:67]
-  assign _GEN_19 = _T_117 ? _GEN_7 : _GEN_18; // @[Conditional.scala 39:67]
-  assign _GEN_20 = _T_119 ? _GEN_7 : _GEN_19; // @[Conditional.scala 39:67]
-  assign _GEN_21 = _T_105 ? _GEN_6 : _GEN_20; // @[Conditional.scala 40:58]
-  assign io_ins_cache_waitrequest = _T_137 | _T_140; // @[MemArbiter.scala 62:28]
+  assign _T_164 = io_axi_master_waitrequest == 1'h0; // @[MemArbiter.scala 89:13]
+  assign _GEN_7 = _T_164 ? 3'h0 : state; // @[MemArbiter.scala 89:41]
+  assign _GEN_12 = _T_164 ? 3'h7 : state; // @[MemArbiter.scala 114:41]
+  assign _GEN_13 = _T_107 ? 3'h0 : state; // @[Conditional.scala 39:67]
+  assign _GEN_14 = _T_109 ? _GEN_12 : _GEN_13; // @[Conditional.scala 39:67]
+  assign _GEN_15 = _T_111 ? _GEN_7 : _GEN_14; // @[Conditional.scala 39:67]
+  assign _GEN_16 = _T_113 ? _GEN_7 : _GEN_15; // @[Conditional.scala 39:67]
+  assign _GEN_17 = _T_115 ? _GEN_7 : _GEN_16; // @[Conditional.scala 39:67]
+  assign _GEN_18 = _T_117 ? _GEN_7 : _GEN_17; // @[Conditional.scala 39:67]
+  assign _GEN_19 = _T_119 ? _GEN_7 : _GEN_18; // @[Conditional.scala 39:67]
+  assign _GEN_20 = _T_105 ? _GEN_6 : _GEN_19; // @[Conditional.scala 40:58]
+  assign io_ins_cache_waitrequest = _T_136 | _T_139; // @[MemArbiter.scala 62:28]
   assign io_ins_cache_readdata = io_axi_master_readdata; // @[MemArbiter.scala 57:25]
-  assign io_inp_cache_waitrequest = _T_142 | _T_145; // @[MemArbiter.scala 63:28]
+  assign io_inp_cache_waitrequest = _T_141 | _T_144; // @[MemArbiter.scala 63:28]
   assign io_inp_cache_readdata = io_axi_master_readdata; // @[MemArbiter.scala 58:25]
-  assign io_wgt_cache_waitrequest = _T_147 | _T_150; // @[MemArbiter.scala 64:28]
+  assign io_wgt_cache_waitrequest = _T_146 | _T_149; // @[MemArbiter.scala 64:28]
   assign io_wgt_cache_readdata = io_axi_master_readdata; // @[MemArbiter.scala 59:25]
-  assign io_uop_cache_waitrequest = _T_152 | _T_155; // @[MemArbiter.scala 65:28]
+  assign io_uop_cache_waitrequest = _T_151 | _T_154; // @[MemArbiter.scala 65:28]
   assign io_uop_cache_readdata = io_axi_master_readdata; // @[MemArbiter.scala 60:25]
-  assign io_acc_cache_waitrequest = _T_157 | _T_160; // @[MemArbiter.scala 66:28]
+  assign io_acc_cache_waitrequest = _T_156 | _T_159; // @[MemArbiter.scala 66:28]
   assign io_acc_cache_readdata = io_axi_master_readdata; // @[MemArbiter.scala 61:25]
-  assign io_out_cache_waitrequest = io_axi_master_waitrequest & _T_123; // @[MemArbiter.scala 46:28]
+  assign io_out_cache_waitrequest = io_axi_master_waitrequest & _T_122; // @[MemArbiter.scala 46:28]
   assign io_out_cache_readdata = 128'h0;
   assign io_axi_master_address = _T_119 ? io_ins_cache_address : _T_118; // @[MemArbiter.scala 34:25]
   assign io_axi_master_read = axi_master_read[0]; // @[MemArbiter.scala 56:22]
@@ -220,23 +220,23 @@ module MemArbiter(
         if (io_ins_cache_read) begin
           state <= 3'h1;
         end else begin
-          if (io_inp_cache_read) begin
-            state <= 3'h2;
+          if (io_out_cache_write) begin
+            state <= 3'h6;
           end else begin
             if (io_inp_cache_read) begin
-              state <= 3'h3;
+              state <= 3'h2;
             end else begin
-              if (io_wgt_cache_read) begin
+              if (io_inp_cache_read) begin
                 state <= 3'h3;
               end else begin
-                if (io_uop_cache_read) begin
-                  state <= 3'h4;
+                if (io_wgt_cache_read) begin
+                  state <= 3'h3;
                 end else begin
-                  if (io_acc_cache_read) begin
-                    state <= 3'h5;
+                  if (io_uop_cache_read) begin
+                    state <= 3'h4;
                   end else begin
-                    if (io_out_cache_write) begin
-                      state <= 3'h6;
+                    if (io_acc_cache_read) begin
+                      state <= 3'h5;
                     end else begin
                       state <= 3'h0;
                     end
@@ -248,22 +248,22 @@ module MemArbiter(
         end
       end else begin
         if (_T_119) begin
-          if (_T_165) begin
+          if (_T_164) begin
             state <= 3'h0;
           end
         end else begin
           if (_T_117) begin
-            if (_T_165) begin
+            if (_T_164) begin
               state <= 3'h0;
             end
           end else begin
             if (_T_115) begin
-              if (_T_165) begin
+              if (_T_164) begin
                 state <= 3'h0;
               end
             end else begin
               if (_T_113) begin
-                if (_T_165) begin
+                if (_T_164) begin
                   state <= 3'h0;
                 end
               end else begin
@@ -271,12 +271,12 @@ module MemArbiter(
                   state <= _GEN_7;
                 end else begin
                   if (_T_109) begin
-                    if (_T_165) begin
+                    if (_T_164) begin
                       state <= 3'h7;
                     end
                   end else begin
                     if (_T_107) begin
-                      state <= _GEN_7;
+                      state <= 3'h0;
                     end
                   end
                 end
