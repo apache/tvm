@@ -105,23 +105,22 @@ Most of the complexity involved results from the fact that, as with functions, A
 can be polymorphic and take type parameters.
 
 For example, one of the standard ADTs commonly used in functional
-programming languages is the option type, defined here:
+programming languages is the optional type, defined here:
 
 .. code-block:: python
 
    # a is a type parameter
-   data Option<a> {
-     None : () -> Option
-     Some : (a) -> Option
+   data Optional<a> {
+     None : () -> Optional
+     Some : (a) -> Optional
    }
 
-Option types are commonly used as the return type for any operation
+Optional types are commonly used as the return type for any operation
 involving querying into a data structure (returning :code:`Some(v)`
 if a value is found and :code:`None` if it isn't).
-Taking a type parameter in the definition allows the same option type
+Taking a type parameter in the definition allows the same optional type
 to be used in a wide variety of situations, rather than having to
-define a unique ADT for each different type that could be contained in
-the option.
+define a unique ADT for each different type that could be contained in it.
 
 However, it is important to ensure that option types whose contents
 are of different types can still be distinguished by the type system,
@@ -135,7 +134,7 @@ kept around. Let the below example illustrate:
 .. code-block:: python
 
    # the signature for option indicates the type argument
-   def @inc_scalar(%opt : Option[Tensor[(), int32]]) -> Tensor[(), int32] {
+   def @inc_scalar(%opt : Optional[Tensor[(), int32]]) -> Tensor[(), int32] {
      match(%opt) {
        case None() { 1 }
        case Some(%s) { %s + 1 }
@@ -143,8 +142,8 @@ kept around. Let the below example illustrate:
    }
 
    def @main() {
-     let %one : Option[Tensor[(), int32]] = Some(1);
-     let %big : Option[Tensor[(10, 10), float32]]
+     let %one : Optional[Tensor[(), int32]] = Some(1);
+     let %big : Optional[Tensor[(10, 10), float32]]
        = Some(Constant(1, (10, 10), float32));
      let %two = inc_scalar(%one);
      # let %bigger = inc_scalar(%big); # type system rejects
@@ -170,8 +169,8 @@ the type :code:`fun<v1, ..., vn>(T1, ..., Tn) -> D[v1, ..., vn]`.
 This means that constructors are typed like ordinary functions and
 thus appear inside call nodes and can be passed to or returned by
 other functions. In particular, the :code:`Some` example above has
-the signature :code:`fun<a>(a) -> Option[a]`, while :code:`None`
-has the signature :code:`fun<a>() -> Option[a]`.
+the signature :code:`fun<a>(a) -> Optional[a]`, while :code:`None`
+has the signature :code:`fun<a>() -> Optional[a]`.
 
 Recursion with ADTs
 ===================
@@ -242,7 +241,7 @@ The below example uses a wildcard pattern to ignore one of the arguments to :cod
 
 .. code_block:: python
 
-   def @first<a>(%l : List[a]) -> Option[a] {
+   def @first<a>(%l : List[a]) -> Optional[a] {
      match(%l) {
        case Nil() { None() }
        case Cons(%h, _) { Some(%h) } # list tail is unused and ignored
@@ -254,7 +253,7 @@ A top-level wildcard pattern is also used to handle all cases that do not match 
 
 .. code_block:: python
 
-   def @second_opt<a>(%ll : Option[List[a]]) -> Option[a] {
+   def @second_opt<a>(%ll : Optional[List[a]]) -> Optional[a] {
      match(%ll) {
        # we only need the second member of the list if there is one
        case Some(Cons(_, Cons(%s, _))) { Some(%s) }
