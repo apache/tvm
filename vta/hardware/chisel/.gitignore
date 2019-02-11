@@ -1,0 +1,13 @@
+generated-src
+outputs
+test_run_dir
+target
+project/target
+*.key
+*.log
+*.swp
+.ivy2
+VTile
+dump.vcd*
+DVEfiles
+riscv-tools-priv1.7
