@@ -4,13 +4,12 @@
 Algebraic Data Types in Relay
 =============================
 
-Algebraic data types (ADTs, also known as sum types) are
-a staple feature of functional programming languages, particularly
-those derived from ML, because they express data structures in a
+Algebraic data types (ADTs) are a staple feature of functional programming languages,
+particularly those derived from ML, because they express data structures in a
 manner that is easy to reason about when writing recursive computations.
 Because recursion is intended to be one of the primary mechanisms of control
-flow in Relay, it is important that Relay include ADTs in order to handle
-loops and other control flow structures.
+flow in Relay, it is important that Relay include ADTs in order to best express
+loops and other control flow structures that must be implemented using recursion.
 
 Defining and Matching on an ADT
 ===============================
@@ -18,28 +17,29 @@ Defining and Matching on an ADT
 *Note: ADTs are not presently supported in the text format.
  The syntax here is speculative, based on ADTs in other languages.*
 
-An ADT is defined with a name and a list of constructors, each of
-which takes certain types as arguments and returns an instance of the
-named ADT. A call to one of the constructors in the program where the
-ADT is defined produces an instance of the ADT.
+In essence, ADTs are a more powerful version of enums from C-like languages.
+Like a C :code:`struct:`, an ADT instance is a container for fields of specified types,
+but the type system allows for the same type to encode different possible groupings
+of fields in a systematic manner, similar to C :code:`enum` types, each of which have
+a finite set of possible values named by the user.
+
+Specifically, an ADT is defined as a named group of constructors, each of which is
+a function that takes values of specified types as arguments and returns an instance
+of the named ADT. An ADT instance simply contains the values of the arguments
+passed to the constructor call used to produce it.
+
+An ADT value is opaque until it is *deconstructed*, allowing the arguments to the
+constructor to be accessed again and used to compute new values. Because
+a particular ADT can have multiple constructors with different signatures,
+it is usually necessary to branch on the different possible constructors,
+resulting in the *match* syntax for ADTs. Hence, ADTs are sometimes called
+"tagged unions" because an ADT instance is tagged by the name of the constructor
+used to produce it and can later be inspected based on the tag.
 
 *Implementation detail: Relay ADT definitions are global and are stored in the module,
  similarly to global function definitions. An ADT name is, in fact, a global type variable
  (just as a global function name is a global variable). The module keeps a mapping of ADT names
  (global type variables) to the list of constructors for that ADT.*
-
-An ADT "value" simply contains the values of the arguments passed
-to the constructor used to produce it. An ADT value is opaque until
-it is *deconstructed*, allowing the arguments to the
-constructor to be accessed again and used to compute new values. Because
-a particular ADT can have multiple constructors with different signatures,
-it is usually necessary to branch on the different possible constructors,
-resulting in the *match* syntax for ADTs.
-
-Note that ADTs are identified by name,
-meaning that two ADTs with structurally identical constructors
-will nevertheless be distinct data types from the point of view of
-the typechecker.
 
 Below is a simple example of defining an ADT and using it in a function
 via a match expression:
@@ -73,6 +73,24 @@ via a match expression:
      ()
    }
 
+Note that ADTs are identified by name,
+meaning that two ADTs with structurally identical constructors
+will nevertheless be distinct data types from the point of view of
+the typechecker.
+
+.. code-block:: python
+
+   # structurally identical constructors to Numbers
+   data Numbers2 {
+     Empty2 : () -> Numbers2
+     Single2 : (Tensor[(), int32]) -> Numbers2
+     Pair2 : (Tensor[(), int32], Tensor[(), int32]) -> Numbers2
+   }
+
+   # the below results in a type error because Numbers2
+   # is a distinct type from Numbers
+   # fn() { @sum(Empty2()) }
+
 Type-Checking ADTs and Polymorphism
 ===================================
 
@@ -85,6 +103,7 @@ programming languages is the option type, defined here:
 
 .. code-block:: python
 
+   # a is a type parameter
    data Option<a> {
      None : () -> Option
      Some : (a) -> Option
@@ -138,11 +157,12 @@ in a type call with no arguments).
 
 Thus, we can say in general that if constructor :code:`C` that
 takes arguments of types :code:`T1, ..., Tn` is a constructor
-for an ADT :code:`D` that takes type arguments :code:`v1, ..., vn`,
+for an ADT :code:`D` that takes type parameters :code:`v1, ..., vn`
+(where :code:`T1, ..., Tn` may contain any of the :code:`v1, ..., vn`),
 then :code:`C` has
 the type :code:`fun<v1, ..., vn>(T1, ..., Tn) -> D[v1, ..., vn]`.
-This means that constructors behave like ordinary functions and
-thus can appear inside call nodes and be passed to or returned by
+This means that constructors are typed like ordinary functions and
+thus appear inside call nodes and can be passed to or returned by
 other functions. In particular, the :code:`Some` example above has
 the signature :code:`fun<a>(a) -> Option[a]`, while :code:`None`
 has the signature :code:`fun<a>() -> Option[a]`.
@@ -315,7 +335,7 @@ For example, the following map doubles all members of a list:
      }
    }
 
-   # no recursion needed
+   # map takes care of the recursion
    @map(fn(%i) { %i * 2 }, %l)
 
 The following right fold concatenates two lists:
@@ -330,7 +350,7 @@ The following right fold concatenates two lists:
      }
    }
 
-   # no recursion needed
+   # foldr takes care of the recursion
    @foldr(fn(%h, %z) { Cons(%h, %z) }, %l2, %l1)
 
 The following left fold flattens a list of lists (using concatenation):
@@ -342,7 +362,7 @@ The following left fold flattens a list of lists (using concatenation):
       case Nil() { Nil() }
     }
 
-  # no recursion needed
+  # foldl takes care of the recursion
   @foldl(@concat, Nil(), %ll)
 
 Note that these iteration constructs can be implemented directly in Relay's
