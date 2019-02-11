@@ -50,15 +50,13 @@ void CodeGenHybrid::PrintType(Type t, std::ostream &os) {
 }
 
 void CodeGenHybrid::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
-  PrintType(op->type, os);
-  os << "(" << op->value << ")";
+  os << op->value;
 }
 void CodeGenHybrid::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
   PrintType(op->type, os);
-  os << "(" << op->value << ")";
+  os << op->value;
 }
 void CodeGenHybrid::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
-  PrintType(op->type, os);
   os << "(" << std::setprecision(20) << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
@@ -259,17 +257,21 @@ void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const Realize *op) {
-  PrintIndent();
-  stream << GetTensorID(op->func, op->value_index) << " = allocate((";
-  for (size_t i = 0; i < op->bounds.size(); ++i) {
-    if (i) stream << ", ";
-    stream << PrintExpr(op->bounds[i]->extent);
-  }
-  stream << "), \"";
-  PrintType(op->type, stream); 
-  stream << "\", ";
   CHECK(alloc_storage_scope_.count(op->func));
-  stream << alloc_storage_scope_[op->func] << ")\n";
+  if (!alloc_storage_scope_[op->func].empty()) {
+    PrintIndent();
+    stream << GetTensorID(op->func, op->value_index) << " = allocate((";
+    for (size_t i = 0; i < op->bounds.size(); ++i) {
+      if (i) stream << ", ";
+      stream << PrintExpr(op->bounds[i]->extent);
+    }
+    if (op->bounds.size() == 1) stream << ", ";
+    stream << "), \"";
+    PrintType(op->type, stream); 
+    stream << "\", '";
+    stream << alloc_storage_scope_[op->func] << "')\n";
+  }
+  PrintStmt(op->body);
 }
 
 void CodeGenHybrid::VisitStmt_(const AssertStmt* op) {
@@ -290,7 +292,7 @@ void CodeGenHybrid::VisitStmt_(const Provide* op) {
     if (i) stream << ", ";
     PrintExpr(op->args[i], stream);
   }
-  stream << "]";
+  stream << "] = ";
   PrintExpr(op->value, stream);
   stream << "\n";
 }
@@ -360,7 +362,7 @@ std::string CodeGenHybrid::GetTensorID(const FunctionRef &func, int value_index)
     return id_map_[node];
   }
   std::string name_hint = func->func_name();
-  if (func->num_outputs() != 0) {
+  if (func->num_outputs() > 1) {
     name_hint += "_v" + std::to_string(value_index);
   }
   return id_map_[node] = GetUniqueName(name_hint);
@@ -384,10 +386,19 @@ void CodeGenHybrid::DumpSchedule(const Stmt &stmt,
     for (size_t j = 0; j < outputs[i]->shape.size(); ++j) {
       if (j) stream << ", ";
       PrintExpr(outputs[i]->shape[j], stream);
-      stream << "), '" << outputs[i]->dtype << "')\n";
     }
+    if (outputs[i]->shape.size() == 1)
+      stream << ", ";
+    stream << "), '" << outputs[i]->dtype << "')\n";
   }
   PrintStmt(stmt);
+  PrintIndent();
+  stream << "return ";
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    if (i) stream << ", ";
+    stream << GetTensorID(outputs[i]->op, outputs[i]->value_index);
+  }
+  stream << "\n";
 }
 
 TVM_REGISTER_GLOBAL("hybrid.dump")

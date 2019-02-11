@@ -8,6 +8,7 @@ from ..container import Array
 from .. import ir_pass
 from ..stmt import For
 from .util import _internal_assert
+from ..intrin import call_pure_intrin
 
 #pylint: disable=redefined-builtin
 
@@ -123,3 +124,9 @@ def ceil_div(func_id, args):
         _internal_assert(isinstance(args[0], _expr.Expr), "Only expressions can div")
     a, b = args[0], args[1]
     return (a + b - 1) / b
+
+
+def likely(func_id, args):
+    _internal_assert(args.__len__() == 1, \
+                     "Only one expression can be likely")
+    return call_pure_intrin(args[0].dtype, 'likely', args)

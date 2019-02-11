@@ -87,6 +87,7 @@ HYBRID_GLOBALS = {
     'exp'          : numpy.exp,
     'sigmoid'      : sigmoid,
     'popcount'     : popcount,
+    'likely'       : lambda cond: cond,
     'uint8'        : numpy.uint8,
     'uint16'       : numpy.uint16,
     'uint32'       : numpy.uint32,
