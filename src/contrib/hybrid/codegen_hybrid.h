@@ -107,28 +107,41 @@ class CodeGenHybrid :
   void VisitStmt_(const Block* op) override;
   void VisitStmt_(const ProducerConsumer* op) override;
   /*!
-   * Print Type represetnation of type t.
+   * \brief Print Type represetnation of type t.
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
   virtual void PrintType(Type t, std::ostream& os); // NOLINT(*)
-  // Get a cast type from to
   virtual std::string CastFromTo(std::string value, Type from, Type target);
 
  private:
-  //
+  /*! \brief The current indent of the code dump. */
   int indent_{0};
+  /*! \brief The tab size of code indent. */
   const int tab_{2};
+  /*! \brief Print the current indent spaces. */
   inline void PrintIndent();
-  //
+  /*! \brief Keys are ids allocated, and values are the suffix to prevent double-name.  */
   std::map<std::string, int> ids_allocated_;
+  /*! \brief Keys are either tensors or variables. Values are the corresponding IDs.*/
   std::map<const Node *, std::string> id_map_;
-  //
-  std::string GetUniqueName(std::string s);
-  //
+  /*!
+   * \brief Find an unallocated name for the given prefix.
+   * \param prefix The given prefix.
+   */
+  std::string GetUniqueName(std::string prefix);
+  /*! \brief The output code string builder. */
   std::stringstream stream;
-  // 
+  /*! 
+   * \brief Get or allocate the ID for the given variable.
+   * \param v The given variable.
+   */
   std::string GetVarID(const Variable *v);
+  /*! 
+   * \brief Get or allocate the ID for the given tensor.
+   * \param func The tensor to allocate a name.
+   * \param value_index The value index of the given tensor.
+   */
   std::string GetTensorID(const FunctionRef &func, int value_index);
   /*! \brief the storage scope of allocation */
   std::map<FunctionRef, std::string> alloc_storage_scope_;

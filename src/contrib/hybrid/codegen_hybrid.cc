@@ -10,17 +10,24 @@ namespace contrib {
 
 using namespace ir;
 
-std::string CodeGenHybrid::GetUniqueName(std::string name) {
-  for (size_t i = 0; i < name.size(); ++i) {
-    if (name[i] == '.')
-      name[i] = '_';
+std::string CodeGenHybrid::GetUniqueName(std::string prefix) {
+  for (size_t i = 0; i < prefix.size(); ++i) {
+    if (prefix[i] == '.') prefix[i] = '_';
   }
-  auto iter = ids_allocated_.find(name);
-  if (iter == ids_allocated_.end()) {
-    ids_allocated_[name] = 1;
-    return name;
+  auto it = ids_allocated_.find(prefix);
+  if (it != ids_allocated_.end()) {
+    while (true) {
+      std::ostringstream os;
+      os << prefix << (++it->second);
+      std::string name = os.str();
+      if (ids_allocated_.count(name) == 0) {
+        prefix = name;
+        break;
+      }
+    }
   }
-  return name + std::to_string(ids_allocated_[name]++);
+  ids_allocated_[prefix] = 0;
+  return prefix;
 }
 
 std::string CodeGenHybrid::Finish() {
@@ -52,7 +59,7 @@ void CodeGenHybrid::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT
 }
 void CodeGenHybrid::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
   PrintType(op->type, os);
-  os << "(" << op->value << ")";
+  os << "(" << std::setprecision(20) << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
   os << "\"" << op->value << "\"";
@@ -63,22 +70,19 @@ inline void PrintBinaryExpr(const T* op,
                             const char *opstr,
                             std::ostream& os,  // NOLINT(*)
                             CodeGenHybrid* p) {
-  if (op->type.lanes() == 1) {
-    if (isalpha(opstr[0])) {
-      os << opstr << '(';
-      p->PrintExpr(op->a, os);
-      os << ", ";
-      p->PrintExpr(op->b, os);
-      os << ')';
-    } else {
-      os << '(';
-      p->PrintExpr(op->a, os);
-      os << ' ' << opstr << ' ';
-      p->PrintExpr(op->b, os);
-      os << ')';
-    }
+  CHECK(op->type.lanes() == 1)  << "vec bin op not implemented";
+  if (isalpha(opstr[0])) {
+    os << opstr << '(';
+    p->PrintExpr(op->a, os);
+    os << ", ";
+    p->PrintExpr(op->b, os);
+    os << ')';
   } else {
-    LOG(FATAL) << "vec bin op to be implemented";
+    os << '(';
+    p->PrintExpr(op->a, os);
+    os << ' ' << opstr << ' ';
+    p->PrintExpr(op->b, os);
+    os << ')';
   }
 }
 
@@ -86,16 +90,13 @@ inline void PrintBinaryIntrinsitc(const Call* op,
                                   const char *opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenHybrid* p) {
-  if (op->type.lanes() == 1) {
-    CHECK_EQ(op->args.size(), 2U);
-    os << '(';
-    p->PrintExpr(op->args[0], os);
-    os << opstr;
-    p->PrintExpr(op->args[1], os);
-    os << ')';
-  } else {
-    LOG(FATAL) << "vec bin intrin to be implemented";
-  }
+  CHECK(op->type.lanes() == 1)  << "vec bin intrin not implemented";
+  CHECK_EQ(op->args.size(), 2U);
+  os << '(';
+  p->PrintExpr(op->args[0], os);
+  os << opstr;
+  p->PrintExpr(op->args[1], os);
+  os << ')';
 }
 
 void CodeGenHybrid::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
@@ -174,23 +175,21 @@ void CodeGenHybrid::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
       os << idx.str();
     }
     os << "]";
-  } if (op->call_type == Call::Extern ||
-      op->call_type == Call::PureExtern) {
   } else if (op->is_intrinsic(Call::bitwise_and)) {
-    PrintBinaryIntrinsitc(op, " & ", os, this);
+    PrintBinaryIntrinsitc(op, "&", os, this);
   } else if (op->is_intrinsic(Call::bitwise_xor)) {
-    PrintBinaryIntrinsitc(op, " ^ ", os, this);
+    PrintBinaryIntrinsitc(op, "^", os, this);
   } else if (op->is_intrinsic(Call::bitwise_or)) {
-    PrintBinaryIntrinsitc(op, " | ", os, this);
+    PrintBinaryIntrinsitc(op, "|", os, this);
+  } else if (op->is_intrinsic(Call::shift_left)) {
+    PrintBinaryIntrinsitc(op, "<<", os, this);
+  } else if (op->is_intrinsic(Call::shift_right)) {
+    PrintBinaryIntrinsitc(op, ">>", os, this);
   } else if (op->is_intrinsic(Call::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(~";
     PrintExpr(op->args[0], os);
     os << ')';
-  } else if (op->is_intrinsic(Call::shift_left)) {
-    PrintBinaryIntrinsitc(op, " << ", os, this);
-  } else if (op->is_intrinsic(Call::shift_right)) {
-    PrintBinaryIntrinsitc(op, " >> ", os, this);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
     PrintExpr(op->args[1], os);
     os << " if ";
@@ -362,9 +361,13 @@ std::string CodeGenHybrid::GetTensorID(const FunctionRef &func, int value_index)
   }
   std::string name_hint = func->func_name();
   if (func->num_outputs() != 0) {
-    name_hint += ".v" + std::to_string(value_index);
+    name_hint += "_v" + std::to_string(value_index);
   }
   return id_map_[node] = GetUniqueName(name_hint);
+}
+
+void CodeGenHybrid::DumpSchedule(const Schedule &sch) {
+  sch->outputs;
 }
 }  // namespace contrib
 }  // namespace tvm
