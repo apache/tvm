@@ -128,7 +128,6 @@ def test_reverse_reshape():
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.reverse_reshape(x, newshape=newshape)
         zz = relay.ir_pass.infer_type(z)
-        print(zz.checked_type)
         assert "newshape=" in z.astext()
         assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
 

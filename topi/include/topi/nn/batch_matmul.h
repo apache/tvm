@@ -25,8 +25,8 @@ using namespace tvm;
 */
 inline tvm::Tensor batch_matmul(const tvm::Tensor& x,
                                 const tvm::Tensor& y) {
-  CHECK_EQ(x->shape.size(), 3) << "batch_dot requires 3-D data";
-  CHECK_EQ(y->shape.size(), 3) << "batch_dot requires 3-D data";
+  CHECK_EQ(x->shape.size(), 3) << "batch_matmul requires 3-D data";
+  CHECK_EQ(y->shape.size(), 3) << "batch_matmul requires 3-D data";
 
   auto batch = x->shape[0];
   auto M = x->shape[1];
