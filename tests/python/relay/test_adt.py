@@ -173,7 +173,7 @@ def test_sum():
     assert count(res) == 3
 
 
-def test_option_matching():
+def test_optional_matching():
     x = relay.Var('x')
     y = relay.Var('y')
     v = relay.Var('v')

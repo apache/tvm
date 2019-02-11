@@ -23,7 +23,7 @@ class Prelude:
         elements. That is, map(f, l) returns a new list where
         the ith member is f applied to the ith member of l.
 
-        map(f, l) : fun<a, b>(fun(a) -> b, list<a>) -> list<b>
+        map(f, l) : fn<a, b>(fn(a) -> b, list[a]) -> list[b]
         """
         self.map = GlobalVar("map")
         a = TypeVar("a")
@@ -40,7 +40,7 @@ class Prelude:
     def define_list_foldl(self):
         """Defines a left-way fold over a list.
 
-        foldl(f, z, l) : fun<a, b>(fun(b, a) -> b, b, list<a>) -> b
+        foldl(f, z, l) : fn<a, b>(fn(b, a) -> b, b, list[a]) -> b
 
         foldl(f, z, cons(a1, cons(a2, cons(a3, cons(..., nil)))))
         evaluates to f(...f(f(f(z, a1), a2), a3)...)
@@ -62,7 +62,7 @@ class Prelude:
     def define_list_foldr(self):
         """Defines a right-way fold over a list.
 
-        foldr(f, l, z) : fun<a, b>(fun(a, b) -> b, list<a>, b) -> b
+        foldr(f, l, z) : fn<a, b>(fn(a, b) -> b, list[a], b) -> b
 
         foldr(f, cons(a1, cons(a2, cons(..., cons(an, nil)))), z)
         evalutes to f(a1, f(a2, f(..., f(an, z)))...)
@@ -81,14 +81,14 @@ class Prelude:
         self.mod[self.foldr] = Function([f, bv, av],
                                         Match(av, [nil_case, cons_case]), None, [a, b])
 
-    def define_option_adt(self):
-        """Defines an option ADT, which can either contain some other
+    def define_optional_adt(self):
+        """Defines an optional ADT, which can either contain some other
         type or nothing at all."""
-        self.option = GlobalTypeVar("option")
+        self.optional = GlobalTypeVar("optional")
         a = TypeVar("a")
-        self.some = Constructor("some", [a], self.option)
-        self.none = Constructor("none", [], self.option)
-        self.mod[self.option] = TypeData(self.option, [a], [self.some, self.none])
+        self.some = Constructor("some", [a], self.optional)
+        self.none = Constructor("none", [], self.optional)
+        self.mod[self.optional] = TypeData(self.optional, [a], [self.some, self.none])
 
     def define_nat_adt(self):
         """Defines a Peano (unary) natural number ADT.
@@ -152,7 +152,7 @@ class Prelude:
         """Defines a function that maps over a tree. The function
         is applied to each subtree's contents.
 
-        Signature: fun<a, b>(f : fun(a) -> b, t : tree<a>) -> tree<b>
+        Signature: fn<a, b>(f : fn(a) -> b, t : tree[a]) -> tree[b]
         """
         self.tmap = GlobalVar("tmap")
         a = TypeVar("a")
@@ -186,7 +186,7 @@ class Prelude:
         self.define_list_foldl()
         self.define_list_foldr()
 
-        self.define_option_adt()
+        self.define_optional_adt()
 
         self.define_nat_adt()
         self.define_nat_double()
