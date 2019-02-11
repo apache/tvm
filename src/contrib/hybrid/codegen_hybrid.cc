@@ -366,8 +366,38 @@ std::string CodeGenHybrid::GetTensorID(const FunctionRef &func, int value_index)
   return id_map_[node] = GetUniqueName(name_hint);
 }
 
-void CodeGenHybrid::DumpSchedule(const Schedule &sch) {
-  sch->outputs;
+void CodeGenHybrid::DumpSchedule(const Stmt &stmt,
+                                 const Array<Tensor> &inputs,
+                                 const Array<Tensor> &outputs,
+                                 const std::string &name) {
+  stream << "def " << name << "(";
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    if (i) stream << ", ";
+    stream << GetTensorID(inputs[i]->op, inputs[i]->value_index);
+  }
+  stream << "):\n";
+  indent_ += tab_;
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    PrintIndent();
+    stream << GetTensorID(outputs[i]->op, outputs[i]->value_index)
+           << " = output_tensor((";
+    for (size_t j = 0; j < outputs[i]->shape.size(); ++j) {
+      if (j) stream << ", ";
+      PrintExpr(outputs[i]->shape[j], stream);
+      stream << "), '" << outputs[i]->dtype << "')\n";
+    }
+  }
+  PrintStmt(stmt);
 }
+
+TVM_REGISTER_GLOBAL("hybrid.dump")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    CodeGenHybrid codegen;
+    if (args.size() == 4)
+      codegen.DumpSchedule(args[0], args[1], args[2], args[3]);
+    else
+      codegen.DumpSchedule(args[0], args[1], args[2]);
+    *rv = codegen.Finish();
+  });
 }  // namespace contrib
 }  // namespace tvm

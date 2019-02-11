@@ -31,10 +31,13 @@ class CodeGenHybrid :
       public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
-   * \brief Dump the given schedule to hybrid script.
-   * \param sch The schedule to be dumped to hybrid script.
+   * \brief Dump the given function body to hybrid script.
+   * \param stmt The function body to be dumped to hybrid script.
+   * \param inputs Input tensors of this schedule.
+   * \param outputs Output tensors of this schedule.
+   * \param name The name of the function.
    */
-  void DumpSchedule(const Schedule &sch);
+  void DumpSchedule(const Stmt &stmt, const Array<Tensor> &inputs, const Array<Tensor> &outputs, const std::string &name = "hybrid_func");
   /*!
    * \brief Finalize the compilation and return the code.
    * \return The code.
@@ -112,7 +115,6 @@ class CodeGenHybrid :
    * \param os The stream to print the ctype into
    */
   virtual void PrintType(Type t, std::ostream& os); // NOLINT(*)
-  virtual std::string CastFromTo(std::string value, Type from, Type target);
 
  private:
   /*! \brief The current indent of the code dump. */

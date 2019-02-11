@@ -22,7 +22,6 @@ from ..tensor import Tensor
 
 from .parser import parse_python
 from .util import _pruned_source
-from .dump import dump
 
 
 def script(pyfunc):
@@ -58,3 +57,6 @@ def script(pyfunc):
         return value
 
     return decorate(pyfunc, wrapped_func)
+
+
+_init_api("tvm.hybrid")
