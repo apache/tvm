@@ -17,11 +17,11 @@ Defining and Matching on an ADT
 *Note: ADTs are not presently supported in the text format.
  The syntax here is speculative, based on ADTs in other languages.*
 
-In essence, ADTs are a more powerful version of enums from C-like languages.
-Like a C :code:`struct:`, an ADT instance is a container for fields of specified types,
-but the type system allows for the same type to encode different possible groupings
-of fields in a systematic manner, similar to C :code:`enum` types, each of which have
-a finite set of possible values named by the user.
+ADTs can be understood as a generalized version of :code:`enum` and :code:`struct` types
+from C-like languages. Like a C :code:`struct:`, an ADT instance is a container for fields
+of specified types, but the type system allows for the same type to encode different possible
+groupings of fields in a systematic manner, similar to C :code:`enum` types, which are
+defined using a finite set of possible values named by the user.
 
 Specifically, an ADT is defined as a named group of constructors, each of which is
 a function that takes values of specified types as arguments and returns an instance
@@ -35,6 +35,12 @@ it is usually necessary to branch on the different possible constructors,
 resulting in the *match* syntax for ADTs. Hence, ADTs are sometimes called
 "tagged unions" because an ADT instance is tagged by the name of the constructor
 used to produce it and can later be inspected based on the tag.
+
+Because each ADT has a finite set of constructors, it is straightforward to determine
+whether a function processing an ADT instance is handling all possible cases.
+In particular, the type system can ensure that types are properly assigned in all cases when
+deconstructing an ADT instance, in contrast to :code:`union` types in C.
+Hence, it is often easy to reason about ADTs.
 
 *Implementation detail: Relay ADT definitions are global and are stored in the module,
  similarly to global function definitions. An ADT name is, in fact, a global type variable
@@ -262,8 +268,8 @@ A top-level wildcard pattern is also used to handle all cases that do not match 
    # @second_opt(None()) evaluates to None()
 
 Note that a match expression checks its patterns in the order the cases are listed: the first clause whose pattern
-that matches the queried value is the one that is evaluated. Here, a top-level variable pattern binds the whole
-queried value:
+that matches the input value is the one that is evaluated. Here, a top-level variable pattern binds the whole
+input value:
 
 .. code_block:: python
 
