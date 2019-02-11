@@ -1,4 +1,4 @@
-"""Test code for batch_dot operator"""
+"""Test code for batch_matmul operator"""
 import numpy as np
 import tvm
 import topi
@@ -8,19 +8,17 @@ from tvm.contrib.pickle_memoize import memoize
 
 from common import get_all_backend
 
-def verify_batch_dot(batch, M, N, K):
+def verify_batch_matmul(batch, M, N, K):
     x = tvm.placeholder((batch, M, K), name='x')
     y = tvm.placeholder((batch, N, K), name='y')
     dtype = x.dtype
 
     # use memoize to pickle the test data for next time use
-    @memoize("topi.tests.test_topi_batch_dot")
+    @memoize("topi.tests.test_topi_batch_matmul")
     def get_ref_data():
         a_np = np.random.uniform(size=(batch, M, K)).astype(dtype)
         b_np = np.random.uniform(size=(batch, N, K)).astype(dtype)
-        c_np = np.zeros((batch, M, N)).astype(dtype)
-        for i in range(batch):
-            c_np[i] = np.dot(a_np[i], b_np[i].T)
+        c_np = topi.testing.batch_matmul(a_np, b_np)
         return (a_np, b_np, c_np)
     # get the test data
     a_np, b_np, c_np = get_ref_data()
@@ -32,8 +30,8 @@ def verify_batch_dot(batch, M, N, K):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.nn.batch_dot(x, y)
-            s = topi.generic.schedule_batch_dot([out])
+            out = topi.nn.batch_matmul(x, y)
+            s = topi.generic.schedule_batch_matmul([out])
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=dtype), ctx)
@@ -44,11 +42,11 @@ def verify_batch_dot(batch, M, N, K):
     for device in get_all_backend():
         check_device(device)
 
-def test_batch_dot():
-    verify_batch_dot(1, 16, 16, 32)
-    verify_batch_dot(5, 16, 16, 32)
-    verify_batch_dot(5, 16, 20, 32)
+def test_batch_matmul():
+    verify_batch_matmul(1, 16, 16, 32)
+    verify_batch_matmul(5, 16, 16, 32)
+    verify_batch_matmul(5, 16, 20, 32)
 
 
 if __name__ == "__main__":
-    test_batch_dot()
+    test_batch_matmul()

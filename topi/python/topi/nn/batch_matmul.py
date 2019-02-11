@@ -5,8 +5,8 @@ from .. import tag
 from ..util import get_const_tuple
 
 
-def batch_dot(x, y):
-    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_dot"
+def batch_matmul(x, y):
+    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
     x_shape = get_const_tuple(x.shape)
     y_shape = get_const_tuple(y.shape)
     assert x_shape[0] == y_shape[0], "batch dimension doesn't match"
@@ -17,4 +17,4 @@ def batch_dot(x, y):
     
     return tvm.compute((batch, M, N),
                        lambda b, i, j: tvm.sum(x[b, i, k] * y[b, j, k], axis=k),
-                       tag='batch_dot')
+                       tag='batch_matmul')

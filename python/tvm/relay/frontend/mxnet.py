@@ -268,6 +268,10 @@ def _mx_multibox_detection(inputs, attrs):
     return _op.vision.nms(ret[0], ret[1], **new_attrs1)
 
 
+def _mx_batch_dot(inputs, attrs):
+    return _op.batch_matmul(inputs[0], inputs[1])
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -281,7 +285,6 @@ _identity_list = [
     "slice_like",
     "zeros_like",
     "ones_like",
-    "batch_dot",
 ]
 
 _convert_map = {
@@ -352,6 +355,7 @@ _convert_map = {
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,
     "concat"        : _mx_concat,
+    "batch_dot"     : _mx_batch_dot,
     "LeakyReLU"     : _mx_leaky_relu,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,

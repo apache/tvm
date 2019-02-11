@@ -17,7 +17,7 @@
 #include <topi/reduction.h>
 #include <topi/transform.h>
 
-#include <topi/nn/batch_dot.h>
+#include <topi/nn/batch_matmul.h>
 #include <topi/nn/batch_norm.h>
 #include <topi/nn/bnn.h>
 #include <topi/nn/dense.h>
@@ -358,10 +358,10 @@ TVM_REGISTER_GLOBAL("topi.nn.dense")
   *rv = nn::dense(args[0], args[1], args[2]);
   });
 
-/* Ops from nn/batch_dot.h */
-TVM_REGISTER_GLOBAL("topi.nn.batch_dot")
+/* Ops from nn/batch_matmul.h */
+TVM_REGISTER_GLOBAL("topi.nn.batch_matmul")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::batch_dot(args[0], args[1]);
+  *rv = nn::batch_matmul(args[0], args[1]);
   });
 
 /* Ops from nn/dilate.h */
@@ -617,7 +617,7 @@ TVM_REGISTER_GENERIC_FUNC(schedule_dense)
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_dense))
 .register_func({ "rocm" }, WrapSchedule(topi::rocm::schedule_dense));
 
-TVM_REGISTER_GENERIC_FUNC(schedule_batch_dot)
+TVM_REGISTER_GENERIC_FUNC(schedule_batch_matmul)
 .set_default(WrapSchedule(topi::generic::default_schedule));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_pool)

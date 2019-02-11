@@ -238,14 +238,14 @@ def _default_dense_nopack_config(cfg, M, N, K):
     cfg["tile_y"] = SplitEntity([1, M])
 
 
-@generic.schedule_batch_dot.register(["cpu"])
-def schedule_batch_dot(outs):
-    """Schedule for softmax
+@generic.schedule_batch_matmul.register(["cpu"])
+def schedule_batch_matmul(outs):
+    """Schedule for batch_matmul
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of softmax
+          The computation graph description of batch_matmul
           in the format of an array of tensors.
 
     Returns
@@ -256,7 +256,7 @@ def schedule_batch_dot(outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if "batch_dot" in op.tag:
+        if "batch_matmul" in op.tag:
             C = op.output(0)
             A, B = s[C].op.input_tensors
             _, M, N = get_const_tuple(C.shape)

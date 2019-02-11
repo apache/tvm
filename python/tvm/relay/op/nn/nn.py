@@ -767,13 +767,14 @@ def batch_norm(data,
     return TupleWrapper(result, 3)
 
 
-def batch_dot(x, y):
+def batch_matmul(x, y):
     r"""
-    Computes dot product of `x` and `y` when `x` and `y` are data in batch.
+    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
+    in batch.
 
     .. math::
 
-        \mbox{batch_dot}(x, y)[i, :, :] = \mbox{dot}(x[i, :, :], y[i, :, :]^T)
+        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
 
     Parameters
     ----------
@@ -788,7 +789,7 @@ def batch_dot(x, y):
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.batch_dot(x, y)
+    return _make.batch_matmul(x, y)
 
 
 def contrib_conv2d_winograd_without_weight_transform(data,
