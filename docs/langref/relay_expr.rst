@@ -602,12 +602,12 @@ bound to variables. (See `this section <adt_pattern_>`__ for a detailed
 description of ADT pattern-matching.)
 
 A match expression is defined using the
-queried value (an expression) and a list of clauses, each of which
+input value (an expression) and a list of clauses, each of which
 consists of a pattern and an expression. When executed, the *first*
 clause whose pattern matches the structure of the queried value is
 executed; the clause expression is evaluated and returned.
 
-For example, suppose we have an ADT for Peano natural numbers:
+For example, suppose we have an ADT for natural numbers:
 
 .. code-block:: python
 

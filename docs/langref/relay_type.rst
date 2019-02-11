@@ -297,7 +297,10 @@ stored in the module, `analogous to global function definitions <module-descript
 
 While type-checking uses of ADTs, the type system sometimes must
 index into the module using the ADT name to look up information
-about constructors.
+about constructors. For example, if a constructor is being pattern-matched
+in a match expression clause, the type-checker must check the constructor's
+signature to ensure that any bound variables are being assigned the
+correct types.
 
 See :py:class:`~tvm.relay.adt.TypeData` for its definition and documentation.
 
