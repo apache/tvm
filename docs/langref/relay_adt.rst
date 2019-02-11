@@ -77,8 +77,8 @@ Type-Checking ADTs and Polymorphism
 ===================================
 
 This section will go into more specific detail about the typing of ADTs.
-Most of the complexity involved results from the fact that ADTs
-can be polymorphic and take type parameters, like functions.
+Most of the complexity involved results from the fact that, as with functions, ADTs
+can be polymorphic and take type parameters.
 
 For example, one of the standard ADTs commonly used in functional
 programming languages is the option type, defined here:
@@ -142,7 +142,7 @@ for an ADT :code:`D` that takes type arguments :code:`v1, ..., vn`,
 then :code:`C` has
 the type :code:`fun<v1, ..., vn>(T1, ..., Tn) -> D[v1, ..., vn]`.
 This means that constructors behave like ordinary functions and
-thus appear inside call nodes and can be passed to or returned by
+thus can appear inside call nodes and be passed to or returned by
 other functions. In particular, the :code:`Some` example above has
 the signature :code:`fun<a>(a) -> Option[a]`, while :code:`None`
 has the signature :code:`fun<a>() -> Option[a]`.
@@ -209,8 +209,8 @@ In particular, the patterns in match cases can be built up recursively:
 - Wildcard patterns will match any value and will not bind to a variable.
 - Variable patterns will match any value and bind it to a local variable, scoped to the match clause.
 
-In the simple case of :code:`@list_sum` above, the first match case has a :code:`Nil` pattern constructor (with no nested arguments)
-and the second has a :code:`Cons` pattern constructor that uses variable patterns for each of the arguments to :code:`Cons`.
+In the simple case of :code:`@list_sum` above, the first match case has a :code:`Nil` constructor pattern (with no nested arguments)
+and the second has a :code:`Cons` constructor pattern that uses variable patterns for each of the arguments to :code:`Cons`.
 
 The below example uses a wildcard pattern to ignore one of the arguments to :code:`Cons`:
 
@@ -273,13 +273,13 @@ exceptions as other ways to addressing that problem).
 
 Lists (defined in `Recursion with ADTs`_) can be manipulated by generic functions in a manner similar to
 list comprehensions and certain library functions in Python. Below are very common functions for iterating
-through lists, which are included in Relay's Prelude. (Naturally, these have all been extensively characterized
-in the functional programming literature, so this document will not attempt to recapitulate that work.)
+through lists, which are included in Relay's Prelude. (These have all been extensively characterized
+in the functional programming literature, and we do not attempt to reproduce that work in this document.)
 
 .. code_block:: python
 
    # Map: for [h1, h2, ..., hn] returns [f(h1), f(h2), ..., f(hn)]
-   def @map<a, b>(%f : fun(a) -> b, %l : List[a]) -> List[b] {
+   def @map<a, b>(%f : fn(a) -> b, %l : List[a]) -> List[b] {
      match(%l) {
        case Nil() { Nil() }
        case Cons(%h, %t) { Cons(%f(%h), @map(%f, %t)) }
@@ -287,7 +287,7 @@ in the functional programming literature, so this document will not attempt to r
    }
 
    # Left fold: for [h1, h2, ..., hn] returns f(...(f(f(z, h1), h2)...), hn)
-   def @foldl<a, b>(%f : fun(b, a) -> b, %z : b, %l : List[a]) -> b {
+   def @foldl<a, b>(%f : fn(b, a) -> b, %z : b, %l : List[a]) -> b {
      match(%l) {
        case Nil() { %z }
        case Cons(%h, %t) { @foldl(%f, %f(%z, %h), %t) }
@@ -295,14 +295,14 @@ in the functional programming literature, so this document will not attempt to r
    }
 
    # Right fold: for [h1, h2, ..., hn] returns f(h1, f(h2, f(..., (f(hn, z)...)
-   def @foldr<a, b>(%f : fun(a, b) -> b, %z : b, %l : List[a] -> b {
+   def @foldr<a, b>(%f : fn(a, b) -> b, %z : b, %l : List[a] -> b {
      match(%l) {
        case Nil() { %z }
        case Cons(%h, %t) { %f(%h, @foldr(%f, %z, %t)) }
      }
    }
 
-Using these iteration constructs, many common operations over list can be expressed compactly.
+Using these iteration constructs, many common operations over lists can be expressed compactly.
 For example, the following map doubles all members of a list:
 
 .. code_block:: python
@@ -316,7 +316,7 @@ For example, the following map doubles all members of a list:
    }
 
    # no recursion needed
-   @map(fun(%i) { %i * 2 }, %l)
+   @map(fn(%i) { %i * 2 }, %l)
 
 The following right fold concatenates two lists:
 
@@ -331,7 +331,7 @@ The following right fold concatenates two lists:
    }
 
    # no recursion needed
-   @foldr(fun(%h, %z) { Cons(%h, %z) }, %l2, %l1)
+   @foldr(fn(%h, %z) { Cons(%h, %z) }, %l2, %l1)
 
 The following left fold flattens a list of lists (using concatenation):
 

@@ -11,7 +11,7 @@ Static types are useful when performing compiler optimizations because they
 communicate properties about the data a program manipulates, such as runtime
 shape, data layout, and storage, without needing to run the program.
 Relay's `Algebraic Data Types`_ allow for easily and flexibly composing
-together types in order to build data structures that can easily be
+types in order to build data structures that can be
 reasoned about inductively and used to write recursive functions.
 
 Relay's type system features a form of *dependent typing* for shapes. That is, its type system keeps track of the shapes of tensors in a Relay program. Treating tensor
@@ -293,7 +293,7 @@ Definitions (Type Data)
 
 Besides a name, an ADT needs to store the constructors that are used
 to define it and any type paramters used within them. These are
-stored in the module, `analogously to global function definitions <module-description_>`__.
+stored in the module, `analogous to global function definitions <module-description_>`__.
 
 While type-checking uses of ADTs, the type system sometimes must
 index into the module using the ADT name to look up information
@@ -316,7 +316,7 @@ as two ADT instances built using different constructors but the
 same type parameters are of the *same type* while two ADT instances
 with different type parameters should not be considered the same
 type (e.g., a list of integers should not have the same type as
-a list of tuples of floating point tensors).
+a list of pairs of floating point tensors).
 
 The "function" in the type call is the ADT handle and there must
 be one argument for each type parameter in the ADT definition. (An
@@ -342,10 +342,10 @@ sections. Its definition is as follows:
 Thus, the global type variable :code:`List` is the handle for the ADT.
 The type data for the list ADT in the module notes that
 :code:`List` takes one type parameter and has two constructors,
-:code:`Nil` (with signature :code:`fun<a>() -> List[a]`)
-and :code:`Cons` (with signature :code:`fun<a>(a, List[a]) -> List[a]`).
+:code:`Nil` (with signature :code:`fn<a>() -> List[a]`)
+and :code:`Cons` (with signature :code:`fn<a>(a, List[a]) -> List[a]`).
 The recursive reference to :code:`List` in the :code:`Cons`
-constructor is accomplished by using to the global type
+constructor is accomplished by using the global type
 variable :code:`List` in the constructor definition.
 
 Below two instances of lists with their types given, using type calls:

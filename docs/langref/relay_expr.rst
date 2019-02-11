@@ -302,7 +302,7 @@ type variables.
 
 Let us suppose that :code:`D` is an ADT that takes type parameters
 :code:`a` and :code:`b`. If :code:`C1` is a constructor for :code:`D`
-expects an argument each of type :code:`a` and type :code:`b`, then
+and expects two arguments, one of type :code:`a` and one of type :code:`b`, then
 :code:`C1` has the following type signature:
 :code:`fun<a, b>(a, b) -> D[a, b]`. (See either the ADT overview
 or the discussion of ADT typing for an explanation of the type call
@@ -311,7 +311,7 @@ If another constructor for :code:`D`, :code:`C2`, takes no arguments,
 then it has the following type signature: :code:`fun<a, b>() -> D[a, b]`;
 the type parameters will always appear in the return type.
 
-Once called, a constructor produces an ADT instances, which is a
+Once called, a constructor produces an ADT instance, which is a
 container that stores the values of the arguments to the constructor
 as well as the name ("tag") of the constructor. The tag will be used
 for deconstructing the instances and retrieving the values when
@@ -595,10 +595,10 @@ A match expression behaves similarly to a C-style :code:`switch` statement,
 branching on the different possible constructors for the type of the
 value being deconstructed. As the ADT overview details, match
 expressions are capable of more general pattern-matching than simply
-splitting by constructors: any ADT instances nested inside an instance
+splitting by constructors: any ADT instance nested inside an instance
 (e.g., a list of lists) can be deconstructed at the same time as
 the outer instance, while the different fields of the instance can be
-bound to varialbes. (See `this section <adt_pattern_>`__ for a detailed
+bound to variables. (See `this section <adt_pattern_>`__ for a detailed
 description of ADT pattern-matching.)
 
 A match expression is defined using the
@@ -620,7 +620,7 @@ Then the following function subtracts one from a passed nat:
 
 .. code-block:: python
 
-   fun(%v: Nat[]) -> Nat[] {
+   fn(%v: Nat[]) -> Nat[] {
      match(%v) {
        case Z() { Z() }
        case S(%n) { %n } # the variable %n is bound in the scope of this clause
@@ -632,7 +632,7 @@ two and returns the argument otherwise, using a nested constructor pattern:
 
 .. code-block:: python
 
-   fun(%v : Nat[]) -> Nat[] {
+   fn(%v : Nat[]) -> Nat[] {
      match(%v) {
         case S(S(%n)) { %n }
         # wildcard pattern: matches all cases not matched already
@@ -646,7 +646,7 @@ those below it can never run:
 
 .. code-block:: python
 
-   fun(%v : Nat[]) -> Nat[] {
+   fn(%v : Nat[]) -> Nat[] {
      match(%v) {
        case _ { %v }
        case S(S(%n)) { S(%n) }
