@@ -54,10 +54,10 @@ void CodeGenHybrid::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(
 }
 void CodeGenHybrid::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
   PrintType(op->type, os);
-  os << op->value;
+  os << "(" << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
-  os << "(" << std::setprecision(20) << op->value << ")";
+  os << std::setprecision(20) << op->value;
 }
 void CodeGenHybrid::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
   os << "\"" << op->value << "\"";
@@ -101,10 +101,9 @@ void CodeGenHybrid::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
   if (op->type == op->value.type()) {
     PrintExpr(op->value, stream);
   } else {
-    PrintType(op->type, stream);
-    stream << op->type;
+    PrintType(op->type, os);
     os << "(";
-    PrintExpr(op->value, stream);
+    PrintExpr(op->value, os);
     os << ")";
   }
 }
@@ -368,14 +367,21 @@ std::string CodeGenHybrid::GetTensorID(const FunctionRef &func, int value_index)
   return id_map_[node] = GetUniqueName(name_hint);
 }
 
-void CodeGenHybrid::DumpSchedule(const Stmt &stmt,
-                                 const Array<Tensor> &inputs,
-                                 const Array<Tensor> &outputs,
-                                 const std::string &name) {
-  stream << "def " << name << "(";
+void CodeGenHybrid::DumpStmt(const Stmt &stmt,
+                             const Array<NodeRef> &inputs,
+                             const Array<Tensor> &outputs,
+                             const std::string &name) {
+  stream << "@tvm.hybrid.script\n"
+         << "def " << name << "(";
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (i) stream << ", ";
-    stream << GetTensorID(inputs[i]->op, inputs[i]->value_index);
+    if (auto tensor = inputs[i].as<TensorNode>()) {
+      stream << GetTensorID(tensor->op, tensor->value_index);
+    } else {
+      auto var = inputs[i].as<Variable>();
+      CHECK(var) << "Input should either be a tensor or a variable!";
+      stream << GetVarID(var);
+    }
   }
   stream << "):\n";
   indent_ += tab_;
@@ -405,9 +411,9 @@ TVM_REGISTER_GLOBAL("hybrid.dump")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     CodeGenHybrid codegen;
     if (args.size() == 4)
-      codegen.DumpSchedule(args[0], args[1], args[2], args[3]);
+      codegen.DumpStmt(args[0], args[1], args[2], args[3]);
     else
-      codegen.DumpSchedule(args[0], args[1], args[2]);
+      codegen.DumpStmt(args[0], args[1], args[2]);
     *rv = codegen.Finish();
   });
 }  // namespace contrib

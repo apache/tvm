@@ -37,7 +37,7 @@ class CodeGenHybrid :
    * \param outputs Output tensors of this schedule.
    * \param name The name of the function.
    */
-  void DumpSchedule(const Stmt &stmt, const Array<Tensor> &inputs, const Array<Tensor> &outputs, const std::string &name = "hybrid_func");
+  void DumpStmt(const Stmt &stmt, const Array<NodeRef> &inputs, const Array<Tensor> &outputs, const std::string &name = "hybrid_func");
   /*!
    * \brief Finalize the compilation and return the code.
    * \return The code.
@@ -120,7 +120,7 @@ class CodeGenHybrid :
   /*! \brief The current indent of the code dump. */
   int indent_{0};
   /*! \brief The tab size of code indent. */
-  const int tab_{2};
+  const int tab_{4};
   /*! \brief Print the current indent spaces. */
   inline void PrintIndent();
   /*! \brief Keys are ids allocated, and values are the suffix to prevent double-name.  */

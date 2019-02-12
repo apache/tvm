@@ -15,11 +15,11 @@ class HybridModule(object):
     lowered. This contradicts to the fact that Hybrid Module is originally a text
     format for Phase 0 HalideIR. Thus, a totally separated module is defined."""
 
-    def __init__(self):
-        pass
+    def __init__(self, src):
+        self.src_ = src
 
     def __call__(self):
         pass
 
     def get_source(self):
-        pass
+        return self.src_
