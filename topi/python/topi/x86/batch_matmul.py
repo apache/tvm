@@ -49,7 +49,6 @@ def schedule_batch_matmul(outs):
             s[CC].fuse(y, x)
             s[CC].vectorize(s[CC].op.axis[0])
             s[C].pragma(bxyo, 'auto_unroll_max_step', 16)
-    
+
     traverse_inline(s, outs[0].op, _callback)
-    
     return s
