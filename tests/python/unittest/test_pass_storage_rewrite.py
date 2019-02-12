@@ -495,13 +495,10 @@ def test_large_input():
     c = tvm.compute(shape, lambda i, j: 1 + c[i, j])
     s = tvm.create_schedule(c.op)
     stmt = tvm.lower(s, [a, b, c], simple_mode=True)
-    num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
-            num_alloc[0] += 1
             assert n.extents[0].value == 268435456
     tvm.ir_pass.PostOrderVisit(stmt, verify)
-    assert num_alloc[0] == 1
 
 
 if __name__ == "__main__":
