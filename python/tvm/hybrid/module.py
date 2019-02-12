@@ -1,6 +1,8 @@
 """Methods and data structures to support dumping HalideIR to Hybrid Script.
 This allows users to do quick hack to generated HalideIR and cast it back to
 TVM modules.
+
+To enable this feature, you need to build with -DUSE_HYBRID_DUMP=ON.
 """
 
 import imp
