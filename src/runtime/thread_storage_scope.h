@@ -130,7 +130,7 @@ struct ThreadScope {
 };
 
 
-/*! \brief workload speccification */
+/*! \brief workload specification */
 struct ThreadWorkLoad {
   // array, first three are thread configuration.
   size_t work_size[6];
