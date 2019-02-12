@@ -22,13 +22,23 @@ class HybridModule(object):
 
 
     def __init__(self, src=None, name=None):
+        """The constructor of this a hybrid module
+
+        Parameters
+        ----------
+        src : str
+            The source code of this module
+
+        name : str
+            The name of this module
+        """
         self.src_ = self.name = self.func_ = self.root_ = None
         if src is not None:
             temp = util.tempdir()
             dst = temp.relpath("script.py")
             with open(dst, 'w') as f:
                 f.write("import tvm\n@tvm.hybrid.script\n%s" % src)
-            
+
             if name is not None:
                 self.name = name
             self.load(dst)
@@ -52,12 +62,21 @@ class HybridModule(object):
 
 
     def load(self, path):
+        """Load the module from a python file
+
+        Parameters
+        ----------
+        path : str
+            Path to the given python file
+        """
         with open(path, 'r') as f:
             self.src_ = f.read()
 
         src = self.src_
 
         class FindFunc(ast.NodeVisitor):
+            """ Find the function in module to be loaded module. """
+            #pylint: disable=invalid-name
             def __init__(self):
                 self.name = None
                 self.root = None
