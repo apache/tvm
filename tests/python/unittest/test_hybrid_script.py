@@ -1,4 +1,5 @@
-import tvm, inspect, sys, traceback, numpy, nose, types
+import tvm, inspect, sys, traceback, numpy, nose, types, os
+from tvm.contrib import util
 from tvm.hybrid import script
 from tvm.hybrid.runtime import HYBRID_GLOBALS
 
@@ -122,6 +123,10 @@ def test_outer_product():
     assert mul.b.name == 'b'
 
     func, ins, outs = run_and_check(outer_product, [n, m, a, b], {n: 99, m: 101})
+    temp = util.tempdir()
+    path = temp.relpath('%s.py' % func.name)
+    func.save(path)
+    func_ = tvm.hybrid.HybridModule().load(path)
     run_and_check(func, ins, {n: 99, m: 101}, outs=outs)
 
     for key, _ in HYBRID_GLOBALS.items():
@@ -717,7 +722,7 @@ def test_schedule():
     sch = tvm.create_schedule(c.op)
     sch[c].split(c.op.axis[0], 3)
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    run_and_check(outer_product, [a, b], sch=sch, outs=[c])
+    func, ins, outs = run_and_check(outer_product, [a, b], sch=sch, outs=[c])
     run_and_check(func, ins, outs=outs)
 
     # Test loop binds

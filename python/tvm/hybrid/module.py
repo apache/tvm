@@ -5,6 +5,7 @@ TVM modules.
 To enable this feature, you need to build with -DUSE_HYBRID_DUMP=ON.
 """
 
+import ast
 import imp
 
 from ..contrib import util
@@ -20,22 +21,22 @@ class HybridModule(object):
     format for Phase 0 HalideIR. Thus, a totally separated module is defined."""
 
 
-    def __init__(self, src, name):
-        temp = util.tempdir()
-        dst = temp.relpath(name)
-        self.src_ = src
-        with open(dst, 'w') as f:
-            f.write("import tvm\n@tvm.hybrid.script\n%s" % src)
-        py_module = imp.load_source(name, dst)
-        _internal_assert(hasattr(py_module, name), \
-                         "The loaded source has no given function!")
-        self.func_ = getattr(py_module, name)
-        _internal_assert(callable(self.func_), "This should be a function! At least callable!")
+    def __init__(self, src=None, name=None):
+        self.src_ = self.name = self.func_ = self.root_ = None
+        if src is not None:
+            temp = util.tempdir()
+            dst = temp.relpath("script.py")
+            with open(dst, 'w') as f:
+                f.write("import tvm\n@tvm.hybrid.script\n%s" % src)
+            
+            if name is not None:
+                self.name = name
+            self.load(dst)
 
 
     def __call__(self, *args):
         if _is_tvm_arg_types(args):
-            return source_to_op(self.src_, globals(), args)
+            return source_to_op(self.root_, globals(), args)
         return self.func_(*args)
 
 
@@ -48,3 +49,33 @@ class HybridModule(object):
             path = path + '.py'
         with open(path, 'w') as f:
             f.write(self.src_)
+
+
+    def load(self, path):
+        with open(path, 'r') as f:
+            self.src_ = f.read()
+
+        src = self.src_
+
+        class FindFunc(ast.NodeVisitor):
+            def __init__(self):
+                self.name = None
+                self.root = None
+
+
+            def visit_FunctionDef(self, node):
+                _internal_assert(self.name is None, "For now, only one function supported!")
+                self.name = node.name
+                _internal_assert(self.root is None, "For now, only one function supported!")
+                self.root = node
+
+        root = ast.parse(src)
+        finder = FindFunc()
+        finder.visit(root)
+        _internal_assert(finder.name is not None and finder.root is not None, \
+                         "No function found!")
+        if self.name is None:
+            self.name = finder.name
+        self.root_ = finder.root
+        py_module = imp.load_source(self.name, path)
+        self.func_ = getattr(py_module, self.name)

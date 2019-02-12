@@ -19,7 +19,7 @@ from .._ffi.base import decorate
 from .._ffi.function import _init_api
 from ..build_module import form_body
 
-from . import module
+from .module import HybridModule
 from .parser import source_to_op
 from .util import _pruned_source
 
@@ -74,7 +74,7 @@ def build(sch, inputs, outputs, name="hybrid_func"):
     stmt = form_body(sch)
     src = _Dump(stmt, inputs, outputs, name)
 
-    return module.HybridModule(src, name)
+    return HybridModule(src, name)
 
 
 _init_api("tvm.hybrid")

@@ -515,8 +515,9 @@ def parse_python(src, symbols, args):
 
     Parameters
     ----------
-    src : str
-        The source code of the function to be parsed.
+    src : ast.node or str
+        If an ast.node, then directly lower it.
+        If a str, then parse it to ast and lower it.
 
     symbols : str
         The symbol list of the global context of the function.
@@ -531,7 +532,8 @@ def parse_python(src, symbols, args):
     root : Stmt
         The result Halide IR and the parser class instance.
     """
-    root = ast.parse(src)
+    root = ast.parse(src) if isinstance(src, str) else src
+    _internal_assert(root, ast.AST)
     var_usage = determine_variable_usage(root, args, symbols)
     parser = HybridParser(args, var_usage, symbols)
     parser.parsed_body = parser.visit(root)
@@ -544,8 +546,9 @@ def source_to_op(src, symbols, args):
 
     Parameters
     ----------
-    src : str
-        The source code of the function to be parsed.
+    src : ast.node or str
+        If an ast.node, then directly lower it.
+        If a str, then parse it to ast and lower it.
 
     symbols : str
         The symbol list of the global context of the function.
