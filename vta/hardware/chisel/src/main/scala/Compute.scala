@@ -77,33 +77,34 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val push = state === s_PUSH
   val done = state === s_DONE
 
-  // counters
-  val uop_cntr_max = 1
-  val uop_cntr_en = (opcode_load_en && memory_type_uop_en && insn_valid)
-  val uop_cntr_wait = io.uops.waitrequest
-  val uop_cntr_val = Reg(UInt(16.W))
-  val uop_cntr_wrap = ((uop_cntr_val === uop_cntr_max.U) && uop_cntr_en && busy)
-
-  val acc_cntr_max = 8 * 4
-  val acc_cntr_en = (opcode_load_en && memory_type_acc_en && insn_valid)
-  val acc_cntr_wait = io.biases.waitrequest
-  val acc_cntr_val = Reg(UInt(16.W))
-  val acc_cntr_wrap = ((acc_cntr_val === acc_cntr_max.U) && acc_cntr_en && busy)
-
-  val out_cntr_max = 8
-  val out_cntr_en = ((opcode_alu_en || opcode_gemm_en) && insn_valid)
-  val out_cntr_wait = io.out_mem.waitrequest
-  val out_cntr_val = Reg(UInt(16.W))
-  val out_cntr_wrap = ((out_cntr_val === out_cntr_max.U) && out_cntr_en && busy)
-
   // uops / biases / out_mem
   val uops_read   = Reg(Bool())
   val uops_data   = Reg(UInt(32.W))
 
   val biases_read = Reg(Bool())
-  val biases_data = Reg(Vec((block_out * acc_width) / 128 + 1, UInt(128.W)))
+  val biases_bits = block_out * acc_width
+  val biases_data = Reg(Vec(biases_bits / 128 + 1, UInt(128.W)))
 
   val out_mem_write  = RegInit(false.B)
+
+  // counters
+  val uop_cntr_max = x_size
+  val uop_cntr_en = (opcode_load_en && memory_type_uop_en && insn_valid)
+  val uop_cntr_wait = io.uops.waitrequest
+  val uop_cntr_val = Reg(UInt(16.W))
+  val uop_cntr_wrap = ((uop_cntr_val === uop_cntr_max) && uop_cntr_en && busy)
+
+  val acc_cntr_max = x_size * (biases_bits / 128).U
+  val acc_cntr_en = (opcode_load_en && memory_type_acc_en && insn_valid)
+  val acc_cntr_wait = io.biases.waitrequest
+  val acc_cntr_val = Reg(UInt(16.W))
+  val acc_cntr_wrap = ((acc_cntr_val === acc_cntr_max) && acc_cntr_en && busy)
+
+  val out_cntr_max = 8.U // x_size
+  val out_cntr_en = ((opcode_alu_en || opcode_gemm_en) && insn_valid)
+  val out_cntr_wait = io.out_mem.waitrequest
+  val out_cntr_val = Reg(UInt(16.W))
+  val out_cntr_wrap = ((out_cntr_val === out_cntr_max) && out_cntr_en && busy)
 
   // dependency queue status
   val pop_prev_dep_ready = RegInit(false.B)
@@ -119,8 +120,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   when ((uops_read   && uop_cntr_wrap) ||
         (biases_read && acc_cntr_wrap) ||
         (out_cntr_en && out_cntr_wrap)) {
-    when ((push_prev_dep && !push_prev_dep_ready) ||
-          (push_next_dep && !push_next_dep_ready)) {
+    when (push_prev_dep || push_next_dep) {
       state := s_PUSH
     } .otherwise {
       state := s_DONE
@@ -128,12 +128,13 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   }
 
   // dependency queue processing
+  when (busy && (!pop_prev_dep_ready && !pop_next_dep_ready) && (pop_prev_dep || pop_next_dep)) { state := s_DUMP }
   when (dump && ( pop_prev_dep_ready ||  pop_next_dep_ready)) { state := s_BUSY }
   when (push && (push_prev_dep_ready || push_next_dep_ready)) { state := s_DONE }
 
   // dependency queue processing
-  io.l2g_dep_queue.ready := pop_prev_dep_ready
-  io.s2g_dep_queue.ready := pop_next_dep_ready
+  io.l2g_dep_queue.ready := pop_prev_dep_ready && dump
+  io.s2g_dep_queue.ready := pop_next_dep_ready && dump
   io.l2g_dep_queue.data <> DontCare
   io.s2g_dep_queue.data <> DontCare
   when (pop_prev_dep && dump && io.l2g_dep_queue.valid) {
@@ -154,13 +155,13 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   }
 
   // setup counters
-  when (uops_read && !uop_cntr_wait && busy && uop_cntr_val < uop_cntr_max.U) {
+  when (uops_read && !uop_cntr_wait && busy && uop_cntr_val < uop_cntr_max) {
     uop_cntr_val := uop_cntr_val + 1.U
   }
-  when (biases_read && !acc_cntr_wait && busy && acc_cntr_val < acc_cntr_max.U) {
+  when (biases_read && !acc_cntr_wait && busy && acc_cntr_val < acc_cntr_max) {
     acc_cntr_val := acc_cntr_val + 1.U
   }
-  when (out_mem_write && !out_cntr_wait && busy && out_cntr_val < out_cntr_max.U) {
+  when (out_mem_write && !out_cntr_wait && busy && out_cntr_val < out_cntr_max) {
     out_cntr_val := out_cntr_val + 1.U
   }
 
@@ -174,12 +175,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
     pop_next_dep_ready := false.B
     push_prev_dep_ready := false.B
     push_next_dep_ready := false.B
-    when ((pop_prev_dep && !pop_prev_dep_ready) ||
-          (pop_next_dep && !pop_next_dep_ready)) {
-      state := s_DUMP
-    } .otherwise {
-      state := s_BUSY
-    }
+    state := s_BUSY
   } .otherwise {
     insn := insn
   }
@@ -214,8 +210,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   io.biases.write <> DontCare
   io.biases.writedata <> DontCare
   when (biases_read && !acc_cntr_wait) {
-    biases_data(acc_cntr_val % ((block_out * acc_width) / 128).U) := io.biases.readdata
-    when (((acc_cntr_val) % ((block_out * acc_width) / 128).U) === 0.U) {
+    biases_data(acc_cntr_val % (biases_bits / 128).U) := io.biases.readdata
+    when ((acc_cntr_val % (biases_bits / 128).U) === 0.U) {
       acc_mem(acc_sram_addr) := Cat(biases_data.init.reverse)
     }
   }
@@ -240,8 +236,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val src_idx = uop(uop_alu_1_1, uop_alu_1_0) + src_offset_in
 
   // build alu
-  val dst_vector = Reg(UInt((block_out * acc_width).W)) // RegNext(acc_mem(dst_idx))
-  val src_vector = Reg(UInt((block_out * acc_width).W)) // RegNext(acc_mem(src_idx))
+  val dst_vector = Reg(UInt(biases_bits.W)) // RegNext(acc_mem(dst_idx))
+  val src_vector = Reg(UInt(biases_bits.W)) // RegNext(acc_mem(src_idx))
   when (out_mem_write && !out_cntr_wait) {
     dst_vector := acc_mem(dst_idx + 1.U)
     src_vector := acc_mem(src_idx + 1.U)
