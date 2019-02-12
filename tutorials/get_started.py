@@ -202,16 +202,16 @@ print(temp.listdir())
 # .. note:: Module Storage Format
 #
 #   The CPU(host) module is directly saved as a shared library(so).
-#   There can be multiple customed format on the device code.
+#   There can be multiple customized format on the device code.
 #   In our example, device code is stored in ptx, as well as a meta
-#   data json file. They can be loaded and linked seperatedly via import.
+#   data json file. They can be loaded and linked separately via import.
 #
 
 ######################################################################
 # Load Compiled Module
 # --------------------
 # We can load the compiled module from the file system and run the code.
-# The following code load the host and device module seperatedly and
+# The following code load the host and device module separately and
 # re-link them together. We can verify that the newly loaded function works.
 #
 fadd1 = tvm.module.load(temp.relpath("myadd.so"))
@@ -229,7 +229,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 ######################################################################
 # Pack Everything into One Library
 # --------------------------------
-# In the above example, we store the device and host code seperatedly.
+# In the above example, we store the device and host code separately.
 # TVM also supports export everything as one shared library.
 # Under the hood, we pack the device modules into binary blobs and link
 # them together with the host code.
