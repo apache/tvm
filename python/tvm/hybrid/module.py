@@ -6,6 +6,8 @@ TVM modules.
 import imp
 from ..contrib import util
 from .util import _internal_assert
+from .util import _is_tvm_arg_types
+from .parser import source_to_op
 
 
 class HybridModule(object):
@@ -18,9 +20,9 @@ class HybridModule(object):
     def __init__(self, src, name):
         temp = util.tempdir()
         dst = temp.relpath(name)
-        self.src_ = 'import tvm\n@tvm.hybrid.script\n%s' % src
+        self.src_ = src
         with open(dst, 'w') as f:
-            f.write(self.src_)
+            f.write("import tvm\n@tvm.hybrid.script\n%s" % src)
         py_module = imp.load_source(name, dst)
         _internal_assert(hasattr(py_module, name), \
                          "The loaded source has no given function!")
@@ -29,6 +31,8 @@ class HybridModule(object):
 
 
     def __call__(self, *args):
+        if _is_tvm_arg_types(args):
+            return source_to_op(self.src_, globals(), args)
         return self.func_(*args)
 
 

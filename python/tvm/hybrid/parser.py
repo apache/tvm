@@ -17,6 +17,7 @@ from ..api import all as _all
 from ..api import any as _any
 from ..container import Array
 from ..tensor import Tensor, Operation
+from .. import _api_internal as _tvm_internal
 from .. import expr as _expr
 from .. import stmt as _stmt
 from .. import make as _make
@@ -517,7 +518,7 @@ def parse_python(src, symbols, args):
     src : str
         The source code of the function to be parsed.
 
-    src : str
+    symbols : str
         The symbol list of the global context of the function.
 
     args : list of Tensors or Vars
@@ -536,3 +537,36 @@ def parse_python(src, symbols, args):
     parser.parsed_body = parser.visit(root)
     _internal_assert(parser.returned, 'No valid return found in the function body!')
     return parser
+
+
+def source_to_op(src, symbols, args):
+    """Another level of wrapper
+
+    Parameters
+    ----------
+    src : str
+        The source code of the function to be parsed.
+
+    symbols : str
+        The symbol list of the global context of the function.
+
+    args : list of Tensors or Vars
+        The argument lists to the function.
+        It is NOT encouraged to write a function without arguments.
+        It is NOT encouraged to write a function with side effect.
+
+    Returns
+    -------
+    res : list of output tensors
+        The result of output tensors of the formed OpNode.
+    """
+    parser = parse_python(src, symbols, args)
+
+    input_tensors = []
+    for i in args:
+        if isinstance(i, Tensor):
+            input_tensors.append(i)
+    op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors,
+                                 parser.outputs, parser.parsed_body)
+    res = [op.output(i) for i in range(len(parser.outputs))]
+    return res[0] if len(res) == 1 else res

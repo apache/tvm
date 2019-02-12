@@ -57,7 +57,8 @@ void CodeGenHybrid::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT
   os << "(" << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
-  os << std::setprecision(20) << op->value;
+  PrintType(op->type, os);
+  os << "(" << std::setprecision(20) << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
   os << "\"" << op->value << "\"";
