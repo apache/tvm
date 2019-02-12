@@ -191,7 +191,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val uop_mem_write_en = (opcode_load_en && (memory_type === mem_id_uop.U))
   val uop_dram_addr = (dram_idx + uop_cntr_val) << log2Ceil(uop_width / 8).U
   val uop_sram_addr = (sram_idx + uop_cntr_val) 
-  uops_read := uop_cntr_en && !uop_cntr_wrap
+  uops_read := uop_cntr_en && !uop_cntr_wrap && busy
   io.uops.read := uops_read
   io.uops.address := uop_dram_addr
   io.uops.write <> DontCare
@@ -202,8 +202,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   uop_mem(uop_sram_addr) := uops_data
 
   // fetch biases
-  val acc_dram_addr = (((dram_idx + y_offset + x_pad_0) * batch.U + acc_cntr_val) << 4.U)
-  val acc_sram_addr = (((sram_idx + y_offset + x_pad_0) * batch.U + acc_cntr_val) >> 2.U) - 1.U
+  val acc_dram_addr = ((((dram_idx + y_offset + x_pad_0) << 2.U) * batch.U + acc_cntr_val) << 4.U)
+  val acc_sram_addr = ((((sram_idx + y_offset + x_pad_0) << 2.U) * batch.U + acc_cntr_val) >> 2.U) - 1.U
   biases_read := acc_cntr_en && !done
   io.biases.address := acc_dram_addr
   io.biases.read := biases_read
