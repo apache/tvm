@@ -62,6 +62,7 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     module_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))]
     module_outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     h_module = tvm.hybrid.build(sch, module_args, module_outs)
+
     return h_module, module_args, module_outs
 
 @script
@@ -207,9 +208,6 @@ def test_fanout():
     assert write.value.args[0].value == 0
 
     func, ins, outs = run_and_check(fanout, [n, a], {n: 10})
-    print(func.get_source())
-    print(ins)
-    print(outs)
     run_and_check(func, ins, {n: 10}, outs=outs)
 
 

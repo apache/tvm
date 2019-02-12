@@ -130,4 +130,4 @@ def likely(func_id, args):
     _internal_assert(args.__len__() == 1, \
                      "Only one expression can be likely")
     _internal_assert(func_id == "likely", "This function cannot be directly invoked!")
-    return call_pure_intrin(args[0].dtype, 'likely', args)
+    return call_pure_intrin(args[0].dtype, 'likely', *args)

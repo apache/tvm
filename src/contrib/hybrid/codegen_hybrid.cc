@@ -312,6 +312,14 @@ void CodeGenHybrid::VisitStmt_(const For* op) {
   indent_ -= tab_;
 }
 
+bool is_noop(const Stmt &stmt) {
+  if (!stmt.defined())
+    return true;
+  if (auto eval = stmt.as<Evaluate>())
+    return is_const(eval->value);
+  return false;
+}
+
 void CodeGenHybrid::VisitStmt_(const IfThenElse* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
@@ -320,7 +328,7 @@ void CodeGenHybrid::VisitStmt_(const IfThenElse* op) {
   PrintStmt(op->then_case);
   indent_ -= tab_;
 
-  if (op->else_case.defined()) {
+  if (!is_noop(op->else_case)) {
     PrintIndent();
     stream << "else:\n";
     indent_ += tab_;
