@@ -3,8 +3,8 @@
  * \file codegen_hybrid.h
  * \brief Common utilities to generated C style code.
  */
-#ifndef TVM_CODEGEN_CODEGEN_HYBRID_H_
-#define TVM_CODEGEN_CODEGEN_HYBRID_H_
+#ifndef TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
+#define TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
@@ -13,8 +13,8 @@
 #include <tvm/schedule.h>
 #include <string>
 #include <vector>
+#include <map>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace tvm {
 namespace contrib {
@@ -37,7 +37,8 @@ class CodeGenHybrid :
    * \param outputs Output tensors of this schedule.
    * \param name The name of the function.
    */
-  void DumpStmt(const Stmt &stmt, const Array<NodeRef> &inputs, const Array<Tensor> &outputs, const std::string &name = "hybrid_func");
+  void DumpStmt(const Stmt &stmt, const Array<NodeRef> &inputs, const Array<Tensor> &outputs,
+                const std::string &name = "hybrid_func");
   /*!
    * \brief Finalize the compilation and return the code.
    * \return The code.
@@ -153,4 +154,4 @@ class CodeGenHybrid :
 
 }  // namespace contrib
 }  // namespace tvm
-#endif  // TVM_CODEGEN_CODEGEN_HYBRID_H_
+#endif  // TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_

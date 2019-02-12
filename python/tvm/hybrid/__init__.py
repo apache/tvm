@@ -22,6 +22,7 @@ from ..tensor import Tensor
 
 from .parser import parse_python
 from .util import _pruned_source
+from .module import HybridModule as Module
 
 
 def script(pyfunc):

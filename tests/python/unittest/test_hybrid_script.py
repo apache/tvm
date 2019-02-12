@@ -46,7 +46,8 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     stmt = tvm.build_module.form_body(sch)
     true_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))]
     true_outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    print(tvm.hybrid.dump(stmt, true_args, true_outs))
+    src = tvm.hybrid.dump(stmt, true_args, true_outs)
+    hmodule = tvm.hybrid.Module(src, "hybrid_func")
 
     out_tensors = []
     for i in range(op.num_outputs):

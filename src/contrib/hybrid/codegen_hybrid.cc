@@ -78,6 +78,8 @@ inline void PrintBinaryExpr(const T* op,
   } else {
     os << '(';
     p->PrintExpr(op->a, os);
+    if (!strcmp(opstr, "&&")) opstr = "and";
+    if (!strcmp(opstr, "||")) opstr = "or";
     os << ' ' << opstr << ' ';
     p->PrintExpr(op->b, os);
     os << ')';
@@ -157,7 +159,7 @@ void CodeGenHybrid::VisitExpr_(const Or *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "||", os, this);
 }
 void CodeGenHybrid::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
-  os << '!';
+  os << "not ";
   PrintExpr(op->a, os);
 }
 
@@ -266,7 +268,7 @@ void CodeGenHybrid::VisitStmt_(const Realize *op) {
     }
     if (op->bounds.size() == 1) stream << ", ";
     stream << "), \"";
-    PrintType(op->type, stream); 
+    PrintType(op->type, stream);
     stream << "\", '";
     stream << alloc_storage_scope_[op->func] << "')\n";
   }
@@ -371,8 +373,7 @@ void CodeGenHybrid::DumpStmt(const Stmt &stmt,
                              const Array<NodeRef> &inputs,
                              const Array<Tensor> &outputs,
                              const std::string &name) {
-  stream << "@tvm.hybrid.script\n"
-         << "def " << name << "(";
+  stream << "def " << name << "(";
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (i) stream << ", ";
     if (auto tensor = inputs[i].as<TensorNode>()) {
