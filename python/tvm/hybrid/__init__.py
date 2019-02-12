@@ -19,6 +19,7 @@ from .._ffi.base import decorate
 from .._ffi.function import _init_api
 from .. import _api_internal as _tvm_internal
 from ..tensor import Tensor
+from ..build_module import form_body
 
 from .parser import parse_python
 from .util import _pruned_source
@@ -61,3 +62,30 @@ def script(pyfunc):
 
 
 _init_api("tvm.hybrid")
+
+
+def build(sch, inputs, outputs, name="hybrid_func"):
+    """Dump the corrent schedule to hybrid module
+
+    Parameters
+    ----------
+    sch: Schedule
+        The schedule to be dumped
+
+    inputs: An array of Tensors or Vars
+        The inputs of the function body
+
+    outputs: An array of Tensors
+        The outputs of the function body
+
+    Returns
+    -------
+    module: HybridModule
+        The built results is wrapped in a HybridModule.
+        The usage of HybridModule is roughly the same as normal TVM-built modules.
+    """
+
+    stmt = form_body(sch)
+    src = dump(stmt, inputs, outputs, name)
+
+    return Module(src, name)

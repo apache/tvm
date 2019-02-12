@@ -123,7 +123,10 @@ void CodeGenHybrid::VisitExpr_(const Mul *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
 void CodeGenHybrid::VisitExpr_(const Div *op, std::ostream& os) {  // NOLINT(*)
-  PrintBinaryExpr(op, "/", os, this);
+  if (op->type.is_int())
+    PrintBinaryExpr(op, "//", os, this);
+  else
+    PrintBinaryExpr(op, "/", os, this);
 }
 void CodeGenHybrid::VisitExpr_(const Mod *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
@@ -338,11 +341,7 @@ void CodeGenHybrid::VisitStmt_(const Evaluate *op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const ProducerConsumer *op) {
-  PrintIndent();
-  stream << "# producing " << op->func->func_name() << "\n";
   PrintStmt(op->body);
-  PrintIndent();
-  stream << "# produced " << op->func->func_name() << "\n";
 }
 
 void CodeGenHybrid::PrintIndent() {
@@ -350,23 +349,23 @@ void CodeGenHybrid::PrintIndent() {
 }
 
 std::string CodeGenHybrid::GetVarID(const Variable *v) {
-  auto node = v->GetNodePtr().get();
-  if (id_map_.count(node)) {
-    return id_map_[node];
+  auto key = std::make_pair(v->GetNodePtr().get(), 0);
+  if (id_map_.count(key)) {
+    return id_map_[key];
   }
-  return id_map_[node] = GetUniqueName(v->name_hint);
+  return id_map_[key] = GetUniqueName(v->name_hint);
 }
 
 std::string CodeGenHybrid::GetTensorID(const FunctionRef &func, int value_index) {
-  auto node = func.get();
-  if (id_map_.count(node)) {
-    return id_map_[node];
+  auto key = std::make_pair(func.get(), value_index);
+  if (id_map_.count(key)) {
+    return id_map_[key];
   }
   std::string name_hint = func->func_name();
   if (func->num_outputs() > 1) {
     name_hint += "_v" + std::to_string(value_index);
   }
-  return id_map_[node] = GetUniqueName(name_hint);
+  return id_map_[key] = GetUniqueName(name_hint);
 }
 
 void CodeGenHybrid::DumpStmt(const Stmt &stmt,

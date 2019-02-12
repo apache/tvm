@@ -17,19 +17,27 @@ class HybridModule(object):
 
     def __init__(self, src, name):
         temp = util.tempdir()
-        self.name_ = name
-        self.dst_ = temp.relpath(name)
-        self.src_ = 'import tvm\ntvm.hybrid.script\n%s' % src
-        with open(self.dst_, 'w') as f:
+        dst = temp.relpath(name)
+        self.src_ = 'import tvm\n@tvm.hybrid.script\n%s' % src
+        with open(dst, 'w') as f:
             f.write(self.src_)
-        self.py_module_ = imp.load_source(name, self.dst_)
-        _internal_assert(hasattr(self.py_module_, name), \
+        py_module = imp.load_source(name, dst)
+        _internal_assert(hasattr(py_module, name), \
                          "The loaded source has no given function!")
+        self.func_ = getattr(py_module, name)
+        _internal_assert(callable(self.func_), "This should be a function! At least callable!")
 
 
     def __call__(self, *args):
-        return getattr(self.py_module_, self.name_)(*args)
+        return self.func_(*args)
 
 
     def get_source(self):
         return self.src_
+    
+
+    def save(self, path):
+        if not path.endswith('.py'):
+            path = path + '.py'
+        with open(path, 'w') as f:
+            f.write(self.src_)

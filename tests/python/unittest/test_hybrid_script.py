@@ -22,15 +22,18 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
         assert isinstance(outs, list)
         op = outs[0].op
 
+    boot_args = []
     emu_args = []
     nd_args = []
     for i in args:
         if isinstance(i, tvm.tensor.Tensor):
             shape = [tvm_val_2_py_val(j) for j in i.shape]
             emu_args.append(numpy.random.randn(*shape).astype(i.dtype))
+            boot_args.append(emu_args[-1])
             nd_args.append(tvm.nd.array(emu_args[-1], ctx))
         elif isinstance(i, tvm.expr.Var):
             emu_args.append(tvm_val_2_py_val(i))
+            boot_args.append(emu_args[-1])
             nd_args.append(emu_args[-1])
         else:
             assert isinstance(i, list)
@@ -43,11 +46,9 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
                        target=target)
     assert module
 
-    stmt = tvm.build_module.form_body(sch)
     true_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))]
     true_outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    src = tvm.hybrid.dump(stmt, true_args, true_outs)
-    hmodule = tvm.hybrid.Module(src, "hybrid_func")
+    h_module = tvm.hybrid.build(sch, true_args, true_outs)
 
     out_tensors = []
     for i in range(op.num_outputs):
@@ -60,10 +61,17 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     if isinstance(ref_data, numpy.ndarray):
         ref_data = [ref_data]
 
+    boot_res = h_module(*boot_args)
+    if isinstance(boot_res, numpy.ndarray):
+        boot_res = [boot_res]
+
     module(*nd_args)
 
     for nd, np in zip(out_tensors, ref_data):
         tvm.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
+
+    for np0, np1 in zip(boot_res, ref_data):
+        tvm.testing.assert_allclose(np0, np1, rtol=1e-5, atol=1e-5)
 
 
 @script

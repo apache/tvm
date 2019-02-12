@@ -11,10 +11,11 @@
 #include <tvm/codegen.h>
 #include <tvm/lowered_func.h>
 #include <tvm/schedule.h>
-#include <string>
-#include <vector>
 #include <map>
+#include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace contrib {
@@ -127,7 +128,7 @@ class CodeGenHybrid :
   /*! \brief Keys are ids allocated, and values are the suffix to prevent double-name.  */
   std::map<std::string, int> ids_allocated_;
   /*! \brief Keys are either tensors or variables. Values are the corresponding IDs.*/
-  std::map<const Node *, std::string> id_map_;
+  std::map<std::pair<const Node *, int>, std::string> id_map_;
   /*!
    * \brief Find an unallocated name for the given prefix.
    * \param prefix The given prefix.
