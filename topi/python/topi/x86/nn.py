@@ -2,9 +2,6 @@
 """x86 nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
-from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity
-
 from .. import generic
 
 @generic.schedule_softmax.register(["cpu"])

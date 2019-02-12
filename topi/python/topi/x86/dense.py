@@ -5,7 +5,7 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 
-from .util import get_fp32_len, get_max_power2_factor
+from .util import get_fp32_len
 from .. import generic, tag, nn
 from ..util import traverse_inline, get_const_tuple
 
