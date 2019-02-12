@@ -100,7 +100,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val acc_cntr_val = Reg(UInt(16.W))
   val acc_cntr_wrap = ((acc_cntr_val === acc_cntr_max) && acc_cntr_en && busy)
 
-  val out_cntr_max = 8.U // x_size
+  val out_cntr_max = 8.U + 1.U // x_size
   val out_cntr_en = ((opcode_alu_en || opcode_gemm_en) && insn_valid)
   val out_cntr_wait = io.out_mem.waitrequest
   val out_cntr_val = Reg(UInt(16.W))
@@ -117,9 +117,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val gemm_queue_ready = RegInit(false.B)
 
   // update busy status
-  when ((uop_cntr_wrap) ||
-        (acc_cntr_wrap) ||
-        (out_cntr_wrap)) {
+  when (uop_cntr_wrap || acc_cntr_wrap || out_cntr_wrap) {
     when (push_prev_dep || push_next_dep) {
       state := s_PUSH
     } .otherwise {
@@ -237,11 +235,11 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val src_idx = uop(uop_alu_1_1, uop_alu_1_0) + src_offset_in
 
   // build alu
-  val dst_vector = Reg(UInt(biases_bits.W)) // RegNext(acc_mem(dst_idx))
-  val src_vector = Reg(UInt(biases_bits.W)) // RegNext(acc_mem(src_idx))
+  val dst_vector = Reg(UInt(biases_bits.W))
+  val src_vector = Reg(UInt(biases_bits.W))
   when (out_mem_write && !out_cntr_wait) {
-    dst_vector := acc_mem(dst_idx + 1.U)
-    src_vector := acc_mem(src_idx + 1.U)
+    dst_vector := acc_mem(dst_idx)
+    src_vector := acc_mem(src_idx)
   } .otherwise {
     dst_vector := dst_vector
     src_vector := src_vector
@@ -312,7 +310,10 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val alu_opcode_minmax_en = alu_opcode_min_en || alu_opcode_max_en
   val alu_opcode_add_en = (alu_opcode === alu_opcode_add.U)
   out_mem_write := opcode_alu_en && !out_cntr_wrap && busy
-  io.out_mem.address := dst_idx << 4.U
+  when (out_mem_write && (out_cntr_val === (out_cntr_max - 1.U)) && !out_cntr_wait) {
+    out_mem_write := false.B
+  }
+  io.out_mem.address := (dst_idx - 1.U) << 4.U
   io.out_mem.write := out_mem_write
   io.out_mem.read := DontCare
   io.out_mem.writedata := Mux(alu_opcode_minmax_en, Cat(short_cmp_res.init.reverse),
