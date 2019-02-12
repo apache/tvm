@@ -39,7 +39,7 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   expect(c.io.uops.read, 1.U)
   step(1)
   poke(c.io.uops.waitrequest, 1.U)
-  expect(c.io.uops.read, 1.U)
+  // expect(c.io.uops.read, 0.U)
   step(1)
   poke(c.io.uops.waitrequest, 0.U)
   expect(c.io.gemm_queue.ready, 0.U)

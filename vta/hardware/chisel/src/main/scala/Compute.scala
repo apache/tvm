@@ -117,9 +117,9 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val gemm_queue_ready = RegInit(false.B)
 
   // update busy status
-  when ((uops_read   && uop_cntr_wrap) ||
-        (biases_read && acc_cntr_wrap) ||
-        (out_cntr_en && out_cntr_wrap)) {
+  when ((uop_cntr_wrap) ||
+        (acc_cntr_wrap) ||
+        (out_cntr_wrap)) {
     when (push_prev_dep || push_next_dep) {
       state := s_PUSH
     } .otherwise {
@@ -198,6 +198,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   io.uops.writedata <> DontCare
   when (uops_read && !uop_cntr_wait) {
     uops_data := io.uops.readdata
+    when (uop_cntr_val === (uop_cntr_max - 1.U)) { uops_read := 0.U }
   }
   uop_mem(uop_sram_addr) := uops_data
 
