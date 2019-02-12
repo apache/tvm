@@ -7,6 +7,7 @@ echo set\(USE_CUDNN ON\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_GRAPH_RUNTIME ON\) >> config.cmake
+echo set\(USE_HYBRID_DUMP ON\) >> config.cmake
 echo set\(USE_BLAS openblas\) >> config.cmake
 mkdir -p build
 cd build

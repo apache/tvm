@@ -19,7 +19,7 @@ from .._ffi.base import decorate
 from .._ffi.function import _init_api
 from ..build_module import form_body
 
-from .module import HybridModule as Module
+from . import module
 from .parser import source_to_op
 from .util import _pruned_source
 
@@ -50,9 +50,6 @@ def script(pyfunc):
     return decorate(pyfunc, wrapped_func)
 
 
-_init_api("tvm.hybrid")
-
-
 def build(sch, inputs, outputs, name="hybrid_func"):
     """Dump the corrent schedule to hybrid module
 
@@ -77,4 +74,7 @@ def build(sch, inputs, outputs, name="hybrid_func"):
     stmt = form_body(sch)
     src = dump(stmt, inputs, outputs, name)
 
-    return Module(src, name)
+    return module.HybridModule(src, name)
+
+
+_init_api("tvm.hybrid")

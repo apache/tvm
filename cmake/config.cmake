@@ -132,5 +132,5 @@ set(USE_SORT OFF)
 # Build ANTLR parser for Relay text format
 set(USE_ANTLR OFF)
 
-# Build ANTLR parser for Relay text format
+# Build with hybrid dump
 set(USE_HYBRID_DUMP ON)

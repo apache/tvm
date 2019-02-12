@@ -10,10 +10,14 @@ namespace contrib {
 
 using namespace ir;
 
+std::string dot_to_underscore(std::string s) {
+  for (auto &ch : s)
+    if (ch == '.') ch = '_';
+  return s;
+}
+
 std::string CodeGenHybrid::GetUniqueName(std::string prefix) {
-  for (size_t i = 0; i < prefix.size(); ++i) {
-    if (prefix[i] == '.') prefix[i] = '_';
-  }
+  prefix = dot_to_underscore(prefix);
   auto it = ids_allocated_.find(prefix);
   if (it != ids_allocated_.end()) {
     while (true) {
@@ -61,7 +65,7 @@ void CodeGenHybrid::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT
   os << "(" << std::setprecision(20) << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
-  os << "\"" << op->value << "\"";
+  os << "'" << op->value << "'";
 }
 
 template<typename T>
@@ -251,14 +255,26 @@ void CodeGenHybrid::VisitStmt_(const LetStmt* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
-  // TODO(@were): Support thread and buffer binding
   if (op->attr_key == ir::attr::thread_extent) {
-    LOG(FATAL) << "Thread binding support yet!\n";
+    auto iter_var = op->node.as<IterVarNode>();
+    CHECK(iter_var);
+    binds_[iter_var->var.get()] = dot_to_underscore(iter_var->var->name_hint);
+    PrintIndent();
+    stream << "for " << binds_[iter_var->var.get()] << " in bind('"
+           << iter_var->var->name_hint << "', ";
+    PrintExpr(op->value, stream);
+    stream << "):\n";
+    indent_ += tab_;
+    PrintStmt(op->body);
+    indent_ -= tab_;
   } else if (op->attr_key == ir::attr::realize_scope) {
     auto v = FunctionRef(op->node.node_);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
+    PrintStmt(op->body);
+  } else {
+    // For now we ignore the unsupported AttrStmt
+    PrintStmt(op->body);
   }
-  PrintStmt(op->body);
 }
 
 void CodeGenHybrid::VisitStmt_(const Realize *op) {
@@ -271,9 +287,9 @@ void CodeGenHybrid::VisitStmt_(const Realize *op) {
       stream << PrintExpr(op->bounds[i]->extent);
     }
     if (op->bounds.size() == 1) stream << ", ";
-    stream << "), \"";
+    stream << "), '";
     PrintType(op->type, stream);
-    stream << "\", '";
+    stream << "', '";
     stream << alloc_storage_scope_[op->func] << "')\n";
   }
   PrintStmt(op->body);
@@ -358,6 +374,8 @@ void CodeGenHybrid::PrintIndent() {
 }
 
 std::string CodeGenHybrid::GetVarID(const Variable *v) {
+  if (binds_.count(v))
+    return binds_[v];
   auto key = std::make_pair(v->GetNodePtr().get(), 0);
   if (id_map_.count(key)) {
     return id_map_[key];
@@ -377,10 +395,53 @@ std::string CodeGenHybrid::GetTensorID(const FunctionRef &func, int value_index)
   return id_map_[key] = GetUniqueName(name_hint);
 }
 
+void CodeGenHybrid::ReserveKeywords() {
+  GetUniqueName("def");
+  GetUniqueName("for");
+  GetUniqueName("in");
+  GetUniqueName("range");
+  GetUniqueName("unroll");
+  GetUniqueName("const_range");
+  GetUniqueName("parallel");
+  GetUniqueName("vectorize");
+  GetUniqueName("bind");
+  GetUniqueName("threadIdx.x");
+  GetUniqueName("threadIdx.y");
+  GetUniqueName("threadIdx.z");
+  GetUniqueName("blockIdx.x");
+  GetUniqueName("blockIdx.y");
+  GetUniqueName("blockIdx.z");
+  GetUniqueName("allocate");
+  GetUniqueName("output_tensor");
+  GetUniqueName("sqrt");
+  GetUniqueName("log");
+  GetUniqueName("tanh");
+  GetUniqueName("power");
+  GetUniqueName("exp");
+  GetUniqueName("sigmoid");
+  GetUniqueName("popcount");
+  GetUniqueName("likely");
+  GetUniqueName("int8");
+  GetUniqueName("int16");
+  GetUniqueName("int32");
+  GetUniqueName("int64");
+  GetUniqueName("uint8");
+  GetUniqueName("uint16");
+  GetUniqueName("uint32");
+  GetUniqueName("uint64");
+  GetUniqueName("float16");
+  GetUniqueName("float32");
+  GetUniqueName("float64");
+  GetUniqueName("ceil_div");
+}
+
 void CodeGenHybrid::DumpStmt(const Stmt &stmt,
                              const Array<NodeRef> &inputs,
                              const Array<Tensor> &outputs,
                              const std::string &name) {
+  ReserveKeywords();
+  GetUniqueName(name);
+
   stream << "def " << name << "(";
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (i) stream << ", ";

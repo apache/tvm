@@ -450,7 +450,7 @@ def test_allocate():
         a = tvm.placeholder((256, ), dtype='float32', name='a')
         b = tvm.placeholder((256, ), dtype='float32', name='b')
         func, ins, outs = run_and_check(share_vec_add, [a, b], target='cuda')
-        run_and_check(func, ins, outs=outs)
+        run_and_check(func, ins, outs=outs, target='cuda')
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
 
