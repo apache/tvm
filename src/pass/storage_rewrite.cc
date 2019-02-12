@@ -550,8 +550,10 @@ class StoragePlanRewriter : public IRMutator {
         }
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
+          Expr sz = arith::ComputeReduce<Mul>(e->allocs[0]->extents,
+                                              make_const(Int(32), 1));
           e->new_alloc = Allocate::make(
-              e->alloc_var, alloc_type, e->allocs[0]->extents,
+              e->alloc_var, alloc_type, {sz},
               e->allocs[0]->condition, Evaluate::make(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
@@ -567,6 +569,11 @@ class StoragePlanRewriter : public IRMutator {
             auto nbits = op->type.bits() * op->type.lanes();
             if (const auto* imm = sz.as<IntImm>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
+                LOG(WARNING) << "The allocation requires : " << imm->value
+                             << " * " << nbits
+                             << " bits, which is greater than the maximum of "
+                                "int32. The size is cast to int64."
+                             << "\n";
                 sz = make_const(Int(64), imm->value);
               }
             }
