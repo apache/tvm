@@ -118,10 +118,11 @@ uint8 = uint16 = uint32 = uint64 = _cast #pylint: disable=invalid-name
 
 
 def ceil_div(func_id, args):
+    _internal_assert(func_id == "ceil_div", "This function cannot be directly invoked!")
     _internal_assert(args.__len__() == 2, \
                      "Only one expression can be cast")
-    for i in range(2):
-        _internal_assert(isinstance(args[i], _expr.Expr), "Only expressions can div")
+    _internal_assert(isinstance(args[0], _expr.Expr), "Only expressions can div")
+    _internal_assert(isinstance(args[1], _expr.Expr), "Only expressions can div")
     a, b = args[0], args[1]
     return (a + b - 1) / b
 

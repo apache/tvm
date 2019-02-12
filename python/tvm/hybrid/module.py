@@ -39,7 +39,7 @@ class HybridModule(object):
 
     def get_source(self):
         return self.src_
-    
+
 
     def save(self, path):
         if not path.endswith('.py'):

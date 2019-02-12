@@ -129,7 +129,9 @@ class CodeGenHybrid :
   inline void PrintIndent();
   /*! \brief Keys are ids allocated, and values are the suffix to prevent double-name.  */
   std::map<std::string, int> ids_allocated_;
-  /*! \brief Keys are either (tensors, value_index) or (variables, 0). Values are the corresponding IDs.*/
+  /*!
+   * \brief Keys are either (tensors, value_index) or (variables, 0).
+   *        Values are the corresponding IDs.*/
   std::map<std::pair<const Node *, int>, std::string> id_map_;
   /*! \brief Variables (keys) binded to the threads (values). */
   std::map<const Variable *, std::string> binds_;
