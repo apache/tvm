@@ -72,7 +72,7 @@ def build(sch, inputs, outputs, name="hybrid_func"):
     """
 
     stmt = form_body(sch)
-    src = dump(stmt, inputs, outputs, name)
+    src = _Dump(stmt, inputs, outputs, name)
 
     return module.HybridModule(src, name)
 

@@ -477,7 +477,7 @@ void CodeGenHybrid::DumpStmt(const Stmt &stmt,
   stream << "\n";
 }
 
-TVM_REGISTER_GLOBAL("hybrid.dump")
+TVM_REGISTER_GLOBAL("hybrid._Dump")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     CodeGenHybrid codegen;
     if (args.size() == 4)
