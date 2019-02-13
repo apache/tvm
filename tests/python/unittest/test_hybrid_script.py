@@ -1,6 +1,7 @@
-import tvm, inspect, sys, traceback, numpy, nose, types
+import tvm, inspect, sys, traceback, numpy, nose, types, os
+from tvm.contrib import util
 from tvm.hybrid import script
-from tvm.hybrid.intrin import HYBRID_GLOBALS
+from tvm.hybrid.runtime import HYBRID_GLOBALS
 
 @nose.tools.nottest
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
@@ -59,6 +60,11 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     for nd, np in zip(out_tensors, ref_data):
         tvm.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
 
+    module_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))]
+    module_outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    h_module = tvm.hybrid.build(sch, module_args, module_outs)
+
+    return h_module, module_args, module_outs
 
 @script
 def outer_product(n, m, a, b):
@@ -69,6 +75,7 @@ def outer_product(n, m, a, b):
     c = output_tensor((n, m), a.dtype)
     for i in range(n):
         for j in range(m):
+            assert i < n and j < m, "index out of range!"
             c[i, j] = a[i] * b[j]
     return c
 
@@ -100,6 +107,10 @@ def test_outer_product():
     assert ibody.extent.name == 'm'
     #Check loop body
     jbody = ibody.body
+    assert isinstance(jbody, tvm.stmt.AssertStmt)
+    assert isinstance(jbody.message, tvm.expr.StringImm)
+    assert jbody.message.value == "index out of range!"
+    jbody = jbody.body
     assert isinstance(jbody, tvm.stmt.Provide)
     assert jbody.func.name == 'c'
     assert len(jbody.args) == 2
@@ -111,8 +122,13 @@ def test_outer_product():
     assert mul.a.name == 'a'
     assert mul.b.name == 'b'
 
-
-    run_and_check(outer_product, [n, m, a, b], {n: 99, m: 101})
+    func, ins, outs = run_and_check(outer_product, [n, m, a, b], {n: 99, m: 101})
+    temp = util.tempdir()
+    path = temp.relpath('%s.py' % func.name)
+    func.save(path)
+    func_ = tvm.hybrid.HybridModule()
+    func_.load(path)
+    run_and_check(func_, ins, {n: 99, m: 101}, outs=outs)
 
     for key, _ in HYBRID_GLOBALS.items():
         assert key not in globals().keys()
@@ -197,7 +213,8 @@ def test_fanout():
     assert len(write.value.args) == 1
     assert write.value.args[0].value == 0
 
-    run_and_check(fanout, [n, a], {n: 10})
+    func, ins, outs = run_and_check(fanout, [n, a], {n: 10})
+    run_and_check(func, ins, {n: 10}, outs=outs)
 
 
 def test_looptype():
@@ -229,7 +246,8 @@ def test_looptype():
     assert jloop.for_type == tvm.stmt.For.Vectorized
     assert kloop.for_type == tvm.stmt.For.Unrolled
 
-    run_and_check(looptype, [a, b, c])
+    func, ins, outs = run_and_check(looptype, [a, b, c])
+    run_and_check(func, ins, outs=outs)
 
 
 def test_if():
@@ -248,7 +266,8 @@ def test_if():
 
     a = tvm.placeholder((10, ), dtype='int32', name='a')
 
-    run_and_check(if_then_else, [a])
+    func, ins, outs = run_and_check(if_then_else, [a])
+    run_and_check(func, ins, outs=outs)
 
     @script
     def if_triple_condition(a):
@@ -260,7 +279,8 @@ def test_if():
                 b[i] = a[i] + 1
         return b
 
-    run_and_check(if_triple_condition, [a])
+    func, ins, outs = run_and_check(if_triple_condition, [a])
+    run_and_check(func, ins, outs=outs)
 
     @script
     def if_and(a):
@@ -272,7 +292,8 @@ def test_if():
                 b[i] = a[i] + 1
         return b
 
-    run_and_check(if_and, [a])
+    func, ins, outs = run_and_check(if_and, [a])
+    run_and_check(func, ins, outs=outs)
 
 
 def test_bind():
@@ -288,7 +309,8 @@ def test_bind():
 
     a = tvm.placeholder((1000, ), dtype='float32', name='a')
     b = tvm.placeholder((1000, ), dtype='float32', name='b')
-    run_and_check(vec_add, [a, b], target='cuda')
+    func, ins, outs = run_and_check(vec_add, [a, b], target='cuda')
+    run_and_check(func, ins, outs=outs, target='cuda')
 
     @script
     def raw(a, b):
@@ -301,7 +323,8 @@ def test_bind():
     sch = tvm.create_schedule(c.op)
     x = tvm.thread_axis('threadIdx.x')
     sch[c].bind(c.op.axis[0], x)
-    run_and_check(raw, [a, b], sch=sch, outs=[c], target='cuda')
+    func, ins, outs = run_and_check(raw, [a, b], sch=sch, outs=[c], target='cuda')
+    run_and_check(func, ins, outs=outs, target='cuda')
 
     # Test loop binds
     @tvm.hybrid.script
@@ -318,7 +341,8 @@ def test_bind():
     b = [1, 2, 3, 4, 5]
     c = goo(a, tvm.convert(b))
     sch = tvm.create_schedule(c.op)
-    run_and_check(goo, [a, b], sch=sch, outs=[c])
+    func, ins, outs = run_and_check(goo, [a, b], sch=sch, outs=[c])
+    run_and_check(func, ins, outs=outs)
 
 def test_math_intrin():
     @script
@@ -379,7 +403,8 @@ def test_non_zero():
         return b
 
     a = tvm.placeholder((32, 32), 'float32', 'a')
-    run_and_check(blur, [a])
+    func, ins, outs = run_and_check(blur, [a])
+    run_and_check(func, ins, outs=outs)
 
     @tvm.hybrid.script
     def triangle(a, b):
@@ -392,7 +417,8 @@ def test_non_zero():
     a = tvm.placeholder((10, ), dtype='float32', name='a')
     b = tvm.placeholder((10, ), dtype='float32', name='b')
 
-    run_and_check(triangle, [a, b])
+    func, ins, outs = run_and_check(triangle, [a, b])
+    run_and_check(func, ins, outs=outs)
 
 def test_allocate():
     @tvm.hybrid.script
@@ -408,7 +434,10 @@ def test_allocate():
         return b
 
     a = tvm.placeholder((32, 32), 'float32', 'a')
-    run_and_check(blur2d, [a])
+    b = blur2d(a)
+    sch = tvm.create_schedule(b.op)
+    func, ins, outs = run_and_check(blur2d, [a])
+    run_and_check(func, ins, outs=outs)
 
     if tvm.gpu().exist:
         @tvm.hybrid.script
@@ -426,7 +455,8 @@ def test_allocate():
 
         a = tvm.placeholder((256, ), dtype='float32', name='a')
         b = tvm.placeholder((256, ), dtype='float32', name='b')
-        run_and_check(share_vec_add, [a, b], target='cuda')
+        func, ins, outs = run_and_check(share_vec_add, [a, b], target='cuda')
+        run_and_check(func, ins, outs=outs, target='cuda')
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
 
@@ -562,7 +592,8 @@ def test_func_call():
 
     a = tvm.placeholder((10, ), name='a')
     b = tvm.placeholder((10, ), name='b')
-    run_and_check(foo, [a, b])
+    func, ins, outs = run_and_check(foo, [a, b])
+    run_and_check(func, ins, outs=outs)
 
 def test_bool():
     @tvm.hybrid.script
@@ -576,27 +607,29 @@ def test_bool():
                 b[i] = 0.0
         return b
     a = tvm.placeholder((10, ), name='a')
-    run_and_check(foo, [a])
+    func, ins, outs = run_and_check(foo, [a])
+    run_and_check(func, ins, outs=outs)
 
 def test_const_range():
     @tvm.hybrid.script
     def foo(a, b):
         c = output_tensor(a.shape, a.dtype)
-        d = output_tensor(a.shape, a.dtype)
+        d = output_tensor(a.shape, 'int32')
 
         for i in const_range(2):
             for j in const_range(5):
-                c[i, j] = a[i, j] + b[i, j]
+                c[i, j] = float32(int32(a[i, j]) + b[i, j])
 
         for i in const_range(len(b)):
             for j in const_range(len(b[0])):
-                d[i, j] = a[i, j] + b[i, j]
+                d[i, j] = int32(a[i, j] + b[i, j])
 
         return c, d
 
-    a = tvm.placeholder((2, 5), name='a', dtype='int32')
+    a = tvm.placeholder((2, 5), name='a', dtype='float32')
     b = [[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]]
-    run_and_check(foo, [a, b])
+    func, ins, outs = run_and_check(foo, [a, b])
+    run_and_check(func, ins, outs=outs)
 
     @tvm.hybrid.script
     def goo(a, b):
@@ -612,7 +645,8 @@ def test_const_range():
     b = [1, 2, 3, 4, 5]
     c = goo(a, tvm.convert(b))
     sch = tvm.create_schedule(c.op)
-    run_and_check(goo, [a, b])
+    func, ins, outs = run_and_check(goo, [a, b])
+    run_and_check(func, ins, outs=outs)
 
     @tvm.hybrid.script
     def hoo(a, b):
@@ -626,7 +660,8 @@ def test_const_range():
         return c
     a = tvm.placeholder((5, ), name='a', dtype='int32')
     b = [1, 2, 3, 4, 5]
-    run_and_check(hoo, [a, b])
+    func, ins, outs = run_and_check(hoo, [a, b])
+    run_and_check(func, ins, outs=outs)
 
 def test_schedule():
     @script
@@ -668,7 +703,8 @@ def test_schedule():
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'j.outer.inner'
     ir = ir.body
-    run_and_check(outer_product, [a, b], sch=sch, outs=[c])
+    func, ins, outs = run_and_check(outer_product, [a, b], sch=sch, outs=[c])
+    run_and_check(func, ins, outs=outs)
 
     # Test fuse
     sch = tvm.create_schedule(c.op)
@@ -680,13 +716,15 @@ def test_schedule():
     ir = ir.body
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'i.j.fused'
-    run_and_check(outer_product, [a, b], sch=sch, outs=[c])
+    func, ins, outs = run_and_check(outer_product, [a, b], sch=sch, outs=[c])
+    run_and_check(func, ins, outs=outs)
 
     # Test imperfect loop split
     sch = tvm.create_schedule(c.op)
     sch[c].split(c.op.axis[0], 3)
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    run_and_check(outer_product, [a, b], sch=sch, outs=[c])
+    func, ins, outs = run_and_check(outer_product, [a, b], sch=sch, outs=[c])
+    run_and_check(func, ins, outs=outs)
 
     # Test loop binds
 

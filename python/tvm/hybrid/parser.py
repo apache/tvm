@@ -17,28 +17,36 @@ from ..api import all as _all
 from ..api import any as _any
 from ..container import Array
 from ..tensor import Tensor, Operation
+from .. import _api_internal as _tvm_internal
 from .. import expr as _expr
+from .. import stmt as _stmt
 from .. import make as _make
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
 
 
-def pack_list_to_block(lst):
-    if len(lst) == 1:
+def concat_list_to_block(lst):
+    """Concatenate a list of Python IR nodes to HalideIR Block"""
+    n = len(lst)
+    if n == 1:
         return lst[0]
-    body = lst[0]
-    for i in lst[1:]:
-        body = _make.Block(body, i)
+    body = lst[n - 1]
+    for i in range(1, n):
+        stmt = lst[n - 1 - i]
+        if isinstance(stmt, _stmt.AssertStmt):
+            body = _make.AssertStmt(stmt.condition, stmt.message, body)
+        else:
+            body = _make.Block(stmt, body)
     return body
 
 
 def visit_list_to_block(visit, lst):
-    """Convert a list of Python IR nodes to HalideIR Block"""
+    """Visit and concatenate a list of Python IR nodes to HalideIR Block"""
     lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
     lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, util.make_nop())]
     if not lst:
         return util.make_nop()
-    return pack_list_to_block(lst)
+    return concat_list_to_block(lst)
 
 
 class Symbol(Enum):
@@ -441,7 +449,7 @@ class HybridParser(ast.NodeVisitor):
                 body = visit_list_to_block(self.visit, node.body)
                 body = self.wrap_up_realize(node, body)
                 bodies.append(body)
-            return pack_list_to_block(bodies)
+            return concat_list_to_block(bodies)
 
         elif iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
@@ -496,15 +504,22 @@ class HybridParser(ast.NodeVisitor):
         return node.s
 
 
+    def visit_Assert(self, node):
+        test = self.visit(node.test)
+        mesg = _api.convert(self.visit(node.msg))
+        return _make.AssertStmt(test, mesg, util.make_nop())
+
+
 def parse_python(src, symbols, args):
     """The helper function of calling the AST visitor
 
     Parameters
     ----------
-    src : str
-        The source code of the function to be parsed.
+    src : ast.node or str
+        If an ast.node, then directly lower it.
+        If a str, then parse it to ast and lower it.
 
-    src : str
+    symbols : str
         The symbol list of the global context of the function.
 
     args : list of Tensors or Vars
@@ -517,9 +532,44 @@ def parse_python(src, symbols, args):
     root : Stmt
         The result Halide IR and the parser class instance.
     """
-    root = ast.parse(src)
+    root = ast.parse(src) if isinstance(src, str) else src
+    _internal_assert(root, ast.AST)
     var_usage = determine_variable_usage(root, args, symbols)
     parser = HybridParser(args, var_usage, symbols)
     parser.parsed_body = parser.visit(root)
     _internal_assert(parser.returned, 'No valid return found in the function body!')
     return parser
+
+
+def source_to_op(src, symbols, args):
+    """Another level of wrapper
+
+    Parameters
+    ----------
+    src : ast.node or str
+        If an ast.node, then directly lower it.
+        If a str, then parse it to ast and lower it.
+
+    symbols : str
+        The symbol list of the global context of the function.
+
+    args : list of Tensors or Vars
+        The argument lists to the function.
+        It is NOT encouraged to write a function without arguments.
+        It is NOT encouraged to write a function with side effect.
+
+    Returns
+    -------
+    res : list of output tensors
+        The result of output tensors of the formed OpNode.
+    """
+    parser = parse_python(src, symbols, args)
+
+    input_tensors = []
+    for i in args:
+        if isinstance(i, Tensor):
+            input_tensors.append(i)
+    op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors,
+                                 parser.outputs, parser.parsed_body)
+    res = [op.output(i) for i in range(len(parser.outputs))]
+    return res[0] if len(res) == 1 else res

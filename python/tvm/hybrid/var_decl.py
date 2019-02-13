@@ -2,7 +2,7 @@
 
 import ast
 import sys
-from .intrin import HYBRID_GLOBALS
+from .runtime import HYBRID_GLOBALS
 from .util import _internal_assert
 
 
@@ -45,7 +45,7 @@ class PyVariableUsage(ast.NodeVisitor):
         _internal_assert(isinstance(node.func, ast.Name), "Function call should be an id")
         func_id = node.func.id
         _internal_assert(func_id in list(HYBRID_GLOBALS.keys()) + \
-                         ['range', 'max', 'min'] + \
+                         ['range', 'max', 'min', 'len'] + \
                          list(self.symbols.keys()), \
                          "Function call id not in intrinsics' list")
         for elem in node.args:
