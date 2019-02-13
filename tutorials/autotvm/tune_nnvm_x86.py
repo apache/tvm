@@ -1,6 +1,6 @@
 """
-Auto-tuning a convolutional network for x86 CPU
-====================================================
+Auto-tuning a convolutional network for x86 CPU (NNVM)
+======================================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_
 
 This is a tutorial about how to tune convolution neural network

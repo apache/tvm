@@ -1,6 +1,6 @@
 """
-Auto-tuning a convolutional network for Mobile GPU
-====================================================
+Auto-tuning a convolutional network for Mobile GPU (NNVM)
+=========================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 
 Auto-tuning for a specific device is critical for getting the best
