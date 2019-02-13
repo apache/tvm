@@ -6,10 +6,9 @@
  *
  * It helps to simplify pattern matching and rewrites.
  * All the patterns are generated via expression template during compile time,
- * so the result code should be as efficient as manually write pattern match code
- * using as cast and checks.
+ * so the result code should be as efficient as manually written pattern match code.
  *
- * The code below gives shows how to use the pattern matcher.
+ * The code below shows how to use the pattern matcher.
  *
  * \code
  *
@@ -19,13 +18,16 @@
  *  // The following code tries to match the declared pattern.
  *  // Match will fill the result of match into PVar if successful.
  *  // Note that z occurs twice in the pattern,
- *  // an equality check to ensure each occurance of z is equivalent
- *  // to each other.
+ *  // an equality check is performed to ensure each occurance of z
+ *  // is equivalent to each other.
  *  if (max(x + z, y + z).Match(expr)) {
  *    // Eval evaluates a pattern with the current matched value.
  *    return (max(x, y) + z).Eval();
  *  }
  * \endcode
+ *
+ * \note The pattern matcher is not threadsafe,
+ *       do not use the same PVar in multiple threads.
  */
 #ifndef TVM_ARITHMETIC_PATTERN_MATCH_H_
 #define TVM_ARITHMETIC_PATTERN_MATCH_H_
@@ -36,7 +38,7 @@
 namespace tvm {
 namespace arith {
 /*!
- * \brief Base cass of all the patterns.
+ * \brief Base class of all the patterns.
  *
  * There are two major member functions supported by each pattern.
  * - Match: checks if value matches the pattern.
@@ -94,6 +96,9 @@ class PEqualChecker<Expr> {
  * PVar is used as a "hole" in the pattern that can be matched.
  *
  * \tparam T the type of the hole.
+ *
+ * \note PVar is not thread safe.
+ *       Do not use the same PVar in multiple threads.
  */
 template<typename T>
 class PVar : public Pattern<PVar<T> > {
@@ -213,9 +218,7 @@ TVM_PATTERN_BINARY_OP(operator||, ir::Or);
 
 /*!
  * \brief Pattern not expression.
- * \tparam TCond The pattern type of the condition.
  * \tparam TA The pattern type of the true operand.
- * \tparam TB The pattern type of the false operand.
  */
 template<typename TA>
 class PNotExpr : public Pattern<PNotExpr<TA> > {
@@ -245,7 +248,7 @@ class PNotExpr : public Pattern<PNotExpr<TA> > {
 };
 
 template<typename TA>
-inline PNotExpr<TA> operator!(const TA& value) {
+inline PNotExpr<TA> operator!(const Pattern<TA>& value) {
   return PNotExpr<TA>(value.self());
 }
 
@@ -363,7 +366,7 @@ class PCastExpr :
  * \return The result pattern.
  *
  * \tparam DType The pattern type of type.
- * \tparam TA The pattern type of the true operand.
+ * \tparam TA The pattern type of value.
  */
 template<typename DType, typename TA>
 inline PCastExpr<DType, TA>
