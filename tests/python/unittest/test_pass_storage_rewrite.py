@@ -480,14 +480,14 @@ def test_replace_dataflow():
 def test_large_input():
     @tvm.hybrid.script
     def compute(a, b):
-        n = 8192
+        n = 16384
         c = output_tensor((n, n), 'int32')
         for i in range(n):
             for j in range(n):
                 c[i, j] = a[i, j] - b[i, j]
         return c
 
-    n = 8192
+    n = 16384
     shape = (n, n)
     a = tvm.placeholder(shape, name='a', dtype='int32')
     b = tvm.placeholder(shape, name='b', dtype='int32')
@@ -497,7 +497,7 @@ def test_large_input():
     stmt = tvm.lower(s, [a, b, c], simple_mode=True)
     def verify(n):
         if isinstance(n, tvm.stmt.Allocate):
-            assert n.extents[0].value == 67108864
+            assert n.extents[0].value == 268435456
     tvm.ir_pass.PostOrderVisit(stmt, verify)
 
 

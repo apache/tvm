@@ -571,10 +571,10 @@ class StoragePlanRewriter : public IRMutator {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
                 LOG(WARNING) << "The allocation requires : " << imm->value
                              << " * " << nbits
-                             << " bits, which is greater than the maximum of "
-                                "int32. The size is cast to uint32."
+                             << " bits, which is greater than the maximum of"
+                                " int32. The size is cast to int64."
                              << "\n";
-                sz = make_const(UInt(32), imm->value);
+                sz = make_const(Int(64), imm->value);
               }
             }
             // transform to bits
