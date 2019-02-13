@@ -184,7 +184,9 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   // response to done signal
   io.done.waitrequest := 0.U
-  io.done.readdata := RegNext(Mux(opcode_finish_en && io.done.read, 1.U, 0.U))
+  io.done.write <> DontCare
+  io.done.writedata <> DontCare
+  io.done.readdata := opcode_finish_en.asUInt
 
   // fetch uops
   val uop_mem_write_en = (opcode_load_en && (memory_type === mem_id_uop.U))

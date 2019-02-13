@@ -14,6 +14,7 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   val insn2 = "h7ffe4002000008000010000800200044".U
 
   val insn3 = "h00000008000800010000000010000190".U
+  val insn99= "h00000000000000000000000000000013".U
   
   def init_compute0() {
   poke(c.io.gemm_queue.valid, 0.U)
@@ -71,6 +72,37 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   step(1)
   expect(c.io.s2g_dep_queue.ready, 1.U)
   poke(c.io.s2g_dep_queue.valid, 0.U)
+  step(1)
+  }
+
+  def init_compute99() {
+  poke(c.io.gemm_queue.valid, 0.U)
+  poke(c.io.uops.readdata, 0.U)
+  step(1)
+
+  poke(c.io.uops.waitrequest, 1.U)
+  poke(c.io.gemm_queue.data, insn99)
+  poke(c.io.gemm_queue.valid, 1.U)
+  expect(c.io.gemm_queue.ready, 0.U)
+  step(1)
+  step(1)
+  expect(c.io.biases.read, 0.U)
+  step(1)
+
+  expect(c.io.s2g_dep_queue.ready, 0.U)
+  poke(c.io.s2g_dep_queue.data, 1.U)
+  poke(c.io.s2g_dep_queue.valid, 1.U)
+  step(1)
+  expect(c.io.s2g_dep_queue.ready, 1.U)
+  poke(c.io.s2g_dep_queue.valid, 0.U)
+  step(1)
+
+  poke(c.io.done.read, 1.U)
+  step(1)
+  poke(c.io.done.read, 0.U)
+  step(1)
+  step(1)
+  step(1)
   step(1)
   }
 
@@ -228,6 +260,9 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
 
   init_compute1()
   test_compute(0, BigInt("200", 16))
+
+  init_compute99()
+
 }
 
 class ComputeTester extends ChiselFlatSpec {
