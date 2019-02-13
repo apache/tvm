@@ -197,6 +197,20 @@ You can also do loop-thread bind by writing code like this:
        a[tx] = b[tx]
 
 
+Assert Statement
+~~~~~~~~~~~~~~~~
+
+Assert statement is supported, you can simply use it as it is in standard Python.
+
+.. code-block:: python
+
+    assert cond, mesg
+
+.. note::
+
+        ``Assert`` is NOT a function call. Users are encouraged to use assert in the way
+        presented above --- condition followed by message. It fits both Python AST and HalideIR.
+
 Keywords
 ~~~~~~~~
 - For keywords: ``serial``, ``range``, ``unroll``, ``parallel``, ``vectorize``, ``bind``, ``const_expr``

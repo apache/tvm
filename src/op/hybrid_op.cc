@@ -173,25 +173,28 @@ Stmt HybridOpNode::BuildProvide(
     rmap[outputs[i]] = stage->op.output(i);
   }
   auto n = make_node<HybridOpNode>(*this);
-  /*
-   * These two lines of codes replace tensors' reads & writes.
+  /* This is a story little bit complicated.
+   * The following two lines of codes replace output tensors' usage.
    * This is the simplest way I (@were) can come up with to glue
-   * hybrid scripts to the structure of TVM op.
-   * NAMING CONFLICT: In hybrid script all the tensors have their own 
-   * names specified by the users. However, In TVM op, all the output
-   * tensors' names are the same as the op's name. I cannot change the
-   * name to the op's name in the function body after the op node is
-   * formed, because:
-   *   1. Output tensors all point to the corresponding op node. 
-   *   2. Once OpNode is wrapped up by an Operation node, it can
-   *      no longer be changed.
+   * hybrid operation node to TVM op system.
+   * In hybrid script all the tensors, especially the output tensors,
+   * have their own names defined by the users. However, In TVM
+   * conventional ops:
+   *   1. Output tensors refer the corresponding op node so that the output
+   *      tensors have the same names as the operation produces them.
+   *   2. Once OpNode is wrapped up by an Operation node, it is finalized.
+   *      Later access will be from a const OpNode*.
    * This is a chiken-egg paradox. It is impossible to put the output
    * tensors into the function body without forming the op node. The
    * function body is immutable after the node is formed.
    *
    * Finally, I decided to resolve this issue "lazily". During the
-   * pipeline of compilation, these tensors will be replaced when
-   * forming the function body and passing to next stage of compilation.
+   * pipeline of compilation, this stage is a very preliminary stage.
+   * Technically, it is before Phase 0. The actual tensors will be replaced
+   * here.
+   * Thus, the operation body is slightly different from the Phase 0 body.
+   * This is a major difference that HybridOpNode is NOT the same as
+   * ExternOpNode.
    * */
   ret = op::ReplaceTensor(ret, rmap);
   ret = op::ReplaceProvideTensor(ret, rmap);
