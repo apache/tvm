@@ -3,9 +3,8 @@
 from __future__ import absolute_import as _abs
 import tvm
 
-from .util import get_max_power2_factor
 from .. import generic
-from ..util import traverse_inline, get_const_tuple
+from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
 
 @generic.schedule_batch_matmul.register(["cpu"])
