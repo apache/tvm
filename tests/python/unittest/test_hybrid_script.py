@@ -126,8 +126,9 @@ def test_outer_product():
     temp = util.tempdir()
     path = temp.relpath('%s.py' % func.name)
     func.save(path)
-    func_ = tvm.hybrid.HybridModule().load(path)
-    run_and_check(func, ins, {n: 99, m: 101}, outs=outs)
+    func_ = tvm.hybrid.HybridModule()
+    func_.load(path)
+    run_and_check(func_, ins, {n: 99, m: 101}, outs=outs)
 
     for key, _ in HYBRID_GLOBALS.items():
         assert key not in globals().keys()
