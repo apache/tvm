@@ -572,9 +572,9 @@ class StoragePlanRewriter : public IRMutator {
                 LOG(WARNING) << "The allocation requires : " << imm->value
                              << " * " << nbits
                              << " bits, which is greater than the maximum of "
-                                "int32. The size is cast to int64."
+                                "int32. The size is cast to uint32."
                              << "\n";
-                sz = make_const(Int(64), imm->value);
+                sz = make_const(UInt(32), imm->value);
               }
             }
             // transform to bits
