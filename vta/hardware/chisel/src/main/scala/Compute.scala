@@ -83,7 +83,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   val biases_read = Reg(Bool())
   val biases_bits = block_out * acc_width
-  val biases_data = Reg(Vec(biases_bits / 128 + 1, UInt(128.W)))
+  val biases_beats = biases_bits / 128
+  val biases_data = Reg(Vec(biases_beats + 1, UInt(128.W)))
 
   val out_mem_write  = RegInit(false.B)
 
@@ -94,7 +95,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val uop_cntr_val = Reg(UInt(16.W))
   val uop_cntr_wrap = ((uop_cntr_val === uop_cntr_max) && uop_cntr_en && busy)
 
-  val acc_cntr_max = x_size * (biases_bits / 128).U
+  val acc_cntr_max = x_size * biases_beats.U + 1.U
   val acc_cntr_en = (opcode_load_en && memory_type_acc_en && insn_valid)
   val acc_cntr_wait = io.biases.waitrequest
   val acc_cntr_val = Reg(UInt(16.W))
@@ -177,7 +178,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   } .otherwise {
     insn := insn
   }
-  gemm_queue_ready := io.gemm_queue.valid && (idle || done) // && insn_valid
+  gemm_queue_ready := io.gemm_queue.valid && (idle || done)
   io.gemm_queue.ready := gemm_queue_ready
   when (gemm_queue_ready) { gemm_queue_ready := false.B }
 
@@ -209,8 +210,11 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   io.biases.write <> DontCare
   io.biases.writedata <> DontCare
   when (biases_read && !acc_cntr_wait) {
-    biases_data(acc_cntr_val % (biases_bits / 128).U) := io.biases.readdata
-    when ((acc_cntr_val % (biases_bits / 128).U) === 0.U) {
+    biases_data(acc_cntr_val % biases_beats.U) := io.biases.readdata
+    // There is a delay between putting biases_readdata into biases_data,
+    // and putting concatenated biases_data into acc_mem,
+    // therefore, acc_cntr_max = x_size * beats + 1.
+    when ((acc_cntr_val % biases_beats.U) === 0.U) {
       acc_mem(acc_sram_addr) := Cat(biases_data.init.reverse)
     }
   }
@@ -240,9 +244,6 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   when (out_mem_write && !out_cntr_wait) {
     dst_vector := acc_mem(dst_idx)
     src_vector := acc_mem(src_idx)
-  } .otherwise {
-    dst_vector := dst_vector
-    src_vector := src_vector
   }
   val cmp_res       = Wire(Vec(block_out + 1, SInt(acc_width.W)))
   val short_cmp_res = Wire(Vec(block_out + 1, UInt(out_width.W)))

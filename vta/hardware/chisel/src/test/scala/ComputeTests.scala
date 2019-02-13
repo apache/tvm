@@ -169,6 +169,7 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   step(1)
   step(1)
   step(1)
+  step(1)
 
   step(1)
   step(1)

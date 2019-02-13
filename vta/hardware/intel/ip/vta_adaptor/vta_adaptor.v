@@ -22,7 +22,7 @@ module vta_adaptor (
 // configure ACP
 //=================================================
 // acp_cfg_master  
-,output  reg          acp_cfg_master_address
+,output  reg   [7:0]  acp_cfg_master_address
 ,input                acp_cfg_master_waitrequest
 ,output  reg          acp_cfg_master_write
 ,output  reg  [31:0]  acp_cfg_master_writedata
@@ -180,14 +180,14 @@ end
 
 always @(posedge clock_clk or posedge reset_reset) begin
   if (reset_reset) begin
-    cfg_state <= 8'h15;
+    cfg_state <= 8'h07;
   end
   else begin
     if (outputs_cfg_write) begin
      cfg_state <= 0;
     end
     if (!acp_cfg_master_waitrequest) begin
-      if (cfg_state == 8'h15) begin
+      if (cfg_state == 8'h07) begin
         cfg_state <= cfg_state;
       end
       else begin
@@ -239,21 +239,7 @@ always @(posedge clock_clk or posedge reset_reset) begin
       8'h04: begin acp_cfg_master_address <= 8'h14; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arprot ; end
       8'h05: begin acp_cfg_master_address <= 8'h18; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= aruser ; end
       8'h06: begin acp_cfg_master_address <= 8'h1C; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= 0      ; end
-      8'h07: begin acp_cfg_master_address <= 8'h20; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awcache; end
-      8'h08: begin acp_cfg_master_address <= 8'h24; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awprot ; end
-      8'h09: begin acp_cfg_master_address <= 8'h28; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awuser ; end
-      8'h0a: begin acp_cfg_master_address <= 8'h30; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arcache; end
-      8'h0b: begin acp_cfg_master_address <= 8'h34; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arprot ; end
-      8'h0c: begin acp_cfg_master_address <= 8'h38; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= aruser ; end
-      8'h0d: begin acp_cfg_master_address <= 8'h3C; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= 0      ; end
-      8'h0e: begin acp_cfg_master_address <= 8'h40; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awcache; end
-      8'h0f: begin acp_cfg_master_address <= 8'h44; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awprot ; end
-      8'h10: begin acp_cfg_master_address <= 8'h48; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= awuser ; end
-      8'h11: begin acp_cfg_master_address <= 8'h50; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arcache; end
-      8'h12: begin acp_cfg_master_address <= 8'h54; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= arprot ; end
-      8'h13: begin acp_cfg_master_address <= 8'h58; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= aruser ; end
-      8'h14: begin acp_cfg_master_address <= 8'h5C; acp_cfg_master_write <= 1; acp_cfg_master_writedata <= 0      ; end
-     8'h15: begin                                  acp_cfg_master_write <= 0; end
+      8'h07: begin                                  acp_cfg_master_write <= 0; end
     endcase
   end
 end
