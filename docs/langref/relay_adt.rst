@@ -489,6 +489,7 @@ single set of outputs. The following is a Relay implementation of that example:
 
 .. code_block:: python
 
+   # creates a list of tuples from two lists
    def @zip<a, b>(%l : List[a], %m : List[b]) -> List[(a, b)] {
      match(%l) {
        case Nil() { Nil() }
@@ -496,11 +497,18 @@ single set of outputs. The following is a Relay implementation of that example:
          match(%m) {
            case Nil() { Nil() }
            case Cons(%b, %t2) { Cons((%a, %b), @zip(%t1, %t2)) }
+         }
        }
      }
    }
 
-   # assume that map_accuml does the same as map_accumr as a left fold
+   # analogous to map_accumr
+   def @map_accmul(%f, %acc, %l) {
+     @foldl(fn(%p, %b){
+       let %f_out = %f(%p.0, %b);
+       (%f_out.0, Cons(%f_out.1, %p.1))
+     }, (%acc, Nil()), %l)
+   }
 
    def @bidirectional_rnn<state1_type, state2_type, in_type, out1_type, out2_type>
      (%cell1, %cell2, %state1 : state1_type, %state2 : state2_type, %input : List[in_type])
