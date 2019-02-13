@@ -188,7 +188,7 @@ inline Tensor reshape(const Tensor& x,
   auto x_shape = x->shape;
   return compute(
     newshape, [&](const Array<Var>& indices) {
-      return x(UnavelIndex(RavelIndex(indices, newshape), x_shape));
+      return x(UnravelIndex(RavelIndex(indices, newshape), x_shape));
     }, name, tag);
 }
 
@@ -566,7 +566,7 @@ inline Tensor take(const Tensor& a,
           for (size_t j = 0; j < indices->shape.size(); ++j) {
             indices_position.push_back(out_index[j]);
           }
-          return a(UnavelIndex(indices(indices_position), a_shape));
+          return a(UnravelIndex(indices(indices_position), a_shape));
         }, name, tag);
 }
 
