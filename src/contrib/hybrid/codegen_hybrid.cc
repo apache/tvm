@@ -411,6 +411,7 @@ void CodeGenHybrid::ReserveKeywords() {
   GetUniqueName("blockIdx.x");
   GetUniqueName("blockIdx.y");
   GetUniqueName("blockIdx.z");
+  GetUniqueName("vthread");
   GetUniqueName("allocate");
   GetUniqueName("output_tensor");
   GetUniqueName("sqrt");
