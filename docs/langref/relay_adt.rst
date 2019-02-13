@@ -360,6 +360,8 @@ The following right fold concatenates two lists:
 
 The following left fold flattens a list of lists (using concatenation):
 
+.. code_block:: python
+
   # directly written
   def @flatten<a>(%ll : List[List[a]]) -> List[a] {
     match(%ll) {
@@ -376,3 +378,132 @@ rather than being constructs built into the language (e.g.,
 `"foreach" in MXNet <https://mxnet.incubator.apache.org/versions/master/tutorials/control_flow/ControlFlowTutorial.html>`__).
 ADTs and their extensibility allow for a broad range of iterations and data structures to be expressed
 in Relay and supported by the type system without having to modify the language implementation.
+
+Implementing Neural Nets Using ADTs
+===================================
+
+In `this 2015 blog post <http://colah.github.io/posts/2015-09-NN-Types-FP/>`__, Christopher Olah notes that
+many neural networks can be easily expressed using common functional programming constructs. Relay's ADTs
+allow those examples to be implemented directly in TVM.
+
+First let us suppose that we have a function corresponding to a trained recurrent neural net (RNN)
+cell, which takes in a past state and an input value and returns a new state and output value. In
+Relay, this would have the following signature:
+
+.. code_block:: python
+
+   @cell : fn<state_type, in_type, out_type>(state_type, in_type) -> (state_type, out_type)
+
+We might consider a ReLU cell as a simple concrete example, with a trained version below:
+
+.. code_block:: python
+
+  def @linear(%x, %w, %b) { %w*%x + %b }
+
+  def @relu_cell(%w, # weights
+                 %b, # offsets
+                 %s, # state
+                 %x  # input
+  ) {
+    let %x2 = @linear(%x, %w.0, %b.0);
+    let %s2 = @linear(%s, %w.1, %b.1);
+    # doesn't change the state
+    (%s, nn.relu(%x2 + %s2))
+  }
+
+  # this is a higher-order function because it returns a closure
+  def @trained_cell(%w, %b) {
+    fn(%x, %h) { @relu_cell(%w, %b, %x, %h) }
+  }
+
+Following Olah's example, we can encode a sequence (list) of inputs with the following left fold:
+
+.. code_block:: python
+
+   def @encode<state_type, in_type, out_type>(%cell, %input : List[in_type], %init : state_type) -> state_type {
+     # not using the output
+     @foldl(fn(%state, %in) { %cell(%state, %in).0 }, %init, %input)
+   }
+
+Using an *unfold* iterator (from Haskell's standard library), the same cell could be used to make
+a generator network (which takes a single input and produces a sequence of outputs):
+
+.. code_block:: python
+
+   def @unfoldr<a, b>(%f : fn(b) -> Optional[(a, b)], %z : b) -> List[a] {
+     match(%f(%z)) {
+       case Some(%pair) { Cons(%pair.0, @unfoldr(%f, %pair.1)) }
+       case None() { Nil() }
+     }
+   }
+
+   # we need some way of generating an input to the cell function given only a state
+   def @gen_func<state_type, in_type, out_type>(%state : state_type) : Optional[(out_type, state_type)] {
+     let %in : Optional[in_type] = @generate_input(%state);
+     match(%in) {
+       case Some(%n) {
+         let %cell_out = @cell(%n, %state);
+         Some((%cell_out.1, %cell_out.0)) # pair of output and state
+       }
+       case None() { None() }
+     }
+   }
+
+   def @generator<state_type, in_type, out_type>(%cell, %init : state_type) -> List[out_type] {
+     @unfoldr(fn(%state) { @gen_func(%cell, %state) }, %init)
+   }
+
+An accumulating map (a fold that simultaneously updates an accumulator value and a list
+of outputs) can be used to write a general RNN (with an output for every input):
+
+.. code_block:: python
+
+   def @map_accumr<a, b, c>(%f : fn(a, b) -> (a, c), %acc : a, %l : List[b]) -> (a, List[c]) {
+     match(%l) {
+       case Nil() { (%acc, Nil()) }
+       case Cons(%b, %t) {
+         let %update = %f(%acc, %b);
+         let %rest = @map_accumr(%f, %update.0, %t));
+         (%rest.0, Cons(%update.1, %rest.1))
+       }
+     }
+   }
+
+   # can also be implemented as a right fold:
+   def @map_accumr_fold(%f, %acc, %l) {
+     @foldr(fn(%b, %p) {
+       let %f_out = %f(%p.0, %b);
+       (%f_out.0, Cons(%f_out.1, %p.1))
+     },
+     (%acc, Nil()), %l)
+   }
+
+   def @general_rnn<state_type, in_type, out_type>(%cell, %init : state_type, %input : List[in_type])
+     -> (state_type, List[out_type]) {
+     @map_accumr(%cell, %init, %input)
+   }
+
+Olah also gives an example of a bidirectional neural network, in which two sets of
+cells (which may have different weights) process the input in both directions and produce a
+single set of outputs. The following is a Relay implementation of that example:
+
+.. code_block:: python
+
+   def @zip<a, b>(%l : List[a], %m : List[b]) -> List[(a, b)] {
+     match(%l) {
+       case Nil() { Nil() }
+       case Cons(%a, %t1) {
+         match(%m) {
+           case Nil() { Nil() }
+           case Cons(%b, %t2) { Cons((%a, %b), @zip(%t1, %t2)) }
+       }
+     }
+   }
+
+   # assume that map_accuml does the same as map_accumr as a left fold
+
+   def @bidirectional_rnn<state1_type, state2_type, in_type, out1_type, out2_type>
+     (%cell1, %cell2, %state1 : state1_type, %state2 : state2_type, %input : List[in_type])
+     -> List[(out1_type, out2_type)] {
+     @zip(@map_accumr(%cell1, %state1, %input).1, @map_accuml(%cell2, %state2, %input).1)
+   }
