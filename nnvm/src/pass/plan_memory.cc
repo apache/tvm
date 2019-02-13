@@ -9,7 +9,6 @@
 #include <nnvm/op_attr_types.h>
 #include <nnvm/top/tensor.h>
 #include <memory>
-#include <set>
 #include "graph_algorithm.h"
 
 namespace nnvm {
@@ -38,22 +37,6 @@ static int GetDTypeSize(int type_flag) {
       LOG(FATAL) << "unknown type_flag=" << type_flag;
       return -1;
   }
-}
-
-static bool BitwiseCompatibleTypes(int type1, int type2) {
-  static std::set<std::pair<int, int>> compatible_pairs { {kUint8, kInt8},
-                                                          {kUint16, kInt16},
-                                                          {kUint32, kInt32},
-                                                          {kUint64, kInt64} };
-  if (type1 == type2) {
-    return true;
-  }
-  if (compatible_pairs.find(std::make_pair(type1, type2)) != compatible_pairs.end() ||
-      compatible_pairs.find(std::make_pair(type2, type1)) != compatible_pairs.end()) {
-    return true;
-  }
-
-  return false;
 }
 
 // simple graph based allocator.
@@ -235,11 +218,10 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
         bool ignore_all_inputs = (fignore_inputs.count(inode.source->op()) != 0 &&
                                   fignore_inputs[inode.source->op()](
                                       inode.source->attrs).size() == inode.source->num_inputs());
-        // Identity should only be true if shape.Size() match and type
-        // is bitwise compatible
+        // Identity should only be true if shape.Size() and types match
         bool real_identity = identity[ipair] &&
                              shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
-                             BitwiseCompatibleTypes(dtype_vec[eid_out], dtype_vec[eid_in]);
+                             dtype_vec[eid_out] == dtype_vec[eid_in];
         if (taken[kv.first] == false &&
             sid_out == GraphAllocator::kBadStorageID &&
             sid_in >= 0 &&
