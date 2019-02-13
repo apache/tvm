@@ -1,6 +1,6 @@
 """
-Auto-tuning a convolutional network for ARM CPU (Relay)
-=======================================================
+Auto-tuning a convolutional network for ARM CPU
+===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Zhao Wu <https://github.com/FrozenGene>`_, `Eddie Yan <https://github.com/eqy>`_
 
 Auto-tuning for a specific ARM device is critical for getting the best
