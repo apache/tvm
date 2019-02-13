@@ -44,7 +44,7 @@ inline Expr RavelIndex(Array<Var> indices, Array<Expr> shape) {
 *
 * \return The coordinate corresponding to the 1D index
 */
-inline Array<Expr> UnavelIndex(Expr idx, Array<Expr> shape) {
+inline Array<Expr> UnravelIndex(Expr idx, Array<Expr> shape) {
   std::vector<Expr> indices;
 
   for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
