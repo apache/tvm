@@ -22,12 +22,16 @@
  *  // is equivalent to each other.
  *  if (max(x + z, y + z).Match(expr)) {
  *    // Eval evaluates a pattern with the current matched value.
+ *    // The filled value is valid until the next call to Match.
  *    return (max(x, y) + z).Eval();
  *  }
  * \endcode
  *
  * \note The pattern matcher is not threadsafe,
  *       do not use the same PVar in multiple threads.
+ *
+ *       Please be aware that the filled value in a PVar
+ *       can be overriden in the next call to Match.
  */
 #ifndef TVM_ARITHMETIC_PATTERN_MATCH_H_
 #define TVM_ARITHMETIC_PATTERN_MATCH_H_
