@@ -157,3 +157,20 @@ def schedule_roi_align(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+@tvm.target.generic_func
+def schedule_proposal(outs):
+    """Schedule for proposal operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of proposal
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
