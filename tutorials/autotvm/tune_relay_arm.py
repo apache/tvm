@@ -193,7 +193,7 @@ tuning_option = {
         builder=autotvm.LocalBuilder(
             build_func='ndk' if use_android else 'default'),
         runner=autotvm.RPCRunner(
-            device_key, host='fleet', port=9190,
+            device_key, host='localhost', port=9190,
             number=5,
             timeout=10,
         ),
