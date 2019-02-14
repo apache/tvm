@@ -17,18 +17,30 @@ PassContext PassContextNode::make() {
   return PassContext(ctx);
 }
 
+std::vector<std::string> PassNode::RequiredPasses() const {
+  std::vector<std::string> dependent;
+  for (const auto& it : required_passes) {
+    dependent.push_back(it.as<tvm::ir::StringImm>()->value);
+  }
+  return dependent;
+}
+
 ModulePass ModulePassNode::make(std::string name, int opt_level,
-                                PassFunc<Module> pass_func) {
+                                PassFunc<Module> pass_func, bool enabled,
+                                tvm::Array<tvm::Expr> required_passes) {
   auto n = make_node<ModulePassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
   n->pass_kind = PassKind::kModuleKind;
   n->pass_func = std::move(pass_func);
+  n->enabled = std::move(enabled);
+  n->required_passes = std::move(required_passes);
   return ModulePass(n);
 }
 
 // Module -> Module optimizations.
-void ModulePassNode::run(Module* mod, const PassContext& pass_ctx) const {
+// TODO(zhiics) Check and handle the required passes.
+void ModulePassNode::Run(Module* mod, const PassContext& pass_ctx) const {
   LOG(INFO) << "Executing module pass : " << this->name
             << " with opt level: " << opt_level << "\n";
   CHECK(mod->defined());
@@ -38,17 +50,21 @@ void ModulePassNode::run(Module* mod, const PassContext& pass_ctx) const {
 }
 
 FunctionPass FunctionPassNode::make(std::string name, int opt_level,
-                                    PassFunc<Function> pass_func) {
+                                    PassFunc<Function> pass_func, bool enabled,
+                                    tvm::Array<tvm::Expr> required_passes) {
   auto n = make_node<FunctionPassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
   n->pass_kind = PassKind::kFunctionKind;
   n->pass_func = std::move(pass_func);
+  n->enabled = std::move(enabled);
+  n->required_passes = std::move(required_passes);
   return FunctionPass(n);
 }
 
 // Perform Module -> Module optimizations at the Function level.
-void FunctionPassNode::run(Module* mod, const PassContext& pass_ctx) const {
+// TODO(zhiics) Check and handle the required passes.
+void FunctionPassNode::Run(Module* mod, const PassContext& pass_ctx) const {
   LOG(INFO) << "Executing function pass : " << this->name
             << " with opt level: " << this->opt_level << "\n";
   CHECK(mod->defined());
@@ -80,7 +96,7 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
 void Optimizer::Optimize() const {
   for (const Pass& pass : passes_) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
-    pass->run(&module_, pass_ctx_);
+    pass->Run(&module_, pass_ctx_);
   }
 }
 
@@ -100,6 +116,8 @@ TVM_REGISTER_API("relay._optimize.ModulePass")
   std::string pass_name = args[0];
   int opt_level = args[1];
   PackedFunc py_pass_func = args[2];
+  bool enabled = args[3];
+  Array<tvm::Expr> required_passes = args[4];
   PassFunc<Module> pass_func = [py_pass_func](const Module& mod) {
     PackedFunc py_for_each = py_pass_func(mod);
     return [py_for_each](Module m) {
@@ -108,7 +126,8 @@ TVM_REGISTER_API("relay._optimize.ModulePass")
       return r;
     };
   };
-  *ret = ModulePassNode::make(pass_name, opt_level, pass_func);
+  *ret = ModulePassNode::make(pass_name, opt_level, pass_func, enabled,
+                              required_passes);
 });
 
 TVM_REGISTER_API("relay._optimize.RunModulePass")
@@ -119,7 +138,7 @@ TVM_REGISTER_API("relay._optimize.RunModulePass")
   CHECK(pass.defined())
       << "Running a pass on undefined ModulePass is not allowed."
       << "\n";
-  pass->run(&mod, pass_ctx);
+  pass->Run(&mod, pass_ctx);
   *ret = mod;
 });
 
@@ -137,6 +156,8 @@ TVM_REGISTER_API("relay._optimize.FunctionPass")
   std::string pass_name = args[0];
   int opt_level = args[1];
   PackedFunc py_pass_func = args[2];
+  bool enabled = args[3];
+  Array<tvm::Expr> required_passes = args[4];
   PassFunc<Function> pass_func = [py_pass_func](const Module& mod) {
     PackedFunc py_for_each = py_pass_func(mod);
     return [py_for_each](Function i) {
@@ -145,7 +166,8 @@ TVM_REGISTER_API("relay._optimize.FunctionPass")
       return r;
     };
   };
-  *ret = FunctionPassNode::make(pass_name, opt_level, pass_func);
+  *ret = FunctionPassNode::make(pass_name, opt_level, pass_func, enabled,
+                                required_passes);
 });
 
 TVM_REGISTER_API("relay._optimize.RunFunctionPass")
@@ -156,7 +178,7 @@ TVM_REGISTER_API("relay._optimize.RunFunctionPass")
   CHECK(pass.defined())
       << "Running a pass on undefined ModulePass is not allowed."
       << "\n";
-  pass->run(&mod, pass_ctx);
+  pass->Run(&mod, pass_ctx);
   *ret = mod;
 });
 

@@ -10,6 +10,7 @@
 #define TVM_RELAY_OPTIMIZER_H_
 
 #include <tvm/attrs.h>
+#include <tvm/ir.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
@@ -91,19 +92,31 @@ class PassNode : public RelayNode {
   int opt_level;
   /*! \brief The kind of an optimization/analysis pass. */
   PassKind pass_kind;
-  /*! \brief The passes that are required by this pass. */
-  std::vector<std::string> required_passes;
+  /*! \brief The flag to indicate if a pass is enabled. */
+  bool enabled;
+  /*!
+   * \brief The passes that are required by this pass.
+   * TODO(zhiics) required_passes are used to identify the dependency of
+   * different passes. We will use it build the pass dependency graph in the
+   * followup PRs.
+   */
+  tvm::Array<tvm::Expr> required_passes;
+
+  /*!
+   * \brief Get the required passes for this pass as a vector of std::string.
+   */
+  TVM_DLL std::vector<std::string> RequiredPasses() const;
 
   /*!
    * \brief Execute the optimization pass using a functor. This functor invokes
-   * the `run` method to perform real optimization on a certain type of node.
+   * the `run` method to perform a real optimization on a certain type of node.
    *
    * \param mod The module that an optimization pass runs on.
    * \param pass_ctx The context information that is used to help perform
    *        a given pass.
    */
   void operator()(Module* mod, const PassContext& pass_ctx) {
-    run(mod, pass_ctx);
+    Run(mod, pass_ctx);
   }
 
   /*!
@@ -118,12 +131,14 @@ class PassNode : public RelayNode {
    *
    * \return Return the updated module through mod.
    */
-  virtual void run(Module* mod, const PassContext& pass_ctx) const = 0;
+  virtual void Run(Module* mod, const PassContext& pass_ctx) const = 0;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
     v->Visit("passkind", &pass_kind);
+    v->Visit("enabled", &enabled);
+    v->Visit("required_passes", &required_passes);
   }
 
   static constexpr const char* _type_key = "relay.Pass";
@@ -160,6 +175,8 @@ class ModulePassNode : public PassNode {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
     v->Visit("pass_kind", &pass_kind);
+    v->Visit("enabled", &enabled);
+    v->Visit("required_passes", &required_passes);
   }
 
   /*!
@@ -171,10 +188,12 @@ class ModulePassNode : public PassNode {
    *
    * \return Return the updated module through mod.
    */
-  void run(Module* mod, const PassContext& pass_ctx) const override;
+  void Run(Module* mod, const PassContext& pass_ctx) const override;
 
   TVM_DLL static ModulePass make(std::string name, int opt_level,
-                                 PassFunc<Module> pass_func);
+                                 PassFunc<Module> pass_func,
+                                 bool enabled = true,
+                                 tvm::Array<tvm::Expr> required_passes = {});
 
   static constexpr const char* _type_key = "relay.ModulePass";
   TVM_DECLARE_NODE_TYPE_INFO(ModulePassNode, PassNode);
@@ -203,6 +222,8 @@ class FunctionPassNode : public PassNode {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
     v->Visit("pass_kind", &pass_kind);
+    v->Visit("enabled", &enabled);
+    v->Visit("required_passes", &required_passes);
   }
 
   /*!
@@ -214,10 +235,12 @@ class FunctionPassNode : public PassNode {
    *
    * \return Return the updated module through mod.
    */
-  void run(Module* mod, const PassContext& pass_ctx) const override;
+  void Run(Module* mod, const PassContext& pass_ctx) const override;
 
   TVM_DLL static FunctionPass make(std::string name, int opt_level,
-                                   PassFunc<Function> pass_func);
+                                   PassFunc<Function> pass_func,
+                                   bool enabled = true,
+                                   tvm::Array<tvm::Expr> required_passes = {});
 
   static constexpr const char* _type_key = "relay.FunctionPass";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionPassNode, PassNode);

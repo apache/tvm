@@ -32,7 +32,8 @@ class PassContext(RelayNode):
 
 @register_relay_node
 class Pass(RelayNode):
-    """The base class of all passes.
+    """The base class of all passes. This class is designed as a pure virtual
+    class that will be implemented by the subclasses.
 
     Parameters
     ----------
@@ -44,6 +45,12 @@ class Pass(RelayNode):
 
     pass_kind : PassKind
         The type of pass for optimization/analysis.
+
+    enabled : bool
+        The flag indicates if a pass is enabled.
+
+    required_passes : List[str]
+        The list of dependent passes to perform this pass.
     """
 
     @abstractmethod
@@ -83,12 +90,22 @@ class ModulePass(Pass):
         The optimization level of this pass.
 
     pass_func : Callable[PassContext: tvm.relay.Module -> tvm.relay.Module]
-        The implemented optimization pass.
+
+    enabled : bool
+        The flag indicates if a pass is enabled.
+
+    required_passes : List[str]
+        The list of dependent passes to perform this pass.
+       The implemented optimization pass.
     """
 
-    def __init__(self, name, opt_level, pass_func):
+    def __init__(self, name, opt_level, pass_func, enabled=True,
+                 required_passes=None):
+        required_passes = required_passes if required_passes else []
+        if not isinstance(required_passes, list):
+            raise TypeError("required_passes is expected to be a list of str.")
         self.__init_handle_by_constructor__(_opt.ModulePass, name, opt_level,
-                                            pass_func)
+                                            pass_func, enabled, required_passes)
 
     def run(self, mod, pass_ctx=None):
         """Execute a module pass.
@@ -111,7 +128,7 @@ class ModulePass(Pass):
 
 @register_relay_node
 class FunctionPass(Pass):
-    """A pass that works on tvm.relay.Function.
+    """A pass that works on each tvm.relay.Function in a module.
 
     Parameters
     ----------
@@ -123,11 +140,21 @@ class FunctionPass(Pass):
 
     pass_func : Callable[PassContext: tvm.relay.Function -> tvm.relay.Function]
         The implemented optimization pass.
+
+    enabled : bool
+        The flag indicates if a pass is enabled.
+
+    required_passes : List[str]
+        The list of dependent passes to perform this pass.
     """
 
-    def __init__(self, name, opt_level, pass_func):
+    def __init__(self, name, opt_level, pass_func, enabled=True,
+                 required_passes=None):
+        required_passes = required_passes if required_passes else []
+        if not isinstance(required_passes, list):
+            raise TypeError("required_passes is expected to be a list of str.")
         self.__init_handle_by_constructor__(_opt.FunctionPass, name, opt_level,
-                                            pass_func)
+                                            pass_func, enabled, required_passes)
 
     def run(self, mod, pass_ctx=None):
         """Execute a function pass.
@@ -147,7 +174,9 @@ class FunctionPass(Pass):
         """
         return _opt.RunFunctionPass(self, mod, pass_ctx)
 
-def build_pass(pass_name, opt_level, pass_kind, pass_func):
+
+def build_pass(pass_name, opt_level, pass_kind, pass_func, enabled=True,
+               required_passes=None):
     """Create a pass using a defined optimization function from Python.
 
     Parameters
@@ -164,18 +193,30 @@ def build_pass(pass_name, opt_level, pass_kind, pass_func):
     pass_func : Callable[PassContext: Module/Function/Expr -> Module/Function/Expr]
         The implemented optimization pass.
 
+    enabled : bool
+        The flag indicates if a pass is enabled.
+
+    required_passes : List[str]
+        The list of dependent passes to perform this pass.
+
     Returns
     -------
     ret : Pass
         The pass the built through pass_func.
     """
+    required_passes = required_passes if required_passes else []
+    if not isinstance(required_passes, list):
+        raise TypeError("required_passes is expected to be a list of str.")
+
     if not isinstance(pass_kind, PassKind):
         raise TypeError("pass_kind is expected to be the type of PassKind.")
 
     if pass_kind == PassKind.ModuleKind:
-        return _opt.ModulePass(pass_name, opt_level, pass_func)
+        return _opt.ModulePass(pass_name, opt_level, pass_func, enabled,
+                               required_passes)
     else:
-        return _opt.FunctionPass(pass_name, opt_level, pass_func)
+        return _opt.FunctionPass(pass_name, opt_level, pass_func, enabled,
+                                 required_passes)
 
 
 def optimize(passes, mod, pass_ctx=None):
