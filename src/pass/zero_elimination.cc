@@ -382,6 +382,13 @@ class NonzeronessConditionFunctor
   result_type VisitExpr_(const Mod* op, const Expr& e) final { return BinOpDivLike_(op, e); }
   result_type VisitExpr_(const Min* op, const Expr& e) final { return BinOpAddLike_(op, e); }
   result_type VisitExpr_(const Max* op, const Expr& e) final { return BinOpAddLike_(op, e); }
+  result_type VisitExpr_(const EQ* op, const Expr& e) final { return Bool_(op, e); }
+  result_type VisitExpr_(const NE* op, const Expr& e) final { return Bool_(op, e); }
+  result_type VisitExpr_(const LE* op, const Expr& e) final { return Bool_(op, e); }
+  result_type VisitExpr_(const LT* op, const Expr& e) final { return Bool_(op, e); }
+  result_type VisitExpr_(const GE* op, const Expr& e) final { return Bool_(op, e); }
+  result_type VisitExpr_(const GT* op, const Expr& e) final { return Bool_(op, e); }
+  result_type VisitExpr_(const Not* op, const Expr& e) final { return Bool_(op, e); }
 
   result_type VisitExpr_(const Cast* op, const Expr& e) final {
     if (op->value.type().is_bool()) {
@@ -491,6 +498,11 @@ class NonzeronessConditionFunctor
     } else {
       return {nz_a.cond, TNode::make(nz_a.value, op->b)};
     }
+  }
+
+  template <class TNode>
+  NonzeronessConditionResult Bool_(const TNode* op, const Expr& e) {
+    return {e, make_const(e.type(), 1)};
   }
 };
 

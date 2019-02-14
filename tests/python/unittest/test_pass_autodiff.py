@@ -40,7 +40,8 @@ def check_equivalence(outputs1, outputs2, inputs, in_range=(-10, 10), iters=10):
         for j, _ in enumerate(outputs1):
             tvm.testing.assert_allclose(arguments1[j].asnumpy(), arguments2[j].asnumpy())
 
-def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None, param_values=None):
+def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None, param_values=None,
+               acceptable_fail_fraction=None):
     line = inspect.getframeinfo(inspect.stack()[1][0]).lineno
 
     if not isinstance(inputs, (list, tuple)):
@@ -142,7 +143,8 @@ def check_grad(out, inputs, args=[], in_range=(-10,10), perf=None, param_values=
     mgrad(*g_arg_vals)
     g_res = [g_arg_vals[g].asnumpy() for g, _ in enumerate(grads)]
 
-    check_numerical_grads(fun, [a.asnumpy() for a in input_vals], g_res)
+    check_numerical_grads(fun, [a.asnumpy() for a in input_vals], g_res,
+                          acceptable_fail_fraction=acceptable_fail_fraction)
 
 def test_differentiate_function():
     x = tvm.placeholder((32, 3, 28, 28), name='x')
@@ -182,6 +184,18 @@ def test_autodiff():
     B = tvm.compute((10, 10), lambda i, j: A0[i, j] + A0[j, i], name='B')
     check_grad(B, A0, perf=(10100, 10000, 200))
 
+    B = tvm.compute((10, 10), lambda i, j: tvm.floor(A0[i, j]), name='B')
+    check_grad(B, A0, perf=(100, 0, 100), acceptable_fail_fraction=0.05)
+
+    B = tvm.compute((10, 10), lambda i, j: tvm.ceil(A0[i, j]), name='B')
+    check_grad(B, A0, perf=(100, 0, 100), acceptable_fail_fraction=0.05)
+
+    B = tvm.compute((10, 10), lambda i, j: tvm.trunc(A0[i, j]), name='B')
+    check_grad(B, A0, perf=(100, 0, 100), acceptable_fail_fraction=0.05)
+
+    B = tvm.compute((10, 10), lambda i, j: tvm.round(A0[i, j]), name='B')
+    check_grad(B, A0, perf=(100, 0, 100), acceptable_fail_fraction=0.05)
+
     B = tvm.compute((10, 10), lambda i, j: A0[i, j] + tvm.exp(A0[j, i]), name='B')
     check_grad(B, A0, perf=(10100, 20000, 200))
 
@@ -193,6 +207,12 @@ def test_autodiff():
 
     B = tvm.compute((10, 10), lambda i, j: tvm.tanh(A0[i, j]*A0[i, j]*A0[j, i]), name='B')
     check_grad(B, A0, perf=(10100, 120000, 200))
+
+    B = tvm.compute((10, 10), lambda i, j: tvm.sqrt(A0[i, j]*A0[i, j]*A0[j, i]), name='B')
+    check_grad(B, A0, perf=(10100, 90000, 200), in_range=(0.1, 10))
+
+    B = tvm.compute((10, 10), lambda i, j: tvm.power(tvm.abs(A0[i, j]), A0[j, i]), name='B')
+    check_grad(B, A0, perf=(10100, 90000, 200))
 
     B = tvm.compute((10, 10), lambda i, j: A0[i, j] * A0[j, i], name='B')
     check_grad(B, A0, perf=(10100, 10000, 200))

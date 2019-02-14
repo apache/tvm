@@ -46,8 +46,7 @@ TVM_REGISTER_NODE_TYPE(DifferentiationResultNode);
 
 
 #define NOT_IMPLEMENTED \
-  { CHECK(false) << "Derivative of this op is not implemented"; \
-    throw dmlc::Error("Derivative of this op is not implemented"); }
+  { LOG(FATAL) << "Derivative of this expr is not implemented: " << e; throw; }
 
 /*! \brief Differentiate an expression wrt a variable or a tensor element */
 class JacobianMutator : public IRMutator {
@@ -66,8 +65,17 @@ class JacobianMutator : public IRMutator {
   explicit JacobianMutator(VarExpr input)
     : input_var_(input) {}
 
+  virtual Expr Mutate(Expr e) {
+    if (e.type().is_int() || e.type().is_uint()) {
+      // Assume that the derivative of any integer expression is always 0
+      return make_zero(e.type());
+    } else {
+      return IRMutator::Mutate(e);
+    }
+  }
+
   Expr Mutate_(const Variable* op, const Expr& e) {
-    if (input_var_.operator->() && input_var_.get() == op) {
+    if (input_var_.operator->() && input_var_.get() == op && op->type.is_float()) {
       return FloatImm::make(op->type, 1.0);
     } else {
       return make_zero(op->type);
@@ -90,6 +98,7 @@ class JacobianMutator : public IRMutator {
         return make_zero(op->type);
       }
     } else if (op->call_type == Call::CallType::PureIntrinsic) {
+      static std::unordered_set<std::string> piecewise_const = {"floor", "ceil", "trunc", "round"};
       if (op->name == "exp") {
         return Mul::make(Mutate(op->args[0]), e);
       } else if (op->name == "log") {
@@ -97,9 +106,14 @@ class JacobianMutator : public IRMutator {
       } else if (op->name == "sigmoid") {
         return Mul::make(Mutate(op->args[0]),
                          Mul::make(e, Sub::make(FloatImm::make(e.type(), 1.0), e)));
+      } else if (op->name == "sqrt") {
+        return Div::make(Mutate(op->args[0]), Mul::make(e, FloatImm::make(e.type(), 2.0)));
       } else if (op->name == "tanh") {
         return Mul::make(Mutate(op->args[0]),
                          Sub::make(FloatImm::make(e.type(), 1.0), Mul::make(e, e)));
+      } else if (op->name == "pow") {
+        auto x = op->args[0], y = op->args[1];
+        return e * (Mutate(y)*log(x) + Mutate(x)*y/x);
       } else if (op->name == "fabs") {
         auto type = op->args[0].type();
         return Mul::make(Mutate(op->args[0]),
@@ -108,6 +122,8 @@ class JacobianMutator : public IRMutator {
       } else if (op->name == intrinsic::tvm_if_then_else) {
         Array<Expr> new_args = {op->args[0], Mutate(op->args[1]), Mutate(op->args[2])};
         return Call::make(op->type, op->name, new_args, op->call_type, op->func, op->value_index);
+      } else if (piecewise_const.count(op->name)) {
+        return FloatImm::make(e.type(), 0.0);
       } else {
         throw dmlc::Error("Derivative of this intrinsic is not implemented: " + op->name);
       }
@@ -329,7 +345,8 @@ Tensor Jacobian(const Tensor& output, const Tensor& input, bool optimize) {
 
     return tensor;
   } else {
-    NOT_IMPLEMENTED;
+    LOG(FATAL) << "Derivative of this op is not implemented: " << output->op;
+    throw;
   }
 }
 
