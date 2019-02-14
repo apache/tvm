@@ -1,6 +1,6 @@
 """
-kuto-tuning a convolutional network for x86 CPU
-====================================================
+Auto-tuning a convolutional network for x86 CPU
+===============================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Eddie Yan <https://github.com/eqy>`_
 
 This is a tutorial about how to tune convolution neural network
