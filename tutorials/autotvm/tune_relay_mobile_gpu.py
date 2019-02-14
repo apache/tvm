@@ -1,6 +1,6 @@
 """
 Auto-tuning a convolutional network for Mobile GPU
-====================================================
+==================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_, `Eddie Yan <https://github.com/eqy>`_
 
 Auto-tuning for a specific device is critical for getting the best

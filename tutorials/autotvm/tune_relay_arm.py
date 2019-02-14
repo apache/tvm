@@ -1,6 +1,6 @@
 """
 Auto-tuning a convolutional network for ARM CPU
-====================================================
+===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Zhao Wu <https://github.com/FrozenGene>`_, `Eddie Yan <https://github.com/eqy>`_
 
 Auto-tuning for a specific ARM device is critical for getting the best
@@ -193,7 +193,7 @@ tuning_option = {
         builder=autotvm.LocalBuilder(
             build_func='ndk' if use_android else 'default'),
         runner=autotvm.RPCRunner(
-            device_key, host='fleet', port=9190,
+            device_key, host='localhost', port=9190,
             number=5,
             timeout=10,
         ),

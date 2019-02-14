@@ -1,6 +1,6 @@
 """
 Auto-tuning a convolutional network for NVIDIA GPU
-====================================================
+==================================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Eddie Yan <https://github.com/eqy/>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the

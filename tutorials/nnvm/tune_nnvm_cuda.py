@@ -1,6 +1,6 @@
 """
-Auto-tuning a convolutional network for NVIDIA GPU
-====================================================
+Auto-tuning a convolutional network for NVIDIA GPU (NNVM)
+=========================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 
 Auto-tuning for specific devices and workloads is critical for getting the
