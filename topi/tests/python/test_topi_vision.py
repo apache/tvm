@@ -1,4 +1,5 @@
 """Test code for vision package"""
+from __future__ import print_function
 import math
 import numpy as np
 import tvm
@@ -206,8 +207,75 @@ def test_roi_align():
     verify_roi_align(4, 16, 32, 64, 7, 0.5, 2)
 
 
+def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
+    cls_prob = tvm.placeholder(np_cls_prob.shape)
+    bbox_pred = tvm.placeholder(np_bbox_pred.shape)
+    im_info = tvm.placeholder(np_im_info.shape, dtype='int32')
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            out = topi.vision.proposal(cls_prob, bbox_pred, im_info, **attrs)
+            s = topi.generic.schedule_proposal(out)
+            f = tvm.build(s, [cls_prob, bbox_pred, im_info, out], device)
+            tvm_cls_prob = tvm.nd.array(np_cls_prob, ctx=ctx)
+            tvm_bbox_pred = tvm.nd.array(np_bbox_pred, ctx=ctx)
+            tvm_im_info = tvm.nd.array(np_im_info, ctx=ctx)
+            tvm_out = tvm.nd.empty(ctx=ctx, shape=out.shape, dtype=out.dtype)
+            f(tvm_cls_prob, tvm_bbox_pred, tvm_im_info, tvm_out)
+            tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-4)
+
+    for device in ['cuda']:
+        check_device(device)
+
+
+def test_proposal():
+    attrs = {'scales': (0.5,),'ratios': (0.5,),
+        'feature_stride': 16,
+        'iou_loss': False,
+        'rpn_min_size': 16,
+        'threshold': 0.7,
+        'rpn_pre_nms_top_n': 200,
+        'rpn_post_nms_top_n': 4,
+    }
+    np_cls_prob = np.array([[
+        [[0.3, 0.6, 0.2], [0.4, 0.7, 0.5], [0.1, 0.4, 0.3]],
+        [[0.7, 0.5, 0.3], [0.6, 0.4, 0.8], [0.9, 0.2, 0.5]]
+    ]], dtype='float32')
+    np_bbox_pred = np.array([[
+        [[0.5, 1.0, 0.6], [0.8,  1.2, 2.0], [0.9, 1.0, 0.8]],
+        [[0.5, 1.0, 0.7], [0.8,  1.2, 1.6], [2.1, 1.5, 0.7]],
+        [[1.0, 0.5, 0.7], [1.5,  0.9, 1.6], [1.4, 1.5, 0.8]],
+        [[1.0, 0.5, 0.6], [1.5,  0.9, 2.0], [1.8, 1.0, 0.9]],
+    ]], dtype='float32')
+    np_im_info = np.array([[48, 48, 1]], dtype='int32')
+    np_out = np.array([
+        [0., 0., 2.8451548,28.38012, 18.154846],
+        [0., 0., 15.354933, 41.96971, 41.245064],
+        [0., 18.019852, 1.0538368, 51.98015, 25.946163],
+        [0., 27.320923, -1.266357, 55., 24.666357]
+    ], dtype='float32')
+
+    verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs)
+
+    np_out = np.array([
+        [ 0., -5.25, -2.5, 21.75, 19.],
+        [ 0., 11.25, -2., 37.25, 18.5],
+        [ 0., 26.849998, -2.3000002, 53.45, 18.6],
+        [ 0., -4.95, 13.799999, 22.25, 35.5]
+    ], dtype='float32')
+
+    attrs['iou_loss'] = True
+    verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs)
+
+
 if __name__ == "__main__":
     test_nms()
     test_multibox_prior()
     test_multibox_detection()
     test_roi_align()
+    test_proposal()
