@@ -550,8 +550,10 @@ class StoragePlanRewriter : public IRMutator {
         }
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
+          Expr sz = arith::ComputeReduce<Mul>(e->allocs[0]->extents,
+                                              make_const(Int(32), 1));
           e->new_alloc = Allocate::make(
-              e->alloc_var, alloc_type, e->allocs[0]->extents,
+              e->alloc_var, alloc_type, {sz},
               e->allocs[0]->condition, Evaluate::make(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
@@ -564,8 +566,19 @@ class StoragePlanRewriter : public IRMutator {
           Expr combo_size;
           for (const Allocate* op : e->allocs) {
             Expr sz = arith::ComputeReduce<Mul>(op->extents, make_const(Int(32), 1));
+            auto nbits = op->type.bits() * op->type.lanes();
+            if (const auto* imm = sz.as<IntImm>()) {
+              if (imm->value > std::numeric_limits<int>::max() / nbits) {
+                LOG(WARNING) << "The allocation requires : " << imm->value
+                             << " * " << nbits
+                             << " bits, which is greater than the maximum of"
+                                " int32. The size is cast to int64."
+                             << "\n";
+                sz = make_const(Int(64), imm->value);
+              }
+            }
             // transform to bits
-            auto sz_nbits = sz * (op->type.bits() * op->type.lanes());
+            auto sz_nbits = sz * nbits;
             if (combo_size.defined()) {
               combo_size = max(combo_size, sz_nbits);
             } else {
@@ -578,7 +591,7 @@ class StoragePlanRewriter : public IRMutator {
           combo_size = combo_size / type_bits;
           // round up for can not divided
           if (!divided) {
-             combo_size = combo_size + make_const(Int(32), 1);
+            combo_size = combo_size + make_const(Int(32), 1);
           }
           combo_size = ir::Simplify(combo_size);
           e->new_alloc = Allocate::make(
