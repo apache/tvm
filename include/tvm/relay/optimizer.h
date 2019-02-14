@@ -26,57 +26,55 @@ namespace optimize {
 /*! \brief An enumerator to represent the granularity of different passes. */
 enum PassKind : int {
   kModuleKind = 1,
-  kFunctionKind = 2,
-  kExprKind = 3
+  kFunctionKind = 2
 };
 
-class PassState;
+class PassContext;
 
-class PassStateNode : public RelayNode {
+/*
+ * \brief PassContextNode contains the information that a pass can rely on, such as
+ * the analysis result.
+ */
+class PassContextNode : public RelayNode {
  public:
-  /*! \brief The module that a pass state contains. */
-  Module mod;
-  /*! \brief The error reporter used to notify users why an optimization fails.
+  /*!
+   * \brief The error reporter used to notify users why an optimization fails.
    */
-  ErrorReporter err_reporter;
+  ErrorReporter err_reporter_;
 
-  PassStateNode() = default;
+  PassContextNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("mod", &mod);
   }
 
-  TVM_DLL static PassState make(Module mod);
+  TVM_DLL static PassContext make();
 
-  static constexpr const char* _type_key = "relay.PassState";
-  TVM_DECLARE_NODE_TYPE_INFO(PassStateNode, RelayNode);
+  static constexpr const char* _type_key = "relay.PassContext";
+  TVM_DECLARE_NODE_TYPE_INFO(PassContextNode, RelayNode);
 };
 
-class PassState : public NodeRef {
+class PassContext : public NodeRef {
  public:
-  PassState() = default;
-  explicit PassState(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  PassContext() = default;
+  explicit PassContext(NodePtr<tvm::Node> p) : NodeRef(p) {}
 
-  const PassStateNode* operator->() const {
-    return static_cast<PassStateNode*>(this->node_.get());
+  const PassContextNode* operator->() const {
+    return static_cast<PassContextNode*>(this->node_.get());
   }
 
-  using ContainerType = PassStateNode;
+  using ContainerType = PassContextNode;
 };
 
-// We use currying here. The pass state is captured for optimizations. It
-// runs on a Relay node type T and yields a new node type R. For example,
-// PassFunc<Function, Function> indicates we perform a Function to Function
-// transformation on the given pass state.
-template <
-    typename T, typename R = T,
-    typename = std::enable_if<
-        (std::is_same<T, Module>::value || std::is_same<T, Function>::value ||
-         std::is_same<T, Expr>::value) &&
-        (std::is_same<R, Module>::value || std::is_same<R, Function>::value ||
-         std::is_same<R, Expr>::value)>>
-using PassFunc = runtime::TypedPackedFunc<runtime::TypedPackedFunc<R(T)>(
-    const PassState& state)>;
+// We use currying here. The Relay module is captured for optimizations. It
+// runs on a Relay node type NodeT and yields a new node with the same type.
+// For example, PassFunc<Function> indicates we perform a Function to Function
+// transformation on the given Module.
+template <typename NodeT,
+          typename = std::enable_if<(std::is_same<NodeT, Module>::value ||
+                                     std::is_same<NodeT, Function>::value)>>
+using PassFunc =
+    runtime::TypedPackedFunc<runtime::TypedPackedFunc<NodeT(NodeT)>(
+        const Module& mod)>;
 
 class Pass;
 
@@ -93,15 +91,34 @@ class PassNode : public RelayNode {
   int opt_level;
   /*! \brief The kind of an optimization/analysis pass. */
   PassKind pass_kind;
+  /*! \brief The passes that are required by this pass. */
+  std::vector<std::string> required_passes;
+
+  /*!
+   * \brief Execute the optimization pass using a functor. This functor invokes
+   * the `run` method to perform real optimization on a certain type of node.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The context information that is used to help perform
+   *        a given pass.
+   */
+  void operator()(Module* mod, const PassContext& pass_ctx) {
+    run(mod, pass_ctx);
+  }
 
   /*!
    * \brief Execute the optimization pass. This is function should be specilized
-   * for different types of AST nodes. For example, we mainly allow
-   * transformation of from Module/Function/Expr to Module/Function/Expr.
+   * for different types of Relay nodes. For example, we mainly allow
+   * transformation of from Module/Function to Module/Function. Note  that the
+   * module will be updated.
    *
-   * \param state The pass state that an optimization pass runs on.
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The context information that is used to help perform
+   *        a given pass.
+   *
+   * \return Return the updated module through mod.
    */
-  virtual void run(PassState* state) const = 0;
+  virtual void run(Module* mod, const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
@@ -145,7 +162,16 @@ class ModulePassNode : public PassNode {
     v->Visit("pass_kind", &pass_kind);
   }
 
-  void run(PassState* state) const override;
+  /*!
+   * \brief Run a function pass on a certain module.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The context information that is used to help perform
+   *        a given module pass.
+   *
+   * \return Return the updated module through mod.
+   */
+  void run(Module* mod, const PassContext& pass_ctx) const override;
 
   TVM_DLL static ModulePass make(std::string name, int opt_level,
                                  PassFunc<Module> pass_func);
@@ -160,7 +186,7 @@ class FunctionPass;
 
 /*!
  * \brief Function-level passes are used to implement various global
- * optimizations for a given pass state. It fetches one function at a time
+ * optimizations for a given Relay module. It fetches one function at a time
  * from the function list in the module for optimization.
  *
  * Note that the scope of passes at this level is a Relay function. Therefore,
@@ -179,10 +205,17 @@ class FunctionPassNode : public PassNode {
     v->Visit("pass_kind", &pass_kind);
   }
 
-  /*
-   * !\brief Run a function pass on a certain pass state.
+  /*!
+   * \brief Run a function pass on a certain module.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The context information that is used to help perform
+   *        a given pass.
+   *
+   * \return Return the updated module through mod.
    */
-  void run(PassState* state) const override;
+  void run(Module* mod, const PassContext& pass_ctx) const override;
+
   TVM_DLL static FunctionPass make(std::string name, int opt_level,
                                    PassFunc<Function> pass_func);
 
@@ -195,39 +228,6 @@ class FunctionPassNode : public PassNode {
 
 RELAY_DEFINE_NODE_REF(FunctionPass, FunctionPassNode, Pass);
 
-class ExprPass;
-
-/*!
- * \brief We design expression-based passes similarly to the basic block passes
- * in LLVM. However, Relay doesn't have the concept of basic block. We can treat
- * the whole body of a function as a basic block.
- *
- * This level mainly focuses on the local optimizations that do not change
- * the control flow graph of a function.
- */
-class ExprPassNode : public PassNode {
- public:
-  PassFunc<Expr> pass_func;
-
-  ExprPassNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name", &name);
-    v->Visit("opt_level", &opt_level);
-    v->Visit("pass_kind", &pass_kind);
-  }
-
-  void run(PassState* state) const override;
-
-  TVM_DLL static ExprPass make(std::string name, int opt_level,
-                                  PassFunc<Expr> pass_func);
-
-  static constexpr const char* _type_key = "relay.ExprPass";
-  TVM_DECLARE_NODE_TYPE_INFO(ExprPassNode, PassNode);
-};
-
-RELAY_DEFINE_NODE_REF(ExprPass, ExprPassNode, Pass);
-
 /*!
  * \brief The Relay pass manager contains a set of passes which transform Relay
  * programs from one ast to another semantically equivalent one. The
@@ -238,7 +238,7 @@ RELAY_DEFINE_NODE_REF(ExprPass, ExprPassNode, Pass);
  * pass to run.
  *  - simplifying the implementation of new passes for compiler developers, etc.
  *
- * TODO(@jroesch, @zhiics): We are currently using a very simple design for the
+ * TODO(jroesch, zhiics): We are currently using a very simple design for the
  * pass manager, i.e. it just stores a list of passes that run in order.
  *
  * As we move forward we need to generalize the ability to have constraints
@@ -249,11 +249,12 @@ RELAY_DEFINE_NODE_REF(ExprPass, ExprPassNode, Pass);
  */
 class Optimizer {
  public:
-  Optimizer(const PassState& state, const tvm::Array<Pass>& passes)
-      : state_(state), passes_(passes) {}  // NOLINT(*)
+  Optimizer(const Module& mod, const tvm::Array<Pass>& passes,
+            const PassContext& pass_ctx)
+      : module_(mod), passes_(passes), pass_ctx_(pass_ctx) {}
 
   /*!
-   * \brief Add a pass to the pass array.
+   * \brief Add a pass to the pass list.
    *
    * \param pass The candidate pass to be added.
    */
@@ -275,27 +276,37 @@ class Optimizer {
   void Optimize() const;
 
  private:
-  /* \brief The pass state where a host of passes are executed on. It is
-   * designed to be mutable because each optimization is likely to update the
-   * state on its completion.
+  /* \brief The module where a host of passes are executed on. It is designed
+   * to be mutable because each optimization is likely to update the module
+   * on its completion.
    */
-  mutable PassState state_;
+  mutable Module module_;
   /* \brief The pass candidates for optimizations. */
   tvm::Array<Pass> passes_;
-  friend void Optimize(const tvm::Array<Pass>& passes, PassState* state);
+  /* \brief The auxiliary pass context/information that is used to help perform
+   * the given list of passes.*/
+  PassContext pass_ctx_;
+  friend void Optimize(const tvm::Array<Pass>& passes,
+                       Module* mod,
+                       const PassContext& pass_ctx);
 };
 
 /*!
- * \brief Optimizes the functions and/or expressions in the pass state. This
- * free function is designed as a template function that could take different
- * types of Relay nodes.
+ * \brief Optimizes the functions and/or expressions in the module. This free
+ * function is designed as a template function that could take different types
+ * of Relay nodes.
 
  * \param passes The optimization passes.
- * \param state The pass state for optimization. Note that `state` is mutable.
- *        The updated state will be stored and returned.
-
+ * \param mod The module where optimizations are performed on.
+ *        Note that the updated module will be stored and returned.
+ * \param pass_ctx The auxiliary pass context/information that is used to help
+ *        perform the provided passes.
+ *
+ * \return Return the updated Module through mod.
  */
-void Optimize(const tvm::Array<Pass>& passes, PassState* state);
+void Optimize(const tvm::Array<Pass>& passes,
+              Module* mod,
+              const PassContext& pass_ctx);
 
 }  // namespace optimize
 }  // namespace relay

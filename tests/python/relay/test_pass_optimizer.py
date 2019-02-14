@@ -19,9 +19,9 @@ def get_var_func():
     return gv, func
 
 
-def extrac_var_func(state, name):
-    var = state.mod.get_global_var(name)
-    func = state.mod[var]
+def extrac_var_func(mod, name):
+    var = mod.get_global_var(name)
+    func = mod[var]
     return var, func
 
 
@@ -61,14 +61,14 @@ def update_func(func):
 class OptTester():
     """A helper class for testing the optimizer."""
 
-    def __init__(self, state):
-        if not isinstance(state, relay.PassState):
-            raise TypeError("state is expected to be the type of "
-                            "relay.PassState")
-        self.state = state
+    def __init__(self, mod):
+        if not isinstance(mod, relay.Module):
+            raise TypeError("mod is expected to be the type of "
+                            "relay.Module")
+        self.mod = mod
 
     def analysis(self):
-        """Perform analysis for the current state."""
+        """Perform analysis for the current module."""
         pass
 
     @staticmethod
@@ -82,9 +82,6 @@ class OptTester():
             return mod
         if isinstance(node, relay.Function):
             return update_func(node)
-        if isinstance(node, relay.Expr):
-            # Perform constant folding on the expression.
-            return fold_constant(node)
 
         raise TypeError("Found not supported node type.")
 
@@ -93,11 +90,11 @@ def get_rand(shape, dtype='float32'):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
 
 
-def pass_function(state):
+def pass_function(mod):
     """This function uses currying. It is designed to be flexible for
     passing Relay nodes at various granularity.
     """
-    opt_tester = OptTester(state)
+    opt_tester = OptTester(mod)
 
     def _transform(m):
         return opt_tester.transform(m)
@@ -111,24 +108,6 @@ def check_func(func, ref_func):
     assert graph_equal(func, ref_func)
 
 
-def test_pass_state():
-    shape = (5, 10)
-    dtype = 'float32'
-    tp = relay.TensorType(shape, dtype)
-    x = relay.var("x", tp)
-    y = relay.var("y", tp)
-    gv = relay.GlobalVar("myAdd")
-    func = relay.Function([x, y], x + y)
-
-    mod = relay.Module({gv: func})
-    state = optimizer.PassState(mod)
-    state_func = state.mod[gv]
-    check_func(func, state_func)
-
-    text = state.astext()
-    assert "myAdd" in text
-
-
 def test_module_pass():
     shape = (5, 10)
     dtype = 'float32'
@@ -138,7 +117,6 @@ def test_module_pass():
     v_add = relay.GlobalVar("myAdd")
     func = relay.Function([x, y], x + y)
     mod = relay.Module({v_add: func})
-    state = optimizer.PassState(mod)
 
     pass_name = "module_pass_test"
     opt_level = 0
@@ -157,23 +135,23 @@ def test_module_pass():
         module_pass = optimizer.ModulePass(pass_name, opt_level, pass_func)
         assert pass_name in module_pass.astext()
 
-        updated_pass = module_pass.run(state)
-        assert isinstance(updated_pass, optimizer.PassState)
+        updated_mod = module_pass.run(mod)
+        assert isinstance(updated_mod, relay.Module)
 
         # Check the abs function in the updated module.
         v_abs, myabs = get_var_func()
-        new_v_add = updated_pass.mod.get_global_var(v_abs.name_hint)
-        new_abs = updated_pass.mod[new_v_add]
+        new_v_add = updated_mod.get_global_var(v_abs.name_hint)
+        new_abs = updated_mod[new_v_add]
         check_func(new_abs, myabs)
 
         # Check the add function in the updated module.
         v_abs, myabs = get_var_func()
-        new_v_add = updated_pass.mod.get_global_var(v_add.name_hint)
-        new_add = updated_pass.mod[new_v_add]
+        new_v_add = updated_mod.get_global_var(v_add.name_hint)
+        new_add = updated_mod[new_v_add]
         check_func(new_add, func)
         
         # Check the add function in the python currying module.
-        ret = pass_function(state)(mod)
+        ret = pass_function(mod)(mod)
         currying_v_add = ret.get_global_var(v_add.name_hint)
         currying_add = mod[currying_v_add]
         check_func(new_add, currying_add)
@@ -202,7 +180,6 @@ def test_function_pass():
     v_log = relay.GlobalVar("myLog")
     log = relay.Function([x], relay.log(x))
     mod = relay.Module({v_log: log})
-    state = optimizer.PassState(mod)
 
     pass_name = "function_pass_test"
     opt_level = 1
@@ -225,16 +202,16 @@ def test_function_pass():
         function_pass = optimizer.FunctionPass(pass_name, opt_level, pass_func)
         assert pass_name in function_pass.astext()
 
-        updated_pass = function_pass.run(state)
-        assert isinstance(updated_pass, optimizer.PassState)
+        updated_mod = function_pass.run(mod)
+        assert isinstance(updated_mod, relay.Module)
 
         # Check the log function in the updated module.
-        new_v_log = updated_pass.mod.get_global_var(v_log.name_hint)
-        new_log = updated_pass.mod[new_v_log]
+        new_v_log = updated_mod.get_global_var(v_log.name_hint)
+        new_log = updated_mod[new_v_log]
         check_func(new_log, get_ref_log())
 
         # Check the log function in the python currying function.
-        ret = pass_function(state)(log)
+        ret = pass_function(mod)(log)
         check_func(new_log, ret)
 
         # Execute the add function.
@@ -247,72 +224,6 @@ def test_function_pass():
             tvm.testing.assert_allclose(res1.asnumpy(), ref_res, rtol=1e-5)
             res2 = exe2.evaluate(new_log)(x_nd)
             tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
-
-    test_pass_registration()
-    test_pass_run()
-
-
-def test_expr_pass():
-    shape = (10, )
-    dtype = 'float32'
-    tp = relay.TensorType(shape, dtype)
-    x = relay.var("x", tp)
-    y = relay.var("y", tp)
-    c_val = np.full(shape, 2, dtype)
-    const = relay.const(c_val)
-    c_add = relay.add(const, const)
-    add = relay.add(x, c_add)
-    add = relay.add(y, add)
-    add = relay.add(add, c_add)
-    mod = relay.Module.from_expr(add)
-    state = optimizer.PassState(mod)
-
-    pass_name = "expr_pass_test"
-    opt_level = 2
-    pass_kind = optimizer.PassKind.ExprKind
-    pass_func = pass_function
-
-    def get_ref_expr():
-        # Fold const + const to c_val * 2.
-        con = relay.const(c_val * 2)
-        ref_expr = relay.add(x, con)
-        ref_expr = relay.add(y, ref_expr)
-        ref_expr = relay.add(ref_expr, con)
-        return ref_expr
-
-    def test_pass_registration():
-        expr_pass = optimizer.build_pass(pass_name, opt_level, pass_kind,
-                                         pass_func)
-        assert isinstance(expr_pass, optimizer.ExprPass)
-        assert expr_pass.name == pass_name
-        assert expr_pass.opt_level == opt_level
-        assert expr_pass.pass_kind == pass_kind
-
-    def test_pass_run():
-        expr_pass = optimizer.ExprPass(pass_name, opt_level, pass_func)
-        assert pass_name in expr_pass.astext()
-
-        updated_pass = expr_pass.run(state)
-        assert isinstance(updated_pass, optimizer.PassState)
-
-        # Check the main function in the updated module.
-        _, main_func = extrac_var_func(updated_pass, "main")
-        check_func(main_func.body, get_ref_expr())
-
-        # Check the main function in the currying module.
-        ret = pass_function(state)(add)
-        check_func(ret, main_func.body)
-
-        # Execute the add function.
-        x_nd = get_rand(shape, dtype)
-        y_nd = get_rand(shape, dtype)
-        ref_res = x_nd.asnumpy() + y_nd.asnumpy() + 4 * c_val
-        intrp = relay.create_executor("debug", mod=updated_pass.mod)
-        free_vars = relay.ir_pass.free_vars(main_func.body)
-        assert len(free_vars) == 2
-        res = intrp.evaluate(main_func.body, binds={free_vars[0]:x_nd,
-                                                    free_vars[1]: y_nd}).asnumpy()
-        tvm.testing.assert_allclose(res, ref_res, rtol=1e-5)
 
     test_pass_registration()
     test_pass_run()
@@ -332,7 +243,6 @@ def test_pass_optimize():
     log = relay.Function([z], relay.log(z))
 
     mod = relay.Module({v_sub: sub, v_log: log})
-    state = optimizer.PassState(mod)
 
     def get_ref_log():
         ref_log = relay.Function([x], relay.log(relay.add(x, x)))
@@ -362,52 +272,51 @@ def test_pass_optimize():
 
     def test_no_pass():
         passes = []
-        ret_state = optimizer.optimize(passes, state)
-        state_func = ret_state.mod[v_sub]
-        check_func(sub, state_func)
+        ret_mod = optimizer.optimize(passes, mod)
+        mod_func = ret_mod[v_sub]
+        check_func(sub, mod_func)
 
     def test_only_module_pass():
         passes = [module_pass]
-        ret_state = optimizer.optimize(passes, state)
+        ret_mod = optimizer.optimize(passes, mod)
         # Check the subtract function.
-        sub_var, new_sub = extrac_var_func(ret_state, v_sub.name_hint)
+        sub_var, new_sub = extrac_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, sub)
 
         # Check the abs function is added.
         abs_var, abs_func = get_var_func()
-        abs_var, new_abs = extrac_var_func(ret_state, abs_var.name_hint)
+        abs_var, new_abs = extrac_var_func(ret_mod, abs_var.name_hint)
         check_func(new_abs, abs_func)
 
     def test_only_function_pass():
         # Check the subtract function.
         passes = [function_pass]
-        ret_state = optimizer.optimize(passes, state)
-        sub_var, new_sub = extrac_var_func(ret_state, v_sub.name_hint)
+        ret_mod = optimizer.optimize(passes, mod)
+        _, new_sub = extrac_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
 
         # Check the log function.
-        log_var, new_log = extrac_var_func(ret_state, v_log.name_hint)
+        log_var, new_log = extrac_var_func(ret_mod, v_log.name_hint)
         check_func(new_log, get_ref_log())
 
     def test_multiple_passes():
-        # Reset the pass state since mod has been polluted by the previous
+        # Reset the current module since mod has been polluted by the previous
         # function pass.
         mod = relay.Module({v_sub: sub, v_log: log})
-        state = optimizer.PassState(mod)
         passes = [module_pass, function_pass]
-        ret_state = optimizer.optimize(passes, state)
+        ret_mod = optimizer.optimize(passes, mod)
 
         # Check the abs function is added.
         abs_var, abs_func = get_var_func()
-        abs_var, new_abs = extrac_var_func(ret_state, abs_var.name_hint)
+        abs_var, new_abs = extrac_var_func(ret_mod, abs_var.name_hint)
         check_func(new_abs, get_ref_abs())
 
         # Check the subtract function is modified correctly.
-        sub_var, new_sub = extrac_var_func(ret_state, v_sub.name_hint)
+        _, new_sub = extrac_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
 
         # Check the log function is modified correctly.
-        log_var, new_log = extrac_var_func(ret_state, v_log.name_hint)
+        _, new_log = extrac_var_func(ret_mod, v_log.name_hint)
         check_func(new_log, get_ref_log())
 
         # Execute the updated subtract function.
@@ -440,8 +349,6 @@ def test_pass_optimize():
 
 
 if __name__ == "__main__":
-    test_pass_state()
     test_module_pass()
     test_function_pass()
-    test_expr_pass()
     test_pass_optimize()

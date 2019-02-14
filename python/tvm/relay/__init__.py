@@ -93,3 +93,8 @@ fromtext = parser.fromtext
 # Param Serialization
 save_param_dict = param_dict.save_param_dict
 load_param_dict = param_dict.load_param_dict
+# Optimizer
+PassContext = optimizer.PassContext
+Pass = optimizer.Pass
+ModulePass = optimizer.ModulePass
+FunctionPass = optimizer.FunctionPass

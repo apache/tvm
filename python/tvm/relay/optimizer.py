@@ -9,7 +9,6 @@ from abc import abstractmethod
 from enum import IntEnum
 
 from . import _optimizer as _opt
-from .module import Module
 from .base import RelayNode, register_relay_node
 
 
@@ -17,28 +16,18 @@ class PassKind(IntEnum):
     """The different granularity of passes for optimization/analysis."""
     ModuleKind = 1
     FunctionKind = 2
-    ExprKind = 3
 
 
 @register_relay_node
-class PassState(RelayNode):
+class PassContext(RelayNode):
     """The basis where a Relay optimization/analysis runs on.
-
-    Each pass state contains a tvm.relay.Module object and some other
-    information such as the error reporter to record the state of a pass on its
-    completion.
-
-    Parameters
-    ----------
-    mod : tvm.relay.Module
-        The module object where optimization should run on.
+    Each pass context contains a number of auxiliary information that is used
+    to help an optimization pass. Such information includes the error reporter
+    to record the errors of during the performing the optimization, etc.
     """
 
-    def __init__(self, mod):
-        if not isinstance(mod, Module):
-            raise TypeError(
-                "mod is expected to be the type of tvm.relay.Module")
-        self.__init_handle_by_constructor__(_opt.PassState, mod)
+    def __init__(self):
+        self.__init_handle_by_constructor__(_opt.PassContext)
 
 
 @register_relay_node
@@ -58,11 +47,27 @@ class Pass(RelayNode):
     """
 
     @abstractmethod
-    def run(self, pass_state):
+    def run(self, mod, pass_ctx=None):
         """Execute the pass. It is an abstract function that will be
         implemented by subclasses.
+
+        Parameters
+        ----------
+        mod : tvm.relay.Module
+            The module that a certain optimization is performed on.
+
+        pass_ctx : Optional[PassContext]
+            The auxiliary information that helps perform the pass.
+
+        Returns
+        -------
+        mod : tvm.relay.Module
+            The updated module after applying this pass.
         """
         raise NotImplementedError("Pure virtual function is not implemented.")
+
+    def __call__(self, mod, pass_ctx=None):
+        return run(mod, pass_ctx)
 
 
 @register_relay_node
@@ -77,7 +82,7 @@ class ModulePass(Pass):
     opt_level : int
         The optimization level of this pass.
 
-    pass_func : Callable[PassState: tvm.relay.Module -> tvm.relay.Module]
+    pass_func : Callable[PassContext: tvm.relay.Module -> tvm.relay.Module]
         The implemented optimization pass.
     """
 
@@ -85,20 +90,23 @@ class ModulePass(Pass):
         self.__init_handle_by_constructor__(_opt.ModulePass, name, opt_level,
                                             pass_func)
 
-    def run(self, pass_state):
+    def run(self, mod, pass_ctx=None):
         """Execute a module pass.
 
         Parameters
         ----------
-        pass_state : PassState
-            The pass state where the module pass is executed on.
+        mod : tvm.relay.Module
+            The module that the module pass is executed on.
+
+        pass_ctx : Optional[PassContext]
+            The auxiliary information that helps perform the pass.
 
         Returns
         -------
-        ret : PassState
-            The updated pass state.
+        ret : tvm.relay.Module
+            The updated module.
         """
-        return _opt.RunModulePass(self, pass_state)
+        return _opt.RunModulePass(self, mod, pass_ctx)
 
 
 @register_relay_node
@@ -113,7 +121,7 @@ class FunctionPass(Pass):
     opt_level : int
         The optimization level of this pass.
 
-    pass_func : Callable[PassState: tvm.relay.Function -> tvm.relay.Function]
+    pass_func : Callable[PassContext: tvm.relay.Function -> tvm.relay.Function]
         The implemented optimization pass.
     """
 
@@ -121,57 +129,23 @@ class FunctionPass(Pass):
         self.__init_handle_by_constructor__(_opt.FunctionPass, name, opt_level,
                                             pass_func)
 
-    def run(self, pass_state):
+    def run(self, mod, pass_ctx=None):
         """Execute a function pass.
 
         Parameters
         ----------
-        pass_state : PassState
-            The pass state where the function pass is executed on.
+        mod : tvm.relay.Module
+            The module that the function pass is executed on.
+
+        pass_ctx : Optional[PassContext]
+            The auxiliary information that helps perform the pass.
 
         Returns
         -------
-        ret : PassState
-            The updated pass state.
+        ret : tvm.relay.Module
+            The updated module.
         """
-        return _opt.RunFunctionPass(self, pass_state)
-
-
-@register_relay_node
-class ExprPass(Pass):
-    """A pass that works on tvm.relay.Expr.
-
-    Parameters
-    ----------
-    name : str
-        The pass name.
-
-    opt_level : int
-        The optimization level of this pass.
-
-    pass_func : Callable[PassState: tvm.relay.Expr -> tvm.relay.Expr]
-        The implemented optimization pass.
-    """
-
-    def __init__(self, name, opt_level, pass_func):
-        self.__init_handle_by_constructor__(_opt.ExprPass, name, opt_level,
-                                            pass_func)
-
-    def run(self, pass_state):
-        """Execute an expr pass.
-
-        Parameters
-        ----------
-        pass_state : PassState
-            The pass state where the expr pass is executed on.
-
-        Returns
-        -------
-        ret : PassState
-            The updated pass state.
-        """
-        return _opt.RunExprPass(self, pass_state)
-
+        return _opt.RunFunctionPass(self, mod, pass_ctx)
 
 def build_pass(pass_name, opt_level, pass_kind, pass_func):
     """Create a pass using a defined optimization function from Python.
@@ -187,7 +161,7 @@ def build_pass(pass_name, opt_level, pass_kind, pass_func):
     pass_kind : PassKind
         The type of pass for optimization/analysis.
 
-    pass_func : Callable[PassState: Module/Function/Expr -> Module/Function/Expr]
+    pass_func : Callable[PassContext: Module/Function/Expr -> Module/Function/Expr]
         The implemented optimization pass.
 
     Returns
@@ -200,26 +174,28 @@ def build_pass(pass_name, opt_level, pass_kind, pass_func):
 
     if pass_kind == PassKind.ModuleKind:
         return _opt.ModulePass(pass_name, opt_level, pass_func)
-    elif pass_kind == PassKind.FunctionKind:
-        return _opt.FunctionPass(pass_name, opt_level, pass_func)
     else:
-        return _opt.ExprPass(pass_name, opt_level, pass_func)
+        return _opt.FunctionPass(pass_name, opt_level, pass_func)
 
 
-def optimize(passes, pass_state):
-    """Run a host of passes on a given pass state through the optimizer.
+def optimize(passes, mod, pass_ctx=None):
+    """Run a host of passes on a given tvm.relay.Module through the optimizer.
 
     Parameters
     ----------
     passes : List[Pass]
         The passes to be executed.
 
-    pass_state : PassState
-        The pass state where the passes are executed on.
+    mod : tvm.relay.Module
+        The module that the passes are executed on.
+
+    pass_ctx : Optional[PassContext]
+        The auxiliary information that helps perform the passes. The provided
+        information should be shared by all passes.
 
     Returns
     -------
-    ret : PassState
-        The updated pass state after running the provided passes.
+    ret : tvm.relay.Module
+        The updated module after running the provided passes.
     """
-    return _opt.Optimize(passes, pass_state)
+    return _opt.Optimize(passes, mod, pass_ctx)
