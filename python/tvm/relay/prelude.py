@@ -89,6 +89,8 @@ class Prelude:
         a = TypeVar("a")
         l1 = Var("l1", self.l(a))
         l2 = Var("l2", self.l(a))
+        h = Var("h")
+        t = Var("t")
         updater = Function([h, t], self.cons(h, t))
         self.mod[self.concat] = Function([l1, l2],
                                          self.foldr(updater, l2, l1),

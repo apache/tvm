@@ -29,6 +29,7 @@ foldl = p.foldl
 foldr = p.foldr
 sum = p.sum
 
+concat = p.concat
 filter = p.filter
 zip = p.zip
 rev = p.rev
@@ -182,6 +183,22 @@ def test_sum():
     assert mod[sum].checked_type == relay.FuncType([l(nat())], nat())
     res = intrp.evaluate(sum(cons(build_nat(1), cons(build_nat(2), nil()))))
     assert count(res) == 3
+
+
+def test_concat():
+    a = relay.TypeVar("a")
+    assert mod[concat].checked_type == relay.FuncType([l(a), l(a)], l(a), [a])
+
+    l1 = cons(build_nat(1), cons(build_nat(2), nil()))
+    l2 = cons(build_nat(3), cons(build_nat(4), nil()))
+    res = intrp.evaluate(concat(l1, l2))
+
+    catted = to_list(res)
+    assert len(catted) == 4
+    assert count(catted[0]) == 1
+    assert count(catted[1]) == 2
+    assert count(catted[2]) == 3
+    assert count(catted[3]) == 4
 
 
 def test_filter():
@@ -570,6 +587,14 @@ if __name__ == "__main__":
     test_map()
     test_foldl()
     test_foldr()
+    test_concat()
+    test_filter()
+    test_zip()
+    test_rev()
+    test_unfoldl()
+    test_unfoldr()
+    test_map_accumr()
+    test_map_accuml()
     test_sum()
     test_tmap()
     test_size()
