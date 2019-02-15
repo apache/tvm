@@ -40,7 +40,7 @@ class Prelude:
     def define_list_foldl(self):
         """Defines a left-way fold over a list.
 
-        foldl(f, z, l) : fn<a, b>(fn(a, b) -> a, a, list[a]) -> a
+        foldl(f, z, l) : fn<a, b>(fn(a, b) -> a, a, list[b]) -> a
 
         foldl(f, z, cons(a1, cons(a2, cons(a3, cons(..., nil)))))
         evaluates to f(...f(f(f(z, a1), a2), a3)...)
@@ -101,7 +101,7 @@ class Prelude:
 
         filter(f, l) : fn<a>(fn(a) -> Tensor[(), bool], list[a]) -> list[a]
 
-        It returns a the sublist of l consisting of the elements for which f returns true.
+        It returns the sublist of l consisting of the elements for which f returns true.
         """
         self.filter = GlobalVar("filter")
         a = TypeVar("a")
