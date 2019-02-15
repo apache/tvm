@@ -59,6 +59,7 @@ def compute_conv2d(attrs, inputs, out_type, target):
     out_dtype = attrs.out_dtype
     out_dtype = (inputs[0].dtype if (out_dtype == "same" or out_dtype == "")
                  else out_dtype)
+
     assert layout in ["NCHW", "NHWC", "NCHW4c"]
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
