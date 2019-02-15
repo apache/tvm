@@ -430,6 +430,7 @@ a generator network (which takes a single input and produces a sequence of outpu
 
 .. code_block:: python
 
+   # included in Relay's Prelude
    def @unfoldr<a, b>(%f : fn(b) -> Optional[(a, b)], %z : b) -> List[a] {
      match(%f(%z)) {
        case Some(%pair) { Cons(%pair.0, @unfoldr(%f, %pair.1)) }
@@ -469,7 +470,8 @@ of outputs) can be used to write a general RNN (with an output for every input):
      }
    }
 
-   # can also be implemented as a right fold:
+   # can also be implemented as a right fold
+   # (this version is included in Relay's Prelude)
    def @map_accumr_fold(%f, %acc, %l) {
      @foldr(fn(%b, %p) {
        let %f_out = %f(%p.0, %b);
@@ -490,6 +492,7 @@ single set of outputs. The following is a Relay implementation of that example:
 .. code_block:: python
 
    # creates a list of tuples from two lists
+   # included in Relay's Prelude
    def @zip<a, b>(%l : List[a], %m : List[b]) -> List[(a, b)] {
      match(%l) {
        case Nil() { Nil() }
@@ -503,6 +506,7 @@ single set of outputs. The following is a Relay implementation of that example:
    }
 
    # analogous to map_accumr
+   # included in Relay's Prelude
    def @map_accmul(%f, %acc, %l) {
      @foldl(fn(%p, %b){
        let %f_out = %f(%p.0, %b);
