@@ -90,10 +90,8 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
   Kind VisitType_(const RefTypeNode* op) override {
     // ref types should only contain normal types
-    Kind k = this->VisitType(op->value);
-    CHECK(k == Kind::kType)
-      << "The value inside a ref must be of the type kind but "
-      << op->value << " of " << GetRef<RefType>(op) << " is of kind " << k;
+    RefType rt = GetRef<RefType>(op);
+    CheckKindMatches(op->value, rt, Kind::kType, "ref contents");
     return Kind::kType;
   }
 

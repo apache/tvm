@@ -19,7 +19,6 @@ namespace relay {
 class RelayHashHandler:
     public AttrsHashHandler,
     public TypeFunctor<size_t(const Type&)>,
-    public ExprFunctor<size_t(const Expr&)> {
     public ExprFunctor<size_t(const Expr&)>,
     public PatternFunctor<size_t(const Pattern&)> {
  public:

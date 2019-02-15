@@ -477,13 +477,13 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   }
 
   Type VisitExpr_(const RefReadNode* op) final {
-    Type it = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    Type it = IncompleteTypeNode::make(Kind::kType);
     this->Unify(GetType(op->ref), RefTypeNode::make(it), GetRef<RefRead>(op));
     return it;
   }
 
   Type VisitExpr_(const RefWriteNode* op) final {
-    Type it = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    Type it = IncompleteTypeNode::make(Kind::kType);
     this->Unify(GetType(op->ref), RefTypeNode::make(it), GetRef<RefWrite>(op));
     this->Unify(GetType(op->value), it, GetRef<RefWrite>(op));
     return TupleTypeNode::make({});
