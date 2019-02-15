@@ -220,18 +220,18 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   // fetch uops
   val uop_mem_write_en = (opcode_load_en && (memory_type === mem_id_uop.U))
   val uop_dram_addr = (dram_idx + uop_cntr_val) << log2Ceil(128 / 8).U
-  val uop_sram_addr = (sram_idx + uop_cntr_val) 
+  val uop_sram_addr = (sram_idx + uop_cntr_val) << log2Ceil(128 / uop_width).U
   uops_read := uop_cntr_en && !uop_cntr_wrap && busy
   io.uops.read := uops_read
   io.uops.address := uop_dram_addr
   io.uops.write <> DontCare
   io.uops.writedata <> DontCare
   when (uops_read && !uop_cntr_wait) {
-    uops_data := io.uops.readdata
+    // uops_data := io.uops.readdata
+    for (i <- 0 to 3) {
+      uop_mem(uop_sram_addr + i.U) := io.uops.readdata(31 + i * 32, i * 32)
+    }
     when (uop_cntr_val === (uop_cntr_max - 1.U)) { uops_read := 0.U }
-  }
-  for (i <- 0 to 3) {
-    uop_mem(uop_sram_addr + i.U) := uops_data(31 + i * 32, i * 32)
   }
 
   // fetch biases
@@ -255,8 +255,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   // read from uop_mem
   // val it_in = out_cntr_val
   val upc = out_cntr_val // - 1.U // % uop_cntr_max
-  val uop = Reg(UInt(32.W))
-  uop := uop_mem(upc)
+  val uop = uop_mem(upc)
   val dst_offset_out = 0.U(16.W) // it_in
   val src_offset_out = 0.U(16.W) // it_in
   val it_in = (out_cntr_val) % (iter_in * iter_out)
