@@ -1,6 +1,5 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D schedule on x86"""
-import warnings
 
 import tvm
 from tvm import autotvm
@@ -359,8 +358,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     dispatch_ctx.update(target, new_workload, cfg)
     if F == sym:
         return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
-    else:
-        return F.nn.contrib_conv2d_NCHWc(*copy_inputs, **new_attrs)
+    return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
 
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')
