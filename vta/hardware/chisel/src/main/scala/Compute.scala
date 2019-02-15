@@ -255,7 +255,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   // read from uop_mem
   // val it_in = out_cntr_val
   val upc = out_cntr_val // - 1.U // % uop_cntr_max
-  val uop = uop_mem(upc)
+  val uop = uop_mem(upc) // TODO: construct uop as register, and copy from uop_mem block ram
   val dst_offset_out = 0.U(16.W) // it_in
   val src_offset_out = 0.U(16.W) // it_in
   val it_in = (out_cntr_val) % (iter_in * iter_out)
@@ -341,7 +341,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
     out_mem_write := false.B
   }
   val out_mem_address = Reg(UInt(32.W))
-  when (!out_cntr_wait) {
+  when (out_mem_write && !out_cntr_wait) {
     out_mem_address := dst_idx
   }
   io.out_mem.address := out_mem_address << 4.U
