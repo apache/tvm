@@ -46,6 +46,19 @@ def test_func_kind():
     assert check_kind(tf) == relay.Kind.Type
 
 
+def test_ref_kind():
+    # only contain type kinds
+    tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
+    ft = relay.FuncType(tvm.convert([]), tt, tvm.convert([]), tvm.convert([]))
+
+    rt1 = relay.RefType(tt)
+    assert check_kind(rt1) == relay.Kind.Type
+    rt2 = relay.RefType(ft)
+    assert check_kind(rt2) == relay.Kind.Type
+    rt3 = relay.RefType(relay.TupleType([rt1, rt2]))
+    assert check_kind(rt3) == relay.Kind.Type
+
+
 def test_relation_kind():
     # only have type kinds for arguments
     tp = relay.TypeVar('tp', relay.Kind.Type)
@@ -106,6 +119,13 @@ def test_invalid_func_kind():
 
     tf = relay.FuncType(arg_types, ret_type, type_params, type_constraints)
     check_kind(tf)
+
+
+@raises(tvm._ffi.base.TVMError)
+def test_invalid_ref_kind():
+    tp = relay.TypeVar('tp', relay.Kind.Shape)
+    rt = relay.RefType(tp)
+    check_kind(rt)
 
 
 @raises(tvm._ffi.base.TVMError)
