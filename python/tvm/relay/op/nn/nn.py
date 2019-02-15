@@ -838,17 +838,17 @@ def contrib_conv2d_winograd_without_weight_transform(data,
 
 
 def contrib_conv2d_NCHWc(data,
-           kernel,
-           strides=(1, 1),
-           padding=(0, 0),
-           dilation=(1, 1),
-           groups=1,
-           channels=None,
-           kernel_size=None,
-           data_layout="NCHW8c",
-           kernel_layout="OIHW",
-           out_layout="",
-           out_dtype=""):
+                         kernel,
+                         strides=(1, 1),
+                         padding=(0, 0),
+                         dilation=(1, 1),
+                         groups=1,
+                         channels=None,
+                         kernel_size=None,
+                         data_layout="NCHW8c",
+                         kernel_layout="OIHW",
+                         out_layout="",
+                         out_dtype=""):
     r"""Variant of 2D convolution.
 
     This operator takes the weight as the convolution kernel
@@ -899,9 +899,8 @@ def contrib_conv2d_NCHWc(data,
         The computed result.
     """
     return _make.contrib_conv2d_NCHWc(data, kernel, strides, padding, dilation,
-                        groups, channels, kernel_size, data_layout, kernel_layout,
-                        out_layout, out_dtype)
-
+                                      groups, channels, kernel_size, data_layout,
+                                      kernel_layout, out_layout, out_dtype)
 
 
 def contrib_conv2d_winograd_weight_transform(weight,
