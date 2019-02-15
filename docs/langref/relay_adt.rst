@@ -72,12 +72,9 @@ via a match expression:
       }
    }
 
-   def @main() {
-     let %s1 = @sum(Empty());    # evaluates to 0
-     let %s2 = @sum(Single(3));  # evaluates to 3
-     let %s3 = @sum(Pair(5, 6)); # evaluates to 11
-     ()
-   }
+   @sum(Empty())    # evaluates to 0
+   @sum(Single(3))  # evaluates to 3
+   @sum(Pair(5, 6)) # evaluates to 11
 
 Note that ADTs are identified by name,
 meaning that two ADTs with structurally identical constructors
@@ -153,7 +150,8 @@ kept around. Let the below example illustrate:
      ()
    }
 
-The syntax for the annotated type arguments in the above examples is
+The syntax for the annotated type arguments
+(e.g., :code:`Optional[Tensor[(), int32]]`) in the above examples is
 called a "type call," treating the polymorphic ADT definition as a
 type-level function (taking type params and returning a type, namely
 the ADT). Any ADT appearing in a type annotation or function signature

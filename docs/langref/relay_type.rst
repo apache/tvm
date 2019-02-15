@@ -256,8 +256,11 @@ each of which takes arguments of certain types.
 An instance of an ADT is a container that stores the values
 of the constructor arguments used to produce it as well as the
 name of the constructor; the values can be retrieved by
-deconstructing the instance by matching based on its constructor
-(hence, ADTs are sometimes called "tagged unions").
+deconstructing the instance by matching based on its constructor.
+Hence, ADTs are sometimes called "tagged unions": like a C-style
+union, the contents of an instance for a given ADT may have
+different types in certain cases, but the constructor serves as a
+tag to indicate how to interpret the contents.
 
 From the type system's perspective, it is most pertinent that
 ADTs can take type parameters (constructor arguments can be
