@@ -81,6 +81,19 @@ class Prelude:
         self.mod[self.foldr] = Function([f, bv, av],
                                         Match(av, [nil_case, cons_case]), b, [a, b])
 
+    def define_list_concat(self):
+        """Defines a function that concatenates two lists.
+
+        concat(l1, l2) : fn<a>(list[a], list[a]) -> list[a]"""
+        self.concat = GlobalVar("concat")
+        a = TypeVar("a")
+        l1 = Var("l1", self.l(a))
+        l2 = Var("l2", self.l(a))
+        updater = Function([h, t], self.cons(h, t))
+        self.mod[self.concat] = Function([l1, l2],
+                                         self.foldr(updater, l2, l1),
+                                         self.l(a), [a])
+
     def define_list_filter(self):
         """Defines a function that filters a list.
 
@@ -342,6 +355,7 @@ class Prelude:
         self.define_list_map()
         self.define_list_foldl()
         self.define_list_foldr()
+        self.define_list_concat()
         self.define_list_filter()
         self.define_list_zip()
         self.define_list_rev()
