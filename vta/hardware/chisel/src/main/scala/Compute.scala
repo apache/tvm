@@ -8,7 +8,7 @@ import freechips.rocketchip.config.Parameters
 
 class ComputeIO(implicit p: Parameters) extends CoreBundle()(p) {
   val done = new AvalonSlaveIO(dataBits = 1, addrBits = 1)
-  val uops = Flipped(new AvalonSlaveIO(dataBits = 32, addrBits = 32))
+  val uops = Flipped(new AvalonSlaveIO(dataBits = 128, addrBits = 32))
   val biases = Flipped(new AvalonSlaveIO(dataBits = 128, addrBits = 32))
   val gemm_queue = new AvalonSinkIO(dataBits = 128)
   val l2g_dep_queue = new AvalonSinkIO(dataBits = 1)
@@ -53,6 +53,24 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val x_pad_0     = insn(insn_mem_d_1, insn_mem_d_0)
   val x_pad_1     = insn(insn_mem_e_1, insn_mem_e_0)
 
+  // write to out_mem
+  val uop_bgn = Reg(UInt(16.W))
+  uop_bgn := insn(insn_gem_6_1, insn_gem_6_0)
+  val uop_end = Reg(UInt(16.W))
+  uop_end := insn(insn_gem_7_1, insn_gem_7_0)
+  val iter_out = insn(insn_gem_8_1, insn_gem_8_0)
+  val iter_in = insn(insn_gem_9_1, insn_gem_9_0)
+  val dst_factor_out = 1.U(16.W)
+  val dst_factor_in  = 1.U(16.W)
+  val src_factor_out = 1.U(16.W)
+  val src_factor_in  = 1.U(16.W)
+  val wgt_factor_out = 1.U(16.W)
+  val wgt_factor_in  = 1.U(16.W)
+  val alu_opcode = insn(insn_alu_e_1, insn_alu_e_0)
+  val use_imm = insn(insn_alu_f)
+  val imm_raw = insn(insn_alu_g_1, insn_alu_g_0)
+  val imm = Mux(imm_raw.asSInt < 0.S, Cat("hffff".U, imm_raw), Cat("h0000".U, imm_raw)).asSInt
+
   val sram_idx = sram_base
   val dram_idx = dram_base
   val y_size_total = y_pad_0 + y_size + y_pad_1
@@ -79,7 +97,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   // uops / biases / out_mem
   val uops_read   = Reg(Bool())
-  val uops_data   = Reg(UInt(32.W))
+  val uops_data   = Reg(UInt(128.W))
 
   val biases_read = Reg(Bool())
   val biases_bits = block_out * acc_width
@@ -89,7 +107,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val out_mem_write  = RegInit(false.B)
 
   // counters
-  val uop_cntr_max = x_size
+  val uop_cntr_max_val = x_size >> log2Ceil(128 / uop_width).U
+  val uop_cntr_max = Mux(uop_cntr_max_val === 0.U, 1.U, uop_cntr_max_val)
   val uop_cntr_en = (opcode_load_en && memory_type_uop_en && insn_valid)
   val uop_cntr_wait = io.uops.waitrequest
   val uop_cntr_val = Reg(UInt(16.W))
@@ -101,7 +120,9 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val acc_cntr_val = Reg(UInt(16.W))
   val acc_cntr_wrap = ((acc_cntr_val === acc_cntr_max) && acc_cntr_en && busy)
 
-  val out_cntr_max = 8.U + 1.U // x_size
+  val upc_cntr_max_val = uop_end - uop_bgn
+  val upc_cntr_max = Mux(upc_cntr_max_val <= 0.U, 1.U, upc_cntr_max_val)
+  val out_cntr_max = iter_in * iter_out * upc_cntr_max + 1.U
   val out_cntr_en = ((opcode_alu_en || opcode_gemm_en) && insn_valid)
   val out_cntr_wait = io.out_mem.waitrequest
   val out_cntr_val = Reg(UInt(16.W))
@@ -118,7 +139,15 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val gemm_queue_ready = RegInit(false.B)
 
   // update busy status
-  when (uop_cntr_wrap || acc_cntr_wrap || out_cntr_wrap) {
+  val finish_wrap = RegInit(false.B)
+  when (opcode_finish_en) {
+    when ( pop_prev_dep)      { finish_wrap :=  pop_prev_dep_ready && busy }
+    .elsewhen ( pop_next_dep) { finish_wrap :=  pop_next_dep_ready && busy }
+    .elsewhen (push_prev_dep) { finish_wrap := push_prev_dep_ready && busy }
+    .elsewhen (push_next_dep) { finish_wrap := push_next_dep_ready && busy }
+    .otherwise { finish_wrap := false.B }
+  } .otherwise { finish_wrap := false.B }
+  when (uop_cntr_wrap || acc_cntr_wrap || out_cntr_wrap || finish_wrap) {
     when (push_prev_dep || push_next_dep) {
       state := s_PUSH
     } .otherwise {
@@ -190,7 +219,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   // fetch uops
   val uop_mem_write_en = (opcode_load_en && (memory_type === mem_id_uop.U))
-  val uop_dram_addr = (dram_idx + uop_cntr_val) << log2Ceil(uop_width / 8).U
+  val uop_dram_addr = (dram_idx + uop_cntr_val) << log2Ceil(128 / 8).U
   val uop_sram_addr = (sram_idx + uop_cntr_val) 
   uops_read := uop_cntr_en && !uop_cntr_wrap && busy
   io.uops.read := uops_read
@@ -201,11 +230,13 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
     uops_data := io.uops.readdata
     when (uop_cntr_val === (uop_cntr_max - 1.U)) { uops_read := 0.U }
   }
-  uop_mem(uop_sram_addr) := uops_data
+  for (i <- 0 to 3) {
+    uop_mem(uop_sram_addr + i.U) := uops_data(31 + i * 32, i * 32)
+  }
 
   // fetch biases
-  val acc_dram_addr = ((((dram_idx + y_offset + x_pad_0) << 2.U) * batch.U + acc_cntr_val) << 4.U)
-  val acc_sram_addr = ((((sram_idx + y_offset + x_pad_0) << 2.U) * batch.U + acc_cntr_val) >> 2.U) - 1.U
+  val acc_dram_addr = ((((dram_idx + y_offset + x_pad_0) << 2.U) * batch.U + acc_cntr_val) << log2Ceil(128 / 8).U)
+  val acc_sram_addr = ((((sram_idx + y_offset + x_pad_0) << 2.U) * batch.U + acc_cntr_val) >> log2Ceil(biases_beats).U) - 1.U
   biases_read := acc_cntr_en && !done
   io.biases.address := acc_dram_addr
   io.biases.read := biases_read
@@ -221,22 +252,16 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
     }
   }
 
-  // write to out_mem
-  val uop_bgn = insn(insn_gem_6_1, insn_gem_6_0)
-  val uop_end = insn(insn_gem_7_1, insn_gem_7_0)
-  val iter_out = insn(insn_gem_8_1, insn_gem_8_0)
-  val iter_in = insn(insn_gem_9_1, insn_gem_9_0)
-  val alu_opcode = insn(insn_alu_e_1, insn_alu_e_0)
-  val use_imm = insn(insn_alu_f)
-  val imm_raw = insn(insn_alu_g_1, insn_alu_g_0)
-  val imm = Mux(imm_raw.asSInt < 0.S, Cat("hffff".U, imm_raw), Cat("h0000".U, imm_raw)).asSInt
-  val it_in = out_cntr_val
-
   // read from uop_mem
-  val upc = 0.U
-  val uop = uop_mem(upc)
-  val dst_offset_in = it_in
-  val src_offset_in = it_in
+  // val it_in = out_cntr_val
+  val upc = out_cntr_val // - 1.U // % uop_cntr_max
+  val uop = Reg(UInt(32.W))
+  uop := uop_mem(upc)
+  val dst_offset_out = 0.U(16.W) // it_in
+  val src_offset_out = 0.U(16.W) // it_in
+  val it_in = (out_cntr_val) % (iter_in * iter_out)
+  val dst_offset_in = dst_offset_out + it_in * dst_factor_in
+  val src_offset_in = src_offset_out + it_in * src_factor_in
   val dst_idx = uop(uop_alu_0_1, uop_alu_0_0) + dst_offset_in
   val src_idx = uop(uop_alu_1_1, uop_alu_1_0) + src_offset_in
 
@@ -312,11 +337,15 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   // write to out_mem interface
   val alu_opcode_minmax_en = alu_opcode_min_en || alu_opcode_max_en
   val alu_opcode_add_en = (alu_opcode === alu_opcode_add.U)
-  out_mem_write := opcode_alu_en && !out_cntr_wrap && busy
+  out_mem_write := opcode_alu_en && busy && !out_cntr_wrap
   when (out_mem_write && (out_cntr_val === (out_cntr_max - 1.U)) && !out_cntr_wait) {
     out_mem_write := false.B
   }
-  io.out_mem.address := (dst_idx - 1.U) << 4.U
+  val out_mem_address = Reg(UInt(32.W))
+  when (!out_cntr_wait) {
+    out_mem_address := dst_idx
+  }
+  io.out_mem.address := out_mem_address << 4.U
   io.out_mem.write := out_mem_write
   io.out_mem.read := DontCare
   io.out_mem.writedata := Mux(alu_opcode_minmax_en, Cat(short_cmp_res.init.reverse),
