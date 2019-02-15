@@ -73,9 +73,9 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  * fn (%x: Tensor[(meta[Variable][0],), float32]) {
  *   %x
  * }
- * # Meta data section is a json-serialized string
- * # of the following array.
- * # [tvm.var("n")]
+ * // Meta data section is a json-serialized string
+ * // of the following array.
+ * // [tvm.var("n")]
  *
  * \endcode
  *
@@ -139,15 +139,17 @@ class TextPrinter :
     public TypeFunctor<void (const Type&, std::ostream& os)>,  // NOLINT(*)
     public AttrFunctor<void (const NodeRef&, std::ostream& os)> { // NOLINT(*)
  public:
-  explicit TextPrinter(bool show_meta_data,
+  explicit TextPrinter(bool inline_meta_data,
+                       bool show_meta_data,
                        runtime::TypedPackedFunc<std::string(Expr)> annotate)
-      : show_meta_data_(show_meta_data), annotate_(annotate) {}
+      : inline_meta_data_(inline_meta_data), show_meta_data_(show_meta_data), annotate_(annotate) {}
   /*!
    * \brief Print a node to string.
    * \param node.
    * \return The string representation.
    */
   std::string Print(const NodeRef& node) {
+    stream_ << "v0.0.2\n";
     if (node.as<FunctionNode>()) {
       this->PrintFunc(Downcast<Function>(node));
     } else if (node.as<ModuleNode>()) {
@@ -163,12 +165,12 @@ class TextPrinter :
       if (show_meta_data_) {
         std::string meta_json = meta_.GetMetaSection();
         // append meta data in the end.
-        stream_ << "# meta data\n"
+        stream_ << "// meta data\n"
                 << "r\"\"\"\n"
                 << meta_json << "\n"
                 << "\"\"\"";
       } else {
-        stream_ << "# meta data omitted. you can use show_meta_data=True to include meta-data\n";
+        stream_ << "// meta data omitted. you can use show_meta_data=True to include meta-data\n";
       }
     }
     return stream_.str();
@@ -256,27 +258,38 @@ class TextPrinter :
   }
 
   TextValue VisitExpr_(const TupleNode* op) final {
-    std::vector<TextValue> fields;
-    for (Expr field : op->fields) {
-      fields.push_back(GetValue(field));
-    }
-    // NOTE: always recursively visit to get ids,
-    // before print out the current line
-    TextValue id = this->AllocTempVar();
-    this->PrintIndent();
-    stream_ << id << " = (";
-    for (size_t i = 0; i < fields.size(); ++i) {
-      stream_ << fields[i];
-      if (i + 1 != fields.size()) {
-        stream_ << ", ";
+    if (inline_meta_data_) {
+      stream_ << "(";
+      for (size_t i = 0; i < op->fields.size(); i++) {
+        stream_ << GetValue(op->fields[i]);
+        if (i + 1 != op->fields.size())
+          stream_ << ", ";
       }
+      stream_ << ")";
+      return TextValue("");
+    } else {
+      std::vector<TextValue> fields;
+      for (Expr field : op->fields) {
+        fields.push_back(GetValue(field));
+      }
+      // NOTE: always recursively visit to get ids,
+      // before print out the current line
+      TextValue id = this->AllocTempVar();
+      this->PrintIndent();
+      stream_ << id << " = (";
+      for (size_t i = 0; i < fields.size(); ++i) {
+        stream_ << fields[i];
+        if (i + 1 != fields.size()) {
+          stream_ << ", ";
+        }
+      }
+      if (fields.size() == 1) {
+        stream_ << ',';
+      }
+      stream_ << ')';
+      this->PrintEndInst("\n");
+      return id;
     }
-    if (fields.size() == 1) {
-      stream_ << ',';
-    }
-    stream_ << ')';
-    this->PrintEndInst("\n");
-    return id;
   }
 
   TextValue VisitExpr_(const VarNode* op) final {
@@ -637,9 +650,9 @@ class TextPrinter :
   void PrintOptionalInfo(const Expr& expr) {
     // additional information in comment.
     if (annotate_ != nullptr) {
-      stream_ << " # " << annotate_(expr);
+      stream_ << " // " << annotate_(expr);
     } else if (expr->checked_type_.defined()) {
-      stream_ << " # ty=";
+      stream_ << " // ty=";
       this->PrintType(expr->checked_type(), stream_);
     }
   }
@@ -795,6 +808,8 @@ class TextPrinter :
  private:
   class AttrPrinter;
   friend class AttrPrinter;
+  /*! \brief Whether to inline meta data. If enabled, ignores show_meta_data_ flag. */
+  bool inline_meta_data_;
   /*! \brief Whether to print meta data. */
   bool show_meta_data_;
   /*! \brief additional comment function */
@@ -890,14 +905,15 @@ void TextPrinter::PrintCallAttrs(const Expr& op,
 }
 
 std::string RelayPrint(const NodeRef& node,
+                       bool inline_meta_data,
                        bool show_meta_data,
                        runtime::TypedPackedFunc<std::string(Expr)> annotate) {
-  return TextPrinter(show_meta_data, annotate).Print(node);
+  return TextPrinter(inline_meta_data, show_meta_data, annotate).Print(node);
 }
 
 TVM_REGISTER_API("relay._expr.RelayPrint")
 .set_body_typed<std::string(
-    const NodeRef&, bool,
+    const NodeRef&, bool, bool,
     runtime::TypedPackedFunc<std::string(Expr)>)>(RelayPrint);
 
 }  // namespace relay

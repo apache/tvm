@@ -553,6 +553,7 @@ inline const TTypeNode* ExprNode::type_as() const {
  */
 std::string RelayPrint(
     const NodeRef& node,
+    bool inline_meta_data = false,
     bool show_meta_data = true,
     runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 }  // namespace relay
