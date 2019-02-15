@@ -109,29 +109,32 @@ class PassNode : public RelayNode {
 
   /*!
    * \brief Execute the optimization pass using a functor. This functor invokes
-   * the `run` method to perform a real optimization on a certain type of node.
+   *        the `run` method to perform a real optimization on a certain type
+   *        of node.
    *
    * \param mod The module that an optimization pass runs on.
    * \param pass_ctx The context information that is used to help perform
    *        a given pass.
+   *
+   * \return The updated module.
    */
-  void operator()(Module* mod, const PassContext& pass_ctx) {
-    Run(mod, pass_ctx);
+  Module operator()(const Module& mod, const PassContext& pass_ctx) const {
+    return Run(mod, pass_ctx);
   }
 
   /*!
    * \brief Execute the optimization pass. This is function should be specilized
-   * for different types of Relay nodes. For example, we mainly allow
-   * transformation of from Module/Function to Module/Function. Note  that the
-   * module will be updated.
+   *        for different types of Relay nodes. For example, we mainly allow
+   *        transformation of from Module/Function to Module/Function. Note that
+   *        the module will be updated.
    *
    * \param mod The module that an optimization pass runs on.
    * \param pass_ctx The context information that is used to help perform
    *        a given pass.
    *
-   * \return Return the updated module through mod.
+   * \return Return the updated module.
    */
-  virtual void Run(Module* mod, const PassContext& pass_ctx) const = 0;
+  virtual Module Run(const Module& mod, const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
@@ -186,9 +189,9 @@ class ModulePassNode : public PassNode {
    * \param pass_ctx The context information that is used to help perform
    *        a given module pass.
    *
-   * \return Return the updated module through mod.
+   * \return Return the updated module.
    */
-  void Run(Module* mod, const PassContext& pass_ctx) const override;
+  Module Run(const Module& mod, const PassContext& pass_ctx) const override;
 
   TVM_DLL static ModulePass make(std::string name, int opt_level,
                                  PassFunc<Module> pass_func,
@@ -233,9 +236,9 @@ class FunctionPassNode : public PassNode {
    * \param pass_ctx The context information that is used to help perform
    *        a given pass.
    *
-   * \return Return the updated module through mod.
+   * \return Return the updated module.
    */
-  void Run(Module* mod, const PassContext& pass_ctx) const override;
+  Module Run(const Module& mod, const PassContext& pass_ctx) const override;
 
   TVM_DLL static FunctionPass make(std::string name, int opt_level,
                                    PassFunc<Function> pass_func,
@@ -296,40 +299,40 @@ class Optimizer {
    * overloaded to focus on different metrics, i.e. performance, memory
    * footprint, etc.
    */
-  void Optimize() const;
+  Module Optimize();
 
  private:
-  /* \brief The module where a host of passes are executed on. It is designed
-   * to be mutable because each optimization is likely to update the module
-   * on its completion.
+  /* \brief The module where a host of passes are executed on. It will be
+   * updated by each pass on its completion as they might need to update the
+   * module.
    */
-  mutable Module module_;
+  Module module_;
   /* \brief The pass candidates for optimizations. */
   tvm::Array<Pass> passes_;
   /* \brief The auxiliary pass context/information that is used to help perform
    * the given list of passes.*/
   PassContext pass_ctx_;
-  friend void Optimize(const tvm::Array<Pass>& passes,
-                       Module* mod,
-                       const PassContext& pass_ctx);
+  friend Module Optimize(const tvm::Array<Pass>& passes,
+                         const Module& mod,
+                         const PassContext& pass_ctx);
 };
 
 /*!
  * \brief Optimizes the functions and/or expressions in the module. This free
- * function is designed as a template function that could take different types
- * of Relay nodes.
-
+ *        function is designed as a template function that could take different
+ *        types of Relay nodes.
+ *
  * \param passes The optimization passes.
  * \param mod The module where optimizations are performed on.
  *        Note that the updated module will be stored and returned.
  * \param pass_ctx The auxiliary pass context/information that is used to help
  *        perform the provided passes.
  *
- * \return Return the updated Module through mod.
+ * \return Return the updated module.
  */
-void Optimize(const tvm::Array<Pass>& passes,
-              Module* mod,
-              const PassContext& pass_ctx);
+Module Optimize(const tvm::Array<Pass>& passes,
+                const Module& mod,
+                const PassContext& pass_ctx);
 
 }  // namespace optimize
 }  // namespace relay

@@ -39,14 +39,18 @@ ModulePass ModulePassNode::make(std::string name, int opt_level,
 }
 
 // Module -> Module optimizations.
-// TODO(zhiics) Check and handle the required passes.
-void ModulePassNode::Run(Module* mod, const PassContext& pass_ctx) const {
+// TODO(zhiics) 1. Check and handle the required passes.
+//              2. Probably use CoW for all places that use module instead of
+//              returning the updated one.
+Module ModulePassNode::Run(const Module& mod,
+                           const PassContext& pass_ctx) const {
   LOG(INFO) << "Executing module pass : " << this->name
             << " with opt level: " << opt_level << "\n";
-  CHECK(mod->defined());
-  auto foreach = pass_func(*mod);
-  *mod = foreach(*mod);
-  CHECK(mod->defined());
+  CHECK(mod.defined());
+  auto foreach = pass_func(mod);
+  auto updated_mod = foreach(mod);
+  CHECK(updated_mod.defined());
+  return std::move(updated_mod);
 }
 
 FunctionPass FunctionPassNode::make(std::string name, int opt_level,
@@ -64,13 +68,14 @@ FunctionPass FunctionPassNode::make(std::string name, int opt_level,
 
 // Perform Module -> Module optimizations at the Function level.
 // TODO(zhiics) Check and handle the required passes.
-void FunctionPassNode::Run(Module* mod, const PassContext& pass_ctx) const {
+Module FunctionPassNode::Run(const Module& mod,
+                             const PassContext& pass_ctx) const {
   LOG(INFO) << "Executing function pass : " << this->name
             << " with opt level: " << this->opt_level << "\n";
-  CHECK(mod->defined());
-  auto foreach = pass_func(*mod);
+  CHECK(mod.defined());
+  auto foreach = pass_func(mod);
   std::vector<std::pair<GlobalVar, Function>> updated_funcs;
-  ModuleNode* mod_node = (*mod).operator->();
+  ModuleNode* mod_node = mod.operator->();
   for (const auto& it : mod_node->functions) {
     if (!SkipFunction(it.second)) {
       auto updated_func = foreach(it.second);
@@ -83,6 +88,8 @@ void FunctionPassNode::Run(Module* mod, const PassContext& pass_ctx) const {
   for (const auto& it : updated_funcs) {
     mod_node->Update(it.first, it.second);
   }
+
+  return GetRef<Module>(mod_node);
 }
 
 // TODO(zhiics) Create an enum attribute for FunctionNode
@@ -93,20 +100,21 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
   return pval && pval->value != 0;
 }
 
-void Optimizer::Optimize() const {
+Module Optimizer::Optimize() {
   for (const Pass& pass : passes_) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
-    pass->Run(&module_, pass_ctx_);
+    module_ = pass->Run(module_, pass_ctx_);
   }
+  return module_;
 }
 
-void Optimize(const tvm::Array<Pass>& passes,
-              Module* mod,
-              const PassContext& pass_ctx) {
+Module Optimize(const tvm::Array<Pass>& passes,
+                const Module& mod,
+                const PassContext& pass_ctx) {
   LOG(INFO) << "Start executing optimization passes." << "\n";
-  Optimizer pm(*mod, passes, pass_ctx);
+  Optimizer pm(mod, passes, pass_ctx);
   pm.Optimize();
-  *mod = pm.module_;
+  return pm.module_;
 }
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
@@ -138,8 +146,7 @@ TVM_REGISTER_API("relay._optimize.RunModulePass")
   CHECK(pass.defined())
       << "Running a pass on undefined ModulePass is not allowed."
       << "\n";
-  pass->Run(&mod, pass_ctx);
-  *ret = mod;
+  *ret = pass->Run(mod, pass_ctx);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -178,8 +185,7 @@ TVM_REGISTER_API("relay._optimize.RunFunctionPass")
   CHECK(pass.defined())
       << "Running a pass on undefined ModulePass is not allowed."
       << "\n";
-  pass->Run(&mod, pass_ctx);
-  *ret = mod;
+  *ret = pass->Run(mod, pass_ctx);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -207,8 +213,7 @@ TVM_REGISTER_API("relay._optimize.Optimize")
   tvm::Array<Pass> passes = args[0];
   Module mod = args[1];
   PassContext pass_ctx = args[2];
-  Optimize(passes, &mod, pass_ctx);
-  *ret = mod;
+  *ret = Optimize(passes, mod, pass_ctx);
 });
 
 }  // namespace optimize
