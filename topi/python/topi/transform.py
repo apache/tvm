@@ -289,3 +289,13 @@ def tensordot(a, b, axes):
     if isinstance(axes[0], int):
         return cpp.tensordot(a, b, (axes[0],), (axes[1],))
     return cpp.tensordot(a, b, axes[0], axes[1])
+
+
+def arange(stop, start=None, step=1, dtype="float32"):
+    if start is None:
+        start = 0
+    else:
+        tmp = stop
+        stop = start
+        start = tmp
+    return cpp.arange(start, stop, step, dtype)

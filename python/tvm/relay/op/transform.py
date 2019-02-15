@@ -249,6 +249,16 @@ def full_like(data, fill_value):
     return _make.full_like(data, fill_value)
 
 
+def arange(stop, start=None, step=1, dtype="float32"):
+    if start is None:
+        start = 0
+    else:
+        tmp = stop
+        stop = start
+        start = tmp
+    return _make.arange(start, stop, step, dtype)
+
+
 def where(condition, x, y):
     """Selecting elements from either x or y depending on the value of the
     condition.
