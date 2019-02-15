@@ -75,6 +75,23 @@ TVM_REGISTER_API("relay._make.TensorValue")
     *ret = TensorValueNode::make(data);
   });
 
+RefValue RefValueNode::make(Value value) {
+  NodePtr<RefValueNode> n = make_node<RefValueNode>();
+  n->value = value;
+  return RefValue(n);
+}
+
+TVM_REGISTER_API("relay._make.RefValue")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = RefValueNode::make(args[0]);
+  });
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<RefValueNode>([](const RefValueNode* node,
+                               tvm::IRPrinter* p) {
+                              p->stream << "RefValueNode(" << node->value << ")";
+                            });
+
 /*!
  * \brief A stack frame in the Relay interpreter.
  *
@@ -426,6 +443,31 @@ class Interpreter :
       } else {
         return Eval(op->false_branch);
       }
+    } else {
+      LOG(FATAL) << "type error, type system should have caught this";
+      return Value();
+    }
+  }
+
+  Value VisitExpr_(const RefWriteNode* op) final {
+    Value r = Eval(op->ref);
+    if (const RefValueNode* rv = r.as<RefValueNode>()) {
+      rv->value = Eval(op->value);
+      return TupleValueNode::make({});
+    } else {
+      LOG(FATAL) << "type error, type system should have caught this";
+      return Value();
+    }
+  }
+
+  Value VisitExpr_(const RefCreateNode* op) final {
+    return RefValueNode::make(Eval(op->value));
+  }
+
+  Value VisitExpr_(const RefReadNode* op) final {
+    Value r = Eval(op->ref);
+    if (const RefValueNode* rv = r.as<RefValueNode>()) {
+      return rv->value;
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
       return Value();

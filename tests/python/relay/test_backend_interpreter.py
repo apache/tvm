@@ -110,6 +110,22 @@ def test_loop():
     check_eval(sum_up, [i_data, accum_data], sum(range(1, 11)), mod=mod)
 
 
+def test_ref():
+    mod = relay.Module()
+    three_with_ref = relay.GlobalVar('three_with_ref')
+    i = relay.Var('i')
+    iv = relay.Var('iv')
+    u = relay.Var('u')
+    uv = relay.Var('uv')
+    body = relay.add(iv, uv)
+    body = relay.Let(uv, relay.RefRead(i), body)
+    body = relay.Let(u, relay.RefWrite(i, relay.const(2)), body)
+    body = relay.Let(iv, relay.RefRead(i), body)
+    body = relay.Let(i, relay.RefCreate(relay.const(1)), body)
+    mod[three_with_ref] = relay.Function([], body)
+    check_eval(three_with_ref, [], 3, mod=mod)
+
+
 def test_binds():
     x = relay.var("x")
     y = relay.add(x, x)
@@ -117,6 +133,7 @@ def test_binds():
     xx = np.ones((10, 20))
     res = intrp.evaluate(y, binds={x: xx}).asnumpy()
     tvm.testing.assert_allclose(xx + xx, res)
+
 
 def test_kwargs_params():
     x = relay.var("x", shape=(1, 10))
@@ -131,6 +148,7 @@ def test_kwargs_params():
     res = intrp.evaluate(f)(x_data, **params).data
     tvm.testing.assert_allclose(res.asnumpy(), x_data + y_data + z_data)
 
+
 if __name__ == "__main__":
     test_id()
     test_add_const()
@@ -140,3 +158,4 @@ if __name__ == "__main__":
     test_loop()
     test_binds()
     test_kwargs_params()
+    test_ref()

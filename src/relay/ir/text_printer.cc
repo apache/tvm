@@ -363,6 +363,34 @@ class TextPrinter :
     return id;
   }
 
+  TextValue VisitExpr_(const RefCreateNode* op) final {
+    TextValue value = GetValue(op->value);
+    TextValue id = this->AllocTempVar();
+    this->PrintIndent();
+    stream_ << id << " = " << "RefCreate(" << op->value << ")";
+    this->PrintEndInst("\n");
+    return id;
+  }
+
+  TextValue VisitExpr_(const RefReadNode* op) final {
+    TextValue ref = GetValue(op->ref);
+    TextValue id = this->AllocTempVar();
+    this->PrintIndent();
+    stream_ << id << " = " << "RefRead(" << ref << ")";
+    this->PrintEndInst("\n");
+    return id;
+  }
+
+  TextValue VisitExpr_(const RefWriteNode* op) final {
+    TextValue ref = GetValue(op->ref);
+    TextValue value = GetValue(op->value);
+    TextValue id = this->AllocTempVar();
+    this->PrintIndent();
+    stream_ << id << " = " << "RefWrite(" << ref << ", " << value << ")";
+    this->PrintEndInst("\n");
+    return id;
+  }
+
   /*!
    * \brief Print the type to os
    * \param type The type to be printed.
@@ -403,6 +431,10 @@ class TextPrinter :
       }
     }
     os << "]";
+  }
+
+  void VisitType_(const RefTypeNode* node, std::ostream& os) final {
+    VisitTypeDefault_(node, os);
   }
 
   void VisitTypeDefault_(const Node* node, std::ostream& os) final {  // NOLINT(*)

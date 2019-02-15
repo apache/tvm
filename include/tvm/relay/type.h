@@ -262,6 +262,33 @@ class TupleTypeNode : public TypeNode {
 
 RELAY_DEFINE_NODE_REF(TupleType, TupleTypeNode, Type);
 
+/*!
+ * \brief The type of reference values.
+ */
+class RefType;
+/*!
+ * \brief Reference Type in relay.
+ */
+class RefTypeNode : public TypeNode {
+ public:
+  /*! \brief The type of value in the Reference. */
+  Type value;
+
+  RefTypeNode() {}
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+  }
+
+  TVM_DLL static RefType make(Type value);
+
+  static constexpr const char* _type_key = "relay.RefType";
+  TVM_DECLARE_NODE_TYPE_INFO(RefTypeNode, TypeNode);
+};
+
+RELAY_DEFINE_NODE_REF(RefType, RefTypeNode, Type);
+
 class TypeReporter;
 
 /*!

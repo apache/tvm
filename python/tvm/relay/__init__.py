@@ -44,6 +44,7 @@ FuncType = ty.FuncType
 TypeRelation = ty.TypeRelation
 IncompleteType = ty.IncompleteType
 scalar_type = ty.scalar_type
+RefType = ty.RefType
 
 # Expr
 Expr = expr.Expr
@@ -56,15 +57,18 @@ Call = expr.Call
 Let = expr.Let
 If = expr.If
 TupleGetItem = expr.TupleGetItem
-
-# ExprFunctor
-ExprFunctor = expr_functor.ExprFunctor
-ExprMutator = expr_functor.ExprMutator
+RefCreate = expr.RefCreate
+RefRead = expr.RefRead
+RefWrite = expr.RefWrite
 
 # helper functions
 var = expr.var
 const = expr.const
 bind = expr.bind
+
+# ExprFunctor
+ExprFunctor = expr_functor.ExprFunctor
+ExprMutator = expr_functor.ExprMutator
 
 # Parser
 fromtext = parser.fromtext

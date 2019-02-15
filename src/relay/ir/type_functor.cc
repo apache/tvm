@@ -38,6 +38,10 @@ void TypeVisitor::VisitType_(const TupleTypeNode* op) {
   }
 }
 
+void TypeVisitor::VisitType_(const RefTypeNode* op) {
+  this->VisitType(op->value);
+}
+
 void TypeVisitor::VisitType_(const TypeRelationNode* op) {
   for (const Type& t : op->args) {
     this->VisitType(t);
@@ -117,6 +121,10 @@ Type TypeMutator::VisitType_(const TupleTypeNode* op) {
   } else {
     return TupleTypeNode::make(new_fields);
   }
+}
+
+Type TypeMutator::VisitType_(const RefTypeNode* op) {
+  return RefTypeNode::make(this->VisitType(op->value));
 }
 
 Type TypeMutator::VisitType_(const TypeRelationNode* type_rel) {

@@ -207,6 +207,14 @@ class AlphaEqualHandler:
       return false;
     }
   }
+
+  bool VisitType_(const RefTypeNode* lhs, const Type& other) final {
+    if (const RefTypeNode* rhs = other.as<RefTypeNode>()) {
+      return TypeEqual(lhs->value, rhs->value);
+    }
+    return false;
+  }
+
   // Expr equal checking.
   bool NDArrayEqual(const runtime::NDArray& lhs,
                     const runtime::NDArray& rhs) {
@@ -361,6 +369,29 @@ class AlphaEqualHandler:
     }
   }
 
+  bool VisitExpr_(const RefCreateNode* op, const Expr& e2) final {
+    if (const RefCreateNode* nr = e2.as<RefCreateNode>()) {
+      return ExprEqual(op->value, nr->value);
+    } else {
+      return false;
+    }
+  }
+
+  bool VisitExpr_(const RefReadNode* op, const Expr& e2) final {
+    if (const RefReadNode* r = e2.as<RefReadNode>()) {
+      return ExprEqual(op->ref, r->ref);
+    } else {
+      return false;
+    }
+  }
+
+  bool VisitExpr_(const RefWriteNode* op, const Expr& e2) final {
+    if (const RefWriteNode* r = e2.as<RefWriteNode>()) {
+      return ExprEqual(op->ref, r->ref) && ExprEqual(op->value, r->value);
+    } else {
+      return false;
+    }
+  }
  private:
   // whether to map open terms.
   bool map_free_var_{false};

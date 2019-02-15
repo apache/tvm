@@ -82,6 +82,12 @@ struct KindChecker : TypeVisitor {
     valid = valid && IsTypeKind(op->ret_type);
   }
 
+  void VisitType_(const RefTypeNode* op) override {
+    // tuples should only contain normal types
+    this->VisitType(op->value);
+    valid = valid && IsTypeKind(op->value);
+  }
+
   void VisitType_(const TypeRelationNode* op) override {
     // arguments to type relation should be normal types
     for (const Type& t : op->args) {
