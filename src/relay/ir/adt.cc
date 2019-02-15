@@ -47,10 +47,10 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 PatternConstructor PatternConstructorNode::make(Constructor constructor,
-                                                tvm::Array<Pattern> pat) {
+                                                tvm::Array<Pattern> patterns) {
   NodePtr<PatternConstructorNode> n = make_node<PatternConstructorNode>();
   n->constructor = std::move(constructor);
-  n->pat = std::move(pat);
+  n->patterns = std::move(patterns);
   return PatternConstructor(n);
 }
 
@@ -65,15 +65,15 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PatternConstructorNode>([](const PatternConstructorNode* node,
                                          tvm::IRPrinter* p) {
   p->stream << "PatternConstructorNode(" << node->constructor
-            << ", " << node->pat << ")";
+            << ", " << node->patterns << ")";
 });
 
 Constructor ConstructorNode::make(std::string name_hint,
-                                  tvm::Array<Type> inp,
+                                  tvm::Array<Type> inputs,
                                   GlobalTypeVar belong_to) {
   NodePtr<ConstructorNode> n = make_node<ConstructorNode>();
   n->name_hint = std::move(name_hint);
-  n->inp = std::move(inp);
+  n->inputs = std::move(inputs);
   n->belong_to = std::move(belong_to);
   return Constructor(n);
 }
@@ -89,15 +89,15 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ConstructorNode>([](const ConstructorNode* node,
                                   tvm::IRPrinter* p) {
   p->stream << "ConstructorNode(" << node->name_hint << ", "
-            << node->inp << ", " << node->belong_to << ")";
+            << node->inputs << ", " << node->belong_to << ")";
 });
 
 TypeData TypeDataNode::make(GlobalTypeVar header,
-                            tvm::Array<TypeVar> ty_vars,
+                            tvm::Array<TypeVar> type_vars,
                             tvm::Array<Constructor> constructors) {
   NodePtr<TypeDataNode> n = make_node<TypeDataNode>();
   n->header = std::move(header);
-  n->ty_vars = std::move(ty_vars);
+  n->type_vars = std::move(type_vars);
   n->constructors = std::move(constructors);
   return TypeData(n);
 }
@@ -112,7 +112,7 @@ TVM_REGISTER_API("relay._make.TypeData")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TypeDataNode>([](const TypeDataNode* node,
                                tvm::IRPrinter* p) {
-  p->stream << "TypeDataNode(" << node->header << ", " << node->ty_vars << ", "
+  p->stream << "TypeDataNode(" << node->header << ", " << node->type_vars << ", "
             << node->constructors << ")";
 });
 

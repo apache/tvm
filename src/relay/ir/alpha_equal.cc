@@ -440,12 +440,12 @@ class AlphaEqualHandler:
     const auto* r = e2.as<PatternConstructorNode>();
     if (r == nullptr
         || !ExprEqual(op->constructor, r->constructor)
-        || op->pat.size() != r->pat.size()) {
+        || op->patterns.size() != r->patterns.size()) {
       return false;
     }
 
-    for (size_t i = 0; i < op->pat.size(); i++) {
-      if (!PatternEqual(op->pat[i], r->pat[i])) {
+    for (size_t i = 0; i < op->patterns.size(); i++) {
+      if (!PatternEqual(op->patterns[i], r->patterns[i])) {
         return false;
       }
     }

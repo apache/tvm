@@ -93,23 +93,23 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                               p->stream << "RefValueNode(" << node->value << ")";
                             });
 
-ConValue ConValueNode::make(Constructor con,
-                            tvm::Array<Value> fields) {
-  NodePtr<ConValueNode> n = make_node<ConValueNode>();
-  n->con = con;
+ConstructorValue ConstructorValueNode::make(Constructor constructor,
+                                            tvm::Array<Value> fields) {
+  NodePtr<ConstructorValueNode> n = make_node<ConstructorValueNode>();
+  n->constructor = constructor;
   n->fields = fields;
-  return ConValue(n);
+  return ConstructorValue(n);
 }
 
-TVM_REGISTER_API("relay._make.ConValue")
+TVM_REGISTER_API("relay._make.ConstructorValue")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ConValueNode::make(args[0], args[1]);
+    *ret = ConstructorValueNode::make(args[0], args[1]);
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<ConValueNode>([](const ConValueNode* node,
-                               tvm::IRPrinter* p) {
-  p->stream << "ConValueNode(" << node->con
+.set_dispatch<ConstructorValueNode>([](const ConstructorValueNode* node,
+                                       tvm::IRPrinter* p) {
+  p->stream << "ConstructorValueNode(" << node->constructor
             << node->fields << ")";
 });
 
@@ -424,7 +424,7 @@ class Interpreter :
                     "fusing and lowering";
     }
     if (auto con = call->op.as<ConstructorNode>()) {
-      return ConValueNode::make(GetRef<Constructor>(con), args);
+      return ConstructorValueNode::make(GetRef<Constructor>(con), args);
     }
     // Now we just evaluate and expect to find a closure.
     Value fn_val = Eval(call->op);
@@ -511,15 +511,15 @@ class Interpreter :
   }
 
   bool VisitPattern_(const PatternConstructorNode* op, const Value& v) final {
-    const ConValueNode* cvn = v.as<ConValueNode>();
+    const ConstructorValueNode* cvn = v.as<ConstructorValueNode>();
     CHECK(cvn) << "need to be a constructor for match";
     CHECK_NE(op->constructor->tag, -1);
-    CHECK_NE(cvn->con->tag, -1);
-    if (op->constructor->tag == cvn->con->tag) {
+    CHECK_NE(cvn->constructor->tag, -1);
+    if (op->constructor->tag == cvn->constructor->tag) {
       // todo(M.K.): should use ptr equality but it is broken
-      CHECK(op->pat.size() == cvn->fields.size());
-      for (size_t i = 0; i < op->pat.size(); ++i) {
-        if (!VisitPattern(op->pat[i], cvn->fields[i])) {
+      CHECK(op->patterns.size() == cvn->fields.size());
+      for (size_t i = 0; i < op->patterns.size(); ++i) {
+        if (!VisitPattern(op->patterns[i], cvn->fields[i])) {
           return false;
         }
       }

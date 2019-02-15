@@ -211,7 +211,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     // we can expect a certain number of arguments
     Array<Type> unknown_args;
-    for (size_t i = 0; i < td->ty_vars.size(); i++) {
+    for (size_t i = 0; i < td->type_vars.size(); i++) {
       unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
     }
     Type expected = TypeCallNode::make(con->constructor->belong_to, unknown_args);
@@ -225,23 +225,23 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       this->ReportFatalError(pc, RELAY_ERROR("ADT headers must match, but we have "
                                              << td->header << " and " << tc->func));
     }
-    if (td->ty_vars.size() != tc->args.size()) {
+    if (td->type_vars.size() != tc->args.size()) {
       this->ReportFatalError(pc, RELAY_ERROR("The number of type args must match"
                                              << "the number of type vars in the type data: "
-                                             << td->ty_vars.size() << " != " << tc->args.size()));
+                                             << td->type_vars.size() << " != " << tc->args.size()));
     }
     std::unordered_map<TypeVar, Type, NodeHash, NodeEqual> type_var_map_;
-    for (size_t i = 0; i < td->ty_vars.size(); ++i) {
-      type_var_map_[td->ty_vars[i]] = tc->args[i];
+    for (size_t i = 0; i < td->type_vars.size(); ++i) {
+      type_var_map_[td->type_vars[i]] = tc->args[i];
     }
-    CHECK(con->constructor->inp.size() == con->pat.size()) << "not enough pattern";
-    if (con->constructor->inp.size() != con->pat.size()) {
+    CHECK(con->constructor->inputs.size() == con->patterns.size()) << "not enough pattern";
+    if (con->constructor->inputs.size() != con->patterns.size()) {
       this->ReportFatalError(pc, RELAY_ERROR("Not enough inputs for the constructor; "
-                                             << "expected " << con->constructor->inp.size()
-                                             << ", got " << con->pat.size()));
+                                             << "expected " << con->constructor->inputs.size()
+                                             << ", got " << con->patterns.size()));
     }
-    for (size_t i = 0; i < con->constructor->inp.size(); ++i) {
-      VisitPattern(con->pat[i], Bind(con->constructor->inp[i], type_var_map_));
+    for (size_t i = 0; i < con->constructor->inputs.size(); ++i) {
+      VisitPattern(con->patterns[i], Bind(con->constructor->inputs[i], type_var_map_));
     }
   }
 
@@ -495,10 +495,11 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       << c->name_hint;
     TypeData td = mod_->LookupDef(c->belong_to);
     std::vector<Type> types;
-    for (const auto & t : td->ty_vars) {
+    for (const auto & t : td->type_vars) {
       types.push_back(t);
     }
-    return FuncTypeNode::make(c->inp, TypeCallNode::make(c->belong_to, types), td->ty_vars, {});
+    return FuncTypeNode::make(c->inputs, TypeCallNode::make(c->belong_to, types),
+                              td->type_vars, {});
   }
 };
 

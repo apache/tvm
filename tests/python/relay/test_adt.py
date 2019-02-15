@@ -1,7 +1,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.ir_pass import infer_type
-from tvm.relay.backend.interpreter import Value, TupleValue, ConValue
+from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
 from tvm.relay import testing, create_executor
 from tvm.relay.prelude import Prelude
 
@@ -45,19 +45,19 @@ size = p.size
 
 # this is an example of using the adt value in python side
 def count(n):
-    assert isinstance(n, ConValue)
-    if n.con.name_hint == 's':
+    assert isinstance(n, ConstructorValue)
+    if n.constructor.name_hint == 's':
         return 1 + count(n.fields[0])
     else:
-        assert n.con.name_hint == 'z'
+        assert n.constructor.name_hint == 'z'
         return 0
 
 # this is an example of creating the adt value in python side
 def make_nat(n):
     if n != 0:
-        return ConValue(s, [make_nat(n - 1)], [])
+        return ConstructorValue(s, [make_nat(n - 1)], [])
     else:
-        return ConValue(z, [], [])
+        return ConstructorValue(z, [], [])
 
 def build_nat(n):
     assert n >= 0
@@ -68,22 +68,22 @@ def build_nat(n):
     return ret
 
 def to_list(l):
-    assert isinstance(l, ConValue)
+    assert isinstance(l, ConstructorValue)
     val = l
     ret = []
     while True:
-        if val.con.name_hint == 'cons':
+        if val.constructor.name_hint == 'cons':
             ret.append(val.fields[0])
             val = val.fields[1]
         else:
-            assert val.con.name_hint == 'nil'
+            assert val.constructor.name_hint == 'nil'
             break
     return ret
 
 def tree_to_dict(t):
-    assert isinstance(t, ConValue)
+    assert isinstance(t, ConstructorValue)
     ret = {}
-    assert t.con.name_hint == 'rose'
+    assert t.constructor.name_hint == 'rose'
     ret['member'] = t.fields[0]
     ret['children'] = []
     for subtree in to_list(t.fields[1]):

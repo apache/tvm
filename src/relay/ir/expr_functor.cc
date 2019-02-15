@@ -286,7 +286,7 @@ void ExprVisitor::ExprVisitor::VisitExpr_(const RefWriteNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const ConstructorNode* op) {
-  for (const Type& t : op->inp) {
+  for (const Type& t : op->inputs) {
     this->VisitType(t);
   }
   this->VisitType(op->belong_to);

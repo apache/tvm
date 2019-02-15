@@ -52,14 +52,14 @@ class PatternVar(Pattern):
 class PatternConstructor(Pattern):
     """Constructor pattern in Relay: Matches an ADT of the given constructor, binds recursively."""
 
-    def __init__(self, con, pat=None):
+    def __init__(self, constructor, patterns=None):
         """Construct a constructor pattern.
 
         Parameters
         ----------
-        con: Constructor
+        constructor: Constructor
             The constructor.
-        pat: Optional[List[Pattern]]
+        patterns: Optional[List[Pattern]]
             Optional subpatterns: for each field of the constructor,
             match to the given subpattern (treated as a variable pattern by default).
 
@@ -68,23 +68,23 @@ class PatternConstructor(Pattern):
         wildcard: PatternWildcard
             a wildcard pattern.
         """
-        if pat is None:
-            pat = []
-        self.__init_handle_by_constructor__(_make.PatternConstructor, con, pat)
+        if patterns is None:
+            patterns = []
+        self.__init_handle_by_constructor__(_make.PatternConstructor, constructor, patterns)
 
 
 @register_relay_node
 class Constructor(Expr):
     """Relay ADT constructor."""
 
-    def __init__(self, name_hint, inp, belong_to):
+    def __init__(self, name_hint, inputs, belong_to):
         """Defines an ADT constructor.
 
         Parameters
         ----------
         name_hint : str
             Name of constructor (only a hint).
-        inp : List[Type]
+        inputs : List[Type]
             Input types.
         belong_to : tvm.relay.GlobalTypeVar
             Denotes which ADT the constructor belongs to.
@@ -94,7 +94,7 @@ class Constructor(Expr):
         con: Constructor
             A constructor.
         """
-        self.__init_handle_by_constructor__(_make.Constructor, name_hint, inp, belong_to)
+        self.__init_handle_by_constructor__(_make.Constructor, name_hint, inputs, belong_to)
 
     def __call__(self, *args):
         """Call the constructor.
@@ -122,7 +122,7 @@ class TypeData(Type):
     type call that passes in the type params.
     """
 
-    def __init__(self, header, ty_vars, constructors):
+    def __init__(self, header, type_vars, constructors):
         """Defines a TypeData object.
 
         Parameters
@@ -131,7 +131,7 @@ class TypeData(Type):
             The name of the ADT.
             ADTs with the same constructors but different names are
             treated as different types.
-        ty_vars: List[TypeVar]
+        type_vars: List[TypeVar]
             Type variables that appear in constructors.
         constructors: List[tvm.relay.Constructor]
             The constructors for the ADT.
@@ -141,7 +141,7 @@ class TypeData(Type):
         type_data: TypeData
             The adt declaration.
         """
-        self.__init_handle_by_constructor__(_make.TypeData, header, ty_vars, constructors)
+        self.__init_handle_by_constructor__(_make.TypeData, header, type_vars, constructors)
 
 
 @register_relay_node

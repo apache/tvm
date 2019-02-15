@@ -92,7 +92,7 @@ class ConstructorNode : public ExprNode {
   /*! \brief The name (only a hint) */
   std::string name_hint;
   /*! \brief Input to the constructor. */
-  tvm::Array<Type> inp;
+  tvm::Array<Type> inputs;
   /*! \brief The datatype the constructor will construct. */
   GlobalTypeVar belong_to;
   /*! \brief Index in the table of constructors (set when the type is registered). */
@@ -101,12 +101,12 @@ class ConstructorNode : public ExprNode {
   ConstructorNode() {}
 
   TVM_DLL static Constructor make(std::string name_hint,
-                                  tvm::Array<Type> inp,
+                                  tvm::Array<Type> inputs,
                                   GlobalTypeVar belong_to);
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name_hint", &name_hint);
-    v->Visit("inp", &inp);
+    v->Visit("inputs", &inputs);
     v->Visit("belong_to", &belong_to);
     v->Visit("tag", &tag);
     v->Visit("span", &span);
@@ -127,7 +127,7 @@ class PatternConstructorNode : public PatternNode {
   /*! Constructor matched by the pattern. */
   Constructor constructor;
   /*! Sub-patterns to match against each input to the constructor. */
-  tvm::Array<Pattern> pat;
+  tvm::Array<Pattern> patterns;
 
   PatternConstructorNode() {}
 
@@ -135,7 +135,7 @@ class PatternConstructorNode : public PatternNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("constructor", &constructor);
-    v->Visit("pat", &pat);
+    v->Visit("patterns", &patterns);
     v->Visit("span", &span);
   }
 
@@ -168,19 +168,19 @@ class TypeDataNode : public TypeNode {
    */
   GlobalTypeVar header;
   /*! \brief The type variables (to allow for polymorphism). */
-  tvm::Array<TypeVar> ty_vars;
+  tvm::Array<TypeVar> type_vars;
   /*! \brief The constructors. */
   tvm::Array<Constructor> constructors;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("header", &header);
-    v->Visit("ty_vars", &ty_vars);
+    v->Visit("type_vars", &type_vars);
     v->Visit("constructors", &constructors);
     v->Visit("span", &span);
   }
 
   TVM_DLL static TypeData make(GlobalTypeVar header,
-                               tvm::Array<TypeVar> tv,
+                               tvm::Array<TypeVar> type_vars,
                                tvm::Array<Constructor> constructors);
 
   static constexpr const char* _type_key = "relay.TypeData";

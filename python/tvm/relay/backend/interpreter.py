@@ -53,10 +53,10 @@ class Closure(Value):
 
 
 @register_relay_node
-class ConValue(Value):
-    def __init__(self, con, fields, types):
+class ConstructorValue(Value):
+    def __init__(self, constructor, fields, types):
         self.__init_handle_by_constructor__(
-            _make.ConValue, con, fields, types)
+            _make.ConstructorValue, constructor, fields, types)
 
 
 @register_relay_node
