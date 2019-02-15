@@ -83,6 +83,7 @@ TensorIntrin TensorIntrinNode::make(std::string name,
                                     Operation op,
                                     Array<Tensor> inputs,
                                     Array<Buffer> buffers,
+                                    Array<Var> scalar_params,
                                     Stmt body,
                                     Stmt reduce_init,
                                     Stmt reduce_update) {
@@ -91,6 +92,7 @@ TensorIntrin TensorIntrinNode::make(std::string name,
   n->op = std::move(op);
   n->inputs = std::move(inputs);
   n->buffers = std::move(buffers);
+  n->scalar_params = std::move(scalar_params);
   n->body = std::move(body);
   n->reduce_init = std::move(reduce_init);
   n->reduce_update = std::move(reduce_update);
@@ -110,12 +112,14 @@ TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
                                             Array<Tensor> tensors,
                                             Array<Region> regions,
-                                            Array<IterVar> reduce_axis) {
+                                            Array<IterVar> reduce_axis,
+                                            Array<Expr> scalar_inputs) {
   auto n = make_node<TensorIntrinCallNode>();
   n->intrin = std::move(intrin);
   n->tensors = std::move(tensors);
   n->regions = std::move(regions);
   n->reduce_axis = std::move(reduce_axis);
+  n->scalar_inputs = std::move(scalar_inputs);
   return TensorIntrinCall(n);
 }
 
