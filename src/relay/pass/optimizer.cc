@@ -50,7 +50,7 @@ Module ModulePassNode::Run(const Module& mod,
   auto foreach = pass_func(mod);
   auto updated_mod = foreach(mod);
   CHECK(updated_mod.defined());
-  return std::move(updated_mod);
+  return updated_mod;
 }
 
 FunctionPass FunctionPassNode::make(std::string name, int opt_level,
