@@ -16,6 +16,7 @@ nat = p.nat
 double = p.double
 add = p.add
 
+optional = p.optional
 some = p.some
 none = p.none
 
@@ -27,6 +28,14 @@ map = p.map
 foldl = p.foldl
 foldr = p.foldr
 sum = p.sum
+
+filter = p.filter
+zip = p.zip
+rev = p.rev
+unfoldl = p.unfoldl
+unfoldr = p.unfoldr
+map_accumr = p.map_accumr
+map_accuml = p.map_accuml
 
 tree = p.tree
 rose = p.rose
@@ -138,14 +147,16 @@ def test_foldl():
 
     x = relay.Var("x")
     y = relay.Var("y")
-    rev = relay.Function([y, x], cons(x, y))
-    res = intrp.evaluate(foldl(rev, nil(),
+    rev_dup = relay.Function([y, x], cons(x, cons(x, y)))
+    res = intrp.evaluate(foldl(rev_dup, nil(),
                                cons(build_nat(1),
                                     cons(build_nat(2),
                                          cons(build_nat(3), nil())))))
     reversed = to_list(res)
-    assert len(reversed) == 3
-    assert count(reversed[0]) == 3 and count(reversed[1]) == 2 and count(reversed[2]) == 1
+    assert len(reversed) == 6
+    assert count(reversed[0]) == 3 and count(reversed[1]) == 3
+    assert count(reversed[2]) == 2 and count(reversed[3]) == 2
+    assert count(reversed[4]) == 1 and count(reversed[5]) == 1
 
 
 def test_foldr():
@@ -171,6 +182,207 @@ def test_sum():
     assert mod[sum].checked_type == relay.FuncType([l(nat())], nat())
     res = intrp.evaluate(sum(cons(build_nat(1), cons(build_nat(2), nil()))))
     assert count(res) == 3
+
+
+def test_filter():
+    a = relay.TypeVar("a")
+    expected_type = relay.FuncType([
+        relay.FuncType([a], relay.scalar_type("bool")), l(a)
+    ], l(a), [a])
+    assert mod[filter].checked_type == expected_type
+
+    x = relay.Var("x", nat())
+    greater_than_one = relay.Function(
+        [x],
+        relay.Match(x, [
+            relay.Clause(
+                relay.PatternConstructor(s, [
+                    relay.PatternConstructor(
+                        s, [relay.PatternWildcard()])
+                ]),
+                relay.const(True)),
+            relay.Clause(relay.PatternWildcard(), relay.const(False))
+        ]))
+    res = intrp.evaluate(
+        filter(greater_than_one,
+               cons(build_nat(1),
+                    cons(build_nat(1),
+                         cons(build_nat(3),
+                              cons(build_nat(1),
+                                   cons(build_nat(5),
+                                        cons(build_nat(1),
+                                             nil()))))))))
+    filtered = to_list(res)
+    assert len(filtered) == 2
+    assert count(filtered[0]) == 3
+    assert count(filtered[1]) == 5
+
+
+def test_zip():
+    a = relay.TypeVar("a")
+    b = relay.TypeVar("b")
+    expected_type = relay.FuncType([l(a), l(b)],
+                                   l(relay.TupleType([a, b])), [a, b])
+    assert mod[zip].checked_type == expected_type
+
+    l1 = cons(build_nat(1), cons(build_nat(2), cons(build_nat(3), nil())))
+    l2 = cons(nil(),
+              cons(cons(nil(), nil()),
+                   cons(cons(nil(), cons(nil(), nil())),
+                        nil())))
+
+    res = intrp.evaluate(zip(l1, l2))
+    zipped = to_list(res)
+    assert len(zipped) == 3
+    assert count(zipped[0][0]) == 1
+    assert len(to_list(zipped[0][1])) == 0
+    assert count(zipped[1][0]) == 2
+    assert len(to_list(zipped[1][1])) == 1
+    assert count(zipped[2][0]) == 3
+    assert len(to_list(zipped[2][1])) == 2
+
+    # test truncation
+    l3 = cons(build_nat(4), cons(build_nat(5), nil()))
+    shorter_res = intrp.evaluate(zip(l3, l2))
+    truncated = to_list(shorter_res)
+    assert len(truncated) == 2
+    assert count(truncated[0][0]) == 4
+    assert len(to_list(truncated[0][1])) == 0
+    assert count(truncated[1][0]) == 5
+    assert len(to_list(truncated[1][1])) == 1
+
+    l4 = cons(nil(), nil())
+    shortest_res = intrp.evaluate(zip(l3, l4))
+    singleton = to_list(shortest_res)
+    assert len(singleton) == 1
+    assert count(singleton[0][0]) == 4
+    assert len(to_list(singleton[0][1])) == 0
+
+
+def test_rev():
+    a = relay.TypeVar("a")
+    assert mod[rev].checked_type == relay.FuncType([l(a)], l(a), [a])
+
+    res = intrp.evaluate(rev(cons(build_nat(1),
+                                  cons(build_nat(2),
+                                       cons(build_nat(3), nil())))))
+    reversed = to_list(res)
+
+    assert len(reversed) == 3
+    assert count(reversed[0]) == 3
+    assert count(reversed[1]) == 2
+    assert count(reversed[2]) == 1
+
+
+def test_unfoldr():
+    a = relay.TypeVar("a")
+    b = relay.TypeVar("b")
+    expected_type = relay.FuncType([
+        relay.FuncType([a], optional(relay.TupleType([a, b]))), a],
+                                   l(b), [a, b])
+
+    x = relay.Var("x", nat())
+    n = relay.Var("n", nat())
+    count_down = relay.Function(
+        [x],
+        relay.Match(x, [
+            relay.Clause(relay.PatternConstructor(
+                s, [relay.PatternVar(n)]),
+                         some(relay.Tuple([n, x]))),
+            relay.Clause(relay.PatternConstructor(z, []), none())
+        ]))
+
+    res = intrp.evaluate(unfoldr(count_down, build_nat(3)))
+    unfolded = to_list(res)
+
+    assert len(unfolded) == 3
+    assert count(unfolded[0]) == 3
+    assert count(unfolded[1]) == 2
+    assert count(unfolded[2]) == 1
+
+
+def test_unfoldl():
+    a = relay.TypeVar("a")
+    b = relay.TypeVar("b")
+    expected_type = relay.FuncType([
+        relay.FuncType([a], optional(relay.TupleType([a, b]))), a],
+                                   l(b), [a, b])
+
+    x = relay.Var("x", nat())
+    n = relay.Var("n", nat())
+    count_down = relay.Function(
+        [x],
+        relay.Match(x, [
+            relay.Clause(relay.PatternConstructor(
+                s, [relay.PatternVar(n)]),
+                         some(relay.Tuple([n, x]))),
+            relay.Clause(relay.PatternConstructor(z, []), none())
+        ]))
+
+    res = intrp.evaluate(unfoldl(count_down, build_nat(3)))
+    unfolded = to_list(res)
+
+    assert len(unfolded) == 3
+    assert count(unfolded[0]) == 1
+    assert count(unfolded[1]) == 2
+    assert count(unfolded[2]) == 3
+
+
+def test_map_accumr():
+    a = relay.TypeVar("a")
+    b = relay.TypeVar("b")
+    c = relay.TypeVar("c")
+    expected_type = relay.FuncType([
+        relay.FuncType([a, b], relay.TupleType([a, c])),
+        a, l(b)
+    ], relay.TupleType([a, l(c)]), [a, b, c])
+    assert mod[map_accumr].checked_type == expected_type
+
+    acc = relay.Var("acc", nat())
+    x = relay.Var("x", nat())
+    add_acc_to_each = relay.Function([acc, x],
+                                     relay.Tuple([add(x, acc),
+                                                  add(x, acc)]))
+
+    vals = cons(build_nat(1), cons(build_nat(2), cons(build_nat(3), nil())))
+    res = intrp.evaluate(map_accumr(add_acc_to_each, z(), vals))
+
+    sum = count(res[0])
+    new_vals = to_list(res[1])
+
+    assert sum == 6
+    assert len(new_vals) == 3
+    assert count(new_vals[0]) == 6
+    assert count(new_vals[1]) == 5
+    assert count(new_vals[2]) == 3
+
+
+def test_map_accuml():
+    a = relay.TypeVar("a")
+    b = relay.TypeVar("b")
+    c = relay.TypeVar("c")
+    expected_type = relay.FuncType([
+        relay.FuncType([a, b], relay.TupleType([a, c])),
+        a, l(b)
+    ], relay.TupleType([a, l(c)]), [a, b, c])
+    assert mod[map_accuml].checked_type == expected_type
+
+    acc = relay.Var("acc", nat())
+    x = relay.Var("x", nat())
+    add_to_acc = relay.Function([acc, x],
+                                relay.Tuple([add(x, acc), x]))
+
+    vals = cons(build_nat(1), cons(build_nat(2), cons(build_nat(3), nil())))
+    res = intrp.evaluate(map_accuml(add_to_acc, z(), vals))
+
+    sum = count(res[0])
+    new_vals = to_list(res[1])
+
+    assert sum == 6
+    assert len(new_vals) == 3
+    assert count(new_vals[0]) == 3
+    assert count(new_vals[1]) == 2
+    assert count(new_vals[2]) == 1
 
 
 def test_optional_matching():
