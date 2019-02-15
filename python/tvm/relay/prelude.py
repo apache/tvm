@@ -1,7 +1,7 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """Adds certain standard global functions and ADT definitions to the module."""
-from .ty import GlobalTypeVar, TypeVar, FuncType
-from .expr import Var, Function, GlobalVar
+from .ty import GlobalTypeVar, TypeVar, FuncType, TupleType, scalar_type
+from .expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
 
@@ -35,12 +35,12 @@ class Prelude:
         nil_case = Clause(PatternConstructor(self.nil), self.nil())
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
                            self.cons(f(y), self.map(f, z)))
-        self.mod[self.map] = Function([f, x], Match(x, [nil_case, cons_case]), None, [a, b])
+        self.mod[self.map] = Function([f, x], Match(x, [nil_case, cons_case]), self.l(b), [a, b])
 
     def define_list_foldl(self):
         """Defines a left-way fold over a list.
 
-        foldl(f, z, l) : fn<a, b>(fn(b, a) -> b, b, list[a]) -> b
+        foldl(f, z, l) : fn<a, b>(fn(a, b) -> a, a, list[a]) -> a
 
         foldl(f, z, cons(a1, cons(a2, cons(a3, cons(..., nil)))))
         evaluates to f(...f(f(f(z, a1), a2), a3)...)
@@ -57,7 +57,7 @@ class Prelude:
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
                            self.foldl(f, f(av, y), z))
         self.mod[self.foldl] = Function([f, av, bv],
-                                        Match(bv, [nil_case, cons_case]), None, [a, b])
+                                        Match(bv, [nil_case, cons_case]), a, [a, b])
 
     def define_list_foldr(self):
         """Defines a right-way fold over a list.
@@ -79,7 +79,123 @@ class Prelude:
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
                            f(y, self.foldr(f, bv, z)))
         self.mod[self.foldr] = Function([f, bv, av],
-                                        Match(av, [nil_case, cons_case]), None, [a, b])
+                                        Match(av, [nil_case, cons_case]), b, [a, b])
+
+    def define_list_filter(self):
+        """Defines a function that filters a list.
+
+        filter(f, l) : fn<a>(fn(a) -> Tensor[(), bool], list[a]) -> list[a]
+
+        It returns a the sublist of l consisting of the elements for which f returns true.
+        """
+        self.filter = GlobalVar("filter")
+        a = TypeVar("a")
+        f = Var("f", FuncType([a], scalar_type("bool")))
+        l = Var("l", self.l(a))
+        h = Var("h")
+        t = Var("t")
+        nil_case = Clause(PatternConstructor(self.nil), self.nil())
+        cons_case = Clause(PatternConstructor(self.cons, [PatternVar(h), PatternVar(t)]),
+                           If(f(h), self.cons(h, self.filter(f, t)), self.filter(f, t)))
+        self.mod[self.filter] = Function([f, l], Match(l, [nil_case, cons_case]), self.l(a), [a])
+
+    def define_list_zip(self):
+        """Defines a function that combines two lists into a list of tuples of their elements.
+
+        zip(l, m) : fn<a, b>(list[a], list[b]) -> list[(a, b)]
+
+        The zipped list will be the length of the shorter list.
+        """
+        self.zip = GlobalVar("zip")
+        a = TypeVar("a")
+        b = TypeVar("b")
+        nil_case = Clause(PatternConstructor(self.nil), self.nil())
+        l1 = Var("l1")
+        l2 = Var("l2")
+        h1 = Var("h1")
+        h2 = Var("h2")
+        t1 = Var("t1")
+        t2 = Var("t2")
+        inner_cons_case = Clause(PatternConstructor(self.cons, [PatternVar(h2), PatternVar(t2)]),
+                                 self.cons(Tuple([h1, h2]), self.zip(t1, t2)))
+        outer_cons_case = Clause(PatternConstructor(self.cons, [PatternVar(h1), PatternVar(t1)]),
+                                 Match(l2, [nil_case, inner_cons_case]))
+        self.mod[self.zip] = Function([l1, l2], Match(l1, [nil_case, outer_cons_case]),
+                                      self.l(TupleType([a, b])), [a, b])
+
+    def define_list_rev(self):
+        """Defines a function that reverses a list.
+
+        rev(l) : fn<a>(list[a]) -> list[a]
+        """
+        self.rev = GlobalVar("rev")
+        a = TypeVar("a")
+        l = Var("l", self.l(a))
+        x = Var("x")
+        y = Var("y")
+        updater = Function([y, x], self.cons(x, y))
+        self.mod[self.rev] = Function([l],
+                                      self.foldl(updater, self.nil(), l),
+                                      self.l(a), [a])
+
+    def define_list_map_accumr(self):
+        """Defines an accumulative map, which is a fold that simulataneously updates
+        an accumulator value and a list of results.
+
+        map_accumr(f, s, l) : fn<a, b, c>(fn(a, b) -> (a, c), a, list[b]) -> (a, list[c])
+
+        This map proceeds through l from right to left.
+        """
+        self.map_accumr = GlobalVar("map_accumr")
+        a = TypeVar("a")
+        b = TypeVar("b")
+        c = TypeVar("c")
+        f = Var("f", FuncType([a, b], TupleType([a, c])))
+        acc = Var("acc", a)
+        l = Var("l", self.l(b))
+        v = Var("v", b)
+        p = Var("p", TupleType([a, self.l(c)]))
+        f_out = Var("f_out", TupleType([a, c]))
+        updater = Function([v, p],
+                           Let(f_out, f(TupleGetItem(p, 0), v),
+                               Tuple([TupleGetItem(f_out, 0),
+                                      self.cons(TupleGetItem(f_out, 1),
+                                                TupleGetItem(p, 1))])),
+                           TupleType([a, self.l(c)]))
+        self.mod[self.map_accumr] = Function([f, acc, l],
+                                             self.foldr(updater, Tuple([acc, self.nil()]), l),
+                                             TupleType([a, self.l(c)]),
+                                             [a, b, c])
+
+    def define_list_map_accuml(self):
+        """Defines an accumulative map, which is a fold that simulataneously updates
+        an accumulator value and a list of results.
+
+        map_accuml(f, s, l) : fn<a, b, c>(fn(a, b) -> (a, c), a, list[b]) -> (a, list[c])
+
+        This map proceeds through l from left to right.
+        """
+        self.map_accuml = GlobalVar("map_accuml")
+        a = TypeVar("a")
+        b = TypeVar("b")
+        c = TypeVar("c")
+        f = Var("f", FuncType([a, b], TupleType([a, c])))
+        acc = Var("acc", a)
+        l = Var("l", self.l(b))
+        v = Var("v", b)
+        p = Var("p", TupleType([a, self.l(c)]))
+        f_out = Var("f_out", TupleType([a, c]))
+        updater = Function([p, v],
+                           Let(f_out, f(TupleGetItem(p, 0), v),
+                               Tuple([TupleGetItem(f_out, 0),
+                                      self.cons(TupleGetItem(f_out, 1),
+                                                TupleGetItem(p, 1))])),
+                           TupleType([a, self.l(c)]))
+        self.mod[self.map_accuml] = Function([f, acc, l],
+                                             self.foldl(updater, Tuple([acc, self.nil()]), l),
+                                             TupleType([a, self.l(c)]),
+                                             [a, b, c])
+
 
     def define_optional_adt(self):
         """Defines an optional ADT, which can either contain some other
@@ -89,6 +205,47 @@ class Prelude:
         self.some = Constructor("some", [a], self.optional)
         self.none = Constructor("none", [], self.optional)
         self.mod[self.optional] = TypeData(self.optional, [a], [self.some, self.none])
+
+    def define_list_unfoldr(self):
+        """Defines a function that builds up a list starting from a seed value.
+
+        unfoldr(f, s) : fn<a, b>(fn(a) -> Optional[(a, b)], a) -> list[b]
+
+        f returns an option containing a new seed and an output value. f will
+        continue to be called on the new seeds until it returns None. All the
+        output values will be combined into a list, right to left.
+        """
+        self.unfoldr = GlobalVar("unfoldr")
+        a = TypeVar("a")
+        b = TypeVar("b")
+        f = Var("f", FuncType([a], self.optional(TupleType([a, b]))))
+        s = Var("s", a)
+        p = Var("p", TupleType([a, b]))
+        none_case = Clause(PatternConstructor(self.none), self.nil())
+        some_case = Clause(PatternConstructor(self.some, [PatternVar(p)]),
+                           self.cons(TupleGetItem(p, 1),
+                                     self.unfoldr(f, TupleGetItem(p, 0))))
+        self.mod[self.unfoldr] = Function([f, s], Match(f(s), [none_case, some_case]),
+                                          self.l(b), [a, b])
+
+    def define_list_unfoldl(self):
+        """Defines a function that builds up a list starting from a seed value.
+
+        unfoldl(f, s) : fn<a, b>(fn(a) -> Optional[(a, b)], a) -> list[b]
+
+        f returns an option containing a new seed and an output value. f will
+        continue to be called on the new seeds until it returns None. All the
+        output values will be combined into a list, left to right.
+        """
+        self.unfoldl = GlobalVar("unfoldl")
+        a = TypeVar("a")
+        b = TypeVar("b")
+        f = Var("f", FuncType([a], self.optional(TupleType([a, b]))))
+        s = Var("s", a)
+        # easiest way to implement is to do a right unfold and reverse
+        self.mod[self.unfoldl] = Function([f, s],
+                                          self.rev(self.unfoldr(f, s)),
+                                          self.l(b), [a, b])
 
     def define_nat_adt(self):
         """Defines a Peano (unary) natural number ADT.
@@ -185,8 +342,15 @@ class Prelude:
         self.define_list_map()
         self.define_list_foldl()
         self.define_list_foldr()
+        self.define_list_filter()
+        self.define_list_zip()
+        self.define_list_rev()
+        self.define_list_map_accumr()
+        self.define_list_map_accuml()
 
         self.define_optional_adt()
+        self.define_list_unfoldr()
+        self.define_list_unfoldl()
 
         self.define_nat_adt()
         self.define_nat_double()
