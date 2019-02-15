@@ -837,7 +837,7 @@ def contrib_conv2d_winograd_without_weight_transform(data,
         kernel_layout, out_layout, out_dtype)
 
 
-def contrib_conv2d_NCHWc(data,
+def contrib_conv2d_nchwc(data,
                          kernel,
                          strides=(1, 1),
                          padding=(0, 0),
