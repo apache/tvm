@@ -248,7 +248,7 @@ Algebraic Data Types
 *Note: ADTs are not currently supported in the text format.*
 
 Algebraic data types (ADTs) are described in more detail in
-`their overview <adt-overview_>`__; this section describes
+:ref:`their overview <adt-overview>`; this section describes
 their implementation in the type system.
 
 An ADT is defined by a collection of named constructors,
@@ -296,7 +296,7 @@ Definitions (Type Data)
 
 Besides a name, an ADT needs to store the constructors that are used
 to define it and any type paramters used within them. These are
-stored in the module, `analogous to global function definitions <module-description_>`__.
+stored in the module, :ref:`analogous to global function definitions<module-description>`.
 
 While type-checking uses of ADTs, the type system sometimes must
 index into the module using the ADT name to look up information
@@ -356,7 +356,7 @@ variable :code:`List` in the constructor definition.
 
 Below two instances of lists with their types given, using type calls:
 
-.. code_block:: python
+.. code-block:: python
 
    Cons(1, Cons(2, Nil())) # List[Tensor[(), int32]]
    Cons((1, 1), Cons((2, 2), Nil())) # List[(Tensor[(), int32], Tensor[(), int32])]
@@ -369,7 +369,7 @@ be specified.)
 Here are two lists that are rejected by the type system because
 the type parameters do not match:
 
-.. code_block:: python
+.. code-block:: python
 
    # attempting to put an integer on a list of int * int tuples
    Cons(1, Cons((1, 1), Nil()))

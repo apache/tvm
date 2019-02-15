@@ -14,8 +14,7 @@ loops and other control flow structures that must be implemented using recursion
 Defining and Matching on an ADT
 ===============================
 
-*Note: ADTs are not presently supported in the text format.
- The syntax here is speculative, based on ADTs in other languages.*
+*Note: ADTs are not presently supported in the text format. The syntax here is speculative, based on ADTs in other languages.*
 
 ADTs can be understood as a generalized version of :code:`enum` and :code:`struct` types
 from C-like languages. Like a C :code:`struct:`, an ADT instance is a container for fields
@@ -42,10 +41,7 @@ In particular, the type system can ensure that types are properly assigned in al
 deconstructing an ADT instance, in contrast to :code:`union` types in C.
 Hence, it is often easy to reason about ADTs.
 
-*Implementation detail: Relay ADT definitions are global and are stored in the module,
- similarly to global function definitions. An ADT name is, in fact, a global type variable
- (just as a global function name is a global variable). The module keeps a mapping of ADT names
- (global type variables) to the list of constructors for that ADT.*
+*Implementation detail: Relay ADT definitions are global and are stored in the module, similarly to global function definitions. An ADT name is, in fact, a global type variable (just as a global function name is a global variable). The module keeps a mapping of ADT names (global type variables) to the list of constructors for that ADT.*
 
 Below is a simple example of defining an ADT and using it in a function
 via a match expression:
@@ -203,7 +199,7 @@ end of the list is reached, which can be indicated with a :code:`Nil`
 Lists represented in this manner can easily be recursively processed.
 For example, the following function sums a list of integers:
 
-.. code_block:: python
+.. code-block:: python
 
    def @list_sum(%l : List[Tensor[(), int32]]) -> Tensor[(), int32] {
      match(%l) {
@@ -237,7 +233,7 @@ and the second has a :code:`Cons` constructor pattern that uses variable pattern
 
 The below example uses a wildcard pattern to ignore one of the arguments to :code:`Cons`:
 
-.. code_block:: python
+.. code-block:: python
 
    def @first<a>(%l : List[a]) -> Optional[a] {
      match(%l) {
@@ -249,7 +245,7 @@ The below example uses a wildcard pattern to ignore one of the arguments to :cod
 Here, a constructor pattern is nested inside another constructor pattern to avoid nested match expressions for a list option.
 A top-level wildcard pattern is also used to handle all cases that do not match the first clause:
 
-.. code_block:: python
+.. code-block:: python
 
    def @second_opt<a>(%ll : Optional[List[a]]) -> Optional[a] {
      match(%ll) {
@@ -268,7 +264,7 @@ Note that a match expression checks its patterns in the order the cases are list
 that matches the input value is the one that is evaluated. Here, a top-level variable pattern binds the whole
 input value:
 
-.. code_block:: python
+.. code-block:: python
 
    def @match_order_beware<a>(%l : List[a]) -> List[a] {
      match(%l) {
@@ -299,7 +295,7 @@ list comprehensions and certain library functions in Python. Below are very comm
 through lists, which are included in Relay's Prelude. (These have all been extensively characterized
 in the functional programming literature, and we do not attempt to reproduce that work in this document.)
 
-.. code_block:: python
+.. code-block:: python
 
    # Map: for [h1, h2, ..., hn] returns [f(h1), f(h2), ..., f(hn)]
    def @map<a, b>(%f : fn(a) -> b, %l : List[a]) -> List[b] {
@@ -328,7 +324,7 @@ in the functional programming literature, and we do not attempt to reproduce tha
 Using these iteration constructs, many common operations over lists can be expressed compactly.
 For example, the following map doubles all members of a list:
 
-.. code_block:: python
+.. code-block:: python
 
    # directly written
    def @double(%l : List[Tensor[(), int32]]) -> List[Tensor[(), int32]] {
@@ -343,7 +339,7 @@ For example, the following map doubles all members of a list:
 
 The following right fold concatenates two lists:
 
-.. code_block:: python
+.. code-block:: python
 
    # directly written
    def @concat<a>(%l1 : List[a], %l2 : List[a]) -> List[a] {
@@ -358,7 +354,7 @@ The following right fold concatenates two lists:
 
 The following left fold flattens a list of lists (using concatenation):
 
-.. code_block:: python
+.. code-block:: python
 
   # directly written
   def @flatten<a>(%ll : List[List[a]]) -> List[a] {
@@ -388,13 +384,13 @@ First let us suppose that we have a function corresponding to a trained recurren
 cell, which takes in a past state and an input value and returns a new state and output value. In
 Relay, this would have the following signature:
 
-.. code_block:: python
+.. code-block:: python
 
    @cell : fn<state_type, in_type, out_type>(state_type, in_type) -> (state_type, out_type)
 
 We might consider a ReLU cell as a simple concrete example, with a trained version below:
 
-.. code_block:: python
+.. code-block:: python
 
   def @linear(%x, %w, %b) { %w*%x + %b }
 
@@ -416,7 +412,7 @@ We might consider a ReLU cell as a simple concrete example, with a trained versi
 
 Following Olah's example, we can encode a sequence (list) of inputs with the following left fold:
 
-.. code_block:: python
+.. code-block:: python
 
    def @encode<state_type, in_type, out_type>(%cell, %input : List[in_type], %init : state_type) -> state_type {
      # not using the output
@@ -426,7 +422,7 @@ Following Olah's example, we can encode a sequence (list) of inputs with the fol
 Using an *unfold* iterator (from Haskell's standard library), the same cell could be used to make
 a generator network (which takes a single input and produces a sequence of outputs):
 
-.. code_block:: python
+.. code-block:: python
 
    # included in Relay's Prelude
    def @unfoldr<a, b>(%f : fn(b) -> Optional[(a, b)], %z : b) -> List[a] {
@@ -455,7 +451,7 @@ a generator network (which takes a single input and produces a sequence of outpu
 An accumulating map (a fold that simultaneously updates an accumulator value and a list
 of outputs) can be used to write a general RNN (with an output for every input):
 
-.. code_block:: python
+.. code-block:: python
 
    def @map_accumr<a, b, c>(%f : fn(a, b) -> (a, c), %acc : a, %l : List[b]) -> (a, List[c]) {
      match(%l) {
@@ -487,7 +483,7 @@ Olah also gives an example of a bidirectional neural network, in which two sets 
 cells (which may have different weights) process the input in both directions and produce a
 single set of outputs. The following is a Relay implementation of that example:
 
-.. code_block:: python
+.. code-block:: python
 
    # creates a list of tuples from two lists
    # included in Relay's Prelude

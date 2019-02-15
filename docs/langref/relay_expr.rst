@@ -287,8 +287,8 @@ ADT Constructors
 ================
 
 Algebraic data types (ADTs) in Relay are described in detail in a
-`separate overview <adt-overview_>`__ and their integration into
-the type system is described `here <adt-typing_>`__.
+:ref:`separate overview<adt-overview>` and their integration into
+the type system is described :ref:`here<adt-typing>`.
 
 In this section, we will simply note that ADT constructors are given
 a function type and should be used inside call nodes like a function
@@ -585,7 +585,7 @@ ADT Matching
 ============
 
 Instances of algebraic data types (ADTs), as discussed in the
-`ADT overview <adt-overview_>`__, are containers that store the
+:ref:`ADT overview<adt-overview>`, are containers that store the
 arguments passed to the constructor used to create them, tagged by
 the constructor name.
 
@@ -598,7 +598,7 @@ expressions are capable of more general pattern-matching than simply
 splitting by constructors: any ADT instance nested inside an instance
 (e.g., a list of lists) can be deconstructed at the same time as
 the outer instance, while the different fields of the instance can be
-bound to variables. (See `this section <adt_pattern_>`__ for a detailed
+bound to variables. (See :ref:`this section<adt-pattern>` for a detailed
 description of ADT pattern-matching.)
 
 A match expression is defined using the
