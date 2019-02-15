@@ -428,11 +428,77 @@ class TupleGetItemNode : public ExprNode {
 
   TVM_DLL static TupleGetItem make(Expr tuple, int index);
 
-  static constexpr const char * _type_key = "relay.TupleGetItem";
+  static constexpr const char* _type_key = "relay.TupleGetItem";
   TVM_DECLARE_NODE_TYPE_INFO(TupleGetItemNode, ExprNode);
 };
 
 RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
+
+/*! \brief Create a new Reference out of initial value. */
+class RefCreate;
+class RefCreateNode : public ExprNode {
+ public:
+  /*! \brief The initial value of the Reference. */
+  Expr value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  TVM_DLL static RefCreate make(Expr value);
+
+  static constexpr const char* _type_key = "relay.RefCreate";
+  TVM_DECLARE_NODE_TYPE_INFO(RefCreateNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(RefCreate, RefCreateNode, Expr);
+
+/*! \brief Get value out of Reference. */
+class RefRead;
+class RefReadNode : public ExprNode {
+ public:
+  /*! \brief The Reference Expression. */
+  Expr ref;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("ref", &ref);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  TVM_DLL static RefRead make(Expr ref);
+
+  static constexpr const char* _type_key = "relay.RefRead";
+  TVM_DECLARE_NODE_TYPE_INFO(RefReadNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(RefRead, RefReadNode, Expr);
+
+/*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
+class RefWrite;
+class RefWriteNode : public ExprNode {
+ public:
+  /*! \brief The Reference Expression. */
+  Expr ref;
+  /*! \brief The value to write into. */
+  Expr value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("ref", &ref);
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  TVM_DLL static RefWrite make(Expr ref, Expr value);
+
+  static constexpr const char* _type_key = "relay.RefWrite";
+  TVM_DECLARE_NODE_TYPE_INFO(RefWriteNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(RefWrite, RefWriteNode, Expr);
 
 /*!
  * \brief Base class of the temporary expression.

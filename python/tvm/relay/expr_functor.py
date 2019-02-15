@@ -41,6 +41,12 @@ class ExprFunctor:
             res = self.visit_constant(expr)
         elif isinstance(expr, Op):
             res = self.visit_op(expr)
+        elif isinstance(expr, RefCreate):
+            res = self.visit_ref_create(expr)
+        elif isinstance(expr, RefRead):
+            res = self.visit_ref_read(expr)
+        elif isinstance(expr, RefWrite):
+            res = self.visit_ref_write(expr)
         else:
             raise Exception("warning unhandled case: {0}".format(type(expr)))
 
@@ -81,6 +87,14 @@ class ExprFunctor:
     def visit_constant(self, _):
         raise NotImplementedError()
 
+    def visit_ref_create(self, _):
+        raise NotImplementedError()
+
+    def visit_ref_write(self, _):
+        raise NotImplementedError()
+
+    def visit_ref_read(self, _):
+        raise NotImplementedError()
 
 class ExprMutator(ExprFunctor):
     """
@@ -145,8 +159,8 @@ class ExprMutator(ExprFunctor):
     def visit_match(self, m):
         return Match(self.visit(m.data), [Clause(c.lhs, self.visit(c.rhs)) for c in m.pattern])
 
-    def visit_ref_new(self, r):
-        return RefNew(self.visit(r.value))
+    def visit_ref_create(self, r):
+        return RefCreate(self.visit(r.value))
 
     def visit_ref_write(self, r):
         return RefWrite(self.visit(r.ref), self.visit(r.value))

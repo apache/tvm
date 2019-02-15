@@ -131,6 +131,18 @@ def test_tuple():
             relay.TupleType([tp, tp]))
 
 
+def test_ref():
+    x = relay.var("x", "float32")
+    y = relay.var("y", "float32")
+    r = relay.RefCreate(x)
+    st = relay.scalar_type("float32")
+    assert relay.ir_pass.infer_type(r).checked_type == relay.RefType(st)
+    g = relay.RefRead(r)
+    assert relay.ir_pass.infer_type(g).checked_type == st
+    w = relay.RefWrite(r, y)
+    assert relay.ir_pass.infer_type(w).checked_type == relay.TupleType([])
+
+
 def test_free_expr():
     x = relay.var("x", "float32")
     y = relay.add(x, x)
@@ -187,12 +199,9 @@ if __name__ == "__main__":
     test_decl()
     test_recursion()
     test_tuple()
-    test_generalized_tuple()
     test_incomplete_call()
-    test_generalized_call()
-    test_call_with_type_args()
     test_free_expr()
     test_type_args()
-    test_self_reference()
     test_global_var_recursion()
     test_equal()
+    test_ref()

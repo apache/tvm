@@ -16,9 +16,9 @@ namespace relay {
 
 // Hash handler for Relay.
 class RelayHashHandler:
-      public AttrsHashHandler,
-      public TypeFunctor<size_t(const Type&)>,
-      public ExprFunctor<size_t(const Expr&)> {
+    public AttrsHashHandler,
+    public TypeFunctor<size_t(const Type&)>,
+    public ExprFunctor<size_t(const Expr&)> {
  public:
   explicit RelayHashHandler() {}
 
@@ -175,6 +175,12 @@ class RelayHashHandler:
     return hash;
   }
 
+  size_t VisitType_(const RefTypeNode* rtn) final {
+    size_t hash = std::hash<std::string>()(RefTypeNode::_type_key);
+    hash = Combine(hash, TypeHash(rtn->value));
+    return hash;
+  }
+
   // Expr hashing.
   size_t NDArrayHash(const runtime::NDArray& array) {
     size_t hash = std::hash<uint8_t>()(array->dtype.code);
@@ -280,6 +286,24 @@ class RelayHashHandler:
     return hash;
   }
 
+  size_t VisitExpr_(const RefCreateNode* rn) final {
+    size_t hash = std::hash<std::string>()(RefCreateNode::_type_key);
+    hash = Combine(hash, ExprHash(rn->value));
+    return hash;
+  }
+
+  size_t VisitExpr_(const RefReadNode* rn) final {
+    size_t hash = std::hash<std::string>()(RefReadNode::_type_key);
+    hash = Combine(hash, ExprHash(rn->ref));
+    return hash;
+  }
+
+  size_t VisitExpr_(const RefWriteNode* rn) final {
+    size_t hash = std::hash<std::string>()(RefWriteNode::_type_key);
+    hash = Combine(hash, ExprHash(rn->ref));
+    hash = Combine(hash, ExprHash(rn->value));
+    return hash;
+  }
  private:
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, size_t, NodeHash, NodeEqual> hash_map_;

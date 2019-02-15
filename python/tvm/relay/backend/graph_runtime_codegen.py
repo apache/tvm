@@ -283,6 +283,15 @@ class GraphRuntimeCodegen(ExprFunctor):
     def visit_op(self, _):
         raise Exception("can not compile op in non-eta expanded form")
 
+    def visit_ref_create(self, _):
+        raise RuntimeError("reference not supported")
+
+    def visit_ref_read(self, _):
+        raise RuntimeError("reference not supported")
+
+    def visit_ref_write(self, _):
+        raise RuntimeError("reference not supported")
+
     def _get_json(self):
         """
         Convert the sequence of nodes stored by the compiler into the
