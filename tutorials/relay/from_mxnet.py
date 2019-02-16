@@ -75,22 +75,12 @@ net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_para
 target = 'cuda'
 shape_dict = {'data': x.shape}
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build_module.build(net, target, params=params)
+    intrp = relay.build_module.create_executor('graph', net, tvm.gpu(0), target) 
 
 ######################################################################
 # Execute the portable graph on TVM
 # ---------------------------------
 # Now, we would like to reproduce the same forward computation using TVM.
-from tvm.contrib import graph_runtime
-ctx = tvm.gpu(0)
-dtype = 'float32'
-m = graph_runtime.create(graph, lib, ctx)
-# set inputs
-m.set_input('data', tvm.nd.array(x.astype(dtype)))
-m.set_input(**params)
-# execute
-m.run()
-# get outputs
-tvm_output = m.get_output(0)
+tvm_output = intrp.evaluate(net)(tvm.nd.array(x.astype(dtype)), **params)
 top1 = np.argmax(tvm_output.asnumpy()[0])
 print('TVM prediction top-1:', top1, synset[top1])
