@@ -539,4 +539,3 @@ def get_total_mac_number(expr):
       The number of MACs (multiply-accumulate) of a model
     """
     return _ir_pass.GetTotalMacNumber(expr)
-    
