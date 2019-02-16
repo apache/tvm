@@ -5,6 +5,7 @@
  */
 #include <tvm/relay/module.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <sstream>
 #include "type_functor.h"
 #include "../../lang/attr_functor.h"
@@ -23,6 +24,12 @@ struct TextValue {
   TextValue() {}
   // constructor
   explicit TextValue(std::string name) : name(name) {}
+  TextValue operator+(const TextValue& rhs) const {
+    return TextValue(name + rhs.name);
+  }
+  TextValue operator+(const std::string& str) const {
+    return TextValue(name + str);
+  }
 };
 
 // operator overloading
@@ -128,6 +135,7 @@ class TextMetaDataContext {
 
 class TextPrinter :
     public ExprFunctor<TextValue(const Expr&)>,
+    public PatternFunctor<TextValue(const Pattern&)>,
     public TypeFunctor<void (const Type&, std::ostream& os)>,  // NOLINT(*)
     public AttrFunctor<void (const NodeRef&, std::ostream& os)> { // NOLINT(*)
  public:
@@ -212,6 +220,9 @@ class TextPrinter :
     TextValue val = this->VisitExpr(expr);
     memo_[expr] = val;
     return val;
+  }
+  TextValue GetValue(const Pattern& p) {
+    return this->VisitPattern(p);
   }
   //------------------------------------
   // Overload of Expr printing functions
@@ -391,6 +402,36 @@ class TextPrinter :
     return id;
   }
 
+  TextValue VisitExpr_(const MatchNode* op) final {
+    TextValue data = GetValue(op->data);
+    this->PrintIndent();
+    TextValue id = this->AllocTempVar();
+    stream_ << id << " = " << "Match " << data << " with";
+    this->PrintEndInst("\n");
+    for (const auto& c : op->clauses) {
+      this->PrintIndent();
+      stream_ << GetValue(c->lhs) << " to " << GetValue(c->rhs);
+      this->PrintEndInst("\n");
+    }
+    return id;
+  }
+
+  TextValue VisitPattern_(const PatternConstructorNode* p) final {
+    TextValue ret(p->constructor->name_hint + "(");
+    for (const Pattern& pat : p->patterns) {
+      ret = ret + " " + GetValue(pat);
+    }
+    return ret + ")";
+  }
+
+  TextValue VisitPattern_(const PatternVarNode* pv) final {
+    return GetValue(pv->var);
+  }
+
+  TextValue VisitExpr_(const ConstructorNode* n) final {
+    return TextValue(n->name_hint);
+  }
+
   /*!
    * \brief Print the type to os
    * \param type The type to be printed.
@@ -434,6 +475,18 @@ class TextPrinter :
   }
 
   void VisitType_(const RefTypeNode* node, std::ostream& os) final {
+    VisitTypeDefault_(node, os);
+  }
+
+  void VisitType_(const TypeCallNode* node, std::ostream& os) final {
+    os << node->func << "(" << node->args << ")";
+  }
+
+  void VisitType_(const GlobalTypeVarNode* node, std::ostream& os) final {
+    VisitTypeDefault_(node, os);
+  }
+
+  void VisitType_(const TypeDataNode* node, std::ostream& os) final {
     VisitTypeDefault_(node, os);
   }
 

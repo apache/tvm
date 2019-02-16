@@ -13,7 +13,10 @@ TEST(Relay, SelfReference) {
   auto y = relay::VarNode::make("y", tensor_type);
   auto call = relay::CallNode::make(f, Array<relay::Expr>{ y });
   auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
-  auto type_fx = relay::InferType(fx, relay::ModuleNode::make(Map<relay::GlobalVar, relay::Function>{}));
+  auto empty_module =
+    relay::ModuleNode::make(Map<relay::GlobalVar, relay::Function>{},
+                            Map<relay::GlobalTypeVar, relay::TypeData>{});
+  auto type_fx = relay::InferType(fx, empty_module);
 
   auto expected = relay::FuncTypeNode::make(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
   CHECK(AlphaEqual(type_fx->checked_type(), expected));

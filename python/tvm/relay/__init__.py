@@ -7,8 +7,10 @@ from . import ty
 from . import expr
 from . import expr_functor
 from . import module
+from . import adt
 from . import ir_pass
 from .build_module import build, build_config, create_executor, optimize
+from . import prelude
 from . import parser
 from . import debug
 
@@ -45,6 +47,8 @@ TypeRelation = ty.TypeRelation
 IncompleteType = ty.IncompleteType
 scalar_type = ty.scalar_type
 RefType = ty.RefType
+GlobalTypeVar = ty.GlobalTypeVar
+TypeCall = ty.TypeCall
 
 # Expr
 Expr = expr.Expr
@@ -60,6 +64,15 @@ TupleGetItem = expr.TupleGetItem
 RefCreate = expr.RefCreate
 RefRead = expr.RefRead
 RefWrite = expr.RefWrite
+
+# ADT
+PatternWildcard = adt.PatternWildcard
+PatternVar = adt.PatternVar
+PatternConstructor = adt.PatternConstructor
+Constructor = adt.Constructor
+TypeData = adt.TypeData
+Clause = adt.Clause
+Match = adt.Match
 
 # helper functions
 var = expr.var

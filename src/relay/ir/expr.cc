@@ -130,9 +130,14 @@ Function FunctionNode::make(tvm::Array<Var> params,
 FuncType FunctionNode::func_type_annotation() const {
   Array<Type> param_types;
   for (auto param : this->params) {
-    param_types.push_back(param->type_annotation);
+    Type param_type = (param->type_annotation.defined()) ? param->type_annotation
+      : IncompleteTypeNode::make(Kind::kType);
+    param_types.push_back(param_type);
   }
-  return FuncTypeNode::make(param_types, this->ret_type, this->type_params, {});
+
+  Type ret_type = (this->ret_type.defined()) ? this->ret_type
+    : IncompleteTypeNode::make(Kind::kType);
+  return FuncTypeNode::make(param_types, ret_type, this->type_params, {});
 }
 
 bool FunctionNode::IsPrimitive() const {
