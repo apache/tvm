@@ -563,7 +563,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
-.set_support_level(2)
+.set_support_level(10)
 .add_type_rel("Conv2D", Conv2DRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
         Conv2DInferCorrectLayout<Conv2DAttrs>);
