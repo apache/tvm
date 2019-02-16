@@ -11,7 +11,7 @@ to that issue so it can get added.
 
 
 ## 0.5
-This release features several major improvements. Some of the highlights are: Arbitrary bits quantization algorithm; High-level auto-differentiation language -- Relay.
+This release features several major improvements. Some of the highlights are: Arbitrary bits quantization algorithm; High-level auto-differentiable programming IR -- Relay.
 
 - Fully featured 8-bit network support
   - 8bit quantizer
@@ -26,8 +26,7 @@ This release features several major improvements. Some of the highlights are: Ar
   - AutoTVM optimizations for mobile GPUs
   - AutoTVM optimizations for CUDA
   - AutoTVM for x86
-- Introduction of Relay, NNVMv2 IR
-  - Support for first-order automatic differentiation #2321 
+- Initial release of the differentiable programming IR, Relay
   - Generic & informative Relay error reporting #2408 
   - Relay IR text format support #1781 
   - Support control flows
@@ -62,7 +61,7 @@ This release features several major improvements. Some of the highlights are: Ar
 - Hybrid python programming model
   - Support for scheduling #2416 
   - Support for Inter-function call  #2287 
-- TOP
+- TOPI
   - Initial support for sparse tensor computation
   - Improve ARM CPU depthwise convolution performance #2345 
   - Port winograd ops to relay #2356 
