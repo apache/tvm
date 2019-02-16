@@ -65,11 +65,11 @@ class MacCounter : private ExprVisitor {
     Array<Expr> args = call_node->args;
     CHECK(args.size() == 2)
         << "The number of input arguments of a CONV 2D node should be 2.";
-    const auto* expr0 = args[0]->checked_type().as<TensorTypeNode>();
-    Array<IndexExpr> shape0 = expr0->shape;
-    CHECK(shape0.size() == 4)
+    const auto* data_type = args[0]->checked_type().as<TensorTypeNode>();
+    Array<IndexExpr> data_shape = data_type->shape;
+    CHECK(data_shape.size() == 4)
         << "The dimension of an input tensor to Dense node should be 4.";
-    int64_t input_channel = static_cast<int64_t>(shape0[1].as<IntImm>()->value);
+    int64_t input_channel = static_cast<int64_t>(data_shape[1].as<IntImm>()->value);
     const auto* conv_2d_attr = call_node->attrs.as<Conv2DAttrs>();
     Array<IndexExpr> kernel_size = conv_2d_attr->kernel_size;
     CHECK(kernel_size.size() == 2)
@@ -97,16 +97,16 @@ class MacCounter : private ExprVisitor {
     Array<Expr> args = call_node->args;
     CHECK(args.size() == 2)
         << "The number of input arguments of a Dense node should be 2.";
-    const auto* expr0 = args[0]->checked_type().as<TensorTypeNode>();
-    const auto* expr1 = args[1]->checked_type().as<TensorTypeNode>();
-    Array<IndexExpr> shape0 = expr0->shape;
-    Array<IndexExpr> shape1 = expr1->shape;
-    CHECK(shape0.size() == 2 && shape1.size() == 2)
+    const auto* data_type = args[0]->checked_type().as<TensorTypeNode>();
+    const auto* weight_type = args[1]->checked_type().as<TensorTypeNode>();
+    Array<IndexExpr> data_shape = data_type->shape;
+    Array<IndexExpr> weight_shape = weight_type->shape;
+    CHECK(data_shape.size() == 2 && weight_shape.size() == 2)
         << "The dimension of an input tensor to Dense node should be 2.";
-    int64_t d1 = static_cast<int64_t>(shape0[0].as<IntImm>()->value);
-    int64_t d2 = static_cast<int64_t>(shape0[1].as<IntImm>()->value);
-    int64_t d3 = static_cast<int64_t>(shape1[0].as<IntImm>()->value);
-    int64_t d4 = static_cast<int64_t>(shape1[1].as<IntImm>()->value);
+    int64_t d1 = static_cast<int64_t>(data_shape[0].as<IntImm>()->value);
+    int64_t d2 = static_cast<int64_t>(data_shape[1].as<IntImm>()->value);
+    int64_t d3 = static_cast<int64_t>(weight_shape[0].as<IntImm>()->value);
+    int64_t d4 = static_cast<int64_t>(weight_shape[1].as<IntImm>()->value);
     CHECK(d2 == d4)
         << "The dimensions of input arguments do not match.";
     int64_t count = d1 * d2 * d3;
@@ -115,7 +115,7 @@ class MacCounter : private ExprVisitor {
 
   int64_t GetCartesianProd(Array<IndexExpr> arr) {
     int64_t ret = 1;
-    for (int i = 0; i < arr.size(); i++) {
+    for (size_t i = 0; i < arr.size(); i++) {
       const auto* intImm = arr[i].as<IntImm>();
       ret *= static_cast<int64_t>(intImm->value);
     }

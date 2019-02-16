@@ -13,9 +13,7 @@ def test_gemm():
     dshape2 = (m, k)
     data1 = relay.var("data1", shape=dshape1)
     data2 = relay.var("data2", shape=dshape2)
-    gemm = relay.nn.dense(
-        data1,
-        data2)
+    gemm = relay.nn.dense(data1, data2)
     func = relay.Function([data1, data2],
                             relay.Tuple(tvm.convert([gemm])))
     func = relay.ir_pass.infer_type(func)
