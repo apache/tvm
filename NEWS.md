@@ -61,6 +61,7 @@ This release features several major improvements. Some of the highlights are: Ar
 - Hybrid python programming model
   - Support for scheduling #2416 
   - Support for Inter-function call  #2287 
+  - Backend support  #2477
 - TOPI
   - Initial support for sparse tensor computation
   - Improve ARM CPU depthwise convolution performance #2345 
