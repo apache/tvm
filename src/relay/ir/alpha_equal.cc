@@ -5,6 +5,7 @@
  */
 #include <tvm/ir_pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/pass.h>
 #include "type_functor.h"
@@ -17,7 +18,8 @@ namespace relay {
 class AlphaEqualHandler:
       public AttrsEqualHandler,
       public TypeFunctor<bool(const Type&, const Type&)>,
-      public ExprFunctor<bool(const Expr&, const Expr&)> {
+      public ExprFunctor<bool(const Expr&, const Expr&)>,
+      public PatternFunctor<bool(const Pattern&, const Pattern&)> {
  public:
   explicit AlphaEqualHandler(bool map_free_var)
       : map_free_var_(map_free_var) {}
@@ -160,7 +162,7 @@ class AlphaEqualHandler:
         }
         equal_map_[lhs->type_params[i]] = rhs->type_params[i];
         // set up type parameter equal
-        if (lhs->type_params[i]->kind == TypeVarNode::Kind::kShapeVar) {
+        if (lhs->type_params[i]->kind == Kind::kShapeVar) {
           // map variable
           equal_map_[lhs->type_params[i]->var] = rhs->type_params[i]->var;
         }
@@ -215,6 +217,26 @@ class AlphaEqualHandler:
     return false;
   }
 
+  bool VisitType_(const GlobalTypeVarNode* op, const Type& t2) final {
+    return GetRef<Type>(op) == t2;
+  }
+
+  bool VisitType_(const TypeCallNode* op, const Type& t2) final {
+    const TypeCallNode* pt = t2.as<TypeCallNode>();
+    if (pt == nullptr
+        || op->args.size() != pt->args.size()
+        || !TypeEqual(op->func, pt->func)) {
+      return false;
+    }
+
+    for (size_t i = 0; i < op->args.size(); ++i) {
+      if (!TypeEqual(op->args[i], pt->args[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // Expr equal checking.
   bool NDArrayEqual(const runtime::NDArray& lhs,
                     const runtime::NDArray& rhs) {
@@ -261,11 +283,9 @@ class AlphaEqualHandler:
   bool VisitExpr_(const GlobalVarNode* lhs, const Expr& other) final {
     if (const GlobalVarNode* rhs = other.as<GlobalVarNode>()) {
       // use name equality for global var for now.
-      if (lhs->name_hint != rhs->name_hint) return false;
-      return true;
-    } else {
-      return false;
+      return lhs->name_hint == rhs->name_hint;
     }
+    return false;
   }
 
   bool VisitExpr_(const TupleNode* lhs, const Expr& other) final {
@@ -392,6 +412,63 @@ class AlphaEqualHandler:
       return false;
     }
   }
+
+  bool VisitExpr_(const ConstructorNode* op, const Expr& e2) final {
+    return GetRef<Expr>(op) == e2;
+  }
+
+  bool ClauseEqual(const Clause& l, const Clause& r) {
+    return PatternEqual(l->lhs, r->lhs) && ExprEqual(l->rhs, r->rhs);
+  }
+
+  bool PatternEqual(const Pattern& l, const Pattern& r) {
+    return VisitPattern(l, r);
+  }
+
+  bool VisitPattern_(const PatternWildcardNode* op, const Pattern& r) final {
+    return r.as<PatternWildcardNode>();
+  }
+
+  bool VisitPattern_(const PatternVarNode* op, const Pattern& e2) final {
+    if (const auto* r = e2.as<PatternVarNode>()) {
+      return MergeVarDecl(op->var, r->var);
+    }
+    return false;
+  }
+
+  bool VisitPattern_(const PatternConstructorNode* op, const Pattern& e2) final {
+    const auto* r = e2.as<PatternConstructorNode>();
+    if (r == nullptr
+        || !ExprEqual(op->constructor, r->constructor)
+        || op->patterns.size() != r->patterns.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < op->patterns.size(); i++) {
+      if (!PatternEqual(op->patterns[i], r->patterns[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool VisitExpr_(const MatchNode* op, const Expr& e2) final {
+    const MatchNode* r = e2.as<MatchNode>();
+
+    if (r == nullptr
+        || !ExprEqual(op->data, r->data)
+        || op->clauses.size() != r->clauses.size()) {
+      return false;
+    }
+
+    for (size_t i = 0; i < op->clauses.size(); ++i) {
+      if (!ClauseEqual(op->clauses[i], r->clauses[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
  private:
   // whether to map open terms.
   bool map_free_var_{false};

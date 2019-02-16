@@ -98,6 +98,18 @@ class TensorTypeNode : public BaseTensorTypeNode {
 
 RELAY_DEFINE_NODE_REF(TensorType, TensorTypeNode, Type);
 
+/*! \brief possible kinds of Type */
+enum Kind : int {
+  /*! \brief template variable in shape expression */
+  kType = 0,
+  kShapeVar = 1,
+  kBaseType = 2,
+  kShape = 3,
+  kConstraint = 4,
+  kAdtHandle = 5,
+  kTypeData = 6
+};
+
 /*!
  * \brief Type parameter in the function.
  *  This can be viewed as template parameter in c++ template function.
@@ -119,14 +131,6 @@ class TypeVar;
 /*! \brief TypeVar container node */
 class TypeVarNode : public TypeNode {
  public:
-  /*! \brief possible kinds of TypeVar */
-  enum Kind : int {
-    /*! \brief template variable in shape expression */
-    kType = 0,
-    kShapeVar = 1,
-    kBaseType = 2,
-    kShape = 3
-  };
   /*!
    * \brief The variable itself is only meaningful when
    *  kind is ShapeVar, otherwise, we only use the name.
@@ -150,6 +154,63 @@ class TypeVarNode : public TypeNode {
 RELAY_DEFINE_NODE_REF(TypeVar, TypeVarNode, Type);
 
 /*!
+ * \brief A global type variable that is used for defining new types or type aliases.
+ */
+class GlobalTypeVar;
+/*! \brief GlobalTypeVar container node */
+class GlobalTypeVarNode : public TypeNode {
+ public:
+  /*!
+   * \brief The variable itself is only meaningful when
+   *  kind is ShapeVar; otherwise, we only use the name.
+   */
+  tvm::Var var;
+  /*! \brief The kind of type parameter */
+  Kind kind;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("var", &var);
+    v->Visit("kind", &kind);
+    v->Visit("span", &span);
+  }
+
+  TVM_DLL static GlobalTypeVar make(std::string name, Kind kind);
+
+  static constexpr const char* _type_key = "relay.GlobalTypeVar";
+  TVM_DECLARE_NODE_TYPE_INFO(GlobalTypeVarNode, TypeNode);
+};
+
+RELAY_DEFINE_NODE_REF(GlobalTypeVar, GlobalTypeVarNode, Type);
+
+/*!
+ * \brief Type application.
+ */
+class TypeCall;
+/*! \brief TypeCall container node */
+class TypeCallNode : public TypeNode {
+ public:
+  /*!
+   * \brief The type-level function (ADT that takes type params).
+   */
+  Type func;
+  /*! \brief The arguments. */
+  tvm::Array<Type> args;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("func", &func);
+    v->Visit("args", &args);
+    v->Visit("span", &span);
+  }
+
+  TVM_DLL static TypeCall make(Type func, tvm::Array<Type> args);
+
+  static constexpr const char* _type_key = "relay.TypeCall";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeCallNode, TypeNode);
+};
+
+RELAY_DEFINE_NODE_REF(TypeCall, TypeCallNode, Type);
+
+/*!
  * \brief IncompleteType.
  * This is intermediate values that is used during type inference.
  *
@@ -162,14 +223,14 @@ class IncompleteType;
 /*! \brief IncompleteType container node */
 class IncompleteTypeNode : public TypeNode {
  public:
-  TypeVarNode::Kind kind;
+  Kind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("kind", &kind);
     v->Visit("span", &span);
   }
 
-  TVM_DLL static IncompleteType make(TypeVarNode::Kind kind);
+  TVM_DLL static IncompleteType make(Kind kind);
 
   static constexpr const char* _type_key = "relay.IncompleteType";
   TVM_DECLARE_NODE_TYPE_INFO(IncompleteTypeNode, TypeNode);

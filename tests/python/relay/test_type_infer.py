@@ -17,6 +17,16 @@ def assert_has_type(expr, typ, mod=relay.module.Module({})):
             checked_type, typ))
 
 
+# initializes simple ADT for tests
+def initialize_box_adt(mod):
+    box = relay.GlobalTypeVar('box')
+    tv = relay.TypeVar('tv')
+    constructor = relay.Constructor('constructor', [tv], box)
+    data = relay.TypeData(box, [tv], [constructor])
+    mod[box] = data
+    return (box, constructor)
+
+
 def test_monomorphic_let():
     "Program: let x = 1; return x"
     sb = relay.ScopeBuilder()
@@ -190,6 +200,69 @@ def test_equal():
     assert ft.checked_type == relay.FuncType([relay.scalar_type('int32')], relay.scalar_type('bool'))
 
 
+def test_constructor_type():
+    mod = relay.Module()
+    box, constructor = initialize_box_adt(mod)
+
+    a = relay.TypeVar('a')
+    x = relay.Var('x', a)
+    ct = relay.ir_pass.infer_type(
+        relay.Function([x], constructor(x), box(a), [a]), mod)
+    expected = relay.FuncType([a], box(a), [a])
+    assert ct.checked_type == expected
+
+
+def test_constructor_call():
+    mod = relay.Module()
+    box, constructor = initialize_box_adt(mod)
+
+    box_unit = constructor(relay.Tuple([]))
+    box_constant = constructor(relay.const(0, 'float32'))
+
+    ut = relay.ir_pass.infer_type(box_unit, mod)
+    ct = relay.ir_pass.infer_type(box_constant, mod)
+    assert ut.checked_type == box(relay.TupleType([]))
+    assert ct.checked_type == box(relay.TensorType((), 'float32'))
+
+
+def test_adt_match():
+    mod = relay.Module()
+    box, constructor = initialize_box_adt(mod)
+
+    v = relay.Var('v', relay.TensorType((), 'float32'))
+    match = relay.Match(constructor(relay.const(0, 'float32')),
+                        [relay.Clause(
+                            relay.PatternConstructor(constructor,
+                                                     [relay.PatternVar(v)]),
+                            relay.Tuple([])),
+                         # redundant but shouldn't matter to typechecking
+                         relay.Clause(relay.PatternWildcard(),
+                                      relay.Tuple([]))])
+
+    mt = relay.ir_pass.infer_type(match, mod)
+    assert mt.checked_type == relay.TupleType([])
+
+
+def test_adt_match_type_annotations():
+    mod = relay.Module()
+    box, constructor = initialize_box_adt(mod)
+
+    # the only type annotation is inside the match pattern var
+    # but that should be enough info
+    tt = relay.TensorType((2, 2), 'float32')
+    x = relay.Var('x')
+    mv = relay.Var('mv', tt)
+    match = relay.Match(constructor(x),
+                        [relay.Clause(
+                            relay.PatternConstructor(constructor,
+                                                     [relay.PatternVar(mv)]),
+                                                     relay.Tuple([]))])
+
+    func = relay.Function([x], match)
+    ft = relay.ir_pass.infer_type(func, mod)
+    assert ft.checked_type == relay.FuncType([tt], relay.TupleType([]))
+
+
 if __name__ == "__main__":
     test_free_expr()
     test_dual_op()
@@ -205,3 +278,6 @@ if __name__ == "__main__":
     test_global_var_recursion()
     test_equal()
     test_ref()
+    test_constructor_type()
+    test_constructor_call()
+    test_adt_match()

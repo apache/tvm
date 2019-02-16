@@ -296,6 +296,15 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);
   }
+
+  void VisitExpr_(const MatchNode* op) final {
+    this->Update(op->data, nullptr, kOpaque);
+    for (const Clause& c : op->clauses) {
+      this->Update(c->rhs, nullptr, kOpaque);
+    }
+    ExprVisitor::VisitExpr_(op);
+    this->AddNode(op);
+  }
 };
 
 IndexedForwardGraph IndexedForwardGraph::Create(

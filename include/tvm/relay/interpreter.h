@@ -160,6 +160,28 @@ struct RefValueNode : ValueNode {
 
 RELAY_DEFINE_NODE_REF(RefValue, RefValueNode, Value);
 
+/*! \brief An ADT constructor value. */
+class ConstructorValue;
+
+struct ConstructorValueNode : ValueNode {
+  Constructor constructor;
+
+  tvm::Array<Value> fields;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("constructor", &constructor);
+    v->Visit("fields", &fields);
+  }
+
+  TVM_DLL static ConstructorValue make(Constructor constructor,
+                                       tvm::Array<Value> fields);
+
+  static constexpr const char* _type_key = "relay.ConstructorValue";
+  TVM_DECLARE_NODE_TYPE_INFO(ConstructorValueNode, ValueNode);
+};
+
+RELAY_DEFINE_NODE_REF(ConstructorValue, ConstructorValueNode, Value);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_INTERPRETER_H_
