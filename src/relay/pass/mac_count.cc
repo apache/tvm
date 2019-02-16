@@ -11,7 +11,6 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
-#include <iostream>
 
 namespace tvm {
 namespace relay {
