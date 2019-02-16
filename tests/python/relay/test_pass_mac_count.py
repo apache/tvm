@@ -2,8 +2,6 @@
 import tvm
 from tvm import relay
 import sys
-sys.path.append('../frontend/mxnet')
-import model_zoo
 
 def test_gemm():
     n = 512
@@ -83,17 +81,7 @@ def test_simple_network():
     expect_count = 231411712
     assert compute_count == expect_count
 
-def test_resnet():
-    expect_tuple = [(18, 1826918400), (34, 3676606464), 
-                    (50, 3857973248), (101, 7570194432),
-                    (152, 11282415616)]
-    for n in expect_tuple:
-        relay_sym = model_zoo.relay_resnet(n[0])
-        compute_count = relay.ir_pass.get_total_mac_number(relay_sym)
-        assert compute_count == n[1]
-
 if __name__ == "__main__":
     test_conv()
     test_gemm()
     test_simple_network()
-    test_resnet()
