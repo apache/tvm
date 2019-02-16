@@ -25,7 +25,7 @@ This release features several major improvements. Some of the highlights are: Ar
 - Automated tuning and scheduling
   - AutoTVM optimizations for mobile GPUs
   - AutoTVM optimizations for CUDA
-  - AutoTVM for x86
+  - AutoTVM optimizations for x86
 - Initial release of the differentiable programming IR, Relay
   - Generic & informative Relay error reporting #2408 
   - Relay IR text format support #1781 
@@ -66,6 +66,7 @@ This release features several major improvements. Some of the highlights are: Ar
   - Initial support for sparse tensor computation
   - Improve ARM CPU depthwise convolution performance #2345 
   - Port winograd ops to relay #2356 
+  - Add faster-rcnn proposal op #2420
 - Tutorials and docs
   - Relay language docs #2232 
   - Tutorials on how to use SGX backend
