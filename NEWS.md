@@ -9,6 +9,77 @@ Refer to the Roadmap issue for complete list on on-going version features.
 If you check in something that is not reflected in Roadmap issue, please reply
 to that issue so it can get added.
 
+
+## 0.5
+This release features several major improvements. Some of the highlights are: Arbitrary bits quantization algorithm; High-level auto-differentiable programming IR -- Relay.
+
+- Fully featured 8-bit network support
+  - 8bit quantizer
+  - Arbitrary bits quantization algorithm
+  - Intel cpu support
+  - ARM cpu support
+- NVidia GPU 8-bit kernel
+  - int8 gemm recipe
+  - int8 conv2d
+  - Autotvm integration
+- Automated tuning and scheduling
+  - AutoTVM optimizations for mobile GPUs
+  - AutoTVM optimizations for CUDA
+  - AutoTVM optimizations for x86
+- Initial release of the differentiable programming IR, Relay
+  - Generic & informative Relay error reporting #2408 
+  - Relay IR text format support #1781 
+  - Support control flows
+  - A Normal Form Canonicalization #2251 
+  - Type system support
+  - End to end compilation
+     * Frontend support: Caffe2 #2507 , CoreML #2476 , Keras #2376 , MXNet #2163 , ONNX, TFLite #2365 
+     * Operator coverage #1799 #2051 
+  - FoldScaleAxis #2020 
+  - SimplifyInference #2033 
+  - CombineParallelConv2D #2089
+  - InstrumentBoundCheckers pass #2079 
+  - Bind & FoldConstant #2100
+  - Alter Op Layout #2150
+  - General OpFusion #2090
+- CodeGen
+  - Gcc / g++ compatible C code generator for TVM #2161 
+  - Device type annotation for heterogeneous compilation #2361 
+  - Cache packed func ptr, lift alloca #2070 
+  - Generalize compute to tensor region #1476 
+- Runtime
+  - Relay interpreter and compiler #1954 
+  - Heterogeneous runtime #1695 
+  - Language bindings: Golang runtime #1470 , Rust runtime #1597 
+  - Add min_repeat_ms to time_evaluator #2200 
+  - Bundled interpreter demonstration #2297 
+  - Enable PlanMemory in the graph runtime #2120
+- Language Binding
+  - Rust frontend #2292 
+- VTA
+  - Improved RPC for VTA #2043
+- Hybrid python programming model
+  - Support for scheduling #2416 
+  - Support for Inter-function call  #2287 
+  - Backend support  #2477
+- TOPI
+  - Initial support for sparse tensor computation
+  - Improve ARM CPU depthwise convolution performance #2345 
+  - Port winograd ops to relay #2356 
+  - Add faster-rcnn proposal op #2420
+- Tutorials and docs
+  - Relay language docs #2232 
+  - Tutorials on how to use SGX backend
+  - How to write a pass in python
+  - General lowering flow of TVM
+  - How to do tensorize
+  - TFLite frontend tutorial #2508 
+  - Keras seq2seq model for translation tutorial #1815 
+  - Committer guide and tips #2468
+  - Code review guideline on API designs #2459 
+
+
+
 ## 0.4
 
 This release features several major improvements. The high-level graph optimizer is now part of TVM repo. Some of the highlights are: Initial support of AutoTVM for automated optimization; customized accelerator backend VTA.
