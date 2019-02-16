@@ -56,9 +56,9 @@ TVM_DLL Function InferType(const Function& f, const Module& mod,
  * \param t The type to check.
  * \param mod The global module.
  *
- * \return true if the rules are satisified otherwise false
+ * \return The kind of the passed type.
  */
-TVM_DLL bool KindCheck(const Type& t, const Module& mod);
+TVM_DLL Kind KindCheck(const Type& t, const Module& mod);
 
 /*! \brief Compare two expressions for structural equivalence.
  *
@@ -144,10 +144,11 @@ TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
  * type in the context.
  *
  * \param expr the expression.
+ * \param mod the module.
  *
  * \return List of free vars, in the PostDFS order visited by expr.
  */
-TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
+TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const Module& mod);
 
 /*! \brief Get free TypeVars from type t.
  *
@@ -155,10 +156,11 @@ TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
  * type in the context.
  *
  * \param t the type.
+ * \param mod the module.
  *
  * \return List of free type vars, in the PostDFS order visited by type.
  */
-TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t);
+TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t, const Module& mod);
 
 /*! \brief Get all bound type variables from expression expr.
  *
@@ -166,10 +168,11 @@ TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t);
  * They only have meaning inside that expr, and can only be used in it.
  *
  * \param expr the expression.
+ * \param mod the module.
  *
  * \return List of bound type vars, in the PostDFS order in the expression.
  */
-TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr);
+TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const Module& mod);
 
 /*! \brief Get all bound type variables from type t.
  *
@@ -177,26 +180,29 @@ TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr);
  * They only have meaning inside that type, and can only be used in it.
  *
  * \param t the type
+ * \param mod the module.
  *
  * \return List of bound type vars, in the PostDFS order visited by type.
  */
-TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Type& t);
+TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Type& t, const Module& mod);
 
 /*! \brief Get all type variables in expression expr.
  *
  * \param expr the expression.
+ * \param mod the module.
  *
  * \return List of type vars, in the PostDFS order in the expression.
  */
-TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr);
+TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod);
 
 /*! \brief Get all type variables in type t.
  *
  * \param t the type.
+ * \param mod the module.
  *
  * \return List of type vars, in the PostDFS order visited by type.
  */
-TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t);
+TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
 
 /*! \brief Remove expressions which does not effect the program result.
  *

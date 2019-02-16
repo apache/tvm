@@ -5,6 +5,7 @@
  */
 #include <tvm/ir_pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/pass.h>
 #include <tvm/attrs.h>
@@ -18,7 +19,8 @@ namespace relay {
 class RelayHashHandler:
     public AttrsHashHandler,
     public TypeFunctor<size_t(const Type&)>,
-    public ExprFunctor<size_t(const Expr&)> {
+    public ExprFunctor<size_t(const Expr&)>,
+    public PatternFunctor<size_t(const Pattern&)> {
  public:
   explicit RelayHashHandler() {}
 
@@ -201,7 +203,7 @@ class RelayHashHandler:
     hash_map_[var] = hash;
 
     const auto* ty_param = var.as<TypeVarNode>();
-    if (ty_param && ty_param->kind == TypeVarNode::Kind::kShapeVar) {
+    if (ty_param && ty_param->kind == Kind::kShapeVar) {
       hash_map_[ty_param->var] = hash;
     }
     return hash;
@@ -236,7 +238,7 @@ class RelayHashHandler:
     }
 
     hash = Combine(hash, TypeHash(func->ret_type));
-    hash =  Combine(hash, ExprHash(func->body));
+    hash = Combine(hash, ExprHash(func->body));
 
     return hash;
   }
@@ -247,6 +249,10 @@ class RelayHashHandler:
 
     for (auto arg : call->args) {
       hash = Combine(hash, ExprHash(arg));
+    }
+
+    for (auto t : call->type_args) {
+      hash = Combine(hash, TypeHash(t));
     }
 
     hash = Combine(hash, AttrHash(call->attrs));
@@ -304,6 +310,72 @@ class RelayHashHandler:
     hash = Combine(hash, ExprHash(rn->value));
     return hash;
   }
+
+  size_t VisitExpr_(const MatchNode* mn) final {
+    size_t hash = std::hash<std::string>()(MatchNode::_type_key);
+    hash = Combine(hash, ExprHash(mn->data));
+    for (const auto& c : mn->clauses) {
+      hash = Combine(hash, PatternHash(c->lhs));
+      hash = Combine(hash, ExprHash(c->rhs));
+    }
+    return hash;
+  }
+
+  size_t VisitExpr_(const ConstructorNode* cn) final {
+    size_t hash = std::hash<std::string>()(ConstructorNode::_type_key);
+    hash = Combine(hash, std::hash<std::string>()(cn->name_hint));
+    return hash;
+  }
+
+  size_t VisitType_(const TypeCallNode* tcn) final {
+    size_t hash = std::hash<std::string>()(TypeCallNode::_type_key);
+    hash = Combine(hash, TypeHash(tcn->func));
+    for (const auto& t : tcn->args) {
+      hash = Combine(hash, TypeHash(t));
+    }
+    return hash;
+  }
+
+  size_t VisitType_(const TypeDataNode* tdn) final {
+    size_t hash = std::hash<std::string>()(TypeDataNode::_type_key);
+    hash = Combine(hash, TypeHash(tdn->header));
+    for (const auto& tv : tdn->type_vars) {
+      hash = Combine(hash, TypeHash(tv));
+    }
+    for (const auto& cn : tdn->constructors) {
+      hash = Combine(hash, ExprHash(cn));
+    }
+    return hash;
+  }
+
+  size_t VisitType_(const GlobalTypeVarNode* tvn) final {
+    return BindVar(GetRef<GlobalTypeVar>(tvn));
+  }
+
+  size_t PatternHash(const Pattern& p) {
+    return VisitPattern(p);
+  }
+
+  size_t VisitPattern_(const PatternConstructorNode* pcn) final {
+    size_t hash = std::hash<std::string>()(PatternConstructorNode::_type_key);
+    hash = Combine(hash, ExprHash(pcn->constructor));
+    for (const auto& p : pcn->patterns) {
+      hash = Combine(hash, PatternHash(p));
+    }
+    return hash;
+  }
+
+  size_t VisitPattern_(const PatternVarNode* pvn) final {
+    size_t hash = std::hash<std::string>()(PatternVarNode::_type_key);
+    hash = Combine(hash, BindVar(pvn->var));
+    return hash;
+  }
+
+  size_t VisitPattern_(const PatternWildcardNode* pwn) final {
+    size_t hash = std::hash<std::string>()(PatternWildcardNode::_type_key);
+    return hash;
+  }
+
  private:
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, size_t, NodeHash, NodeEqual> hash_map_;

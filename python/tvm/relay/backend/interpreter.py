@@ -53,6 +53,13 @@ class Closure(Value):
 
 
 @register_relay_node
+class ConstructorValue(Value):
+    def __init__(self, constructor, fields, types):
+        self.__init_handle_by_constructor__(
+            _make.ConstructorValue, constructor, fields, types)
+
+
+@register_relay_node
 class TensorValue(Value):
     """A Tensor value produced by the interpreter."""
 

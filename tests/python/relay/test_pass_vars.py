@@ -65,6 +65,40 @@ def test_bound_vars():
     assert_vars_match(bound_vars(f2), [x, y])
 
 
+def test_match_vars():
+    mod = relay.Module()
+    p = relay.prelude.Prelude(mod)
+
+    x = relay.Var('x')
+    y = relay.Var('y')
+    z = relay.Var('z')
+
+    match1 = relay.Match(p.nil(), [
+        relay.Clause(relay.PatternConstructor(p.nil), z),
+        relay.Clause(relay.PatternConstructor(p.cons,
+                                              [relay.PatternVar(x),
+                                               relay.PatternVar(y)]),
+                     p.cons(x, y))
+    ])
+
+    match2 = relay.Match(p.nil(), [
+        relay.Clause(relay.PatternConstructor(p.cons, [
+            relay.PatternWildcard(),
+            relay.PatternVar(x)
+        ]),
+                     y),
+        relay.Clause(relay.PatternWildcard(), z)
+    ])
+
+    assert_vars_match(bound_vars(match1), [x, y])
+    assert_vars_match(free_vars(match1), [z])
+    assert_vars_match(all_vars(match1), [z, x, y])
+
+    assert_vars_match(bound_vars(match2), [x])
+    assert_vars_match(free_vars(match2), [y, z])
+    assert_vars_match(all_vars(match2), [x, y, z])
+
+
 def test_bound_type_vars():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
@@ -127,7 +161,7 @@ def test_all_type_vars():
     x = relay.Var("x", a)
     y = relay.Var("y", b)
     z = relay.Var("z", c)
-    
+
     f1 = relay.Function([x], y, b, [a])
     assert_vars_match(all_type_vars(f1), [a, b])
 

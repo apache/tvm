@@ -21,6 +21,19 @@ class Type(RelayNode):
         """Compares two Relay types by referential equality."""
         return super().__eq__(other)
 
+    def __call__(self, *args):
+        """Create a type call from this type.
+
+        Parameters
+        ----------
+        args: List[relay.Type]
+            The arguments to the type call.
+
+        Returns
+        -------
+        call: relay.TypeCall
+        """
+        return TypeCall(self, args)
 
 @register_relay_node
 class TensorType(Type):
@@ -75,6 +88,9 @@ class Kind(IntEnum):
     ShapeVar = 1
     BaseType = 2
     Shape = 3
+    Constraint = 4
+    AdtHandle = 5
+    TypeData = 6
 
 @register_relay_node
 class TypeVar(Type):
@@ -104,6 +120,53 @@ class TypeVar(Type):
             The type variable.
         """
         self.__init_handle_by_constructor__(_make.TypeVar, var, kind)
+
+
+@register_relay_node
+class GlobalTypeVar(Type):
+    """A global type variable in Relay.
+    GlobalTypeVar is used to refer to the global type-level definitions
+    stored in the environment.
+    """
+
+    def __init__(self, var, kind=Kind.AdtHandle):
+        """Construct a GlobalTypeVar.
+
+        Parameters
+        ----------
+        var: tvm.Var
+            The tvm.Var which backs the type parameter.
+        kind: Kind, optional
+            The kind of the type parameter, Kind.AdtHandle by default.
+
+        Returns
+        -------
+        type_var: GlobalTypeVar
+            The global type variable.
+        """
+        self.__init_handle_by_constructor__(_make.GlobalTypeVar, var, kind)
+
+
+@register_relay_node
+class TypeCall(Type):
+    """Type-level function application in Relay.
+    A type call applies argument types to a constructor (type-level function).
+    """
+
+    def __init__(self, func, args):
+        """Construct a TypeCall.
+        Parameters
+        ----------
+        func: tvm.relay.Type
+            The function.
+        args: List[tvm.expr.Type]
+            The arguments.
+        Returns
+        -------
+        type_call: TypeCall
+            The type function application.
+        """
+        self.__init_handle_by_constructor__(_make.TypeCall, func, args)
 
 
 @register_relay_node

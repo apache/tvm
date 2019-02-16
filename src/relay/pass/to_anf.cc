@@ -274,7 +274,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 
   Expr VisitExpr(const Expr& e) {
-    Var v = VarNode::make(std::string("x"), IncompleteTypeNode::make(TypeVarNode::kType));
+    Var v = VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
     return this->VisitExpr(e, v);
   }
 

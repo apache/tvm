@@ -127,7 +127,7 @@ def _max_pool2d(children, attrs, odtype='float32'):
     pool_size = attrs.get_int_tuple('pool_size', (1, 1))
     strides = attrs.get_int_tuple('strides', (1, 1))
     padding = attrs.get_int_tuple('padding', (0, 0))
-    layout = attrs.get_int_tuple('layout', 'NCHW')
+    layout = attrs.get_str('layout', 'NCHW')
     ceil_mode = attrs.get_bool('ceil_mode', False)
 
     return op.nn.max_pool2d(
