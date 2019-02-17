@@ -16,7 +16,7 @@ namespace doc {
 enum DocType { NIL, TEXT, LINE };
 
 struct Doc { 
-  virtual DocType getType();
+  virtual DocType getType() { assert(false); };
 };
 
 struct Nil : Doc {
@@ -58,7 +58,7 @@ Doc Concat(Doc &left, Doc &right) {
 
 // overload + to concatenate documents
 Doc operator+(Doc& left, Doc& right) {
-  Concat(left, right);
+  return Concat(left, right);
 }
 
 // add indentation to a document
