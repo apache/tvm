@@ -14,6 +14,10 @@ fn main() {
             "{}/include/tvm/runtime/c_runtime_api.h",
             env!("TVM_HOME")
         ))
+        .header(format!(
+            "{}/include/tvm/runtime/c_backend_api.h",
+            env!("TVM_HOME")
+        ))
         .clang_arg(format!("-I{}/3rdparty/dlpack/include/", env!("TVM_HOME")))
         .blacklist_type("max_align_t") // @see rust-bindgen#550
         .layout_tests(false)

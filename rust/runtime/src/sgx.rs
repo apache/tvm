@@ -4,7 +4,7 @@ use std::{
 };
 
 use errors::Result;
-use ffi::runtime::TVMValue;
+use ffi::TVMValue;
 use runtime::{threading::sgx_join_threads, SystemLibModule, TVMArgValue, TVMRetValue};
 
 pub use runtime::threading::tvm_run_worker as run_worker;

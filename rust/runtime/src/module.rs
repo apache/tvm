@@ -1,10 +1,9 @@
 use std::{
     collections::HashMap, convert::AsRef, ffi::CStr, os::raw::c_char, string::String, sync::Mutex,
 };
-
-use crate::{
-    ffi::runtime::BackendPackedCFunc,
-    packed_func::{wrap_backend_packed_func, PackedFunc},
+use tvm_common::{
+    ffi::BackendPackedCFunc,
+    packed_func::{PackedFunc, TVMArgValue, TVMRetValue, TVMValue},
 };
 
 pub trait Module {
@@ -31,6 +30,24 @@ impl Module for SystemLibModule {
 impl Default for SystemLibModule {
     fn default() -> Self {
         SystemLibModule {}
+    }
+}
+
+// @see `WrapPackedFunc` in `llvm_module.cc`.
+pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
+    box move |args: &[TVMArgValue]| {
+        func(
+            args.iter()
+                .map(|ref arg| arg.value)
+                .collect::<Vec<TVMValue>>()
+                .as_ptr(),
+            args.iter()
+                .map(|ref arg| arg.type_code as i32)
+                .collect::<Vec<i32>>()
+                .as_ptr() as *const i32,
+            args.len() as i32,
+        );
+        TVMRetValue::default()
     }
 }
 

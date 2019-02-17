@@ -9,6 +9,7 @@ bindings = []
 
 [dependencies]
 error-chain = { version = "0.12.0", default-features = false }
+ndarray = "0.12.1"
 
 [build-dependencies]
 bindgen = "0.37.4"

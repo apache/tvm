@@ -21,7 +21,9 @@ pub mod ffi {
         extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
 }
 
+pub mod array;
 pub mod errors;
+#[macro_use]
 pub mod packed_func;
 pub mod value;
 

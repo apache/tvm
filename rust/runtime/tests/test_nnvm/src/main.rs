@@ -5,6 +5,7 @@ extern crate ndarray;
 extern crate serde;
 extern crate serde_json;
 
+#[macro_use]
 extern crate tvm_runtime;
 use std::{collections::HashMap, convert::TryFrom, fs, io::Read};
 
