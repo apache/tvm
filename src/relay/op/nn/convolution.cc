@@ -453,7 +453,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
-.set_support_level(5)
+.set_support_level(10)
 .add_type_rel("Conv2DWinograd", Conv2DWinogradRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
         Conv2DInferCorrectLayout<Conv2DWinogradAttrs>);
@@ -513,7 +513,7 @@ weight transformation in advance.
 .set_attrs_type_key("relay.attrs.Conv2DWinogradWeightTransformAttrs")
 .set_num_inputs(1)
 .add_argument("weight", "Tensor", "The weight tensor.")
-.set_support_level(5)
+.set_support_level(10)
 .add_type_rel("Conv2DWinogradWeightTransform", Conv2DWinogradWeightTransformRel);
 
 
