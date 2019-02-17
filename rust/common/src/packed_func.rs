@@ -1,5 +1,6 @@
 use std::{any::Any, convert::TryFrom, marker::PhantomData, os::raw::c_void};
 
+pub use crate::ffi::TVMValue;
 use crate::{errors::*, ffi::*, value::*};
 
 pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> TVMRetValue + Send + Sync>;
@@ -309,21 +310,3 @@ impl_prim_ret_value!(f64, 2);
 impl_prim_ret_value!(isize, 0);
 impl_prim_ret_value!(usize, 1);
 impl_boxed_ret_value!(String, 11);
-
-// @see `WrapPackedFunc` in `llvm_module.cc`.
-pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
-    box move |args: &[TVMArgValue]| {
-        func(
-            args.iter()
-                .map(|ref arg| arg.value)
-                .collect::<Vec<TVMValue>>()
-                .as_ptr(),
-            args.iter()
-                .map(|ref arg| arg.type_code as i32)
-                .collect::<Vec<i32>>()
-                .as_ptr() as *const i32,
-            args.len() as i32,
-        );
-        TVMRetValue::default()
-    }
-}

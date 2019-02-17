@@ -4,7 +4,6 @@ use alloc::alloc;
 use std::alloc;
 use std::num;
 
-use crate::common::errors as common_errors;
 use ndarray;
 use serde_json;
 
@@ -25,7 +24,7 @@ error_chain! {
     GraphDeserialize(serde_json::Error);
     ParseInt(num::ParseIntError);
     ShapeError(ndarray::ShapeError);
-    CommonError(common_errors::Error);
+    CommonError(tvm_common::errors::Error);
   }
 }
 

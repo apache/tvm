@@ -39,26 +39,28 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-extern crate tvm_common as common;
+extern crate tvm_common;
 
 mod allocator;
 mod array;
 pub mod errors;
-mod module;
-#[macro_use]
-mod packed_func;
 mod graph;
+mod module;
 #[cfg(target_env = "sgx")]
 #[macro_use]
 pub mod sgx;
 mod threading;
 mod workspace;
 
-pub use crate::common::{errors::*, ffi, TVMArgValue, TVMRetValue};
-
-pub use self::{
-    array::*, errors::*, graph::*, module::*, packed_func::*, threading::*, workspace::*,
+pub use tvm_common::{
+    call_packed,
+    errors::*,
+    ffi::{self, DLTensor},
+    packed_func::{self, *},
+    TVMArgValue, TVMRetValue,
 };
+
+pub use self::{array::*, errors::*, graph::*, module::*, threading::*, workspace::*};
 
 #[cfg(target_env = "sgx")]
 use self::sgx::ocall_packed_func;

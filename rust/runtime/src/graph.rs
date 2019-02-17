@@ -6,10 +6,11 @@ use serde_json;
 
 use crate::{
     errors::{Error, ErrorKind, Result},
-    DLTensor, DataType, Module, Storage, TVMContext, Tensor,
+    Module, Storage, Tensor,
 };
 use tvm_common::{
-    ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt},
+    array::{DataType, TVMContext},
+    ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt, DLTensor},
     TVMArgValue,
 };
 
@@ -199,10 +200,10 @@ impl<'m, 't> GraphExecutor<'m, 't> {
             })
             .collect::<Result<Vec<DataType>>>()?;
 
-        let align = dtypes.iter().map(|dtype| dtype.bits as usize).max();
+        let align = dtypes.iter().map(|dtype| dtype.bits() as usize).max();
         let mut storage_num_bytes = vec![0usize; *storage_ids.iter().max().unwrap_or(&1) + 1];
         for (i, &storage_id) in storage_ids.iter().enumerate() {
-            let dtype_size = dtypes[i].bits * dtypes[i].lanes >> 3;
+            let dtype_size = dtypes[i].bits() * dtypes[i].lanes() >> 3;
             let nbytes = dtype_size * shapes[i].iter().product::<i64>() as usize;
             storage_num_bytes[storage_id] = cmp::max(nbytes, storage_num_bytes[storage_id]);
         }
@@ -266,7 +267,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 .map(|idx| {
                     let tensor = &tensors[idx?];
                     Ok(if attrs.flatten_data {
-                        DLTensor::from_tensor(tensor, true /* flatten */)
+                        Tensor::as_dltensor(tensor, true /* flatten */)
                     } else {
                         DLTensor::from(tensor)
                     })
