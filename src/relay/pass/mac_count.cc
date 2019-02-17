@@ -32,9 +32,10 @@ bool IsDenseNode(const ExprNode* node) {
 class MacCounter : private ExprVisitor {
  public:
   MacCounter() {
-      count_ = 0;
+    count_ = 0;
   }
   static int64_t GetTotalMacNumber(const Expr& expr) {
+    LOG(INFO) << "This pass only counts MACs in direct CONV 2D and Dense ops";
     MacCounter counter;
     counter(expr);
     return counter.count_;
@@ -68,7 +69,7 @@ class MacCounter : private ExprVisitor {
     const auto* data_type = args[0]->checked_type().as<TensorTypeNode>();
     Array<IndexExpr> data_shape = data_type->shape;
     CHECK(data_shape.size() == 4)
-        << "The dimension of an input tensor to Dense node should be 4.";
+        << "The dimension of an input tensor to CONV 2D node should be 4.";
     int64_t input_channel = static_cast<int64_t>(data_shape[1].as<IntImm>()->value);
     const auto* conv_2d_attr = call_node->attrs.as<Conv2DAttrs>();
     Array<IndexExpr> kernel_size = conv_2d_attr->kernel_size;
