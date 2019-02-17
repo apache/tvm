@@ -1,6 +1,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.ir_pass import alpha_equal
+from tvm.relay._expr import pretty_print
 import numpy as np
 
 from hypothesis import given, reject
@@ -24,6 +25,11 @@ def test_roundtrip(e):
     print(e.astext(inline_meta_data=True))
     alpha_equal(relay.fromtext(e.astext(inline_meta_data=True)), e)
     # e.astext()
+
+@given(tuples())
+def test_roundtrip_pp(e):
+    print(pretty_print(e))
+    alpha_equal(relay.fromtext(pretty_print(e)), e)
 
 if __name__ == "__main__":
     for _ in range(10):
