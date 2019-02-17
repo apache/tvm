@@ -14,6 +14,8 @@ TEST(Pattern, Basic) {
   CHECK(!(px + (px + px)).Match(r));
   CHECK(!(px + (py + py)).Match(r));
   CHECK((px + (py + pz)).Match(r));
+  auto pattern = px + (py + pz);
+  CHECK(pattern.Match(r));
   {
     CHECK((px + (py + px)).Match(r));
     auto rr = (px + py).Eval();

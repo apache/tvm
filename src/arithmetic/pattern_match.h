@@ -48,12 +48,27 @@ namespace arith {
  * - Match: checks if value matches the pattern.
  * - Eval: construct a new value based on matched values in PVar.
  *
- * We use curiously recurring template pattern.
- * \tparam SubType The type if the child class.
+ * We use curiously recurring template pattern to construct
+ * expression templates.
+ *
+ * \tparam Derived The type of the derived class.
  */
-template<typename SubType>
+template<typename Derived>
 class Pattern {
  public:
+  /*!
+   * \brief Nested storage type in the expression.
+   *
+   *  Depending on the Derived class,
+   *  Nested can be Derived (nest by value) or
+   *  const Derived& (nest by reference).
+   *
+   *  The trick of Nested typedef originates from Eigen.
+   *
+   * \note We use nest by value for intermediate expressions,
+   *       and nest by reference for PVars.
+   */
+  using Nested = Derived;
   /*!
    * \brief Check if value matches the current pattern.
    *
@@ -64,12 +79,12 @@ class Pattern {
    */
   template<typename NodeType>
   bool Match(const NodeType& value) const {
-    self().InitMatch_();
-    return self().Match_(value);
+    derived().InitMatch_();
+    return derived().Match_(value);
   }
-  /*! \return subtype instance of current class. */
-  const SubType& self() const {
-    return *static_cast<const SubType*>(this);
+  /*! \return Derived instance of current class. */
+  const Derived& derived() const {
+    return *static_cast<const Derived*>(this);
   }
 };
 
@@ -107,6 +122,9 @@ class PEqualChecker<Expr> {
 template<typename T>
 class PVar : public Pattern<PVar<T> > {
  public:
+  // Store PVars by reference in the expression.
+  using Nested = const PVar&;
+
   void InitMatch_() const {
     filled_ = false;
   }
@@ -189,8 +207,8 @@ class PBinaryExpr :
   }
 
  private:
-  const TA& a_;
-  const TB& b_;
+  typename TA::Nested a_;
+  typename TB::Nested b_;
 };
 
 
@@ -198,7 +216,7 @@ class PBinaryExpr :
   template<typename TA, typename TB>                          \
   inline PBinaryExpr<NodeName, TA, TB>                        \
   FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {      \
-    return PBinaryExpr<NodeName, TA, TB>(a.self(), b.self()); \
+    return PBinaryExpr<NodeName, TA, TB>(a.derived(), b.derived()); \
   }
 
 // arithmetic expressions
@@ -248,12 +266,12 @@ class PNotExpr : public Pattern<PNotExpr<TA> > {
   }
 
  private:
-  const TA& value_;
+  typename TA::Nested value_;
 };
 
 template<typename TA>
 inline PNotExpr<TA> operator!(const Pattern<TA>& value) {
-  return PNotExpr<TA>(value.self());
+  return PNotExpr<TA>(value.derived());
 }
 
 // select
@@ -297,9 +315,9 @@ class PSelectExpr :
   }
 
  private:
-  const TCond& condition_;
-  const TA& true_value_;
-  const TB& false_value_;
+  typename TCond::Nested condition_;
+  typename TA::Nested true_value_;
+  typename TB::Nested false_value_;
 };
 
 /*!
@@ -321,7 +339,7 @@ select(const Pattern<TCond>& condition,
        const Pattern<TA>& true_value,
        const Pattern<TB>& false_value) {
   return PSelectExpr<TCond, TA, TB>(
-      condition.self(), true_value.self(), false_value.self());
+      condition.derived(), true_value.derived(), false_value.derived());
 }
 
 /*!
@@ -357,8 +375,8 @@ class PCastExpr :
   }
 
  private:
-  const DType& dtype_;
-  const TA& value_;
+  typename DType::Nested dtype_;
+  typename TA::Nested value_;
 };
 
 /*!
@@ -375,7 +393,7 @@ class PCastExpr :
 template<typename DType, typename TA>
 inline PCastExpr<DType, TA>
 cast(const Pattern<DType>& dtype, const Pattern<TA>& value) {
-  return PCastExpr<DType, TA>(dtype.self(), value.self());
+  return PCastExpr<DType, TA>(dtype.derived(), value.derived());
 }
 
 /*!
@@ -416,9 +434,9 @@ class PRampExpr :
   }
 
  private:
-  const TBase& base_;
-  const TStride& stride_;
-  const TLanes& lanes_;
+  typename TBase::Nested base_;
+  typename TStride::Nested stride_;
+  typename TLanes::Nested lanes_;
 };
 
 /*!
@@ -440,7 +458,7 @@ ramp(const Pattern<TBase>& base,
      const Pattern<TStride>& stride,
      const Pattern<TLanes>& lanes) {
   return PRampExpr<TBase, TStride, TLanes>(
-      base.self(), stride.self(), lanes.self());
+      base.derived(), stride.derived(), lanes.derived());
 }
 
 /*!
@@ -477,8 +495,8 @@ class PBroadcastExpr :
   }
 
  private:
-  const TA& value_;
-  const TLanes& lanes_;
+  typename TA::Nested value_;
+  typename TLanes::Nested lanes_;
 };
 
 /*!
@@ -495,7 +513,7 @@ class PBroadcastExpr :
 template<typename TA, typename TLanes>
 inline PBroadcastExpr<TA, TLanes>
 broadcast(const Pattern<TA>& value, const Pattern<TLanes>& lanes) {
-  return PBroadcastExpr<TA, TLanes>(value.self(), lanes.self());
+  return PBroadcastExpr<TA, TLanes>(value.derived(), lanes.derived());
 }
 
 // internal namespace
@@ -523,6 +541,27 @@ inline void tuple_for_each(F& f, const TTuple& tuple) {  // NOLINT(*)
   tuple_for_each_dispatcher<std::tuple_size<TTuple>::value == 0, 0, F>
       ::run(f, tuple);
 }
+
+template<typename T>
+struct nested_tuple_type_helper {};
+
+template<typename T1>
+struct nested_tuple_type_helper<std::tuple<T1> > {
+  using Nested = std::tuple<typename T1::Nested>;
+};
+
+template<typename T1, typename T2>
+struct nested_tuple_type_helper<std::tuple<T1, T2> > {
+  using Nested = std::tuple<typename T1::Nested,
+                            typename T2::Nested>;
+};
+
+template<typename T1, typename T2, typename T3>
+struct nested_tuple_type_helper<std::tuple<T1, T2, T3> > {
+  using Nested = std::tuple<typename T1::Nested,
+                            typename T2::Nested,
+                            typename T3::Nested>;
+};
 
 struct PCallExprInitMatchFunctor {
   template<typename T>
@@ -593,7 +632,8 @@ class PCallExpr :
   }
 
  private:
-  const std::tuple<const TArgs&...> args_;
+  typename detail::nested_tuple_type_helper<
+   std::tuple<TArgs...> >::Nested args_;
 };
 
 // arithemetic intrinsics
@@ -608,7 +648,7 @@ class PCallExpr :
   template<typename TA, typename TB>                                  \
   inline PCallExpr<OpName, TA, TB>                                    \
   FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {              \
-    return PCallExpr<OpName, TA, TB>(a.self(), b.self());             \
+    return PCallExpr<OpName, TA, TB>(a.derived(), b.derived());             \
   }
 
 TVM_PATTERN_BINARY_INTRIN(operator<<, PLeftShiftOp, "shift_left");
@@ -629,7 +669,7 @@ TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, "bitwise_xor");
   template<typename TA>                                               \
   inline PCallExpr<OpName, TA>                                        \
   FuncName(const Pattern<TA>& a) {                                    \
-    return PCallExpr<OpName, TA>(a.self());                           \
+    return PCallExpr<OpName, TA>(a.derived());                           \
   }
 
 TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");
@@ -663,7 +703,7 @@ if_then_else(const Pattern<TCond>& cond,
              const Pattern<TA>& true_value,
              const Pattern<TB>& false_value) {
   return PCallExpr<PIfThenElseOp, TCond, TA, TB>(
-      cond.self(), true_value.self(), false_value.self());
+      cond.derived(), true_value.derived(), false_value.derived());
 }
 
 }  // namespace arith
