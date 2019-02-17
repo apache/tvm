@@ -1,6 +1,5 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D schedule on x86"""
-import warnings
 
 import tvm
 from tvm import autotvm
@@ -285,10 +284,6 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
 @conv2d_alter_layout.register("cpu")
 def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     import nnvm.symbol as sym
-    if F != sym:
-        warnings.warn("Only support alter layout for x86 in NNVM now. "
-                      "This pass is ignored in relay.")
-        return None
 
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
@@ -300,7 +295,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
-    layout = attrs['layout']
+
+    layout_name = 'layout' if F == sym else 'data_layout'
+
+    layout = attrs[layout_name]
     kh, kw = attrs.get_int_tuple("kernel_size")
 
     dtype = data.dtype
@@ -326,7 +324,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
         _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise)
 
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-    new_attrs['layout'] = 'NCHW%dc' % ic_bn
+
+    new_attrs[layout_name] = 'NCHW%dc' % ic_bn
     new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
 
     new_data = tvm.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
@@ -342,7 +341,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
         # Store altered operator's config
         new_kernel = tvm.placeholder((out_channel//oc_bn, kh, kw, oc_bn), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_kernel, strides, padding, dilation, new_attrs['layout'],
+            [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
              new_attrs['out_layout'], out_dtype], depthwise_conv2d_NCHWc)
     else:
         out_channel, _, kh, kw = get_const_tuple(kernel.shape)
@@ -353,11 +352,13 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
         new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn, kh, kw, ic_bn, oc_bn),
                                      dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_kernel, strides, padding, dilation, new_attrs['layout'],
+            [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
              new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
 
     dispatch_ctx.update(target, new_workload, cfg)
-    return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+    if F == sym:
+        return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+    return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
 
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')
