@@ -74,22 +74,51 @@ Doc Nest(size_t indent, Doc doc) {
   } else { assert(false); }
 }
 
-// print a document to the given ostream
-void Layout(Doc doc, std::ostream& os) {
+// convert a document to a string
+std::string Layout(Doc doc) {
   if (doc.getType() == TEXT) {
     Text &text = static_cast<Text&>(doc);
-    os << text.str;
-    Layout(text.doc, os);
+    return text.str + Layout(text.doc);
   } else if (doc.getType() == LINE) {
     Line &line = static_cast<Line&>(doc);
-    os << std::endl << std::string(line.indent, ' ');
-    Layout(line.doc, os);
+    return "\n" + std::string(line.indent, ' ') + Layout(line.doc);
   } else if (doc.getType() == NIL) {
-    // do nothing!
+    return "";
   } else { assert(false); }
 }
 
 } // doc
+
+class PrettyPrinter :
+    public ExprFunctor<doc::Doc(const Expr&)> {
+  public:
+    explicit PrettyPrinter() {}
+
+    std::string Print(const NodeRef& node) {
+      if (node.as_derived<ExprNode>()) {
+        return doc::Layout(this->PrintExpr(Downcast<Expr>(node)));
+      } else { assert(false); }
+    }
+
+    doc::Doc PrintExpr(const Expr& expr) {
+      auto it = memo_.find(expr);
+      if (it != memo_.end()) return it->second;
+      doc::Doc val = this->VisitExpr(expr);
+      memo_[expr] = val;
+      return val;
+    }
+
+  private:
+    /*! \brief Map from Expr to Doc */
+    std::unordered_map<Expr, doc::Doc, NodeHash, NodeEqual> memo_;
+};
+
+std::string RelayPrettyPrint(const NodeRef& node) {
+  return PrettyPrinter().Print(node);
+}
+
+TVM_REGISTER_API("relay._expr.RelayPrettyPrint")
+.set_body_typed<std::string(const NodeRef&)>(RelayPrettyPrint);
 
 } // relay
 } // tvm
