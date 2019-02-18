@@ -20,16 +20,18 @@ def tuples(draw):
     # TODO: replace constants with exprs
     return relay.Tuple(draw(lists(constants())))
 
-@given(tuples())
+""" @given(tuples())
 def test_roundtrip(e):
     print(e.astext(inline_meta_data=True))
     alpha_equal(relay.fromtext(e.astext(inline_meta_data=True)), e)
-    # e.astext()
+    # e.astext() """
 
 @given(tuples())
 def test_roundtrip_pp(e):
-    print(pretty_print(e))
     alpha_equal(relay.fromtext(pretty_print(e)), e)
+
+# def test_roundtrip_pp_simple():
+#     print(pretty_print(relay.const(1)))
 
 if __name__ == "__main__":
     for _ in range(10):
