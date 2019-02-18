@@ -1,4 +1,4 @@
-use std::{any::Any, convert::TryFrom, marker::PhantomData, os::raw::c_void};
+use std::{any::Any, convert::TryFrom, marker::PhantomData, os::raw::c_void, str::FromStr};
 
 pub use crate::ffi::TVMValue;
 use crate::{errors::*, ffi::*, value::*};
@@ -53,56 +53,55 @@ macro_rules! ensure_type {
 
 /// Creates a conversion to a `TVMArgValue` for a primitive type and DLDataTypeCode.
 macro_rules! impl_prim_tvm_arg {
-    ($type:ty, $field:ident, $code:expr, $as:ty) => {
-        impl<'a> From<$type> for TVMArgValue<'a> {
-            fn from(val: $type) -> Self {
-                TVMArgValue {
-                    value: TVMValue { $field: val as $as },
-                    type_code: $code as i64,
-                    _lifetime: PhantomData,
+    (@, $field:ident, $code:expr, $as:ty, $( $type:ty ),+) => {
+        $(
+            impl<'a> From<$type> for TVMArgValue<'a> {
+                fn from(val: $type) -> Self {
+                    TVMArgValue {
+                        value: TVMValue { $field: val as $as },
+                        type_code: $code as i64,
+                        _lifetime: PhantomData,
+                    }
                 }
             }
-        }
-        impl<'a> From<&'a $type> for TVMArgValue<'a> {
-            fn from(val: &'a $type) -> Self {
-                TVMArgValue {
-                    value: TVMValue {
-                        $field: val.to_owned() as $as,
-                    },
-                    type_code: $code as i64,
-                    _lifetime: PhantomData,
+            impl<'a> From<&'a $type> for TVMArgValue<'a> {
+                fn from(val: &'a $type) -> Self {
+                    TVMArgValue {
+                        value: TVMValue {
+                            $field: val.to_owned() as $as,
+                        },
+                        type_code: $code as i64,
+                        _lifetime: PhantomData,
+                    }
                 }
             }
-        }
-        impl<'a> TryFrom<TVMArgValue<'a>> for $type {
-            type Error = Error;
-            fn try_from(val: TVMArgValue<'a>) -> Result<Self> {
-                ensure_type!(val, $code);
-                Ok(unsafe { val.value.$field as $type })
+            impl<'a> TryFrom<TVMArgValue<'a>> for $type {
+                type Error = Error;
+                fn try_from(val: TVMArgValue<'a>) -> Result<Self> {
+                    ensure_type!(val, $code);
+                    Ok(unsafe { val.value.$field as $type })
+                }
             }
-        }
+
+            impl<'a> TryFrom<&TVMArgValue<'a>> for $type {
+                type Error = Error;
+                fn try_from(val: &TVMArgValue<'a>) -> Result<Self> {
+                    ensure_type!(val, $code);
+                    Ok(unsafe { val.value.$field as $type })
+                }
+            }
+        )+
     };
-    ($type:ty, $field:ident, $code:expr) => {
-        impl_prim_tvm_arg!($type, $field, $code, $type);
+    (v_int64, $( $type:ty ),+) => {
+        impl_prim_tvm_arg!(@, v_int64, DLDataTypeCode_kDLInt, i64, $( $type ),+);
     };
-    ($type:ty,v_int64) => {
-        impl_prim_tvm_arg!($type, v_int64, DLDataTypeCode_kDLInt, i64);
-    };
-    ($type:ty,v_float64) => {
-        impl_prim_tvm_arg!($type, v_float64, DLDataTypeCode_kDLFloat, f64);
+    (v_float64, $( $type:ty ),+) => {
+        impl_prim_tvm_arg!(@, v_float64, DLDataTypeCode_kDLFloat, f64, $( $type ),+);
     };
 }
 
-impl_prim_tvm_arg!(f32, v_float64);
-impl_prim_tvm_arg!(f64, v_float64);
-impl_prim_tvm_arg!(i8, v_int64);
-impl_prim_tvm_arg!(u8, v_int64);
-impl_prim_tvm_arg!(i32, v_int64);
-impl_prim_tvm_arg!(u32, v_int64);
-impl_prim_tvm_arg!(i64, v_int64);
-impl_prim_tvm_arg!(u64, v_int64);
-impl_prim_tvm_arg!(isize, v_int64);
-impl_prim_tvm_arg!(usize, v_int64);
+impl_prim_tvm_arg!(v_float64, f32, f64);
+impl_prim_tvm_arg!(v_int64, i8, u8, i32, u32, i64, u64, isize, usize);
 
 impl<'a> From<&std::ffi::CString> for TVMArgValue<'a> {
     fn from(string: &std::ffi::CString) -> Self {
@@ -113,6 +112,22 @@ impl<'a> From<&std::ffi::CString> for TVMArgValue<'a> {
             type_code: TVMTypeCode_kStr as i64,
             _lifetime: PhantomData,
         }
+    }
+}
+
+impl<'a> TryFrom<TVMArgValue<'a>> for &str {
+    type Error = Error;
+    fn try_from(arg: TVMArgValue<'a>) -> Result<Self> {
+        ensure_type!(arg, TVMTypeCode_kStr);
+        Ok(unsafe { std::ffi::CStr::from_ptr(arg.value.v_handle as *const i8) }.to_str()?)
+    }
+}
+
+impl<'a> TryFrom<&TVMArgValue<'a>> for &str {
+    type Error = Error;
+    fn try_from(arg: &TVMArgValue<'a>) -> Result<Self> {
+        ensure_type!(arg, TVMTypeCode_kStr);
+        Ok(unsafe { std::ffi::CStr::from_ptr(arg.value.v_handle as *const i8) }.to_str()?)
     }
 }
 
@@ -188,125 +203,82 @@ impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for TVMType {
 /// assert_eq!(String::try_from(t).unwrap(), s);
 /// ```
 pub struct TVMRetValue {
-    /// A primitive return value, if any.
-    pub prim_value: u64,
-    /// An object return value, if any.
+    pub value: TVMValue,
     pub box_value: Box<Any>,
-    /// The DLDataTypeCode which determines whether `prim_value` or `box_value` is in use.
     pub type_code: i64,
 }
 
 impl TVMRetValue {
     pub fn from_tvm_value(value: TVMValue, type_code: i64) -> Self {
-        unsafe {
-            Self {
-                prim_value: match type_code {
-                    0 | 1 => value.v_int64 as u64,
-                    2 => value.v_float64 as u64,
-                    3 | 7 | 8 | 9 | 10 => value.v_handle as u64,
-                    11 | 12 => value.v_str as u64,
-                    _ => 0,
-                } as u64,
-                box_value: box (),
-                type_code: type_code,
-            }
+        Self {
+            value,
+            type_code,
+            box_value: box (),
         }
     }
 
     pub fn into_tvm_value(self) -> (TVMValue, TVMTypeCode) {
-        let val = match self.type_code {
-            0 | 1 => TVMValue {
-                v_int64: self.prim_value.clone() as i64,
-            },
-            2 => TVMValue {
-                v_float64: self.prim_value.clone() as f64,
-            },
-            3 | 7 | 8 | 9 | 10 | 13 => TVMValue {
-                v_handle: Box::into_raw(self.box_value) as *mut c_void,
-            },
-            11 | 12 => TVMValue {
-                v_str: Box::into_raw(self.box_value) as *const _,
-            },
-            _ => unreachable!(),
-        };
-        (val, self.type_code as TVMTypeCode)
+        (self.value, self.type_code as TVMTypeCode)
     }
 }
 
 impl Default for TVMRetValue {
     fn default() -> Self {
         TVMRetValue {
-            prim_value: 0,
-            box_value: box (),
+            value: TVMValue { v_int64: 0 as i64 },
             type_code: 0,
+            box_value: box (),
         }
     }
 }
 
-macro_rules! impl_prim_ret_value {
-    ($type:ty, $code:expr) => {
-        impl From<$type> for TVMRetValue {
-            fn from(val: $type) -> Self {
-                TVMRetValue {
-                    prim_value: val as u64,
-                    box_value: box (),
-                    type_code: $code,
+macro_rules! impl_pod_ret_value {
+    ($code:expr, $( $ty:ty ),+ ) => {
+        $(
+            impl From<$ty> for TVMRetValue {
+                fn from(val: $ty) -> Self {
+                    Self {
+                        value: val.into(),
+                        type_code: $code as i64,
+                        box_value: box (),
+                    }
                 }
             }
-        }
-        impl TryFrom<TVMRetValue> for $type {
-            type Error = Error;
-            fn try_from(ret: TVMRetValue) -> Result<$type> {
-                if ret.type_code == $code {
-                    Ok(ret.prim_value as $type)
-                } else {
-                    bail!(ErrorKind::TryFromTVMRetValueError(
-                        stringify!($type).to_string(),
-                        ret.type_code
-                    ))
+
+            impl TryFrom<TVMRetValue> for $ty {
+                type Error = Error;
+                fn try_from(ret: TVMRetValue) -> Result<$ty> {
+                    ensure_type!(ret, $code);
+                    Ok(ret.value.into())
                 }
             }
-        }
+        )+
     };
 }
 
-macro_rules! impl_boxed_ret_value {
-    ($type:ty, $code:expr) => {
-        impl From<$type> for TVMRetValue {
-            fn from(val: $type) -> Self {
-                TVMRetValue {
-                    prim_value: 0,
-                    box_value: box val,
-                    type_code: $code,
-                }
-            }
-        }
-        impl TryFrom<TVMRetValue> for $type {
-            type Error = Error;
-            fn try_from(ret: TVMRetValue) -> Result<$type> {
-                if let Ok(val) = ret.box_value.downcast::<$type>() {
-                    Ok(*val)
-                } else {
-                    bail!(ErrorKind::TryFromTVMRetValueError(
-                        stringify!($type).to_string(),
-                        ret.type_code
-                    ))
-                }
-            }
-        }
-    };
+impl_pod_ret_value!(DLDataTypeCode_kDLInt, i8, i16, i32, i64, isize);
+impl_pod_ret_value!(DLDataTypeCode_kDLUInt, u8, u16, u32, u64, usize);
+impl_pod_ret_value!(DLDataTypeCode_kDLFloat, f32, f64);
+impl_pod_ret_value!(TVMTypeCode_kTVMType, TVMType);
+impl_pod_ret_value!(TVMTypeCode_kTVMContext, TVMContext);
+
+impl TryFrom<TVMRetValue> for String {
+    type Error = Error;
+    fn try_from(ret: TVMRetValue) -> Result<String> {
+        ensure_type!(ret, TVMTypeCode_kStr);
+        Ok(unsafe { std::ffi::CString::from_raw(ret.value.v_str as *mut i8) }.into_string()?)
+    }
 }
 
-impl_prim_ret_value!(i8, 0);
-impl_prim_ret_value!(u8, 1);
-impl_prim_ret_value!(i16, 0);
-impl_prim_ret_value!(u16, 1);
-impl_prim_ret_value!(i32, 0);
-impl_prim_ret_value!(u32, 1);
-impl_prim_ret_value!(f32, 2);
-impl_prim_ret_value!(i64, 0);
-impl_prim_ret_value!(u64, 1);
-impl_prim_ret_value!(f64, 2);
-impl_prim_ret_value!(isize, 0);
-impl_prim_ret_value!(usize, 1);
-impl_boxed_ret_value!(String, 11);
+impl From<String> for TVMRetValue {
+    fn from(s: String) -> Self {
+        let s_box = box std::ffi::CString::new(s).unwrap();
+        Self {
+            value: TVMValue {
+                v_handle: s_box.as_ptr() as *mut i8 as *mut c_void,
+            },
+            box_value: s_box,
+            type_code: TVMTypeCode_kStr as i64,
+        }
+    }
+}

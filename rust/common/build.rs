@@ -9,6 +9,7 @@ fn main() {
         println!("cargo:rustc-link-search={}/build", env!("TVM_HOME"));
     }
 
+    // @see rust-bindgen#550 for `blacklist_type`
     bindgen::Builder::default()
         .header(format!(
             "{}/include/tvm/runtime/c_runtime_api.h",
@@ -19,7 +20,7 @@ fn main() {
             env!("TVM_HOME")
         ))
         .clang_arg(format!("-I{}/3rdparty/dlpack/include/", env!("TVM_HOME")))
-        .blacklist_type("max_align_t") // @see rust-bindgen#550
+        .blacklist_type("max_align_t")
         .layout_tests(false)
         .derive_partialeq(true)
         .derive_eq(true)

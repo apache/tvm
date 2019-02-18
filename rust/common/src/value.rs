@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::ffi::*;
 
 impl TVMType {
@@ -12,26 +14,23 @@ impl TVMType {
 
 /// Implements TVMType conversion from `&str` of general format `{dtype}{bits}x{lanes}`
 /// such as "int32", "float32" or with lane "float32x1".
-impl<'a> From<&'a str> for TVMType {
-    fn from(type_str: &'a str) -> Self {
+impl FromStr for TVMType {
+    type Err = crate::errors::Error;
+    fn from_str(type_str: &str) -> Result<Self, Self::Err> {
         if type_str == "bool" {
-            return TVMType::new(1, 1, 1);
+            return Ok(TVMType::new(1, 1, 1));
         }
 
         let mut type_lanes = type_str.split("x");
         let typ = type_lanes.next().expect("Missing dtype");
         let lanes = type_lanes
             .next()
-            .map(|l| u16::from_str_radix(l, 10).expect(&format!("Bad dtype lanes: {}", l)))
-            .unwrap_or(1);
+            .map(|l| <u16>::from_str_radix(l, 10))
+            .unwrap_or(Ok(1))?;
         let (type_name, bits) = match typ.find(char::is_numeric) {
             Some(idx) => {
                 let (name, bits_str) = typ.split_at(idx);
-                (
-                    name,
-                    u8::from_str_radix(bits_str, 10)
-                        .expect(&format!("Bad dtype bits: {}", bits_str)),
-                )
+                (name, u8::from_str_radix(bits_str, 10)?)
             }
             None => (typ, 32),
         };
@@ -41,10 +40,10 @@ impl<'a> From<&'a str> for TVMType {
             "uint" => 1,
             "float" => 2,
             "handle" => 3,
-            _ => unimplemented!(),
+            _ => return Err(format!("Unknown type {}", type_name).into()),
         };
 
-        TVMType::new(type_code, bits, lanes)
+        Ok(TVMType::new(type_code, bits, lanes))
     }
 }
 
@@ -70,23 +69,69 @@ impl std::fmt::Display for TVMType {
     }
 }
 
-macro_rules! impl_tvm_val_from_pod {
-    ($field:ident, $ty:ty) => {
-        impl From<$ty> for TVMValue {
-            fn from(val: $ty) -> Self {
-                TVMValue { $field: val }
+macro_rules! impl_pod_tvm_value {
+    ($field:ident, $field_ty:ty, $( $ty:ty ),+) => {
+        $(
+            impl From<$ty> for TVMValue {
+                fn from(val: $ty) -> Self {
+                    TVMValue { $field: val as $field_ty }
+                }
             }
+
+            impl From<TVMValue> for $ty {
+                fn from(val: TVMValue) -> Self {
+                    unsafe { val.$field as $ty }
+                }
+            }
+        )+
+    };
+    ($field:ident, $ty:ty) => {
+        impl_pod_tvm_value!($field, $ty, $ty);
+    }
+}
+
+impl_pod_tvm_value!(v_int64, i64, i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
+impl_pod_tvm_value!(v_float64, f64, f32, f64);
+impl_pod_tvm_value!(v_type, TVMType);
+impl_pod_tvm_value!(v_ctx, TVMContext);
+
+macro_rules! impl_tvm_context {
+    ( $( $dev_type:ident : [ $( $dev_name:ident ),+ ] ),+ ) => {
+        /// Creates a TVMContext from a string (e.g., "cpu", "gpu", "ext_dev")
+        impl FromStr for TVMContext {
+            type Err = crate::errors::Error;
+            fn from_str(type_str: &str) -> Result<Self, Self::Err> {
+                Ok(Self {
+                    device_type: match type_str {
+                         $( $(  stringify!($dev_name)  )|+ => $dev_type ),+,
+                        _ => return Err(format!("device {} not supported", type_str).into()),
+                    },
+                    device_id: 0,
+                })
+            }
+        }
+
+        impl TVMContext {
+            $(
+                $(
+                    pub fn $dev_name(device_id: usize) -> Self {
+                        Self {
+                            device_type: $dev_type,
+                            device_id: device_id as i32,
+                        }
+                    }
+                )+
+            )+
         }
     };
 }
 
-impl_tvm_val_from_pod!(v_type, TVMType);
-impl_tvm_val_from_pod!(v_ctx, TVMContext);
-
-impl From<DLDeviceType> for TVMValue {
-    fn from(dev: DLDeviceType) -> Self {
-        TVMValue {
-            v_int64: dev as i64,
-        }
-    }
-}
+impl_tvm_context!(
+    DLDeviceType_kDLCPU: [cpu, llvm, stackvm],
+    DLDeviceType_kDLGPU: [gpu, cuda, nvptx],
+    DLDeviceType_kDLOpenCL: [cl],
+    DLDeviceType_kDLMetal: [metal],
+    DLDeviceType_kDLVPI: [vpi],
+    DLDeviceType_kDLROCM: [rocm],
+    DLDeviceType_kDLExtDev: [ext_dev]
+);
