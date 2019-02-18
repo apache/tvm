@@ -146,6 +146,7 @@ Expr reinterpret(const Type& t, Expr value) {
   const FloatImm* fb = b.as<FloatImm>();                                \
   const Type& ta = a.type();                                            \
   const Type& tb = b.type();                                            \
+  fa; fb; ta; tb;                                                       \
   BODY;
 
 
