@@ -891,7 +891,6 @@ bool ArangeRel(const Array<Type>& types,
   const ArangeAttrs* param = attrs.as<ArangeAttrs>();
   IndexExpr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
       tvm::cast(tvm::Float(32), param->stop - param->start) / param->step));
-  num_elem = tvm::ir::Simplify(num_elem);
   reporter->Assign(types[0], TensorTypeNode::make({num_elem}, param->dtype));
   return true;
 }

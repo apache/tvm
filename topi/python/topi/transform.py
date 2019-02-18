@@ -292,6 +292,28 @@ def tensordot(a, b, axes):
 
 
 def arange(stop, start=None, step=1, dtype="float32"):
+    """Creates a tensor with evenly spaced values within a given interval.
+
+    Parameters
+    ----------
+    stop : tvm.Expr
+        Stop of interval. The interval does not include this value.
+
+    start : tvm.Expr, optional
+        Start of interval. The interval includes this value. The default start
+        value is 0.
+
+    step : tvm.Expr, optional
+        Spacing between values. The default step size is 1.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : tvm.Tensor
+        The resulting tensor.
+    """
     if start is None:
         start = 0
     else:

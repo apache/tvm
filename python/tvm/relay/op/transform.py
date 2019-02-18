@@ -250,6 +250,39 @@ def full_like(data, fill_value):
 
 
 def arange(stop, start=None, step=1, dtype="float32"):
+    """Return evenly spaced values within a given interval.
+
+    Warning: Undefined behavior when dtype is incompatible with start/stop/step.
+    It could lead to different results compared to numpy, MXNet, pytorch, etc.
+
+    Parameters
+    ----------
+    stop : tvm.Expr
+        Stop of interval. The interval does not include this value.
+
+    start : tvm.Expr, optional
+        Start of interval. The interval includes this value. The default start
+        value is 0.
+
+    step : tvm.Expr, optional
+        Spacing between values. The default step size is 1.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        relay.arange(5) = [0, 1, 2, 3, 4]
+        relay.arange(1, 5) = [1, 2, 3, 4]
+        relay.arange(1, 5, 1.5) = [1, 2.5, 4]
+    """
     if start is None:
         start = 0
     else:
