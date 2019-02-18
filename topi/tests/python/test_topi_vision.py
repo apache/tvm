@@ -47,7 +47,7 @@ def test_nms():
         f(tvm_data, tvm_valid_count, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
-    for device in ['llvm', 'opencl', 'cuda']:
+    for device in ['llvm']:
         check_device(device)
 
 
