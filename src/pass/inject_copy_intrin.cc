@@ -7,6 +7,7 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
+#include "../arithmetic/pattern_match.h"
 
 namespace tvm {
 namespace ir {
@@ -35,27 +36,8 @@ class CopyIntrinInjector : public IRMutator {
   }
 
  private:
-  bool MatchCondition(Expr expr,
-                      Expr* cond,
-                      Expr* true_value,
-                      Expr* false_value) {
-    if (const auto* op = expr.as<Select>()) {
-      *cond = op->condition;
-      *true_value = op->true_value;
-      *false_value = op->false_value;
-      return true;
-    } else if (const auto* op = expr.as<Call>()) {
-      if (op->name == intrinsic::tvm_if_then_else) {
-        *cond = op->args[0];
-        *true_value = op->args[1];
-        *false_value = op->args[2];
-        return true;
-      }
-    }
-    return false;
-  }
-
   bool MatchCopyPattern(Stmt stmt, Stmt *out) {
+    using namespace arith;
     Stmt body = stmt;
     bool is_single_point_copy = false;
 
@@ -68,11 +50,13 @@ class CopyIntrinInjector : public IRMutator {
     }
     const Store* store = body.as<Store>();
     if (store == nullptr) return false;
-    Expr sel_cond, sel_true_value, sel_false_value;
-    bool has_cond = MatchCondition(store->value,
-                                   &sel_cond,
-                                   &sel_true_value,
-                                   &sel_false_value);
+    // Expr sel_cond, sel_true_value, sel_false_value;
+    // match select or if
+    PVar<Expr> sel_cond, sel_true_value, sel_false_value;
+    bool has_cond =
+        if_then_else(sel_cond, sel_true_value, sel_false_value).Match(store->value) ||
+        select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
+
     const Cast* cast = store->value.as<Cast>();
     const Load* load = store->value.as<Load>();
     if (0 == loops.size()) {
@@ -81,7 +65,7 @@ class CopyIntrinInjector : public IRMutator {
     }
     // for now only support true condition matching
     if (has_cond) {
-      load = sel_true_value.as<Load>();
+      load = sel_true_value.Eval().as<Load>();
     }
     // cast can be part of the pattern
     if (cast != nullptr) {
@@ -114,8 +98,8 @@ class CopyIntrinInjector : public IRMutator {
     Expr src_elem_offset = load_strides[loop_var_size];
     if (has_cond) {
       Array<Expr> clip_bound =
-          arith::DetectClipBound(sel_cond, loop_vars);
-      pad_value = sel_false_value;
+          arith::DetectClipBound(sel_cond.Eval(), loop_vars);
+      pad_value = sel_false_value.Eval();
       if (clip_bound.size() == 0) return false;
       CHECK_EQ(src_shape.size(), loop_vars.size());
       CHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
