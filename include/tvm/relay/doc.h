@@ -92,6 +92,8 @@ class Line_Node : public DocNode {
 
 RELAY_DEFINE_NODE_REF(Line_, Line_Node, Doc);
 
+// DSL functions
+
 // empty doc
 Doc Nil();
 // lift string to text

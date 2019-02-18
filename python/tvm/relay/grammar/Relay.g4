@@ -1,6 +1,6 @@
 grammar Relay;
 
-SEMVER: 'v0.0.2' ;
+SEMVER: 'v0.0.1' ;
 
 // Lexing
 // comments

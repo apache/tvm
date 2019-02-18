@@ -104,7 +104,7 @@ class PrettyPrinter :
 };
 
 std::string RelayPrettyPrint(const NodeRef& node) {
-  return "v0.0.2\n" + PrettyPrinter().Print(node);
+  return "v0.0.1\n" + PrettyPrinter().Print(node);
 }
 
 TVM_REGISTER_API("relay._expr.pretty_print")
