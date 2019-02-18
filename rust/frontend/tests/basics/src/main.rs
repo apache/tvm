@@ -3,7 +3,7 @@
 extern crate ndarray as rust_ndarray;
 extern crate tvm_frontend as tvm;
 
-use std::convert::TryInto;
+use std::str::FromStr;
 
 use tvm::*;
 
@@ -16,7 +16,7 @@ fn main() {
     } else {
         (TVMContext::gpu(0), "gpu")
     };
-    let dtype = TVMType::from("float32");
+    let dtype = TVMType::from_str("float32").unwrap();
     let mut arr = NDArray::empty(shape, ctx, dtype);
     arr.copy_from_buffer(data.as_mut_slice());
     let mut ret = NDArray::empty(shape, ctx, dtype);
@@ -27,14 +27,11 @@ fn main() {
     if cfg!(feature = "gpu") {
         fadd.import_module(Module::load(&concat!(env!("OUT_DIR"), "/test_add.ptx")).unwrap());
     }
-    let ret: NDArray = function::Builder::from(&mut fadd)
+    function::Builder::from(&mut fadd)
         .arg(&arr)
         .arg(&arr)
-        .set_output(ret)
-        .unwrap()
+        .arg(&mut ret)
         .invoke()
-        .unwrap()
-        .try_into()
         .unwrap();
 
     assert_eq!(ret.to_vec::<f32>().unwrap(), vec![6f32, 8.0]);

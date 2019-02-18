@@ -13,13 +13,13 @@ fn main() {
             let val: i64 = arg.try_into()?;
             ret += val;
         }
-        Ok(TVMRetValue::from(&ret))
+        Ok(TVMRetValue::from(ret))
     }
 
     tvm::function::register(sum, "mysum".to_owned(), false).unwrap();
 
     let mut registered = function::Builder::default();
-    registered.get_function("mysum", true);
+    registered.get_function("mysum");
     assert!(registered.func.is_some());
     let ret: i64 = registered
         .args(&[10, 20, 30])

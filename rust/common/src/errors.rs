@@ -23,20 +23,15 @@ fn type_code_to_string(type_code: &i64) -> String {
 
 error_chain! {
     errors {
-        // TryFromTVMArgValueError(expected: String, actual: String) {
-        //       description("mismatched types while converting from TVMArgValue")
-        //       display("expected `{}` but given `{}`", expected, actual)
-        // }
-        //
-        // TryFromTVMRetValueError(expected: String, actual: String) {
-        //       description("mismatched types while downcasting TVMRetValue")
-        //       display("invalid downcast: expected `{}` but given `{}`", expected, actual)
-        // }
-
         TryFromTVMRetValueError(expected_type: String, actual_type_code: i64) {
             description("mismatched types while downcasting TVMRetValue")
             display("invalid downcast: expected `{}` but was `{}`",
                     expected_type, type_code_to_string(actual_type_code))
         }
+    }
+    foreign_links {
+        IntoString(std::ffi::IntoStringError);
+        ParseInt(std::num::ParseIntError);
+        Utf8(std::str::Utf8Error);
     }
 }

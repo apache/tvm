@@ -175,7 +175,7 @@ impl<'a, 'm> Builder<'a, 'm> {
 
     /// Sets an output for a function that requirs a mutable output to be provided.
     /// See the `basics` in tests for an example.
-    pub fn set_output<T>(&mut self, ret: T) -> Result<&mut Self>
+    pub fn set_output<T>(&mut self, mut ret: T) -> Result<&mut Self>
     where
         TVMRetValue: From<T>,
     {
@@ -430,17 +430,17 @@ mod tests {
 
     #[test]
     fn get_fn() {
-        assert!(Function::get(CANARY, true).is_some());
-        assert!(Function::get("does not exists!", false).is_none());
+        assert!(Function::get(CANARY).is_some());
+        assert!(Function::get("does not exists!").is_none());
     }
 
     #[test]
     fn provide_args() {
+        let str_arg = CString::new("test").unwrap();
         let mut func = Builder::default();
-        func.get_function("tvm.graph_runtime.remote_create", true)
+        func.get_function("tvm.graph_runtime.remote_create")
             .args(&[10, 20])
-            .arg(&"test".to_owned());
-        assert!(func.arg_buf.is_some());
-        assert_eq!(func.arg_buf.take().map(|bv| Vec::from(bv).len()), Some(3));
+            .arg(&str_arg);
+        assert_eq!(func.arg_buf.len(), 3);
     }
 }

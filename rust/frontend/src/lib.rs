@@ -11,7 +11,6 @@
 //!
 //! Checkout the `examples` repository for more details.
 
-#![crate_name = "tvm_frontend"]
 #![allow(non_camel_case_types, unused_unsafe)]
 #![feature(try_from, try_trait, fn_traits, unboxed_closures, box_syntax)]
 

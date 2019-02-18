@@ -24,7 +24,10 @@ use std::{
     ptr,
 };
 
-use tvm_common::ffi;
+use tvm_common::{
+    ffi::{self, TVMTypeCode_kTVMType, TVMValue},
+    TVMArgValue,
+};
 
 use crate::{function, Result};
 
@@ -116,6 +119,18 @@ impl<'a> From<&'a str> for TVMDeviceType {
             "vpi" => TVMDeviceType(9),
             "rocm" => TVMDeviceType(10),
             _ => panic!("{:?} not supported!", type_str),
+        }
+    }
+}
+
+impl<'a> From<&'a TVMDeviceType> for TVMArgValue<'a> {
+    fn from(dev_type: &'a TVMDeviceType) -> Self {
+        Self {
+            value: TVMValue {
+                v_int64: dev_type.0 as i64,
+            },
+            type_code: ffi::DLDataTypeCode_kDLInt as i64,
+            _lifetime: std::marker::PhantomData,
         }
     }
 }
