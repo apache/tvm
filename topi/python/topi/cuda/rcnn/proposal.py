@@ -224,6 +224,9 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
                 iou = calculate_overlap(p_data, (base_idx + l) * 5, (base_idx + i) * 5)
                 with ib.if_scope(iou > nms_threshold):
                     p_out[base_idx + i] = True
+        ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
+                              tvm.convert(['shared']),
+                              tvm.expr.Call.Intrinsic, None, 0))
     return ib.get()
 
 
