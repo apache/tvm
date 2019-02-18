@@ -174,6 +174,7 @@ def test_batch_matmul():
     verify_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16))
     verify_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16))
     verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
+    verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
 
 
 if __name__ == "__main__":
