@@ -4,8 +4,12 @@ from tvm.relay.ir_pass import alpha_equal
 from tvm.relay._expr import pretty_print
 import numpy as np
 
-from hypothesis import given, reject
-from hypothesis.strategies import text, lists, integers, composite, recursive
+from hypothesis import given, reject, settings
+from hypothesis.strategies import text, lists, integers, composite, recursive, deferred
+
+exprs = deferred(lambda: constants()
+                    #    | projections(exprs)
+                       | tuples(exprs))
 
 @composite
 def constants(draw):
@@ -16,9 +20,12 @@ def constants(draw):
     return relay.Constant(tvm.nd.array(np.array(python_tensor).astype("int32")))
 
 @composite
-def tuples(draw):
-    # TODO: replace constants with exprs
-    return relay.Tuple(draw(lists(constants())))
+def tuples(draw, field_type):
+    return relay.Tuple(draw(lists(field_type, max_size=5)))
+
+@composite
+def projections(draw, field_type):
+    return relay.TupleGetItem(draw(field_type), draw(integers(min_value=-1000, max_value=1000)))
 
 """ @given(tuples())
 def test_roundtrip(e):
@@ -26,7 +33,8 @@ def test_roundtrip(e):
     alpha_equal(relay.fromtext(e.astext(inline_meta_data=True)), e)
     # e.astext() """
 
-@given(tuples())
+@settings(deadline=500)
+@given(exprs)
 def test_roundtrip_pp(e):
     alpha_equal(relay.fromtext(pretty_print(e)), e)
 
@@ -36,4 +44,5 @@ def test_roundtrip_pp(e):
 if __name__ == "__main__":
     for _ in range(10):
         # print(constants().example().astext())
-        print(tuples().example().astext(inline_meta_data=True))
+        # print(tuples().example().astext(inline_meta_data=True))
+        print(pretty_print(exprs.example()))

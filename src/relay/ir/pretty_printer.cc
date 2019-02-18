@@ -91,7 +91,11 @@ class PrettyPrinter :
     }
 
     Doc VisitExpr_(const TupleNode* op) final {
-        return PrintArray(Text("("), op->fields, Text(", "), Text(")"));
+      return PrintArray(Text("("), op->fields, Text(", "), Text(")"));
+    }
+
+    Doc VisitExpr_(const TupleGetItemNode* op) final {
+      return this->VisitExpr(op->tuple) + Text(".") + Text(std::to_string(op->index));
     }
 
   private:
