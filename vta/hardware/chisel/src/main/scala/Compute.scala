@@ -98,7 +98,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   // uops / biases / out_mem
   val uops_read   = Reg(Bool())
-  val uops_data   = Reg(UInt(128.W))
+  val uops_data   = Reg(UInt((32 + 128).W))
 
   val biases_read = Reg(Bool())
   val biases_bits = block_out * acc_width
@@ -225,18 +225,25 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   // fetch uops
   val uop_mem_write_en = (opcode_load_en && (memory_type === mem_id_uop.U))
   val uop_dram_addr = (dram_idx + uop_cntr_val) << log2Ceil(128 / 8).U
-  val uop_sram_addr = (sram_idx + uop_cntr_val) << log2Ceil(128 / uop_width).U
+  val uop_sram_addr = Wire(UInt(32.W))
+  uop_sram_addr := 0.U
+  uop_sram_addr := (sram_idx + uop_cntr_val) << log2Ceil(128 / uop_width).U
   uops_read := uop_cntr_en && !uop_cntr_wrap && busy
   io.uops.read := uops_read
   io.uops.address := uop_dram_addr
   io.uops.write <> DontCare
   io.uops.writedata <> DontCare
+  val uops_read_en = Reg(Bool())
   when (uops_read && !uop_cntr_wait) {
-    // uops_data := io.uops.readdata
-    for (i <- 0 to 3) {
-      uop_mem(uop_sram_addr + i.U) := io.uops.readdata(31 + i * 32, i * 32)
-    }
+    uops_data := Cat(uop_sram_addr, io.uops.readdata) // TODO: copy to uops_data from io.uops.readdata
+    uops_read_en := true.B
     when (uop_cntr_val === (uop_cntr_max - 1.U)) { uops_read := 0.U }
+  } .otherwise { uops_read_en := false.B }
+  when (uops_read_en) {
+    val _uop_sram_addr = uops_data(31, 0)
+    for (i <- 0 to 3) {
+      uop_mem(_uop_sram_addr + i.U) := uops_data(31 + i * 32, i * 32)
+    }
   }
 
   // fetch biases
@@ -263,8 +270,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val dst_offset_out = 0.U(16.W) // it_in
   val src_offset_out = 0.U(16.W) // it_in
   val it_in = RegNext(out_cntr_val) % (iter_in * iter_out)
-  val dst_offset_in = dst_offset_out + it_in * dst_factor_in
-  val src_offset_in = src_offset_out + it_in * src_factor_in
+  val dst_offset_in = dst_offset_out + (it_in * dst_factor_in)(15, 0)
+  val src_offset_in = src_offset_out + (it_in * src_factor_in)(15, 0)
   val dst_idx = uop(uop_alu_0_1, uop_alu_0_0) + dst_offset_in
   val src_idx = uop(uop_alu_1_1, uop_alu_1_0) + src_offset_in
 
