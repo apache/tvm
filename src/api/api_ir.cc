@@ -42,6 +42,11 @@ TVM_REGISTER_API("make.trunc")
     *ret = tvm::trunc(args[0]);
   });
 
+TVM_REGISTER_API("make._cast")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::cast(args[0], args[1]);
+  });
+
 TVM_REGISTER_API("make._range_by_min_extent")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = Range::make_by_min_extent(args[0], args[1]);
