@@ -27,22 +27,11 @@ def tuples(draw, field_type):
 def projections(draw, field_type):
     return relay.TupleGetItem(draw(field_type), draw(integers(min_value=-1000, max_value=1000)))
 
-""" @given(tuples())
-def test_roundtrip(e):
-    print(e.astext(inline_meta_data=True))
-    alpha_equal(relay.fromtext(e.astext(inline_meta_data=True)), e)
-    # e.astext() """
-
 @settings(deadline=500)
 @given(exprs)
 def test_roundtrip_pp(e):
     alpha_equal(relay.fromtext(pretty_print(e)), e)
 
-# def test_roundtrip_pp_simple():
-#     print(pretty_print(relay.const(1)))
-
 if __name__ == "__main__":
     for _ in range(10):
-        # print(constants().example().astext())
-        # print(tuples().example().astext(inline_meta_data=True))
         print(pretty_print(exprs.example()))
