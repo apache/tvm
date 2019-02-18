@@ -21,13 +21,14 @@ constructs corresponds to a pure computation graph:
 - Tuple `Construction`_ and `Projection`_
 - `Let Bindings`_
 - `Graph Bindings`_
-- Calls to `Operators`_
+- Calls to `Operators`_ and `ADT Constructors`_
 
 Control flow expressions allow the graph topology to change
 based on the value of previously executed expressions. The control
 fragment in Relay includes the following constructs:
 
 - `If-Then-Else`_ Expressions
+- `ADT Matching`_ Expressions
 - Recursive Calls in Functions
 
 From the point of view of a computation graph, a function is a subgraph and a function call inlines the subgraph, substituting its arguments for the free variables in the subgraph with corresponding names.
@@ -282,6 +283,42 @@ handles for generating a call to various pre-registered operators.
 The :ref:`tutorial on adding operators to Relay <relay-add-op>` shows how to add further
 operators into the language.
 
+ADT Constructors
+================
+
+Algebraic data types (ADTs) in Relay are described in detail in a
+:ref:`separate overview<adt-overview>` and their integration into
+the type system is described :ref:`here<adt-typing>`.
+
+In this section, we will simply note that ADT constructors are given
+a function type and should be used inside call nodes like a function
+or operator. An ADT constructor is defined by giving the name of
+the ADT it constructs (a global type variable) and the types of the
+expected arguments for the constructor.
+
+If the ADT definition includes type variables, those type variables
+may appear in the constructor. Constructors cannot include any other
+type variables.
+
+Let us suppose that :code:`D` is an ADT that takes type parameters
+:code:`a` and :code:`b`. If :code:`C1` is a constructor for :code:`D`
+and expects two arguments, one of type :code:`a` and one of type :code:`b`, then
+:code:`C1` has the following type signature:
+:code:`fun<a, b>(a, b) -> D[a, b]`. (See either the ADT overview
+or the discussion of ADT typing for an explanation of the type call
+in the return type.)
+If another constructor for :code:`D`, :code:`C2`, takes no arguments,
+then it has the following type signature: :code:`fun<a, b>() -> D[a, b]`;
+the type parameters will always appear in the return type.
+
+Once called, a constructor produces an ADT instance, which is a
+container that stores the values of the arguments to the constructor
+as well as the name ("tag") of the constructor. The tag will be used
+for deconstructing the instances and retrieving the values when
+`ADT Matching`_.
+
+See :py:class:`~tvm.relay.adt.Constructor` for the definition and documentation.
+
 Call
 ====
 
@@ -342,6 +379,8 @@ the type annotation:
    %x
 
 See :py:class:`~tvm.relay.expr.Call` for its definition and documentation.
+
+.. _module-description:
 
 Module and Global Functions
 ===========================
@@ -541,6 +580,82 @@ evaluates to :code:`True` and evaluates to the value of the "else" branch if the
 condition value evaluates to :code:`False`.
 
 See :py:class:`~tvm.relay.expr.If` for its definition and documentation.
+
+ADT Matching
+============
+
+Instances of algebraic data types (ADTs), as discussed in the
+:ref:`ADT overview<adt-overview>`, are containers that store the
+arguments passed to the constructor used to create them, tagged by
+the constructor name.
+
+Match expressions in Relay allow for retrieving the values stored in
+an ADT instance ("deconstructing" it) based on their constructor tag.
+A match expression behaves similarly to a C-style :code:`switch` statement,
+branching on the different possible constructors for the type of the
+value being deconstructed. As the ADT overview details, match
+expressions are capable of more general pattern-matching than simply
+splitting by constructors: any ADT instance nested inside an instance
+(e.g., a list of lists) can be deconstructed at the same time as
+the outer instance, while the different fields of the instance can be
+bound to variables. (See :ref:`this section<adt-pattern>` for a detailed
+description of ADT pattern-matching.)
+
+A match expression is defined using the
+input value (an expression) and a list of clauses, each of which
+consists of a pattern and an expression. When executed, the *first*
+clause whose pattern matches the structure of the queried value is
+executed; the clause expression is evaluated and returned.
+
+For example, suppose we have an ADT for natural numbers:
+
+.. code-block:: python
+
+   data Nat {
+     Z : () -> Nat # zero
+     S : (Nat) -> Nat # successor (+1) to a nat
+   }
+
+Then the following function subtracts one from a passed nat:
+
+.. code-block:: python
+
+   fn(%v: Nat[]) -> Nat[] {
+     match(%v) {
+       case Z() { Z() }
+       case S(%n) { %n } # the variable %n is bound in the scope of this clause
+     }
+   }
+
+The following function subtracts two from its argument if it is at least
+two and returns the argument otherwise, using a nested constructor pattern:
+
+.. code-block:: python
+
+   fn(%v : Nat[]) -> Nat[] {
+     match(%v) {
+        case S(S(%n)) { %n }
+        # wildcard pattern: matches all cases not matched already
+        case _ { %v }
+     }
+   }
+
+As aforementioned, the ordering of match clauses is relevant.
+In the below example, the first clause will always match so
+those below it can never run:
+
+.. code-block:: python
+
+   fn(%v : Nat[]) -> Nat[] {
+     match(%v) {
+       case _ { %v }
+       case S(S(%n)) { S(%n) }
+       case S(%n) { %n }
+       case Z() { S(Z()) }
+     }
+   }
+
+See :py:class:`~tvm.relay.adt.Match` for its definition and documentation.
 
 TempExprs
 =========

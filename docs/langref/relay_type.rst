@@ -10,6 +10,9 @@ be fully typed while requiring just a few explicit type annotations.
 Static types are useful when performing compiler optimizations because they
 communicate properties about the data a program manipulates, such as runtime
 shape, data layout, and storage, without needing to run the program.
+Relay's `Algebraic Data Types`_ allow for easily and flexibly composing
+types in order to build data structures that can be
+reasoned about inductively and used to write recursive functions.
 
 Relay's type system features a form of *dependent typing* for shapes. That is, its type system keeps track of the shapes of tensors in a Relay program. Treating tensor
 shapes as types allows Relay to perform more powerful reasoning at compile time;
@@ -33,20 +36,17 @@ type relations are satisfied at call sites). Type relations offer a flexible and
 relatively simple way of making the power of dependent typing available in Relay
 without greatly increasing the complexity of its type system.
 
-Types
-=====
-
 Below we detail the language of types in Relay and how they are assigned to Relay expressions.
 
 Type
-~~~~
+====
 
 The base type for all Relay types. All Relay types are sub-classes of this base type.
 
 See :py:class:`~tvm.relay.ty.Type` for its definition and documentation.
 
 Tensor Type
-~~~~~~~~~~~
+===========
 
 A concrete tensor type in Relay.
 
@@ -70,7 +70,7 @@ For example, here is a simple concrete tensor type corresponding to a 10-by-10 t
 See :py:class:`~tvm.relay.ty.TensorType` for its definition and documentation.
 
 Tuple Type
-~~~~~~~~~~
+==========
 
 A type of a tuple in Relay.
 
@@ -94,7 +94,7 @@ See :py:class:`~tvm.relay.ty.TupleType` for its definition and documentation.
 .. _type-parameter:
 
 Type Parameter
-~~~~~~~~~~~~~~
+==============
 
 Type parameters represent placeholder types used for polymorphism in functions.
 Type parameters are specified according to *kind*, corresponding to the types
@@ -127,7 +127,7 @@ be substituted with :code:`(10, 10)` at the call site below:
 See :py:class:`~tvm.relay.ty.TypeVar` for its definition and documentation.
 
 Type Constraint
-~~~~~~~~~~~~~~~
+===============
 
 This is an abstract class representing a type constraint, to be elaborated
 upon in further releases. Currently, type relations are the only
@@ -136,7 +136,7 @@ type constraints provided; they are discussed below.
 See :py:class:`~tvm.relay.ty.TypeConstraint` for its definition and documentation.
 
 Function Type
-~~~~~~~~~~~~~
+=============
 
 A function type in Relay, see `tvm/relay/type.h` for more details.
 
@@ -158,7 +158,7 @@ See :py:class:`~tvm.relay.ty.FuncType` for its definition and documentation.
 .. _type-relation:
 
 Type Relation
-~~~~~~~~~~~~~
+=============
 
 A type relation is the most complex type system feature in Relay.
 It allows users to extend type inference with new rules.
@@ -226,7 +226,7 @@ in C++.
 See :py:class:`~tvm.relay.ty.TypeRelation` for its definition and documentation.
 
 Incomplete Type
-~~~~~~~~~~~~~~~
+===============
 
 An incomplete type is a type or portion of a type that is not yet known.
 This is only used during type inference. Any omitted type annotation is
@@ -239,3 +239,139 @@ parameters: Type parameters must be bound to a function and are replaced with co
 at call sites, whereas incomplete types may appear anywhere in the program and are filled in during type inference.
 
 See :py:class:`~tvm.relay.ty.IncompleteType` for its definition and documentation.
+
+.. _adt-typing:
+
+Algebraic Data Types
+====================
+
+*Note: ADTs are not currently supported in the text format.*
+
+Algebraic data types (ADTs) are described in more detail in
+:ref:`their overview <adt-overview>`; this section describes
+their implementation in the type system.
+
+An ADT is defined by a collection of named constructors,
+each of which takes arguments of certain types.
+An instance of an ADT is a container that stores the values
+of the constructor arguments used to produce it as well as the
+name of the constructor; the values can be retrieved by
+deconstructing the instance by matching based on its constructor.
+Hence, ADTs are sometimes called "tagged unions": like a C-style
+union, the contents of an instance for a given ADT may have
+different types in certain cases, but the constructor serves as a
+tag to indicate how to interpret the contents.
+
+From the type system's perspective, it is most pertinent that
+ADTs can take type parameters (constructor arguments can be
+type parameters, though ADT instances with different type
+parameters must be treated as different types) and be
+recursive (a constructor for an ADT can take an instance of
+that ADT, thus an ADT like a tree or list can be inductively
+built up). The representation of ADTs in the type system must
+be able to accomodate these facts, as the below sections will detail.
+
+Global Type Variable
+~~~~~~~~~~~~~~~~~~~~
+
+To represent ADTs compactly and easily allow for recursive ADT definitions,
+an ADT definition is given a handle in the form of a global type variable
+that uniquely identifies it. Each ADT definition is given a fresh global
+type variable as a handle, so pointer equality can be used to distinguish
+different ADT names.
+
+For the purposes of Relay's type system, ADTs are differentiated by name;
+that means that if two ADTs have different handles, they will be
+considered different types even if all their constructors are
+structurally identical.
+
+Recursion in an ADT definition thus follows just like recursion for a
+global function: the constructor can simply reference the ADT handle
+(global type variable) in its definition.
+
+See :py:class:`~tvm.relay.ty.GlobalTypeVar` for its definition and documentation.
+
+Definitions (Type Data)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Besides a name, an ADT needs to store the constructors that are used
+to define it and any type paramters used within them. These are
+stored in the module, :ref:`analogous to global function definitions<module-description>`.
+
+While type-checking uses of ADTs, the type system sometimes must
+index into the module using the ADT name to look up information
+about constructors. For example, if a constructor is being pattern-matched
+in a match expression clause, the type-checker must check the constructor's
+signature to ensure that any bound variables are being assigned the
+correct types.
+
+See :py:class:`~tvm.relay.adt.TypeData` for its definition and documentation.
+
+Type Call
+~~~~~~~~~
+
+Because an ADT definition can take type parameters, Relay's type
+system considers an ADT definition to be a *type-level function*
+(in that the definition takes type parameters and returns the
+type of an ADT instance with those type parameters). Thus, any
+instance of an ADT is typed using a type call, which explicitly
+lists the type parameters given to the ADT definition.
+
+It is important to list the type parameters for an ADT instance,
+as two ADT instances built using different constructors but the
+same type parameters are of the *same type* while two ADT instances
+with different type parameters should not be considered the same
+type (e.g., a list of integers should not have the same type as
+a list of pairs of floating point tensors).
+
+The "function" in the type call is the ADT handle and there must
+be one argument for each type parameter in the ADT definition. (An
+ADT definition with no arguments means that any instance will have
+no type arguments passed to the type call).
+
+See :py:class:`~tvm.relay.ty.TypeCall` for its definition and documentation.
+
+Example: List ADT
+~~~~~~~~~~~~~~~~~
+
+This subsection uses the simple list ADT (included as a default
+ADT in Relay) to illustrate the constructs described in the previous
+sections. Its definition is as follows:
+
+.. code-block:: python
+
+   data List<a> {
+     Nil : () -> List
+     Cons : (a, List[a]) -> List
+   }
+
+Thus, the global type variable :code:`List` is the handle for the ADT.
+The type data for the list ADT in the module notes that
+:code:`List` takes one type parameter and has two constructors,
+:code:`Nil` (with signature :code:`fn<a>() -> List[a]`)
+and :code:`Cons` (with signature :code:`fn<a>(a, List[a]) -> List[a]`).
+The recursive reference to :code:`List` in the :code:`Cons`
+constructor is accomplished by using the global type
+variable :code:`List` in the constructor definition.
+
+Below two instances of lists with their types given, using type calls:
+
+.. code-block:: python
+
+   Cons(1, Cons(2, Nil())) # List[Tensor[(), int32]]
+   Cons((1, 1), Cons((2, 2), Nil())) # List[(Tensor[(), int32], Tensor[(), int32])]
+
+Note that :code:`Nil()` can be an instance of any list because it
+does not take any arguments that use a type parameter. (Nevertheless,
+for any *particular* instance of :code:`Nil()`, the type parameter must
+be specified.)
+
+Here are two lists that are rejected by the type system because
+the type parameters do not match:
+
+.. code-block:: python
+
+   # attempting to put an integer on a list of int * int tuples
+   Cons(1, Cons((1, 1), Nil()))
+   # attempting to put a list of ints on a list of lists of int * int tuples
+   Cons(Cons(1, Cons(2, Nil())), Cons(Cons((1, 1), Cons((2, 2), Nil())), Nil()))
