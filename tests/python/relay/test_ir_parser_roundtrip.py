@@ -27,7 +27,8 @@ def tuples(draw, field_type):
 def projections(draw, field_type):
     return relay.TupleGetItem(draw(field_type), draw(integers(min_value=-1000, max_value=1000)))
 
-@settings(deadline=500)
+# TODO: figure out a way to not have to derandomize all the time
+@settings(deadline=500, derandomize=True)
 @given(exprs)
 def test_roundtrip_pp(e):
     alpha_equal(relay.fromtext(pretty_print(e)), e)
