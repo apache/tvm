@@ -542,27 +542,6 @@ inline void tuple_for_each(F& f, const TTuple& tuple) {  // NOLINT(*)
       ::run(f, tuple);
 }
 
-template<typename T>
-struct nested_tuple_type_helper {};
-
-template<typename T1>
-struct nested_tuple_type_helper<std::tuple<T1> > {
-  using Nested = std::tuple<typename T1::Nested>;
-};
-
-template<typename T1, typename T2>
-struct nested_tuple_type_helper<std::tuple<T1, T2> > {
-  using Nested = std::tuple<typename T1::Nested,
-                            typename T2::Nested>;
-};
-
-template<typename T1, typename T2, typename T3>
-struct nested_tuple_type_helper<std::tuple<T1, T2, T3> > {
-  using Nested = std::tuple<typename T1::Nested,
-                            typename T2::Nested,
-                            typename T3::Nested>;
-};
-
 struct PCallExprInitMatchFunctor {
   template<typename T>
   void operator()(size_t i, const T& pattern) const {
@@ -632,8 +611,7 @@ class PCallExpr :
   }
 
  private:
-  typename detail::nested_tuple_type_helper<
-   std::tuple<TArgs...> >::Nested args_;
+  std::tuple<typename TArgs::Nested...> args_;
 };
 
 // arithemetic intrinsics
