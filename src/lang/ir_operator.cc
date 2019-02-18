@@ -2,10 +2,10 @@
  *  Copyright (c) 2017 by Contributors
  * \file ir_operator.cc
  */
-#include <cmath>
 #include <tvm/base.h>
 #include <tvm/ir.h>
 #include <tvm/ir_operator.h>
+#include <cmath>
 
 namespace tvm {
 
