@@ -240,7 +240,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
     when (uop_cntr_val === (uop_cntr_max - 1.U)) { uops_read := 0.U }
   } .otherwise { uops_read_en := false.B }
   when (uops_read_en) {
-    val _uop_sram_addr = uops_data(31, 0)
+    val _uop_sram_addr = uops_data(128 + 31, 128)
     for (i <- 0 to 3) {
       uop_mem(_uop_sram_addr + i.U) := uops_data(31 + i * 32, i * 32)
     }

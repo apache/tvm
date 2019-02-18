@@ -1230,7 +1230,7 @@ module Compute(
   assign _T_383 = _T_382[15:0]; // @[Compute.scala 240:42]
   assign _T_384 = uop_cntr_val == _T_383; // @[Compute.scala 240:24]
   assign _GEN_27 = _T_384 ? 1'h0 : _T_373; // @[Compute.scala 240:50]
-  assign _T_387 = uops_data[31:0]; // @[Compute.scala 243:35]
+  assign _T_387 = uops_data[159:128]; // @[Compute.scala 243:35]
   assign _T_389 = {{1'd0}, _T_387}; // @[Compute.scala 245:30]
   assign _T_390 = _T_389[31:0]; // @[Compute.scala 245:30]
   assign _T_395 = _T_387 + 32'h1; // @[Compute.scala 245:30]
