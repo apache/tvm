@@ -34,12 +34,12 @@ TVM_REGISTER_API("make.ceil")
 
 TVM_REGISTER_API("make.round")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = tvm::ceil(args[0]);
+    *ret = tvm::round(args[0]);
   });
 
 TVM_REGISTER_API("make.trunc")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = tvm::ceil(args[0]);
+    *ret = tvm::trunc(args[0]);
   });
 
 TVM_REGISTER_API("make._range_by_min_extent")

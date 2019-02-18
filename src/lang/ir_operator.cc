@@ -153,9 +153,7 @@ Expr operator+(Expr a, Expr b) {
   TVM_CONST_PROPAGATION({
       Type rtype = ta.bits() >= tb.bits() ? ta : tb;
       if (pa && pb) return IntImm::make(rtype, pa->value + pb->value);
-      if (pa && pa->value == 0) {
-        return SimpleCast(rtype, b);
-      }
+      if (pa && pa->value == 0) return SimpleCast(rtype, b);
       if (pb && pb->value == 0) return SimpleCast(rtype, a);
       if (fa && fb) return FloatImm::make(rtype, fa->value + fb->value);
       if (fa && fa->value == 0) return SimpleCast(rtype, b);
