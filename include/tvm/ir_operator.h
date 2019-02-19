@@ -430,6 +430,34 @@ TVM_DLL Expr min(Expr source, Array<IterVar> axis);
  */
 TVM_DLL Expr prod(Expr source, Array<IterVar> axis);
 
+/*!
+ * \brief Calculate floor(x)
+ * \param x The input expression.
+ * \return The result expression.
+ */
+TVM_DLL Expr floor(Expr x);
+
+/*!
+ * \brief Calculate ceil(x)
+ * \param x The input expression.
+ * \return The result expression.
+ */
+TVM_DLL Expr ceil(Expr x);
+
+/*!
+ * \brief Calculate round(x)
+ * \param x The input expression.
+ * \return The result expression.
+ */
+TVM_DLL Expr round(Expr x);
+
+/*!
+ * \brief Calculate trunc(x)
+ * \param x The input expression.
+ * \return The result expression.
+ */
+TVM_DLL Expr trunc(Expr x);
+
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \
@@ -441,10 +469,6 @@ TVM_DECLARE_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);
 TVM_DECLARE_INTRIN_UNARY(log);
-TVM_DECLARE_INTRIN_UNARY(floor);
-TVM_DECLARE_INTRIN_UNARY(ceil);
-TVM_DECLARE_INTRIN_UNARY(round);
-TVM_DECLARE_INTRIN_UNARY(trunc);
 TVM_DECLARE_INTRIN_UNARY(popcount);
 
 
