@@ -11,6 +11,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
+#include "../op/layout.h"
 
 namespace tvm {
 namespace relay {
@@ -66,12 +67,19 @@ class MacCounter : private ExprVisitor {
     Array<Expr> args = call_node->args;
     CHECK(args.size() == 2)
         << "The number of input arguments of a CONV 2D node should be 2.";
+    const auto* conv_2d_attr = call_node->attrs.as<Conv2DAttrs>();
     const auto* data_type = args[0]->checked_type().as<TensorTypeNode>();
     Array<IndexExpr> data_shape = data_type->shape;
-    CHECK(data_shape.size() == 4)
-        << "The dimension of an input tensor to CONV 2D node should be 4.";
-    int64_t input_channel = static_cast<int64_t>(data_shape[1].as<IntImm>()->value);
-    const auto* conv_2d_attr = call_node->attrs.as<Conv2DAttrs>();
+    std::string data_layout = conv_2d_attr->data_layout;
+    int32_t C_ind = Layout(data_layout).Indexof('C');
+    int32_t c_ind = Layout(data_layout).Indexof('c');
+    CHECK(C_ind != -1 || c_ind != -1)
+        << "There is no input channel dimension.";
+    int64_t input_channel = 1;
+    if (C_ind != -1)
+      input_channel *= static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
+    if (c_ind != -1)
+      input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImm>()->value);
     Array<IndexExpr> kernel_size = conv_2d_attr->kernel_size;
     CHECK(kernel_size.size() == 2)
         << "The dimension of the kernel size in Conv 2D should be 2.";

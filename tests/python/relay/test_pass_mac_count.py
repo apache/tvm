@@ -77,6 +77,9 @@ def test_simple_network():
                             relay.Tuple(tvm.convert([conv2d_1, conv2d_2,
                                                     dense_1, add, flattened])))
     func = relay.ir_pass.infer_type(func)
+    # alter the CONV 2D data layout to test
+    func = relay.ir_pass.alter_op_layout(func)
+    func = relay.ir_pass.infer_type(func)
     compute_count = relay.ir_pass.get_total_mac_number(func)
     expect_count = 231411712
     assert compute_count == expect_count
