@@ -103,11 +103,11 @@ struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
   DataType dtype;
 
   TVM_DECLARE_ATTRS(ArangeAttrs, "relay.attrs.ArangeAttrs") {
-    TVM_ATTR_FIELD(start).set_default(make_const(Int(32), 0))
+    TVM_ATTR_FIELD(start).set_default(make_const(Float(32), 0))
         .describe("Start of interval. The interval includes this value.");
     TVM_ATTR_FIELD(stop)
         .describe("Stop of interval. The interval does not include this value.");
-    TVM_ATTR_FIELD(start).set_default(make_const(Int(32), 1))
+    TVM_ATTR_FIELD(step).set_default(make_const(Float(32), 1))
         .describe("Spacing between values.");
     TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
         .describe("Target data type.");
