@@ -62,6 +62,30 @@ def test_unify_tuple():
     assert unified == tup2
 
 
+def test_unify_global_type_var():
+    # should only be able to unify if they're the same
+    solver = make_solver()
+    gtv = relay.GlobalTypeVar('gtv')
+    unified = solver.Unify(gtv, gtv)
+    assert unified == gtv
+
+
+def test_unify_typecall():
+    solver = make_solver()
+    gtv = relay.GlobalTypeVar('gtv')
+
+    # yeah, typecalls are shaped like tuples so the same
+    # tests work out
+    t1 = relay.ty.IncompleteType()
+    t2 = relay.ty.IncompleteType()
+    t3 = relay.ty.TensorType((10, 20), "float32")
+
+    tc1 = relay.ty.TypeCall(gtv, [t1, t2])
+    tc2 = relay.ty.TypeCall(gtv, [t3, t3])
+    unified = solver.Unify(tc1, tc2)
+    assert unified == tc2
+
+
 def test_unify_functype():
     solver = make_solver()
     t1 = relay.ty.IncompleteType()
@@ -205,10 +229,49 @@ def test_bad_recursive_unification():
     solver.Unify(t1, relay.ty.TupleType([t1, t1]))
 
 
+@raises(tvm._ffi.base.TVMError)
+def test_unify_invalid_global_typevars():
+    solver = make_solver()
+    gtv1 = relay.GlobalTypeVar('gtv1')
+    gtv2 = relay.GlobalTypeVar('gtv2')
+    solver.Unify(gtv1, gtv2)
+
+
+@raises(tvm._ffi.base.TVMError)
+def test_incompatible_typecall_var_unification():
+    solver = make_solver()
+    gtv1 = relay.GlobalTypeVar('gtv1')
+    gtv2 = relay.GlobalTypeVar('gtv2')
+
+    t1 = relay.IncompleteType()
+    t2 = relay.IncompleteType()
+
+    tc1 = relay.TypeCall(gtv1, [t1])
+    tc2 = relay.TypeCall(gtv2, [t2])
+    solver.Unify(tc1, tc2)
+
+
+@raises(tvm._ffi.base.TVMError)
+def test_incompatible_typecall_args_unification():
+    solver = make_solver()
+    gtv = relay.GlobalTypeVar('gtv1')
+    t1 = relay.IncompleteType()
+    t2 = relay.IncompleteType()
+
+    tensor1 = relay.TensorType((1, 2, 3), "float32")
+    tensor2 = relay.TensorType((2, 3), "float32")
+    tensor3 = relay.TensorType((3,), "float32")
+
+    tc1 = relay.TypeCall(gtv, [relay.TupleType([t1, t1]), t2])
+    tc2 = relay.TypeCall(gtv, [relay.TupleType([tensor1, tensor2]), tensor3])
+    solver.Unify(tc1, tc2)
+
+
 if __name__ == "__main__":
     test_bcast()
     test_backward_solving()
     test_unify_tuple()
+    test_unify_typecall()
     test_unify_functype()
     test_recursive_unify()
     test_unify_vars_under_tuples()
@@ -216,3 +279,5 @@ if __name__ == "__main__":
     test_backward_solving_after_child_update()
     test_incompatible_tuple_unification()
     test_bad_recursive_unification()
+    test_incompatible_typecall_var_unification()
+    test_incompatible_typecall_args_unification()

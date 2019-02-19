@@ -8,6 +8,7 @@ from ..container import Array
 from .. import ir_pass
 from ..stmt import For
 from .util import _internal_assert
+from ..intrin import call_pure_intrin
 
 #pylint: disable=redefined-builtin
 
@@ -104,3 +105,29 @@ def len(func_id, args):
     except: #pylint: disable=bare-except
         _internal_assert(args[0].shape.__len__() == 1, "Only one-dimension array can get len")
         return _api.convert(args[0].shape[0])
+
+
+def _cast(func_id, args):
+    _internal_assert(args.__len__() == 1 and isinstance(args[0], _expr.Expr), \
+                     "Only one expression can be cast")
+    return _make.Cast(func_id, args[0])
+
+float16 = float32 = float64 = _cast #pylint: disable=invalid-name
+int8 = int16 = int32 = int64 = _cast #pylint: disable=invalid-name
+uint8 = uint16 = uint32 = uint64 = _cast #pylint: disable=invalid-name
+
+
+def ceil_div(func_id, args):
+    _internal_assert(func_id == "ceil_div", "This function cannot be directly invoked!")
+    _internal_assert(args.__len__() == 2, "2 arguments expected for division!")
+    _internal_assert(isinstance(args[0], _expr.Expr), "Only expressions can div")
+    _internal_assert(isinstance(args[1], _expr.Expr), "Only expressions can div")
+    a, b = args[0], args[1]
+    return (a + b - 1) / b
+
+
+def likely(func_id, args):
+    _internal_assert(args.__len__() == 1, \
+                     "Only one expression can be likely")
+    _internal_assert(func_id == "likely", "This function cannot be directly invoked!")
+    return call_pure_intrin(args[0].dtype, 'likely', *args)

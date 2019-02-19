@@ -19,3 +19,4 @@ from .vision import *
 from . import ssd
 from .ssd import *
 from .nms import *
+from .rcnn import *

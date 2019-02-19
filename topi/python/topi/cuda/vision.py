@@ -151,3 +151,32 @@ def schedule_multibox_detection(outs):
 @generic.schedule_roi_align.register(["cuda", "gpu"])
 def schedule_roi_align(outs):
     return schedule_pool(outs, 'NCHW')
+
+@generic.schedule_proposal.register(["cuda", "gpu"])
+def schedule_proposal(outs):
+    """Schedule for proposal operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of proposal
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+    from .injective import _schedule_injective
+    def traverse(op):
+        if op.tag in ['bbox_score', 'sorted_bbox']:
+            _schedule_injective(op, s)
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                traverse(tensor.op)
+        scheduled_ops.append(op)
+    traverse(outs[0].op)
+    return s

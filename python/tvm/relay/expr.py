@@ -172,6 +172,20 @@ class Var(Expr):
         name = self.vid.name_hint
         return name
 
+    def __call__(self, *args):
+        """Call the variable (if it represents a function).
+
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            The arguments to the call.
+
+        Returns
+        -------
+        call: Call
+            A call taking the variable as a function.
+        """
+        return Call(self, args)
 
 @register_relay_node
 class GlobalVar(Expr):
@@ -325,6 +339,46 @@ class TupleGetItem(Expr):
     def __init__(self, tuple_value, index):
         self.__init_handle_by_constructor__(
             _make.TupleGetItem, tuple_value, index)
+
+
+@register_relay_node
+class RefCreate(Expr):
+    """Create a new reference from initial value.
+    Parameters
+    ----------
+    value: tvm.relay.Expr
+       The initial value.
+    """
+    def __init__(self, value):
+        self.__init_handle_by_constructor__(_make.RefCreate, value)
+
+
+@register_relay_node
+class RefRead(Expr):
+    """Get the value inside the reference.
+    Parameters
+    ----------
+    ref: tvm.relay.Expr
+         The reference.
+    """
+    def __init__(self, ref):
+        self.__init_handle_by_constructor__(_make.RefRead, ref)
+
+
+@register_relay_node
+class RefWrite(Expr):
+    """
+    Update the value inside the reference.
+    The whole expression will evaluate to an empty tuple.
+    Parameters
+    ----------
+    ref: tvm.relay.Expr
+        The reference.
+    value: tvm.relay.Expr
+        The new value.
+    """
+    def __init__(self, ref, value):
+        self.__init_handle_by_constructor__(_make.RefWrite, ref, value)
 
 
 class TempExpr(Expr):

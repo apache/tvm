@@ -10,6 +10,7 @@
 #include <tvm/node/ir_functor.h>
 #include <string>
 #include "./expr.h"
+#include "./adt.h"
 #include "./op.h"
 #include "./error.h"
 
@@ -89,6 +90,11 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const OpNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RefCreateNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RefReadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RefWriteNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const ConstructorNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const MatchNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Node* op, Args...) {
     throw Error(std::string("Do not have a default for ") + op->type_key());
   }
@@ -108,6 +114,11 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAY_EXPR_FUNCTOR_DISPATCH(IfNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(OpNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(RefCreateNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(RefReadNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(RefWriteNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(ConstructorNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(MatchNode);
     return vtable;
   }
 };
@@ -133,7 +144,14 @@ class ExprVisitor
   void VisitExpr_(const IfNode* op) override;
   void VisitExpr_(const OpNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
+  void VisitExpr_(const RefCreateNode* op) override;
+  void VisitExpr_(const RefReadNode* op) override;
+  void VisitExpr_(const RefWriteNode* op) override;
+  void VisitExpr_(const ConstructorNode* op) override;
+  void VisitExpr_(const MatchNode* op) override;
   virtual void VisitType(const Type& t);
+  virtual void VisitClause(const Clause& c);
+  virtual void VisitPattern(const Pattern& c);
 
  protected:
   // Internal visiting counter
@@ -168,6 +186,12 @@ class ExprMutator
   Expr VisitExpr_(const LetNode* op) override;
   Expr VisitExpr_(const IfNode* op) override;
   Expr VisitExpr_(const TupleGetItemNode* op) override;
+  Expr VisitExpr_(const RefCreateNode* op) override;
+  Expr VisitExpr_(const RefReadNode* op) override;
+  Expr VisitExpr_(const RefWriteNode* op) override;
+  Expr VisitExpr_(const ConstructorNode* op) override;
+  Expr VisitExpr_(const MatchNode* op) override;
+
   /*!
    * \brief Used to visit the types inside of expressions.
    *
@@ -176,6 +200,8 @@ class ExprMutator
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
+  virtual Clause VisitClause(const Clause& c);
+  virtual Pattern VisitPattern(const Pattern& c);
 
  protected:
   /*! \brief Internal map used for memoization. */
