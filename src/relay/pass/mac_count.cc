@@ -85,8 +85,8 @@ class MacCounter : private ExprVisitor {
         << "The dimension of the kernel size in Conv 2D should be 2.";
     const auto* expr = call_node->checked_type().as<TensorTypeNode>();
     Array<IndexExpr> output_tensor = expr->shape;
-    CHECK(output_tensor.size() == 4)
-        << "The dimension of the output tensor in Conv 2D should be 4.";
+    CHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
+        << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
     int64_t count = input_channel * GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
     return count;
   }
