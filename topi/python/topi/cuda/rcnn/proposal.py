@@ -156,7 +156,7 @@ def argsort_ir(data_buf, out_index_buf):
         with ib.for_range(0, num_bbox) as k:
             offset = start + 2 * tid + (k % 2)
             with ib.if_scope(
-                tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
+                    tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
                 temp_data[0] = p_data[offset]
                 p_data[offset] = p_data[offset + 1]
                 p_data[offset + 1] = temp_data[0]
@@ -272,7 +272,7 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
             nkeep[0] += 1
     with ib.if_scope(nkeep[0] > 0):
         with ib.for_range(0, tvm.ceil(
-            tvm.const(rpn_post_nms_top_n, 'float32') / nkeep[0]).astype('int32')):
+                tvm.const(rpn_post_nms_top_n, 'float32') / nkeep[0]).astype('int32')):
             with ib.for_range(0, num_bbox) as j:
                 offset_j = (b * num_bbox + j) * 5
                 offset_i = (b * rpn_post_nms_top_n + i[0]) * 5
