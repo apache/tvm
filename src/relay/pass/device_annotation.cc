@@ -405,7 +405,7 @@ class DeviceInfo {
       return node;
     } else if (const auto* call_node = dynamic_cast<const CallNode*>(node)) {
       if (const auto* fn = call_node->op.as<FunctionNode>()) {
-        const auto* body = fn->body.operator->();
+        const ExprNode* body = fn->body.operator->();
         if (IsDeviceCopyNode(body)) {
           return body;
         }
