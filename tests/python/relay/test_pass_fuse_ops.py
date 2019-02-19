@@ -249,7 +249,6 @@ def test_stop_fusion():
     z = relay.ir_pass.infer_type(z)
     after = relay.ir_pass.infer_type(expected(dshape))
     assert relay.ir_pass.alpha_equal(z, after)
-    assert 'stop_fusion' not in z.astext(show_meta_data=False)
 
 
 if __name__ == "__main__":
