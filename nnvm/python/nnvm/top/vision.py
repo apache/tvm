@@ -58,41 +58,24 @@ def compute_multibox_transform_loc(attrs, inputs, _):
     return topi.vision.ssd.multibox_transform_loc(inputs[0], inputs[1], inputs[2],
                                                   clip, threshold, variance)
 
-reg.register_pattern("multibox_transform_loc", OpPattern.OPAQUE)
-
-# Get valid number of anchor boxes
-@reg.register_schedule("get_valid_counts")
-def schedule_get_valid_counts(_, outs, target):
-    """Schedule definition of get_valid_counts"""
-    with tvm.target.create(target):
-        return topi.generic.schedule_get_valid_counts(outs)
-
-@reg.register_compute("get_valid_counts")
-def compute_get_valid_counts(attrs, inputs, _):
-    """Compute definition of get_valid_counts"""
-    score_threshold = attrs.get_float("score_threshold")
-    return topi.vision.get_valid_counts(inputs[0], score_threshold)
-
-reg.register_pattern("get_valid_counts", OpPattern.OPAQUE)
+reg.register_pattern("multibox_detection", OpPattern.OPAQUE)
 
 # non-maximum suppression
-@reg.register_schedule("nms")
+@reg.register_schedule("non_max_suppression")
 def schedule_nms(_, outs, target):
-    """Schedule definition of nms"""
+    """Schedule definition of non_max_suppression"""
     with tvm.target.create(target):
         return topi.generic.schedule_nms(outs)
 
-@reg.register_compute("nms")
+@reg.register_compute("non_max_suppression")
 def compute_nms(attrs, inputs, _):
-    """Compute definition of nms"""
+    """Compute definition of non_max_suppression"""
+    return_indices = attrs.get_bool('return_indices')
     iou_threshold = attrs.get_float('iou_threshold')
     force_suppress = attrs.get_bool('force_suppress')
     topk = attrs.get_int('topk')
-    id_index = attrs.get_int('id_index')
-    do_rearrange = attrs.get_bool('do_rearrange')
 
-    return topi.vision.nms(inputs[0], inputs[1], iou_threshold,
-                           force_suppress, topk, id_index,
-                           do_rearrange)
+    return topi.vision.non_max_suppression(inputs[0], inputs[1], return_indices,
+                                           iou_threshold, force_suppress, topk)
 
-reg.register_pattern("nms", OpPattern.OPAQUE)
+reg.register_pattern("non_max_suppression", OpPattern.OPAQUE)

@@ -74,21 +74,6 @@ struct StridedSliceParam : public dmlc::Parameter<StridedSliceParam> {
   }
 };
 
-struct SliceAxisParam : public dmlc::Parameter<SliceAxisParam> {
-  int axis;
-  int begin;
-  int end;
-
-  DMLC_DECLARE_PARAMETER(SliceAxisParam) {
-    DMLC_DECLARE_FIELD(axis)
-      .describe("Axis along which to be sliced.");
-    DMLC_DECLARE_FIELD(begin)
-      .describe("Index for begin of slice");
-    DMLC_DECLARE_FIELD(end).set_default(0)
-      .describe("Index for end of the slice");
-  }
-};
-
 enum TypeFlag {
   kFloat32 = 0,
   kFloat64 = 1,

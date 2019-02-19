@@ -4,7 +4,7 @@ import math
 import tvm
 
 from tvm import api
-from topi.vision import nms
+from topi.vision import non_max_suppression
 from ..util import get_const_tuple
 
 def sort_ir(data, index, output):
@@ -181,7 +181,7 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     return body
 
 
-@nms.register(["cuda", "gpu"])
+@non_max_suppression.register(["cuda", "gpu"])
 def nms_gpu(data, valid_count, return_indices, iou_threshold=0.5, force_suppress=False,
             topk=-1, id_index=0, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.

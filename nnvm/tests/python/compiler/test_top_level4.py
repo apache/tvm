@@ -3,7 +3,6 @@ import numpy as np
 import tvm
 from tvm.contrib import graph_runtime
 import topi
-import topi.testing
 import nnvm.symbol as sym
 import nnvm.compiler
 from nnvm.testing.config import ctx_list
@@ -528,15 +527,14 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1),
     if clip:
         np_out = np.clip(np_out, 0, 1)
 
-    for target, ctx in ctx_list():
-        if target == "cuda":
-            continue
-        graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.set_input("data", np.random.uniform(size=dshape).astype(dtype))
-        m.run()
-        out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
-        tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+    target = "llvm"
+    ctx = tvm.cpu()
+    graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input("data", np.random.uniform(size=dshape).astype(dtype))
+    m.run()
+    out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
+    tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
 
 def test_multibox_prior():
     verify_multibox_prior((1, 3, 50, 50))
@@ -552,7 +550,7 @@ def test_multibox_transform_loc():
     anchors = sym.Variable("anchors")
     transform_loc_data, valid_count = sym.multibox_transform_loc(cls_prob=cls_prob, loc_pred=loc_preds,
                                                                  anchor=anchors)
-    out = sym.nms(data=transform_loc_data, valid_count=valid_count)
+    out = sym.non_max_suppression(data=transform_loc_data, valid_count=valid_count, return_indices=False)
 
     # Manually create test case
     np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
@@ -563,70 +561,27 @@ def test_multibox_transform_loc():
                                  [0, 0.44999999, 1, 1, 1, 1],
                                  [0, 0.30000001, 0, 0, 0.22903419, 0.20435292]]])
 
+    target = "llvm"
     dtype = "float32"
-    for target, ctx in ctx_list():
-        if target == "cuda":
-            continue
-        graph, lib, _ = nnvm.compiler.build(out, target, {"cls_prob": (batch_size, num_anchors, num_classes),
-                                                          "loc_preds": (batch_size, num_anchors * 4),
-                                                          "anchors": (1, num_anchors, 4)})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.set_input(**{"cls_prob": np_cls_prob.astype(dtype), "loc_preds": np_loc_preds.astype(dtype), "anchors": np_anchors.astype(dtype)})
-        m.run()
-        out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
-        tvm.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
+    ctx = tvm.cpu()
+    graph, lib, _ = nnvm.compiler.build(out, target, {"cls_prob": (batch_size, num_anchors, num_classes),
+                                                      "loc_preds": (batch_size, num_anchors * 4),
+                                                      "anchors": (1, num_anchors, 4)})
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**{"cls_prob": np_cls_prob.astype(dtype), "loc_preds": np_loc_preds.astype(dtype), "anchors": np_anchors.astype(dtype)})
+    m.run()
+    out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
+    tvm.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
 
-def verify_get_valid_counts(dshape, score_threshold):
-    dtype = "float32"
-    batch_size, num_anchor, elem_length = dshape
-    np_data = np.random.uniform(size=dshape).astype(dtype)
-    np_out1 = np.zeros(shape=(batch_size,))
-    np_out2 = np.zeros(shape=dshape).astype(dtype)
-    for i in range(batch_size):
-        np_out1[i] = 0
-        inter_idx = 0
-        for j in range(num_anchor):
-            score = np_data[i, j, 1]
-            if score >= score_threshold:
-                for k in range(elem_length):
-                    np_out2[i, inter_idx, k] = np_data[i, j, k]
-                np_out1[i] += 1
-                inter_idx += 1
-            if j >= np_out1[i]:
-                for k in range(elem_length):
-                    np_out2[i, j, k] = -1
-
-    for target, ctx in ctx_list():
-        if target == "cuda":
-            continue
-        data = sym.Variable("data", dtype=dtype)
-        valid_counts, inter_data = sym.get_valid_counts(data, score_threshold=score_threshold)
-        out = sym.Group([valid_counts, inter_data])
-        graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.set_input("data", np_data)
-        m.run()
-        out1 = m.get_output(0, tvm.nd.empty(np_out1.shape, "int32"))
-        out2 = m.get_output(1, tvm.nd.empty(dshape, dtype))
-        tvm.testing.assert_allclose(out1.asnumpy(), np_out1, rtol=1e-3)
-        tvm.testing.assert_allclose(out2.asnumpy(), np_out2, rtol=1e-3)
-
-
-def test_get_valid_counts():
-    verify_get_valid_counts((1, 2500, 6), 0)
-    verify_get_valid_counts((1, 2500, 6), -1)
-    verify_get_valid_counts((3, 1000, 6), 0.55)
-    verify_get_valid_counts((16, 500, 6), 0.95)
-
-def test_nms():
+def test_non_max_suppression():
     dshape = (1, 5, 6)
     data = sym.Variable("data")
     valid_count = sym.Variable("valid_count", dtype="int32")
     iou_threshold = 0.7
     force_suppress = True
     topk = 2
-    out = sym.nms(data=data, valid_count=valid_count, iou_threshold=iou_threshold,
-                  force_suppress=force_suppress, topk=topk)
+    out = sym.non_max_suppression(data=data, valid_count=valid_count, return_indices=False,
+                                  iou_threshold=iou_threshold, force_suppress=force_suppress, topk=topk)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
@@ -636,16 +591,15 @@ def test_nms():
                            [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
 
-    for target, ctx in ctx_list():
-        if target == "cuda":
-            continue
-        graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape, "valid_count": (dshape[0],)},
-                                            dtype={"data": "float32", "valid_count": "int32"})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.set_input(**{"data": np_data, "valid_count": np_valid_count})
-        m.run()
-        out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
-        tvm.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
+    target = "llvm"
+    ctx = tvm.cpu()
+    graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape, "valid_count": (dshape[0],)},
+                                        dtype={"data": "float32", "valid_count": "int32"})
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**{"data": np_data, "valid_count": np_valid_count})
+    m.run()
+    out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
+    tvm.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
 def np_slice_like(np_data, np_shape_like, axis=[]):
     begin_idx = [0 for _ in np_data.shape]
@@ -662,7 +616,7 @@ def np_slice_like(np_data, np_shape_like, axis=[]):
     slice_idx = []
     for b, e in zip(begin_idx, end_idx):
         slice_idx.append(slice(b, e))
-    np_result = np_data[tuple(slice_idx)]
+    np_result = np_data[slice_idx]
     return np_result
 
 def verify_slice_like(np_data, np_shape_like, axis=[]):
@@ -701,27 +655,6 @@ def test_slice_like():
     np_shape_like = np.random.uniform(size=(1, 3, 112, 112))
     axis = (2, 3)
     verify_slice_like(np_data, np_shape_like, axis)
-
-def verify_slice_axis(dshape, axis, begin, end):
-    data = sym.Variable("data")
-    net = sym.slice_axis(data, axis=axis, begin=begin, end=end)
-    np_data = np.random.uniform(size=dshape)
-    np_out = topi.testing.slice_axis_python(np_data, axis, begin, end)
-
-    dtype = "float32"
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(net, target, {"data": dshape}, dtype=dtype)
-        m = graph_runtime.create(graph, lib, ctx)
-        m.set_input("data", np_data)
-        m.run()
-        out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
-        tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
-
-def test_slice_axis():
-    verify_slice_axis((1, 2, 3, 4), 3, 0, 2)
-    verify_slice_axis((100, 50), -1, 1, -1)
-    verify_slice_axis((20,), -1, -9, -3)
-    verify_slice_axis((20, 30, 40), 1, 5, 0)
 
 def verify_where(condition, x, y):
     dtype = "float32"
@@ -777,7 +710,6 @@ def test_argmax():
     np.testing.assert_allclose(out.asnumpy(), np_argmax, atol=1e-5, rtol=1e-5)
 
 if __name__ == "__main__":
-    test_get_valid_counts()
     test_reshape()
     test_broadcast()
     test_reduce()
@@ -794,10 +726,8 @@ if __name__ == "__main__":
     test_flip()
     test_multibox_prior()
     test_multibox_transform_loc()
-    test_get_valid_counts()
-    test_nms()
+    test_non_max_suppression()
     test_slice_like()
-    test_slice_axis()
     test_where()
     test_argmax()
     print(nnvm.compiler.engine.dump())

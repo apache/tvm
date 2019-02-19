@@ -219,8 +219,8 @@ def hybrid_nms(data, sorted_index, valid_count,
 
 
 @tvm.target.generic_func
-def nms(data, valid_count, return_indices, iou_threshold=0.5, force_suppress=False,
-        topk=-1, id_index=0, invalid_to_bottom=False):
+def non_max_suppression(data, valid_count, return_indices, iou_threshold=0.5,
+                        force_suppress=False, topk=-1, id_index=0, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters

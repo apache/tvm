@@ -8,7 +8,7 @@ import topi.testing
 
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
-from topi.vision import ssd, nms, get_valid_counts
+from topi.vision import ssd, non_max_suppression, get_valid_counts
 
 
 def verify_get_valid_counts(dshape, score_threshold):
@@ -61,7 +61,7 @@ def test_get_valid_counts():
     verify_get_valid_counts((16, 500, 6), 0.95)
 
 
-def test_nms():
+def test_non_max_suppression():
     dshape = (1, 5, 6)
     indices_dshape = (1, 5)
     data = tvm.placeholder(dshape, name="data")
@@ -87,11 +87,11 @@ def test_nms():
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             if device == 'llvm':
-                out = nms(data, valid_count, False, nms_threshold, force_suppress, nms_topk)
-                indices_out = nms(data, valid_count, True, nms_threshold, force_suppress, nms_topk)
+                out = non_max_suppression(data, valid_count, False, nms_threshold, force_suppress, nms_topk)
+                indices_out = non_max_suppression(data, valid_count, True, nms_threshold, force_suppress, nms_topk)
             else:
-                out = topi.cuda.nms(data, valid_count, False, nms_threshold, force_suppress, nms_topk)
-                indices_out = topi.cuda.nms(data, valid_count, True, nms_threshold, force_suppress, nms_topk)
+                out = topi.cuda.non_max_suppression(data, valid_count, False, nms_threshold, force_suppress, nms_topk)
+                indices_out = topi.cuda.non_max_suppression(data, valid_count, True, nms_threshold, force_suppress, nms_topk)
             s = topi.generic.schedule_nms(out)
             indices_s = topi.generic.schedule_nms(indices_out)
 
@@ -336,7 +336,7 @@ def test_proposal():
 
 if __name__ == "__main__":
     test_get_valid_counts()
-    test_nms()
+    test_non_max_suppression()
     test_multibox_prior()
     test_multibox_detection()
     test_roi_align()

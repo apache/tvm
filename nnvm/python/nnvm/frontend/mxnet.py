@@ -238,18 +238,18 @@ def _clip(inputs, attrs):
 
 def _contrib_multibox_detection(inputs, attrs):
     clip = _parse_bool_str(attrs, 'clip', default='True')
-    threshold = attrs.get('threshold', 0.01)
-    iou_threshold = attrs.get('nms_threshold', 0.5)
+    threshold = attrs.get('threshold') or 0.01
+    nms_threshold = attrs.get('nms_threshold') or 0.5
     force_suppress = _parse_bool_str(attrs, 'force_suppress', default='False')
     variances = tuple([float(x.strip()) for x in attrs.get('variances').strip('()').split(',')]) \
         if attrs.get('variances') is not None else (0.1, 0.1, 0.2, 0.2)
-    topk = attrs.get('nms_topk', -1)
+    nms_topk = attrs.get('nms_topk') or -1
     new_attrs0 = {'clip': clip, 'threshold': float(threshold), 'variances': variances}
-    new_attrs1 = {'iou_threshold': float(iou_threshold), 'force_suppress': force_suppress,
-                  'topk': int(topk)}
+    new_attrs1 = {'return_indices': False, 'iou_threshold': float(nms_threshold),
+                  'force_suppress': force_suppress, 'topk': int(nms_topk)}
     data, valid_count = _get_nnvm_op('multibox_transform_loc')(inputs[0], inputs[1],
                                                                inputs[2], **new_attrs0)
-    return _get_nnvm_op('nms')(data, valid_count, **new_attrs1)
+    return _get_nnvm_op('non_max_suppression')(data, valid_count, **new_attrs1)
 
 def _elemwise_sum(inputs, _):
     new_attrs = {'num_args':len(inputs)}
@@ -314,57 +314,6 @@ def _argmin(inputs, attrs):
     new_attrs['keepdims'] = _parse_bool_str(attrs, 'keepdims', default="False")
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
-def _contrib_box_nms(inputs, attrs):
-    force_suppress = _parse_bool_str(attrs, 'force_suppress', default="False")
-    overlap_thresh = attrs.get('overlap_thresh', 0.5)
-    topk = attrs.get('topk', -1)
-    valid_thresh = attrs.get('valid_thresh', 0)
-    coord_start = attrs.get('coord_start', 2)
-    score_index = attrs.get('score_index', 1)
-    id_index = attrs.get('id_index', -1)
-    in_format = attrs.get('in_format', 'corner')
-    out_format = attrs.get('out_format', 'corner')
-    if int(coord_start) != 2:
-        _raise_not_supported('coord_start: %s' % coord_start, 'box_nms')
-    if int(score_index) != 1:
-        _raise_not_supported('score_index: %s' % score_index, 'box_nms')
-    if int(id_index) != -1 and int(id_index) != 0:
-        _raise_not_supported('id_index: %s' % id_index, 'box_nms')
-    if in_format != 'corner':
-        _raise_not_supported('in_format: %s' % in_format, 'box_nms')
-    if out_format != 'corner':
-        _raise_not_supported('out_format: %s' % out_format, 'box_nms')
-
-    valid_counts, inter_out = \
-        _get_nnvm_op('get_valid_counts')(inputs[0], score_threshold=valid_thresh)
-    nms_out = _get_nnvm_op('nms')(inter_out, valid_counts,
-                                  iou_threshold=overlap_thresh,
-                                  force_suppress=force_suppress,
-                                  topk=topk, id_index=id_index,
-                                  do_rearrange=True)
-    return nms_out
-
-def _slice_like(inputs, attrs):
-    op_name = 'slice_like'
-    axis = attrs.get('axes', ())
-    return _get_nnvm_op(op_name)(inputs[0], inputs[1], axis=axis)
-
-def _slice_axis(inputs, attrs):
-    op_name, new_attrs = 'slice_axis', {}
-    new_attrs['axis'] = attrs.get('axis')
-    new_attrs['begin'] = attrs.get('begin')
-    new_attrs['end'] = 0 if attrs.get('end') == "None" else attrs.get('end')
-    return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
-
-def _l2_normalize(inputs, attrs):
-    op_name, new_attrs = 'l2_normalize', {}
-    mode = attrs.get('mode', 'instance')
-    if mode != 'channel':
-        _raise_not_supported('mode: %s' % mode, 'L2Normalization')
-    new_attrs['eps'] = attrs.get('eps', 1e-10)
-    new_attrs['axis'] = 1
-    return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
-
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
                   '__pow_scalar__', '__rdiv_scalar__', '__rpow_scalar__',
@@ -373,9 +322,9 @@ _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   'broadcast_sub', 'broadcast_to', 'cast', 'elemwise_add',
                   'elemwise_div', 'elemwise_mul', 'elemwise_sub', 'exp',
                   'flatten', 'log', 'log_softmax', 'max', 'min', 'negative',
-                  'ones_like', 'relu', 'sigmoid', 'softmax',
+                  'ones_like', 'relu', 'sigmoid', 'slice_like', 'softmax',
                   'sum', 'tanh', 'transpose', 'zeros_like', 'gather_nd',
-                  'reshape_like', 'where']
+                  'reshape_like']
 
 _convert_map = {
     '_copy'         : _rename('copy'),
@@ -385,13 +334,6 @@ _convert_map = {
     '_plus_scalar'  : _rename('__add_scalar__'),
     '_rdiv_scalar'  : _rename('__rdiv_scalar__'),
     '_rminus_scalar': _rename('__rsub_scalar__'),
-    '_equal_scalar' : _rename('__equal_scalar__'),
-    '_not_equal_scalar': _rename('__not_equal_scalar__'),
-    '_greater_scalar': _rename('__greater_scalar__'),
-    '_greater_equal_scalar': _rename('__greater_equal_scalar__'),
-    '_less_scalar': _rename('__less_scalar__'),
-    '_less_equal_scalar': _rename('__less_equal_scalar__'),
-    '_contrib_box_nms'       : _contrib_box_nms,
     '_contrib_MultiBoxPrior' : _rename('multibox_prior'),
     '_contrib_MultiBoxDetection' : _contrib_multibox_detection,
     '_minimum'      : _minimum,
@@ -413,14 +355,11 @@ _convert_map = {
     'Flatten'       : _rename('flatten'),
     'FullyConnected': _dense,
     'LeakyReLU'     : _leaky_relu,
-    'L2Normalization' : _l2_normalize,
     'Pooling'       : _pooling,
     'Pooling_v1'    : _pooling,
     'Reshape'       : _reshape,
     'slice'         : _slice,
     'SliceChannel'  : _split,
-    'slice_axis'    : _slice_axis,
-    'slice_like'    : _slice_like,
     'split'         : _split,
     'Softmax'       : _rename('softmax'),
     'SoftmaxActivation' : _softmax_activation,
