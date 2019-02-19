@@ -741,10 +741,14 @@ class FuseMutator : private ExprMutator {
   }
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
+    static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
     if (call->op.as<OpNode>()) {
       // If it is a primitive op call
       // then we must have a group assignment for it already.
       CHECK(gmap_.count(call));
+      if (call->op.same_as(stop_fusion)) {
+        return ExprMutator::VisitExpr(call->args[0]);
+      }
       auto* ret_group = gmap_.at(call)->FindRoot();
       Array<Expr> new_args = GetNewArguments(call->args, ret_group);
 

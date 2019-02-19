@@ -29,3 +29,19 @@ def on_device(data, device):
         raise ValueError("device is expected to be the type of TVMContext or "
                          "str, but received %s" % (type(device)))
     return _make.on_device(data, device)
+
+
+def stop_fusion(data):
+    """Annotate an expression to prevent it being fused with previous expressions.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The expression to be annotated.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The annotated expression.
+    """
+    return _make.stop_fusion(data)
