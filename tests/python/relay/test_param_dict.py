@@ -31,7 +31,7 @@ def test_ndarray_reflection():
     param_dict_bytes = relay.save_param_dict(param_dict)
     # Deserialize (using `json.loads`), then verify the base64 `NDArray`
     # encoding wasn't corrupted.
-    deser_param_dict = json.loads(param_dict_bytes)
+    deser_param_dict = json.loads(param_dict_bytes.decode('utf-8'))
     b64_str = deser_param_dict["b64ndarrays"][0]
     decoded = py_str(base64.b64encode(base64.b64decode(b64_str)))
     assert b64_str == decoded
