@@ -73,6 +73,7 @@ def test_annotate_all():
 
     annotated_func = relay.ir_pass.infer_type(annotated())
     expected_func = relay.ir_pass.infer_type(expected())
+    assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
 
 def test_annotate_none():
     ctx1 = tvm.context(1)
