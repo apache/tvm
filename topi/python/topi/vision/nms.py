@@ -143,16 +143,21 @@ def hybrid_nms(data, sorted_index, valid_count,
 
     Returns
     -------
-    valid_count : tvm.Tensor or numpy NDArray
-        1-D tensor for valid number of boxes.
+    output : tvm.Tensor
+        3-D tensor with shape [batch_size, num_anchors, 6].
+
+    box_indices: tvm.Tensor
+        2-D tensor with shape [batch_size, num_anchors].
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
+    box_indices = output_tensor((batch_size, num_anchors), "int32")
     output = output_tensor((batch_size,
                             num_anchors,
                             box_data_length,),
                            data.dtype)
+
     for i in parallel(batch_size):
         if iou_threshold > 0:
             if valid_count[i] > 0:
@@ -163,10 +168,12 @@ def hybrid_nms(data, sorted_index, valid_count,
                 for j in range(nkeep):
                     for k in range(box_data_length):
                         output[i, j, k] = data[i, sorted_index[i, j], k]
+                    box_indices[i, j] = sorted_index[i, j]
                 if 0 < topk < valid_count[i]:
                     for j in range(valid_count[i] - nkeep):
                         for k in range(box_data_length):
                             output[i, j + nkeep, k] = -1.0
+                        box_indices[i, j + nkeep] = -1
             # Apply nms
             for j in range(valid_count[i]):
                 if output[i, j, 0] >= 0:
@@ -197,20 +204,23 @@ def hybrid_nms(data, sorted_index, valid_count,
                             iou = 0.0 if u <= 0.0 else area / u
                             if iou >= iou_threshold:
                                 output[i, k, 0] = -1.0
+                                box_indices[i, k] = -1
         else:
             for j in range(valid_count[i]):
                 for k in range(box_data_length):
                     output[i, j, k] = data[i, j, k]
+                box_indices[i, j] = j
         # Set invalid entry to be -1
         for j in range(num_anchors - valid_count[i]):
             for k in range(box_data_length):
                 output[i, j + valid_count[i], k] = -1.0
-    return output
+            box_indices[i, j + valid_count[i]] = -1
+    return output, box_indices
 
 
 @tvm.target.generic_func
-def nms(data, valid_count, iou_threshold=0.5, force_suppress=False,
-        topk=-1, id_index=0, do_rearrange=False):
+def nms(data, valid_count, return_indices, iou_threshold=0.5, force_suppress=False,
+        topk=-1, id_index=0, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -222,6 +232,9 @@ def nms(data, valid_count, iou_threshold=0.5, force_suppress=False,
 
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
+
+    return_indices : boolean
+        Whether to return box indices in input data.
 
     iou_threshold : optional, float
         Non-maximum suppression threshold.
@@ -235,7 +248,7 @@ def nms(data, valid_count, iou_threshold=0.5, force_suppress=False,
     id_index : optional, int
         index of the class categories, -1 to disable.
 
-    do_rearrange : optional, boolean
+    invalid_to_bottom : optional, boolean
         Whether to move all valid bounding boxes to the top.
 
     Returns
@@ -288,12 +301,12 @@ def nms(data, valid_count, iou_threshold=0.5, force_suppress=False,
                    in_buffers=[score_tensor_buf, valid_count_buf],
                    out_buffers=sort_tensor_buf,
                    name="nms_sort")
-    out = hybrid_nms(data, sort_tensor, valid_count,
-                     tvm.const(iou_threshold, dtype="float32"),
-                     tvm.const(force_suppress, dtype="bool"),
-                     tvm.const(topk, dtype="int32"),
-                     tvm.const(id_index, dtype="int32"))
-    if do_rearrange:
+    out, box_indices = hybrid_nms(data, sort_tensor, valid_count,
+                                  tvm.const(iou_threshold, dtype="float32"),
+                                  tvm.const(force_suppress, dtype="bool"),
+                                  tvm.const(topk, dtype="int32"),
+                                  tvm.const(id_index, dtype="int32"))
+    if not return_indices and invalid_to_bottom:
         out = hybrid_rearrange_out(out)
 
-    return out
+    return box_indices if return_indices else out

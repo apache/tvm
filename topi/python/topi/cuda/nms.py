@@ -182,8 +182,8 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
 
 
 @nms.register(["cuda", "gpu"])
-def nms_gpu(data, valid_count, iou_threshold=0.5, force_suppress=False,
-            topk=-1, id_index=0, do_rearrange=False):
+def nms_gpu(data, valid_count, return_indices, iou_threshold=0.5, force_suppress=False,
+            topk=-1, id_index=0, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -195,6 +195,9 @@ def nms_gpu(data, valid_count, iou_threshold=0.5, force_suppress=False,
 
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
+
+    return_indices : boolean
+        Whether to return box indices in input data.
 
     iou_threshold : optional, float
         Non-maximum suppression threshold.
@@ -208,7 +211,7 @@ def nms_gpu(data, valid_count, iou_threshold=0.5, force_suppress=False,
     id_index : optional, int
         index of the class categories, -1 to disable.
 
-    do_rearrange : optional, boolean
+    invalid_to_bottom : optional, boolean
         Whether to move all valid bounding boxes to the top.
 
     Returns

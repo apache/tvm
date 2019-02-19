@@ -63,6 +63,7 @@ def test_get_valid_counts():
 
 def test_nms():
     dshape = (1, 5, 6)
+    indices_dshape = (1, 5)
     data = tvm.placeholder(dshape, name="data")
     valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
     nms_threshold = 0.7
@@ -76,6 +77,7 @@ def test_nms():
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
+    np_indices_result = np.array([[3, 0, -1, -1, -1]])
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -85,17 +87,26 @@ def test_nms():
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             if device == 'llvm':
-                out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+                out = nms(data, valid_count, False, nms_threshold, force_suppress, nms_topk)
+                indices_out = nms(data, valid_count, True, nms_threshold, force_suppress, nms_topk)
             else:
-                out = topi.cuda.nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+                out = topi.cuda.nms(data, valid_count, False, nms_threshold, force_suppress, nms_topk)
+                indices_out = topi.cuda.nms(data, valid_count, True, nms_threshold, force_suppress, nms_topk)
             s = topi.generic.schedule_nms(out)
+            indices_s = topi.generic.schedule_nms(indices_out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
+
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
         f = tvm.build(s, [data, valid_count, out], device)
         f(tvm_data, tvm_valid_count, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
+
+        tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx)
+        f = tvm.build(indices_s, [data, valid_count, indices_out], device)
+        f(tvm_data, tvm_valid_count, tvm_indices_out)
+        tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
     for device in ['llvm']:
         check_device(device)
