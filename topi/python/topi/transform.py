@@ -296,12 +296,12 @@ def arange(stop, start=None, step=1, dtype="float32"):
 
     Parameters
     ----------
-    stop : tvm.Expr
-        Stop of interval. The interval does not include this value.
-
     start : tvm.Expr, optional
         Start of interval. The interval includes this value. The default start
         value is 0.
+
+    stop : tvm.Expr
+        Stop of interval. The interval does not include this value.
 
     step : tvm.Expr, optional
         Spacing between values. The default step size is 1.
