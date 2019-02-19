@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file autodiff.h
- * \brief Automatic differentiation of IR Expr.
+ * \brief Automatic differentiation of tensor expressions.
  */
 #ifndef TVM_AUTODIFF_H_
 #define TVM_AUTODIFF_H_
@@ -12,24 +12,7 @@
 namespace tvm {
 namespace ir {
 
-class DifferentiationResultNode;
-
-/*!
- * \brief A result of differentiation.
- */
-class DifferentiationResult : public NodeRef {
- public:
-  /*! \brief default constructor, used internally */
-  DifferentiationResult() {}
-  explicit DifferentiationResult(NodePtr<Node> n) : NodeRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const DifferentiationResultNode* operator->() const;
-  /*! \brief specify container node */
-  using ContainerType = DifferentiationResultNode;
-};
+class DifferentiationResult;
 
 /*! \brief Node to represent a differentiation result */
 class DifferentiationResultNode : public Node {
@@ -56,9 +39,24 @@ class DifferentiationResultNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(DifferentiationResultNode, Node);
 };
 
-inline const DifferentiationResultNode* DifferentiationResult::operator->() const {
-  return static_cast<const DifferentiationResultNode*>(node_.get());
-}
+/*!
+ * \brief A result of differentiation.
+ */
+class DifferentiationResult : public NodeRef {
+ public:
+  /*! \brief default constructor, used internally */
+  DifferentiationResult() {}
+  explicit DifferentiationResult(NodePtr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const DifferentiationResultNode* operator->() const {
+    return static_cast<const DifferentiationResultNode*>(node_.get());
+  }
+  /*! \brief specify container node */
+  using ContainerType = DifferentiationResultNode;
+};
 
 
 /*! \brief A type of a "local" differentiation function for reverse mode AD

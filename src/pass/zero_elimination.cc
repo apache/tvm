@@ -1298,7 +1298,8 @@ Expr ExtractAsTensorMaybe(const Expr& e, const Expr& cond,
     return e;
   }
 
-  Tensor tensor = op::TensorFromExpr(new_expr, IterVarsFromMap(res.axis, res.ranges));
+  Tensor tensor = op::TensorFromExpr(new_expr, IterVarsFromMap(res.axis, res.ranges),
+                                     "extracted_tensor");
 
   Array<Expr> args;
   for (const Var& var : res.axis) {
@@ -1473,7 +1474,7 @@ class ExtractReductionsMutator : public IRMutator {
  public:
   explicit ExtractReductionsMutator(const Array<Var>& outer_axis,
                                     Map<Var, Range> vranges,
-                                    std::string name = "extracted")
+                                    std::string name = "extracted_reduction")
     : outer_axis_(outer_axis), vranges_(std::move(vranges)), name_(std::move(name)) {}
 
   Expr Mutate_(const Reduce* op, const Expr& e) {

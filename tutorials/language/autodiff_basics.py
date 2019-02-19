@@ -72,6 +72,37 @@ dL_dT = res.adjoints[T]
 dL_dY = res.adjoints[Y]
 
 ######################################################################
+# Examples of generated gradients
+# -------------------------------
+#
+# Let's print out some generated code. We'll start with the simple matrix multiplication
+# we've already differentiated.
+
+T1 = tvm.compute((32, 10), lambda i, j: tvm.sum(X[i, k]*W[j, k], k), name='matmul')
+H1 = tvm.placeholder(T1.shape, name='H1')
+
+[dW] = tvm.differentiate(T1, [W], H1)
+print(tvm.PrintTensorRecursively(dW))
+
+######################################################################
+# (The only problem here is that an unnecessary intermediate tensor was extracted.)
+#
+# Now let's look at some problematic operations, like maxpool:
+
+X1 = tvm.placeholder((64, 32, 28, 28), name='X1')
+W1 = tvm.placeholder((64, 64, 3, 3), name='W1')
+Y1 = topi.nn.pool(X1, [2, 2], [2, 2], [0, 0, 0, 0], 'max')
+H1 = tvm.placeholder(Y1.shape, name='H1')
+
+[dX1] = tvm.differentiate(Y1, [X1], H1)
+print(tvm.PrintTensorRecursively(dX1))
+
+######################################################################
+# Here the elements of the adjoint `H1` are multiplied by the elements of a mask (computed with
+# the tensor called `extracted_tensor`). The mask represents whether an element is the maximum of
+# its neighborhood. This is not the optimal solution.
+
+######################################################################
 # Overriding the differentiation function
 # ---------------------------------------
 #

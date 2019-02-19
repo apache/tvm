@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file autodiff.cc
- * \brief Automatic differentiation of IR Expr
+ * \brief Automatic differentiation of tensor expressions
  */
 #include <tvm/autodiff.h>
 
