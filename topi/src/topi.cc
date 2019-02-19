@@ -17,7 +17,6 @@
 #include <topi/reduction.h>
 #include <topi/transform.h>
 
-#include <topi/nn/batch_norm.h>
 #include <topi/nn/bnn.h>
 #include <topi/nn/dense.h>
 #include <topi/nn/dilate.h>
@@ -326,18 +325,6 @@ TVM_REGISTER_GLOBAL("topi.strided_slice")
 TVM_REGISTER_GLOBAL("topi.nn.upsampling")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = nn::upsampling(args[0], args[1], args[2], args[3]);
-  });
-
-/* Ops from nn/batch_norm.h */
-TVM_REGISTER_GLOBAL("topi.nn.batch_norm_inference")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::batch_norm_inference(args[0],
-                                 args[1],
-                                 args[2],
-                                 args[3],
-                                 args[4],
-                                 static_cast<double>(args[5]),
-                                 args[6]);
   });
 
 /* Ops from nn/bnn.h */
