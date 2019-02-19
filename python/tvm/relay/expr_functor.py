@@ -143,9 +143,9 @@ class ExprMutator(ExprFunctor):
 
     def visit_if(self, ite):
         return If(
-            self.visit(ite.guard),
-            self.visit(ite.true_b),
-            self.visit(ite.false_b))
+            self.visit(ite.cond),
+            self.visit(ite.true_branch),
+            self.visit(ite.false_branch))
 
     def visit_tuple(self, tup):
         return Tuple([self.visit(field) for field in tup.fields])

@@ -94,4 +94,4 @@ def cast(src, dtype):
     op : tvm.Expr
         The result Expr of divide operaton.
     """
-    return _make.static_cast(dtype, src)
+    return _make._cast(dtype, src)
