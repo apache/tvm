@@ -97,7 +97,7 @@ class PassNode : public RelayNode {
   /*!
    * \brief The passes that are required by this pass.
    * TODO(zhiics) required_passes are used to identify the dependency of
-   * different passes. We will use it build the pass dependency graph in the
+   * different passes. We will use it to build the pass dependency graph in the
    * followup PRs.
    */
   tvm::Array<tvm::Expr> required_passes;

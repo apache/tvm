@@ -19,7 +19,7 @@ def get_var_func():
     return gv, func
 
 
-def extrac_var_func(mod, name):
+def extract_var_func(mod, name):
     var = mod.get_global_var(name)
     func = mod[var]
     return var, func
@@ -280,23 +280,23 @@ def test_pass_optimize():
         passes = [module_pass]
         ret_mod = optimizer.optimize(passes, mod)
         # Check the subtract function.
-        sub_var, new_sub = extrac_var_func(ret_mod, v_sub.name_hint)
+        sub_var, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, sub)
 
         # Check the abs function is added.
         abs_var, abs_func = get_var_func()
-        abs_var, new_abs = extrac_var_func(ret_mod, abs_var.name_hint)
+        abs_var, new_abs = extract_var_func(ret_mod, abs_var.name_hint)
         check_func(new_abs, abs_func)
 
     def test_only_function_pass():
         # Check the subtract function.
         passes = [function_pass]
         ret_mod = optimizer.optimize(passes, mod)
-        _, new_sub = extrac_var_func(ret_mod, v_sub.name_hint)
+        _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
 
         # Check the log function.
-        log_var, new_log = extrac_var_func(ret_mod, v_log.name_hint)
+        log_var, new_log = extract_var_func(ret_mod, v_log.name_hint)
         check_func(new_log, get_ref_log())
 
     def test_multiple_passes():
@@ -308,15 +308,15 @@ def test_pass_optimize():
 
         # Check the abs function is added.
         abs_var, abs_func = get_var_func()
-        abs_var, new_abs = extrac_var_func(ret_mod, abs_var.name_hint)
+        abs_var, new_abs = extract_var_func(ret_mod, abs_var.name_hint)
         check_func(new_abs, get_ref_abs())
 
         # Check the subtract function is modified correctly.
-        _, new_sub = extrac_var_func(ret_mod, v_sub.name_hint)
+        _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
 
         # Check the log function is modified correctly.
-        _, new_log = extrac_var_func(ret_mod, v_log.name_hint)
+        _, new_log = extract_var_func(ret_mod, v_log.name_hint)
         check_func(new_log, get_ref_log())
 
         # Execute the updated subtract function.
