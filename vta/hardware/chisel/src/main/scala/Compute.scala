@@ -345,7 +345,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
     }
   }
 
-  // write to out_mem interface
+  // write to out_mem_fifo
   val alu_opcode_minmax_en = alu_opcode_min_en || alu_opcode_max_en
   val alu_opcode_add_en = (alu_opcode === alu_opcode_add.U)
   val out_mem_address = Reg(UInt(32.W))
@@ -358,12 +358,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   out_mem_fifo.io.enq.valid := out_mem_write && (out_cntr_val >= 2.U) && (out_cntr_val <= (out_cntr_max - 1.U))
   out_mem_fifo.io.enq.bits := Cat(RegNext(dst_idx), out_mem_enq_bits)
 
-  // val out_mem_fifo_deq_valid = out_mem_fifo.io.deq.valid
-  // when (out_mem_fifo_deq_valid && !out_cntr_wait) {
-  //   out_mem_address := out_mem_fifo.io.deq.bits(128 + 31 , 128) // dst_idx
-  //   out_mem_writedata := out_mem_fifo.io.deq.bits(127, 0) // dst_idx
-  //   out_mem_fifo.io.deq.ready := true.B
-  // } .otherwise { out_mem_fifo.io.deq.ready := false.B }
+  // write to out_mem interface
   io.out_mem.address := out_mem_fifo.io.deq.bits(128 + 31 , 128) << 4.U
   io.out_mem.write := out_mem_fifo.io.deq.valid
   out_mem_fifo.io.deq.ready := !io.out_mem.waitrequest

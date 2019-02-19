@@ -38,7 +38,7 @@ module vta_adaptor (
 ,input        [31:0]  uops_address
 ,output wire          uops_waitrequest
 ,input                uops_read
-,output       [31:0]  uops_readdata
+,output      [127:0]  uops_readdata
 // biases_cfg slave 
 ,input                biases_cfg_address
 ,output  reg          biases_cfg_waitrequest
@@ -149,7 +149,7 @@ assign fetch_insns_data[31:0] = fetch_insns_avs_writedata[31:0];
 assign uop_master_address[31:0] = uops_address[31:0] + uops_base_address[31:0];
 assign uops_waitrequest = uop_master_waitrequest;
 assign uop_master_read = uops_read;
-assign uops_readdata[31:0] = uop_master_readdata[31:0];
+assign uops_readdata[127:0] = uop_master_readdata[127:0];
 
 assign acc_master_address[31:0] = biases_address[31:0] + biases_base_address[31:0];
 assign biases_waitrequest = acc_master_waitrequest;
