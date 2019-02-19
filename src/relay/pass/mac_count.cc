@@ -73,11 +73,9 @@ class MacCounter : private ExprVisitor {
     std::string data_layout = conv_2d_attr->data_layout;
     int32_t C_ind = Layout(data_layout).Indexof('C');
     int32_t c_ind = Layout(data_layout).Indexof('c');
-    CHECK(C_ind != -1 || c_ind != -1)
+    CHECK(C_ind != -1)
         << "There is no input channel dimension.";
-    int64_t input_channel = 1;
-    if (C_ind != -1)
-      input_channel *= static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
+    int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
     if (c_ind != -1)
       input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImm>()->value);
     Array<IndexExpr> kernel_size = conv_2d_attr->kernel_size;
