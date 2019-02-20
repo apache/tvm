@@ -329,6 +329,8 @@ Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
 
+Expr StopFusion(Expr data);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_PASS_PATTERN_UTIL_H_

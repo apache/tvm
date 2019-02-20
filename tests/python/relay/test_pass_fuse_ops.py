@@ -220,9 +220,41 @@ def test_tuple_strided_slice():
     print(zz.astext())
 
 
+def test_stop_fusion():
+    def before(dshape):
+        x = relay.var("x", shape=dshape)
+        y = relay.add(x, relay.const(1, "float32"))
+        y = relay.annotation.stop_fusion(y)
+        z = relay.exp(y)
+        return relay.Function([x], z)
+
+    def expected(dshape):
+        x = relay.var("p0", shape=dshape)
+        y = relay.add(x, relay.const(1, "float32"))
+        f1 = relay.Function([x], y)
+
+        x = relay.var("p01", shape=dshape)
+        y = relay.exp(x)
+        f2 = relay.Function([x], y)
+
+        x = relay.var("x", shape=dshape)
+        y = relay.Call(f1, [x])
+        z = relay.Call(f2, [y])
+        return relay.Function([x], z)
+
+    dshape = (10, 20)
+    z = before(dshape)
+    z = relay.ir_pass.infer_type(z)
+    z = relay.ir_pass.fuse_ops(z)
+    z = relay.ir_pass.infer_type(z)
+    after = relay.ir_pass.infer_type(expected(dshape))
+    assert relay.ir_pass.alpha_equal(z, after)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
     test_concatenate()
     test_tuple_root()
     test_tuple_strided_slice()
+    test_stop_fusion()
