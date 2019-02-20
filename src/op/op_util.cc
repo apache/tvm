@@ -245,5 +245,48 @@ ir::ForType IterVarTypeToForType(IterVarType iter_type) {
   }
 }
 
+Tensor TensorFromExpr(const Expr& expr, const Array<IterVar>& axis,
+                      const std::string& name, const std::string& tag,
+                      const Map<std::string, NodeRef>& attrs) {
+  Array<Expr> new_bodies;
+  int new_value_index = 0;
+
+  // If this is a reduction then we have to clone its body
+  if (const Reduce* red = expr.as<Reduce>()) {
+    new_value_index = red->value_index;
+
+    for (size_t i = 0; i < red->source.size(); ++i) {
+      Expr ith_red = Reduce::make(red->combiner, red->source, red->axis, red->condition, i);
+      new_bodies.push_back(ith_red);
+    }
+  } else {
+    new_value_index = 0;
+    new_bodies.push_back(expr);
+  }
+
+  return ComputeOpNode::make(name, tag, attrs, axis, new_bodies).output(new_value_index);
+}
+
+Tensor TransformBody(const Tensor& tensor,
+                     std::function<Expr(const Expr&, const Array<IterVar>&)> func) {
+  if (const ComputeOpNode* op = tensor->op.as<ComputeOpNode>()) {
+    // Transform only one body
+    Expr new_body = func(op->body[tensor->value_index], op->axis);
+
+    // If the body didn't change then we can return the same tensor
+    if (new_body.same_as(op->body[tensor->value_index])) {
+      return tensor;
+    }
+
+    return TensorFromExpr(new_body, op->axis, op->name, op->tag, op->attrs);
+  } else {
+    return tensor;
+  }
+}
+
+Tensor TransformBody(const Tensor& tensor, std::function<Expr(const Expr&)> func) {
+  return TransformBody(tensor, [func](const Expr& e, const Array<IterVar>&) { return func(e); });
+}
+
 }  // namespace op
 }  // namespace tvm

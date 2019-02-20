@@ -86,6 +86,16 @@ inline const uint64_t* as_const_uint(const Expr& x) {
 inline bool is_const_int(const Expr& x, int64_t value);
 
 /*!
+ * \brief Check if the given expr is a const of any type equal to the given integer value.
+ * \param e The expression.
+ * \param value The value to compare to.
+ * \return Whether the expression is a const equal to the value.
+ * \tparam ValueType The value type
+ */
+template <typename ValueType>
+inline bool is_const_value(const Expr& e, ValueType value);
+
+/*!
  * \brief Check whether stmt is nop.
  * \param stmt The input statement
  * \return whether stmt is nop
@@ -517,6 +527,26 @@ inline bool is_const_int(const Expr& x, int64_t value) {
     }
   }
   return false;
+}
+
+template <typename ValueType>
+inline bool is_const_value(const Expr& e, ValueType value) {
+  static_assert(std::is_integral<ValueType>::value,
+                "Comparison to non-integer values is forbidden.");
+  // This implementation was copy-pasted from HalideIR
+  if (const ir::IntImm* i = e.as<ir::IntImm>()) {
+    return i->value == value;
+  } else if (const ir::UIntImm* i = e.as<ir::UIntImm>()) {
+    return (value >= 0) && (i->value == (uint64_t)value);
+  } else if (const ir::FloatImm* i = e.as<ir::FloatImm>()) {
+    return i->value == value;
+  } else if (const ir::Cast* c = e.as<ir::Cast>()) {
+    return is_const_value(c->value, value);
+  } else if (const ir::Broadcast* b = e.as<ir::Broadcast>()) {
+    return is_const_value(b->value, value);
+  } else {
+    return false;
+  }
 }
 
 inline bool is_no_op(const Stmt& stmt) {
