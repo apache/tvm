@@ -252,20 +252,39 @@ def test_stop_fusion():
 
 
 def test_fuse_myia_regression():
-    x = relay.var('x', shape=(), dtype='int64')
-    y = relay.var('y', shape=(), dtype='int64')
-    sb = relay.ScopeBuilder()
-    with sb.if_scope(relay.op.greater(x, y)):
-        sb.ret(relay.Function([], x))
-    with sb.else_scope():
-        sb.ret(relay.Function([], y))
-    f = relay.Function([x, y],
-        relay.Call(sb.get(), []))
+    def before(dshape, dtype):
+        x = relay.var('x', shape=dshape, dtype=dtype)
+        y = relay.var('y', shape=dshape, dtype=dtype)
+        sb = relay.ScopeBuilder()
+        with sb.if_scope(relay.op.greater(x, y)):
+            sb.ret(relay.Function([], x))
+        with sb.else_scope():
+            sb.ret(relay.Function([], y))
+        return relay.Function([x, y],
+            relay.Call(sb.get(), []))
+
+    def expected(dshape, dtype):
+        x = relay.var('x', shape=dshape, dtype=dtype)
+        y = relay.var('y', shape=dshape, dtype=dtype)
+        sb = relay.ScopeBuilder()
+        p1 = relay.var('p1', shape=dshape, dtype=dtype)
+        p2 = relay.var('p2', shape=dshape, dtype=dtype)
+        fused_gt = relay.Function([p1, p2],
+            relay.op.greater(p1, p2))
+        with sb.if_scope(fused_gt(x, y)):
+            sb.ret(relay.Function([], x))
+        with sb.else_scope():
+            sb.ret(relay.Function([], y))
+        return relay.Function([x, y],
+            relay.Call(sb.get(), []))
+
+    dshape = ()
+    dtype = 'int64'
+    f = before(dshape, dtype)
     f = relay.ir_pass.infer_type(f)
-    print(f)
     f = relay.ir_pass.fuse_ops(f)
-    print(f)
-    import pdb; pdb.set_trace()
+    after = relay.ir_pass.infer_type(expected(dshape, dtype))
+    assert relay.ir_pass.alpha_equal(f, after)
 
 
 if __name__ == "__main__":
