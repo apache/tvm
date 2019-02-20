@@ -251,6 +251,23 @@ def test_stop_fusion():
     assert relay.ir_pass.alpha_equal(z, after)
 
 
+def test_fuse_myia_regression():
+    x = relay.var('x', shape=(), dtype='int64')
+    y = relay.var('y', shape=(), dtype='int64')
+    sb = relay.ScopeBuilder()
+    with sb.if_scope(relay.op.greater(x, y)):
+        sb.ret(relay.Function([], x))
+    with sb.else_scope():
+        sb.ret(relay.Function([], y))
+    f = relay.Function([x, y],
+        relay.Call(sb.get(), []))
+    f = relay.ir_pass.infer_type(f)
+    print(f)
+    f = relay.ir_pass.fuse_ops(f)
+    print(f)
+    import pdb; pdb.set_trace()
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -258,3 +275,4 @@ if __name__ == "__main__":
     test_tuple_root()
     test_tuple_strided_slice()
     test_stop_fusion()
+    test_fuse_myia_regression()
