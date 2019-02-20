@@ -11,6 +11,7 @@ from ._ffi.ndarray import TVMContext, TVMType, NDArrayBase
 from ._ffi.ndarray import context, empty, from_dlpack
 from ._ffi.ndarray import _set_class_ndarray
 from ._ffi.ndarray import register_extension, free_extension_handle
+from ._ffi.ndarray import register_ndarray
 
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.

@@ -193,13 +193,13 @@ class NDArray {
 template<typename T>
 struct array_type_index {
   /*! \brief the value of the traits */
-  static constexpr int32_t code = -1;
+  static const int code = -1;
 };
 
 // Overrides the type trait for tvm's NDArray.
 template<>
 struct array_type_index<NDArray> {
-  static constexpr int32_t code = 0;
+  static const int code = 0;
 };
 
 /*!

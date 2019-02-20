@@ -78,7 +78,7 @@ cdef c_make_array(void* chandle, is_view, is_container):
     cdef int32_t array_type_index
     fcreate = _CLASS_NDARRAY
     if is_container and len(_TVM_ND_CLS) > 0:
-        array_type_index = <TVMNDArrayContainerHandle>chandle.array_type_index
+        array_type_index = (<TVMNDArrayContainerHandle>chandle).array_type_index
         if array_type_index > 0:
             fcreate = _TVM_ND_CLS[array_type_index]
     ret = fcreate(None, is_view)

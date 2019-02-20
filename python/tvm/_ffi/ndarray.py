@@ -382,5 +382,5 @@ def register_ndarray(cls, fcreate):
     # TODO(@junrushao1994): revise it
     """
     assert fcreate is not None
-    _reg_extension(cls, fcreate)
+    _reg_ndarray(cls, fcreate)
     return cls

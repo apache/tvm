@@ -44,13 +44,28 @@ class IntVec(object):
 tvm.register_extension(IntVec, IntVec)
 
 
-class NDSubClass(tvm.nd.NDArray):
+nd_create = tvm.get_global_func("tvm_ext.nd_create")
+nd_add_two = tvm.get_global_func("tvm_ext.nd_add_two")
+nd_get_tracing = tvm.get_global_func("tvm_ext.nd_get_tracing")
+
+class NDSubClass(tvm.nd.NDArrayBase):
+    """Example for subclassing TVM's NDArray infrastructure.
+
+    By inheriting TMV's NDArray, external libraries could
+    leverage TVM's FFI without any modification.
+    """
     # Should be consistent with the type-trait set in the backend
     _array_type_index = 1
 
-    def __init__(self, handle):
-        self.handle = handle
+    @staticmethod
+    def create(is_tracing):
+        return nd_create(is_tracing)
 
     @property
-    def _tvm_handle(self):
-        return self.handle.value
+    def is_tracing(self):
+        return bool(nd_get_tracing(self))
+
+    def __add__(self, other):
+        return nd_add_two(self, other)
+
+tvm.register_ndarray(NDSubClass, NDSubClass)
