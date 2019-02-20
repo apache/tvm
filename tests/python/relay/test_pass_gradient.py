@@ -15,10 +15,10 @@ def test_id():
     x = relay.var("x", t)
     func = relay.Function([x], x)
     back_func = relay.ir_pass.infer_type(gradient(func))
-    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, t]))
     ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, grad = ex.evaluate(back_func)(x)
     np.testing.assert_allclose(forward.asnumpy(), x.asnumpy())
     np.testing.assert_allclose(grad.asnumpy(), np.ones_like(x.asnumpy()))
 
@@ -30,10 +30,10 @@ def test_add():
     x = relay.var("x", t)
     func = relay.Function([x], x + x)
     back_func = relay.ir_pass.infer_type(gradient(func))
-    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, t]))
     ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, grad = ex.evaluate(back_func)(x)
     np.testing.assert_allclose(forward.asnumpy(), 2 * x.asnumpy())
     np.testing.assert_allclose(grad.asnumpy(), 2 * np.ones_like(x.asnumpy()))
 
@@ -46,10 +46,10 @@ def test_temp_add():
     y = x + x
     func = relay.Function([x], y + y)
     back_func = relay.ir_pass.infer_type(gradient(func))
-    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, t]))
     ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, grad = ex.evaluate(back_func)(x)
     np.testing.assert_allclose(forward.asnumpy(), 4 * x.asnumpy())
     np.testing.assert_allclose(grad.asnumpy(), 4 * np.ones_like(x.asnumpy()))
 
@@ -61,10 +61,10 @@ def test_sub():
     x = relay.var("x", t)
     func = relay.Function([x], x - x)
     back_func = relay.ir_pass.infer_type(gradient(func))
-    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, t]))
     ex = create_executor()
     x = rand(dtype, *shape)
-    forward, (grad,) = ex.evaluate(back_func)(x)
+    forward, grad = ex.evaluate(back_func)(x)
     np.testing.assert_allclose(forward.asnumpy(), np.zeros_like(x.asnumpy()))
     np.testing.assert_allclose(grad.asnumpy(), np.zeros_like(x.asnumpy()))
 
@@ -86,9 +86,9 @@ def test_broadcast_add():
     full_func = relay.ir_pass.infer_type(gradient(func))
     assert full_func.checked_type == relay.FuncType([t1, t2],
                                                     relay.TupleType([relay.TensorType(expected_forward.shape, dtype),
-                                                                     relay.TupleType([t1, t2])]))
+                                                                     t1, t2]))
     ex = create_executor()
-    forward, (grad_x, grad_y) = ex.evaluate(full_func)(x_nd, y_nd)
+    forward, grad_x, grad_y = ex.evaluate(full_func)(x_nd, y_nd)
     np.testing.assert_allclose(forward.asnumpy(), expected_forward)
     np.testing.assert_allclose(grad_x.asnumpy(),
                                np.ones_like(expected_forward).sum(axis=2, keepdims=True))
@@ -113,9 +113,9 @@ def test_broadcast_subtract():
     full_func = relay.ir_pass.infer_type(gradient(func))
     assert full_func.checked_type == relay.FuncType([t1, t2],
                                                     relay.TupleType([relay.TensorType(expected_forward.shape, dtype),
-                                                                     relay.TupleType([t1, t2])]))
+                                                                     t1, t2]))
     ex = create_executor()
-    forward, (grad_x, grad_y) = ex.evaluate(full_func)(x_nd, y_nd)
+    forward, grad_x, grad_y = ex.evaluate(full_func)(x_nd, y_nd)
     np.testing.assert_allclose(forward.asnumpy(), expected_forward)
     np.testing.assert_allclose(grad_x.asnumpy(),
                                np.ones_like(expected_forward).sum(axis=2, keepdims=True))

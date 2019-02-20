@@ -85,10 +85,10 @@ using ADValue = std::shared_ptr<ADValueNode>;
 
 /*! \brief AD over a program which generates a tensor output. */
 struct ADTensor : ADValueNode {
-  Expr foward;
+  Expr forward;
   mutable Expr reverse;  // must be a variable to avoid duplication
-  ADTensor(LetList* ll, const Expr& foward) :
-    foward(ll->Push(foward)), reverse(ll->Push(ZeroLike(this->foward))) { }
+  ADTensor(LetList* ll, const Expr& forward) :
+    forward(ll->Push(forward)), reverse(ll->Push(ZeroLike(this->forward))) { }
 };
 
 /*! \brief A staged representation of the program, we reflect
@@ -123,7 +123,7 @@ struct ReverseAD : ExprFunctor<ADValue(const Expr &)> {
                                                        const tvm::Array<Type>& type_args) {
         std::vector<Expr> call_args;
         for (const ADValue& adval : args) {
-          call_args.push_back(adval->get<ADTensor>().foward);
+          call_args.push_back(adval->get<ADTensor>().forward);
         }
         auto orig = CallNode::make(op_ref, call_args, attrs, type_args);
         auto ret = std::make_shared<ADTensor>(ll, orig);
@@ -191,25 +191,25 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
     auto c = rev->get<ADFunction>().func(args, Attrs(), {});
     const auto& res = c->get<ADTensor>();
     Expr grad = LetList::With([&](LetList* ll) {
-        res.reverse = OneLike(res.foward);
+        res.reverse = OneLike(res.forward);
         for (auto it = reverse_ad.backprop_actions.rbegin();
              it != reverse_ad.backprop_actions.rend();
              ++it) {
           (*it)(ll);
         }
-        std::vector<Expr> grad_res;
+        std::vector<Expr> grad_res{res.forward};
         for (const auto& a : args) {
           grad_res.push_back(a->get<ADTensor>().reverse);
         }
         return TupleNode::make(grad_res);
       });
-    return Pair(res.foward, grad);
+    return grad;
   });
 
   // if type annotations are provided, we will construct a ret type;
   // otherwise, leave it to be inferred
   Type ret_type = Type();
-  std::vector<Type> vt;
+  std::vector<Type> vt{f->ret_type};
   bool missing = !f->ret_type.defined();
   for (const auto& p : f->params) {
     if (missing || !p->type_annotation.defined()) {
@@ -220,7 +220,7 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   }
 
   if (!missing) {
-    ret_type = TupleTypeNode::make({f->ret_type, TupleTypeNode::make(vt)});
+    ret_type = TupleTypeNode::make(vt);
   }
 
   return FunctionNode::make(f->params, body, ret_type, {});
