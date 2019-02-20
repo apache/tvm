@@ -36,7 +36,7 @@ impl Default for SystemLibModule {
 // @see `WrapPackedFunc` in `llvm_module.cc`.
 pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
     box move |args: &[TVMArgValue]| {
-        func(
+        let exit_code = func(
             args.iter()
                 .map(|ref arg| arg.value)
                 .collect::<Vec<TVMValue>>()
@@ -47,7 +47,11 @@ pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
                 .as_ptr() as *const i32,
             args.len() as i32,
         );
-        TVMRetValue::default()
+        if exit_code == 0 {
+            Ok(TVMRetValue::default())
+        } else {
+            Err(tvm_common::ffi::get_last_error().into())
+        }
     }
 }
 
