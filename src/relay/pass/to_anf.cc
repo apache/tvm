@@ -120,6 +120,22 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
     Depend(n, t->tuple);
   }
 
+  void VisitExpr_(const RefCreateNode* r) final {
+    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(r)];
+    Depend(n, r->value);
+  }
+
+  void VisitExpr_(const RefReadNode* r) final {
+    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(r)];
+    Depend(n, r->ref);
+  }
+
+  void VisitExpr_(const RefWriteNode* r) final {
+    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(r)];
+    Depend(n, r->ref);
+    Depend(n, r->value);
+  }
+
   void VisitExpr_(const IfNode* i) final {
     DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(i)];
     DependencyGraph::Node* t = NewNode(true);
@@ -303,6 +319,21 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {
     Expr e = GetRef<Expr>(t);
     return Compound(e, TupleGetItemNode::make(VisitExpr(t->tuple), t->index), v);
+  }
+
+  Expr VisitExpr_(const RefCreateNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefCreateNode::make(VisitExpr(r->value)), v);
+  }
+
+  Expr VisitExpr_(const RefReadNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefReadNode::make(VisitExpr(r->ref)), v);
+  }
+
+  Expr VisitExpr_(const RefWriteNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefWriteNode::make(VisitExpr(r->ref), VisitExpr(r->value)), v);
   }
 
   Expr VisitExpr_(const IfNode* i, const Var& v) final {
