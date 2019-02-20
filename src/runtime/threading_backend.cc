@@ -9,6 +9,7 @@
 #include <algorithm>
 #if defined(__linux__) || defined(__ANDROID__)
 #include <fstream>
+#include <sstream>
 #else
 #endif
 #if defined(__linux__)
