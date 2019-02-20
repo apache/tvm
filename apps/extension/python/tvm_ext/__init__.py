@@ -68,4 +68,4 @@ class NDSubClass(tvm.nd.NDArrayBase):
     def __add__(self, other):
         return nd_add_two(self, other)
 
-tvm.register_ndarray(NDSubClass, NDSubClass)
+tvm.register_extension(NDSubClass, NDSubClass)
