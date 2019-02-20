@@ -1,10 +1,7 @@
 use std::{
     any::TypeId,
-    convert::TryFrom,
     mem,
-    ops::{Deref, DerefMut},
     os::raw::{c_int, c_void},
-    ptr, slice,
 };
 
 use crate::ffi::{

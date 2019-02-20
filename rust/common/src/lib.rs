@@ -1,9 +1,6 @@
 //! This crate contains the refactored basic components required
 //! for `runtime` and `frontend` TVM crates.
 
-#![crate_name = "tvm_common"]
-#![recursion_limit = "1024"]
-#![allow(non_camel_case_types, unused_imports)]
 #![feature(box_syntax, try_from)]
 
 #[macro_use]
