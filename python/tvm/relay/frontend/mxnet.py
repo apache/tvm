@@ -278,6 +278,7 @@ def _mx_roi_align(inputs, attrs):
 
 
 def _mx_arange(inputs, attrs):
+    assert len(inputs) == 0
     if attrs.get_int("repeat", 1) != 1:
         raise RuntimeError("arange doesn't support repeat")
     start = attrs.get_float("start", 0)
