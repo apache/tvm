@@ -112,7 +112,7 @@ tuning_option = {
         #runner=autotvm.LocalRunner(number=20, repeat=3, timeout=4, min_repeat_ms=150),
         runner=autotvm.RPCRunner(
             '1080ti',  # change the device key to your key
-            'localhost', 9190,
+            '0.0.0.0', 9190,
             number=20, repeat=3, timeout=4, min_repeat_ms=150)
     ),
 }
@@ -327,13 +327,13 @@ def tune_and_evaluate(tuning_opt):
 #
 # .. code-block:: bash
 #
-#     python -m tvm.exec.rpc_server --tracker=localhost:9190 --key=1080ti
+#     python -m tvm.exec.rpc_server --tracker=0.0.0.0:9190 --key=1080ti
 #
 # After registering devices, we can confirm it by querying rpc_tracker
 #
 # .. code-block:: bash
 #
-#   python -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
+#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
 # For example, if we have four 1080ti, two titanx and one gfx900, the output can be
 #
@@ -362,7 +362,7 @@ tuning_option = {
         builder=autotvm.LocalBuilder(timeout=10),
         runner=autotvm.RPCRunner(
             '1080ti',  # change the device key to your key
-            'localhost', 9190,
+            '0.0.0.0', 9190,
             number=20, repeat=3, timeout=4, min_repeat_ms=150),
     ),
 }
