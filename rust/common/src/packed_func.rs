@@ -1,7 +1,7 @@
-use std::{any::Any, convert::TryFrom, marker::PhantomData, os::raw::c_void, str::FromStr};
+use std::{any::Any, convert::TryFrom, marker::PhantomData, os::raw::c_void};
 
 pub use crate::ffi::TVMValue;
-use crate::{errors::*, ffi::*, value::*};
+use crate::{errors::*, ffi::*};
 
 pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> Result<TVMRetValue>>;
 
