@@ -2,6 +2,7 @@
 """The expression functor of Relay."""
 
 from .expr import Function, Call, Let, Var, GlobalVar, If, Tuple, TupleGetItem, Constant
+from .expr import RefCreate, RefRead, RefWrite
 from .adt import Constructor, Match, Clause
 from .op import Op
 
