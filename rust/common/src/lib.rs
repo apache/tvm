@@ -19,6 +19,13 @@ pub mod ffi {
 
     pub type BackendPackedCFunc =
         extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
+
+    pub fn get_last_error() -> String {
+        unsafe { std::ffi::CStr::from_ptr(TVMGetLastError()) }
+            .to_str()
+            .expect("double fault")
+            .to_owned()
+    }
 }
 
 pub mod array;

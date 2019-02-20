@@ -3,7 +3,7 @@ use std::{any::Any, convert::TryFrom, marker::PhantomData, os::raw::c_void, str:
 pub use crate::ffi::TVMValue;
 use crate::{errors::*, ffi::*, value::*};
 
-pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> TVMRetValue + Send + Sync>;
+pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> Result<TVMRetValue>>;
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
