@@ -3,7 +3,7 @@ Compile Keras Models
 =====================
 **Author**: `Yuwei Hu <https://Huyuwei.github.io/>`_
 
-This article is an introductory tutorial to deploy keras models with NNVM.
+This article is an introductory tutorial to deploy keras models with Relay.
 
 For us to begin with, keras should be installed.
 Tensorflow is also required since it's used as the default backend of keras.
@@ -18,8 +18,8 @@ A quick solution is to install via pip
 or please refer to official site
 https://keras.io/#installation
 """
-import nnvm
 import tvm
+import tvm.relay as relay
 import keras
 import numpy as np
 
@@ -66,32 +66,22 @@ data = preprocess_input(data).transpose([0, 3, 1, 2])
 print('input_1', data.shape)
 
 ######################################################################
-# Compile the model on NNVM
-# --------------------------
-# We should be familiar with the process now.
-
-# convert the keras model(NHWC layout) to NNVM format(NCHW layout).
-sym, params = nnvm.frontend.from_keras(keras_resnet50)
+# Compile the model with Relay
+# ----------------------------
+# convert the keras model(NHWC layout) to Relay format(NCHW layout).
+shape_dict = {'input_1': data.shape}
+func, params = relay.frontend.from_keras(keras_resnet50, shape_dict)
 # compile the model
 target = 'cuda'
-shape_dict = {'input_1': data.shape}
-with nnvm.compiler.build_config(opt_level=3):
-    graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
+ctx = tvm.gpu(0)
+with relay.build_config(opt_level=3):
+    executor = relay.build_module.create_executor('graph', func, ctx, target)
 
 ######################################################################
 # Execute on TVM
 # ---------------
-# The process is no different from other examples.
-from tvm.contrib import graph_runtime
-ctx = tvm.gpu(0)
-m = graph_runtime.create(graph, lib, ctx)
-# set inputs
-m.set_input('input_1', tvm.nd.array(data.astype('float32')))
-m.set_input(**params)
-# execute
-m.run()
-# get outputs
-tvm_out = m.get_output(0)
+dtype = 'float32'
+tvm_out = executor.evaluate(func)(tvm.nd.array(data.astype(dtype)), **params)
 top1_tvm = np.argmax(tvm_out.asnumpy()[0])
 
 #####################################################################
@@ -106,7 +96,7 @@ synset_name = 'synset.txt'
 download(synset_url, synset_name)
 with open(synset_name) as f:
     synset = eval(f.read())
-print('NNVM top-1 id: {}, class name: {}'.format(top1_tvm, synset[top1_tvm]))
+print('Relay top-1 id: {}, class name: {}'.format(top1_tvm, synset[top1_tvm]))
 # confirm correctness with keras output
 keras_out = keras_resnet50.predict(data.transpose([0, 2, 3, 1]))
 top1_keras = np.argmax(keras_out)
