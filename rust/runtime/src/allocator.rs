@@ -3,7 +3,7 @@ use alloc::alloc::{self, Layout};
 #[cfg(not(target_env = "sgx"))]
 use std::alloc::{self, Layout};
 
-use crate::errors::*;
+use failure::Error;
 
 const DEFAULT_ALIGN_BYTES: usize = 4;
 
@@ -15,7 +15,7 @@ pub struct Allocation {
 
 impl Allocation {
     /// Allocates a chunk of memory of `size` bytes with optional alignment.
-    pub fn new(size: usize, align: Option<usize>) -> Result<Self> {
+    pub fn new(size: usize, align: Option<usize>) -> Result<Self, Error> {
         let alignment = align.unwrap_or(DEFAULT_ALIGN_BYTES);
         let layout = Layout::from_size_align(size, alignment)?;
         let ptr = unsafe { alloc::alloc(layout.clone()) };

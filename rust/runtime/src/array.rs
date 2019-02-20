@@ -1,5 +1,6 @@
 use std::{convert::TryFrom, mem, os::raw::c_void, ptr, slice};
 
+use failure::Error;
 use ndarray;
 use tvm_common::{
     array::{DataType, TVMContext},
@@ -9,7 +10,7 @@ use tvm_common::{
     },
 };
 
-use crate::{allocator::Allocation, errors::*};
+use crate::allocator::Allocation;
 
 /// A `Storage` is a container which holds `Tensor` data.
 #[derive(PartialEq)]
@@ -22,7 +23,7 @@ pub enum Storage<'a> {
 }
 
 impl<'a> Storage<'a> {
-    pub fn new(size: usize, align: Option<usize>) -> Result<Storage<'static>> {
+    pub fn new(size: usize, align: Option<usize>) -> Result<Storage<'static>, Error> {
         Ok(Storage::Owned(Allocation::new(size, align)?))
     }
 
@@ -258,7 +259,7 @@ macro_rules! impl_ndarray_try_from_tensor {
     ($type:ty, $dtype:expr) => {
         impl<'a, 't> TryFrom<&'a Tensor<'t>> for ndarray::ArrayD<$type> {
             type Error = Error;
-            fn try_from(tensor: &'a Tensor) -> Result<ndarray::ArrayD<$type>> {
+            fn try_from(tensor: &'a Tensor) -> Result<ndarray::ArrayD<$type>, Error> {
                 ensure!(
                     tensor.dtype == $dtype,
                     "Cannot convert Tensor with dtype {:?} to ndarray",

@@ -14,7 +14,7 @@ macro_rules! tvm_ocall {
     ($func: expr) => {
         match $func {
             0 => Ok(()),
-            err => Err(format!("SGX error: {}", err)),
+            err => Err(format_err!("SGX error: {}", err)),
         }
     };
 }
