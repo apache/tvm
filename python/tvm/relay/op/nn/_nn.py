@@ -313,13 +313,13 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, out_dtype, target):
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
+    data_layout = attrs.get_str("data_layout")
     out_layout = attrs.get_str("out_layout")
     out_dtype = attrs.get_str("out_dtype")
     out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
 
     out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding, dilation,
-                               out_layout, out_dtype)
-
+                               data_layout, out_layout, out_dtype)
     return [out]
 
 @reg.register_schedule("nn.contrib_conv2d_NCHWc")
