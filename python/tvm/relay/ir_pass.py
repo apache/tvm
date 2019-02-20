@@ -533,3 +533,19 @@ def gradient(expr, mod=None):
       The output expression.
     """
     return _ir_pass.first_order_gradient(expr, mod)
+
+def get_total_mac_number(expr):
+    """
+    Count the number of MACs (multiply-accumulate) of a model
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    ret : int64
+      The number of MACs (multiply-accumulate) of a model
+    """
+    return _ir_pass.GetTotalMacNumber(expr)
