@@ -39,11 +39,11 @@ def test_unary_op():
 
 
     for opfunc, ref in [(tvm.relay.log, np.log),
-                   (tvm.relay.exp, np.exp),
-                   (tvm.relay.sqrt, np.sqrt),
-                   (tvm.relay.sigmoid, sigmoid),
-                   (tvm.relay.tanh, np.tanh),
-                   (relay.nn.relu, relu)]:
+                        (tvm.relay.exp, np.exp),
+                        (tvm.relay.sqrt, np.sqrt),
+                        (tvm.relay.sigmoid, sigmoid),
+                        (tvm.relay.tanh, np.tanh),
+                        (relay.nn.relu, relu)]:
         check_single_op(opfunc, ref)
 
 
@@ -84,9 +84,9 @@ def test_binary_op():
                 np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
     for opfunc, ref in [(relay.add, np.add),
-                   (relay.subtract, np.subtract),
-                   (relay.multiply, np.multiply),
-                   (relay.divide, np.divide)]:
+                        (relay.subtract, np.subtract),
+                        (relay.multiply, np.multiply),
+                        (relay.divide, np.divide)]:
         check_binary_op(opfunc, ref)
 
 
