@@ -892,7 +892,7 @@ bool ArangeRel(const Array<Type>& types,
   IndexExpr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
       tvm::cast(tvm::Float(32), param->stop - param->start) / param->step));
   if (const tvm::ir::IntImm* val = num_elem.as<tvm::ir::IntImm>()) {
-    CHECK_GE(val->value, 0) << "Invalid arange inputs";
+    CHECK_GT(val->value, 0) << "Invalid arange inputs";
   }
   reporter->Assign(types[0], TensorTypeNode::make({num_elem}, param->dtype));
   return true;
