@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use failure::Error;
+
 use crate::ffi::*;
 
 impl TVMType {
@@ -15,7 +17,7 @@ impl TVMType {
 /// Implements TVMType conversion from `&str` of general format `{dtype}{bits}x{lanes}`
 /// such as "int32", "float32" or with lane "float32x1".
 impl FromStr for TVMType {
-    type Err = crate::errors::Error;
+    type Err = Error;
     fn from_str(type_str: &str) -> Result<Self, Self::Err> {
         if type_str == "bool" {
             return Ok(TVMType::new(1, 1, 1));
@@ -40,7 +42,7 @@ impl FromStr for TVMType {
             "uint" => 1,
             "float" => 2,
             "handle" => 3,
-            _ => return Err(format!("Unknown type {}", type_name).into()),
+            _ => return Err(format_err!("Unknown type {}", type_name)),
         };
 
         Ok(TVMType::new(type_code, bits, lanes))
@@ -99,12 +101,12 @@ macro_rules! impl_tvm_context {
     ( $( $dev_type:ident : [ $( $dev_name:ident ),+ ] ),+ ) => {
         /// Creates a TVMContext from a string (e.g., "cpu", "gpu", "ext_dev")
         impl FromStr for TVMContext {
-            type Err = crate::errors::Error;
+            type Err = Error;
             fn from_str(type_str: &str) -> Result<Self, Self::Err> {
                 Ok(Self {
                     device_type: match type_str {
                          $( $(  stringify!($dev_name)  )|+ => $dev_type ),+,
-                        _ => return Err(format!("device {} not supported", type_str).into()),
+                        _ => return Err(format_err!("device {} not supported", type_str).into()),
                     },
                     device_id: 0,
                 })

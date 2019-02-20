@@ -4,7 +4,7 @@
 #![feature(box_syntax, try_from)]
 
 #[macro_use]
-extern crate error_chain;
+extern crate failure;
 
 /// Unified ffi module for both runtime and frontend crates.
 pub mod ffi {
@@ -16,13 +16,6 @@ pub mod ffi {
 
     pub type BackendPackedCFunc =
         extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
-
-    pub fn get_last_error() -> String {
-        unsafe { std::ffi::CStr::from_ptr(TVMGetLastError()) }
-            .to_str()
-            .expect("double fault")
-            .to_owned()
-    }
 }
 
 pub mod array;
