@@ -208,11 +208,22 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     Node* node = graph_.node_map.at(call);
     static auto fpattern =
         Op::GetAttr<TOpPattern>("TOpPattern");
-    // setup pattern.
+    // Now we set the pattern of this call.
+    //
+    // If we see a call mentioning an operator we should mark it with its
+    // annotated pattern.
+    //
+    // If the pattern is not annotated we will default to opaque.
+    //
+    // Finally if the operator position is not a call node we will
+    // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
     if (const OpNode* opnode = call->op.as<OpNode>()) {
       op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
+    } else {
+      this->Update(call->op, node, kOpaque);
     }
+
     node->pattern = op_pattern;
     const auto* rtype = call->checked_type().as<TensorTypeNode>();
     // pass the message back to all the children it references.
@@ -741,10 +752,14 @@ class FuseMutator : private ExprMutator {
   }
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
+    static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
     if (call->op.as<OpNode>()) {
       // If it is a primitive op call
       // then we must have a group assignment for it already.
       CHECK(gmap_.count(call));
+      if (call->op.same_as(stop_fusion)) {
+        return ExprMutator::VisitExpr(call->args[0]);
+      }
       auto* ret_group = gmap_.at(call)->FindRoot();
       Array<Expr> new_args = GetNewArguments(call->args, ret_group);
 

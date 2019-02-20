@@ -68,8 +68,8 @@ def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         if sample_ratio > 0:
             roi_bin_grid_h = roi_bin_grid_w = tvm.const(sample_ratio, 'int32')
         else:
-            roi_bin_grid_h = tvm.ceil(roi_h / pooled_size).astype('int32')
-            roi_bin_grid_w = tvm.ceil(roi_w / pooled_size).astype('int32')
+            roi_bin_grid_h = tvm.ceil(roi_h / pooled_size_h).astype('int32')
+            roi_bin_grid_w = tvm.ceil(roi_w / pooled_size_w).astype('int32')
 
         count = roi_bin_grid_h * roi_bin_grid_w
         rh = tvm.reduce_axis((0, roi_bin_grid_h))
