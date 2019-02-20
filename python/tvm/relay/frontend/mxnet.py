@@ -268,6 +268,15 @@ def _mx_multibox_detection(inputs, attrs):
     return _op.vision.nms(ret[0], ret[1], **new_attrs1)
 
 
+def _mx_roi_align(inputs, attrs):
+    new_attrs = {}
+    new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
+    new_attrs["spatial_scale"] = attrs.get_float("spatial_scale")
+    new_attrs["sample_ratio"] = attrs.get_int("sample_ratio", -1)
+    new_attrs["layout"] = "NCHW"
+    return _op.vision.roi_align(inputs[0], inputs[1], **new_attrs)
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -357,6 +366,7 @@ _convert_map = {
     # vision
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
     "_contrib_MultiBoxDetection" : _mx_multibox_detection,
+    "_contrib_ROIAlign" : _mx_roi_align,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
