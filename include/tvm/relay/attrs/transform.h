@@ -113,7 +113,7 @@ struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
     TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
         .describe("Target data type.");
   }
-};  // struct ArangeOpAttrs
+};  // struct ArangeAttrs
 
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
