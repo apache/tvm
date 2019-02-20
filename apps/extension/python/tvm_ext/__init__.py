@@ -31,7 +31,7 @@ class IntVec(object):
     def __del__(self):
         # You can also call your own customized
         # deleter if you can free it via your own FFI.
-        tvm.nd.free_extension_handle(self.handle, 17)
+        tvm.nd.free_extension_handle(self.handle, self.__class__._tvm_tcode)
 
     @property
     def _tvm_handle(self):
@@ -42,3 +42,15 @@ class IntVec(object):
 
 # Register IntVec extension on python side.
 tvm.register_extension(IntVec, IntVec)
+
+
+class NDSubClass(tvm.nd.NDArray):
+    # Should be consistent with the type-trait set in the backend
+    _array_type_index = 1
+
+    def __init__(self, handle):
+        self.handle = handle
+
+    @property
+    def _tvm_handle(self):
+        return self.handle.value

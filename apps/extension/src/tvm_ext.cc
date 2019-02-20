@@ -7,10 +7,19 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/packed_func_ext.h>
 
 namespace tvm_ext {
 using IntVector = std::vector<int>;
+
+class NDSubClass : public tvm::runtime::NDArray {
+public:
+  NDSubClass() = default;
+  NDSubClass(NDArray::Container *data) : NDArray(data) {}
+  class Container;
+};
+
 }  // namespace tvm_ext
 
 namespace tvm {
@@ -18,6 +27,10 @@ namespace runtime {
 template<>
 struct extension_class_info<tvm_ext::IntVector> {
   static const int code = 17;
+};
+template<>
+struct array_type_index<tvm_ext::NDSubClass> {
+  static constexpr uint32_t code = 1;
 };
 }  // namespace tvm
 }  // namespace runtime
@@ -64,6 +77,18 @@ TVM_REGISTER_GLOBAL("device_api.ext_dev")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     *rv = (*tvm::runtime::Registry::Get("device_api.cpu"))();
   });
+
+class NDSubClass::Container : public tvm::runtime::NDArray::Container {
+  Container() : NDArray::Container() {
+    array_type_index_ = array_type_index<NDSubClass>::code;
+  }
+};
+
+TVM_REGISTER_GLOBAL("tvm_ext.say_hello")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  NDSubClass nd = args[0];
+});
+
 }  // namespace tvm_ext
 
 // External function exposed to runtime.

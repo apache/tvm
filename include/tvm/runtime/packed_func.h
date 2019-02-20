@@ -455,6 +455,15 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
     return value_.v_ctx;
   }
+  template<typename TNDArray,
+           typename = typename std::enable_if<
+           std::is_base_of<NDArray, TNDArray>::value>::type>
+  TNDArray AsNDArray() const {
+    if (type_code_ == kNull) return TNDArray();
+    auto *container = static_cast<NDArray::Container*>(value_.v_handle);
+    CHECK_EQ(container->array_type_index_, array_type_index<TNDArray>::code);
+    return TNDArray(container);
+  }
   template<typename TExtension>
   const TExtension& AsExtension() const {
     CHECK_LT(type_code_, kExtEnd);
@@ -561,7 +570,7 @@ class TVMArgValue : public TVMPODValue_ {
   inline TNodeRef AsNodeRef() const;
   template<typename T,
            typename = typename std::enable_if<
-             std::is_class<T>::value>::type>
+           std::is_class<T>::value>::type>
   inline operator T() const;
   template<typename TNodeRef,
            typename = typename std::enable_if<
@@ -1212,32 +1221,45 @@ inline R TypedPackedFunc<R(Args...)>::operator()(Args... args) const {
 
 // extension and node type handling
 namespace detail {
-template<typename T, typename TSrc, bool is_ext>
+template<typename T, typename TSrc, bool is_ext, bool is_nd>
 struct TVMValueCast {
   static T Apply(const TSrc* self) {
+    static_assert(!is_ext && !is_nd, "The default case accepts only non-extensions");
     return self->template AsNodeRef<T>();
   }
 };
 
 template<typename T, typename TSrc>
-struct TVMValueCast<T, TSrc, true> {
+struct TVMValueCast<T, TSrc, true, false> {
   static T Apply(const TSrc* self) {
     return self->template AsExtension<T>();
   }
 };
+
+template<typename T, typename TSrc>
+struct TVMValueCast<T, TSrc, false, true> {
+  static T Apply(const TSrc* self) {
+    return self->template AsNDArray<T>();
+  }
+};
+
 }  // namespace detail
 
 template<typename T, typename>
 inline TVMArgValue::operator T() const {
   return detail::
-      TVMValueCast<T, TVMArgValue, extension_class_info<T>::code != 0>
+      TVMValueCast<T, TVMArgValue,
+                   (extension_class_info<T>::code != 0),
+                   (array_type_index<T>::code > 0)>
       ::Apply(this);
 }
 
 template<typename T, typename>
 inline TVMRetValue::operator T() const {
   return detail::
-      TVMValueCast<T, TVMRetValue, extension_class_info<T>::code != 0>
+      TVMValueCast<T, TVMRetValue,
+                   (extension_class_info<T>::code != 0),
+                   (array_type_index<T>::code > 0)>
       ::Apply(this);
 }
 
