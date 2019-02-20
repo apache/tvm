@@ -324,13 +324,14 @@ def _mx_multibox_detection(inputs, attrs):
                                                                   0.2, 0.2))
 
     new_attrs1 = {}
-    new_attrs1["overlap_threshold"] = attrs.get_float("nms_threshold", 0.5)
+    new_attrs1["return_indices"] = False
+    new_attrs1["iou_threshold"] = attrs.get_float("nms_threshold", 0.5)
     new_attrs1["force_suppress"] = attrs.get_bool("force_suppress", False)
     new_attrs1["topk"] = attrs.get_int("nms_topk", -1)
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
                                             inputs[2], **new_attrs0)
-    return _op.vision.nms(ret[0], ret[1], **new_attrs1)
+    return _op.vision.non_max_suppression(ret[0], ret[1], **new_attrs1)
 
 
 def _mx_batch_dot(inputs, attrs):
@@ -382,7 +383,7 @@ def _mx_proposal(inputs, attrs):
 
 def _mx_box_nms(inputs, attrs):
     force_suppress = attrs.get_bool("force_suppress", False)
-    overlap_thresh = attrs.get_float('overlap_thresh', 0.5)
+    iou_thresh = attrs.get_float('overlap_thresh', 0.5)
     topk = attrs.get_int('topk', -1)
     valid_thresh = attrs.get_float('valid_thresh', 0)
     coord_start = attrs.get_int('coord_start', 2)
@@ -402,11 +403,14 @@ def _mx_box_nms(inputs, attrs):
         raise RuntimeError('out_format %s is not supported.' % out_format)
 
     ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
-    nms_out = _op.vision.nms(ret[1], ret[0],
-                             iou_threshold=overlap_thresh,
-                             force_suppress=force_suppress,
-                             topk=topk, id_index=id_index,
-                             do_rearrange=True)
+    nms_out = _op.vision.non_max_suppression(ret[1],
+                                             ret[0],
+                                             return_indices=False,
+                                             iou_threshold=iou_thresh,
+                                             force_suppress=force_suppress,
+                                             topk=topk,
+                                             id_index=id_index,
+                                             invalid_to_bottom=True)
     return nms_out
 
 

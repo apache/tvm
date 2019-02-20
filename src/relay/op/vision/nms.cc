@@ -65,42 +65,50 @@ bool NMSRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* valid_count = types[1].as<TensorTypeNode>();
+  const NMSAttrs* param = attrs.as<NMSAttrs>();
   const auto& dshape = data->shape;
   const auto& vshape = valid_count->shape;
   CHECK_EQ(dshape.size(), 3) << "Input data should be 3-D.";
   CHECK_EQ(vshape.size(), 1) << "Input valid count should be 1-D.";
 
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(dshape, data->dtype));
+  if (param->return_indices) {
+    std::vector<IndexExpr> oshape({dshape[0], dshape[1]});
+    reporter->Assign(types[2], TensorTypeNode::make(oshape, Int(32)));
+  } else {
+    reporter->Assign(types[2], TensorTypeNode::make(dshape, data->dtype));
+  }
   return true;
 }
 
 
 Expr MakeNMS(Expr data,
              Expr valid_count,
+             bool return_indices,
              double iou_threshold,
              bool force_suppress,
              int topk,
              int id_index,
-             bool do_rearrange) {
+             bool invalid_to_bottom) {
   auto attrs = make_node<NMSAttrs>();
+  attrs->return_indices = return_indices;
   attrs->iou_threshold = iou_threshold;
   attrs->force_suppress = force_suppress;
   attrs->topk = topk;
   attrs->id_index = id_index;
-  attrs->do_rearrange = do_rearrange;
-  static const Op& op = Op::Get("vision.nms");
+  attrs->invalid_to_bottom = invalid_to_bottom;
+  static const Op& op = Op::Get("vision.non_max_suppression");
   return CallNode::make(op, {data, valid_count}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.nms")
+TVM_REGISTER_API("relay.op.vision._make.non_max_suppression")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 7>(MakeNMS, args, rv);
+  runtime::detail::unpack_call<Expr, 8>(MakeNMS, args, rv);
 });
 
 
-RELAY_REGISTER_OP("vision.nms")
+RELAY_REGISTER_OP("vision.non_max_suppression")
 .describe(R"doc(Non-maximum suppression.
 )doc" TVM_ADD_FILELINE)
 .set_num_inputs(2)

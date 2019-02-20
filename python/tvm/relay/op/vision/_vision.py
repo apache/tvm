@@ -72,25 +72,27 @@ reg.register_pattern("vision.get_valid_counts", OpPattern.OPAQUE)
 
 
 # non-maximum suppression
-@reg.register_schedule("vision.nms")
+@reg.register_schedule("vision.non_max_suppression")
 def schedule_nms(_, outs, target):
     """Schedule definition of nms"""
     with target:
         return topi.generic.schedule_nms(outs)
 
 
-@reg.register_compute("vision.nms")
+@reg.register_compute("vision.non_max_suppression")
 def compute_nms(attrs, inputs, _, target):
     """Compute definition of nms"""
+    return_indices = bool(get_const_int(attrs.return_indices))
     iou_threshold = get_const_float(attrs.iou_threshold)
     force_suppress = bool(get_const_int(attrs.force_suppress))
     topk = get_const_int(attrs.topk)
     id_index = get_const_int(attrs.id_index)
-    do_rearrange = bool(get_const_int(attrs.do_rearrange))
+    invalid_to_bottom = bool(get_const_int(attrs.invalid_to_bottom))
     return [
-        topi.vision.nms(inputs[0], inputs[1], iou_threshold,
-                        force_suppress, topk, id_index, do_rearrange)
+        topi.vision.non_max_suppression(inputs[0], inputs[1], return_indices,
+                                        iou_threshold, force_suppress, topk,
+                                        id_index, invalid_to_bottom)
     ]
 
 
-reg.register_pattern("vision.nms", OpPattern.OPAQUE)
+reg.register_pattern("vision.non_max_suppression", OpPattern.OPAQUE)

@@ -27,13 +27,14 @@ def get_valid_counts(data,
     return TupleWrapper(_make.get_valid_counts(data, score_threshold), 2)
 
 
-def nms(data,
-        valid_count,
-        iou_threshold=0.5,
-        force_suppress=False,
-        topk=-1,
-        id_index=0,
-        do_rearrange=False):
+def non_max_suppression(data,
+                        valid_count,
+                        return_indices,
+                        iou_threshold=0.5,
+                        force_suppress=False,
+                        topk=-1,
+                        id_index=0,
+                        invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -45,6 +46,9 @@ def nms(data,
 
     valid_count : relay.Expr
         1-D tensor for valid number of boxes.
+
+    return_indices : bool
+        Whether to return box indices in input data.
 
     iou_threshold : float, optional
         Non-maximum suppression threshold.
@@ -58,7 +62,7 @@ def nms(data,
     id_index : optional, int
         index of the class categories, -1 to disable.
 
-    do_rearrange : optional, boolean
+    invalid_to_bottom : optional, boolean
         Whether to move all valid bounding boxes to the top.
 
     Returns
@@ -66,5 +70,6 @@ def nms(data,
     out : relay.Expr
         3-D tensor with shape [batch_size, num_anchors, 6].
     """
-    return _make.nms(data, valid_count, iou_threshold,
-                     force_suppress, topk, id_index, do_rearrange)
+    return _make.non_max_suppression(data, valid_count, return_indices,
+                                     iou_threshold, force_suppress, topk,
+                                     id_index, invalid_to_bottom)

@@ -4,7 +4,7 @@ Deploy Single Shot Multibox Detector(SSD) model
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_
 
 This article is an introductory tutorial to deploy SSD models with TVM.
-We will use GluonCV pre-trained SSD model and convert it to NNVM graph.
+We will use GluonCV pre-trained SSD model and convert it to Relay IR
 """
 import tvm
 
@@ -34,8 +34,8 @@ from gluoncv import model_zoo, data, utils
 #
 #   To get best inference performance on CPU, change
 #   target argument according to your device and
-#   follow the :ref:`tune_nnvm_x86` to tune x86 CPU and
-#   :ref:`tune_nnvm_arm` for arm cpu.
+#   follow the :ref:`tune_relay_x86` to tune x86 CPU and
+#   :ref:`tune_relay_arm` for arm cpu.
 #
 #   SSD with VGG as body network is not supported yet since
 #   x86 conv2d schedule doesn't support dilation.
@@ -54,7 +54,6 @@ model_name = "ssd_512_resnet50_v1_voc"
 dshape = (1, 3, 512, 512)
 dtype = "float32"
 target_list = ctx_list()
-frontend_list = ["nnvm", "relay"]
 
 ######################################################################
 # Download and pre-process demo image
@@ -65,20 +64,14 @@ im_fname = utils.download('https://github.com/dmlc/web-data/blob/master/' +
 x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 
 ######################################################################
-# Convert and compile model with NNVM or Relay for CPU.
+# Convert and compile model for CPU.
 
 block = model_zoo.get_model(model_name, pretrained=True)
 
-def compile(frontend, target):
-    if frontend == "relay":
-        net, params = relay.frontend.from_mxnet(block, {"data": dshape})
-        with relay.build_config(opt_level=3):
-            graph, lib, params = relay.build(net, target, params=params)
-    else:
-        net, params = from_mxnet(block)
-        with compiler.build_config(opt_level=3):
-            graph, lib, params = compiler.build(
-                net, target, {"data": dshape}, params=params)
+def compile(target):
+    net, params = relay.frontend.from_mxnet(block, {"data": dshape})
+    with relay.build_config(opt_level=3):
+        graph, lib, params = relay.build(net, target, params=params)
     return graph, lib, params
 
 ######################################################################
@@ -100,9 +93,8 @@ for target, ctx in target_list:
     if target == "cuda":
         print("GPU not supported yet, skip.")
         continue
-    for frontend in frontend_list:
-        graph, lib, params = compile(frontend, target)
-        class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
+    graph, lib, params = compile(target)
+    class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
 
 ######################################################################
 # Display result

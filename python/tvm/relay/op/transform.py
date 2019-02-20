@@ -494,7 +494,7 @@ def slice_axis(data, axis, begin, end=None):
         The computed result.
     """
     end = end or 0
-    return _make.slice_axis(data, axis, begin, end)
+    return _make._contrib_slice_axis(data, axis, begin, end)
 
 
 def slice_like(data, shape_like, axes=None):

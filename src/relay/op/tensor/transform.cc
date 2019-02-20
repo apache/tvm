@@ -1401,11 +1401,11 @@ Expr MakeSliceAxis(Expr data,
   attrs->axis = axis;
   attrs->begin = begin;
   attrs->end = end;
-  static const Op& op = Op::Get("slice_axis");
+  static const Op& op = Op::Get("_contrib_slice_axis");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.slice_axis")
+TVM_REGISTER_API("relay.op._make._contrib_slice_axis")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
   runtime::detail::unpack_call<Expr, 4>(MakeSliceAxis, args, rv);
 });
@@ -1446,14 +1446,14 @@ Array<Tensor> SliceAxisCompute(const Attrs& attrs,
   };
 }
 
-RELAY_REGISTER_OP("slice_axis")
+RELAY_REGISTER_OP("_contrib_slice_axis")
 .describe(R"doc(Slices along a given axis.
 Returns an array slice along a given axis starting from
 the begin index to the end index.
 )doc" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input data.")
-.set_support_level(4)
+.set_support_level(10)
 .add_type_rel("SliceAxis", SliceAxisRel)
 .set_attr<FTVMCompute>("FTVMCompute", SliceAxisCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);

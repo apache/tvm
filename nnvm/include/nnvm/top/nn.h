@@ -448,15 +448,21 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
   float iou_threshold;
   bool force_suppress;
   int topk;
+  int id_index;
+  bool invalid_to_bottom;
   DMLC_DECLARE_PARAMETER(NMSParam) {
     DMLC_DECLARE_FIELD(return_indices)
       .describe("Whether to return box indices in input data.");
     DMLC_DECLARE_FIELD(iou_threshold).set_default(0.5)
       .describe("Non-maximum suppression threshold.");
     DMLC_DECLARE_FIELD(force_suppress).set_default(false)
-    .describe("Suppress all detections regardless of class_id.");
+      .describe("Suppress all detections regardless of class_id.");
     DMLC_DECLARE_FIELD(topk).set_default(-1)
-    .describe("Keep maximum top k detections before nms, -1 for no limit.");
+      .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    DMLC_DECLARE_FIELD(id_index).set_default(0)
+      .describe("Axis index of id.");
+    DMLC_DECLARE_FIELD(invalid_to_bottom).set_default(false)
+      .describe("Whether to move all invalid bounding boxes to the bottom.");
   }
 };
 
