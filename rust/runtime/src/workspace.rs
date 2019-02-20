@@ -4,8 +4,9 @@ use std::{
     ptr,
 };
 
-use super::allocator::Allocation;
-use crate::errors::*;
+use failure::Error;
+
+use crate::allocator::Allocation;
 
 const WS_ALIGN: usize = 64; // taken from `kTempAllocaAlignment` in `device_api.h`
 
@@ -24,13 +25,13 @@ impl WorkspacePool {
         }
     }
 
-    fn alloc_new(&mut self, size: usize) -> Result<*mut u8> {
+    fn alloc_new(&mut self, size: usize) -> Result<*mut u8, Error> {
         self.workspaces.push(Allocation::new(size, Some(WS_ALIGN))?);
         self.in_use.push(self.workspaces.len() - 1);
         Ok(self.workspaces[self.workspaces.len() - 1].as_mut_ptr())
     }
 
-    fn alloc(&mut self, size: usize) -> Result<*mut u8> {
+    fn alloc(&mut self, size: usize) -> Result<*mut u8, Error> {
         if self.free.len() == 0 {
             return self.alloc_new(size);
         }
@@ -60,7 +61,7 @@ impl WorkspacePool {
         }
     }
 
-    fn free(&mut self, ptr: *mut u8) -> Result<()> {
+    fn free(&mut self, ptr: *mut u8) -> Result<(), Error> {
         let mut ws_idx = None;
         for i in 0..self.in_use.len() {
             let idx = self.in_use[i];
@@ -72,7 +73,7 @@ impl WorkspacePool {
         }
         Ok(self
             .free
-            .push(ws_idx.ok_or("Tried to free nonexistent workspace.")?))
+            .push(ws_idx.ok_or(format_err!("Tried to free nonexistent workspace."))?))
     }
 }
 

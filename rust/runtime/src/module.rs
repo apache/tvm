@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap, convert::AsRef, ffi::CStr, os::raw::c_char, string::String, sync::Mutex,
 };
+
 use tvm_common::{
     ffi::BackendPackedCFunc,
     packed_func::{PackedFunc, TVMArgValue, TVMRetValue, TVMValue},
@@ -23,7 +24,7 @@ impl Module for SystemLibModule {
             .lock()
             .unwrap()
             .get(name.as_ref())
-            .map(|func| wrap_backend_packed_func(func.to_owned()))
+            .map(|func| wrap_backend_packed_func(name.as_ref().to_owned(), func.to_owned()))
     }
 }
 
@@ -34,7 +35,7 @@ impl Default for SystemLibModule {
 }
 
 // @see `WrapPackedFunc` in `llvm_module.cc`.
-pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
+pub(super) fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFunc) -> PackedFunc {
     box move |args: &[TVMArgValue]| {
         let exit_code = func(
             args.iter()
@@ -50,7 +51,9 @@ pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
         if exit_code == 0 {
             Ok(TVMRetValue::default())
         } else {
-            Err(tvm_common::ffi::get_last_error().into())
+            Err(tvm_common::errors::FuncCallError::get_with_context(
+                func_name.clone(),
+            ))
         }
     }
 }

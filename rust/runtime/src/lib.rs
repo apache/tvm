@@ -25,7 +25,7 @@ extern crate bounded_spsc_queue;
 #[cfg(target_env = "sgx")]
 extern crate core;
 #[macro_use]
-extern crate error_chain;
+extern crate failure;
 #[macro_use]
 extern crate itertools;
 #[macro_use]

@@ -1,18 +1,16 @@
 use std::{cmp, collections::HashMap, convert::TryFrom, iter::FromIterator, mem, str};
 
+use failure::Error;
 use nom::{alpha1, digit1, le_i32, le_i64, le_u16, le_u32, le_u64, le_u8, types::CompleteStr};
 use serde;
 use serde_json;
-
-use crate::{
-    errors::{Error, ErrorKind, Result},
-    Module, Storage, Tensor,
-};
 use tvm_common::{
     array::{DataType, TVMContext},
     ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt, DLTensor},
     TVMArgValue,
 };
+
+use crate::{errors::GraphFormatError, Module, Storage, Tensor};
 
 // @see `kTVMNDArrayMagic` in `ndarray.h`
 const _NDARRAY_MAGIC: u64 = 0xDD5E40F096B4A13F;
@@ -44,28 +42,26 @@ pub struct Entry {
 }
 
 impl Graph {
-    fn entry_index(&self, entry: &Entry) -> Result<usize> {
+    fn entry_index(&self, entry: &Entry) -> Result<usize, GraphFormatError> {
         self.node_row_ptr
             .as_ref()
             .map(|nrp| nrp[entry.id] + entry.index)
-            .ok_or("Missing node_row_ptr.".into())
+            .ok_or_else(|| GraphFormatError::MissingField("node_row_ptr"))
     }
 
     /// Attempt to deserialize a JSON attribute to a type `T`.
-    fn get_attr<T: serde::de::DeserializeOwned>(&self, attr: &str) -> Result<T> {
+    fn get_attr<T: serde::de::DeserializeOwned>(&self, attr: &str) -> Result<T, GraphFormatError> {
         Ok(serde_json::from_value::<T>(
             self.attrs
                 .as_ref()
-                .ok_or(ErrorKind::GraphFormatError(
-                    "Missing graph attrs".to_string(),
-                ))?
+                .ok_or(GraphFormatError::MissingField("attrs"))?
                 .get(attr)
-                .ok_or(ErrorKind::GraphFormatError(format!(
-                    "Missing {} attr",
-                    attr
-                )))?
+                .ok_or_else(|| {
+                    GraphFormatError::MissingAttr("graph".to_string(), attr.to_string())
+                })?
                 .to_owned(),
-        )?)
+        )
+        .map_err(|err| GraphFormatError::Parse(err.into()))?)
     }
 }
 
@@ -84,39 +80,31 @@ struct NodeAttrs {
     flatten_data: bool,
 }
 
+macro_rules! get_node_attr {
+    ($node:expr, $attrs:ident, $attr:literal) => {
+        $attrs
+            .get($attr)
+            .ok_or_else(|| GraphFormatError::MissingAttr($node.to_owned(), $attr.to_owned()))
+    };
+}
+
 impl Node {
-    fn parse_attrs(&self) -> Result<NodeAttrs> {
+    fn parse_attrs(&self) -> Result<NodeAttrs, Error> {
         let attrs = self
             .attrs
             .as_ref()
-            .ok_or(format!("Missing node.attrs for `{}`", self.name))?;
-        let func_name = attrs
-            .get("func_name")
-            .ok_or(format!("Node `{}` is missing attrs.func_name", self.name))?
-            .to_string();
-        let num_outputs = attrs
-            .get("num_outputs")
-            .ok_or(format!("Node `{}` is missing attrs.num_outputs", self.name))?
-            .parse::<usize>()?;
-        let flatten_data = attrs
-            .get("flatten_data")
-            .ok_or(format!(
-                "Node `{}` is missing attrs.flatten_data",
-                self.name
-            ))?
-            .parse::<u8>()?
-            == 1;
+            .ok_or_else(|| GraphFormatError::MissingAttr(self.name.clone(), "attrs".to_owned()))?;
         Ok(NodeAttrs {
-            func_name,
-            num_outputs,
-            flatten_data,
+            func_name: get_node_attr!(self.name, attrs, "func_name")?.to_owned(),
+            num_outputs: get_node_attr!(self.name, attrs, "num_outputs")?.parse::<usize>()?,
+            flatten_data: get_node_attr!(self.name, attrs, "flatten_data")?.parse::<u8>()? == 1,
         })
     }
 }
 
 impl<'a> TryFrom<&'a String> for Graph {
     type Error = Error;
-    fn try_from(graph_json: &String) -> Result<Self> {
+    fn try_from(graph_json: &String) -> Result<Self, self::Error> {
         let graph = serde_json::from_str(graph_json)?;
         Ok(graph)
     }
@@ -124,7 +112,7 @@ impl<'a> TryFrom<&'a String> for Graph {
 
 impl<'a> TryFrom<&'a str> for Graph {
     type Error = Error;
-    fn try_from(graph_json: &'a str) -> Result<Self> {
+    fn try_from(graph_json: &'a str) -> Result<Self, Self::Error> {
         let graph = serde_json::from_str(graph_json)?;
         Ok(graph)
     }
@@ -164,7 +152,7 @@ pub struct GraphExecutor<'m, 't> {
 unsafe impl<'m, 't> Send for GraphExecutor<'m, 't> {}
 
 impl<'m, 't> GraphExecutor<'m, 't> {
-    pub fn new<M: 'm + Module>(graph: Graph, lib: &'m M) -> Result<Self> {
+    pub fn new<M: 'm + Module>(graph: Graph, lib: &'m M) -> Result<Self, Error> {
         let tensors = Self::setup_storages(&graph)?;
         Ok(GraphExecutor {
             op_execs: Self::setup_op_execs(&graph, lib, &tensors)?,
@@ -181,7 +169,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     }
 
     /// Allocates `Storages` for each `storage_id` and returns `Tensor`s to hold each output.
-    fn setup_storages<'a>(graph: &'a Graph) -> Result<Vec<Tensor<'t>>> {
+    fn setup_storages<'a>(graph: &'a Graph) -> Result<Vec<Tensor<'t>>, Error> {
         let storage_ids = graph.get_attr::<(String, Vec<usize>)>("storage_id")?.1;
         let shapes = graph.get_attr::<(String, Vec<Vec<i64>>)>("shape")?.1;
         let dtypes = graph
@@ -192,13 +180,10 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 if let Ok((_, dtype)) = tvm_str_to_type(CompleteStr(dltype)) {
                     Ok(dtype)
                 } else {
-                    Err(ErrorKind::GraphFormatError(
-                        format!("Invalid dltype: {}", dltype).to_string(),
-                    )
-                    .into())
+                    Err(GraphFormatError::InvalidDLType(dltype.to_string()))
                 }
             })
-            .collect::<Result<Vec<DataType>>>()?;
+            .collect::<Result<Vec<DataType>, GraphFormatError>>()?;
 
         let align = dtypes.iter().map(|dtype| dtype.bits() as usize).max();
         let mut storage_num_bytes = vec![0usize; *storage_ids.iter().max().unwrap_or(&1) + 1];
@@ -211,7 +196,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         let mut storages: Vec<Storage> = storage_num_bytes
             .into_iter()
             .map(|nbytes| Storage::new(nbytes, align))
-            .collect::<Result<Vec<Storage>>>()?;
+            .collect::<Result<Vec<Storage>, Error>>()?;
 
         let tensors = izip!(storage_ids, shapes, dtypes)
             .map(|(storage_id, shape, dtype)| {
@@ -236,7 +221,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         graph: &Graph,
         lib: &'m M,
         tensors: &Vec<Tensor<'t>>,
-    ) -> Result<Vec<Box<Fn() + 'm>>> {
+    ) -> Result<Vec<Box<Fn() + 'm>>, Error> {
         ensure!(graph.node_row_ptr.is_some(), "Missing node_row_ptr.");
         let node_row_ptr = graph.node_row_ptr.as_ref().unwrap();
 
@@ -254,9 +239,10 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 continue;
             }
 
-            let func = lib
-                .get_function(&attrs.func_name)
-                .ok_or(format!("Missing function {}", attrs.func_name))?;
+            let func = lib.get_function(&attrs.func_name).ok_or(format_err!(
+                "Library is missing function {}",
+                attrs.func_name
+            ))?;
             let arg_indices = node
                 .inputs
                 .iter()
@@ -272,7 +258,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                         DLTensor::from(tensor)
                     })
                 })
-                .collect::<Result<Vec<DLTensor>>>()
+                .collect::<Result<Vec<DLTensor>, Error>>()
                 .unwrap();
             let op: Box<Fn()> = box move || {
                 let args = dl_tensors
@@ -436,17 +422,15 @@ named!(
 );
 
 /// Loads a param dict saved using `nnvm.compiler.save_param_dict`.
-pub fn load_param_dict(bytes: &[u8]) -> Result<HashMap<String, Tensor>> {
+pub fn load_param_dict(bytes: &[u8]) -> Result<HashMap<String, Tensor>, GraphFormatError> {
     if let Ok((remaining_bytes, param_dict)) = parse_param_dict(bytes) {
-        if remaining_bytes.len() > 0 {
-            bail!(ErrorKind::LoadGraphParamsError("extra input".to_string()))
-        } else {
+        if remaining_bytes.len() == 0 {
             Ok(param_dict)
+        } else {
+            Err(GraphFormatError::Params)
         }
     } else {
-        bail!(ErrorKind::LoadGraphParamsError(
-            "invalid parameters file".to_string()
-        ))
+        Err(GraphFormatError::Params)
     }
 }
 

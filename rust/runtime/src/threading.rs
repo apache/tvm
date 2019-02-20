@@ -18,9 +18,8 @@ use std::{
 use std::{collections::VecDeque, ptr, sync::Mutex};
 
 use bounded_spsc_queue::{self, Producer};
+use failure::Error;
 use tvm_common::ffi::TVMParallelGroupEnv;
-
-use crate::errors::*;
 
 #[cfg(target_env = "sgx")]
 use super::{sgx::ocall_packed_func, TVMArgValue, TVMRetValue};
@@ -63,7 +62,7 @@ impl Job {
     }
 
     /// Waits for all tasks in this `Job` to be completed.
-    fn wait(&self) -> Result<()> {
+    fn wait(&self) -> Result<(), Error> {
         while self.pending.load(Ordering::Acquire) > 0 {
             #[cfg(not(target_env = "sgx"))]
             thread::yield_now();
