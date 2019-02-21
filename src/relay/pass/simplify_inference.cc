@@ -25,6 +25,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/op.h>
 #include "./pattern_util.h"
 
 namespace tvm {
@@ -64,6 +65,19 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
   return out;
 }
 
+Expr LayerNormToInferUnpack(const Attrs attrs,
+                            Expr data,
+                            Expr gamma,
+                            Expr beta) {
+  const auto param = attrs.as<LayerNormAttrs>();
+  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
+  auto mean = Mean(data, {param->axis}, true, false);
+  auto var = Variance(data, mean, {param->axis}, true, false);
+  auto denom = Sqrt(Add(var, epsilon));
+  Expr out = Add(Multiply(Divide(Substract(data, mean), denom), gamma), beta);
+  return out;
+}
+
 class InferenceSimplifier : public ExprMutator {
  public:
   Expr VisitExpr_(const TupleGetItemNode* n) final {
@@ -88,9 +102,12 @@ class InferenceSimplifier : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* n) {
     static const Op& batch_norm = Op::Get("nn.batch_norm");
+    static const Op& layer_norm = Op::Get("nn.layer_norm");
     auto new_n = ExprMutator::VisitExpr_(n);
     if (n->op.same_as(batch_norm)) {
       ty_map_[new_n.as<CallNode>()->args[0]] = n->args[0]->checked_type();
+    } else if (n->op.same_as(layer_norm)) {
+      return LayerNormToInferUnpack(n->attrs, n->args[0], n->args[1], n->args[2]);
     }
     return new_n;
   }
