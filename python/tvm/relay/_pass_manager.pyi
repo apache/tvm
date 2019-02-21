@@ -18,10 +18,9 @@ class ModulePass(Pass):
     opt_level = ... # type: int
     pass_kind = ... # type: PassKind
     pass_func = ...  # type: Callable
-    enabled = ... # type: bool
 
-    def __init__(self, name, opt_level, pass_kind, pass_func, enabled=True):
-        # type: (str, int, int(PassKind), Callable, bool) -> None
+    def __init__(self, name, opt_level, pass_kind, pass_func):
+        # type: (str, int, int(PassKind), Callable) -> None
         ...
 
 
@@ -30,10 +29,9 @@ class FunctionPass(Pass):
     opt_level = ... # type: int
     pass_kind = ... # type: PassKind
     pass_func = ...  # type: Callable
-    enabled = ... # type: bool
 
-    def __init__(self, name, opt_level, pass_kind, pass_func, enabled=True):
-        # type: (str, int, int(PassKind), Callable, bool) -> None
+    def __init__(self, name, opt_level, pass_kind, pass_func):
+        # type: (str, int, int(PassKind), Callable) -> None
         ...
 
 
@@ -42,7 +40,8 @@ class SequentialPass(Pass):
     opt_level = ... # type: int
     pass_kind = ... # type: PassKind
     passes = ...  # type: list
+    disabled = ... # type: list
 
     def __init__(self, name, opt_level, pass_kind, passes):
-        # type: (str, int, int(PassKind), list, bool) -> None
+        # type: (str, int, int(PassKind), list, list) -> None
         ...

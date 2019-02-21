@@ -18,13 +18,12 @@ PassContext PassContextNode::make() {
 }
 
 ModulePass ModulePassNode::make(std::string name, int opt_level,
-                                PassFunc<Module> pass_func, bool enabled) {
+                                PassFunc<Module> pass_func) {
   auto n = make_node<ModulePassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
   n->pass_kind = PassKind::kModuleKind;
   n->pass_func = std::move(pass_func);
-  n->enabled = std::move(enabled);
   return ModulePass(n);
 }
 
@@ -48,19 +47,13 @@ std::vector<std::string> ModulePassNode::Required() const {
   return required;
 }
 
-void ModulePassNode::SetContext(const PassContext& pass_ctx) {
-  // TODO(zhiics)
-}
-
 FunctionPass FunctionPassNode::make(std::string name, int opt_level,
-                                    PassFunc<Function> pass_func,
-                                    bool enabled) {
+                                    PassFunc<Function> pass_func) {
   auto n = make_node<FunctionPassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
   n->pass_kind = PassKind::kFunctionKind;
   n->pass_func = std::move(pass_func);
-  n->enabled = std::move(enabled);
   return FunctionPass(n);
 }
 
@@ -103,23 +96,21 @@ std::vector<std::string> FunctionPassNode::Required() const {
   return required;
 }
 
-void FunctionPassNode::SetContext(const PassContext& pass_ctx) {
-  // TODO(zhiics)
-}
-
 SequentialPass SequentialPassNode::make(std::string name, int opt_level,
-                                        tvm::Array<Pass> passes) {
+                                        tvm::Array<Pass> passes,
+                                        tvm::Array<tvm::Expr> disabled) {
   auto n = make_node<SequentialPassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
   n->pass_kind = PassKind::kSequentialKind;
-  n->passes_ = std::move(passes);
+  n->passes = std::move(passes);
+  n->disabled = std::move(disabled);
   return SequentialPass(n);
 }
 
 Module SequentialPassNode::Run(const Module& module) const {
   Module mod = module;
-  for (const Pass& pass : passes_) {
+  for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
     mod = pass->Run(mod);
   }
@@ -139,24 +130,30 @@ void SequentialPassNode::ResolveDependency(const Module& mod) {
   // 3. Build a dependency graph. Probably we need to update the pass list.
 }
 
-void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
-  // TODO(zhiics)
+std::vector<std::string> SequentialPassNode::DisabledPasses() const {
+  std::vector<std::string> ret;
+  for (const auto& it : disabled) {
+    const auto* str = it.as<tvm::ir::StringImm>();
+    CHECK(str) << "disabled passes must be string.";
+    ret.push_back(str->value);
+  }
+  return ret;
 }
 
 ModulePass CreateModulePass(const std::string& name, int opt_level,
-                            const PassFunc<Module>& pass_func, bool enabled) {
-  return ModulePassNode::make(name, opt_level, pass_func, enabled);
+                            const PassFunc<Module>& pass_func) {
+  return ModulePassNode::make(name, opt_level, pass_func);
 }
 
 FunctionPass CreateFunctionPass(const std::string& name, int opt_level,
-                                const PassFunc<Function>& pass_func,
-                                bool enabled) {
-  return FunctionPassNode::make(name, opt_level, pass_func, enabled);
+                                const PassFunc<Function>& pass_func) {
+  return FunctionPassNode::make(name, opt_level, pass_func);
 }
 
 SequentialPass CreateSequentialPass(const std::string& name, int opt_level,
-    const tvm::Array<Pass>& passes) {
-  return SequentialPassNode::make(name, opt_level, passes);
+                                    const tvm::Array<Pass>& passes,
+                                    const tvm::Array<tvm::Expr>& disabled) {
+  return SequentialPassNode::make(name, opt_level, passes, disabled);
 }
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
@@ -166,7 +163,6 @@ TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
   std::string pass_name = args[0];
   int opt_level = args[1];
   PackedFunc py_pass_func = args[2];
-  bool enabled = args[3];
   PassFunc<Module> pass_func = [py_pass_func](const Module& mod) {
     PackedFunc py_for_each = py_pass_func(mod);
     return [py_for_each](Module m) {
@@ -175,7 +171,7 @@ TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
       return r;
     };
   };
-  *ret = CreateModulePass(pass_name, opt_level, pass_func, enabled);
+  *ret = CreateModulePass(pass_name, opt_level, pass_func);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunModulePass")
@@ -202,7 +198,6 @@ TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
   std::string pass_name = args[0];
   int opt_level = args[1];
   PackedFunc py_pass_func = args[2];
-  bool enabled = args[3];
   PassFunc<Function> pass_func = [py_pass_func](const Module& mod) {
     PackedFunc py_for_each = py_pass_func(mod);
     return [py_for_each](Function i) {
@@ -211,7 +206,7 @@ TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
       return r;
     };
   };
-  *ret = CreateFunctionPass(pass_name, opt_level, pass_func, enabled);
+  *ret = CreateFunctionPass(pass_name, opt_level, pass_func);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunFunctionPass")
@@ -238,7 +233,8 @@ TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
   std::string pass_name = args[0];
   int opt_level = args[1];
   tvm::Array<Pass> passes = args[2];
-  *ret = SequentialPassNode::make(pass_name, opt_level, passes);
+  tvm::Array<tvm::Expr> disabled = args[3];
+  *ret = SequentialPassNode::make(pass_name, opt_level, passes, disabled);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunSequentialPass")
@@ -255,7 +251,19 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<SequentialPassNode>([](const SequentialPassNode* node,
                                      tvm::IRPrinter* p) {
   p->stream << "Run SequentialPass pass: " << node->name
-            << " at the optimization level " << node->opt_level;
+            << " at the optimization level. " << node->opt_level;
+  p->stream << "The passes will be executed are: [";
+  for (const auto& it : node->passes) {
+    p->stream << it.operator->()->name << " ";
+  }
+  p->stream << "]";
+});
+
+TVM_REGISTER_API("relay._ir_pass.SetContext")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  Pass pass = args[0];
+  PassContext pass_ctx = args[1];
+  pass->SetContext(pass_ctx);
 });
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);

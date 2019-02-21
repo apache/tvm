@@ -65,6 +65,25 @@ class Pass(RelayNode):
         """
         raise NotImplementedError("Pure virtual function is not implemented.")
 
+    def set_pass_context(self, pass_ctx):
+        """Setup the pass context for analysis and optimizations. This context
+        could be shared by different passes for sequential passes.
+
+        Parameters
+        ----------
+        pass_ctx : PassContext
+            The context that is used to help perform a certain pass or a series
+            of passes.
+
+        Returns
+        -------
+        pass : Pass
+            The updated pass.
+        """
+        if not isinstance(pass_ctx, PassContext):
+            raise TypeError("pass_ctx is expected to be the PassContext type")
+        return _ir_pass.SetContext(self, pass_ctx)
+
     def __call__(self, mod):
         return self.run(mod)
 
@@ -83,14 +102,11 @@ class ModulePass(Pass):
 
     pass_func : Callable[PassContext: tvm.relay.Module -> tvm.relay.Module]
         The curried callback that sketches a certain optimization.
-
-    enabled : bool
-        The flag indicates if a pass is enabled.
     """
 
-    def __init__(self, name, opt_level, pass_func, enabled=True):
+    def __init__(self, name, opt_level, pass_func):
         self.__init_handle_by_constructor__(_ir_pass.CreateModulePass, name,
-                                            opt_level, pass_func, enabled)
+                                            opt_level, pass_func)
 
     def run(self, mod):
         """Execute a module pass.
@@ -124,14 +140,11 @@ class FunctionPass(Pass):
 
     pass_func : Callable[PassContext: tvm.relay.Function -> tvm.relay.Function]
         The curried callback that sketches a certain optimization.
-
-    enabled : bool
-        The flag indicates if a pass is enabled.
     """
 
-    def __init__(self, name, opt_level, pass_func, enabled=True):
+    def __init__(self, name, opt_level, pass_func):
         self.__init_handle_by_constructor__(_ir_pass.CreateFunctionPass, name,
-                                            opt_level, pass_func, enabled)
+                                            opt_level, pass_func)
 
     def run(self, mod):
         """Execute a function pass.
@@ -163,13 +176,19 @@ class SequentialPass(Pass):
     opt_level : int
         The optimization level of this pass.
 
-    passes : Map[Pass, bool]
-        The mapping of pass and bool that indicates if a pass is enabled.
+    passes : List[Pass]
+        The pass candidates to be executed.
+
+    disabled : Optional[List[str]]
+        The list of passes that are disabled.
     """
 
-    def __init__(self, name, opt_level, passes):
+    def __init__(self, name, opt_level, passes, disabled=None):
+        disabled = disabled if disabled else []
+        if not isinstance(disabled, (list, tuple)):
+            raise TypeError("disabled must be a list or tuple of pass names")
         self.__init_handle_by_constructor__(_ir_pass.CreateSequentialPass,
-                                            name, opt_level, passes)
+                                            name, opt_level, passes, disabled)
 
     def run(self, mod):
         """Execute a sequence of passes.
@@ -192,8 +211,7 @@ class SequentialPass(Pass):
 
 def create_pass(pass_name, opt_level,
                 pass_kind=PassKind.FunctionKind,
-                pass_func=None, sequential_passes=None,
-                enabled=True):
+                pass_func=None, sequential_passes=None, disabled=None):
     """Create a pass using a defined optimization function from Python.
 
     Parameters
@@ -214,8 +232,8 @@ def create_pass(pass_name, opt_level,
     sequential_passes : Optional[List[Pass]]
         A sequence of passes candidate for optimization.
 
-    enabled : Optional[bool]
-        The flag indicates if a pass is enabled.
+    disabled : Optional[List[str]]
+        A list of disabled passes.
 
     Returns
     -------
@@ -228,16 +246,18 @@ def create_pass(pass_name, opt_level,
     if pass_kind == PassKind.ModuleKind:
         if not pass_func:
             raise TypeError("pass_func must be defined for Module pass")
-        return _ir_pass.CreateModulePass(pass_name, opt_level, pass_func,
-                                         enabled)
+        return _ir_pass.CreateModulePass(pass_name, opt_level, pass_func)
     elif pass_kind == PassKind.FunctionKind:
         if not pass_func:
             raise TypeError("pass_func must be defined for Function pass")
-        return _ir_pass.CreateFunctionPass(pass_name, opt_level, pass_func,
-                                           enabled)
+        return _ir_pass.CreateFunctionPass(pass_name, opt_level, pass_func)
     else:
         if not isinstance(sequential_passes, (list, tuple)):
             raise TypeError(
                 "sequential_passes must be a list of Pass objects.")
+
+        disabled = disabled if disabled else []
+        if not isinstance(disabled, (list, tuple)):
+            raise TypeError("disabled must be a list or tuple of pass names")
         return _ir_pass.CreateSequentialPass(pass_name, opt_level,
-                                             sequential_passes)
+                                             sequential_passes, disabled)
