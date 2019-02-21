@@ -406,7 +406,7 @@ def test_forward_mobilenet():
 # Inception V3
 # ---------
 def test_forward_inception_v3_net():
-    '''test mobilenet v1 tflite model'''
+    '''test inception v3 tflite model'''
     # MobilenetV1
     temp = util.tempdir()
     tflite_model_file = tf_testing.get_workload_official(
