@@ -447,7 +447,6 @@ def test_arange():
     verify_arange(1, 20, 3)
     verify_arange(20, 1, -1)
     verify_arange(20, 1, -1.5)
-    verify_arange(5, 5, 1)
 
 
 if __name__ == "__main__":
