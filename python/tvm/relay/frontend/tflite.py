@@ -35,6 +35,8 @@ class OperatorConverter(object):
         self.builtin_op_code = build_str_map(BuiltinOperator())
         self.activation_fn_type = build_str_map(ActivationFunctionType())
         self.builtin_options = build_str_map(BuiltinOptions())
+
+        # Add more operators
         self.convert_map = {
             'CONV_2D': self.convert_conv2d,
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
@@ -44,7 +46,6 @@ class OperatorConverter(object):
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
             "CONCATENATION": self.convert_concatenation
-            # Add more operators
         }
 
     def check_unsupported_ops(self):
@@ -249,6 +250,7 @@ class OperatorConverter(object):
         return out
 
     def convert_concatenation(self, op):
+        """ convert TFLite concatenation"""
         try:
             from tflite.Operator import Operator
             from tflite.ConcatenationOptions import ConcatenationOptions
@@ -262,7 +264,7 @@ class OperatorConverter(object):
         output_tensors = self.get_output_tensors(op)
         assert len(input_tensors) >= 1, "input tensors should greater than 1"
         assert len(output_tensors) == 1, "output tensors should be 1"
-        in_exprs = [ self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
+        in_exprs = [self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
         assert op.BuiltinOptionsType() == BuiltinOptions.ConcatenationOptions
         op_options = op.BuiltinOptions()
         concatenation_options = ConcatenationOptions()
@@ -290,7 +292,7 @@ class OperatorConverter(object):
         # axis in N H W C
         concatenation_axis = axis_convert_map.get(concatenation_axis, concatenation_axis)
         out = _op.concatenate(in_exprs, axis=concatenation_axis)
-        
+
         # if we have activation fn
         if fused_activation_fn != ActivationFunctionType.NONE:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
