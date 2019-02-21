@@ -52,9 +52,9 @@ class NDSubClass : public tvm::runtime::NDArray {
  public:
   class SubContainer : public NDArray::Container {
    public:
-    SubContainer(int addtional_info) {
+    SubContainer(int addtional_info) :
+      addtional_info_(addtional_info) {
       array_type_index_ = array_type_index<NDSubClass>::code;
-      addtional_info_ = addtional_info;
     }
     static bool Is(NDArray::Container *container) {
       SubContainer *c = static_cast<SubContainer*>(container);
@@ -74,7 +74,7 @@ class NDSubClass : public tvm::runtime::NDArray {
   ~NDSubClass() {
     this->reset();
   }
-  NDSubClass addWith(const NDSubClass &other) const {
+  NDSubClass AddWith(const NDSubClass &other) const {
     SubContainer *a = static_cast<SubContainer*>(data_);
     SubContainer *b = static_cast<SubContainer*>(other.data_);
     CHECK(a != nullptr && b != nullptr);
@@ -138,7 +138,7 @@ TVM_REGISTER_GLOBAL("tvm_ext.nd_add_two")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   NDSubClass a = args[0];
   NDSubClass b = args[1];
-  *rv = a.addWith(b);
+  *rv = a.AddWith(b);
 });
 
 TVM_REGISTER_GLOBAL("tvm_ext.nd_get_addtional_info")
