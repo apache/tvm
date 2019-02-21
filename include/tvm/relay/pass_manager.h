@@ -49,7 +49,7 @@ enum PassKind : int {
 
 class PassContext;
 
-/*
+/*!
  * \brief PassContextNode contains the information that a pass can rely on, such as
  * the analysis result.
  */
@@ -154,8 +154,7 @@ class PassNode : public RelayNode {
 
  protected:
   /*!
-   * \brief The context information that is used to help perform that
-   * used to help perform a give pass.
+   * \brief The context information that is used to help perform a given pass.
    */
   PassContext pass_ctx_;
 };
@@ -187,7 +186,7 @@ class ModulePassNode : public PassNode {
 
   ModulePassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
     v->Visit("pass_kind", &pass_kind);
@@ -206,6 +205,7 @@ class ModulePassNode : public PassNode {
    */
   Module Run(const Module& mod) const override;
 
+  /*! \brief Collect the required passes for this module pass. */
   std::vector<std::string> Required() const override;
 
   TVM_DLL static ModulePass make(std::string name, int opt_level,
@@ -230,12 +230,12 @@ class FunctionPass;
  */
 class FunctionPassNode : public PassNode {
  public:
-  /*! \brief The curried packed function sketches the real optimization. */
+  /*! \brief The curried packed function that sketches the real optimization. */
   PassFunc<Function> pass_func;
 
   FunctionPassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
     v->Visit("pass_kind", &pass_kind);
@@ -244,6 +244,7 @@ class FunctionPassNode : public PassNode {
   Module operator()(const Module& mod) const override {
     return Run(mod);
   }
+
   /*!
    * \brief Run a function pass on a certain module.
    *
@@ -253,6 +254,7 @@ class FunctionPassNode : public PassNode {
    */
   Module Run(const Module& mod) const override;
 
+  /*! \brief Collect the required passes for this module pass. */
   std::vector<std::string> Required() const override;
 
   TVM_DLL static FunctionPass make(std::string name, int opt_level,
@@ -272,17 +274,22 @@ class SequentialPass;
 /*!
  * \brief The SequentialPassNode contains a set of passes that transform Relay
  * programs from one AST to another semantically equivalent one.
+ *
+ * One example of this level of pass is that the pass manager needs to correctly
+ * perform a host of optimizations with a given optimization level and disabled
+ * passes.
  */
 class SequentialPassNode : public PassNode {
  public:
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
   /*!
-   * \brief A list of disabled passes that should be excluded when executing the sequential pass.
+   * \brief A list of disabled passes that should be excluded when executing the
+   * sequential pass.
    */
   tvm::Array<tvm::Expr> disabled;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
     v->Visit("pass_kind", &pass_kind);
@@ -348,7 +355,7 @@ RELAY_DEFINE_NODE_REF(SequentialPass, SequentialPassNode, Pass);
  *
  * \param name The name of the module pass.
  * \param opt_level The optimization level of the module pass.
- * \param pass_func The curried pass function to perform the optimization.
+ * \param pass_func The curried packed function that contains the optimization.
  *
  * \return The created module pass.
  */
@@ -360,7 +367,7 @@ ModulePass CreateModulePass(const std::string& name, int opt_level,
  *
  * \param name The name of the function pass.
  * \param opt_level The optimization level of the function pass.
- * \param pass_func The curried pass function to perform the optimization.
+ * \param pass_func The curried packed function that contains the optimization.
  *
  * \return The created function pass.
  */

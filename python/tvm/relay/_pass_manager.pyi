@@ -42,6 +42,6 @@ class SequentialPass(Pass):
     passes = ...  # type: list
     disabled = ... # type: list
 
-    def __init__(self, name, opt_level, pass_kind, passes):
+    def __init__(self, name, opt_level, pass_kind, passes, disabled):
         # type: (str, int, int(PassKind), list, list) -> None
         ...
