@@ -43,7 +43,7 @@ Module ModulePassNode::Run(const Module& mod) const {
 }
 
 std::vector<std::string> ModulePassNode::Required() const {
-  // Return required passes based on the current pass info.
+  // TODO(zhiics) Return required passes based on the current pass info.
   std::vector<std::string> required;
   return required;
 }
@@ -98,7 +98,7 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
 }
 
 std::vector<std::string> FunctionPassNode::Required() const {
-  // Return required passes based on the current pass info.
+  // TODO(zhiics) Return required passes based on the current pass info.
   std::vector<std::string> required;
   return required;
 }
@@ -127,7 +127,7 @@ Module SequentialPassNode::Run(const Module& module) const {
 }
 
 std::vector<std::string> SequentialPassNode::Required() const {
-  // Return required passes based on the current pass info.
+  // TODO(zhiics) Return required passes based on the current pass info.
   std::vector<std::string> required;
   return required;
 }
