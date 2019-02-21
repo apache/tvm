@@ -16,7 +16,7 @@
 namespace tvm {
 namespace relay {
 
-namespace mac_count{
+namespace mac_count {
 
 inline int64_t GetCartesianProd(Array<IndexExpr> arr) {
   int64_t ret = 1;
@@ -33,7 +33,7 @@ inline int64_t GetCartesianProd(Array<IndexExpr> arr) {
  * \return The number of MACs.
  */
 using FMacCount = runtime::TypedPackedFunc<
-  int64_t (const Call& call_node)>;
+  int64_t(const Call& call_node)>;
 
 //----------------------------------------------
 // Per operator defs for MAC count
