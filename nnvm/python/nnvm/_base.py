@@ -31,7 +31,7 @@ else:
 
 class NNVMError(Exception):
     """Error that will be throwed by all nnvm functions"""
-    pass
+
 
 def _load_lib():
     """Load libary by searching possible path."""

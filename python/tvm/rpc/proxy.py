@@ -389,7 +389,7 @@ class ProxyServerHandler(object):
         if key in pool_src:
             self._pair_up(pool_src.pop(key), handler)
             return
-        elif key not in pool_dst:
+        if key not in pool_dst:
             pool_dst[key] = handler
             def cleanup():
                 """Cleanup client connection if timeout"""

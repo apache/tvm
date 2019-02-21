@@ -143,19 +143,16 @@ class Buffer(NodeBase):
 @register_node
 class Split(NodeBase):
     """Split operation on axis."""
-    pass
 
 
 @register_node
 class Fuse(NodeBase):
     """Fuse operation on axis."""
-    pass
 
 
 @register_node
 class Singleton(NodeBase):
     """Singleton axis."""
-    pass
 
 
 @register_node

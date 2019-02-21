@@ -83,7 +83,7 @@ def encode(inp, result, protocol='json'):
             "v": AUTOTVM_LOG_VERSION
         }
         return json.dumps(json_dict)
-    elif protocol == 'pickle':
+    if protocol == 'pickle':
         row = (str(inp.target),
                str(base64.b64encode(pickle.dumps([inp.task.name,
                                                   inp.task.args,
@@ -92,8 +92,8 @@ def encode(inp, result, protocol='json'):
                str(base64.b64encode(pickle.dumps(inp.config)).decode()),
                str(base64.b64encode(pickle.dumps(tuple(result))).decode()))
         return '\t'.join(row)
-    else:
-        raise RuntimeError("Invalid log protocol: " + protocol)
+
+    raise RuntimeError("Invalid log protocol: " + protocol)
 
 
 def decode(row, protocol='json'):
@@ -136,7 +136,7 @@ def decode(row, protocol='json'):
         result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["r"]])
 
         return inp, result
-    elif protocol == 'pickle':
+    if protocol == 'pickle':
         items = row.split("\t")
         tgt = _target.create(items[0])
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
@@ -146,8 +146,8 @@ def decode(row, protocol='json'):
         tsk = task.Task(task_tuple[0], task_tuple[1])
         tsk.workload = task_tuple[3]
         return MeasureInput(tgt, tsk, config), MeasureResult(*result)
-    else:
-        raise RuntimeError("Invalid log protocol: " + protocol)
+
+    raise RuntimeError("Invalid log protocol: " + protocol)
 
 
 def load_from_file(filename):

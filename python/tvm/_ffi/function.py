@@ -51,7 +51,6 @@ class Function(_FunctionBase):
     tvm.register_func: How to register global function.
     tvm.get_global_func: How to get global function.
     """
-    pass
 
 
 class ModuleBase(object):
@@ -207,11 +206,11 @@ def get_global_func(name, allow_missing=False):
     check_call(_LIB.TVMFuncGetGlobal(c_str(name), ctypes.byref(handle)))
     if handle.value:
         return Function(handle, False)
-    else:
-        if allow_missing:
-            return None
-        else:
-            raise ValueError("Cannot find global function %s" % name)
+
+    if allow_missing:
+        return None
+
+    raise ValueError("Cannot find global function %s" % name)
 
 
 

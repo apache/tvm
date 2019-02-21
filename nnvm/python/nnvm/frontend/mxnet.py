@@ -424,7 +424,7 @@ def _topo_sort(symbol):
         if childs is None:
             dep_cnts[name] = 0
         else:
-            dep_cnts[name] = len(set([c.attr('name') for c in childs]))
+            dep_cnts[name] = len({c.attr('name') for c in childs})
             for child in childs:
                 child_name = child.attr('name')
                 if child_name not in deps:

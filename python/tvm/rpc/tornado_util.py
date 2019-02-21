@@ -95,9 +95,8 @@ class TCPHandler(object):
             if msg:
                 self.on_message(msg)
                 return True
-            else:
-                # normal close, remote is closed
-                self.close()
+            # normal close, remote is closed
+            self.close()
         except socket.error as err:
             if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                 pass

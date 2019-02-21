@@ -71,12 +71,11 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
             _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
         return _declaration_conv_impl(cfg, data, kernel, strides,
                                       padding, dilation, layout, out_dtype)
-    elif layout == 'HWCN':
+    if layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
-    elif layout == 'NHWC':
+    if layout == 'NHWC':
         return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
-    else:
-        raise ValueError("not support this layout {} yet".format(layout))
+    raise ValueError("not support this layout {} yet".format(layout))
 
 
 def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):

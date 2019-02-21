@@ -10,7 +10,6 @@ from . import _backend
 class CachedFunc(NodeBase):
     """Low-level tensor function to back a relay primitive function.
     """
-    pass
 
 
 @register_relay_node
@@ -34,7 +33,6 @@ class CCacheKey(NodeBase):
 class CCacheValue(NodeBase):
     """Value in the CompileEngine, including usage statistics.
     """
-    pass
 
 
 def _get_cache_key(source_func, target):

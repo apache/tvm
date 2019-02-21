@@ -189,9 +189,9 @@ class HybridParser(ast.NodeVisitor):
         _internal_assert(name in self.symbols, "Unknown symbol %s!" % name)
         if ty in [Symbol.LoopVar, Symbol.Input, Symbol.ConstLoopVar]:
             return entry
-        elif ty is Symbol.ConstVar:
+        if ty is Symbol.ConstVar:
             return entry if isinstance(node.ctx, ast.Load) else None
-        elif ty is Symbol.BufferVar:
+        if ty is Symbol.BufferVar:
             if isinstance(node.ctx, ast.Load):
                 return _make.Call(entry.dtype, entry.name, [_api.const(0, 'int32')], \
                                   _expr.Call.Halide, entry.op, entry.value_index)
@@ -274,12 +274,12 @@ class HybridParser(ast.NodeVisitor):
                 buf, args = lhs
                 return _make.Provide(buf.op, 0, rhs, args)
             return util.make_nop()
-        else:
-            lhs, args = self.visit(lhs)
-            _internal_assert(isinstance(lhs, Tensor), \
-                             "An array access's LHS is expected to be a expr.Call!")
-            res = _make.Provide(lhs.op, lhs.value_index, rhs, args)
-            return res
+
+        lhs, args = self.visit(lhs)
+        _internal_assert(isinstance(lhs, Tensor), \
+                         "An array access's LHS is expected to be a expr.Call!")
+        res = _make.Provide(lhs.op, lhs.value_index, rhs, args)
+        return res
 
 
     def visit_Index(self, node):
@@ -347,7 +347,7 @@ class HybridParser(ast.NodeVisitor):
         if isinstance(cond, _expr.UIntImm):
             if cond.value:
                 return visit_list_to_block(self.visit, node.body)
-            elif node.orelse:
+            if node.orelse:
                 return visit_list_to_block(self.visit, node.orelse)
             return util.make_nop()
 
@@ -451,7 +451,7 @@ class HybridParser(ast.NodeVisitor):
                 bodies.append(body)
             return concat_list_to_block(bodies)
 
-        elif iter_var is None:
+        if iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
             offset = iter_var = _api.var(_name)
             if not _ir_pass.Equal(low, _api.const(0, 'int32')):

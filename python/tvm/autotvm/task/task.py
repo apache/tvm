@@ -294,7 +294,7 @@ def get_config():
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""
-    pass
+
 
 def compute_flop(sch):
     """Calculate number of FLOP (floating number operations) of the compute ops in a schedule
@@ -328,29 +328,29 @@ def compute_flop(sch):
             if len(source) != 1:
                 raise FlopCalculationError("Found multiple output in the source of reduce op")
             return num_iter * (_count_flop(combiner[0]) + _count_flop(source[0]))
-        elif isinstance(exp, (expr.FloatImm, expr.IntImm, expr.UIntImm)):
+        if isinstance(exp, (expr.FloatImm, expr.IntImm, expr.UIntImm)):
             return 0
-        elif isinstance(exp, expr.Cast):
+        if isinstance(exp, expr.Cast):
             return _count_flop(exp.value)
-        elif isinstance(exp, expr.Var):
+        if isinstance(exp, expr.Var):
             return 0
-        elif isinstance(exp, (expr.Add, expr.Sub, expr.Mul, expr.Div, expr.Mod,
-                              expr.Max, expr.Min,
-                              expr.EQ, expr.NE, expr.LT, expr.LE, expr.GT, expr.GE,
-                              expr.And, expr.Or, expr.Not)):
+        if isinstance(exp, (expr.Add, expr.Sub, expr.Mul, expr.Div, expr.Mod,
+                            expr.Max, expr.Min,
+                            expr.EQ, expr.NE, expr.LT, expr.LE, expr.GT, expr.GE,
+                            expr.And, expr.Or, expr.Not)):
             base = 1 if "float" in exp.a.dtype else 0
 
             if isinstance(exp, expr.Not):  # unary
                 return base + _count_flop(exp.a)
 
             return base + _count_flop(exp.a) + _count_flop(exp.b)
-        elif isinstance(exp, expr.Select):
+        if isinstance(exp, expr.Select):
             return _count_flop(exp.condition) + max(_count_flop(exp.true_value),
                                                     _count_flop(exp.false_value))
-        elif isinstance(exp, expr.Call):
+        if isinstance(exp, expr.Call):
             return sum([_count_flop(x) for x in exp.args])
-        else:
-            raise FlopCalculationError("Found unsupported operator in the compute expr")
+
+        raise FlopCalculationError("Found unsupported operator in the compute expr")
 
     def traverse(ops):
         """accumulate flops"""

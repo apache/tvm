@@ -23,13 +23,11 @@ class GraphKey(tvm.node.NodeBase):
 @tvm.register_node
 class GraphCacheEntry(tvm.node.NodeBase):
     """CacheEntry of compilation into a TVM Function"""
-    pass
 
 
 @tvm.register_node
 class GraphFunc(tvm.node.NodeBase):
     """Compiled result of a graph into a TVM Function"""
-    pass
 
 
 class Engine(object):

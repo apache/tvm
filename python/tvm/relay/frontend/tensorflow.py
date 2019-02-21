@@ -175,8 +175,7 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        else:
-            raise NotImplementedError("Only 2d kernel supported.")
+        raise NotImplementedError("Only 2d kernel supported.")
     return _impl
 
 def _dimension_constraint():
@@ -522,8 +521,7 @@ def _reshape():
                     op_name="reshape",
                     extras={'newshape':tuple(params_new.asnumpy().flatten())},
                     ignores=['Tshape'])(inputs, attr)
-            else:
-                raise RuntimeError("Reshape with dynamic shape input not supported yet.")
+            raise RuntimeError("Reshape with dynamic shape input not supported yet.")
     return _impl
 
 def _bias_add():
@@ -1385,7 +1383,7 @@ class GraphProto(object):
                                            shape=self._params[name].shape,
                                            dtype=self._params[name].dtype)]
         else:
-            if key != 'dtype' and key != '_output_shapes' and key != '_class':
+            if key not in ('dtype', '_output_shapes', '_class'):
                 raise NotImplementedError \
                     ("Other attributes for a Const(param) Node {} ? .".format(key))
 

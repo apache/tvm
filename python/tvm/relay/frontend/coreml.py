@@ -100,37 +100,37 @@ def _ActivationParams(op, inexpr, etab):
         alpha = _expr.const(par.alpha, dtype='float32')
         beta = _expr.const(par.beta, dtype='float32')
         return _op.add(_op.multiply(inexpr, alpha), beta)
-    elif whichActivation == 'ReLU':
+    if whichActivation == 'ReLU':
         return _op.nn.relu(inexpr)
-    elif whichActivation == 'leakyReLU':
+    if whichActivation == 'leakyReLU':
         _op.nn.leaky_relu(inexpr, alpha=_expr.const(par.alpha, dtype='float32'))
     elif whichActivation == 'thresholdedReLU':
         alpha_tensor = _op.full_like(inexpr, fill_value=_expr.const(par.alpha, dtype='float32'))
         return _op.multiply(inexpr, _op.greater(inexpr, alpha_tensor).as_type('float32'))
-    elif whichActivation == 'PReLU':
+    if whichActivation == 'PReLU':
         return _op.nn.prelu(inexpr, alpha=_expr.const(par.alpha, dtype='float32'))
-    elif whichActivation == 'tanh':
+    if whichActivation == 'tanh':
         return _op.tanh(inexpr)
-    elif whichActivation == 'scaledTanh':
+    if whichActivation == 'scaledTanh':
         alpha = _expr.const(par.alpha, dtype='float32')
         beta = _expr.const(par.beta, dtype='float32')
         return _op.multiply(_op.tanh(_op.multiply(inexpr, beta)), alpha)
-    elif whichActivation == 'sigmoid':
+    if whichActivation == 'sigmoid':
         return _op.sigmoid(inexpr)
-    elif whichActivation == 'sigmoidHard':
+    if whichActivation == 'sigmoidHard':
         alpha = _expr.const(par.alpha, dtype='float32')
         beta = _expr.const(par.beta, dtype='float32')
         transformX = (alpha * inexpr) + beta
         return _op.clip(transformX, a_min=0., a_max=1.)
-    elif whichActivation == 'ELU':
+    if whichActivation == 'ELU':
         return _op.multiply(_op.add(_op.exp(inexpr), _expr.const(-1, dtype='float32')),
                             _expr.const(par.alpha, dtype='float32'))
-    elif whichActivation == 'softsign':
+    if whichActivation == 'softsign':
         return inexpr / (_expr.const(1, dtype='float32') + (
             op.nn.relu(inexpr) + _op.nn.relu(_op.negative(inexpr))))
-    elif whichActivation == 'softplus':
+    if whichActivation == 'softplus':
         return _op.log(_op.add(_op.exp(inexpr), _expr.const(1, dtype='float32')))
-    elif whichActivation == 'parametricSoftplus':
+    if whichActivation == 'parametricSoftplus':
         alpha = list(par.alpha.floatValue)
         beta = list(par.alpha.floatValue)
         if len(alpha) == 1:
@@ -142,8 +142,7 @@ def _ActivationParams(op, inexpr, etab):
         alpha_expr = etab.new_const(alpha)
         beta_expr = etab.new_const(beta)
         return _op.multiply(_op.log(_op.add(_op.exp(inexpr), beta_expr)), alpha_expr)
-    else:
-        raise NotImplementedError('%s not implemented' % whichActivation)
+    raise NotImplementedError('%s not implemented' % whichActivation)
 
 
 def _ScaleLayerParams(op, inexpr, etab):
@@ -163,10 +162,9 @@ def _PoolingLayerParams(op, inexpr, etab):
     if op.globalPooling:
         if op.type == 0:
             return _op.nn.global_max_pool2d(inexpr)
-        elif op.type == 1:
+        if op.type == 1:
             return _op.nn.global_avg_pool2d(inexpr)
-        else:
-            raise NotImplementedError("Only max and average pooling implemented")
+        raise NotImplementedError("Only max and average pooling implemented")
 
     else:
         params = {'pool_size':list(op.kernelSize),
@@ -196,10 +194,9 @@ def _PoolingLayerParams(op, inexpr, etab):
 
         if op.type == 0:
             return _op.nn.max_pool2d(inexpr, **params)
-        elif op.type == 1:
+        if op.type == 1:
             return _op.nn.avg_pool2d(inexpr, **params)
-        else:
-            raise NotImplementedError("Only max and average pooling implemented")
+        raise NotImplementedError("Only max and average pooling implemented")
 
 
 def _SoftmaxLayerParams(op, inexpr, etab):

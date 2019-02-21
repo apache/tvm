@@ -23,7 +23,6 @@ class NDArray(NDArrayBase):
     Instead, this is a minimal data structure to demonstrate
     how can we use TVM in existing project which might have their own array containers.
     """
-    pass
 
 
 def cpu(dev_id=0):

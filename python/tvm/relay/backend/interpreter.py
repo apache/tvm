@@ -49,7 +49,6 @@ class TupleValue(Value):
 @register_relay_node
 class Closure(Value):
     """A closure produced by the interpreter."""
-    pass
 
 
 @register_relay_node

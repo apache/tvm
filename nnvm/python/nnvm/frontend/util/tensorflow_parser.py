@@ -115,6 +115,8 @@ class TFParser(object):
         """TODO: Load checkpoint model."""
         raise RuntimeError("InputConfiguration: Loading tf checkpoint model is "
                            "not supported yet.")
+        # pylint: disable=unreachable
+        return 0
 
     def parse(self):
         """Parse tensorflow models: checkpoints, saved models, and single pb
