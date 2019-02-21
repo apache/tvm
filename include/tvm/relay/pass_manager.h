@@ -1,5 +1,4 @@
-/*!
- * Copyright (c) 2019 by Contributors
+/*!  * Copyright (c) 2019 by Contributors
  * \file tvm/relay/pass_manager.h
  *
  * \brief The pass manager manages a sequence of Relay-to-Relay transformation
@@ -110,35 +109,13 @@ class PassNode : public RelayNode {
   int opt_level;
   /*! \brief The kind of an optimization/analysis pass. */
   PassKind pass_kind;
-  /*! \brief The flag to indicate if a pass is enabled. */
-  bool enabled;
-  /*!
-   * \brief The passes that are required by this pass.
-   * TODO(zhiics) required_passes are used to identify the dependency of
-   * different passes. We will use it to build the pass dependency graph in the
-   * followup PRs.
-   */
-  tvm::Array<tvm::Expr> required_passes;
-
   /*!
    * \brief Get the required passes for this pass as a vector of std::string.
    */
-  TVM_DLL std::vector<std::string> RequiredPasses() const;
+  virtual std::vector<std::string> Required() const = 0;
 
   /*! \brief Set the context information for a pass. */
-  void SetPassContext(const PassContext& pass_ctx) {
-    pass_ctx_ = pass_ctx;
-  }
-
-  /*!
-   * \brief Resolve the pass dependency. It globs all required passes by
-   *        a given pass and executes them.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return The updated module after resolving pass dependencies.
-   */
-  virtual Module ResolveDependency(const Module& mod) const = 0;
+  virtual void SetContext(const PassContext& pass_ctx) = 0;
 
   /*!
    * \brief Execute the optimization pass using a functor. This functor invokes
@@ -146,14 +123,10 @@ class PassNode : public RelayNode {
    *        of node.
    *
    * \param mod The module that an optimization pass runs on.
-   * \param pass_ctx The context information that is used to help perform
-   *        a given pass.
    *
    * \return The updated module.
    */
-  Module operator()(const Module& mod, const PassContext& pass_ctx) const {
-    return Run(mod, pass_ctx);
-  }
+  virtual Module operator()(const Module& mod) const = 0;
 
   /*!
    * \brief Execute the optimization pass. This is function should be specilized
@@ -162,30 +135,19 @@ class PassNode : public RelayNode {
    *        the module will be updated.
    *
    * \param mod The module that an optimization pass runs on.
-   * \param pass_ctx The context information that is used to help perform
-   *        a given pass.
    *
    * \return Return the updated module.
    */
-  virtual Module Run(const Module& mod, const PassContext& pass_ctx) const = 0;
+  virtual Module Run(const Module& mod) const = 0;
 
   void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
     v->Visit("passkind", &pass_kind);
-    v->Visit("enabled", &enabled);
-    v->Visit("required_passes", &required_passes);
   }
 
   static constexpr const char* _type_key = "relay.Pass";
   TVM_DECLARE_BASE_NODE_INFO(PassNode, RelayNode);
-
- protected:
-  /*!
-   * \brief The context information that is used to help perform that used to
-   * help perform a give pass.
-   */
-  PassContext pass_ctx_;
 };
 
 class Pass : public NodeRef {
@@ -210,7 +172,10 @@ class ModulePass;
  */
 class ModulePassNode : public PassNode {
  public:
+  /*! \brief The curried function sketches the real optimization. */
   PassFunc<Module> pass_func;
+  /*! \brief The flag to indicate if a pass is enabled. */
+  bool enabled;
 
   ModulePassNode() = default;
 
@@ -219,33 +184,28 @@ class ModulePassNode : public PassNode {
     v->Visit("opt_level", &opt_level);
     v->Visit("pass_kind", &pass_kind);
     v->Visit("enabled", &enabled);
-    v->Visit("required_passes", &required_passes);
+  }
+
+  Module operator()(const Module& mod) const override {
+    return Run(mod);
   }
 
   /*!
    * \brief Run a function pass on a certain module.
    *
    * \param mod The module that an optimization pass runs on.
-   * \param pass_ctx The context information that is used to help perform
-   *        a given module pass.
    *
    * \return Return the updated module.
    */
-  Module Run(const Module& mod, const PassContext& pass_ctx) const override;
+  Module Run(const Module& mod) const override;
+
+  void SetContext(const PassContext& pass_ctx) override;
+
+  std::vector<std::string> Required() const override;
 
   TVM_DLL static ModulePass make(std::string name, int opt_level,
                                  PassFunc<Module> pass_func,
-                                 bool enabled = true,
-                                 tvm::Array<tvm::Expr> required_passes = {});
-  /*!
-   * \brief Resolve the pass dependency. It globs all required passes by
-   *        a given pass and executes them.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return The updated module after resolving pass dependencies.
-   */
-  Module ResolveDependency(const Module& mod) const override;
+                                 bool enabled = true);
 
   static constexpr const char* _type_key = "relay.ModulePass";
   TVM_DECLARE_NODE_TYPE_INFO(ModulePassNode, PassNode);
@@ -266,7 +226,10 @@ class FunctionPass;
  */
 class FunctionPassNode : public PassNode {
  public:
+  /*! \brief The curried packed function sketches the real optimization. */
   PassFunc<Function> pass_func;
+  /*! \brief The flag to indicate if a pass is enabled. */
+  bool enabled;
 
   FunctionPassNode() = default;
 
@@ -275,33 +238,27 @@ class FunctionPassNode : public PassNode {
     v->Visit("opt_level", &opt_level);
     v->Visit("pass_kind", &pass_kind);
     v->Visit("enabled", &enabled);
-    v->Visit("required_passes", &required_passes);
   }
 
+  Module operator()(const Module& mod) const override {
+    return Run(mod);
+  }
   /*!
    * \brief Run a function pass on a certain module.
    *
    * \param mod The module that an optimization pass runs on.
-   * \param pass_ctx The context information that is used to help perform
-   *        a given pass.
    *
    * \return Return the updated module.
    */
-  Module Run(const Module& mod, const PassContext& pass_ctx) const override;
+  Module Run(const Module& mod) const override;
+
+  std::vector<std::string> Required() const override;
+
+  void SetContext(const PassContext& pass_ctx) override;
 
   TVM_DLL static FunctionPass make(std::string name, int opt_level,
                                    PassFunc<Function> pass_func,
-                                   bool enabled = true,
-                                   tvm::Array<tvm::Expr> required_passes = {});
-  /*!
-   * \brief Resolve the pass dependency. It globs all required passes by
-   *        a given pass and executes them.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return The updated module after resolving pass dependencies.
-   */
-  Module ResolveDependency(const Module& mod) const override;
+                                   bool enabled = true);
 
   static constexpr const char* _type_key = "relay.FunctionPass";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionPassNode, PassNode);
@@ -326,8 +283,6 @@ class SequentialPassNode : public PassNode {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
     v->Visit("pass_kind", &pass_kind);
-    v->Visit("enabled", &enabled);
-    v->Visit("required_passes", &required_passes);
     v->Visit("passes_", &passes_);
   }
 
@@ -340,11 +295,8 @@ class SequentialPassNode : public PassNode {
     passes_.push_back(pass);
   }
 
-  TVM_DLL static SequentialPass make(
-      std::string name, int opt_level,
-      tvm::Array<Pass> passes_,
-      bool enabled = true,
-      tvm::Array<tvm::Expr> required_passes = {});
+  TVM_DLL static SequentialPass make(std::string name, int opt_level,
+                                     tvm::Array<Pass> passes_);
 
   /*!
    * \brief Resolve the pass dependency. It globs all required passes by
@@ -358,7 +310,15 @@ class SequentialPassNode : public PassNode {
    * metadata, i.e. required_passes. Likely, we can have a data structure, i.e.
    * PassInfo, to store the relevant information including the parent passes.
    */
-  Module ResolveDependency(const Module& mod) const override;
+  void ResolveDependency(const Module& mod);
+
+  std::vector<std::string> Required() const override;
+
+  void SetContext(const PassContext& pass_ctx) override;
+
+  Module operator()(const Module& mod) const override {
+    return Run(mod);
+  }
 
   /*!
    * \brief Perform optimizations on a series of passes. The aforementioned
@@ -367,18 +327,56 @@ class SequentialPassNode : public PassNode {
    *        memory footprint, etc.
    *
    * \param mod The module that an optimization pass runs on.
-   * \param pass_ctx The context information that is used to help perform
-   *        a given pass.
    *
    * \return Return the updated module.
    */
-  Module Run(const Module& mod, const PassContext& pass_ctx) const override;
+  Module Run(const Module& mod) const override;
 
   static constexpr const char* _type_key = "relay.SequentialPass";
   TVM_DECLARE_NODE_TYPE_INFO(SequentialPassNode, PassNode);
 };
 
 RELAY_DEFINE_NODE_REF(SequentialPass, SequentialPassNode, Pass);
+
+/*
+ * \brief Create a module pass.
+ *
+ * \param name The name of the module pass.
+ * \param opt_level The optimization level of the module pass.
+ * \param pass_func The curried pass function to perform the optimization.
+ * \param enabled If this pass is enabled.
+ *
+ * \return The created module pass.
+ */
+ModulePass CreateModulePass(const std::string& name, int opt_level,
+                            const PassFunc<Module>& pass_func,
+                            bool enabled = true);
+
+/*
+ * \brief Create a function pass.
+ *
+ * \param name The name of the function pass.
+ * \param opt_level The optimization level of the function pass.
+ * \param pass_func The curried pass function to perform the optimization.
+ * \param enabled If this pass is enabled.
+ *
+ * \return The created function pass.
+ */
+FunctionPass CreateFunctionPass(const std::string& name, int opt_level,
+                                const PassFunc<Function>& pass_func,
+                                bool enabled = true);
+/*
+ * \brief Create a sequential pass.
+ *
+ * \param name The name of the sequential pass.
+ * \param opt_level The optimization level of the sequential pass. It could be
+ *        the highest opt_level of the list of passes.
+ * \param passes The optimization passes will be performed.
+ *
+ * \return The created sequential pass.
+ */
+SequentialPass CreateSequentialPass(const std::string& name, int opt_level,
+                                    const tvm::Array<Pass>& passes);
 
 }  // namespace pass
 }  // namespace relay

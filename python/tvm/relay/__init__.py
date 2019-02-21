@@ -80,7 +80,7 @@ Match = adt.Match
 var = expr.var
 const = expr.const
 bind = expr.bind
-build_pass = pass_manager.build_pass
+create_pass = pass_manager.create_pass
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor

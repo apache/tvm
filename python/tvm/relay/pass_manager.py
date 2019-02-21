@@ -8,7 +8,7 @@ use passes more conveniently.
 from abc import abstractmethod
 from enum import IntEnum
 
-from . import _pass_manager as _pass_mgr
+from . import _ir_pass
 from .base import RelayNode, register_relay_node
 
 
@@ -28,7 +28,7 @@ class PassContext(RelayNode):
     """
 
     def __init__(self):
-        self.__init_handle_by_constructor__(_pass_mgr.PassContext)
+        self.__init_handle_by_constructor__(_ir_pass.PassContext)
 
 
 @register_relay_node
@@ -46,16 +46,10 @@ class Pass(RelayNode):
 
     pass_kind : PassKind
         The type of pass for optimization/analysis.
-
-    enabled : bool
-        The flag indicates if a pass is enabled.
-
-    required_passes : List[str]
-        The list of dependent passes to perform this pass.
     """
 
     @abstractmethod
-    def run(self, mod, pass_ctx=None):
+    def run(self, mod):
         """Execute the pass. It is an abstract function that will be
         implemented by subclasses.
 
@@ -64,9 +58,6 @@ class Pass(RelayNode):
         mod : tvm.relay.Module
             The module that a certain optimization is performed on.
 
-        pass_ctx : Optional[PassContext]
-            The auxiliary information that helps perform the pass.
-
         Returns
         -------
         mod : tvm.relay.Module
@@ -74,27 +65,8 @@ class Pass(RelayNode):
         """
         raise NotImplementedError("Pure virtual function is not implemented.")
 
-    def set_pass_context(self, pass_ctx):
-        """Setup the pass context for analysis and optimizations. This context
-        could be shared by different passes for sequential passes.
-
-        Parameters
-        ----------
-        pass_ctx : PassContext
-            The context that is used to help perform a certain pass or a series
-            of passes.
-
-        Returns
-        -------
-        pass : Pass
-            The updated pass.
-        """
-        if not isinstance(pass_ctx, PassContext):
-            raise TypeError("pas_ctx is expected to be the PassContext type")
-        return _pass_mgr.SetPassContext(self, pass_ctx)
-
-    def __call__(self, mod, pass_ctx=None):
-        return self.run(mod, pass_ctx)
+    def __call__(self, mod):
+        return self.run(mod)
 
 
 @register_relay_node
@@ -110,24 +82,17 @@ class ModulePass(Pass):
         The optimization level of this pass.
 
     pass_func : Callable[PassContext: tvm.relay.Module -> tvm.relay.Module]
+        The curried callback that sketches a certain optimization.
 
     enabled : bool
         The flag indicates if a pass is enabled.
-
-    required_passes : List[str]
-        The list of dependent passes to perform this pass.
-       The implemented optimization pass.
     """
 
-    def __init__(self, name, opt_level, pass_func, enabled=True,
-                 required_passes=None):
-        required_passes = required_passes if required_passes else []
-        if not isinstance(required_passes, list):
-            raise TypeError("required_passes is expected to be a list of str.")
-        self.__init_handle_by_constructor__(_pass_mgr.ModulePass, name, opt_level,
-                                            pass_func, enabled, required_passes)
+    def __init__(self, name, opt_level, pass_func, enabled=True):
+        self.__init_handle_by_constructor__(_ir_pass.CreateModulePass, name,
+                                            opt_level, pass_func, enabled)
 
-    def run(self, mod, pass_ctx=None):
+    def run(self, mod):
         """Execute a module pass.
 
         Parameters
@@ -135,16 +100,15 @@ class ModulePass(Pass):
         mod : tvm.relay.Module
             The module that the module pass is executed on.
 
-        pass_ctx : Optional[PassContext]
-            The auxiliary information that helps perform the pass.
-
         Returns
         -------
         ret : tvm.relay.Module
             The updated module.
         """
-        return _pass_mgr.RunModulePass(self, mod, pass_ctx)
+        return _ir_pass.RunModulePass(self, mod)
 
+    def __call__(self, mod):
+        return self.run(mod)
 
 @register_relay_node
 class FunctionPass(Pass):
@@ -159,24 +123,17 @@ class FunctionPass(Pass):
         The optimization level of this pass.
 
     pass_func : Callable[PassContext: tvm.relay.Function -> tvm.relay.Function]
-        The implemented optimization pass.
+        The curried callback that sketches a certain optimization.
 
     enabled : bool
         The flag indicates if a pass is enabled.
-
-    required_passes : List[str]
-        The list of dependent passes to perform this pass.
     """
 
-    def __init__(self, name, opt_level, pass_func, enabled=True,
-                 required_passes=None):
-        required_passes = required_passes if required_passes else []
-        if not isinstance(required_passes, list):
-            raise TypeError("required_passes is expected to be a list of str.")
-        self.__init_handle_by_constructor__(_pass_mgr.FunctionPass, name, opt_level,
-                                            pass_func, enabled, required_passes)
+    def __init__(self, name, opt_level, pass_func, enabled=True):
+        self.__init_handle_by_constructor__(_ir_pass.CreateFunctionPass, name,
+                                            opt_level, pass_func, enabled)
 
-    def run(self, mod, pass_ctx=None):
+    def run(self, mod):
         """Execute a function pass.
 
         Parameters
@@ -184,16 +141,15 @@ class FunctionPass(Pass):
         mod : tvm.relay.Module
             The module that the function pass is executed on.
 
-        pass_ctx : Optional[PassContext]
-            The auxiliary information that helps perform the pass.
-
         Returns
         -------
         ret : tvm.relay.Module
             The updated module.
         """
-        return _pass_mgr.RunFunctionPass(self, mod, pass_ctx)
+        return _ir_pass.RunFunctionPass(self, mod)
 
+    def __call__(self, mod):
+        return self.run(mod)
 
 @register_relay_node
 class SequentialPass(Pass):
@@ -207,25 +163,15 @@ class SequentialPass(Pass):
     opt_level : int
         The optimization level of this pass.
 
-    passes : List[Pass]
-        The pass candidates for optimization.
-
-    enabled : bool
-        The flag indicates if a pass is enabled.
-
-    required_passes : List[str]
-        The list of dependent passes to perform this pass.
+    passes : Map[Pass, bool]
+        The mapping of pass and bool that indicates if a pass is enabled.
     """
 
-    def __init__(self, name, opt_level, passes, enabled=True,
-                 required_passes=None):
-        required_passes = required_passes if required_passes else []
-        if not isinstance(required_passes, list):
-            raise TypeError("required_passes is expected to be a list of str.")
-        self.__init_handle_by_constructor__(_pass_mgr.SequentialPass, name, opt_level,
-                                            passes, enabled, required_passes)
+    def __init__(self, name, opt_level, passes):
+        self.__init_handle_by_constructor__(_ir_pass.CreateSequentialPass,
+                                            name, opt_level, passes)
 
-    def run(self, mod, pass_ctx=None):
+    def run(self, mod):
         """Execute a sequence of passes.
 
         Parameters
@@ -233,21 +179,21 @@ class SequentialPass(Pass):
         mod : tvm.relay.Module
             The module that the function pass is executed on.
 
-        pass_ctx : Optional[PassContext]
-            The auxiliary information that helps perform the pass.
-
         Returns
         -------
         ret : tvm.relay.Module
             The updated module.
         """
-        return _pass_mgr.RunSequentialPass(self, mod, pass_ctx)
+        return _ir_pass.RunSequentialPass(self, mod)
+
+    def __call__(self, mod):
+        return self.run(mod)
 
 
-def build_pass(pass_name, opt_level,
-               pass_kind=PassKind.FunctionKind,
-               pass_func=None, sequential_passes=None,
-               enabled=True, required_passes=None):
+def create_pass(pass_name, opt_level,
+                pass_kind=PassKind.FunctionKind,
+                pass_func=None, sequential_passes=None,
+                enabled=True):
     """Create a pass using a defined optimization function from Python.
 
     Parameters
@@ -271,34 +217,27 @@ def build_pass(pass_name, opt_level,
     enabled : Optional[bool]
         The flag indicates if a pass is enabled.
 
-    required_passes : Optional[List[str]]
-        The list of dependent passes to perform this pass.
-
     Returns
     -------
     ret : Pass
-        The pass the built through pass_func.
+        The pass built through pass_func.
     """
-    required_passes = required_passes if required_passes else []
-    if not isinstance(required_passes, list):
-        raise TypeError("required_passes is expected to be a list of str.")
-
     if not isinstance(pass_kind, PassKind):
         raise TypeError("pass_kind is expected to be the type of PassKind.")
 
     if pass_kind == PassKind.ModuleKind:
         if not pass_func:
             raise TypeError("pass_func must be defined for Module pass")
-        return _pass_mgr.ModulePass(pass_name, opt_level, pass_func, enabled,
-                                    required_passes)
+        return _ir_pass.CreateModulePass(pass_name, opt_level, pass_func,
+                                         enabled)
     elif pass_kind == PassKind.FunctionKind:
         if not pass_func:
             raise TypeError("pass_func must be defined for Function pass")
-        return _pass_mgr.FunctionPass(pass_name, opt_level, pass_func, enabled,
-                                      required_passes)
+        return _ir_pass.CreateFunctionPass(pass_name, opt_level, pass_func,
+                                           enabled)
     else:
         if not isinstance(sequential_passes, (list, tuple)):
-            raise TypeError("sequential_passes must be a list of Pass objects.")
-        return _pass_mgr.SequentialPass(pass_name, opt_level,
-                                        sequential_passes, enabled,
-                                        required_passes)
+            raise TypeError(
+                "sequential_passes must be a list of Pass objects.")
+        return _ir_pass.CreateSequentialPass(pass_name, opt_level,
+                                             sequential_passes)

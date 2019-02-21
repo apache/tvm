@@ -124,8 +124,8 @@ def test_module_pass():
     pass_func = pass_function
 
     def test_pass_registration():
-        mod_pass = pass_manager.build_pass(pass_name, opt_level, pass_kind,
-                                           pass_func=pass_func)
+        mod_pass = pass_manager.create_pass(pass_name, opt_level, pass_kind,
+                                            pass_func=pass_func)
         assert isinstance(mod_pass, pass_manager.ModulePass)
         assert mod_pass.name == pass_name
         assert mod_pass.opt_level == opt_level
@@ -191,8 +191,8 @@ def test_function_pass():
         return ref_log
 
     def test_pass_registration():
-        function_pass = pass_manager.build_pass(pass_name, opt_level,
-                                                pass_func=pass_func)
+        function_pass = pass_manager.create_pass(pass_name, opt_level,
+                                                 pass_func=pass_func)
         assert isinstance(function_pass, pass_manager.FunctionPass)
         assert function_pass.name == pass_name
         assert function_pass.opt_level == opt_level
@@ -275,9 +275,9 @@ def test_sequential_pass():
         passes = [module_pass, function_pass]
         pass_name = "sequential_pass"
         opt_level = 2
-        sequential_pass = pass_manager.build_pass(pass_name, opt_level,
-                                                  pass_kind,
-                                                  sequential_passes=passes)
+        sequential_pass = pass_manager.create_pass(pass_name, opt_level,
+                                                   pass_kind,
+                                                   sequential_passes=passes)
         assert isinstance(sequential_pass, pass_manager.SequentialPass)
         assert sequential_pass.name == pass_name
         assert sequential_pass.opt_level == opt_level
