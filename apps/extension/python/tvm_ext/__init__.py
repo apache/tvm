@@ -46,7 +46,7 @@ tvm.register_extension(IntVec, IntVec)
 
 nd_create = tvm.get_global_func("tvm_ext.nd_create")
 nd_add_two = tvm.get_global_func("tvm_ext.nd_add_two")
-nd_get_tracing = tvm.get_global_func("tvm_ext.nd_get_tracing")
+nd_get_addtional_info = tvm.get_global_func("tvm_ext.nd_get_addtional_info")
 
 class NDSubClass(tvm.nd.NDArrayBase):
     """Example for subclassing TVM's NDArray infrastructure.
@@ -58,12 +58,12 @@ class NDSubClass(tvm.nd.NDArrayBase):
     _array_type_index = 1
 
     @staticmethod
-    def create(is_tracing):
-        return nd_create(is_tracing)
+    def create(addtional_info):
+        return nd_create(addtional_info)
 
     @property
-    def is_tracing(self):
-        return bool(nd_get_tracing(self))
+    def addtional_info(self):
+        return nd_get_addtional_info(self)
 
     def __add__(self, other):
         return nd_add_two(self, other)

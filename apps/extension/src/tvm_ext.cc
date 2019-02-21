@@ -33,19 +33,34 @@ using namespace tvm;
 using namespace tvm::runtime;
 
 namespace tvm_ext {
+/*!
+ * \brief A subclass of TVM's NDArray.
+ *
+ * To use this extension, an external library should
+ *
+ * 1) Inherit TVM's NDArray and NDArray container,
+ *    and define the trait `array_type_index` for this class.
+ *
+ * 2) Define a constructor in the inherited class that accepts
+ *    a pointer to TVM's Container, which is nullable.
+ *
+ * 3) On Python frontend, inherit `tvm.nd.NDArrayBase`,
+ *    define the class attribute `_array_type_index` consistent to
+ *    the C++ type trait, and register the subclass using `tvm.register_extension`.
+ */
 class NDSubClass : public tvm::runtime::NDArray {
  public:
   class SubContainer : public NDArray::Container {
    public:
-    SubContainer(bool is_tracing) {
+    SubContainer(int addtional_info) {
       array_type_index_ = array_type_index<NDSubClass>::code;
-      is_tracing_ = is_tracing;
+      addtional_info_ = addtional_info;
     }
     static bool Is(NDArray::Container *container) {
       SubContainer *c = static_cast<SubContainer*>(container);
       return c->array_type_index_ == array_type_index<NDSubClass>::code;
     }
-    bool is_tracing_{false};
+    int addtional_info_{0};
   };
   NDSubClass(NDArray::Container *container) {
     if (container == nullptr) {
@@ -63,12 +78,12 @@ class NDSubClass : public tvm::runtime::NDArray {
     SubContainer *a = static_cast<SubContainer*>(data_);
     SubContainer *b = static_cast<SubContainer*>(other.data_);
     CHECK(a != nullptr && b != nullptr);
-    return NDSubClass(new SubContainer(a->is_tracing_ || b->is_tracing_));
+    return NDSubClass(new SubContainer(a->addtional_info_ + b->addtional_info_));
   }
-  bool get_tracing() const {
+  int get_additional_info() const {
     SubContainer *self = static_cast<SubContainer*>(data_);
     CHECK(self != nullptr);
-    return self->is_tracing_;
+    return self->addtional_info_;
   }
 };
 }  // namespace tvm_ext
@@ -115,8 +130,8 @@ TVM_REGISTER_GLOBAL("device_api.ext_dev")
 
 TVM_REGISTER_GLOBAL("tvm_ext.nd_create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  bool is_tracing = args[0];
-  *rv = NDSubClass(new NDSubClass::SubContainer(is_tracing));
+  int addtional_info = args[0];
+  *rv = NDSubClass(new NDSubClass::SubContainer(addtional_info));
 });
 
 TVM_REGISTER_GLOBAL("tvm_ext.nd_add_two")
@@ -126,10 +141,10 @@ TVM_REGISTER_GLOBAL("tvm_ext.nd_add_two")
   *rv = a.addWith(b);
 });
 
-TVM_REGISTER_GLOBAL("tvm_ext.nd_get_tracing")
+TVM_REGISTER_GLOBAL("tvm_ext.nd_get_addtional_info")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   NDSubClass a = args[0];
-  *rv = (bool)(a.get_tracing());
+  *rv = a.get_additional_info();
 });
 
 }  // namespace tvm_ext
