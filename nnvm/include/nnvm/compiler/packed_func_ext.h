@@ -40,17 +40,17 @@ namespace tvm {
 namespace runtime {
 
 template<>
-struct extension_class_info<nnvm::Symbol> {
+struct extension_type_info<nnvm::Symbol> {
   static const int code = 16;
 };
 
 template<>
-struct extension_class_info<nnvm::Graph> {
+struct extension_type_info<nnvm::Graph> {
   static const int code = 17;
 };
 
 template<>
-struct extension_class_info<nnvm::compiler::AttrDict> {
+struct extension_type_info<nnvm::compiler::AttrDict> {
   static const int code = 18;
 };
 

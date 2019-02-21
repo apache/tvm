@@ -168,7 +168,7 @@ namespace tvm {
 namespace runtime {
 
 template<>
-struct extension_class_info<test::IntVector> {
+struct extension_type_info<test::IntVector> {
   static const int code = kExtBegin + 1;
 };
 }  // runtime

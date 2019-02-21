@@ -133,7 +133,7 @@ class Registry {
 /*!
  * \brief Macro to register extension type.
  *  This must be registered in a cc file
- *  after the trait extension_class_info is defined.
+ *  after the trait extension_type_info is defined.
  */
 #define TVM_REGISTER_EXT_TYPE(T)                                 \
   TVM_STR_CONCAT(TVM_TYPE_REG_VAR_DEF, __COUNTER__) =            \

@@ -15,7 +15,7 @@ from ._ffi.ndarray import register_extension, free_extension_handle
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
 
-    Strictly this is only an Array Container(a buffer object)
+    Strictly this is only an Array Container (a buffer object)
     No arthimetic operations are defined.
     All operations are performed by TVM functions.
 
