@@ -293,10 +293,9 @@ def schedule_conv2d(attrs, outs, target):
         target = tvm.target.create(target)
         if target.device_name == "vta":
             return schedule_packed_conv2d(outs)
-        elif str(target).startswith("llvm"):
+        if str(target).startswith("llvm"):
             return tvm.create_schedule([x.op for x in outs])
-        else:
-            raise RuntimeError("not support target %s" % target)
+        raise RuntimeError("not support target %s" % target)
     return _nn.schedule_conv2d(attrs, outs, target)
 
 

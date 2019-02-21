@@ -36,16 +36,16 @@ def convert_to_node(value):
     """
     if isinstance(value, _CLASS_NODE_BASE):
         return value
-    elif isinstance(value, bool):
+    if isinstance(value, bool):
         return const(value, 'uint1x1')
-    elif isinstance(value, Number):
+    if isinstance(value, Number):
         return const(value)
-    elif isinstance(value, string_types):
+    if isinstance(value, string_types):
         return _api_internal._str(value)
-    elif isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple)):
         value = [convert_to_node(x) for x in value]
         return _api_internal._Array(*value)
-    elif isinstance(value, dict):
+    if isinstance(value, dict):
         vlist = []
         for item in value.items():
             if (not isinstance(item[0], _CLASS_NODE_BASE) and
@@ -54,12 +54,12 @@ def convert_to_node(value):
             vlist.append(item[0])
             vlist.append(convert_to_node(item[1]))
         return _api_internal._Map(*vlist)
-    elif isinstance(value, NodeGeneric):
+    if isinstance(value, NodeGeneric):
         return value.asnode()
-    elif value is None:
+    if value is None:
         return None
-    else:
-        raise ValueError("don't know how to convert type %s to node" % type(value))
+
+    raise ValueError("don't know how to convert type %s to node" % type(value))
 
 
 def const(value, dtype=None):

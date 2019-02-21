@@ -126,15 +126,14 @@ class OperatorConverter(object):
         if tensor_wrapper.tensor.Type() == TensorType.UINT8:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.uint8).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
-        elif tensor_wrapper.tensor.Type() == TensorType.FLOAT32:
+        if tensor_wrapper.tensor.Type() == TensorType.FLOAT32:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.float32).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
-        elif tensor_wrapper.tensor.Type() == TensorType.INT32:
+        if tensor_wrapper.tensor.Type() == TensorType.INT32:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int32).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
-        else:
-            raise NotImplementedError("Not support tensor type {}"
-                                      .format(str(tensor_wrapper.tensor.Type())))
+        raise NotImplementedError("Not support tensor type {}"
+                                  .format(str(tensor_wrapper.tensor.Type())))
 
     def get_tensor_type_str(self, tensor_type):
         """Get tensor type string representation when given TFLite tensor type"""
@@ -145,12 +144,11 @@ class OperatorConverter(object):
 
         if tensor_type == TensorType.UINT8:
             return "uint8"
-        elif tensor_type == TensorType.FLOAT32:
+        if tensor_type == TensorType.FLOAT32:
             return "float32"
-        elif tensor_type == TensorType.INT32:
+        if tensor_type == TensorType.INT32:
             return "int32"
-        else:
-            raise NotImplementedError("Not support tensor type {}".format(str(tensor_type)))
+        raise NotImplementedError("Not support tensor type {}".format(str(tensor_type)))
 
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
@@ -192,7 +190,7 @@ class OperatorConverter(object):
 
         in_expr = self.get_expr(input_tensor_idx)
 
-        if input_shape_length == 1 or input_shape_length == 2:
+        if input_shape_length in (1, 2):
             # The rule is channel first (after N but before H, W).
             # length of 1 means N*H*W*C, do nothing.
             # length of 2 means N*H*W, C, do nothing.
@@ -275,7 +273,7 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
 
         # TFLite is N H W C, our layout is N C H W
-        if input_shape_length == 1 or input_shape_length == 2:
+        if input_shape_length in (1, 2):
             # The rule is channel first (after N but before H, W).
             # length of 1 means N*H*W*C, do nothing.
             # length of 2 means N*H*W, C, do nothing.
@@ -299,7 +297,7 @@ class OperatorConverter(object):
         # 3: N H W C, reshape to N H*W C, transpose to N C H*W
         # 4: N H W C, transpose to N C H W
         # add more if we need target shapes in future
-        if output_shape_length == 1 or output_shape_length == 2:
+        if output_shape_length in (1, 2):
             pass
         elif output_shape_length == 3:
             out = _op.transpose(out, axes=(0, 2, 1))
@@ -320,16 +318,15 @@ class OperatorConverter(object):
         assert fused_activation_fn != ActivationFunctionType.NONE
         if fused_activation_fn == ActivationFunctionType.RELU6:
             return _op.clip(in_expr, a_min=0, a_max=6)
-        elif fused_activation_fn == ActivationFunctionType.RELU:
+        if fused_activation_fn == ActivationFunctionType.RELU:
             return _op.nn.relu(in_expr)
-        elif fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
+        if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
             return _op.clip(in_expr, a_min=-1, a_max=1)
-        elif fused_activation_fn == ActivationFunctionType.TANH:
+        if fused_activation_fn == ActivationFunctionType.TANH:
             return _op.tanh(in_expr)
-        else:
-            fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
-            raise NotImplementedError("Unsupported fused activation fn {}"
-                                      .format(fused_activation_fn_str))
+        fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
+        raise NotImplementedError("Unsupported fused activation fn {}"
+                                  .format(fused_activation_fn_str))
 
     def convert_conv(self, op, conv_type):
         """convolution implementation."""
@@ -401,7 +398,7 @@ class OperatorConverter(object):
 
         # weight tensor type should be UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type == TensorType.UINT8 or weight_tensor_type == TensorType.FLOAT32
+        assert weight_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         in_expr = self.get_expr(input_tensor_idx)
@@ -434,7 +431,7 @@ class OperatorConverter(object):
             bias_tensor = input_tensors[2]
             bias_tensor_type = bias_tensor.tensor.Type()
             # bias tensor type should be INT32 (quantization) or FLOAT32
-            assert bias_tensor_type == TensorType.INT32 or bias_tensor_type == TensorType.FLOAT32
+            assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
             bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
                                                dtype=bias_tensor_type_str)

@@ -172,7 +172,6 @@ class TypeCall(Type):
 @register_relay_node
 class TypeConstraint(Type):
     """Abstract class representing a type constraint."""
-    pass
 
 
 @register_relay_node

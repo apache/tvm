@@ -64,7 +64,7 @@ def gemm(env, mock=False):
                            dev.get_task_qid(dev.QID_COMPUTE))
             irb.scope_attr(dev.vta_axis, "coproc_uop_scope",
                            dev.vta_push_uop)
-            if index == 0 or index == 2:
+            if index in (0, 2):
                 irb.emit(tvm.call_extern(
                     "int32", "VTAUopPush",
                     0, 0,

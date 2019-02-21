@@ -61,7 +61,7 @@ def _declaration_bitserial_conv2d(data, kernel, stride, padding, activation_bits
     if out_dtype is None:
         out_dtype = data.dtype
     assert data.shape[0].value == 1, "only support batch size=1 convolution on rasp"
-    assert layout == "NCHW" or layout == "NHWC", "only support layouts NCHW and NHWC"
+    assert layout in ("NCHW", "NHWC"), "only support layouts NCHW and NHWC"
     if dorefa:
         assert layout == "NCHW", "Cannot support dorea with NHWC layout yet"
     wkl = _get_workload(data, kernel, stride, padding, out_dtype, layout)

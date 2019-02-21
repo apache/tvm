@@ -57,7 +57,7 @@ def compute_conv2d(attrs, inputs, out_type, target):
     layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
     out_dtype = attrs.out_dtype
-    out_dtype = (inputs[0].dtype if (out_dtype == "same" or out_dtype == "")
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                  else out_dtype)
 
     assert layout in ["NCHW", "NHWC", "NCHW4c"]
@@ -95,15 +95,15 @@ def schedule_conv2d(attrs, outs, target):
     with target:
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
-        elif groups == 1 and layout == "NCHW4c":
+        if groups == 1 and layout == "NCHW4c":
             return topi.generic.schedule_conv2d_nchw(outs)
-        elif groups == 1 and layout == "NHWC":
+        if groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
-        elif groups != 1:
+        if groups != 1:
             if layout == "NCHW":
                 # TODO(leyuan, merrymercy, Huyuwei): fold depthwise topi into conv2d.
                 return topi.generic.schedule_depthwise_conv2d_nchw(outs)
-            elif layout == "NHWC" and kernel_layout == "HWOI":
+            if layout == "NHWC" and kernel_layout == "HWOI":
                 return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
     raise ValueError("No compatible schedule")
 
@@ -127,7 +127,7 @@ def compute_conv2d_transpose(attrs, inputs, out_dtype, target):
     groups = attrs.groups
     layout = attrs.data_layout
     out_dtype = attrs.out_dtype
-    out_dtype = (inputs[0].dtype if (out_dtype == "same" or out_dtype == "")
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                  else out_dtype)
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"

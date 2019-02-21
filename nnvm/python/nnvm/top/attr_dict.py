@@ -129,14 +129,13 @@ class AttrDict(object):
         lowercase = self[key].lower()
         if lowercase == "1":
             return True
-        elif lowercase == "0":
+        if lowercase == "0":
             return False
-        elif lowercase == "true":
+        if lowercase == "true":
             return True
-        elif lowercase == "false":
+        if lowercase == "false":
             return False
-        else:
-            raise ValueError("Wrong bool format for key %s" % key)
+        raise ValueError("Wrong bool format for key %s" % key)
 
     def get_str(self, key):
         """Get string from attr dict

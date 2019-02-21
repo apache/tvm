@@ -921,8 +921,6 @@ class GraphProto(object):
             if layer_num != self.net.n-1:
                 self._outs.insert(0, sym)
 
-        return
-
     def from_darknet(self):
         """To convert the darknet symbol to nnvm symbols."""
         for i in range(self.net.n):

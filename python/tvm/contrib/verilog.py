@@ -118,8 +118,7 @@ def _find_vpi_path():
     vpi_found = [p for p in vpi_path if os.path.exists(p) and os.path.isfile(p)]
     if vpi_found:
         return os.path.dirname(vpi_found[0])
-    else:
-        raise ValueError("Cannot find tvm_vpi.vpi, make sure you did `make verilog`")
+    raise ValueError("Cannot find tvm_vpi.vpi, make sure you did `make verilog`")
 
 def search_path():
     """Get the search directory."""

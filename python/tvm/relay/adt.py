@@ -8,7 +8,7 @@ from .expr import Expr, Call
 
 class Pattern(RelayNode):
     """Base type for pattern matching constructs."""
-    pass
+
 
 @register_relay_node
 class PatternWildcard(Pattern):

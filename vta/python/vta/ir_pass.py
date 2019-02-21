@@ -77,10 +77,9 @@ def fold_uop_loop(stmt_in):
                         args.append(m[1])
                 args += op.args[base_args+3:]
                 return tvm.call_extern("int32", "VTAUopPush", *args)
-            else:
-                if op.name not in ("VTATLSCommandHandle", "tvm_thread_context"):
-                    raise RuntimeError("unexpected op %s" % op)
-                return op
+            if op.name not in ("VTATLSCommandHandle", "tvm_thread_context"):
+                raise RuntimeError("unexpected op %s" % op)
+            return op
 
         ret = tvm.ir_pass.IRTransform(
             stmt.body, None, _post_order, ["Call"])
@@ -165,22 +164,21 @@ def cpu_access_rewrite(stmt_in):
                 op.condition, let_stmt)
             del rw_info[buffer_var]
             return alloc
-        elif isinstance(op, tvm.expr.Load):
+        if isinstance(op, tvm.expr.Load):
             buffer_var = op.buffer_var
             if not buffer_var in rw_info:
                 rw_info[buffer_var] = tvm.var(
                     buffer_var.name + "_ptr", "handle")
             new_var = rw_info[buffer_var]
             return tvm.make.Load(op.dtype, new_var, op.index)
-        elif isinstance(op, tvm.stmt.Store):
+        if isinstance(op, tvm.stmt.Store):
             buffer_var = op.buffer_var
             if not buffer_var in rw_info:
                 rw_info[buffer_var] = tvm.var(
                     buffer_var.name + "_ptr", "handle")
             new_var = rw_info[buffer_var]
             return tvm.make.Store(new_var, op.value, op.index)
-        else:
-            raise RuntimeError("not reached")
+        raise RuntimeError("not reached")
     stmt = tvm.ir_pass.IRTransform(
         stmt_in, None, _post_order, ["Allocate", "Load", "Store"])
     for buffer_var, new_var in rw_info.items():
@@ -233,23 +231,20 @@ def lift_alloc_to_scope_begin(stmt_in):
             if op.attr_key == "virtual_thread":
                 lift_stmt.append([])
 
-        return None
-
     def _post_order(op):
         if isinstance(op, tvm.stmt.Allocate):
             lift_stmt[-1].append(op)
             return op.body
-        elif isinstance(op, tvm.stmt.AttrStmt):
+        if isinstance(op, tvm.stmt.AttrStmt):
             if op.attr_key == "storage_scope":
                 lift_stmt[-1].append(op)
                 return op.body
-            elif op.attr_key == "virtual_thread":
+            if op.attr_key == "virtual_thread":
                 return _merge_block(lift_stmt.pop() + [op], op.body)
             return op
-        elif isinstance(op, tvm.stmt.For):
+        if isinstance(op, tvm.stmt.For):
             return _merge_block(lift_stmt.pop() + [op], op.body)
-        else:
-            raise RuntimeError("not reached")
+        raise RuntimeError("not reached")
     stmt = tvm.ir_pass.IRTransform(
         stmt_in, _pre_order, _post_order, ["Allocate", "AttrStmt", "For"])
     assert len(lift_stmt) == 1
@@ -297,7 +292,7 @@ def inject_coproc_sync(stmt_in):
             sync = tvm.make.Call(
                 "int32", "vta.coproc_sync", [], tvm.expr.Call.Intrinsic, None, 0)
             return tvm.make.Block(stmt.body, tvm.make.Evaluate(sync))
-        elif _match_pragma(stmt, "trim_loop"):
+        if _match_pragma(stmt, "trim_loop"):
             op = stmt.body
             assert isinstance(op, tvm.stmt.For)
             return tvm.make.For(
@@ -584,7 +579,7 @@ def annotate_alu_coproc_scope(stmt_in):
                            tvm.make.StringImm("VTAPushALUOp"))
             irb.emit(stmt)
             return irb.get()
-        elif _match_pragma(stmt, "skip_alu"):
+        if _match_pragma(stmt, "skip_alu"):
             return tvm.make.Evaluate(0)
         return stmt
 
