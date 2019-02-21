@@ -83,8 +83,12 @@ class PassContext : public NodeRef {
   using ContainerType = PassContextNode;
 };
 
-// We use currying here. The Relay module is captured for optimizations. It
-// runs on a Relay node type NodeT and yields a new node with the same type.
+// We use currying here. It runs on a Relay node type NodeT and yields a new
+// node with the same type. The Relay module is captured for optimizations as
+// most of the  current Relay optimizations are module to module. Currying
+// sketches the optimization, i.e. how we want to mutate an AST, and it is
+// passed as packed functions that will be invoked when called by `run`.
+//
 // For example, PassFunc<Function> indicates we perform a Function to Function
 // transformation on the given Module.
 template <typename NodeT,
