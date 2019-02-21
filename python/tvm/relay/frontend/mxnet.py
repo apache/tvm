@@ -886,6 +886,16 @@ def _mx_rnn_layer(inputs, attrs):
     return ret
 
 
+def _mx_layer_norm(inputs, attrs):
+    assert len(inputs) == 3
+    if attrs.get_bool("output_mean_var", False):
+        raise RuntimeError("batch_norm do not support output_mean_var")
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.layer_norm(*inputs, **new_attrs)
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -997,6 +1007,7 @@ _convert_map = {
     "Dropout"       : _mx_dropout,
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
+    "LayerNorm"     : _mx_layer_norm,
     "LRN"           : _mx_lrn,
     "L2Normalization"  : _mx_l2_normalize,
     "slice"         : _mx_slice,

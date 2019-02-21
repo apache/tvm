@@ -897,6 +897,10 @@ def batch_norm(data,
     return TupleWrapper(result, 3)
 
 
+def layer_norm(data, gamma, beta, axis=-1, epsilon=1e-5):
+    return _make.layer_norm(data, gamma, beta, axis, epsilon)
+
+
 def batch_matmul(x, y):
     r"""
     Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data

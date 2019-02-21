@@ -470,6 +470,22 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
 };  // struct BatchNormAttrs
 
 
+/*! \brief Attributes used in layer_norm operator */
+struct LayerNormAttrs : public tvm::AttrsNode<LayerNormAttrs> {
+  int axis;
+  double epsilon;
+
+  TVM_DECLARE_ATTRS(LayerNormAttrs, "relay.attrs.LayerNormAttrs") {
+    TVM_ATTR_FIELD(axis)
+      .describe("Specify which shape axis denotes the channel.")
+      .set_default(-1);
+    TVM_ATTR_FIELD(epsilon)
+      .describe("Small float added to variance to avoid dividing by zero")
+      .set_default(1e-5);
+  }
+};  // struct LayerNormAttrs
+
+
 /*! \brief Attributes for LRN operator */
 struct LRNAttrs : public tvm::AttrsNode<LRNAttrs> {
   int size;

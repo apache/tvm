@@ -257,6 +257,12 @@ def mean(data, axis=None, keepdims=False, exclude=False):
     return _make.mean(data, axis, keepdims, exclude)
 
 
+def variance(data, axis=None, keepdims=False, exclude=False):
+    axis = [axis] if isinstance(axis, int) else axis
+    m = mean(data, axis, True, exclude)
+    return _make._variance(data, m, axis, keepdims, exclude)
+
+
 def prod(data, axis=None, keepdims=False, exclude=False):
     """Computes the products of array elements over given axes.
 
