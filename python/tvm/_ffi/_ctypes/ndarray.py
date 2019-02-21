@@ -82,9 +82,9 @@ def _make_array(handle, is_view, is_container):
     handle = ctypes.cast(handle, TVMArrayHandle)
     fcreate = _CLASS_NDARRAY
     if is_container and _TVM_ND_CLS:
-        array_type_index = ctypes.cast(handle, TVMNDArrayContainerHandle).array_type_index.value
-        if array_type_index > 0:
-            fcreate = _TVM_ND_CLS[array_type_index]
+        array_type_info = ctypes.cast(handle, TVMNDArrayContainerHandle).array_type_info.value
+        if array_type_info > 0:
+            fcreate = _TVM_ND_CLS[array_type_info]
     return fcreate(handle, is_view)
 
 _TVM_COMPATS = ()
@@ -101,7 +101,7 @@ _TVM_ND_CLS = {}
 
 def _reg_ndarray(cls, fcreate):
     global _TVM_ND_CLS
-    _TVM_ND_CLS[cls._array_type_index] = fcreate
+    _TVM_ND_CLS[cls._array_type_info] = fcreate
 
 _CLASS_NDARRAY = None
 

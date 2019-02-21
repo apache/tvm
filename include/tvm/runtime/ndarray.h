@@ -191,14 +191,14 @@ class NDArray {
  *  All subclasses of NDArray should override code > 0.
  */
 template<typename T>
-struct array_type_index {
+struct array_type_info {
   /*! \brief the value of the traits */
   static const int code = -1;
 };
 
 // Overrides the type trait for tvm's NDArray.
 template<>
-struct array_type_index<NDArray> {
+struct array_type_info<NDArray> {
   static const int code = 0;
 };
 
@@ -257,10 +257,10 @@ class NDArray::Container {
    *  Default value 0 means normal NDArray::Conatainer.
    *
    *  We can extend a more specialized NDArray::Container
-   *  and use the array_type_index_ to indicate
+   *  and use the array_type_info_ to indicate
    *  the specific array subclass.
    */
-  int32_t array_type_index_{0};
+  int32_t array_type_info_{0};
   /*! \brief The internal reference counter */
   std::atomic<int> ref_counter_{0};
   /*!

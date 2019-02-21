@@ -19,11 +19,11 @@ class NDSubClass;
 namespace tvm {
 namespace runtime {
 template<>
-struct extension_class_info<tvm_ext::IntVector> {
+struct extension_type_info<tvm_ext::IntVector> {
   static const int code = 17;
 };
 template<>
-struct array_type_index<tvm_ext::NDSubClass> {
+struct array_type_info<tvm_ext::NDSubClass> {
   static const int code = 1;
 };
 }  // namespace tvm
@@ -39,13 +39,13 @@ namespace tvm_ext {
  * To use this extension, an external library should
  *
  * 1) Inherit TVM's NDArray and NDArray container,
- *    and define the trait `array_type_index` for this class.
+ *    and define the trait `array_type_info` for this class.
  *
  * 2) Define a constructor in the inherited class that accepts
  *    a pointer to TVM's Container, which is nullable.
  *
  * 3) On Python frontend, inherit `tvm.nd.NDArrayBase`,
- *    define the class attribute `_array_type_index` consistent to
+ *    define the class attribute `_array_type_info` consistent to
  *    the C++ type trait, and register the subclass using `tvm.register_extension`.
  */
 class NDSubClass : public tvm::runtime::NDArray {
@@ -54,11 +54,11 @@ class NDSubClass : public tvm::runtime::NDArray {
    public:
     SubContainer(int addtional_info) :
       addtional_info_(addtional_info) {
-      array_type_index_ = array_type_index<NDSubClass>::code;
+      array_type_info_ = array_type_info<NDSubClass>::code;
     }
     static bool Is(NDArray::Container *container) {
       SubContainer *c = static_cast<SubContainer*>(container);
-      return c->array_type_index_ == array_type_index<NDSubClass>::code;
+      return c->array_type_info_ == array_type_info<NDSubClass>::code;
     }
     int addtional_info_{0};
   };

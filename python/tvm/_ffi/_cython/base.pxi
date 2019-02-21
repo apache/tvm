@@ -65,7 +65,7 @@ ctypedef struct TVMNDArrayContainer:
     DLTensor dl_tensor
     void* manager_ctx
     void (*deleter)(DLManagedTensor* self)
-    int32_t array_type_index
+    int32_t array_type_info
 
 ctypedef TVMNDArrayContainer* TVMNDArrayContainerHandle
 

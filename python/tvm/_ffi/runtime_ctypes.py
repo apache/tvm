@@ -246,6 +246,6 @@ class TVMNDArrayContainer(ctypes.Structure):
     _fields_ = [("dl_tensor", TVMArray),
                 ("manager_ctx", ctypes.c_void_p),
                 ("deleter", ctypes.c_void_p),
-                ("array_type_index", ctypes.c_int32)]
+                ("array_type_info", ctypes.c_int32)]
 
 TVMNDArrayContainerHandle = ctypes.POINTER(TVMNDArrayContainer)

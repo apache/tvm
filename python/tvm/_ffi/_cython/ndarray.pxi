@@ -75,12 +75,12 @@ cdef class NDArrayBase:
 
 cdef c_make_array(void* chandle, is_view, is_container):
     global _TVM_ND_CLS
-    cdef int32_t array_type_index
+    cdef int32_t array_type_info
     fcreate = _CLASS_NDARRAY
     if is_container and len(_TVM_ND_CLS) > 0:
-        array_type_index = (<TVMNDArrayContainerHandle>chandle).array_type_index
-        if array_type_index > 0:
-            fcreate = _TVM_ND_CLS[array_type_index]
+        array_type_info = (<TVMNDArrayContainerHandle>chandle).array_type_info
+        if array_type_info > 0:
+            fcreate = _TVM_ND_CLS[array_type_info]
     ret = fcreate(None, is_view)
     (<NDArrayBase>ret).chandle = <DLTensor*>chandle
     return ret
@@ -100,7 +100,7 @@ cdef _TVM_ND_CLS = {}
 
 def _reg_ndarray(cls, fcreate):
     global _TVM_ND_CLS
-    _TVM_ND_CLS[cls._array_type_index] = fcreate
+    _TVM_ND_CLS[cls._array_type_info] = fcreate
 
 def _make_array(handle, is_view, is_container):
     cdef unsigned long long ptr
