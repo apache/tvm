@@ -166,6 +166,21 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
     graph_.post_dfs_order.push_back(b);
   }
 
+  void VisitExpr_(const MatchNode* m) final {
+    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(m)];
+    Depend(n, m->data);
+    std::vector<DependencyGraph::Node*> v;
+    for (const Clause& c : m->clauses) {
+      DependencyGraph::Node* b = NewNode(true);
+      Depend(n, b);
+      Depend(b, c->rhs);
+      v.push_back(b);
+    }
+    for (auto it = v.rbegin(); it != v.rend(); ++it) {
+      graph_.post_dfs_order.push_back(*it);
+    }
+  }
+
   void VisitExpr_(const VarNode* v) final { }
 
   void VisitExpr_(const GlobalVarNode* v) final { }
@@ -173,6 +188,8 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
   void VisitExpr_(const ConstantNode* c) final { }
 
   void VisitExpr_(const OpNode* o) final { }
+
+  void VisitExpr_(const ConstructorNode* c) final { }
 };
 
 DependencyGraph DependencyGraph::Create(common::Arena* arena, const Expr& body) {
@@ -386,6 +403,25 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const OpNode* op, const Var& v) final {
     return GetRef<Expr>(op);
+  }
+
+  Expr VisitExpr_(const ConstructorNode* c, const Var& v) final {
+    return GetRef<Expr>(c);
+  }
+
+  Expr VisitExpr_(const MatchNode* m, const Var& v) final {
+    Expr e = GetRef<Expr>(m);
+    Expr data = VisitExpr(m->data);
+    std::vector<Clause> clauses;
+    for (const Clause& c : m->clauses) {
+      clauses.push_back(ClauseNode::make(
+        c->lhs,
+        GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
+    }
+    std::cout << "ok" << std::endl;
+    Expr r = Compound(e, MatchNode::make(data, clauses), v);
+    std::cout << "ok" << std::endl;
+    return r;
   }
 };
 
