@@ -43,6 +43,7 @@ class OperatorConverter(object):
             'SOFTMAX': self.convert_softmax,
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
+            "CONCATENATION": self.convert_concatenation
             # Add more operators
         }
 
@@ -245,6 +246,54 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
         out = _op.nn.softmax(in_expr, **params)
 
+        return out
+
+    def convert_concatenation(self, op):
+        try:
+            from tflite.Operator import Operator
+            from tflite.ConcatenationOptions import ConcatenationOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        assert len(input_tensors) >= 1, "input tensors should greater than 1"
+        assert len(output_tensors) == 1, "output tensors should be 1"
+        in_exprs = [ self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
+        assert op.BuiltinOptionsType() == BuiltinOptions.ConcatenationOptions
+        op_options = op.BuiltinOptions()
+        concatenation_options = ConcatenationOptions()
+        concatenation_options.Init(op_options.Bytes, op_options.Pos)
+        concatenation_axis = concatenation_options.Axis()
+        fused_activation_fn = concatenation_options.FusedActivationFunction()
+        input_shape_length = len(input_tensors[0].tensor.ShapeAsNumpy())
+        axis_convert_map = {}
+        # TFLite is N H W C, our layout is N C H W
+        if input_shape_length == 1 or input_shape_length == 2:
+            # The rule is channel first (after N but before H, W).
+            # length of 1 means N*H*W*C, do nothing.
+            # length of 2 means N*H*W, C, do nothing.
+            pass
+        elif input_shape_length == 3:
+            # convert N C H*W to N H*W C
+            axis_convert_map = {1:2, 2:1}
+        elif input_shape_length == 4:
+            # change axis.
+            axis_convert_map = {1: 2, 2: 3, 3:1}
+        else:
+            raise NotImplementedError("Not support input shape length {} of concatenatio : "
+                                      .format(str(input_shape_length)))
+
+        # axis in N H W C
+        concatenation_axis = axis_convert_map.get(concatenation_axis, concatenation_axis)
+        out = _op.concatenate(in_exprs, axis=concatenation_axis)
+        
+        # if we have activation fn
+        if fused_activation_fn != ActivationFunctionType.NONE:
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
     def convert_squeeze(self, op):
