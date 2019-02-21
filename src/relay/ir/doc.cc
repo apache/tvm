@@ -150,25 +150,5 @@ Doc PrintBool(bool value) {
   }
 }
 
-/*!
- * \brief special method to print out const scalar
- * \param dtype The data type
- * \param data The pointer to hold the data.
- */
-template<typename T>
-Doc PrintConstScalar(DataType dtype, const T* data) {
-  std::ostringstream os;
-  if (dtype == Int(32)) {
-    os << data[0];
-  } else if (dtype == Float(32)) {
-    os << data[0] << 'f';
-  } else if (dtype == Bool()) {
-      return PrintBool(data[0] != 0);
-  } else {
-    os << dtype << "(" << data[0] << ")";
-  }
-  return Text(os.str());
-}
-
 } // relay
 } // tvm

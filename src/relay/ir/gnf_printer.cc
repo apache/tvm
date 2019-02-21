@@ -15,9 +15,9 @@ class GNFPrinter :
   public:
     explicit GNFPrinter() {}
 
-    std::string Print(const NodeRef& node) {
+    const Doc Print(const NodeRef& node) {
       if (node.as_derived<ExprNode>()) {
-        return Layout(this->PrintExpr(Downcast<Expr>(node)));
+        return this->PrintExpr(Downcast<Expr>(node));
       } else { assert(false); }
     }
 
@@ -57,12 +57,12 @@ class GNFPrinter :
     size_t temp_var_counter_{0};
 };
 
-std::string RelayPrettyPrint(const NodeRef& node) {
-  return "v0.0.1\n" + GNFPrinter().Print(node);
+std::string RelayGNFPrint(const NodeRef& node) {
+  return "v0.0.1\n" + Layout(GNFPrinter().Print(node));
 }
 
-TVM_REGISTER_API("relay._expr.pretty_print")
-.set_body_typed<std::string(const NodeRef&)>(RelayPrettyPrint);
+TVM_REGISTER_API("relay._expr.gnf_print")
+.set_body_typed<std::string(const NodeRef&)>(RelayGNFPrint);
 
 } // relay
 } // tvm
