@@ -32,7 +32,6 @@ else:
 
 class TVMError(Exception):
     """Error thrown by TVM function"""
-    pass
 
 
 def _load_lib():

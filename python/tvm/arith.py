@@ -31,11 +31,11 @@ class IntervalSet(IntSet):
 @register_node
 class StrideSet(IntSet):
     """Represent set of strided integers"""
-    pass
+
 
 @register_node
 class ModularSet(IntSet):
     """Represent range of (coeff * x + base) for x in Z """
-    pass
+
 
 _init_api("tvm.arith")
