@@ -100,7 +100,7 @@ cdef _TVM_ND_CLS = {}
 
 def _reg_ndarray(cls, fcreate):
     global _TVM_ND_CLS
-    _TVM_ND_CLS[cls._array_type_info] = fcreate
+    _TVM_ND_CLS[cls._array_type_code] = fcreate
 
 def _make_array(handle, is_view, is_container):
     cdef unsigned long long ptr

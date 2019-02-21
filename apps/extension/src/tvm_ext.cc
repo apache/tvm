@@ -45,7 +45,7 @@ namespace tvm_ext {
  *    a pointer to TVM's Container, which is nullable.
  *
  * 3) On Python frontend, inherit `tvm.nd.NDArrayBase`,
- *    define the class attribute `_array_type_info` consistent to
+ *    define the class attribute `_array_type_code` consistent to
  *    the C++ type trait, and register the subclass using `tvm.register_extension`.
  */
 class NDSubClass : public tvm::runtime::NDArray {
@@ -54,11 +54,11 @@ class NDSubClass : public tvm::runtime::NDArray {
    public:
     SubContainer(int addtional_info) :
       addtional_info_(addtional_info) {
-      array_type_info_ = array_type_info<NDSubClass>::code;
+      array_type_code_ = array_type_info<NDSubClass>::code;
     }
     static bool Is(NDArray::Container *container) {
       SubContainer *c = static_cast<SubContainer*>(container);
-      return c->array_type_info_ == array_type_info<NDSubClass>::code;
+      return c->array_type_code_ == array_type_info<NDSubClass>::code;
     }
     int addtional_info_{0};
   };

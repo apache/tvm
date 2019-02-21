@@ -461,7 +461,7 @@ class TVMPODValue_ {
   TNDArray AsNDArray() const {
     if (type_code_ == kNull) return TNDArray(nullptr);
     auto *container = static_cast<NDArray::Container*>(value_.v_handle);
-    CHECK_EQ(container->array_type_info_, array_type_info<TNDArray>::code);
+    CHECK_EQ(container->array_type_code_, array_type_info<TNDArray>::code);
     return TNDArray(container);
   }
   template<typename TExtension>

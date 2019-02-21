@@ -257,10 +257,10 @@ class NDArray::Container {
    *  Default value 0 means normal NDArray::Conatainer.
    *
    *  We can extend a more specialized NDArray::Container
-   *  and use the array_type_info_ to indicate
+   *  and use the array_type_code_ to indicate
    *  the specific array subclass.
    */
-  int32_t array_type_info_{0};
+  int32_t array_type_code_{0};
   /*! \brief The internal reference counter */
   std::atomic<int> ref_counter_{0};
   /*!

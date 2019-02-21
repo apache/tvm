@@ -318,11 +318,11 @@ def register_extension(cls, fcreate=None):
     The registered class is requires one property: _tvm_handle.
 
     If the registered class is a subclass of NDArray,
-    it is required to have a class attribute _array_type_info.
+    it is required to have a class attribute _array_type_code.
     Otherwise, it is required to have a class attribute _tvm_tcode.
 
     - ```_tvm_handle``` returns integer represents the address of the handle.
-    - ```_tvm_tcode``` or ```_array_type_info``` gives integer represents type
+    - ```_tvm_tcode``` or ```_array_type_code``` gives integer represents type
       code of the class.
 
     Returns
@@ -350,7 +350,7 @@ def register_extension(cls, fcreate=None):
     """
     if issubclass(cls, _NDArrayBase):
         assert fcreate is not None
-        assert hasattr(cls, "_array_type_info")
+        assert hasattr(cls, "_array_type_code")
         _reg_ndarray(cls, fcreate)
     else:
         assert hasattr(cls, "_tvm_tcode")

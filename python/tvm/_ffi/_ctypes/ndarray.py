@@ -101,7 +101,7 @@ _TVM_ND_CLS = {}
 
 def _reg_ndarray(cls, fcreate):
     global _TVM_ND_CLS
-    _TVM_ND_CLS[cls._array_type_info] = fcreate
+    _TVM_ND_CLS[cls._array_type_code] = fcreate
 
 _CLASS_NDARRAY = None
 

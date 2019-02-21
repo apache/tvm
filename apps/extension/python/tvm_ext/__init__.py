@@ -55,7 +55,7 @@ class NDSubClass(tvm.nd.NDArrayBase):
     leverage TVM's FFI without any modification.
     """
     # Should be consistent with the type-trait set in the backend
-    _array_type_info = 1
+    _array_type_code = 1
 
     @staticmethod
     def create(addtional_info):
