@@ -123,5 +123,52 @@ std::string Layout(const Doc& doc) {
   } else {assert(false);}
 }
 
+// render array-like things: e.g. (1, 2, 3)
+Doc PrintArray(const Doc& open, const tvm::Array<Doc>& arr, const Doc& sep, const Doc& close) {
+  Doc seq;
+  if (arr.size() == 0) {
+    seq = Nil();
+  } else {
+    seq = arr[0];
+    for (size_t i = 1; i < arr.size(); i++) {
+      seq = seq + sep + arr[i];
+    }
+  }
+
+  return open + seq + close;
+}
+
+/*!
+ * \brief Print constant bool value.
+ * \param value The value to be printed.
+ */
+Doc PrintBool(bool value) {
+  if (value) {
+    return Text("True");
+  } else {
+    return Text("False");
+  }
+}
+
+/*!
+ * \brief special method to print out const scalar
+ * \param dtype The data type
+ * \param data The pointer to hold the data.
+ */
+template<typename T>
+Doc PrintConstScalar(DataType dtype, const T* data) {
+  std::ostringstream os;
+  if (dtype == Int(32)) {
+    os << data[0];
+  } else if (dtype == Float(32)) {
+    os << data[0] << 'f';
+  } else if (dtype == Bool()) {
+      return PrintBool(data[0] != 0);
+  } else {
+    os << dtype << "(" << data[0] << ")";
+  }
+  return Text(os.str());
+}
+
 } // relay
 } // tvm

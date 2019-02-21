@@ -108,6 +108,13 @@ Doc operator+(const Doc& left, const Doc& right);
 Doc Nest(int indent, const Doc& doc);
 // convert doc to a string
 std::string Layout(const Doc& doc);
+// render array-like things: e.g. (1, 2, 3)
+Doc PrintArray(const Doc& open, const tvm::Array<Doc>& arr, const Doc& sep, const Doc& close);
+// Print constant bool value.
+Doc PrintBool(bool value);
+// special method to print out const scalar
+template<typename T>
+Doc PrintConstScalar(DataType dtype, const T* data);
 
 }  // namespace relay
 }  // namespace tvm

@@ -1,8 +1,8 @@
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file pretty_printer.cc
- * \brief Pretty printer for Relay programs
- * Supports functional style and metadata.
+ * \file gnf_printer.cc
+ * \brief GNF printer for Relay programs
+ * Supports GNF and metadata.
  */
 #include <tvm/relay/doc.h>
 #include <tvm/relay/expr_functor.h>
@@ -10,14 +10,14 @@
 namespace tvm {
 namespace relay {
 
-class PrettyPrinter :
+class GNFPrinter :
     public ExprFunctor<Doc(const Expr&)> {
   public:
-    explicit PrettyPrinter() {}
+    explicit GNFPrinter() {}
 
-    const Doc Print(const NodeRef& node) {
+    std::string Print(const NodeRef& node) {
       if (node.as_derived<ExprNode>()) {
-        return this->PrintExpr(Downcast<Expr>(node));
+        return Layout(this->PrintExpr(Downcast<Expr>(node)));
       } else { assert(false); }
     }
 
@@ -30,7 +30,7 @@ class PrettyPrinter :
     }
 
     Doc VisitExpr_(const ConstantNode* op) final {
-      // Print out simple scalar directly.
+      // Print out simple scalars directly.
       if (op->is_scalar()) {
         std::ostringstream os;
         DataType dtype = TVMType2Type(op->data->dtype);
@@ -51,25 +51,14 @@ class PrettyPrinter :
       assert(false);
     }
 
-    Doc VisitExpr_(const TupleNode* op) final {
-      std::vector<Doc> fields;
-      for (Expr field : op->fields) {
-        fields.push_back(this->Print(field));
-      }
-      return PrintArray(Text("("), fields, Text(", "), Text(")"));
-    }
-
-    Doc VisitExpr_(const TupleGetItemNode* op) final {
-      return this->Print(op->tuple) + Text(".") + Text(std::to_string(op->index));
-    }
-
   private:
     /*! \brief Map from Expr to Doc */
     std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
+    size_t temp_var_counter_{0};
 };
 
 std::string RelayPrettyPrint(const NodeRef& node) {
-  return "v0.0.1\n" + Layout(PrettyPrinter().Print(node));
+  return "v0.0.1\n" + GNFPrinter().Print(node);
 }
 
 TVM_REGISTER_API("relay._expr.pretty_print")
