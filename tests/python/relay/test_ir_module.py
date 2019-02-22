@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -66,3 +67,31 @@ def test_constructor_tag_differences():
             # make sure there is something present at the MSB
             assert ctor1.tag - i != 0
             assert ctor2.tag - (i + 1) != 0
+
+
+def test_global_mutual_recursion():
+    odd = relay.GlobalVar("odd")
+    even = relay.GlobalVar("even")
+
+    # even and odd are mutually recursive
+    x = relay.Var("x", relay.scalar_type('int32'))
+    odd_func = relay.Function(
+        [x],
+        relay.If(relay.equal(x, relay.const(0, 'int32')),
+                 relay.const(True, 'bool'),
+                 even(relay.subtract(x, relay.const(1, 'int32')))))
+    y = relay.Var("y", relay.scalar_type('int32'))
+    even_func = relay.Function(
+        [y],
+        relay.If(relay.equal(y, relay.const(1, 'int32')),
+                 relay.const(True, 'bool'),
+                 odd(relay.subtract(y, relay.const(1, 'int32')))))
+
+    mapping = {odd : odd_func, even : even_func}
+    mod = relay.Module(mapping)
+
+    expected_type = relay.FuncType([relay.scalar_type('int32')],
+                                   relay.scalar_type('bool'))
+
+    assert mod[odd].checked_type == expected_type
+    assert mod[even].checked_type == expected_type
