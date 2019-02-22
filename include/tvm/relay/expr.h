@@ -230,8 +230,8 @@ class FunctionNode : public ExprNode {
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
-    v->Visit("span", &span);
     v->Visit("attrs", &attrs);
+    v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
