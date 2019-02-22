@@ -15,13 +15,13 @@ class PrettyPrinter :
   public:
     explicit PrettyPrinter() {}
 
-    const Doc Print(const NodeRef& node) {
+    Doc Print(const NodeRef& node) {
       if (node.as_derived<ExprNode>()) {
         return this->PrintExpr(Downcast<Expr>(node));
       } else { assert(false); }
     }
 
-    const Doc PrintExpr(const Expr& expr) {
+    Doc PrintExpr(const Expr& expr) {
       auto it = memo_.find(expr);
       if (it != memo_.end()) return it->second;
       Doc val = this->VisitExpr(expr);

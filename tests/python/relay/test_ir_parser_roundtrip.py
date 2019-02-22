@@ -33,6 +33,12 @@ def projections(draw, field_type):
 def test_roundtrip_pp(e):
     alpha_equal(relay.fromtext(pretty_print(e)), e)
 
+def test_gnf():
+    assert relay._expr.gnf_print(relay.const(1)) == "v0.0.1\n%0 = 1\n%0"
+    assert relay._expr.gnf_print(relay.Tuple([relay.const(1), relay.const(1)])) == "v0.0.1\n%0 = 1\n%1 = 1\n%2 = (%0, %1)\n%2"
+    one = relay.const(1)
+    assert relay._expr.gnf_print(relay.Tuple([one, one])) == "v0.0.1\n%0 = 1\n%1 = (%0, %0)\n%1"
+
 if __name__ == "__main__":
     for _ in range(10):
         print(pretty_print(exprs.example()))

@@ -32,8 +32,8 @@ Doc Line(int indent, const Doc& doc) {
 }
 
 // new line
-Doc Line(const Doc& doc) {
-  return Line(0, doc);
+Doc Line() {
+  return Line(0, Nil());
 }
 
 // concat two docs
