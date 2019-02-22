@@ -320,7 +320,18 @@ struct StructuralHash {
  *
  * \return expression in A-Normal Form
  */
-Expr ToANF(const Expr& e, const Module& mod);
+Expr ToANormalForm(const Expr& e, const Module& mod);
+
+/*! \brief Remove let binding and directly share via pointer instead.
+ *
+ * It will remove all let binding,
+ * and turn all of the variable bound by let into direct pointer reference.
+ *
+ * \param e the expression.
+ *
+ * \return the expression in graph normal form.
+ */
+Expr ToGraphNormalForm(const Expr& e);
 
 }  // namespace relay
 }  // namespace tvm

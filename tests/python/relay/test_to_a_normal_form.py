@@ -1,7 +1,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import to_anf, alpha_equal, infer_type
+from tvm.relay.ir_pass import to_a_normal_form, alpha_equal, infer_type
 from tvm.relay import op, create_executor
 from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
 from tvm.relay.prelude import Prelude
@@ -21,7 +21,7 @@ def test_explicit_bound():
     z = op.add(y, y)
     f = relay.Function([], op.add(z, z))
     assert not "let" in f.astext() # assert the values are implicitly bounded
-    anf = to_anf(f)
+    anf = to_a_normal_form(f)
     assert "let" in anf.astext() # assert the values are explicitly bounded
     check_eval(f(), 8.0)
     check_eval(anf(), 8.0)
@@ -35,7 +35,7 @@ def test_order():
     x = relay.const(1)
     val = x + y * z
     check_eval(val, 7.0)
-    anf = infer_type(to_anf(val))
+    anf = infer_type(to_a_normal_form(val))
     a = relay.Var('a', relay.IncompleteType())
     b = relay.Var('b', relay.IncompleteType())
     c = relay.Var('c', relay.IncompleteType())
@@ -54,7 +54,7 @@ def test_order():
 def test_if():
     cond = relay.const(True)
     x = relay.If(cond, relay.const(2), relay.const(3))
-    anf = infer_type(to_anf(x))
+    anf = infer_type(to_a_normal_form(x))
     a = relay.Var('a', relay.IncompleteType())
     b = relay.Var('b', relay.IncompleteType())
     c = relay.Var('c', relay.IncompleteType())
@@ -96,7 +96,7 @@ def test_recursion():
     mod[f] = value
     check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
     old_f = mod[f]
-    f = to_anf(f, mod=mod)
+    f = to_a_normal_form(f, mod=mod)
     check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
 
 
@@ -111,7 +111,7 @@ def test_ref():
     body = relay.Let(iv, relay.RefRead(i), body)
     body = relay.Let(i, relay.RefCreate(relay.const(1)), body)
     check_eval(body, 3)
-    check_eval(to_anf(body), 3)
+    check_eval(to_a_normal_form(body), 3)
 
 
 # this is an example of using the adt value in python side
@@ -135,7 +135,7 @@ def test_add():
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     assert count(intrp.evaluate(add(s(z()), s(z())))) == 2
-    assert count(intrp.evaluate(to_anf(add(s(z()), s(z())), mod))) == 2
+    assert count(intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
     assert "let" in mod[add].astext()
 
 if __name__ == '__main__':
