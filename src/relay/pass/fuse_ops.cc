@@ -225,6 +225,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     }
 
     node->pattern = op_pattern;
+    this->Update(call->op, nullptr, kOpaque);
     const auto* rtype = call->checked_type().as<TensorTypeNode>();
     // pass the message back to all the children it references.
     for (size_t i = 0; i < call->args.size(); ++i) {
