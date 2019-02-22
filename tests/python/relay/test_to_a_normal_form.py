@@ -111,7 +111,7 @@ def test_ref():
     body = relay.Let(iv, relay.RefRead(i), body)
     body = relay.Let(i, relay.RefCreate(relay.const(1)), body)
     check_eval(body, 3)
-    check_eval(to_anf(body), 3)
+    check_eval(to_a_normal_form(body), 3)
 
 
 # this is an example of using the adt value in python side
@@ -135,7 +135,7 @@ def test_add():
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     assert count(intrp.evaluate(add(s(z()), s(z())))) == 2
-    assert count(intrp.evaluate(to_anf(add(s(z()), s(z())), mod))) == 2
+    assert count(intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
     assert "let" in mod[add].astext()
 
 if __name__ == '__main__':
