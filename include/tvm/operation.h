@@ -184,6 +184,8 @@ class PlaceholderOpNode : public OperationNode {
 
 /*!
  * \brief A Compute op that compute a tensor on certain domain.
+ * This is the base class for ComputeOp (operating on a scalar at a time) and
+ * TensorComputeOp (operating on a TensorSlice at a time)
  */
 class TVM_DLL BaseComputeOpNode : public OperationNode {
  public:
@@ -204,7 +206,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
           const Stmt& body) const final;
   virtual size_t num_schedulable_dims() const = 0;
 
-  static constexpr const char* _type_key = "ComputeOp";
+  static constexpr const char* _type_key = "BaseComputeOp";
   TVM_DECLARE_BASE_NODE_INFO(BaseComputeOpNode, OperationNode);
 };
 
