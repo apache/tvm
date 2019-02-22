@@ -5,7 +5,7 @@ set -u
 set -o pipefail
 
 # Install OpenCL runtime in nvidia docker.
-apt-get update && apt-get install -y --no-install-recommends --force-yes \
+apt-get update && apt-get install -y --no-install-recommends \
         ocl-icd-opencl-dev \
         clinfo && \
     rm -rf /var/lib/apt/lists/*

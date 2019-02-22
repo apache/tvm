@@ -4,7 +4,7 @@ set -e
 set -u
 set -o pipefail
 
-apt-get update && apt-get install -y --no-install-recommends --force-yes \
+apt-get update && apt-get install -y --no-install-recommends \
     build-essential git cmake \
     wget python pkg-config software-properties-common \
     autoconf automake libtool ocaml \

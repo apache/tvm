@@ -4,7 +4,7 @@ set -e
 set -u
 set -o pipefail
 
-apt-get update && apt-get install -y --no-install-recommends --force-yes git cmake
+apt-get update && apt-get install -y --no-install-recommends git cmake
 
 git clone https://github.com/Maratyszcza/NNPACK NNPACK
 cd NNPACK
