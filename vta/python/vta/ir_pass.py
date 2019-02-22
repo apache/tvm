@@ -3,7 +3,7 @@
 from __future__ import absolute_import as _abs
 
 import tvm
-from topi import util as util
+from topi import util
 
 from .environment import get_env
 
