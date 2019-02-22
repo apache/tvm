@@ -490,7 +490,7 @@ def collect_device_annotation_ops(expr):
     return _ir_pass.CollectDeviceAnnotationOps(expr)
 
 
-def to_anf(expr, mod=None):
+def to_a_normal_form(expr, mod=None):
     """
     Turn Graph Normal Form expression into A Normal Form Expression.
 
@@ -513,7 +513,21 @@ def to_anf(expr, mod=None):
     expr: tvm.relay.Expr
       The output expression.
     """
-    return _ir_pass.to_anf(expr, mod)
+    return _ir_pass.to_a_normal_form(expr, mod)
+
+
+def to_graph_normal_form(expr):
+    """Turn A Normal Form expression into Graph Normal Form expression
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+    Returns
+    -------
+    expr : tvm.relay.Expr
+      The output expression
+    """
+    return _ir_pass.to_graph_normal_form(expr)
 
 
 def gradient(expr, mod=None):
@@ -533,6 +547,7 @@ def gradient(expr, mod=None):
       The output expression.
     """
     return _ir_pass.first_order_gradient(expr, mod)
+
 
 def get_total_mac_number(expr):
     """

@@ -196,7 +196,7 @@ DependencyGraph DependencyGraph::Create(common::Arena* arena, const Expr& body) 
   return Creator(arena).Create(body);
 }
 
-Expr ToANF(const Expr& e, const Module& m, std::set<GlobalVar>* gv);
+Expr ToANormalForm(const Expr& e, const Module& m, std::set<GlobalVar>* gv);
 
 struct ScopeNode;
 using Scope = std::shared_ptr<ScopeNode>;
@@ -258,11 +258,11 @@ bool IsPrimitiveFunction(const Expr& e) {
 
 class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
-  static Expr ToANF(const Expr& e,
-                    const Module& m,
-                    const DependencyGraph& dg,
-                    std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                    std::set<GlobalVar>* gv) {
+  static Expr ToANormalForm(const Expr& e,
+                            const Module& m,
+                            const DependencyGraph& dg,
+                            std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
+                            std::set<GlobalVar>* gv) {
     Fill fi(m, dg, node_scope, gv);
     return fi.GetScope(e)->ll->Get(fi.VisitExpr(e));
   }
@@ -396,7 +396,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     GlobalVar gv = GetRef<GlobalVar>(gvn);
     if (visited_->count(gv) == 0) {
       visited_->insert(gv);
-      mod_->Update(gv, Downcast<Function>(relay::ToANF(mod_->Lookup(gv), mod_, visited_)));
+      mod_->Update(gv, Downcast<Function>(relay::ToANormalForm(mod_->Lookup(gv), mod_, visited_)));
     }
     return gv;
   }
@@ -423,7 +423,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 };
 
-Expr ToANFAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
+Expr ToANormalFormAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
   /* When you lift a lambda, what is inside is also being lift.
    *
    * So we must determine the scope of the lambda before determining the scope of it's body.
@@ -446,29 +446,29 @@ Expr ToANFAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
    * We do an additional pass to fill all the LetList and we are done.
    */
   std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg);
-  return Fill::ToANF(e, m, dg, &node_scope, gv);
+  return Fill::ToANormalForm(e, m, dg, &node_scope, gv);
 }
 
-Expr ToANF(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
+Expr ToANormalForm(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
   if (const auto* f = e.as<FunctionNode>()) {
     return FunctionNode::make(f->params,
-                              ToANFAux(f->body, m, gv),
+                              ToANormalFormAux(f->body, m, gv),
                               f->ret_type,
                               f->type_params,
                               f->attrs);
   } else {
-    return ToANFAux(e, m, gv);
+    return ToANormalFormAux(e, m, gv);
   }
 }
 
-Expr ToANF(const Expr& e, const Module& m) {
+Expr ToANormalForm(const Expr& e, const Module& m) {
   std::set<GlobalVar> gv;
-  return ToANF(e, m, &gv);
+  return ToANormalForm(e, m, &gv);
 }
 
-TVM_REGISTER_API("relay._ir_pass.to_anf")
+TVM_REGISTER_API("relay._ir_pass.to_a_normal_form")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ToANF(args[0], args[1]);
+    *ret = ToANormalForm(args[0], args[1]);
   });
 
 }  // namespace relay
