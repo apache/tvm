@@ -69,8 +69,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val wgt_factor_in  = 1.U(16.W)
   val alu_opcode = insn(insn_alu_e_1, insn_alu_e_0)
   val use_imm = insn(insn_alu_f)
-  val imm_raw = insn(insn_alu_g_1, insn_alu_g_0)
-  val imm = Mux(imm_raw.asSInt < 0.S, Cat("hffff".U, imm_raw), Cat("h0000".U, imm_raw)).asSInt
+  val imm_raw = RegNext(insn(insn_alu_g_1, insn_alu_g_0))
+  val imm = RegNext(Mux(imm_raw.asSInt < 0.S, Cat("hffff".U, imm_raw), Cat("h0000".U, imm_raw)).asSInt)
 
   val sram_idx = sram_base
   val dram_idx = dram_base
@@ -102,7 +102,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   val biases_read = Reg(Bool())
   val biases_bits = block_out * acc_width
-  val biases_beats = biases_bits / 128
+  val biases_beats = biases_bits >> 7 // biases_bits / 128
   val biases_data = Reg(Vec(biases_beats + 1, UInt(128.W)))
 
   val out_mem_write  = RegInit(false.B)
@@ -123,7 +123,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   val upc_cntr_max_val = uop_end - uop_bgn
   val upc_cntr_max = Mux(upc_cntr_max_val <= 0.U, 1.U, upc_cntr_max_val)
-  val out_cntr_max_val = iter_in * iter_out * upc_cntr_max
+  val out_cntr_max_val = (iter_in * iter_out)(15, 0) * upc_cntr_max
   val out_cntr_max = out_cntr_max_val + 2.U
   val out_cntr_en = ((opcode_alu_en || opcode_gemm_en) && insn_valid)
   val out_cntr_wait = io.out_mem.waitrequest
@@ -269,7 +269,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val uop = RegNext(uop_mem(upc)) // TODO: construct uop as register, and copy from uop_mem block ram
   val dst_offset_out = 0.U(16.W) // it_in
   val src_offset_out = 0.U(16.W) // it_in
-  val it_in = RegNext(out_cntr_val) % (iter_in * iter_out)
+  val it_in = RegNext(out_cntr_val) % (iter_in * iter_out)(15, 0)
   val dst_offset_in = dst_offset_out + (it_in * dst_factor_in)(15, 0)
   val src_offset_in = src_offset_out + (it_in * src_factor_in)(15, 0)
   val dst_idx = uop(uop_alu_0_1, uop_alu_0_0) + dst_offset_in
@@ -278,11 +278,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   // build alu
   val dst_vector = Reg(UInt(biases_bits.W))
   val src_vector = Reg(UInt(biases_bits.W))
-  // when (out_mem_write && !out_cntr_wait) {
-  when (out_mem_write) {
-    dst_vector := acc_mem(dst_idx)
-    src_vector := acc_mem(src_idx)
-  }
+
   val cmp_res       = Wire(Vec(block_out + 1, SInt(acc_width.W)))
   val short_cmp_res = Wire(Vec(block_out + 1, UInt(out_width.W)))
   val add_res       = Wire(Vec(block_out + 1, SInt(acc_width.W)))
@@ -298,6 +294,11 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   val alu_opcode_min_en = alu_opcode === alu_opcode_min.U
   val alu_opcode_max_en = alu_opcode === alu_opcode_max.U
+
+  when (out_mem_write) {
+    dst_vector := acc_mem(dst_idx)
+    src_vector := acc_mem(src_idx)
+  }
 
   // set default value
   for (i <- 0 to (block_out)) {
@@ -317,23 +318,17 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
 
   // loop unroll
   when (insn_valid && out_cntr_en) {
-    when (alu_opcode_max_en) {
-      for (b <- 0 to (block_out - 1)) {
-        src_0(b) := src_vector((b + 1) * acc_width - 1, b * acc_width).asSInt
-        src_1(b) := dst_vector((b + 1) * acc_width - 1, b * acc_width).asSInt
-      }
-    } .otherwise {
-      for (b <- 0 to (block_out - 1)) {
-        src_0(b) := dst_vector((b + 1) * acc_width - 1, b * acc_width).asSInt
-        src_1(b) := src_vector((b + 1) * acc_width - 1, b * acc_width).asSInt
-      }
+    for (b <- 0 to (block_out - 1)) {
+      src_0(b) := dst_vector((b + 1) * acc_width - 1, b * acc_width).asSInt
+      src_1(b) := src_vector((b + 1) * acc_width - 1, b * acc_width).asSInt
     }
     when (use_imm) {
       for (b <- 0 to (block_out - 1)) { src_1(b) := imm }
     }
     val block_out_val = block_out - 1
     for (b <- 0 to block_out_val) {
-      mix_val(b) := Mux(src_0(b) < src_1(b), src_0(b), src_1(b))
+      mix_val(b) := Mux(alu_opcode_max_en, Mux(src_0(b) > src_1(b), src_0(b), src_1(b)),
+                                           Mux(src_0(b) < src_1(b), src_0(b), src_1(b)))
       cmp_res(b) := mix_val(b)
       short_cmp_res(b) := mix_val(b)(out_width - 1, 0)
       add_val(b) := (src_0(b)(acc_width - 1, 0) + src_1(b)(acc_width - 1, 0)).asSInt
