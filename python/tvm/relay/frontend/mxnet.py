@@ -290,6 +290,7 @@ _identity_list = [
     "slice_like",
     "zeros_like",
     "ones_like",
+    "where",
 ]
 
 _convert_map = {
