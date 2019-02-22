@@ -36,7 +36,6 @@ using namespace runtime;
 Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
                         tvm::Map<GlobalTypeVar, TypeData> global_type_defs) {
   auto n = make_node<ModuleNode>();
-  n->functions = std::move(global_funcs);
   n->type_definitions = std::move(global_type_defs);
 
   for (const auto& kv : n->functions) {
@@ -54,7 +53,14 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
     n->RegisterConstructors(kv.first, kv.second);
   }
 
-  return Module(n);
+  // type check all global functions simultaneously
+  auto ret = Module(n);
+  auto checked_funcs = InferTypes(global_funcs, ret);
+  for (const auto& kv : checked_funcs) {
+    ret->AddUnchecked(kv.first, kv.second);
+  }
+
+  return ret;
 }
 
 bool ModuleNode::ContainGlobalVar(const std::string& name) const {

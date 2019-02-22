@@ -851,6 +851,5 @@ TVM_REGISTER_API("relay._transform.InferType")
 });
 
 }  // namespace transform
-
 }  // namespace relay
 }  // namespace tvm
