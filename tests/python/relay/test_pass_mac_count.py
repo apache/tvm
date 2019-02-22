@@ -1,7 +1,6 @@
 """Unit tests for MAC counter."""
 import tvm
 from tvm import relay
-import sys
 
 def test_gemm():
     n = 512
