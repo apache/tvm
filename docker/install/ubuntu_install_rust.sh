@@ -1,3 +1,5 @@
+#!/bin/bash
+
 apt-get update && apt-get install -y --no-install-recommends --force-yes curl
 
 export RUSTUP_HOME=/opt/rust

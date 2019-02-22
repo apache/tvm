@@ -1,3 +1,5 @@
+#!/bin/bash
+
 cd /usr
 git clone https://github.com/dmlc/tvm --recursive
 cd /usr/tvm

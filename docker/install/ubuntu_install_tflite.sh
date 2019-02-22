@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Download, build and install flatbuffers
 git clone --recursive https://github.com/google/flatbuffers.git
 cd flatbuffers

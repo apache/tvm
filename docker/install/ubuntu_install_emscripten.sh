@@ -1,3 +1,5 @@
+#!/bin/bash
+
 alias make="make -j4"
 
 # Get latest cmake

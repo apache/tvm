@@ -1,3 +1,5 @@
+#!/bin/bash
+
 . /etc/profile
 
 set -o errexit -o nounset

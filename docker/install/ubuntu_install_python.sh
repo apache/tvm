@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # install python and pip, don't modify this, modify install_python_package.sh
 apt-get update && apt-get install -y python-dev
 
