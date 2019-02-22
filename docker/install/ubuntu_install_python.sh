@@ -9,4 +9,4 @@ add-apt-repository ppa:jonathonf/python-3.6 &&\
 rm -f /usr/bin/python3 && ln -s /usr/bin/python3.6 /usr/bin/python3
 
 # Install pip
-cd /tmp && wget https://bootstrap.pypa.io/get-pip.py && python2 get-pip.py && python3.6 get-pip.py
+cd /tmp && wget -q https://bootstrap.pypa.io/get-pip.py && python2 get-pip.py && python3.6 get-pip.py
