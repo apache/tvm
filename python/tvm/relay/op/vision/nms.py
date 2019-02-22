@@ -30,6 +30,7 @@ def get_valid_counts(data,
 def non_max_suppression(data,
                         valid_count,
                         return_indices,
+                        max_output_size=-1,
                         iou_threshold=0.5,
                         force_suppress=False,
                         topk=-1,
@@ -46,6 +47,10 @@ def non_max_suppression(data,
 
     valid_count : relay.Expr
         1-D tensor for valid number of boxes.
+
+    max_output_size : int, optional
+        Max number of output valid boxes for each instance.
+        By default all valid boxes are returned.
 
     return_indices : bool
         Whether to return box indices in input data.
@@ -71,5 +76,5 @@ def non_max_suppression(data,
         3-D tensor with shape [batch_size, num_anchors, 6].
     """
     return _make.non_max_suppression(data, valid_count, return_indices,
-                                     iou_threshold, force_suppress, topk,
-                                     id_index, invalid_to_bottom)
+                                     max_output_size, iou_threshold, force_suppress,
+                                     topk, id_index, invalid_to_bottom)

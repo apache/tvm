@@ -71,6 +71,7 @@ def schedule_nms(_, outs, target):
 def compute_nms(attrs, inputs, _):
     """Compute definition of non_max_suppression"""
     return_indices = attrs.get_bool('return_indices')
+    max_output_size = attrs.get_int('max_output_size')
     iou_threshold = attrs.get_float('iou_threshold')
     force_suppress = attrs.get_bool('force_suppress')
     topk = attrs.get_int('topk')
@@ -78,7 +79,7 @@ def compute_nms(attrs, inputs, _):
     invalid_to_bottom = attrs.get_bool('invalid_to_bottom')
 
     return topi.vision.non_max_suppression(inputs[0], inputs[1], return_indices,
-                                           iou_threshold, force_suppress, topk,
-                                           id_index, invalid_to_bottom)
+                                           max_output_size, iou_threshold, force_suppress,
+                                           topk, id_index, invalid_to_bottom)
 
 reg.register_pattern("non_max_suppression", OpPattern.OPAQUE)

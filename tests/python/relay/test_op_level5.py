@@ -180,8 +180,8 @@ def test_non_max_suppression():
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int"))
-        z = relay.vision.non_max_suppression(x0, x1, False, iou_threshold, force_suppress, topk)
-        z_indices = relay.vision.non_max_suppression(x0, x1, True, iou_threshold, force_suppress, topk)
+        z = relay.vision.non_max_suppression(x0, x1, False, -1, iou_threshold, force_suppress, topk)
+        z_indices = relay.vision.non_max_suppression(x0, x1, True, -1, iou_threshold, force_suppress, topk)
         assert "iou_threshold" in z.astext()
         assert "iou_threshold" in z_indices.astext()
         zz = relay.ir_pass.infer_type(z)

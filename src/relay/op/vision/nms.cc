@@ -85,6 +85,7 @@ bool NMSRel(const Array<Type>& types,
 Expr MakeNMS(Expr data,
              Expr valid_count,
              bool return_indices,
+             int max_output_size,
              double iou_threshold,
              bool force_suppress,
              int topk,
@@ -92,6 +93,7 @@ Expr MakeNMS(Expr data,
              bool invalid_to_bottom) {
   auto attrs = make_node<NMSAttrs>();
   attrs->return_indices = return_indices;
+  attrs->max_output_size = max_output_size;
   attrs->iou_threshold = iou_threshold;
   attrs->force_suppress = force_suppress;
   attrs->topk = topk;
@@ -104,7 +106,7 @@ Expr MakeNMS(Expr data,
 
 TVM_REGISTER_API("relay.op.vision._make.non_max_suppression")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 8>(MakeNMS, args, rv);
+  runtime::detail::unpack_call<Expr, 9>(MakeNMS, args, rv);
 });
 
 

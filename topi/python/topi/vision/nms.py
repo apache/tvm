@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements
 """Non-maximum suppression operator"""
 import tvm
 
@@ -112,7 +112,7 @@ def get_valid_counts(data, score_threshold=0):
 
 @hybrid.script
 def hybrid_nms(data, sorted_index, valid_count,
-               iou_threshold, force_suppress,
+               max_output_size, iou_threshold, force_suppress,
                topk, id_index):
     """Hybrid routing for non-maximum suppression.
 
@@ -128,6 +128,10 @@ def hybrid_nms(data, sorted_index, valid_count,
 
     valid_count : tvm.Tensor or numpy NDArray
         1-D tensor for valid number of boxes.
+
+    max_output_size : tvm.const
+        Max number of output valid boxes for each instance.
+        By default all valid boxes are returned.
 
     iou_threshold : tvm.const
         Overlapping(IoU) threshold to suppress object with smaller score.
@@ -215,12 +219,24 @@ def hybrid_nms(data, sorted_index, valid_count,
             for k in range(box_data_length):
                 output[i, j + valid_count[i], k] = -1.0
             box_indices[i, j + valid_count[i]] = -1
+        # Only return max_output_size valid boxes
+        num_valid_boxes = 0
+        if max_output_size > 0:
+            for j in range(valid_count[i]):
+                if output[i, j, 0] >= 0:
+                    if num_valid_boxes == max_output_size:
+                        for k in range(box_data_length):
+                            output[i, j, k] = -1.0
+                        box_indices[i, j] = -1
+                    else:
+                        num_valid_boxes += 1
     return output, box_indices
 
 
 @tvm.target.generic_func
-def non_max_suppression(data, valid_count, return_indices, iou_threshold=0.5,
-                        force_suppress=False, topk=-1, id_index=0, invalid_to_bottom=False):
+def non_max_suppression(data, valid_count, return_indices, max_output_size=-1,
+                        iou_threshold=0.5, force_suppress=False, topk=-1,
+                        id_index=0, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -235,6 +251,10 @@ def non_max_suppression(data, valid_count, return_indices, iou_threshold=0.5,
 
     return_indices : boolean
         Whether to return box indices in input data.
+
+    max_output_size : optional, int
+        Max number of output valid boxes for each instance.
+        By default all valid boxes are returned.
 
     iou_threshold : optional, float
         Non-maximum suppression threshold.
@@ -302,6 +322,7 @@ def non_max_suppression(data, valid_count, return_indices, iou_threshold=0.5,
                    out_buffers=sort_tensor_buf,
                    name="nms_sort")
     out, box_indices = hybrid_nms(data, sort_tensor, valid_count,
+                                  tvm.const(max_output_size, dtype="int32"),
                                   tvm.const(iou_threshold, dtype="float32"),
                                   tvm.const(force_suppress, dtype="bool"),
                                   tvm.const(topk, dtype="int32"),

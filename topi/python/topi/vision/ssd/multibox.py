@@ -292,6 +292,6 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     """
     inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
                                        clip, threshold, variances)
-    out = non_max_suppression(inter_out[0], inter_out[1], False, nms_threshold,
-                              force_suppress, nms_topk)
+    out = non_max_suppression(inter_out[0], inter_out[1], False, -1,
+                              nms_threshold, force_suppress, nms_topk)
     return out

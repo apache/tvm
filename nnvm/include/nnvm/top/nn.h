@@ -445,6 +445,7 @@ struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocPa
 
 struct NMSParam : public dmlc::Parameter<NMSParam> {
   bool return_indices;
+  int max_output_size;
   float iou_threshold;
   bool force_suppress;
   int topk;
@@ -453,6 +454,9 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
   DMLC_DECLARE_PARAMETER(NMSParam) {
     DMLC_DECLARE_FIELD(return_indices)
       .describe("Whether to return box indices in input data.");
+    DMLC_DECLARE_FIELD(max_output_size).set_default(-1)
+      .describe("Max number of output valid boxes for each instance."
+                "By default all valid boxes are returned.");
     DMLC_DECLARE_FIELD(iou_threshold).set_default(0.5)
       .describe("Non-maximum suppression threshold.");
     DMLC_DECLARE_FIELD(force_suppress).set_default(false)

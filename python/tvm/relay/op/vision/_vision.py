@@ -83,6 +83,7 @@ def schedule_nms(_, outs, target):
 def compute_nms(attrs, inputs, _, target):
     """Compute definition of nms"""
     return_indices = bool(get_const_int(attrs.return_indices))
+    max_output_size = get_const_int(attrs.max_output_size)
     iou_threshold = get_const_float(attrs.iou_threshold)
     force_suppress = bool(get_const_int(attrs.force_suppress))
     topk = get_const_int(attrs.topk)
@@ -90,8 +91,8 @@ def compute_nms(attrs, inputs, _, target):
     invalid_to_bottom = bool(get_const_int(attrs.invalid_to_bottom))
     return [
         topi.vision.non_max_suppression(inputs[0], inputs[1], return_indices,
-                                        iou_threshold, force_suppress, topk,
-                                        id_index, invalid_to_bottom)
+                                        max_output_size, iou_threshold, force_suppress,
+                                        topk, id_index, invalid_to_bottom)
     ]
 
 
