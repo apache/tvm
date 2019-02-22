@@ -118,6 +118,11 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
         data, dom_scale, clip_min, clip_max, kind, sign, rounding)
 
 
+@register_annotate_function("nn.conv2d_nchwc")
+def conv2d_nchwc_rewrite(ref_call, new_args, ctx):
+    raise TypeError, "NCHWc layout Conv2D detected, please use a lower optimization level before applying the quantization pass..."
+
+
 @register_annotate_function("nn.conv2d")
 def conv2d_rewrite(ref_call, new_args, ctx):
     """Rewrite function for conv2d. Lhs of conv will be quantized to
