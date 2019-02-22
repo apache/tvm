@@ -247,8 +247,10 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   }
 
   // fetch biases
-  val acc_dram_addr = ((((dram_idx + y_offset + x_pad_0) << 2.U) * batch.U + acc_cntr_val) << log2Ceil(128 / 8).U)
-  val acc_sram_addr = ((((sram_idx + y_offset + x_pad_0) << 2.U) * batch.U + acc_cntr_val) >> log2Ceil(biases_beats).U) - 1.U
+  val acc_dram_addr_base = dram_idx(15, 0) + y_offset + x_pad_0
+  val acc_dram_addr = (((acc_dram_addr_base << 2.U) * batch.U(8.W) + acc_cntr_val) << log2Ceil(128 / 8).U)
+  val acc_sram_addr_base = sram_idx(15, 0) + y_offset + x_pad_0
+  val acc_sram_addr = (((acc_sram_addr_base << 2.U) * batch.U(8.W) + acc_cntr_val) >> log2Ceil(biases_beats).U) - 1.U
   biases_read := acc_cntr_en && !done
   io.biases.address := acc_dram_addr
   io.biases.read := biases_read
