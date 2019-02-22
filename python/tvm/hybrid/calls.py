@@ -45,8 +45,8 @@ def bind(func_id, args):
     _internal_assert(args.__len__() == 2, "A loop bind should only have 2 arguments!")
     _internal_assert(isinstance(args[0], str), \
                      "A loop bind's first argument should be a string!")
-    iter_var = _api.thread_axis(args[0])
     low, ext = _api.const(0, "int32"), args[1]
+    iter_var = _api.thread_axis((low, ext), args[0])
     for_type = None
     return iter_var, low, ext, for_type
 
