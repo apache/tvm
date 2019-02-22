@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -e
+set -u
+set -o pipefail
+
 apt-get install -y --no-install-recommends --force-yes make bison flex
 wget -q ftp://icarus.com/pub/eda/verilog/v10/verilog-10.1.tar.gz
 tar xf verilog-10.1.tar.gz

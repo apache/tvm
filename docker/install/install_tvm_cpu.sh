@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -e
+set -u
+set -o pipefail
+
 cd /usr
 git clone https://github.com/dmlc/tvm --recursive
 cd /usr/tvm
