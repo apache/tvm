@@ -261,10 +261,12 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        output_tensors = self.get_output_tensors(op)
         assert len(input_tensors) >= 1, "input tensors should greater than 1"
-        assert len(output_tensors) == 1, "output tensors should be 1"
         in_exprs = [self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors should be 1"
+
         assert op.BuiltinOptionsType() == BuiltinOptions.ConcatenationOptions
         op_options = op.BuiltinOptions()
         concatenation_options = ConcatenationOptions()
@@ -272,6 +274,7 @@ class OperatorConverter(object):
         concatenation_axis = concatenation_options.Axis()
         fused_activation_fn = concatenation_options.FusedActivationFunction()
         input_shape_length = len(input_tensors[0].tensor.ShapeAsNumpy())
+
         axis_convert_map = {}
         # TFLite is N H W C, our layout is N C H W
         if input_shape_length == 1 or input_shape_length == 2:
@@ -281,10 +284,10 @@ class OperatorConverter(object):
             pass
         elif input_shape_length == 3:
             # convert N C H*W to N H*W C
-            axis_convert_map = {1:2, 2:1}
+            axis_convert_map = {1: 2, 2: 1}
         elif input_shape_length == 4:
             # change axis.
-            axis_convert_map = {1: 2, 2: 3, 3:1}
+            axis_convert_map = {1: 2, 2: 3, 3: 1}
         else:
             raise NotImplementedError("Not support input shape length {} of concatenatio : "
                                       .format(str(input_shape_length)))
