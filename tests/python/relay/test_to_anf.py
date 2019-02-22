@@ -3,7 +3,8 @@ import tvm
 from tvm import relay
 from tvm.relay.ir_pass import to_anf, alpha_equal, infer_type
 from tvm.relay import op, create_executor
-from tvm.relay.backend.interpreter import Value, TupleValue
+from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
+from tvm.relay.prelude import Prelude
 
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
@@ -99,8 +100,48 @@ def test_recursion():
     check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
 
 
+def test_ref():
+    i = relay.Var('i')
+    iv = relay.Var('iv')
+    u = relay.Var('u')
+    uv = relay.Var('uv')
+    body = relay.add(iv, uv)
+    body = relay.Let(uv, relay.RefRead(i), body)
+    body = relay.Let(u, relay.RefWrite(i, relay.const(2)), body)
+    body = relay.Let(iv, relay.RefRead(i), body)
+    body = relay.Let(i, relay.RefCreate(relay.const(1)), body)
+    check_eval(body, 3)
+    check_eval(to_anf(body), 3)
+
+
+# this is an example of using the adt value in python side
+def count(n):
+    assert isinstance(n, ConstructorValue)
+    if n.constructor.name_hint == 's':
+        return 1 + count(n.fields[0])
+    else:
+        assert n.constructor.name_hint == 'z'
+        return 0
+
+
+def test_add():
+    mod = relay.Module()
+    p = Prelude(mod)
+    nat = p.nat
+    add = p.add
+    s = p.s
+    z = p.z
+    ctx = tvm.context("llvm", 0)
+    intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
+    assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
+    assert count(intrp.evaluate(add(s(z()), s(z())))) == 2
+    assert count(intrp.evaluate(to_anf(add(s(z()), s(z())), mod))) == 2
+    assert "let" in mod[add].astext()
+
 if __name__ == '__main__':
     test_explicit_bound()
     test_order()
     test_if()
     test_recursion()
+    test_ref()
+    test_add()
