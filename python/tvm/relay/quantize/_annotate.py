@@ -1,6 +1,7 @@
 #pylint: disable=unused-argument
 """Internal module for registering attribute for annotation."""
 from __future__ import absolute_import
+import warnings
 
 import topi
 from . import _quantize
@@ -116,6 +117,14 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     clip_max = _expr.var("clip_max")
     return _quantize.simulated_quantize(
         data, dom_scale, clip_min, clip_max, kind, sign, rounding)
+
+
+@register_annotate_function("nn.contrib_conv2d_NCHWc")
+def conv2d_nchwc_rewrite(ref_call, new_args, ctx):
+    warnings.warn("NCHWc layout Conv2D detected, please use a lower "
+                  "optimization level before applying the quantization "
+                  "pass as quantization will have no effect here...")
+    return None
 
 
 @register_annotate_function("nn.conv2d")
