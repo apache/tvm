@@ -1054,7 +1054,7 @@ def test_forward_transpose():
 
 #######################################################################
 # Sign
-# --------------------
+# ----
 def _test_sign(in_shape):
     in_data = np.random.uniform(-10.0, 10.0, in_shape).astype('float32')
     with tf.Graph().as_default():
