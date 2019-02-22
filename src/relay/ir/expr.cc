@@ -11,6 +11,14 @@ namespace relay {
 using tvm::IRPrinter;
 using namespace tvm::runtime;
 
+const Type& ExprNode::checked_type() const {
+  CHECK(checked_type_.defined()) << "internal error: the type checker has "
+                                    "not populated the checked_type "
+                                    "field for "
+                                 << GetRef<Expr>(this);
+  return this->checked_type_;
+}
+
 Constant ConstantNode::make(runtime::NDArray data) {
   NodePtr<ConstantNode> n = make_node<ConstantNode>();
   n->data = std::move(data);

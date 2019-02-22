@@ -34,12 +34,7 @@ class ExprNode : public RelayNode {
   /*!
    * \return The checked_type
    */
-  const Type& checked_type() const {
-    CHECK(checked_type_.defined()) << "internal error: the type checker has "
-                                      "not populated the checked_type "
-                                      "field for this node";
-    return this->checked_type_;
-  }
+  const Type& checked_type() const;
   /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.
