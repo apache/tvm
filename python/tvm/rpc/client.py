@@ -9,7 +9,7 @@ import time
 from . import base
 from ..contrib import util
 from .._ffi.base import TVMError
-from .._ffi import function as function
+from .._ffi import function
 from .._ffi import ndarray as nd
 from ..module import load as _load_module
 
