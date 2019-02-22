@@ -2,7 +2,7 @@
 apt-get update && apt-get install -y python-dev
 
 # python 3.6
-apt-get update && yes | apt-get install software-properties-common
+apt-get update && apt-get install -y software-properties-common
 add-apt-repository ppa:jonathonf/python-3.6 &&\
     apt-get update && apt-get install -y python-pip python-dev python3.6 python3.6-dev
 
