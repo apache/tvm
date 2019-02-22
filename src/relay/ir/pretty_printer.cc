@@ -56,7 +56,7 @@ class PrettyPrinter :
       for (Expr field : op->fields) {
         fields.push_back(this->Print(field));
       }
-      return PrintArray(Text("("), fields, Text(", "), Text(")"));
+      return PrintVec(Text("("), fields, Text(", "), Text(")"));
     }
 
     Doc VisitExpr_(const TupleGetItemNode* op) final {

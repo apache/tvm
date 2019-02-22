@@ -13,91 +13,54 @@ namespace tvm {
 namespace relay {
 
 // ADT
-class Doc;
-
-class DocNode : public Node {
-  public:
-    static constexpr const char* _type_key = "Doc";
-    TVM_DECLARE_BASE_NODE_INFO(DocNode, Node);
+struct DocNode {
+  virtual ~DocNode() = default;
 };
 
-class Doc : public NodeRef {
-  public:
-    Doc() {}
-    explicit Doc(NodePtr<Node> n) : NodeRef(n) {}
-    const DocNode* operator->() const {
-      return static_cast<const DocNode*>(node_.get());
-    }
+using Doc = std::shared_ptr<DocNode>;
 
-    using ContainerType = DocNode;
+struct NilNode : DocNode { };
+
+struct TextNode : DocNode {
+  std::string str;
+  Doc doc;
+
+  TextNode(const std::string& str, const Doc& doc) : str(str), doc(doc) {}
 };
 
-class Nil_;
+struct LineNode : DocNode {
+  int indent;
+  Doc doc;
 
-class Nil_Node : public DocNode {
-  public:
-    Nil_Node() {}
-
-    void VisitAttrs(tvm::AttrVisitor* v) final {}
-
-    TVM_DLL static Nil_ make();
-
-    static constexpr const char* _type_key = "Nil_";
-    TVM_DECLARE_NODE_TYPE_INFO(Nil_Node, DocNode);
+  LineNode(int indent, const Doc& doc) : indent(indent), doc(doc) {}
 };
 
-RELAY_DEFINE_NODE_REF(Nil_, Nil_Node, Doc);
+/* template<typename T>
+T Match(const Doc& doc,
+  const T& case_nil,
+  const std::function<T(const std::string&, const Doc&)>& case_text,
+  const std::function<T(int, const Doc&)>& case_line) {
+  if (auto nil = std::dynamic_pointer_cast<NilNode>(doc)) {
+    return case_nil;
+  } else if (auto text = std::dynamic_pointer_cast<TextNode>(doc)) {
+    return case_text(text->str, text->doc);
+  } else if (auto line = std::dynamic_pointer_cast<LineNode>(doc)) {
+    return case_line(line->indent, line->doc);
+  } else {assert(false);}
+} */
 
-class Text_;
+// text constructor
+Doc Text(const std::string& str, const Doc& doc);
 
-class Text_Node : public DocNode {
-  public:
-    std::string str;
-    Doc doc;
-
-    Text_Node() {}
-
-    void VisitAttrs(tvm::AttrVisitor* v) final {
-      v->Visit("str", &str);
-      v->Visit("doc", &doc);
-    }
-
-    TVM_DLL static Text_ make(std::string str, Doc doc);
-
-    static constexpr const char* _type_key = "Text_";
-    TVM_DECLARE_NODE_TYPE_INFO(Text_Node, DocNode);
-};
-
-RELAY_DEFINE_NODE_REF(Text_, Text_Node, Doc);
-
-class Line_;
-
-class Line_Node : public DocNode {
-  public:
-    int indent;
-    Doc doc;
-
-    Line_Node() {}
-
-    void VisitAttrs(tvm::AttrVisitor* v) final {
-      v->Visit("indent", &indent);
-      v->Visit("doc", &doc);
-    }
-
-    TVM_DLL static Line_ make(int indent, Doc doc);
-
-    static constexpr const char* _type_key = "Line_";
-    TVM_DECLARE_NODE_TYPE_INFO(Line_Node, DocNode);
-};
-
-RELAY_DEFINE_NODE_REF(Line_, Line_Node, Doc);
+// line constructor
+Doc Line(int indent, const Doc& doc);
 
 // DSL functions
 
-// empty doc
+// empty doc/nil constructor
 Doc Nil();
 // lift string to text
-Doc Text(const std::string str);
+Doc Text(const std::string& str);
 // new line
 Doc Line();
 // concat two docs
@@ -109,7 +72,7 @@ Doc Nest(int indent, const Doc& doc);
 // convert doc to a string
 std::string Layout(const Doc& doc);
 // render array-like things: e.g. (1, 2, 3)
-Doc PrintArray(const Doc& open, const tvm::Array<Doc>& arr, const Doc& sep, const Doc& close);
+Doc PrintVec(const Doc& open, const std::vector<Doc>& arr, const Doc& sep, const Doc& close);
 // Print constant bool value.
 Doc PrintBool(bool value);
 /*!
