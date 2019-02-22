@@ -7,7 +7,7 @@ ASDKTOOLS_HOME=/opt/android-sdk-tools
 ASDKTOOLS_VERSION=3859397
 ASDKTOOLS_SHA256=444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0
 
-wget http://dl.google.com/android/repository/sdk-tools-linux-${ASDKTOOLS_VERSION}.zip -O sdk-tools-linux.zip
+wget -q http://dl.google.com/android/repository/sdk-tools-linux-${ASDKTOOLS_VERSION}.zip -O sdk-tools-linux.zip
 echo "${ASDKTOOLS_SHA256} *sdk-tools-linux.zip" | sha256sum --check -
 unzip sdk-tools-linux.zip
 rm sdk-tools-linux.zip
