@@ -89,6 +89,7 @@ This level enables typical convnet models.
    nnvm.symbol.negative
    nnvm.symbol.floor
    nnvm.symbol.ceil
+   nnvm.symbol.sign
    nnvm.symbol.round
    nnvm.symbol.trunc
    nnvm.symbol.abs
@@ -212,6 +213,7 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.negative
 .. autofunction:: nnvm.symbol.floor
 .. autofunction:: nnvm.symbol.ceil
+.. autofunction:: nnvm.symbol.sign
 .. autofunction:: nnvm.symbol.round
 .. autofunction:: nnvm.symbol.trunc
 .. autofunction:: nnvm.symbol.abs

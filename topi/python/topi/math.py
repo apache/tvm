@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from . import tag
+from . import cpp
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def identity(x):
@@ -107,6 +108,20 @@ def ceil(x):
     """
     return tvm.compute(x.shape, lambda *i: tvm.ceil(x(*i)))
 
+def sign(x):
+    """Returns -1, 0, 1 based on sign of x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return cpp.sign(x)
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def trunc(x):
