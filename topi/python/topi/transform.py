@@ -291,7 +291,7 @@ def tensordot(a, b, axes):
     return cpp.tensordot(a, b, axes[0], axes[1])
 
 
-def arange(stop, start=None, step=1, dtype="float32"):
+def arange(start, stop=None, step=1, dtype="float32"):
     """Creates a tensor with evenly spaced values within a given interval.
 
     Parameters
@@ -314,10 +314,7 @@ def arange(stop, start=None, step=1, dtype="float32"):
     result : tvm.Tensor
         The resulting tensor.
     """
-    if start is None:
-        start = 0
-    else:
-        tmp = stop
+    if stop is None:
         stop = start
-        start = tmp
+        start = 0
     return cpp.arange(start, stop, step, dtype)
