@@ -43,6 +43,8 @@ rose = p.rose
 tmap = p.tmap
 size = p.size
 
+compose = p.compose
+
 # this is an example of using the adt value in python side
 def count(n):
     assert isinstance(n, ConstructorValue)
@@ -577,6 +579,12 @@ def test_nested_pattern_match():
 
     assert count(res) == 2
 
+def test_compose():
+    n = relay.Var('n')
+    inc = relay.Function([n], s(n))
+    x = relay.Var('x')
+    res = intrp.evaluate(relay.Call(compose(inc, p.double), [s(s(z()))]))
+    assert count(res) == 5
 
 if __name__ == "__main__":
     test_nat_constructor()
@@ -598,3 +606,4 @@ if __name__ == "__main__":
     test_sum()
     test_tmap()
     test_size()
+    test_compose()

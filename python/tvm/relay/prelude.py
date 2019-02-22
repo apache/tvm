@@ -351,6 +351,27 @@ class Prelude:
         self.mod[self.size] = Function([t],
                                        Match(t, [rose_case]), self.nat(), [a])
 
+    def define_id(self):
+        self.id = GlobalVar("id")
+        a = TypeVar("a")
+        x = Var("x", a)
+        self.mod[self.id] = Function([x], x, a, [a])
+
+
+    def define_compose(self):
+        self.compose = GlobalVar("compose")
+        a = TypeVar("a")
+        b = TypeVar("b")
+        c = TypeVar("c")
+        f = Var("f", FuncType([b], c))
+        g = Var("g", FuncType([a], b))
+        x = Var("x")
+        self.mod[self.compose] = Function([f, g], Function([x], f(g(x))), FuncType([a], c), [a, b, c])
+
+
+    def define_iterate(self):
+        self.iterate = GlobalVar("iterate")
+
     def __init__(self, mod):
         self.mod = mod
         self.define_list_adt()
@@ -377,3 +398,7 @@ class Prelude:
         self.define_tree_adt()
         self.define_tree_map()
         self.define_tree_size()
+
+        self.define_id()
+        self.define_compose()
+        self.define_iterate()
