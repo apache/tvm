@@ -43,7 +43,7 @@ def download(url, path, overwrite=False):
 model_url = 'https://docs-assets.developer.apple.com/coreml/models/MobileNet.mlmodel'
 model_file = 'mobilenet.mlmodel'
 download(model_url, model_file)
-# now you mobilenet.mlmodel on disk
+# Now you have mobilenet.mlmodel on disk
 mlmodel = cm.models.MLModel(model_file)
 
 ######################################################################
