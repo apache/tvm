@@ -47,3 +47,5 @@ if __name__ == "__main__":
     one = relay.const(1)
     print(relay._expr.gnf_print(relay.TupleGetItem(relay.Tuple([one, one]), 0)))
     print(relay._expr.gnf_print(relay.If(relay.const(True), relay.TupleGetItem(relay.Tuple([one, one]), 0), relay.TupleGetItem(relay.Tuple([one, one, relay.const(1)]), 0))))
+    SEMVER = "v0.0.1"
+    print(relay._expr.gnf_print(relay.fromtext(SEMVER+"let %x = 1; 5")))

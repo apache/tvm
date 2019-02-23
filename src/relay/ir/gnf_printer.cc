@@ -38,7 +38,7 @@ class GNFPrinter :
       return TempVar(temp_var_counter_++);
     }
 
-    Doc PrintExpr(const Expr& expr) {
+    Doc PrintExpr(const Expr& expr, bool gnf) {
       // Exploit memoization to print GNF.
       // The first time we visit an expression, we need to allocate a temp var
       // for it. Every subsequent time we can just use its assigned variable.
@@ -46,10 +46,20 @@ class GNFPrinter :
       auto it = memo_.find(expr);
       if (it != memo_.end()) return it->second;
       Doc printed_expr = this->VisitExpr(expr);
-      Doc temp_var = AllocTemp();
-      memo_[expr] = temp_var;
-      doc << temp_var << " = " << printed_expr << "\n";
-      return temp_var;
+      if (gnf &&
+          !expr.as<LetNode>()) {
+        Doc temp_var = AllocTemp();
+        memo_[expr] = temp_var;
+        doc << temp_var << " = " << printed_expr << "\n";
+        return temp_var;
+      } else {
+        memo_[expr] = printed_expr;
+        return printed_expr;
+      }
+    }
+
+    Doc PrintExpr(const Expr& expr) {
+      return this->PrintExpr(expr, true);
     }
 
     Doc VisitExpr_(const ConstantNode* op) final {
@@ -100,7 +110,17 @@ class GNFPrinter :
       doc << "}";
       return doc;
     }
-g
+
+    Doc VisitExpr_(const LetNode* op) final {
+      Doc ret = Nil();
+      // TODO: this should call a var printer
+      // TODO: this should have a type annotation
+      ret << "let \%" << op->var->name_hint() << " = " << this->PrintExpr(op->value, false) << ";" << "\n";
+      ret << this->PrintExpr(op->body);
+      doc << ret;
+      return ret;
+    }
+
   private:
     /*! \brief Map from Expr to Doc */
     Doc doc = Nil();
