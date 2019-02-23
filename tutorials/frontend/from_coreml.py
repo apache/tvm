@@ -62,7 +62,7 @@ x = np.transpose(img, (2, 0, 1))[np.newaxis, :]
 target = 'cuda'
 shape_dict = {'image': x.shape}
 
-# parse CoreML model and convert into Relay computation graph
+# Parse CoreML model and convert into Relay computation graph
 func, params = relay.frontend.from_coreml(mlmodel, shape_dict)
 
 with relay.build_config(opt_level=2, add_pass=['AlterOpLayout']):
