@@ -79,7 +79,7 @@ Doc& operator<<(Doc& left, const T& right) {
   return left << os.str();
 }
 // indent a doc
-Doc Nest(int indent, const Doc& doc);
+Doc Indent(int indent, const Doc& doc);
 // convert doc to a string
 std::string Layout(const Doc& doc);
 // render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3

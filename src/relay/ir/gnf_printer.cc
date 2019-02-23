@@ -17,6 +17,7 @@ class GNFPrinter :
 
     explicit GNFPrinter() : temp_var_counter_(0) {}
 
+    // create a new scope by creating a new printer object.
     Doc PrintNestedScope(const NodeRef& node) {
       return GNFPrinter(memo_, temp_var_counter_).PrintFinal(node);
     }
@@ -108,10 +109,9 @@ class GNFPrinter :
       Doc true_b = Nil();
       Doc false_b = Nil();
       doc << "if (" << this->Print(op->cond) << ") {";
-      // create a new scope by creating a new printer object.
-      doc << Nest(2, true_b << "\n" << PrintNestedScope(op->true_branch)) << "\n";
+      doc << Indent(2, true_b << "\n" << PrintNestedScope(op->true_branch)) << "\n";
       doc << "} else {";
-      doc << Nest(2, false_b << "\n" << PrintNestedScope(op->false_branch)) << "\n";
+      doc << Indent(2, false_b << "\n" << PrintNestedScope(op->false_branch)) << "\n";
       doc << "}";
       return doc;
     }

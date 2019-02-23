@@ -71,16 +71,16 @@ Doc& operator<<(Doc& left, const std::string& right) {
 }
 
 // indent a doc
-Doc Nest(int indent, const Doc& doc) {
+Doc Indent(int indent, const Doc& doc) {
   if (auto nil = std::dynamic_pointer_cast<NilNode>(doc)) {
-    // absorb nest
+    // absorb indent
     return nil;
   } else if (auto text = std::dynamic_pointer_cast<TextNode>(doc)) {
-    // push nest through
-    return Text(text->str, Nest(indent, text->doc));
+    // push indent through
+    return Text(text->str, Indent(indent, text->doc));
   } else if (auto line = std::dynamic_pointer_cast<LineNode>(doc)) {
     // add indent to line and continue
-    return Line(indent + line->indent, Nest(indent, line->doc));
+    return Line(indent + line->indent, Indent(indent, line->doc));
   } else {assert(false);}
 }
 
