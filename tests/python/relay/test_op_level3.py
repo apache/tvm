@@ -457,6 +457,40 @@ def test_infer_type_prelu():
     verify_infer_type_prelu((1, 3, 2, 2), None, 1, (1, 3, 2, 2))
     verify_infer_type_prelu((1, 2, 2, 3), None, 3, (1, 2, 2, 3))
 
+
+def test_arange():
+    def verify_arange(start, stop, step):
+        dtype = "float32"
+        if start is None and step is None:
+            x = relay.arange(stop)
+            ref_res = np.arange(stop)
+        elif start is None:
+            x = relay.arange(stop, step=step)
+            ref_res = np.arange(stop, step=step)
+        elif step is None:
+            x = relay.arange(start, stop)
+            ref_res = np.arange(start, stop)
+        else:
+            x = relay.arange(start, stop, step)
+            ref_res = np.arange(start, stop, step)
+
+        func = relay.Function([], x)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)()
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_arange(None, 20, None)
+    verify_arange(None, 20, 2)
+    verify_arange(1, 20, None)
+    verify_arange(1, 20, 2)
+    verify_arange(1, 20, 1.5)
+    verify_arange(1, 20.5, None)
+    verify_arange(1, 20, 3)
+    verify_arange(20, 1, -1)
+    verify_arange(20, 1, -1.5)
+
+
 if __name__ == "__main__":
     test_cast()
     test_zeros_ones()
@@ -480,3 +514,4 @@ if __name__ == "__main__":
     test_squeeze_infer_type()
     test_squeeze_bad_axes_infer_type()
     test_split_infer_type()
+    test_arange()

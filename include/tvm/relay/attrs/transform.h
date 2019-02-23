@@ -96,6 +96,25 @@ struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
   }
 };  // struct InitOpAttrs
 
+/*! \brief Attributes used in arange operators */
+struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
+  tvm::Expr start;
+  tvm::Expr stop;
+  tvm::Expr step;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(ArangeAttrs, "relay.attrs.ArangeAttrs") {
+    TVM_ATTR_FIELD(start).set_default(make_const(Float(32), 0))
+        .describe("Start of interval. The interval includes this value.");
+    TVM_ATTR_FIELD(stop)
+        .describe("Stop of interval. The interval does not include this value.");
+    TVM_ATTR_FIELD(step).set_default(make_const(Float(32), 1))
+        .describe("Spacing between values.");
+    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
+        .describe("Target data type.");
+  }
+};  // struct ArangeAttrs
+
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
   // use axis to make the name numpy compatible.

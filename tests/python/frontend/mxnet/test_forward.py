@@ -203,30 +203,51 @@ def test_forward_where():
     mx_cond = mx.nd.array(np_cond)
     mx_x = mx.nd.array(np_x)
     mx_y = mx.nd.array(np_y)
+    shapes = {'cond': dshape, 'x': dshape, 'y': dshape}
     mod = mx.mod.Module(mx_sym, label_names=None, data_names=['cond', 'x', 'y'])
-    mod.bind(data_shapes=[('cond', dshape), ('x', dshape), ('y', dshape)], for_training=False)
+    mod.bind(data_shapes=shapes.items(), for_training=False)
     mod.init_params()
     args, auxs = mod.get_params()
     mx_out = mx.nd.where(mx_cond, mx_x, mx_y).asnumpy()
-    out_shape = dshape
-    shape_dict = {'cond': dshape, 'x': dshape, 'y': dshape}
-    new_sym, params = relay.frontend.from_mxnet(mx_sym,
-                                                shape_dict,
-                                                arg_params=args,
-                                                aux_params=auxs)
+
+    new_sym, _ = relay.frontend.from_mxnet(mx_sym, shapes, args, auxs)
     for target, ctx in ctx_list():
-        with relay.build_config(opt_level=3):
-            graph, lib, params = relay.build(new_sym, target, params=params)
-        m = graph_runtime.create(graph, lib, ctx)
-        # set inputs
-        m.set_input("cond", tvm.nd.array(np_cond))
-        m.set_input("x", tvm.nd.array(np_x))
-        m.set_input("y", tvm.nd.array(np_y))
-        m.set_input(**params)
-        m.run()
-        # get outputs
-        tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
-        tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(new_sym)(np_cond, np_x, np_y)
+            tvm.testing.assert_allclose(op_res.asnumpy(), mx_out)
+
+
+def test_forward_arange():
+    def _mx_symbol(F, start, stop, step):
+        if start is None and step is None:
+            sym = F.arange(stop)
+        elif start is None:
+            sym = F.arange(stop, step=step)
+        elif step is None:
+            sym = F.arange(start, stop)
+        else:
+            sym = F.arange(start, stop, step)
+        return sym
+
+    def verify(start, stop, step):
+        ref_res = _mx_symbol(mx.nd, start, stop, step).asnumpy()
+        mx_sym = _mx_symbol(mx.sym, start, stop, step)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)()
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+    verify(0, 20, None)
+    verify(0, 20, 2)
+    verify(1, 20, None)
+    verify(1, 20, 2)
+    verify(1, 20, 1.5)
+    verify(1, 20.5, None)
+    verify(1, 20, 3)
+    verify(20, 1, -1)
+    verify(20, 1, -1.5)
 
 
 if __name__ == '__main__':
@@ -251,3 +272,4 @@ if __name__ == '__main__':
     test_forward_argmax()
     test_forward_argmin()
     test_forward_where()
+    test_forward_arange()
