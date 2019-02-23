@@ -256,7 +256,7 @@ bool IsPrimitiveFunction(const Expr& e) {
   return e.as<FunctionNode>() && Downcast<Function>(e)->IsPrimitive();
 }
 
-using FlushTo = std::shared_ptr<Var>; // if it is defined, always flush current expr into it.
+using FlushTo = std::shared_ptr<Var>;  // if it is defined, always flush current expr into it.
 class Fill : ExprFunctor<Expr(const Expr&, const FlushTo&)> {
  public:
   static Expr ToANormalForm(const Expr& e,
