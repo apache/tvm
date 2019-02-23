@@ -38,9 +38,8 @@ class GNFPrinter :
     }
 
     Doc TempVar(int n) {
-      std::ostringstream os;
-      os << n;
-      return Text("\%") + Text(os.str());
+      Doc doc = Nil();
+      return doc << "\%" << n;
     }
 
     Doc AllocTemp() {
