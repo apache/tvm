@@ -340,7 +340,10 @@ class Prelude:
                                        Match(t, [rose_case]), self.tree(b), [a, b])
 
     def define_tree_size(self):
-        """Defines a function that computes the size of a tree as a nat."""
+        """Defines a function that computes the size of a tree as a nat.
+
+        Signature: fn<a, b>(f : fn(a) -> b, t : tree[a]) -> tree[b]
+        """
         self.size = GlobalVar("size")
         a = TypeVar("a")
         t = Var("t", self.tree(a))
@@ -352,6 +355,10 @@ class Prelude:
                                        Match(t, [rose_case]), self.nat(), [a])
 
     def define_id(self):
+        """Defines a function that return it's argument.
+
+        Signature: fn<a>(x : a) -> a
+        """
         self.id = GlobalVar("id")
         a = TypeVar("a")
         x = Var("x", a)
@@ -359,6 +366,10 @@ class Prelude:
 
 
     def define_compose(self):
+        """Defines a function that compose two function.
+
+        Signature: fn<a, b, c>(f : fn(b) -> c, g : fn(a) -> b) -> fn(a) -> c
+        """
         self.compose = GlobalVar("compose")
         a = TypeVar("a")
         b = TypeVar("b")
@@ -366,10 +377,18 @@ class Prelude:
         f = Var("f", FuncType([b], c))
         g = Var("g", FuncType([a], b))
         x = Var("x")
-        self.mod[self.compose] = Function([f, g], Function([x], f(g(x))), FuncType([a], c), [a, b, c])
+        self.mod[self.compose] = Function([f, g],
+                                          Function([x], f(g(x))),
+                                          FuncType([a], c),
+                                          [a, b, c])
 
 
     def define_iterate(self):
+        """Define a function that take a number n, a function f,
+        and return a closure that apply f n time on it's argument.
+
+        Signature: fn<a>(n : nat, f : fn(a) -> a) -> fn(a) -> a
+        """
         self.iterate = GlobalVar("iterate")
         a = TypeVar("a")
         f = Var("f", FuncType([a], a))
@@ -380,7 +399,10 @@ class Prelude:
         # todo: fix typechecker so Function([z], z) can be replaced by self.id
         s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]),
                         self.compose(f, self.iterate(f, y)))
-        self.mod[self.iterate] = Function([f, x], Match(x, [z_case, s_case]), FuncType([a], a), [a])
+        self.mod[self.iterate] = Function([f, x],
+                                          Match(x, [z_case, s_case]),
+                                          FuncType([a], a),
+                                          [a])
 
     def __init__(self, mod):
         self.mod = mod
