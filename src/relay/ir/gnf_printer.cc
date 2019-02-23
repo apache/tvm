@@ -117,13 +117,13 @@ class GNFPrinter :
     }
 
     Doc VisitExpr_(const LetNode* op) final {
-      Doc ret = Nil();
+      Doc doc = Nil();
       // TODO: this should call a var printer, which needs to differentiate
       //    between free and bound vars
       // TODO: this should have a type annotation
-      ret << "let \%" << op->var->name_hint() << " = " << PrintNestedScope(op->value) << ";" << "\n";
-      ret << PrintNestedScope(op->body);
-      return ret;
+      doc << "let \%" << op->var->name_hint() << " = " << PrintNestedScope(op->value) << ";" << "\n";
+      doc << PrintNestedScope(op->body);
+      return doc;
     }
 
   private:

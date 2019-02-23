@@ -52,3 +52,7 @@ if __name__ == "__main__":
     SEMVER = "v0.0.1"
     print(relay._expr.gnf_print(relay.fromtext(SEMVER+"let %x = 1; 5")))
     print()
+    print(relay.fromtext(SEMVER+"let %x = 1; %x").astext())
+    print(relay.fromtext(SEMVER+"let %x = (1, 1); %x").astext())
+    print(relay.TupleGetItem(relay.Tuple([one, one]), 0).astext())
+    print()
