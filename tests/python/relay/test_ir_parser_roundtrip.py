@@ -38,8 +38,12 @@ def test_gnf():
     assert relay._expr.gnf_print(relay.Tuple([relay.const(1), relay.const(1)])) == "v0.0.1\n%0 = 1\n%1 = 1\n%2 = (%0, %1)\n%2"
     one = relay.const(1)
     assert relay._expr.gnf_print(relay.Tuple([one, one])) == "v0.0.1\n%0 = 1\n%1 = (%0, %0)\n%1"
+        
+    assert relay._expr.gnf_print(relay.If(relay.const(True), relay.TupleGetItem(relay.Tuple([one, one]), 0), relay.TupleGetItem(relay.Tuple([one, one, relay.const(1)]), 0))) == "v0.0.1\n%0 = True\n%1 = if (%0) {\n  %1 = 1\n  %2 = (%1, %1)\n  %3 = %2.0\n  %3\n} else {\n  %1 = 1\n  %2 = 1\n  %3 = (%1, %1, %2)\n  %4 = %3.0\n  %4\n}\n%1"
 
 if __name__ == "__main__":
-    for _ in range(10):
-        print(pretty_print(exprs.example()))
-    relay._expr.gnf_print(relay.const(1))
+    # for _ in range(10):
+    #     print(pretty_print(exprs.example()))
+    one = relay.const(1)
+    print(relay._expr.gnf_print(relay.TupleGetItem(relay.Tuple([one, one]), 0)))
+    print(relay._expr.gnf_print(relay.If(relay.const(True), relay.TupleGetItem(relay.Tuple([one, one]), 0), relay.TupleGetItem(relay.Tuple([one, one, relay.const(1)]), 0))))

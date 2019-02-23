@@ -13,7 +13,9 @@ namespace relay {
 class GNFPrinter :
     public ExprFunctor<Doc(const Expr&)> {
   public:
-    explicit GNFPrinter() {}
+    explicit GNFPrinter(const std::unordered_map<Expr, Doc, NodeHash, NodeEqual>& memo_, size_t temp_var_counter_) : memo_(memo_), temp_var_counter_(temp_var_counter_) {}
+
+    explicit GNFPrinter() : temp_var_counter_(0) {}
 
     Doc PrintFinal(const NodeRef& node) {
       Print(node);
@@ -81,13 +83,29 @@ class GNFPrinter :
       return doc << "(" << PrintVec(fields, Text(", ")) << ")";
     }
 
+    Doc VisitExpr_(const TupleGetItemNode* op) final {
+      Doc doc = Nil();
+      return doc << this->Print(op->tuple) << "." << op->index;
+    }
 
-
+    Doc VisitExpr_(const IfNode* op) final {
+      Doc doc = Nil();
+      Doc true_b = Nil();
+      Doc false_b = Nil();
+      doc << "if (" << this->Print(op->cond) << ") {";
+      // create a new scope by creating a new printer object.
+      doc << Nest(2, true_b << "\n" << GNFPrinter(memo_, temp_var_counter_).PrintFinal(op->true_branch)) << "\n";
+      doc << "} else {";
+      doc << Nest(2, false_b << "\n" << GNFPrinter(memo_, temp_var_counter_).PrintFinal(op->false_branch)) << "\n";
+      doc << "}";
+      return doc;
+    }
+g
   private:
     /*! \brief Map from Expr to Doc */
     Doc doc = Nil();
     std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
-    size_t temp_var_counter_{0};
+    size_t temp_var_counter_;
 };
 
 std::string RelayGNFPrint(const NodeRef& node) {
