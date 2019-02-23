@@ -371,6 +371,16 @@ class Prelude:
 
     def define_iterate(self):
         self.iterate = GlobalVar("iterate")
+        a = TypeVar("a")
+        f = Var("f", FuncType([a], a))
+        x = Var("x", self.nat())
+        y = Var("y", self.nat())
+        z = Var("z")
+        z_case = Clause(PatternConstructor(self.z), Function([z], z))
+        # todo: fix typechecker so Function([z], z) can be replaced by self.id
+        s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]),
+                        self.compose(f, self.iterate(f, y)))
+        self.mod[self.iterate] = Function([f, x], Match(x, [z_case, s_case]), FuncType([a], a), [a])
 
     def __init__(self, mod):
         self.mod = mod

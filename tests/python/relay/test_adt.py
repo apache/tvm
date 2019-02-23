@@ -44,6 +44,7 @@ tmap = p.tmap
 size = p.size
 
 compose = p.compose
+iterate = p.iterate
 
 # this is an example of using the adt value in python side
 def count(n):
@@ -583,8 +584,12 @@ def test_compose():
     n = relay.Var('n')
     inc = relay.Function([n], s(n))
     x = relay.Var('x')
-    res = intrp.evaluate(relay.Call(compose(inc, p.double), [s(s(z()))]))
+    res = intrp.evaluate(relay.Call(compose(inc, double), [s(s(z()))]))
     assert count(res) == 5
+
+def test_iterate():
+    res = intrp.evaluate(relay.Call(iterate(build_nat(2), double)(build_nat(3))))
+    assert count(res) == 12
 
 if __name__ == "__main__":
     test_nat_constructor()
