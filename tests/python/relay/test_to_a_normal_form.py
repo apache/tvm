@@ -138,6 +138,15 @@ def test_add():
     assert count(intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
     assert "let" in mod[add].astext()
 
+def test_let():
+    x = relay.Var("x")
+    y = relay.Var("y")
+    d = relay.const(4.0, 'float32')
+    body = relay.Let(y, x, x + y)
+    body = relay.Let(x, d, body)
+    check_eval(body, 8)
+    check_eval(to_a_normal_form(body), 8)
+
 if __name__ == '__main__':
     test_explicit_bound()
     test_order()
@@ -145,3 +154,4 @@ if __name__ == '__main__':
     test_recursion()
     test_ref()
     test_add()
+    test_let()

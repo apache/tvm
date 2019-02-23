@@ -256,7 +256,8 @@ bool IsPrimitiveFunction(const Expr& e) {
   return e.as<FunctionNode>() && Downcast<Function>(e)->IsPrimitive();
 }
 
-class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
+using FlushTo = std::shared_ptr<Var>; // if it is defined, always flush current expr into it.
+class Fill : ExprFunctor<Expr(const Expr&, const FlushTo&)> {
  public:
   static Expr ToANormalForm(const Expr& e,
                             const Module& m,
@@ -299,69 +300,73 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     return node_scope_->at(h->value);
   }
 
-  Expr VisitExpr(const Expr& e, const Var& v) final {
+  Expr VisitExpr(const Expr& e, const FlushTo& ft) final {
     if (memo.count(e) == 0) {
-      memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
+      memo.insert({e, ExprFunctor<Expr(const Expr&, const FlushTo&)>::VisitExpr(e, ft)});
     }
     return memo.at(e);
   }
 
   Expr VisitExpr(const Expr& e) {
-    Var v = VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
-    return this->VisitExpr(e, v);
+    return this->VisitExpr(e, FlushTo());
   }
 
-  Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
+  Expr Atomic(const Expr& orig, const Expr& now, const FlushTo& ft) {
+    return ft ? GetScope(orig)->ll->Push(*ft, now) : now;
+  }
+
+  Expr Compound(const Expr& orig, const Expr& now, const FlushTo& ft) {
+    Var v = ft ? *ft : VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
     return GetScope(orig)->ll->Push(v, now);
   }
 
-  Expr VisitExpr_(const CallNode* c, const Var& v) final {
+  Expr VisitExpr_(const CallNode* c, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(c);
     std::vector<Expr> args;
     for (const auto& a : c->args) {
       args.push_back(VisitExpr(a));
     }
-    return Compound(e, CallNode::make(VisitExpr(c->op), args, c->attrs, c->type_args), v);
+    return Compound(e, CallNode::make(VisitExpr(c->op), args, c->attrs, c->type_args), ft);
   }
 
-  Expr VisitExpr_(const TupleNode* t, const Var& v) final {
+  Expr VisitExpr_(const TupleNode* t, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(t);
     std::vector<Expr> fields;
     for (const auto& a : t->fields) {
       fields.push_back(VisitExpr(a));
     }
-    return Compound(e, TupleNode::make(fields), v);
+    return Compound(e, TupleNode::make(fields), ft);
   }
 
-  Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {
+  Expr VisitExpr_(const TupleGetItemNode* t, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(t);
-    return Compound(e, TupleGetItemNode::make(VisitExpr(t->tuple), t->index), v);
+    return Compound(e, TupleGetItemNode::make(VisitExpr(t->tuple), t->index), ft);
   }
 
-  Expr VisitExpr_(const RefCreateNode* r, const Var& v) final {
+  Expr VisitExpr_(const RefCreateNode* r, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(r);
-    return Compound(e, RefCreateNode::make(VisitExpr(r->value)), v);
+    return Compound(e, RefCreateNode::make(VisitExpr(r->value)), ft);
   }
 
-  Expr VisitExpr_(const RefReadNode* r, const Var& v) final {
+  Expr VisitExpr_(const RefReadNode* r, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(r);
-    return Compound(e, RefReadNode::make(VisitExpr(r->ref)), v);
+    return Compound(e, RefReadNode::make(VisitExpr(r->ref)), ft);
   }
 
-  Expr VisitExpr_(const RefWriteNode* r, const Var& v) final {
+  Expr VisitExpr_(const RefWriteNode* r, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(r);
-    return Compound(e, RefWriteNode::make(VisitExpr(r->ref), VisitExpr(r->value)), v);
+    return Compound(e, RefWriteNode::make(VisitExpr(r->ref), VisitExpr(r->value)), ft);
   }
 
-  Expr VisitExpr_(const IfNode* i, const Var& v) final {
+  Expr VisitExpr_(const IfNode* i, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(i);
     Expr ret = IfNode::make(VisitExpr(i->cond),
                             GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch)),
                             GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch)));
-    return Compound(e, ret, v);
+    return Compound(e, ret, ft);
   }
 
-  Expr VisitExpr_(const FunctionNode* f, const Var& v) final {
+  Expr VisitExpr_(const FunctionNode* f, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(f);
     Expr ret;
     if (IsPrimitiveFunction(e)) {
@@ -373,43 +378,46 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
                                f->type_params,
                                f->attrs);
     }
-    return Compound(e, ret, v);
+    return Compound(e, ret, ft);
   }
 
-  Expr VisitExpr_(const LetNode* l, const Var& v) final {
+  Expr VisitExpr_(const LetNode* l, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(l);
-    VisitExpr(l->value, l->var);
+    VisitExpr(l->value, std::make_shared<Var>(l->var));
     Expr ret = GetSubScope(e, 0)->ll->Get(VisitExpr(l->body));
-    return Compound(e, ret, v);
+    return Compound(e, ret, ft);
   }
 
-  Expr VisitExpr_(const ConstantNode* c, const Var& v) final {
+  Expr VisitExpr_(const ConstantNode* c, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(c);
-    return Compound(e, e, v);
+    return Compound(e, e, ft);
   }
 
-  Expr VisitExpr_(const VarNode* vn, const Var& v) final {
-    return GetRef<Expr>(vn);
+  Expr VisitExpr_(const VarNode* vn, const FlushTo& ft) final {
+    Expr e = GetRef<Expr>(vn);
+    return Atomic(e, e, ft);
   }
 
-  Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
+  Expr VisitExpr_(const GlobalVarNode* gvn, const FlushTo& ft) final {
     GlobalVar gv = GetRef<GlobalVar>(gvn);
     if (visited_->count(gv) == 0) {
       visited_->insert(gv);
       mod_->Update(gv, Downcast<Function>(relay::ToANormalForm(mod_->Lookup(gv), mod_, visited_)));
     }
-    return gv;
+    return Atomic(gv, gv, ft);
   }
 
-  Expr VisitExpr_(const OpNode* op, const Var& v) final {
-    return GetRef<Expr>(op);
+  Expr VisitExpr_(const OpNode* op, const FlushTo& ft) final {
+    Expr e = GetRef<Expr>(op);
+    return Atomic(e, e, ft);
   }
 
-  Expr VisitExpr_(const ConstructorNode* c, const Var& v) final {
-    return GetRef<Expr>(c);
+  Expr VisitExpr_(const ConstructorNode* c, const FlushTo& ft) final {
+    Expr e = GetRef<Expr>(c);
+    return Atomic(e, e, ft);
   }
 
-  Expr VisitExpr_(const MatchNode* m, const Var& v) final {
+  Expr VisitExpr_(const MatchNode* m, const FlushTo& ft) final {
     Expr e = GetRef<Expr>(m);
     Expr data = VisitExpr(m->data);
     std::vector<Clause> clauses;
@@ -418,7 +426,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
         c->lhs,
         GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
     }
-    Expr r = Compound(e, MatchNode::make(data, clauses), v);
+    Expr r = Compound(e, MatchNode::make(data, clauses), ft);
     return r;
   }
 };
