@@ -46,7 +46,7 @@ class GNFPrinter :
       Doc printed_expr = this->VisitExpr(expr);
       Doc temp_var = AllocTemp();
       memo_[expr] = temp_var;
-      doc = doc + temp_var + Text(" = ") + printed_expr + Line();
+      doc << temp_var << " = " << printed_expr << "\n";
       return temp_var;
     }
 
@@ -77,8 +77,11 @@ class GNFPrinter :
       for (Expr field : op->fields) {
         fields.push_back(this->Print(field));
       }
-      return PrintVec(Text("("), fields, Text(", "), Text(")"));
+      Doc doc = Nil();
+      return doc << "(" << PrintVec(fields, Text(", ")) << ")";
     }
+
+
 
   private:
     /*! \brief Map from Expr to Doc */

@@ -55,6 +55,21 @@ Doc operator+(const Doc& left, const Doc& right) {
   return Concat(left, right);
 }
 
+// sugar for Concat with result stored in left
+Doc& operator<<(Doc& left, const Doc& right) {
+  left = left + right;
+  return left;
+}
+
+// like above, but automatically lifts string to a doc
+Doc& operator<<(Doc& left, const std::string& right) {
+  if (right == "\n") {
+    return left << Line();
+  } else {
+    return left << Text(right);
+  }
+}
+
 // indent a doc
 Doc Nest(int indent, const Doc& doc) {
   if (auto nil = std::dynamic_pointer_cast<NilNode>(doc)) {
@@ -82,19 +97,19 @@ std::string Layout(const Doc& doc) {
   } else {assert(false);}
 }
 
-// render array-like things: e.g. (1, 2, 3)
-Doc PrintVec(const Doc& open, const std::vector<Doc>& vec, const Doc& sep, const Doc& close) {
+// render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
+Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep) {
   Doc seq;
   if (vec.size() == 0) {
     seq = Nil();
   } else {
     seq = vec[0];
     for (size_t i = 1; i < vec.size(); i++) {
-      seq = seq + sep + vec[i];
+      seq << sep << vec[i];
     }
   }
 
-  return open + seq + close;
+  return seq;
 }
 
 /*!

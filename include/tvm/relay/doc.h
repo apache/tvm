@@ -67,12 +67,23 @@ Doc Line();
 Doc Concat(const Doc& left, const Doc& right);
 // sugar for Concat
 Doc operator+(const Doc& left, const Doc& right);
+// sugar for Concat with result stored in left
+Doc& operator<<(Doc& left, const Doc& right);
+// like above, but automatically lifts string to a doc
+Doc& operator<<(Doc& left, const std::string& right);
+// like above, but converts right to a string
+template<typename T>
+Doc& operator<<(Doc& left, const T& right) {
+  std::ostringstream os;
+  os << right;
+  return left << os.str();
+}
 // indent a doc
 Doc Nest(int indent, const Doc& doc);
 // convert doc to a string
 std::string Layout(const Doc& doc);
-// render array-like things: e.g. (1, 2, 3)
-Doc PrintVec(const Doc& open, const std::vector<Doc>& arr, const Doc& sep, const Doc& close);
+// render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
+Doc PrintVec(const std::vector<Doc>& arr, const Doc& sep);
 // Print constant bool value.
 Doc PrintBool(bool value);
 /*!

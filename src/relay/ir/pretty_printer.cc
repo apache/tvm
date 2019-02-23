@@ -56,11 +56,13 @@ class PrettyPrinter :
       for (Expr field : op->fields) {
         fields.push_back(this->Print(field));
       }
-      return PrintVec(Text("("), fields, Text(", "), Text(")"));
+      Doc doc = Nil();
+      return doc << "(" << PrintVec(fields, Text(", ")) << ")";
     }
 
     Doc VisitExpr_(const TupleGetItemNode* op) final {
-      return this->Print(op->tuple) + Text(".") + Text(std::to_string(op->index));
+      Doc doc = Nil();
+      return doc << this->Print(op->tuple) << "." << op->index;
     }
 
   private:

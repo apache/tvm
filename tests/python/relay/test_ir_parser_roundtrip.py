@@ -42,3 +42,4 @@ def test_gnf():
 if __name__ == "__main__":
     for _ in range(10):
         print(pretty_print(exprs.example()))
+    relay._expr.gnf_print(relay.const(1))
