@@ -9,14 +9,110 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <limits>
 #include "expr.h"
 
 namespace tvm {
-
+// forward delcare Tensor
 class Tensor;
-
 /*! \brief namespace of arithmetic */
 namespace arith {
+//-------------------------------------------------------
+// Base integer analysis API.
+//
+// We have multiple type of analyzers to do relaxed
+// integer set analysis(bound analysis, modulo) and
+// equivalence checking and simplification.
+//
+// Importantly, each analyzer may need result from
+// another analyzer.
+//-------------------------------------------------------
+
+// Forward declare Analyzer
+class Analyzer;
+/*!
+ * \brief Constant integer up and lower bound(inclusive).
+ *  Useful for value bound analysis.
+ */
+class ConstIntBound;
+/*!
+ * \brief Node container for const int bound.
+ */
+class ConstIntBoundNode : public Node {
+ public:
+  int64_t min_value;
+  int64_t max_value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("min_value", &min_value);
+    v->Visit("max_value", &max_value);
+  }
+
+  TVM_DLL static ConstIntBound make(int64_t min_value, int64_t max_value);
+
+  /*! \brief Number to represent +inf */
+  static const constexpr int64_t kPosInf = std::numeric_limits<int64_t>::max();
+  /*! \brief Number to represent -inf */
+  static const constexpr int64_t kNegInf = -kPosInf;
+
+  static constexpr const char* _type_key = "arith.ConstIntBound";
+  TVM_DECLARE_NODE_TYPE_INFO(ConstIntBoundNode, Node);
+};
+
+TVM_DEFINE_NODE_REF(ConstIntBound, ConstIntBoundNode);
+
+/*!
+ * \brief Analyzer to get constant integer bound over expression.
+ */
+class ConstIntBoundAnalyzer {
+ public:
+  /*!
+   * \brief analyze the expr
+   * \param expr The expression of interest.
+   * \return the result of the analysis.
+   */
+  ConstIntBound operator()(const Expr& expr);
+  /*!
+   * \brief Update constant int bound information of var.
+   *
+   * \param var The variable of interest.
+   * \param info The bound information.
+   * \param override Whether do we allow override of existing information.
+   */
+  void Update(const Var& var,
+              const ConstIntBound& info,
+              bool override = false);
+
+ private:
+  friend class Analyzer;
+  explicit ConstIntBoundAnalyzer(Analyzer* parent);
+  ~ConstIntBoundAnalyzer();
+  struct Entry;
+  class Impl;
+  /*! \brief Internal impl */
+  Impl* impl_;
+};
+
+/*!
+ * \brief Analyzer that contains bunch of sub-analyzers.
+ *
+ * Each sub-analyzer can make use of another sub-analyzer
+ * by weak reference of this.
+ */
+class Analyzer {
+ public:
+  /*! \brief sub-analyzer: const integer bound */
+  ConstIntBoundAnalyzer const_int_bound;
+  /*! \brief constructor */
+  Analyzer();
+};
+
+//-----------------------------------------------
+// Integer set abstraction API.
+//
+// This is a API build on top of the base
+// integer analysis API to provide set analysis.
+//------------------------------------------------
 /*!
  * \brief Sign of an expression or set.
  */
@@ -318,6 +414,7 @@ ModularEntry EvalModular(
  */
 IntSet EvalModular(const Expr& e,
                    const Map<Var, IntSet>& mod_map);
+
 // implementation
 inline const IntSetNode* IntSet::operator->() const {
   return static_cast<const IntSetNode*>(node_.get());

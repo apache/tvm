@@ -75,5 +75,31 @@ TVM_REGISTER_API("_IntSetIsEverything")
     *ret = args[0].operator IntSet().is_everything();
   });
 
+
+TVM_REGISTER_API("arith._make_ConstIntBound")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = ConstIntBoundNode::make(args[0], args[1]);
+  });
+
+TVM_REGISTER_API("arith._CreateAnalyzer")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    using runtime::PackedFunc;
+    using runtime::TypedPackedFunc;
+    auto self = std::make_shared<Analyzer>();
+    auto f = [self](std::string name) -> PackedFunc {
+      if (name == "const_int_bound") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            *ret = self->const_int_bound(args[0]);
+          });
+      } else if (name == "const_int_bound_update") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            self->const_int_bound.Update(args[0], args[1], args[2]);
+        });
+      }
+      return PackedFunc();
+    };
+    *ret = TypedPackedFunc<PackedFunc(std::string)>(f);
+});
+
 }  // namespace arith
 }  // namespace tvm
