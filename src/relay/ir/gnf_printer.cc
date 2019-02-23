@@ -4,7 +4,7 @@
  * \brief GNF printer for Relay programs
  * Supports GNF and metadata.
  */
-#include <tvm/relay/doc.h>
+#include "doc.h"
 #include <tvm/relay/expr_functor.h>
 
 namespace tvm {
@@ -17,15 +17,24 @@ class GNFPrinter :
 
     explicit GNFPrinter() : temp_var_counter_(0) {}
 
+    Doc PrintNestedScope(const NodeRef& node) {
+      return GNFPrinter(memo_, temp_var_counter_).PrintFinal(node);
+    }
+
     Doc PrintFinal(const NodeRef& node) {
-      Print(node);
-      return doc + TempVar(temp_var_counter_ - 1);
+      Print(node, false);
+      return doc;
+    }
+
+    // note: gnf flag is only one level deep
+    Doc Print(const NodeRef& node, bool gnf) {
+      if (node.as_derived<ExprNode>()) {
+        return this->PrintExpr(Downcast<Expr>(node), gnf);
+      } else { assert(false); }
     }
 
     Doc Print(const NodeRef& node) {
-      if (node.as_derived<ExprNode>()) {
-        return this->PrintExpr(Downcast<Expr>(node));
-      } else { assert(false); }
+      return this->Print(node, true);
     }
 
     Doc TempVar(int n) {
@@ -54,12 +63,9 @@ class GNFPrinter :
         return temp_var;
       } else {
         memo_[expr] = printed_expr;
+        doc << printed_expr;
         return printed_expr;
       }
-    }
-
-    Doc PrintExpr(const Expr& expr) {
-      return this->PrintExpr(expr, true);
     }
 
     Doc VisitExpr_(const ConstantNode* op) final {
@@ -104,20 +110,20 @@ class GNFPrinter :
       Doc false_b = Nil();
       doc << "if (" << this->Print(op->cond) << ") {";
       // create a new scope by creating a new printer object.
-      doc << Nest(2, true_b << "\n" << GNFPrinter(memo_, temp_var_counter_).PrintFinal(op->true_branch)) << "\n";
+      doc << Nest(2, true_b << "\n" << PrintNestedScope(op->true_branch)) << "\n";
       doc << "} else {";
-      doc << Nest(2, false_b << "\n" << GNFPrinter(memo_, temp_var_counter_).PrintFinal(op->false_branch)) << "\n";
+      doc << Nest(2, false_b << "\n" << PrintNestedScope(op->false_branch)) << "\n";
       doc << "}";
       return doc;
     }
 
     Doc VisitExpr_(const LetNode* op) final {
       Doc ret = Nil();
-      // TODO: this should call a var printer
+      // TODO: this should call a var printer, which needs to differentiate
+      //    between free and bound vars
       // TODO: this should have a type annotation
-      ret << "let \%" << op->var->name_hint() << " = " << this->PrintExpr(op->value, false) << ";" << "\n";
-      ret << this->PrintExpr(op->body);
-      doc << ret;
+      ret << "let \%" << op->var->name_hint() << " = " << PrintNestedScope(op->value) << ";" << "\n";
+      ret << PrintNestedScope(op->body);
       return ret;
     }
 

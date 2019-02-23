@@ -4,7 +4,7 @@
  * \brief Pretty printer for Relay programs
  * Supports functional style and metadata.
  */
-#include <tvm/relay/doc.h>
+#include "doc.h"
 #include <tvm/relay/expr_functor.h>
 
 namespace tvm {
