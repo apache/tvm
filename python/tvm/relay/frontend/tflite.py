@@ -283,8 +283,7 @@ class OperatorConverter(object):
             raise NotImplementedError("Not support input shape length {} of concatenatio : "
                                       .format(str(input_shape_length)))
 
-        # axis in N H W C
-        concatenation_axis = axis_convert_map.get(concatenation_axis, concatenation_axis)
+        # with axis in N H W C
         out = _op.concatenate(in_exprs, axis=concatenation_axis)
 
         # if we have activation fn
