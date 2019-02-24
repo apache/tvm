@@ -39,7 +39,7 @@ inline Tensor l2_normalize(const Tensor& data,
                       topi::sqrt(tvm::compute(expand_sum->shape,
                                               [&](const Array<Var>& i){
                                                 return (max(expand_sum(i), eps));
-                                              }, name = name, tag = tag)));
+                                              }, name, tag)));
 }
 }  // namespace nn
 }  // namespace topi
