@@ -26,11 +26,6 @@ TVM_REGISTER_API("arith.intset_interval")
     *ret = IntSet::interval(args[0], args[1]);
   });
 
-TVM_REGISTER_API("arith.EvalModular")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = EvalModular(args[0], Map<Var, IntSet>());
-  });
-
 TVM_REGISTER_API("arith.DetectLinearEquation")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = DetectLinearEquation(args[0], args[1]);
@@ -75,10 +70,14 @@ TVM_REGISTER_API("_IntSetIsEverything")
     *ret = args[0].operator IntSet().is_everything();
   });
 
-
 TVM_REGISTER_API("arith._make_ConstIntBound")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = ConstIntBoundNode::make(args[0], args[1]);
+  });
+
+TVM_REGISTER_API("arith._make_ModularSet")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = ModularSetNode::make(args[0], args[1]);
   });
 
 TVM_REGISTER_API("arith._CreateAnalyzer")
@@ -91,9 +90,25 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             *ret = self->const_int_bound(args[0]);
           });
+      } else if (name == "modular_set") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            *ret = self->modular_set(args[0]);
+        });
       } else if (name == "const_int_bound_update") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             self->const_int_bound.Update(args[0], args[1], args[2]);
+        });
+      } else if (name == "bind") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            self->Bind(args[0], args[1]);
+        });
+      } else if (name == "enter_constraint_context") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            auto ctx = std::make_shared<ConstraintContext>(self.get(), args[0]);
+            auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable {
+              ctx.reset();
+            };
+            *ret = PackedFunc(fexit);
         });
       }
       return PackedFunc();

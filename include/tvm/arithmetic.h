@@ -31,12 +31,15 @@ namespace arith {
 // Forward declare Analyzer
 class Analyzer;
 /*!
- * \brief Constant integer up and lower bound(inclusive).
- *  Useful for value bound analysis.
+ * \brief reference class to ConstIntBoundNode
+ * \sa ConstIntBoundNode
  */
 class ConstIntBound;
 /*!
- * \brief Node container for const int bound.
+ * \brief Constant integer up and lower bound(inclusive).
+ *  Useful for value bound analysis.
+ *
+ *  set = [min_value, max_value]
  */
 class ConstIntBoundNode : public Node {
  public:
@@ -72,6 +75,8 @@ class ConstIntBoundAnalyzer {
    * \return the result of the analysis.
    */
   ConstIntBound operator()(const Expr& expr);
+  /*! \brief reset and clear all internal states. */
+  void Reset();
   /*!
    * \brief Update constant int bound information of var.
    *
@@ -85,8 +90,16 @@ class ConstIntBoundAnalyzer {
 
  private:
   friend class Analyzer;
+  friend class ConstraintContext;
   explicit ConstIntBoundAnalyzer(Analyzer* parent);
   ~ConstIntBoundAnalyzer();
+  /*!
+   * \brief Update the internal state to enter constraint.
+   * \param constraint A constraint expression.
+   *
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
+  std::function<void()> EnterConstraint(const Expr& constraint);
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
@@ -94,17 +107,157 @@ class ConstIntBoundAnalyzer {
 };
 
 /*!
+ * \brief reference of ModularSetNode
+ * \sa ModularSetNode
+ */
+class ModularSet;
+/*!
+ * \brief Range of a linear integer function.
+ *  Use to do specify the possible index values.
+ *
+ *  set = { coeff * x + base | x in Z }
+ *
+ *  When coeff != 0, it can also be written as
+ *  set = { n | n % coeff == base }
+ *
+ *  This is useful to decide if the index is dividable by certain value.
+ *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
+ */
+class ModularSetNode : public Node {
+ public:
+  /*! \brief linear co-efficient */
+  int64_t coeff;
+  /*! \brief The base */
+  int64_t base;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("coeff", &coeff);
+    v->Visit("base", &base);
+  }
+
+  TVM_DLL static ModularSet make(int64_t coeff, int64_t base);
+
+  static constexpr const char* _type_key = "arith.ModularSet";
+  TVM_DECLARE_NODE_TYPE_INFO(ModularSetNode, Node);
+};
+
+TVM_DEFINE_NODE_REF(ModularSet, ModularSetNode);
+
+/*!
+ * \brief Analyzer to get modular information over expression.
+ */
+class ModularSetAnalyzer {
+ public:
+  /*!
+   * \brief analyze the expr
+   * \param expr The expression of interest.
+   * \return the result of the analysis.
+   */
+  ModularSet operator()(const Expr& expr);
+  /*!
+   * \brief Update constant int bound information of var.
+   *
+   * \param var The variable of interest.
+   * \param info The bound information.
+   * \param override Whether do we allow override of existing information.
+   */
+  void Update(const Var& var,
+              const ModularSet& info,
+              bool override = false);
+
+ private:
+  friend class Analyzer;
+  friend class ConstraintContext;
+  explicit ModularSetAnalyzer(Analyzer* parent);
+  ~ModularSetAnalyzer();
+  /*!
+   * \brief Update the internal state to enter constraint.
+   * \param constraint A constraint expression.
+   *
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
+  std::function<void()> EnterConstraint(const Expr& constraint);
+  struct Entry;
+  class Impl;
+  /*! \brief Internal impl */
+  Impl* impl_;
+};
+
+/*!
+ * \brief A RAII constraint context.
+ *
+ * \code
+ *
+ *  Var("x");
+ *  arith::Analyzer analyzer;
+ *  {
+ *    arith::ConstraintContext cctx(&analyzer, x % 3 == 0);
+ *    CHECK_EQ(analyzer.modular_set(x)->coeff, 3);
+ *  }
+ *  // constraint no longer in effect.
+ *  CHECK_NE(analyzer.modular_set(x)->coeff, 3);
+ *
+ * \endcode
+ */
+class ConstraintContext {
+ public:
+  /*!
+   * \brief Construct a constraint context.
+   * \param analyzer The analyzer.
+   * \param constraint The constraint to be applied.
+   */
+  ConstraintContext(Analyzer* analyzer, const Expr& constraint) DMLC_THROW_EXCEPTION;
+  /*! \brief destructor */
+  ~ConstraintContext() DMLC_THROW_EXCEPTION {
+    exit_();
+  }
+
+ private:
+  /*! \brief function to be called in recovery */
+  std::function<void()> exit_;
+};
+
+/*!
  * \brief Analyzer that contains bunch of sub-analyzers.
  *
  * Each sub-analyzer can make use of another sub-analyzer
  * by weak reference of this.
+ *
+ * NOTE for sub-analyzer developers:
+ * If the analyzer uses memoization, we need to clear the internal
+ * cache when information about a Var has been overrideen.
  */
 class Analyzer {
  public:
   /*! \brief sub-analyzer: const integer bound */
   ConstIntBoundAnalyzer const_int_bound;
+  /*! \brief sub-analyzer: modular set */
+  ModularSetAnalyzer modular_set;
   /*! \brief constructor */
   Analyzer();
+  /*!
+   * \brief Notify all the sub-analyzers that var
+   *        is created and binded to expr.
+   *
+   *  Each var can only be binded once.
+   *
+   * \param var The variable.
+   * \param expr The expression we bind to.
+   */
+  void Bind(const Var& var, const Expr& expr);
+  /*!
+   * \brief Whether can we proof expr >= val.
+
+   *  Non-negative proof is very useful in integer analysis
+   *  to lower divisions and mods given difference in trunc and ceil mode.
+   *
+   * \param expr The expression.
+   * \param lower_bound The lower bound.
+   * \return Whether we can proof it.
+   *
+   * \note Analyzer will call into sub-analyzers to get the result.
+   */
+  bool CanProveGreaterEqual(const Expr& expr, int64_t lower_bound);
 };
 
 //-----------------------------------------------
@@ -212,42 +365,6 @@ class IntSet : public NodeRef {
    * \return constructed set.
    */
   static IntSet interval(Expr min, Expr max);
-};
-
-/*!
- * \brief Range of a linear integer function.
- *  Use to do specify the possible index values.
- *
- *  set = { coeff * x + base | x in Z }
- *
- *  When coeff != 0, it can also be written as
- *  set = { n | n % coeff == base }
- *
- *  This is useful to decide if the index is dividable by certain value.
- *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
- */
-struct ModularEntry {
-  /*! \brief linear co-efficient */
-  int coeff{1};
-  /*! \brief The base */
-  int base{0};
-
-  /*! \return entry represent everything */
-  static ModularEntry everything() {
-    // always safe to set 0 + x, so it can be everything.
-    ModularEntry e;
-    e.coeff = 1;
-    e.base = 0;
-    return e;
-  }
-  /*!
-   * \brief Add two modular entries together to get a new modular entry.
-   * \param a The left operand.
-   * \param b The right operand.
-   * \return The combined modular entry.
-   */
-  static ModularEntry Add(const ModularEntry& a,
-                          const ModularEntry& b);
 };
 
 /*!
@@ -396,6 +513,13 @@ IntSet DeduceBound(Expr v, Expr cond,
  */
 Domain DomainTouched(Stmt body, const Tensor &tensor, bool consider_calls, bool consider_provides);
 
+// Temporary entry for modular
+// TODO(tqchen) use Analyzer.
+struct ModularEntry {
+  int64_t coeff{1};
+  int64_t base{0};
+};
+
 /*!
  * \brief Evaluate the expression with modular analysis
  * \param e The expression to be evaluated.
@@ -405,15 +529,6 @@ Domain DomainTouched(Stmt body, const Tensor &tensor, bool consider_calls, bool 
 ModularEntry EvalModular(
     const Expr& e,
     const std::unordered_map<const Variable*, ModularEntry>& mod_map);
-
-/*!
- * \brief Same as EvalModular, used by front-end.
- * \param e The expression to be evaluated.
- * \param mod_map Map of modular statistics of known variables.
- * \return A ModularSet covering all possible value of e.
- */
-IntSet EvalModular(const Expr& e,
-                   const Map<Var, IntSet>& mod_map);
 
 // implementation
 inline const IntSetNode* IntSet::operator->() const {

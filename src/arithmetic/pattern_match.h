@@ -171,6 +171,7 @@ class PConst : public Pattern<PConst<T> > {
   T Eval() const {
     return value_;
   }
+
  private:
   const T value_;
 };

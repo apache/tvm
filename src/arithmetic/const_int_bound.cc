@@ -358,6 +358,10 @@ void ConstIntBoundAnalyzer::Update(const Var& var,
   impl_->Update(var, info, override);
 }
 
+std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const Expr& constraint) {
+  return nullptr;
+}
+
 ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent)
     : impl_(new Impl()) {
 }
