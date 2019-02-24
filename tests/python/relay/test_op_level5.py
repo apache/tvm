@@ -180,8 +180,8 @@ def test_non_max_suppression():
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int"))
-        z = relay.vision.non_max_suppression(x0, x1, False, -1, iou_threshold, force_suppress, topk)
-        z_indices = relay.vision.non_max_suppression(x0, x1, True, -1, iou_threshold, force_suppress, topk)
+        z = relay.vision.non_max_suppression(x0, x1, -1, iou_threshold, force_suppress, topk, return_indices=False)
+        z_indices = relay.vision.non_max_suppression(x0, x1, -1, iou_threshold, force_suppress, topk)
         assert "iou_threshold" in z.astext()
         assert "iou_threshold" in z_indices.astext()
         zz = relay.ir_pass.infer_type(z)
@@ -277,7 +277,7 @@ def test_multibox_transform_loc():
 
         assert ret.checked_type == ref_type
 
-        nms = relay.vision.non_max_suppression(mtl[0], mtl[1], False)
+        nms = relay.vision.non_max_suppression(mtl[0], mtl[1], return_indices=False)
         func = relay.Function([cls_prob, loc_pred, anchors], nms)
         func = relay.ir_pass.infer_type(func)
         ctx_list = [("llvm", tvm.cpu(0))]

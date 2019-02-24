@@ -78,8 +78,8 @@ def compute_nms(attrs, inputs, _):
     id_index = attrs.get_int('id_index')
     invalid_to_bottom = attrs.get_bool('invalid_to_bottom')
 
-    return topi.vision.non_max_suppression(inputs[0], inputs[1], return_indices,
-                                           max_output_size, iou_threshold, force_suppress,
-                                           topk, id_index, invalid_to_bottom)
+    return topi.vision.non_max_suppression(inputs[0], inputs[1], max_output_size,
+                                           iou_threshold, force_suppress, topk,
+                                           id_index, return_indices, invalid_to_bottom)
 
 reg.register_pattern("non_max_suppression", OpPattern.OPAQUE)

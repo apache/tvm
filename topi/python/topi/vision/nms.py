@@ -234,9 +234,9 @@ def hybrid_nms(data, sorted_index, valid_count,
 
 
 @tvm.target.generic_func
-def non_max_suppression(data, valid_count, return_indices, max_output_size=-1,
+def non_max_suppression(data, valid_count, max_output_size=-1,
                         iou_threshold=0.5, force_suppress=False, topk=-1,
-                        id_index=0, invalid_to_bottom=False):
+                        id_index=0, return_indices=True, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -248,9 +248,6 @@ def non_max_suppression(data, valid_count, return_indices, max_output_size=-1,
 
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
-
-    return_indices : boolean
-        Whether to return box indices in input data.
 
     max_output_size : optional, int
         Max number of output valid boxes for each instance.
@@ -267,6 +264,9 @@ def non_max_suppression(data, valid_count, return_indices, max_output_size=-1,
 
     id_index : optional, int
         index of the class categories, -1 to disable.
+
+    return_indices : optional, boolean
+        Whether to return box indices in input data.
 
     invalid_to_bottom : optional, boolean
         Whether to move all valid bounding boxes to the top.

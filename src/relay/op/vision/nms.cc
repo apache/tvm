@@ -84,20 +84,20 @@ bool NMSRel(const Array<Type>& types,
 
 Expr MakeNMS(Expr data,
              Expr valid_count,
-             bool return_indices,
              int max_output_size,
              double iou_threshold,
              bool force_suppress,
              int topk,
              int id_index,
+             bool return_indices,
              bool invalid_to_bottom) {
   auto attrs = make_node<NMSAttrs>();
-  attrs->return_indices = return_indices;
   attrs->max_output_size = max_output_size;
   attrs->iou_threshold = iou_threshold;
   attrs->force_suppress = force_suppress;
   attrs->topk = topk;
   attrs->id_index = id_index;
+  attrs->return_indices = return_indices;
   attrs->invalid_to_bottom = invalid_to_bottom;
   static const Op& op = Op::Get("vision.non_max_suppression");
   return CallNode::make(op, {data, valid_count}, Attrs(attrs), {});
@@ -111,7 +111,9 @@ TVM_REGISTER_API("relay.op.vision._make.non_max_suppression")
 
 
 RELAY_REGISTER_OP("vision.non_max_suppression")
-.describe(R"doc(Non-maximum suppression.
+.describe(R"doc(Non-maximum suppression. The input boxes should
+be in the format of [class_id, score, left, top, right, bottom].
+Set id_index to be -1 to ignore class_id axis.
 )doc" TVM_ADD_FILELINE)
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "Input data.")

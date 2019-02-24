@@ -87,11 +87,11 @@ def test_non_max_suppression():
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             if device == 'llvm':
-                out = non_max_suppression(data, valid_count, False, -1, nms_threshold, force_suppress, nms_topk)
-                indices_out = non_max_suppression(data, valid_count, True, -1, nms_threshold, force_suppress, nms_topk)
+                out = non_max_suppression(data, valid_count, -1, nms_threshold, force_suppress, nms_topk, return_indices=False)
+                indices_out = non_max_suppression(data, valid_count, -1, nms_threshold, force_suppress, nms_topk)
             else:
-                out = topi.cuda.non_max_suppression(data, valid_count, False, -1, nms_threshold, force_suppress, nms_topk)
-                indices_out = topi.cuda.non_max_suppression(data, valid_count, -1, True, nms_threshold, force_suppress, nms_topk)
+                out = topi.cuda.non_max_suppression(data, valid_count, -1, nms_threshold, force_suppress, nms_topk, return_indices=False)
+                indices_out = topi.cuda.non_max_suppression(data, valid_count, -1, nms_threshold, force_suppress, nms_topk)
             s = topi.generic.schedule_nms(out)
             indices_s = topi.generic.schedule_nms(indices_out)
 

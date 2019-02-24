@@ -445,15 +445,13 @@ struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocPa
 
 struct NMSParam : public dmlc::Parameter<NMSParam> {
   bool return_indices;
-  int max_output_size;
   float iou_threshold;
   bool force_suppress;
   int topk;
   int id_index;
+  int max_output_size;
   bool invalid_to_bottom;
   DMLC_DECLARE_PARAMETER(NMSParam) {
-    DMLC_DECLARE_FIELD(return_indices)
-      .describe("Whether to return box indices in input data.");
     DMLC_DECLARE_FIELD(max_output_size).set_default(-1)
       .describe("Max number of output valid boxes for each instance."
                 "By default all valid boxes are returned.");
@@ -465,6 +463,8 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
       .describe("Keep maximum top k detections before nms, -1 for no limit.");
     DMLC_DECLARE_FIELD(id_index).set_default(0)
       .describe("Axis index of id.");
+    DMLC_DECLARE_FIELD(return_indices).set_default(true)
+      .describe("Whether to return box indices in input data.");
     DMLC_DECLARE_FIELD(invalid_to_bottom).set_default(false)
       .describe("Whether to move all invalid bounding boxes to the bottom.");
   }

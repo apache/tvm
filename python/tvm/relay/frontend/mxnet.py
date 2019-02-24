@@ -405,11 +405,11 @@ def _mx_box_nms(inputs, attrs):
     ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
     nms_out = _op.vision.non_max_suppression(ret[1],
                                              ret[0],
-                                             return_indices=False,
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
                                              topk=topk,
                                              id_index=id_index,
+                                             return_indices=False,
                                              invalid_to_bottom=True)
     return nms_out
 

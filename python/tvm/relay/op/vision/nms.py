@@ -29,12 +29,12 @@ def get_valid_counts(data,
 
 def non_max_suppression(data,
                         valid_count,
-                        return_indices,
                         max_output_size=-1,
                         iou_threshold=0.5,
                         force_suppress=False,
                         topk=-1,
                         id_index=0,
+                        return_indices=True,
                         invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
@@ -52,9 +52,6 @@ def non_max_suppression(data,
         Max number of output valid boxes for each instance.
         By default all valid boxes are returned.
 
-    return_indices : bool
-        Whether to return box indices in input data.
-
     iou_threshold : float, optional
         Non-maximum suppression threshold.
 
@@ -64,10 +61,13 @@ def non_max_suppression(data,
     topk : int, optional
         Keep maximum top k detections before nms, -1 for no limit.
 
-    id_index : optional, int
+    id_index : int, optional
         index of the class categories, -1 to disable.
 
-    invalid_to_bottom : optional, boolean
+    return_indices : bool, optional
+        Whether to return box indices in input data.
+
+    invalid_to_bottom : bool, optional
         Whether to move all valid bounding boxes to the top.
 
     Returns
@@ -75,6 +75,6 @@ def non_max_suppression(data,
     out : relay.Expr
         3-D tensor with shape [batch_size, num_anchors, 6].
     """
-    return _make.non_max_suppression(data, valid_count, return_indices,
-                                     max_output_size, iou_threshold, force_suppress,
-                                     topk, id_index, invalid_to_bottom)
+    return _make.non_max_suppression(data, valid_count, max_output_size,
+                                     iou_threshold, force_suppress, topk,
+                                     id_index, return_indices, invalid_to_bottom)

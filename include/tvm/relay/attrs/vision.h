@@ -70,17 +70,15 @@ struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs>{
 
 /*! \brief Attributes used in non_maximum_suppression operator */
 struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
-  bool return_indices;
   int max_output_size;
   double iou_threshold;
   bool force_suppress;
   int topk;
   int id_index;
+  bool return_indices;
   bool invalid_to_bottom;
 
   TVM_DECLARE_ATTRS(NMSAttrs, "relay.attrs.NMSAttrs") {
-    TVM_ATTR_FIELD(return_indices)
-      .describe("Whether to return box indices in input data.");
     TVM_ATTR_FIELD(max_output_size).set_default(-1)
       .describe("Max number of output valid boxes for each instance."
                 "By default all valid boxes are returned.");
@@ -92,6 +90,8 @@ struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
       .describe("Keep maximum top k detections before nms, -1 for no limit.");
     TVM_ATTR_FIELD(id_index).set_default(0)
       .describe("Axis index of id.");
+    TVM_ATTR_FIELD(return_indices).set_default(true)
+      .describe("Whether to return box indices in input data.");
     TVM_ATTR_FIELD(invalid_to_bottom).set_default(false)
       .describe("Whether to move all invalid bounding boxes to the bottom.");
   }
