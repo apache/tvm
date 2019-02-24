@@ -199,7 +199,7 @@ Graph InferAttr(Graph &&ret,
   ret.attrs[attr_name] = std::make_shared<any>(std::move(rshape));
   // number of nodes who knows the shape.
   ret.attrs[unknown_name] = std::make_shared<any>(num_unknown);
-  return ret;
+  return std::move(ret);
 }
 
 NNVM_REGISTER_PASS(InferShape)

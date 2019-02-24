@@ -398,7 +398,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
       visited_->insert(gv);
       mod_->Update(gv, Downcast<Function>(relay::ToANormalForm(mod_->Lookup(gv), mod_, visited_)));
     }
-    return gv;
+    return std::move(gv);
   }
 
   Expr VisitExpr_(const OpNode* op, const Var& v) final {
