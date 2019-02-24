@@ -198,14 +198,20 @@ Expr QuantizeRealize(const Call& ref_call,
   // x * idom_scale = y * odom_scale
   // => y = x * idom_scale / odom_scale
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
+    // int32->int8
     Expr data = n->data;
     float idom_scale_imm = GetScalarFromConstant<float>(n->dom_scale);
     float odom_scale_imm = GetScalarFromConstant<float>(dom_scale);
+    if (idom_scale_imm == odom_scale_imm) {
+      // same domain scale, only clip
+      data = Clip(data, clip_min_imm, clip_max_imm);
+      return QRealizeIntExprNode::make(data, dom_scale, n->dtype);
+    }
+
     float shift_nbit = std::log2(odom_scale_imm / idom_scale_imm);
-    // int32->int8
     CHECK_GT(shift_nbit, 0);
     if (static_cast<int>(shift_nbit) == shift_nbit) {
-      // use shift
+      // use right shift
       if (cfg->round_for_shift) {
         float round_bias = std::pow(2.0, shift_nbit - 1);
         data = Add(data, MakeConstantScalar(cfg->dtype_activation, static_cast<int>(round_bias)));
@@ -231,7 +237,7 @@ Expr QuantizeRealize(const Call& ref_call,
   return QRealizeIntExprNode::make(round_data, dom_scale, Float(32));
 }
 
-RELAY_REGISTER_OP("simulated_quantize")
+RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", QuantizeRealize);
 
 
@@ -350,7 +356,6 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& args,
   Expr dom_scale = MakeConstantScalar(Float(32), s);
   for (size_t i = 0; i < ret.size(); ++i) {
     float cur_s = GetScalarFromConstant<float>(nptrs[i]->dom_scale);
-    LOG(INFO) << "unify data scale from " << cur_s << " to " << s;
     ret.Set(i, MulAndDiv(ret[i], cur_s, s));
   }
 
@@ -504,7 +509,7 @@ void QConfig::ExitQConfigScope() {
   entry->context_stack.pop();
 }
 
-QConfig QConfig::Current() {
+QConfig& QConfig::Current() {
   TVMQConfigThreadLocalEntry *entry = TVMQConfigThreadLocalStore::Get();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();

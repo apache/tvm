@@ -215,11 +215,11 @@ ComputeLoopNest MakeLoopNest(
       ret.init_vmap[iv] = ret.main_vmap.at(iv);
     }
     ret.num_common_loop = begin_loop;
-    // skip loops that does not relates to axis.
+    // skip loops that are related to reduction and are unrelated to axis.
     std::unordered_set<IterVar> skip_iter;
     for (auto kv : update_state) {
       int flag = kv.second;
-      if ((flag & 1) == 0) skip_iter.insert(kv.first);
+      if (flag == 2) skip_iter.insert(kv.first);
     }
     ret.init_nest = op::MakeLoopNest(
         stage, dom_map, begin_loop, true,

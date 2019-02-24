@@ -31,7 +31,7 @@ class IntVec(object):
     def __del__(self):
         # You can also call your own customized
         # deleter if you can free it via your own FFI.
-        tvm.nd.free_extension_handle(self.handle, 17)
+        tvm.nd.free_extension_handle(self.handle, self.__class__._tvm_tcode)
 
     @property
     def _tvm_handle(self):
@@ -42,3 +42,30 @@ class IntVec(object):
 
 # Register IntVec extension on python side.
 tvm.register_extension(IntVec, IntVec)
+
+
+nd_create = tvm.get_global_func("tvm_ext.nd_create")
+nd_add_two = tvm.get_global_func("tvm_ext.nd_add_two")
+nd_get_addtional_info = tvm.get_global_func("tvm_ext.nd_get_addtional_info")
+
+class NDSubClass(tvm.nd.NDArrayBase):
+    """Example for subclassing TVM's NDArray infrastructure.
+
+    By inheriting TMV's NDArray, external libraries could
+    leverage TVM's FFI without any modification.
+    """
+    # Should be consistent with the type-trait set in the backend
+    _array_type_code = 1
+
+    @staticmethod
+    def create(addtional_info):
+        return nd_create(addtional_info)
+
+    @property
+    def addtional_info(self):
+        return nd_get_addtional_info(self)
+
+    def __add__(self, other):
+        return nd_add_two(self, other)
+
+tvm.register_extension(NDSubClass, NDSubClass)

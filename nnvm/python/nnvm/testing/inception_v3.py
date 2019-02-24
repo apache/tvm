@@ -23,11 +23,10 @@ def Conv(data, num_filter, kernel=(1, 1), stride=(1, 1), pad=(0, 0), name=None, 
 def Pooling(data, kernel, stride, pad, pool_type, name):
     if pool_type == 'max':
         return sym.max_pool2d(data=data, pool_size=kernel, strides=stride, padding=pad, name=name)
-    elif pool_type == 'avg':
+    if pool_type == 'avg':
         return sym.avg_pool2d(data=data, pool_size=kernel, strides=stride, padding=pad, name=name,
                               count_include_pad=True)
-    else:
-        raise ValueError("Invalid pooling type: " + pool_type)
+    raise ValueError("Invalid pooling type: " + pool_type)
 
 def Inception7A(data,
                 num_1x1,

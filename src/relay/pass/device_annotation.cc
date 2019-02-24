@@ -337,12 +337,17 @@ class DeviceInfo {
  private:
   class PostDfsOrderVisitor : private ExprVisitor {
    public:
-    void Visit(const Expr& expr) { this->VisitExpr(expr); }
+    void Visit(const Expr& expr) {
+      if (const auto* fn = expr.as<FunctionNode>()) {
+        this->VisitExpr(fn->body);
+      } else {
+        this->VisitExpr(expr);
+      }
+    }
 
    private:
     // Post order traversal.
     void VisitExpr_(const FunctionNode* fn) final {
-      ExprVisitor::VisitExpr_(fn);
       // TODO(zhiics) Skip annotation of function node for now.
     }
 
@@ -356,7 +361,7 @@ class DeviceInfo {
         ExprVisitor::VisitExpr_(call);
         post_dfs_order_.push_back(call);
 
-        if (IsDeviceCopyNode(call)) {
+        if (GetDeviceCopyNode(call)) {
           num_device_copy_ops_++;
         }
       }
@@ -389,6 +394,26 @@ class DeviceInfo {
     friend DeviceInfo;
   };
 
+  /*
+   * \brief Returns a device copy node based on the current expr node. It
+   * returns a device copy node either the current expr node is a device copy
+   * node or the current expr node is a function node whose body is a device
+   * copy node (i.e. the fused function of a device copy call node).
+   */
+  static const ExprNode* GetDeviceCopyNode(const ExprNode* node) {
+    if (IsDeviceCopyNode(node)) {
+      return node;
+    } else if (const auto* call_node = dynamic_cast<const CallNode*>(node)) {
+      if (const auto* fn = call_node->op.as<FunctionNode>()) {
+        const ExprNode* body = fn->body.operator->();
+        if (IsDeviceCopyNode(body)) {
+          return body;
+        }
+      }
+    }
+    return nullptr;
+  }
+
   void PropagateDeviceId() {
     // Bottom-up propagation.
     BottomUpPropagation();
@@ -401,11 +426,11 @@ class DeviceInfo {
     int cur_dev_type = -1;
     for (auto it = post_visitor_.post_dfs_order_.crbegin();
          it != post_visitor_.post_dfs_order_.crend(); ++it) {
-      if (IsDeviceCopyNode(*it)) {
-        last_copy_node = dynamic_cast<const CallNode*>(*it);
+      if (const auto* node = GetDeviceCopyNode(*it)) {
+        last_copy_node = dynamic_cast<const CallNode*>(node);
         const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
         cur_dev_type = attrs->src_dev_type;
-        device_map_.Set(GetRef<Expr>(last_copy_node), attrs->dst_dev_type);
+        device_map_.Set(GetRef<Expr>(*it), attrs->dst_dev_type);
       } else if (last_copy_node) {
         Expr expr = GetRef<Expr>(*it);
         CHECK_EQ(device_map_.count(expr), 0U);
@@ -418,8 +443,8 @@ class DeviceInfo {
     const CallNode* last_copy_node = nullptr;
     int cur_dev_type = -1;
     for (const auto& it : post_visitor_.post_dfs_order_) {
-      if (IsDeviceCopyNode(it)) {
-        last_copy_node = dynamic_cast<const CallNode*>(it);
+      if (const auto* node = GetDeviceCopyNode(it)) {
+        last_copy_node = dynamic_cast<const CallNode*>(node);
         const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
         cur_dev_type = attrs->dst_dev_type;
       } else if (last_copy_node) {

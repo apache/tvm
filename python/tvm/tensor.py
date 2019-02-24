@@ -33,7 +33,6 @@ class TensorSlice(NodeGeneric, _expr.ExprOp):
 @register_node
 class TensorIntrinCall(NodeBase):
     """Intermediate structure for calling a tensor intrinsic."""
-    pass
 
 
 itervar_cls = None
@@ -144,7 +143,6 @@ class Operation(NodeBase):
 @register_node
 class PlaceholderOp(Operation):
     """Placeholder operation."""
-    pass
 
 
 @register_node
@@ -164,7 +162,6 @@ class ComputeOp(Operation):
 @register_node
 class TensorComputeOp(Operation):
     """Tensor operation."""
-    pass
 
 
 @register_node
@@ -179,7 +176,7 @@ class ScanOp(Operation):
 @register_node
 class ExternOp(Operation):
     """Extern operation."""
-    pass
+
 
 @register_node
 class HybridOp(Operation):

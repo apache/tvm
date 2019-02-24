@@ -305,7 +305,7 @@ _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   'flatten', 'log', 'log_softmax', 'max', 'min', 'negative',
                   'ones_like', 'relu', 'sigmoid', 'slice_like', 'softmax',
                   'sum', 'tanh', 'transpose', 'zeros_like', 'gather_nd',
-                  'reshape_like']
+                  'reshape_like', 'where']
 
 _convert_map = {
     '_copy'         : _rename('copy'),
@@ -424,7 +424,7 @@ def _topo_sort(symbol):
         if childs is None:
             dep_cnts[name] = 0
         else:
-            dep_cnts[name] = len(set([c.attr('name') for c in childs]))
+            dep_cnts[name] = len({c.attr('name') for c in childs})
             for child in childs:
                 child_name = child.attr('name')
                 if child_name not in deps:

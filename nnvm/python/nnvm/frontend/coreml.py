@@ -98,33 +98,33 @@ def ActivationParams(op, insym, symtab):
     par = getattr(op, whichActivation)
     if whichActivation == 'linear':
         return _sym.__add_scalar__(_sym.__mul_scalar__(insym, scalar=par.alpha), scalar=par.beta)
-    elif whichActivation == 'ReLU':
+    if whichActivation == 'ReLU':
         return _sym.relu(insym)
-    elif whichActivation == 'leakyReLU':
+    if whichActivation == 'leakyReLU':
         return _sym.leaky_relu(insym, alpha=par.alpha)
-    elif whichActivation == 'thresholdedReLU':
+    if whichActivation == 'thresholdedReLU':
         alpha_tensor = _sym.full_like(insym, fill_value=float(par.alpha))
         return _sym.elemwise_mul(insym, _sym.greater(insym, alpha_tensor))
-    elif whichActivation == 'PReLU':
+    if whichActivation == 'PReLU':
         return _sym.prelu(insym, alpha=par.alpha)
-    elif whichActivation == 'tanh':
+    if whichActivation == 'tanh':
         return _sym.tanh(insym)
-    elif whichActivation == 'scaledTanh':
+    if whichActivation == 'scaledTanh':
         return _sym.__mul_scalar__(_sym.tanh(_sym.__mul_scalar__(
             insym, scalar=par.beta)), scalar=par.alpha)
-    elif whichActivation == 'sigmoid':
+    if whichActivation == 'sigmoid':
         return _sym.sigmoid(insym)
-    elif whichActivation == 'sigmoidHard':
+    if whichActivation == 'sigmoidHard':
         transformX = (par.alpha * insym) + par.beta
         return _sym.clip(transformX, a_min=0, a_max=1)
-    elif whichActivation == 'ELU':
+    if whichActivation == 'ELU':
         return _sym.__mul_scalar__(_sym.__add_scalar__(
             _sym.exp(insym), scalar=-1), scalar=par.alpha)
-    elif whichActivation == 'softsign':
+    if whichActivation == 'softsign':
         return insym / (1 + (_sym.relu(insym) + _sym.relu(_sym.negative(insym))))
-    elif whichActivation == 'softplus':
+    if whichActivation == 'softplus':
         return _sym.log(_sym.__add_scalar__(_sym.exp(insym), scalar=1))
-    elif whichActivation == 'parametricSoftplus':
+    if whichActivation == 'parametricSoftplus':
         alpha = list(par.alpha.floatValue)
         beta = list(par.alpha.floatValue)
         if len(alpha) == 1:
@@ -136,8 +136,7 @@ def ActivationParams(op, insym, symtab):
         betasym = symtab.new_const(beta)
         return _sym.broadcast_mul(_sym.log(_sym.broadcast_add(
             _sym.exp(insym), betasym)), alphasym)
-    else:
-        raise NotImplementedError('%s not implemented' % whichActivation)
+    raise NotImplementedError('%s not implemented' % whichActivation)
 
 def ScaleLayerParams(op, insym, symtab):
     """Scale layer params."""
@@ -157,10 +156,9 @@ def PoolingLayerParams(op, insym, symtab):
     if op.globalPooling:
         if op.type == 0:
             return _sym.global_max_pool2d(insym)
-        elif op.type == 1:
+        if op.type == 1:
             return _sym.global_avg_pool2d(insym)
-        else:
-            raise NotImplementedError("Only max and average pooling implemented")
+        raise NotImplementedError("Only max and average pooling implemented")
 
     else:
         params = {'pool_size':list(op.kernelSize),
@@ -190,10 +188,9 @@ def PoolingLayerParams(op, insym, symtab):
 
         if op.type == 0:
             return _sym.max_pool2d(insym, **params)
-        elif op.type == 1:
+        if op.type == 1:
             return _sym.avg_pool2d(insym, **params)
-        else:
-            raise NotImplementedError("Only max and average pooling implemented")
+        raise NotImplementedError("Only max and average pooling implemented")
 
 def SoftmaxLayerParams(op, insym, symtab):
     return _sym.softmax(_sym.flatten(insym))

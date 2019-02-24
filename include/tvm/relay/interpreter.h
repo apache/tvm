@@ -140,6 +140,47 @@ struct TensorValueNode : ValueNode {
 
 RELAY_DEFINE_NODE_REF(TensorValue, TensorValueNode, Value);
 
+/*! \brief A reference value. */
+class RefValue;
+
+struct RefValueNode : ValueNode {
+  mutable Value value;
+
+  RefValueNode() {}
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("value", &value);
+  }
+
+  TVM_DLL static RefValue make(Value val);
+
+  static constexpr const char* _type_key = "relay.RefValue";
+  TVM_DECLARE_NODE_TYPE_INFO(RefValueNode, ValueNode);
+};
+
+RELAY_DEFINE_NODE_REF(RefValue, RefValueNode, Value);
+
+/*! \brief An ADT constructor value. */
+class ConstructorValue;
+
+struct ConstructorValueNode : ValueNode {
+  Constructor constructor;
+
+  tvm::Array<Value> fields;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("constructor", &constructor);
+    v->Visit("fields", &fields);
+  }
+
+  TVM_DLL static ConstructorValue make(Constructor constructor,
+                                       tvm::Array<Value> fields);
+
+  static constexpr const char* _type_key = "relay.ConstructorValue";
+  TVM_DECLARE_NODE_TYPE_INFO(ConstructorValueNode, ValueNode);
+};
+
+RELAY_DEFINE_NODE_REF(ConstructorValue, ConstructorValueNode, Value);
 
 }  // namespace relay
 }  // namespace tvm

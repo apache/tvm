@@ -151,14 +151,14 @@ def find_libdevice_path(arch):
     selected_ver = 0
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver == 9.0 or cuda_ver == 9.1:
+    if cuda_ver in (9.0, 9.1):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):
             if not fn.startswith("libdevice"):
                 continue
             ver = int(fn.split(".")[-3].split("_")[-1])
-            if ver > selected_ver and ver <= arch:
+            if selected_ver < ver <= arch:
                 selected_ver = ver
                 selected_path = fn
         if selected_path is None:

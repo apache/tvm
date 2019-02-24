@@ -162,7 +162,7 @@ class QConfig : public NodeRef {
    * configuration if a BuildConfig scope has not been entered.
    * \return The configuration that is the current context.
    */
-  static QConfig Current();
+  static QConfig& Current();
 
   using ContainerType = QConfigNode;
 };

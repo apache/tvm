@@ -1,21 +1,21 @@
 """
-Auto-tuning a convolutional network for ARM CPU
-====================================================
-**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Zhao Wu <https://github.com/FrozenGene>`_
+Auto-tuning a convolutional network for Mobile GPU
+==================================================
+**Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_, `Eddie Yan <https://github.com/eqy>`_
 
-Auto-tuning for a specific ARM device is critical for getting the best
+Auto-tuning for a specific device is critical for getting the best
 performance. This is a tutorial about how to tune a whole convolutional
 network.
 
-The operator implementation for ARM CPU in TVM is written in template form.
+The operator implementation for Mobile GPU in TVM is written in template form.
 The template has many tunable knobs (tile factor, vectorization, unrolling, etc).
-We will tune all convolution and depthwise convolution operators
+We will tune all convolution, depthwise convolution and dense operators
 in the neural network. After tuning, we produce a log file which stores
 the best knob values for all required operators. When the tvm compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
-`ARM CPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#arm-cpu>`_
+`Mobile GPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#mobile-gpu>`_
 to see the results.
 """
 
@@ -44,10 +44,10 @@ import os
 
 import numpy as np
 
-import nnvm.testing
-import nnvm.compiler
 import tvm
 from tvm import autotvm
+from tvm import relay
+import tvm.relay.testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
@@ -55,10 +55,9 @@ import tvm.contrib.graph_runtime as runtime
 #################################################################
 # Define network
 # --------------
-# First we need to define the network in nnvm symbol API.
-# We can load some pre-defined network from :code:`nnvm.testing`.
-# We can also load models from MXNet, ONNX and TensorFlow (see NNVM
-# tutorials :ref:`tutorial-nnvm` for more details).
+# First we need to define the network in relay frontend API.
+# We can load some pre-defined network from :code:`relay.testing`.
+# We can also load models from MXNet, ONNX and TensorFlow.
 
 def get_network(name, batch_size):
     """Get the symbol definition and random weight of a network"""
@@ -67,31 +66,23 @@ def get_network(name, batch_size):
 
     if "resnet" in name:
         n_layer = int(name.split('-')[1])
-        net, params = nnvm.testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size)
+        net, params = relay.testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif "vgg" in name:
         n_layer = int(name.split('-')[1])
-        net, params = nnvm.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size)
+        net, params = relay.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif name == 'mobilenet':
-        net, params = nnvm.testing.mobilenet.get_workload(batch_size=batch_size)
+        net, params = relay.testing.mobilenet.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == 'squeezenet_v1.1':
-        net, params = nnvm.testing.squeezenet.get_workload(batch_size=batch_size, version='1.1')
+        net, params = relay.testing.squeezenet.get_workload(batch_size=batch_size, version='1.1', dtype=dtype)
     elif name == 'inception_v3':
         input_shape = (1, 3, 299, 299)
-        net, params = nnvm.testing.inception_v3.get_workload(batch_size=batch_size)
-    elif name == 'custom':
-        # an example for custom network
-        from nnvm.testing import utils
-        net = nnvm.sym.Variable('data')
-        net = nnvm.sym.conv2d(net, channels=4, kernel_size=(3,3), padding=(1,1))
-        net = nnvm.sym.flatten(net)
-        net = nnvm.sym.dense(net, units=1000)
-        net, params = utils.create_workload(net, batch_size, (3, 224, 224))
+        net, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == 'mxnet':
         # an example for mxnet model
         from mxnet.gluon.model_zoo.vision import get_model
         block = get_model('resnet18_v1', pretrained=True)
-        net, params = nnvm.frontend.from_mxnet(block)
-        net = nnvm.sym.softmax(net)
+        net, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
+        net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
     else:
         raise ValueError("Unsupported network: " + name)
 
@@ -177,9 +168,11 @@ def get_network(name, batch_size):
 
 #### DEVICE CONFIG ####
 
+target = tvm.target.create('opencl -device=mali')
+
 # Replace "aarch64-linux-gnu" with the correct target of your board.
-# This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
-target = tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu')
+# This target host is used for cross compilation. You can query it by :code:`gcc -v` on your device.
+target_host = 'llvm -target=aarch64-linux-gnu'
 
 # Also replace this with the device key in your tracker
 device_key = 'rk3399'
@@ -196,16 +189,16 @@ tuning_option = {
     'log_filename': log_file,
 
     'tuner': 'xgb',
-    'n_trial': 2000,
-    'early_stopping': 800,
+    'n_trial': 1000,
+    'early_stopping': 450,
 
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(
             build_func='ndk' if use_android else 'default'),
         runner=autotvm.RPCRunner(
-            device_key, host='localhost', port=9190,
-            number=5,
-            timeout=4,
+            device_key, host='0.0.0.0', port=9190,
+            number=10,
+            timeout=5,
         ),
     ),
 }
@@ -220,10 +213,6 @@ tuning_option = {
 #   If your device runs very slow or your conv2d operators have many GFLOPs, considering to
 #   set timeout larger.
 #
-#   If your model has depthwise convolution, you could consider setting
-#   :code:`try_spatial_pack_depthwise` be :code:`True`, which perform better than default
-#   optimization in general. For example, on ARM CPU A53 2.0GHz, we find it could boost 1.6x
-#   performance of depthwise convolution on Mobilenet V1 model.
 
 ###################################################################
 # Begin Tuning
@@ -241,28 +230,15 @@ def tune_tasks(tasks,
                early_stopping=None,
                log_filename='tuning.log',
                use_transfer_learning=True,
-               try_winograd=True,
-               try_spatial_pack_depthwise=False):
+               try_winograd=True):
     if try_winograd:
         for i in range(len(tasks)):
             try:  # try winograd template
                 tsk = autotvm.task.create(tasks[i].name, tasks[i].args,
                                           tasks[i].target, tasks[i].target_host, 'winograd')
-                input_channel = tsk.workload[1][1]
-                if input_channel >= 64:
-                    tasks[i] = tsk
+                tasks.append(tsk)
             except Exception:
                 pass
-
-    # if we want to use spatial pack for depthwise convolution
-    if try_spatial_pack_depthwise:
-        tuner = 'xgb_knob'
-        for i in range(len(tasks)):
-            if tasks[i].name == 'topi_nn_depthwise_conv2d_nchw':
-                tsk = autotvm.task.create(tasks[i].name, tasks[i].args,
-                                          tasks[i].target, tasks[i].target_host,
-                                          'contrib_spatial_pack')
-                tasks[i] = tsk
 
     # create tmp log file
     tmp_log_file = log_filename + ".tmp"
@@ -275,8 +251,6 @@ def tune_tasks(tasks,
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
             tuner_obj = XGBTuner(tsk, loss_type='rank')
-        elif tuner == 'xgb_knob':
-            tuner_obj = XGBTuner(tsk, loss_type='rank', feature_type='knob')
         elif tuner == 'ga':
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == 'random':
@@ -307,12 +281,11 @@ def tune_tasks(tasks,
 # Finally, we launch tuning jobs and evaluate the end-to-end performance.
 
 def tune_and_evaluate(tuning_opt):
-    # extract workloads from nnvm graph
+    # extract workloads from relay program
     print("Extract tasks...")
-    net, params, input_shape, out_shape = get_network(network, batch_size=1)
-    tasks = autotvm.task.extract_from_graph(net, target=target,
-                                            shape={'data': input_shape}, dtype=dtype,
-                                            symbols=(nnvm.sym.conv2d,))
+    net, params, input_shape, _ = get_network(network, batch_size=1)
+    tasks = autotvm.task.extract_from_program(net, target=target, target_host=target_host,
+                                              params=params, ops=(relay.op.nn.conv2d,))
 
     # run tuning tasks
     print("Tuning...")
@@ -321,10 +294,9 @@ def tune_and_evaluate(tuning_opt):
     # compile kernels with history best records
     with autotvm.apply_history_best(log_file):
         print("Compile...")
-        with nnvm.compiler.build_config(opt_level=3):
-            graph, lib, params = nnvm.compiler.build(
-                net, target=target, shape={'data': input_shape}, params=params, dtype=dtype)
-
+        with relay.build_config(opt_level=3):
+            graph, lib, params = relay.build_module.build(
+                net, target=target, params=params, target_host=target_host)
         # export library
         tmp = tempdir()
         if use_android:
@@ -337,7 +309,7 @@ def tune_and_evaluate(tuning_opt):
 
         # upload module to device
         print("Upload...")
-        remote = autotvm.measure.request_remote(device_key, 'localhost', 9190,
+        remote = autotvm.measure.request_remote(device_key, '0.0.0.0', 9190,
                                                 timeout=10000)
         remote.upload(tmp.relpath(filename))
         rlib = remote.load_module(filename)
@@ -351,7 +323,7 @@ def tune_and_evaluate(tuning_opt):
 
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=10)
+        ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=30)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res), np.std(prof_res)))
@@ -366,29 +338,34 @@ def tune_and_evaluate(tuning_opt):
 # -------------
 # The tuning needs to compile many programs and extract feature from them.
 # So a high performance CPU is recommended.
-# One sample output is listed below.
-# It takes about 2 hours on a 32T AMD Ryzen Threadripper.
+# One sample output is listed below. It takes about 3 hours on a 32T AMD Ryzen Threadripper.
 #
 # .. code-block:: bash
 #
 #    Extract tasks...
 #    Tuning...
-#    [Task  1/12]  Current/Best:   22.37/  52.19 GFLOPS | Progress: (544/1000) | 406.59 s Done.
-#    [Task  2/12]  Current/Best:    6.51/  18.77 GFLOPS | Progress: (608/1000) | 325.05 s Done.
-#    [Task  3/12]  Current/Best:    4.67/  24.87 GFLOPS | Progress: (480/1000) | 372.31 s Done.
-#    [Task  4/12]  Current/Best:   11.35/  46.83 GFLOPS | Progress: (736/1000) | 602.39 s Done.
-#    [Task  5/12]  Current/Best:    1.01/  19.80 GFLOPS | Progress: (448/1000) | 262.16 s Done.
-#    [Task  6/12]  Current/Best:    2.47/  23.76 GFLOPS | Progress: (672/1000) | 563.85 s Done.
-#    [Task  7/12]  Current/Best:   14.57/  33.97 GFLOPS | Progress: (544/1000) | 465.15 s Done.
-#    [Task  8/12]  Current/Best:    1.13/  17.65 GFLOPS | Progress: (576/1000) | 365.08 s Done.
-#    [Task  9/12]  Current/Best:   14.45/  22.66 GFLOPS | Progress: (928/1000) | 724.25 s Done.
-#    [Task 10/12]  Current/Best:    3.22/  15.36 GFLOPS | Progress: (864/1000) | 564.27 s Done.
-#    [Task 11/12]  Current/Best:   11.03/  32.23 GFLOPS | Progress: (736/1000) | 635.15 s Done.
-#    [Task 12/12]  Current/Best:    8.00/  21.65 GFLOPS | Progress: (1000/1000) | 1111.81 s Done.
+#    [Task  1/17]  Current/Best:   25.30/  39.12 GFLOPS | Progress: (992/1000) | 751.22 s Done.
+#    [Task  2/17]  Current/Best:   40.70/  45.50 GFLOPS | Progress: (736/1000) | 545.46 s Done.
+#    [Task  3/17]  Current/Best:   38.83/  42.35 GFLOPS | Progress: (992/1000) | 1549.85 s Done.
+#    [Task  4/17]  Current/Best:   23.31/  31.02 GFLOPS | Progress: (640/1000) | 1059.31 s Done.
+#    [Task  5/17]  Current/Best:    0.06/   2.34 GFLOPS | Progress: (544/1000) | 305.45 s Done.
+#    [Task  6/17]  Current/Best:   10.97/  17.20 GFLOPS | Progress: (992/1000) | 1050.00 s Done.
+#    [Task  7/17]  Current/Best:    8.98/  10.94 GFLOPS | Progress: (928/1000) | 421.36 s Done.
+#    [Task  8/17]  Current/Best:    4.48/  14.86 GFLOPS | Progress: (704/1000) | 582.60 s Done.
+#    [Task  9/17]  Current/Best:   10.30/  25.99 GFLOPS | Progress: (864/1000) | 899.85 s Done.
+#    [Task 10/17]  Current/Best:   11.73/  12.52 GFLOPS | Progress: (608/1000) | 304.85 s Done.
+#    [Task 11/17]  Current/Best:   15.26/  18.68 GFLOPS | Progress: (800/1000) | 747.52 s Done.
+#    [Task 12/17]  Current/Best:   17.48/  26.71 GFLOPS | Progress: (1000/1000) | 1166.40 s Done.
+#    [Task 13/17]  Current/Best:    0.96/  11.43 GFLOPS | Progress: (960/1000) | 611.65 s Done.
+#    [Task 14/17]  Current/Best:   17.88/  20.22 GFLOPS | Progress: (672/1000) | 670.29 s Done.
+#    [Task 15/17]  Current/Best:   11.62/  13.98 GFLOPS | Progress: (736/1000) | 449.25 s Done.
+#    [Task 16/17]  Current/Best:   19.90/  23.83 GFLOPS | Progress: (608/1000) | 708.64 s Done.
+#    [Task 17/17]  Current/Best:   17.98/  22.75 GFLOPS | Progress: (736/1000) | 1122.60 s Done.
 #    Compile...
 #    Upload...
 #    Evaluate inference time cost...
-#    Mean inference time (std dev): 162.59 ms (0.06 ms)
+#    Mean inference time (std dev): 128.05 ms (7.74 ms)
+#
 
 ######################################################################
 #

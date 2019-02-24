@@ -116,7 +116,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   }
 
   // default: unify only if alpha-equal
-  Type VisitTypeDefault_(const Node* op, const Type& tn) override {
+  Type VisitTypeDefault_(const Node* op, const Type& tn) final {
     NodeRef nr = GetRef<NodeRef>(op);
     Type t1 = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
     if (!AlphaEqual(t1, tn)) {
@@ -125,7 +125,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return t1;
   }
 
-  Type VisitType_(const TupleTypeNode* op, const Type& tn) override {
+  Type VisitType_(const TupleTypeNode* op, const Type& tn) final {
     const auto* ttn = tn.as<TupleTypeNode>();
     if (!ttn || op->fields.size() != ttn->fields.size()) {
       return Type(nullptr);
@@ -142,7 +142,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return TupleTypeNode::make(new_fields);
   }
 
-  Type VisitType_(const FuncTypeNode* op, const Type& tn) override {
+  Type VisitType_(const FuncTypeNode* op, const Type& tn) final {
     const auto* ftn = tn.as<FuncTypeNode>();
     if (!ftn
         || op->arg_types.size() != ftn->arg_types.size()
@@ -179,6 +179,28 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     return FuncTypeNode::make(arg_types, ret_type, ft1->type_params, type_constraints);
+  }
+
+  Type VisitType_(const RefTypeNode* op, const Type& tn) final {
+    const auto* rtn = tn.as<RefTypeNode>();
+    if (!rtn) {
+      return Type(nullptr);
+    }
+    return RefTypeNode::make(Unify(op->value, rtn->value));
+  }
+
+  Type VisitType_(const TypeCallNode* op, const Type& tn) override {
+    const auto* tcn = tn.as<TypeCallNode>();
+    if (!tcn || tcn->args.size() != op->args.size()) {
+      return Type();
+    }
+
+    Type func = Unify(op->func, tcn->func);
+    tvm::Array<Type> args;
+    for (size_t i = 0; i < op->args.size(); i++) {
+      args.push_back(Unify(op->args[i], tcn->args[i]));
+    }
+    return TypeCallNode::make(func, args);
   }
 
  private:
@@ -255,6 +277,16 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
     for (auto type_cs : ft->type_constraints) {
       Propagate(type_cs);
+    }
+  }
+
+  void VisitType_(const TypeCallNode* op) override {
+    TypeCall tc = GetRef<TypeCall>(op);
+    UpdateRelSet(tc);
+
+    Propagate(tc->func);
+    for (auto arg : tc->args) {
+      Propagate(arg);
     }
   }
 
@@ -486,7 +518,7 @@ TVM_REGISTER_API("relay._ir_pass._test_type_solver")
       } else if (name == "AddConstraint") {
         return TypedPackedFunc<void(TypeConstraint)>([solver](TypeConstraint c) {
             Expr e = VarNode::make("dummy_var",
-              IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+              IncompleteTypeNode::make(Kind::kType));
             return solver->AddConstraint(c, e);
           });
       } else {

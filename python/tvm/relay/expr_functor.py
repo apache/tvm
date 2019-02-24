@@ -1,7 +1,10 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression functor of Relay."""
 
-from .expr import Function, Call, Let, Var, GlobalVar, If, Tuple, TupleGetItem, Constant
+from .expr import Function, Call, Let, Var, GlobalVar
+from .expr import If, Tuple, TupleGetItem, Constant
+from .expr import RefCreate, RefRead, RefWrite
+from .adt import Constructor, Match, Clause
 from .op import Op
 
 class ExprFunctor:
@@ -41,6 +44,16 @@ class ExprFunctor:
             res = self.visit_constant(expr)
         elif isinstance(expr, Op):
             res = self.visit_op(expr)
+        elif isinstance(expr, RefCreate):
+            res = self.visit_ref_create(expr)
+        elif isinstance(expr, RefRead):
+            res = self.visit_ref_read(expr)
+        elif isinstance(expr, RefWrite):
+            res = self.visit_ref_write(expr)
+        elif isinstance(expr, Constructor):
+            res = self.visit_constructor(expr)
+        elif isinstance(expr, Match):
+            res = self.visit_match(expr)
         else:
             raise Exception("warning unhandled case: {0}".format(type(expr)))
 
@@ -81,6 +94,21 @@ class ExprFunctor:
     def visit_constant(self, _):
         raise NotImplementedError()
 
+    def visit_ref_create(self, _):
+        raise NotImplementedError()
+
+    def visit_ref_write(self, _):
+        raise NotImplementedError()
+
+    def visit_ref_read(self, _):
+        raise NotImplementedError()
+
+    def visit_constructor(self, _):
+        raise NotImplementedError()
+
+    def visit_match(self, _):
+        raise NotImplementedError()
+
 
 class ExprMutator(ExprFunctor):
     """
@@ -117,9 +145,9 @@ class ExprMutator(ExprFunctor):
 
     def visit_if(self, ite):
         return If(
-            self.visit(ite.guard),
-            self.visit(ite.true_b),
-            self.visit(ite.false_b))
+            self.visit(ite.cond),
+            self.visit(ite.true_branch),
+            self.visit(ite.false_branch))
 
     def visit_tuple(self, tup):
         return Tuple([self.visit(field) for field in tup.fields])
@@ -145,8 +173,8 @@ class ExprMutator(ExprFunctor):
     def visit_match(self, m):
         return Match(self.visit(m.data), [Clause(c.lhs, self.visit(c.rhs)) for c in m.pattern])
 
-    def visit_ref_new(self, r):
-        return RefNew(self.visit(r.value))
+    def visit_ref_create(self, r):
+        return RefCreate(self.visit(r.value))
 
     def visit_ref_write(self, r):
         return RefWrite(self.visit(r.ref), self.visit(r.value))

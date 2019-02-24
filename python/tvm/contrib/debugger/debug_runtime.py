@@ -159,11 +159,12 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self.debug_datum = debug_result.DebugResult(graph_json, self._dump_path)
 
     def _run_debug(self):
-        """Execute the node spcified with index will be executed.
+        """Execute the node specified with index will be executed.
         Each debug output will be copied to the buffer
-        Time consumed for each execuion will be set as debug output.
+        Time consumed for each execution will be set as debug output.
 
         """
+        self.debug_datum._time_list = []
 
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             start_time = datetime.now().time()
@@ -177,7 +178,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
                 self.debug_datum._output_tensor_list.append(out_tensor)
 
     def debug_get_output(self, node, out):
-        """Run graph upto node and get the output to out
+        """Run graph up to node and get the output to out
 
         Parameters
         ----------

@@ -9,6 +9,7 @@
 
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/adt.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/type.h>
 #include <string>
@@ -35,13 +36,15 @@ struct Module;
  *
  *  The functional style allows users to construct custom
  *  environments easily, for example each thread can store
- *  an Module while auto-tuning.
+ *  a Module while auto-tuning.
  * */
 
 class ModuleNode : public RelayNode {
  public:
   /*! \brief A map from ids to all global functions. */
   tvm::Map<GlobalVar, Function> functions;
+  /*! \brief A map from global type vars to ADT type data. */
+  tvm::Map<GlobalTypeVar, TypeData> type_definitions;
 
   /*! \brief The entry function (i.e. "main"). */
   GlobalVar entry_func;
@@ -50,20 +53,30 @@ class ModuleNode : public RelayNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("functions", &functions);
+    v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
     v->Visit("entry_func", &entry_func);
+    v->Visit("global_type_var_map_", &global_type_var_map_);
   }
 
-  TVM_DLL static Module make(tvm::Map<GlobalVar, Function> global_funcs);
+  TVM_DLL static Module make(tvm::Map<GlobalVar, Function> global_funcs,
+                             tvm::Map<GlobalTypeVar, TypeData> global_type_defs);
 
   /*!
    * \brief Add a function to the global environment.
-   * \param var The name of the global function.
+   * \param var The var of the global function.
    * \param func The function.
    * \param update Controls whether you can replace a definition in the
    * environment.
    */
   void Add(const GlobalVar& var, const Function& func, bool update = false);
+
+  /*!
+   * \brief Add a type-level definition to the global environment.
+   * \param var The var of the global type definition.
+   * \param type The type definition.
+   */
+  void AddDef(const GlobalTypeVar& var, const TypeData& type);
 
   /*!
    * \brief Add a function to the global environment.
@@ -95,6 +108,13 @@ class ModuleNode : public RelayNode {
   GlobalVar GetGlobalVar(const std::string& str);
 
   /*!
+   * \brief Look up a global function by its name.
+   * \param str The unique string specifying the global variable.
+   * \returns The global variable.
+   */
+  GlobalTypeVar GetGlobalTypeVar(const std::string& str);
+
+  /*!
    * \brief Lookup a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.
@@ -107,6 +127,20 @@ class ModuleNode : public RelayNode {
    * \returns The function named by the argument.
    */
   Function Lookup(const std::string& name);
+
+  /*!
+   * \brief Lookup a global type definition by its variable.
+   * \param var The var of the global type definition.
+   * \return The type definition.
+   */
+  TypeData LookupDef(const GlobalTypeVar& var);
+
+  /*!
+   * \brief Lookup a global type definition by its name.
+   * \param var The name of the global type definition.
+   * \return The type definition.
+   */
+  TypeData LookupDef(const std::string& var);
 
   /*!
    * \brief Update the functions inside this environment by
@@ -137,6 +171,11 @@ class ModuleNode : public RelayNode {
    * ensures global uniqueness.
    */
   tvm::Map<std::string, GlobalVar> global_var_map_;
+
+  /*! \brief A map from string names to global type variables (ADT names)
+   * that ensures global uniqueness.
+   */
+  tvm::Map<std::string, GlobalTypeVar> global_type_var_map_;
 };
 
 struct Module : public NodeRef {

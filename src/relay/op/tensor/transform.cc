@@ -880,6 +880,63 @@ and type as the input array.
 .set_attr<FTVMCompute>("FTVMCompute", FullLikeCompute)
 .set_attr<TOpPattern>("TOpPattern", kElemWise);
 
+// arange operator
+TVM_REGISTER_NODE_TYPE(ArangeAttrs);
+
+bool ArangeRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 1);
+  const ArangeAttrs* param = attrs.as<ArangeAttrs>();
+  IndexExpr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
+      tvm::cast(tvm::Float(32), param->stop - param->start) / param->step));
+  if (const tvm::ir::IntImm* val = num_elem.as<tvm::ir::IntImm>()) {
+    CHECK_GT(val->value, 0)
+        << "Invalid arange attributes (start, stop, step): " << param->start
+        << ", " << param->stop << ", " << param->step;
+  }
+  reporter->Assign(types[0], TensorTypeNode::make({num_elem}, param->dtype));
+  return true;
+}
+
+Array<Tensor> ArangeCompute(const Attrs& attrs,
+                            const Array<Tensor>& inputs,
+                            const Type& out_type,
+                            const Target& target) {
+  const ArangeAttrs* param = attrs.as<ArangeAttrs>();
+  return { topi::arange(param->start, param->stop, param->step, param->dtype) };
+}
+
+Expr MakeArange(tvm::Expr start,
+                tvm::Expr stop,
+                tvm::Expr step,
+                DataType dtype) {
+  auto attrs = make_node<ArangeAttrs>();
+  attrs->start = std::move(start);
+  attrs->stop = std::move(stop);
+  attrs->step = std::move(step);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("arange");
+  return CallNode::make(op, {}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.arange")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 4>(MakeArange, args, rv);
+});
+
+RELAY_REGISTER_OP("arange")
+.describe(R"code(Returns evenly spaced values within a given interval.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.ArangeAttrs")
+.set_num_inputs(0)
+.set_support_level(3)
+.add_type_rel("Arange", ArangeRel)
+.set_attr<FTVMCompute>("FTVMCompute", ArangeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
 // where operator
 bool WhereRel(const Array<Type>& types,
               int num_inputs,

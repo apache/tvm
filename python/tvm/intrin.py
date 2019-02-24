@@ -272,7 +272,7 @@ def floor(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "floor", x)
+    return _make.floor(x)
 
 
 def ceil(x):
@@ -288,7 +288,7 @@ def ceil(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "ceil", x)
+    return _make.ceil(x)
 
 
 def trunc(x):
@@ -307,7 +307,7 @@ def trunc(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "trunc", x)
+    return _make.trunc(x)
 
 
 def abs(x):
@@ -339,7 +339,7 @@ def round(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "round", x)
+    return _make.round(x)
 
 
 def power(x, y):
@@ -495,7 +495,7 @@ def _rule_float_suffix(op):
     """
     if op.dtype == "float32":
         return call_pure_extern(op.dtype, "%sf" % op.name, *op.args)
-    elif op.dtype == "float64":
+    if op.dtype == "float64":
         return call_pure_extern(op.dtype, op.name, *op.args)
     return op
 

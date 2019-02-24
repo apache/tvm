@@ -304,6 +304,36 @@ def verify_gather_nd(src_shape, indices_src, indices_dtype):
     for device in get_all_backend():
         check_device(device)
 
+def verify_arange(start, stop, step):
+    if start is None and step is None:
+        A = topi.arange(stop)
+        a_np = np.arange(stop)
+    elif start is None:
+        A = topi.arange(stop, step=step)
+        a_np = np.arange(stop, step=step)
+    elif step is None:
+        A = topi.arange(start, stop)
+        a_np = np.arange(start, stop)
+    else:
+        A = topi.arange(start, stop, step)
+        a_np = np.arange(start, stop, step)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(A)
+        f = tvm.build(s, [A], device, name="arange")
+        a_nd = tvm.nd.empty(a_np.shape, dtype='float32', ctx=ctx)
+        f(a_nd)
+        tvm.testing.assert_allclose(a_nd.asnumpy(), a_np)
+
+    for device in get_all_backend():
+        check_device(device)
+
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
@@ -407,6 +437,18 @@ def test_gather_nd():
         verify_gather_nd((2, 3, 4, 5), [[1, 0], [2, 1], [3, 2], [4, 2]],
                          indices_dtype)
 
+def test_arange():
+    verify_arange(None, 20, None)
+    verify_arange(None, 20, 2)
+    verify_arange(1, 20, None)
+    verify_arange(1, 20, 2)
+    verify_arange(1, 20, 1.5)
+    verify_arange(1, 20.5, None)
+    verify_arange(1, 20, 3)
+    verify_arange(20, 1, -1)
+    verify_arange(20, 1, -1.5)
+
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
@@ -419,3 +461,4 @@ if __name__ == "__main__":
     test_expand_like()
     test_take()
     test_gather_nd()
+    test_arange()

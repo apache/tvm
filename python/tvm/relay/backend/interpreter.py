@@ -45,10 +45,17 @@ class TupleValue(Value):
     def __iter__(self):
         return iter(self.fields)
 
+
 @register_relay_node
 class Closure(Value):
     """A closure produced by the interpreter."""
-    pass
+
+
+@register_relay_node
+class ConstructorValue(Value):
+    def __init__(self, constructor, fields, types):
+        self.__init_handle_by_constructor__(
+            _make.ConstructorValue, constructor, fields, types)
 
 
 @register_relay_node
@@ -77,6 +84,13 @@ class TensorValue(Value):
 
     def __str__(self):
         return str(self.data)
+
+
+@register_relay_node
+class RefValue(Value):
+    def __init__(self, value):
+        self.__init_handle_by_constructor__(
+            _make.RefValue, value)
 
 
 def _arg_to_ast(arg):

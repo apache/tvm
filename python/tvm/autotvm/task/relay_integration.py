@@ -31,8 +31,6 @@ def extract_from_program(func, params, ops, target, target_host=None):
         The associated parameters of the program
     ops: List of relay op
         List of relay ops to be tuned
-    dtype: str or dict of str to str
-        The input types to the program
     target: tvm.target.Target
         The compilation target
     target_host: tvm.target.Target

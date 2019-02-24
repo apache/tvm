@@ -220,9 +220,78 @@ def test_tuple_strided_slice():
     print(zz.astext())
 
 
+def test_stop_fusion():
+    def before(dshape):
+        x = relay.var("x", shape=dshape)
+        y = relay.add(x, relay.const(1, "float32"))
+        y = relay.annotation.stop_fusion(y)
+        z = relay.exp(y)
+        return relay.Function([x], z)
+
+    def expected(dshape):
+        x = relay.var("p0", shape=dshape)
+        y = relay.add(x, relay.const(1, "float32"))
+        f1 = relay.Function([x], y)
+
+        x = relay.var("p01", shape=dshape)
+        y = relay.exp(x)
+        f2 = relay.Function([x], y)
+
+        x = relay.var("x", shape=dshape)
+        y = relay.Call(f1, [x])
+        z = relay.Call(f2, [y])
+        return relay.Function([x], z)
+
+    dshape = (10, 20)
+    z = before(dshape)
+    z = relay.ir_pass.infer_type(z)
+    z = relay.ir_pass.fuse_ops(z)
+    z = relay.ir_pass.infer_type(z)
+    after = relay.ir_pass.infer_type(expected(dshape))
+    assert relay.ir_pass.alpha_equal(z, after)
+
+
+def test_fuse_myia_regression():
+    def before(dshape, dtype):
+        x = relay.var('x', shape=dshape, dtype=dtype)
+        y = relay.var('y', shape=dshape, dtype=dtype)
+        sb = relay.ScopeBuilder()
+        with sb.if_scope(relay.op.greater(x, y)):
+            sb.ret(relay.Function([], x))
+        with sb.else_scope():
+            sb.ret(relay.Function([], y))
+        return relay.Function([x, y],
+            relay.Call(sb.get(), []))
+
+    def expected(dshape, dtype):
+        x = relay.var('x', shape=dshape, dtype=dtype)
+        y = relay.var('y', shape=dshape, dtype=dtype)
+        sb = relay.ScopeBuilder()
+        p1 = relay.var('p1', shape=dshape, dtype=dtype)
+        p2 = relay.var('p2', shape=dshape, dtype=dtype)
+        fused_gt = relay.Function([p1, p2],
+            relay.op.greater(p1, p2))
+        with sb.if_scope(fused_gt(x, y)):
+            sb.ret(relay.Function([], x))
+        with sb.else_scope():
+            sb.ret(relay.Function([], y))
+        return relay.Function([x, y],
+            relay.Call(sb.get(), []))
+
+    dshape = ()
+    dtype = 'int64'
+    f = before(dshape, dtype)
+    f = relay.ir_pass.infer_type(f)
+    f = relay.ir_pass.fuse_ops(f)
+    after = relay.ir_pass.infer_type(expected(dshape, dtype))
+    assert relay.ir_pass.alpha_equal(f, after)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
     test_concatenate()
     test_tuple_root()
     test_tuple_strided_slice()
+    test_stop_fusion()
+    test_fuse_myia_regression()
