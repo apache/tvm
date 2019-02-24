@@ -300,7 +300,6 @@ def test_forward_l2_normalize():
     mx_sym = mx.sym.L2Normalization(data, mode="channel")
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
 
-
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
