@@ -275,19 +275,10 @@ class OperatorConverter(object):
         fused_activation_fn = concatenation_options.FusedActivationFunction()
         input_shape_length = len(input_tensors[0].tensor.ShapeAsNumpy())
 
-        axis_convert_map = {}
         # TFLite is N H W C, our layout is N C H W
-        if input_shape_length == 1 or input_shape_length == 2:
-            # The rule is channel first (after N but before H, W).
-            # length of 1 means N*H*W*C, do nothing.
-            # length of 2 means N*H*W, C, do nothing.
-            pass
-        elif input_shape_length == 3:
-            # convert N C H*W to N H*W C
-            axis_convert_map = {1: 2, 2: 1}
-        elif input_shape_length == 4:
-            # change axis.
-            axis_convert_map = {1: 2, 2: 3, 3: 1}
+        if input_shape_length <= 4:
+            axis_convert_map = [0] + list(range(2, input_shape_length)) + [1]
+            concatenation_axis = axis_convert_map[concatenation_axis]
         else:
             raise NotImplementedError("Not support input shape length {} of concatenatio : "
                                       .format(str(input_shape_length)))
