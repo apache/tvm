@@ -364,7 +364,7 @@ class ExprBinder : public ExprMutator {
     if (it != args_map_.end()) {
       return (*it).second;
     } else {
-      return id;
+      return std::move(id);
     }
   }
 

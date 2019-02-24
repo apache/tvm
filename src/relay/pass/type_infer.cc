@@ -724,7 +724,7 @@ Expr InferType(const Expr& expr, const Module& mod_ref) {
     // FromExpr wraps a naked expression as a function, we will unbox
     // it here.
     if (expr.as<FunctionNode>()) {
-      return func;
+      return std::move(func);
     } else {
       return func->body;
     }
