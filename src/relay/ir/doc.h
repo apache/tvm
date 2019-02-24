@@ -35,20 +35,6 @@ struct LineNode : DocNode {
   LineNode(int indent, const Doc& doc) : indent(indent), doc(doc) {}
 };
 
-/* template<typename T>
-T Match(const Doc& doc,
-  const T& case_nil,
-  const std::function<T(const std::string&, const Doc&)>& case_text,
-  const std::function<T(int, const Doc&)>& case_line) {
-  if (auto nil = std::dynamic_pointer_cast<NilNode>(doc)) {
-    return case_nil;
-  } else if (auto text = std::dynamic_pointer_cast<TextNode>(doc)) {
-    return case_text(text->str, text->doc);
-  } else if (auto line = std::dynamic_pointer_cast<LineNode>(doc)) {
-    return case_line(line->indent, line->doc);
-  } else {assert(false);}
-} */
-
 // text constructor
 Doc Text(const std::string& str, const Doc& doc);
 

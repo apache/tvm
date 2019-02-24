@@ -13,7 +13,7 @@ namespace relay {
 class PrettyPrinter :
     public ExprFunctor<Doc(const Expr&)> {
   public:
-    explicit PrettyPrinter(const std::unordered_map<Expr, Doc, NodeHash, NodeEqual>& memo_, size_t temp_var_counter_, bool GNF_) : memo_(memo_), temp_var_counter_(temp_var_counter_), GNF_(GNF_) {}
+    explicit PrettyPrinter(const std::unordered_map<Expr, Doc, NodeHash, NodeEqual>& memo_, const std::unordered_map<std::string, int>& name_alloc_map_, size_t temp_var_counter_, bool GNF_) : memo_(memo_), name_alloc_map_(name_alloc_map_), temp_var_counter_(temp_var_counter_), GNF_(GNF_) {}
 
     explicit PrettyPrinter() : temp_var_counter_(0), GNF_(true) {}
 
@@ -29,37 +29,81 @@ class PrettyPrinter :
       return doc;
     }
 
-    // create a new scope by creating a new printer object.
+    // create a new scope by creating a new printer object. This allows temp var
+    // numbers to be reused and prevents hoisted vars from escaping too far
     Doc PrintNestedScope(const NodeRef& node) {
       if (GNF_) {
-        return PrettyPrinter(memo_, temp_var_counter_, GNF_).PrintFinal(node);
+        return PrettyPrinter(memo_, name_alloc_map_, temp_var_counter_, GNF_).PrintFinal(node);
       } else {
         return Print(node);
       }
     }
 
     Doc PrintFinal(const NodeRef& node) {
-     Print(node, true, false);
+      doc << Print(node, false);
       return doc;
     }
 
     // note: gnf flag is only one level deep
-    Doc Print(const NodeRef& node, bool gnf = true, bool hoist = true) {
+    Doc Print(const NodeRef& node, bool gnf = true) {
       if (node.as_derived<ExprNode>()) {
-        return PrintExpr(Downcast<Expr>(node), gnf, hoist);
+        return PrintExpr(Downcast<Expr>(node), gnf);
       } else { assert(false); }
     }
 
     Doc TempVar(int n) {
       Doc doc = Nil();
-      return doc << "\%" << n;
+      return doc << "%" << n;
     }
 
     Doc AllocTemp() {
       return TempVar(temp_var_counter_++);
     }
 
-    Doc PrintExpr(const Expr& expr, bool gnf = true, bool hoist = true) {
+    /*!
+     * \brief get a unique name with the corresponding prefix
+     * \param prefix The prefix of the name
+     * \return The returned name.
+     */
+    Doc GetUniqueName(std::string prefix) {
+      auto it = name_alloc_map_.find(prefix);
+      if (it != name_alloc_map_.end()) {
+        while (true) {
+          std::ostringstream os;
+          os << prefix << (++it->second);
+          std::string name = os.str();
+          if (name_alloc_map_.count(name) == 0) {
+            prefix = name;
+            break;
+          }
+        }
+      }
+      name_alloc_map_[prefix] = 0;
+      return Text(prefix);
+    }
+
+   /*!
+    * \brief Allocate name to a variable.
+    * \param var The input variable.
+    * \return The corresponding name.
+    */
+    Doc AllocVar(const Var& var) {
+      std::string name = var->name_hint();
+      // always make sure first name is alpha
+      if (name.length() != 0 && !std::isalpha(name[0])) {
+        name = "v" + name;
+      }
+      Doc val = GetUniqueName("%" + name);
+      // still print if ir is malformed, but show the error.
+      if (memo_.count(var)) {
+        memo_[var] = val + Text("-malformed-ir");
+      }
+      memo_[var] = val;
+      // TODO: should also return type annotation
+      return val;
+    }
+
+    Doc PrintExpr(const Expr& expr, bool gnf = true) {
       // Exploit memoization to print GNF.
       // The first time we visit an expression, we need to allocate a temp var
       // for it. Every subsequent time we can just use its assigned variable.
@@ -68,16 +112,10 @@ class PrettyPrinter :
       if (it != memo_.end()) return it->second;
       Doc printed_expr = VisitExpr(expr);
       if (gnf && GNF_) {
-        if (hoist) {
-          Doc temp_var = AllocTemp();
-          memo_[expr] = temp_var;
-          doc << temp_var << " = " << printed_expr << "\n";
-          return temp_var;
-        } else {
-          memo_[expr] = printed_expr;
-          doc << printed_expr;
-          return printed_expr;
-        }
+        Doc temp_var = AllocTemp();
+        memo_[expr] = temp_var;
+        doc << temp_var << " = " << printed_expr << "\n";
+        return temp_var;
       } else {
         memo_[expr] = printed_expr;
         return printed_expr;
@@ -135,36 +173,47 @@ class PrettyPrinter :
       //    between free and bound vars
       // TODO: this should have a type annotation
       // TODO: lets in value position need to be scoped
-      // 
+
       // we use ANF mode for the first level of the value position so the final
       // expression isn't hoisted or added to the doc stream
-      doc << "let \%" << op->var->name_hint() << " = " << Print(op->value, false) << ";" << "\n";
+      doc << "let %" << op->var->name_hint() << " = " << Print(op->value, false) << ";" << "\n";
+      // we use a nested scope here so GNF hoisting doesn't escape too far
+      // and so consecutive lets don't get hoisted
       doc << PrintNestedScope(op->body);
       return doc;
     }
 
-    // Doc PrintFunc(const Doc& prefix, const FunctionNode* fn) {
-    //     // TODO(tqchen, M.K.) support generic function
-    //     // Possibly through meta-data
-    //     CHECK_EQ(fn->type_params.size(), 0U)
-    //     << "generic fn not yet supported";
-    //     Doc doc = Nil();
-    //     doc << prefix << "(";
-    //     AllocVarName(fn->params[i]);
-    //     this->PrintVarDecl(fn->params[i], stream_);
-    //     doc << ')';
-    //     /* if (fn->ret_type.defined()) {
-    //       doc << " -> ";
-    //       this->PrintType(fn->ret_type, stream_);
-    //     } */
-    //     doc << PrintBody(fn->body);
-    //     return doc;
-    // }
+    Doc PrintFunc(const Doc& prefix, const FunctionNode* fn) {
+        // TODO(tqchen, M.K.) support generic function
+        // Possibly through meta-data
+        CHECK_EQ(fn->type_params.size(), 0U)
+        << "generic fn not yet supported";
+        Doc doc = Nil();
+        doc << prefix << "(";
+        // TODO: need nested var scopes for this!!
+        std::vector<Doc> params;
+        for (Var param : fn->params) {
+          params.push_back(AllocVar(param));
+        }
+        doc << PrintVec(params, Text(", "));
+        doc << ") ";
+        /* if (fn->ret_type.defined()) {
+          doc << " -> ";
+          this->PrintType(fn->ret_type, stream_);
+        } */
+        doc << PrintBody(fn->body);
+        return doc;
+    }
+
+    Doc VisitExpr_(const FunctionNode* op) final {
+      return PrintFunc(Text("fn "), op);
+    }
 
   private:
     /*! \brief Map from Expr to Doc */
     Doc doc = Nil();
     std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
+    std::unordered_map<std::string, int> name_alloc_map_;
     size_t temp_var_counter_;
     bool GNF_;
 };
