@@ -129,7 +129,6 @@ def test_module_pass():
         assert isinstance(mod_pass, pass_manager.ModulePass)
         assert mod_pass.name == pass_name
         assert mod_pass.opt_level == opt_level
-        assert mod_pass.pass_kind == pass_kind
 
     def test_pass_run():
         module_pass = pass_manager.ModulePass(pass_name, opt_level, pass_func)
@@ -196,7 +195,6 @@ def test_function_pass():
         assert isinstance(function_pass, pass_manager.FunctionPass)
         assert function_pass.name == pass_name
         assert function_pass.opt_level == opt_level
-        assert function_pass.pass_kind == pass_kind
 
     def test_pass_run():
         function_pass = pass_manager.FunctionPass(pass_name, opt_level, pass_func)
@@ -281,7 +279,6 @@ def test_sequential_pass():
         assert isinstance(sequential_pass, pass_manager.SequentialPass)
         assert sequential_pass.name == pass_name
         assert sequential_pass.opt_level == opt_level
-        assert sequential_pass.pass_kind == pass_kind
 
     def test_no_pass():
         passes = []
