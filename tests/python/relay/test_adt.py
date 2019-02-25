@@ -96,6 +96,7 @@ def tree_to_dict(t):
 
 def test_nat_value():
     assert count(make_nat(10)) == 10
+    assert count(intrp.evaluate(s(z()))) == 2
 
 
 def test_nat_constructor():
@@ -588,7 +589,8 @@ def test_compose():
     assert count(res) == 5
 
 def test_iterate():
-    res = intrp.evaluate(relay.Call(iterate(build_nat(2), double)(build_nat(3))))
+    expr = relay.Call(iterate(double, build_nat(2)), [build_nat(3)])
+    res = intrp.evaluate(relay.Function([], expr)())
     assert count(res) == 12
 
 if __name__ == "__main__":
@@ -612,3 +614,4 @@ if __name__ == "__main__":
     test_tmap()
     test_size()
     test_compose()
+    test_iterate()

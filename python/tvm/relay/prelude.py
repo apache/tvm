@@ -342,7 +342,7 @@ class Prelude:
     def define_tree_size(self):
         """Defines a function that computes the size of a tree as a nat.
 
-        Signature: fn<a, b>(f : fn(a) -> b, t : tree[a]) -> tree[b]
+        Signature: fn<a>(t : tree[a]) -> nat
         """
         self.size = GlobalVar("size")
         a = TypeVar("a")

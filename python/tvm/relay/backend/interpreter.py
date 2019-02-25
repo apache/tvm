@@ -250,12 +250,14 @@ class Interpreter(Executor):
             The optimized expression.
         """
         # TODO: We need to move this optimization code into the optimizer/pass manager
+        expr = Function([], expr)
+        self.mod[self.mod.entry_func] = expr
         ck_expr = ir_pass.infer_type(expr, mod=self.mod)
         simp_expr = ir_pass.simplify_inference(ck_expr)
         ck_simp = ir_pass.infer_type(simp_expr, mod=self.mod)
         fused_expr = ir_pass.fuse_ops(ck_simp)
         ck_fused = ir_pass.infer_type(fused_expr, mod=self.mod)
-        return ck_fused
+        return Call(ck_fused, [])
 
     def _make_executor(self, expr):
         def _interp_wrapper(*args, **kwargs):
