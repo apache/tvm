@@ -60,7 +60,7 @@ class PyVariableUsage(ast.NodeVisitor):
 
     def visit_Name(self, node):
         # If it is True or False, we do not worry about it!
-        if sys.version_info[0] == 2 and name in ['True', 'False']:
+        if sys.version_info[0] == 2 and node.id in ['True', 'False']:
             return
         # If it is from the argument list or loop variable, we do not worry about it!
         if node.id in self._args.keys():

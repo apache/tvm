@@ -356,7 +356,7 @@ def test_bind():
         n = a.shape[0]
         m = max_num_threads(True)
         for i in bind('threadIdx.x', m):
-            for j in range(ceil_div(n, m)):
+            for j in bind('blockIdx.x', ceil_div(n, m)):
                 if i * m + j < n:
                     b[i * m + j] = a[i * m + j] + a[i * m + j]
         return b
