@@ -449,6 +449,34 @@ def test_arange():
     verify_arange(20, 1, -1.5)
 
 
+def test_layout_transform():
+    in_shape = (1, 32, 8, 8)
+    A = tvm.placeholder(shape=in_shape, dtype="float32", name="A")
+    B = topi.layout_transform(A, "NCHW", "NCHW16c")
+
+    input = np.random.uniform(size=in_shape).astype(A.dtype)
+    output = np.transpose(input, axes=(0, 2, 3, 1))
+    output = np.reshape(output, newshape=(1, 8, 8, 2, 16))
+    output = np.transpose(output, axes=(0, 3, 1, 2, 4))
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        tvm_input = tvm.nd.array(input, ctx)
+        tvm_output = tvm.nd.empty(output.shape, ctx=ctx, dtype=B.dtype)
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(B)
+        f = tvm.build(s, [A, B], device, name="layout_transform")
+        f(tvm_input, tvm_output)
+        tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
+
+    for backend in get_all_backend():
+        check_device(backend)
+
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
@@ -462,3 +490,4 @@ if __name__ == "__main__":
     test_take()
     test_gather_nd()
     test_arange()
+    test_layout_transform()

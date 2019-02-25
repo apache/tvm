@@ -1682,48 +1682,10 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
                                      const Array<Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
-  const LayoutTransformAttrs *param = attrs.as<LayoutTransformAttrs>();
+  const auto* param = attrs.as<LayoutTransformAttrs>();
   CHECK(param != nullptr);
-
-  Layout src_layout(param->src_layout);
-  Layout dst_layout(param->dst_layout);
-
-  if (src_layout.Equals(dst_layout)) {
-    return Array<Tensor>{ inputs[0] };
-  }
-
-  CHECK(src_layout.defined() && dst_layout.defined())
-    << "cannot convert from/to undefined layout";
-
-  auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
-  CHECK(layout_converter.defined())
-    << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
-
-  const auto& out_shape = layout_converter.ForwardShape(inputs[0]->shape);
-  return Array<Tensor> {
-      topi::layout_transform(inputs[0], out_shape, [&](const Array<tvm::Var>& dst_indices) {
-        std::vector<tvm::Expr> dst_to_src_indices;
-        for (size_t i = 0; i < src_layout.ndim(); ++i) {
-          const auto& src_axis = src_layout[i];
-          int dst_major_pos = dst_layout.IndexOf(src_axis.to_primal());
-          int dst_minor_pos = dst_layout.IndexOf(src_axis.to_subordinate());
-          int32_t src_factor = static_cast<int32_t>(src_layout.FactorOf(src_axis));
-          int32_t dst_factor = static_cast<int32_t>(dst_layout.FactorOf(src_axis));
-
-          tvm::Expr src_index(dst_indices[dst_major_pos]);
-          if (dst_minor_pos >= 0) {
-            CHECK_GT(dst_factor, 0);
-            src_index = src_index * dst_factor + dst_indices[dst_minor_pos];
-          }
-          if (src_axis.IsPrimal() && src_factor > 0) {
-            src_index = src_index / src_factor;
-          } else if (!src_axis.IsPrimal() && src_factor > 0) {
-            src_index = src_index % src_factor;
-          }
-          dst_to_src_indices.push_back(src_index);
-        }
-        return Array<tvm::Expr>(dst_to_src_indices);
-      })
+  return Array<Tensor>{
+    topi::layout_transform(inputs[0], param->src_layout, param->dst_layout)
   };
 }
 

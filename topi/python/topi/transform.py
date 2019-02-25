@@ -318,3 +318,20 @@ def arange(start, stop=None, step=1, dtype="float32"):
         stop = start
         start = 0
     return cpp.arange(start, stop, step, dtype)
+
+
+def layout_transform(array, src_layout, dst_layout):
+    """Transform the layout according to src_layout and dst_layout
+
+    Parameters
+    ----------
+    array : tvm.Tensor
+        The source array.
+
+    src_layout : str
+        the source layout.
+
+    dst_layout : str
+        the destination layout.
+    """
+    return cpp.layout_transform(array, src_layout, dst_layout)

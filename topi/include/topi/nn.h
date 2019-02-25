@@ -450,28 +450,5 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
   return tvm::compute(output_shape, l, name, tag);
 }
 
-using FLayoutIndicesTransform = std::function<Array<Expr>(const Array<Var>& indices)>;
-
-/*!
- * \brief Transform the layout according to the mapping function \p to_src_indices.
- * \param src the source input.
- * \param dst_shape the output shape.
- * \param to_src_indices the mapping function from input index to output index.
- * \param name output tensor name.
- * \param tag output tensor tag.
- * \return A tensor with shape \p dst_shape.
- */
-inline Tensor layout_transform(const Tensor& src,
-                               const Array<Expr>& dst_shape,
-                               const FLayoutIndicesTransform& to_src_indices,
-                               const std::string name = "layout_transform",
-                               const std::string tag = kInjective) {
-  auto src_shape = src->shape;
-  return compute(
-  dst_shape, [&](const Array<Var>& dst_indices) {
-    return src(to_src_indices(dst_indices));
-  }, name, tag);
-}
-
 }  // namespace topi
 #endif  // TOPI_NN_H_

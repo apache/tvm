@@ -1,17 +1,8 @@
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file tvm/layout.h
- * \brief Layout expression.
- *
- *  This file is adapted from its nnvm counterpart and will keep involving
- *  to the new layout system
- *
- *  The layout is composed of upper cases, lower cases and numbers,
- *  where upper case indicates a primal axis and
- *  the corresponding lower case with factor size indicates the subordinate axis.
- *  For example, NCHW16c can describe a 5-D tensor of
- *  [batch_size, channel, height, width, channel_block].
- *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
+ * \brief Layout expression to describe the data organization of a tensor.
+ *  And BijectiveLayout to mapping two data layouts between each other.
  */
 #ifndef TVM_LAYOUT_H_
 #define TVM_LAYOUT_H_
@@ -31,139 +22,20 @@ namespace tvm {
 
 class LayoutAxis {
  public:
-  // single axis definitions
-  static const LayoutAxis A;
-  static const LayoutAxis B;
-  static const LayoutAxis C;
-  static const LayoutAxis D;
-  static const LayoutAxis E;
-  static const LayoutAxis F;
-  static const LayoutAxis G;
-  static const LayoutAxis H;
-  static const LayoutAxis I;
-  static const LayoutAxis J;
-  static const LayoutAxis K;
-  static const LayoutAxis L;
-  static const LayoutAxis M;
-  static const LayoutAxis N;
-  static const LayoutAxis O;
-  static const LayoutAxis P;
-  static const LayoutAxis Q;
-  static const LayoutAxis R;
-  static const LayoutAxis S;
-  static const LayoutAxis T;
-  static const LayoutAxis U;
-  static const LayoutAxis V;
-  static const LayoutAxis W;
-  static const LayoutAxis X;
-  static const LayoutAxis Y;
-  static const LayoutAxis Z;
-  static const LayoutAxis a;
-  static const LayoutAxis b;
-  static const LayoutAxis c;
-  static const LayoutAxis d;
-  static const LayoutAxis e;
-  static const LayoutAxis f;
-  static const LayoutAxis g;
-  static const LayoutAxis h;
-  static const LayoutAxis i;
-  static const LayoutAxis j;
-  static const LayoutAxis k;
-  static const LayoutAxis l;
-  static const LayoutAxis m;
-  static const LayoutAxis n;
-  static const LayoutAxis o;
-  static const LayoutAxis p;
-  static const LayoutAxis q;
-  static const LayoutAxis r;
-  static const LayoutAxis s;
-  static const LayoutAxis t;
-  static const LayoutAxis u;
-  static const LayoutAxis v;
-  static const LayoutAxis w;
-  static const LayoutAxis x;
-  static const LayoutAxis y;
-  static const LayoutAxis z;
-
-  static const LayoutAxis& Get(const char name) {
-    switch (name) {
-      case 'A': return A;
-      case 'B': return B;
-      case 'C': return C;
-      case 'D': return D;
-      case 'E': return E;
-      case 'F': return F;
-      case 'G': return G;
-      case 'H': return H;
-      case 'I': return I;
-      case 'J': return J;
-      case 'K': return K;
-      case 'L': return L;
-      case 'M': return M;
-      case 'N': return N;
-      case 'O': return O;
-      case 'P': return P;
-      case 'Q': return Q;
-      case 'R': return R;
-      case 'S': return S;
-      case 'T': return T;
-      case 'U': return U;
-      case 'V': return V;
-      case 'W': return W;
-      case 'X': return X;
-      case 'Y': return Y;
-      case 'Z': return Z;
-      case 'a': return a;
-      case 'b': return b;
-      case 'c': return c;
-      case 'd': return d;
-      case 'e': return e;
-      case 'f': return f;
-      case 'g': return g;
-      case 'h': return h;
-      case 'i': return i;
-      case 'j': return j;
-      case 'k': return k;
-      case 'l': return l;
-      case 'm': return m;
-      case 'n': return n;
-      case 'o': return o;
-      case 'p': return p;
-      case 'q': return q;
-      case 'r': return r;
-      case 's': return s;
-      case 't': return t;
-      case 'u': return u;
-      case 'v': return v;
-      case 'w': return w;
-      case 'x': return x;
-      case 'y': return y;
-      case 'z': return z;
-      default: LOG(FATAL) << "Invalid layout axis name " << name;
-    }
-    // suppress return-type warning.
-    return A;
-  }
+  static const LayoutAxis& Get(const char name);
 
   // Get the singleton LayoutAxis using itvar->var->name_hint
-  inline static const LayoutAxis& Get(const IterVar& itvar) {
-    const std::string axis = itvar->var.get()->name_hint;
-    CHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
-    return LayoutAxis::Get(axis[0]);
-  }
+  static const LayoutAxis& Get(const IterVar& itvar);
 
   // Get the singleton LayoutAxis using name[0] (size of name must be 1).
-  inline static const LayoutAxis& make(const std::string& name) {
-    CHECK_EQ(name.length(), 1) << "Invalid axis " << name;
-    return LayoutAxis::Get(name[0]);
-  }
+  static const LayoutAxis& make(const std::string& name);
 
   inline bool IsPrimal() const { return name_ >= 'A' && name_ <= 'Z'; }
-  inline std::string name() const { return name_str_; }
+  inline std::string name() const { return std::string(1, name_); }
 
   // if current axis is primal, switch the axis to its subordinate one,
   // else switch to the primal.
-  inline const LayoutAxis& to_dual() const {
+  inline const LayoutAxis& ToDual() const {
     if (name_ >= 'A' && name_ <= 'Z') {
       return LayoutAxis::Get(name_ - 'A' + 'a');
     } else {
@@ -172,13 +44,13 @@ class LayoutAxis {
   }
 
   // return the primal axis. If it is already primal, return itself.
-  inline const LayoutAxis& to_primal() const {
-    return IsPrimal() ? *this : to_dual();
+  const LayoutAxis& ToPrimal() const {
+    return IsPrimal() ? *this : ToDual();
   }
 
   // return the subordinate axis. If it is already subordinate, return itself.
-  inline const LayoutAxis& to_subordinate() const {
-    return IsPrimal() ? to_dual() : *this;
+  const LayoutAxis& ToSubordinate() const {
+    return IsPrimal() ? ToDual() : *this;
   }
 
   inline bool operator==(const LayoutAxis& rhs) const {
@@ -191,18 +63,26 @@ class LayoutAxis {
   }
 
  private:
+  static const LayoutAxis UPPER_CASE[];
+  static const LayoutAxis LOWER_CASE[];
   LayoutAxis(const LayoutAxis&);
   LayoutAxis& operator=(const LayoutAxis&);
-  explicit LayoutAxis(const char name) : name_(name), name_str_(std::string(1, name)) {}
+  explicit LayoutAxis(const char name) : name_(name) {}
 
   const char name_;
-  const std::string name_str_;
 };
 
 class Layout;
+// Internal node container Buffer
 class LayoutNode : public Node {
  public:
+  /*! \brief string representation of layout */
   std::string name;
+  /*! \brief specify each axis of the layout,
+   *   in which the variable name is the name of the axis.
+   *   The IterVar's extent indicates the size of the axis,
+   *   it is a variable for a primal axis, but a constant for a subordinate axis.
+   */
   Array<IterVar> axes;
 
   void VisitAttrs(AttrVisitor* v) final {
@@ -216,6 +96,15 @@ class LayoutNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(LayoutNode, Node);
 };
 
+/*!
+ * \brief Layout is to describe how data is organized within an N-dimention tensor.
+ *  It is composed of upper cases, lower cases and numbers,
+ *  where upper case indicates a primal axis and
+ *  the corresponding lower case with factor size indicates the subordinate axis.
+ *  For example, NCHW16c can describe a 5-D tensor of
+ *  [batch_size, channel, height, width, channel_block].
+ *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
+ */
 class Layout : public NodeRef {
  public:
   explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
@@ -280,7 +169,7 @@ class Layout : public NodeRef {
    * \param factor size of the sub-dimension.
    * \return A newly constructed Layout object.
    */
-  Layout Split(const LayoutAxis &axis, size_t target_pos, int64_t factor) const;
+  Layout Split(const LayoutAxis &axis, size_t target_pos, int32_t factor) const;
 
 
   /*! \return number of dimensions */
@@ -324,7 +213,7 @@ class Layout : public NodeRef {
    *         or the size of \p axis itself (if \p axis is a subordinate-axis).
    *         Return -1 if \p axis is not in the layout the layout is undefined.
    */
-  int64_t FactorOf(const LayoutAxis& axis) const;
+  int32_t FactorOf(const LayoutAxis& axis) const;
 
   /*!
    * \brief Whether the layout contains an axis.
@@ -379,20 +268,26 @@ class Layout : public NodeRef {
 };
 
 class BijectiveLayout;
+// Internal node container BijectiveLayout
 class BijectiveLayoutNode : public Node {
  public:
-  // expression of each location, on how original location can be mapped
-  // to the store location, example
-  // [i0 / 16, i1, i0 % 16]
+  /*! \brief Describes how source axes can be mapped to the destination axes,
+   *   e.g., [i0 / 16, i1, i0 % 16] can describe NC -> NC16n
+   */
   Array<Expr> forward_rule;
+  /*! \brief Describes how destination axes can be mapped to the source axes */
   Array<Expr> backward_rule;
 
+  /*! \brief The source layout */
   Layout src_layout;
+  /*! \brief The destination layout */
   Layout dst_layout;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("src_layout", &src_layout);
     v->Visit("dst_layout", &dst_layout);
+    v->Visit("forward_rule", &forward_rule);
+    v->Visit("backward_rule", &backward_rule);
   }
 
   static constexpr const char* _type_key = "BijectiveLayout";
@@ -402,19 +297,24 @@ class BijectiveLayoutNode : public Node {
                                       const Layout& dst_layout);
 };
 
+/*! \brief Bijective function mapping for data layout transformation.
+ *   Given two Layout, BijectiveLayout build and store the mapping rules,
+ *   provides API to transform N-dimention tensor from the source indices (i0, i1, …, im)
+ *   to the destination indices (j0, j1, … jm).
+ */
 class BijectiveLayout : public NodeRef {
  public:
   BijectiveLayout() = default;
   explicit BijectiveLayout(NodePtr<Node> n) : NodeRef(n) {}
 
-  // Given the shape of the source layout, infer the target shape.
+  // Given the source shape, infer the destination shape.
   TVM_DLL Array<Expr> ForwardShape(const Array<Expr>& shape) const;
-  // Given the target shape, recover the source shape.
-  TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& shape) const;
-  // Given the indices of the source layout, infer the target index.
+  // Given the destination shape, recover the source shape.
+  TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& dst_shape) const;
+  // Given the destination indices, infer the destination indices.
   TVM_DLL Array<Expr> ForwardIndex(const Array<Expr>& index) const;
-  // Given the target indices, recover the source index.
-  TVM_DLL Array<Expr> BackwardIndex(const Array<Expr>& store_index) const;
+  // Given the destination indices, recover the source indices.
+  TVM_DLL Array<Expr> BackwardIndex(const Array<Expr>& dst_index) const;
 
   /*!
    * \brief access the internal node container

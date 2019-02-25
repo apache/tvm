@@ -11,58 +11,42 @@ namespace tvm {
 TVM_REGISTER_NODE_TYPE(LayoutNode);
 TVM_REGISTER_NODE_TYPE(BijectiveLayoutNode);
 
-const LayoutAxis LayoutAxis::A = LayoutAxis('A');
-const LayoutAxis LayoutAxis::B = LayoutAxis('B');
-const LayoutAxis LayoutAxis::C = LayoutAxis('C');
-const LayoutAxis LayoutAxis::D = LayoutAxis('D');
-const LayoutAxis LayoutAxis::E = LayoutAxis('E');
-const LayoutAxis LayoutAxis::F = LayoutAxis('F');
-const LayoutAxis LayoutAxis::G = LayoutAxis('G');
-const LayoutAxis LayoutAxis::H = LayoutAxis('H');
-const LayoutAxis LayoutAxis::I = LayoutAxis('I');
-const LayoutAxis LayoutAxis::J = LayoutAxis('J');
-const LayoutAxis LayoutAxis::K = LayoutAxis('K');
-const LayoutAxis LayoutAxis::L = LayoutAxis('L');
-const LayoutAxis LayoutAxis::M = LayoutAxis('M');
-const LayoutAxis LayoutAxis::N = LayoutAxis('N');
-const LayoutAxis LayoutAxis::O = LayoutAxis('O');
-const LayoutAxis LayoutAxis::P = LayoutAxis('P');
-const LayoutAxis LayoutAxis::Q = LayoutAxis('Q');
-const LayoutAxis LayoutAxis::R = LayoutAxis('R');
-const LayoutAxis LayoutAxis::S = LayoutAxis('S');
-const LayoutAxis LayoutAxis::T = LayoutAxis('T');
-const LayoutAxis LayoutAxis::U = LayoutAxis('U');
-const LayoutAxis LayoutAxis::V = LayoutAxis('V');
-const LayoutAxis LayoutAxis::W = LayoutAxis('W');
-const LayoutAxis LayoutAxis::X = LayoutAxis('X');
-const LayoutAxis LayoutAxis::Y = LayoutAxis('Y');
-const LayoutAxis LayoutAxis::Z = LayoutAxis('Z');
-const LayoutAxis LayoutAxis::a = LayoutAxis('a');
-const LayoutAxis LayoutAxis::b = LayoutAxis('b');
-const LayoutAxis LayoutAxis::c = LayoutAxis('c');
-const LayoutAxis LayoutAxis::d = LayoutAxis('d');
-const LayoutAxis LayoutAxis::e = LayoutAxis('e');
-const LayoutAxis LayoutAxis::f = LayoutAxis('f');
-const LayoutAxis LayoutAxis::g = LayoutAxis('g');
-const LayoutAxis LayoutAxis::h = LayoutAxis('h');
-const LayoutAxis LayoutAxis::i = LayoutAxis('i');
-const LayoutAxis LayoutAxis::j = LayoutAxis('j');
-const LayoutAxis LayoutAxis::k = LayoutAxis('k');
-const LayoutAxis LayoutAxis::l = LayoutAxis('l');
-const LayoutAxis LayoutAxis::m = LayoutAxis('m');
-const LayoutAxis LayoutAxis::n = LayoutAxis('n');
-const LayoutAxis LayoutAxis::o = LayoutAxis('o');
-const LayoutAxis LayoutAxis::p = LayoutAxis('p');
-const LayoutAxis LayoutAxis::q = LayoutAxis('q');
-const LayoutAxis LayoutAxis::r = LayoutAxis('r');
-const LayoutAxis LayoutAxis::s = LayoutAxis('s');
-const LayoutAxis LayoutAxis::t = LayoutAxis('t');
-const LayoutAxis LayoutAxis::u = LayoutAxis('u');
-const LayoutAxis LayoutAxis::v = LayoutAxis('v');
-const LayoutAxis LayoutAxis::w = LayoutAxis('w');
-const LayoutAxis LayoutAxis::x = LayoutAxis('x');
-const LayoutAxis LayoutAxis::y = LayoutAxis('y');
-const LayoutAxis LayoutAxis::z = LayoutAxis('z');
+const LayoutAxis LayoutAxis::UPPER_CASE[] = {
+  LayoutAxis('A'), LayoutAxis('B'), LayoutAxis('C'), LayoutAxis('D'), LayoutAxis('E'),
+  LayoutAxis('F'), LayoutAxis('G'), LayoutAxis('H'), LayoutAxis('I'), LayoutAxis('J'),
+  LayoutAxis('K'), LayoutAxis('L'), LayoutAxis('M'), LayoutAxis('N'), LayoutAxis('O'),
+  LayoutAxis('P'), LayoutAxis('Q'), LayoutAxis('R'), LayoutAxis('S'), LayoutAxis('T'),
+  LayoutAxis('U'), LayoutAxis('V'), LayoutAxis('W'), LayoutAxis('X'), LayoutAxis('Y'),
+  LayoutAxis('Z')
+};
+
+const LayoutAxis LayoutAxis::LOWER_CASE[] = {
+  LayoutAxis('a'), LayoutAxis('b'), LayoutAxis('c'), LayoutAxis('d'), LayoutAxis('e'),
+  LayoutAxis('f'), LayoutAxis('g'), LayoutAxis('h'), LayoutAxis('i'), LayoutAxis('j'),
+  LayoutAxis('k'), LayoutAxis('l'), LayoutAxis('m'), LayoutAxis('n'), LayoutAxis('o'),
+  LayoutAxis('p'), LayoutAxis('q'), LayoutAxis('r'), LayoutAxis('s'), LayoutAxis('t'),
+  LayoutAxis('u'), LayoutAxis('v'), LayoutAxis('w'), LayoutAxis('x'), LayoutAxis('y'),
+  LayoutAxis('z')
+};
+
+const LayoutAxis& LayoutAxis::Get(const char name) {
+  CHECK((name >= 'A' && name <= 'Z') || (name >= 'a' && name <= 'z'))
+    << "Invalid layout axis name: " << name << ". Has to be A-Z or a-z.";
+  return (name >= 'A' && name <= 'Z') ?
+         LayoutAxis::UPPER_CASE[name-'A'] :
+         LayoutAxis::LOWER_CASE[name-'a'];
+}
+
+const LayoutAxis& LayoutAxis::Get(const IterVar& itvar) {
+  const std::string axis = itvar->var.get()->name_hint;
+  CHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
+  return LayoutAxis::Get(axis[0]);
+}
+
+const LayoutAxis& LayoutAxis::make(const std::string& name) {
+  CHECK_EQ(name.length(), 1) << "Invalid axis " << name;
+  return LayoutAxis::Get(name[0]);
+}
 
 Layout::Layout(const Array<IterVar>& axes) {
   node_ = make_node<LayoutNode>();
@@ -91,7 +75,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
   node->name = name;
 
   // parse layout string
-  int64_t factor = 0;
+  int32_t factor = 0;
   for (char c : name) {
     if (c >= 'A' && c <= 'Z') {
       CHECK_EQ(factor, 0) << "Invalid layout " << name
@@ -151,7 +135,7 @@ Layout Layout::SubLayout(size_t pos, size_t len) const {
   return Layout(new_layout);
 }
 
-Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int64_t factor) const {
+Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int32_t factor) const {
   if (!defined()) return Layout::Undef();
   const std::string& name = operator->()->name;
   const auto axes = operator->()->axes;
@@ -159,14 +143,14 @@ Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int64_t factor) 
                                     << target_pos << " for layout " << name;
   CHECK(axis.IsPrimal()) << "Cannot split a subordinate axis " << axis;
   CHECK(this->Contains(axis)) << "Axis " << axis << " does not exist in " << name;
-  CHECK(!this->Contains(axis.to_subordinate())) << "Axis " << axis
+  CHECK(!this->Contains(axis.ToSubordinate())) << "Axis " << axis
                                                 << " has already been split in " << name;
   CHECK(factor > 0) << "Invalid split size " << factor;
   Array<IterVar> new_layout;
   for (size_t i = 0; i <= this->ndim(); ++i) {
     if (i == target_pos) {
       new_layout.push_back(IterVarNode::make(Range(Expr(0), Expr(factor)),
-                                             Var(axis.to_subordinate().name()), kDataPar));
+                                             Var(axis.ToSubordinate().name()), kDataPar));
     }
     if (i == this->ndim()) break;
     new_layout.push_back(axes[i]);
@@ -174,9 +158,9 @@ Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int64_t factor) 
   return Layout(new_layout);
 }
 
-int64_t Layout::FactorOf(const LayoutAxis& axis) const {
+int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   if (!defined()) return -1;
-  const LayoutAxis& sub = axis.to_subordinate();
+  const LayoutAxis& sub = axis.ToSubordinate();
   if (!this->defined()) return -1;
   for (const IterVar& itvar : operator->()->axes) {
     if (sub == LayoutAxis::Get(itvar)) {
@@ -199,10 +183,10 @@ inline bool GetStoreRule(Array<Expr>* rule,
     for (size_t j = 0; j < src_layout.ndim(); ++j) {
       const auto& orig_axis = src_layout[j];
       const IterVar& orig_axis_impl = src_layout->axes[j];
-      if (store_axis.to_primal() == orig_axis.to_primal()) {
+      if (store_axis.ToPrimal() == orig_axis.ToPrimal()) {
         if (orig_axis.IsPrimal()) {
           Expr orig_var = orig_axis_impl->var;
-          const int64_t factor = src_layout.FactorOf(orig_axis);
+          const int32_t factor = src_layout.FactorOf(orig_axis);
           if (factor > 0) {
             orig_var = orig_var * Expr(factor);
           }
@@ -218,7 +202,7 @@ inline bool GetStoreRule(Array<Expr>* rule,
     }
 
     if (store_axis.IsPrimal()) {
-      const int64_t factor = dst_layout.FactorOf(store_axis);
+      const int32_t factor = dst_layout.FactorOf(store_axis);
       if (factor > 0) {
         store = store / Expr(factor);
       }

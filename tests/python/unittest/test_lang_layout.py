@@ -6,7 +6,7 @@ from topi.util import get_const_tuple
 def test_layout():
     layout = tvm.layout("NCHW16c")
     assert layout is not None
-    assert isinstance(layout, tvm.schedule.Layout)
+    assert isinstance(layout, tvm.tensor.Layout)
 
     assert layout.factor_of("c") == 16
     assert layout.factor_of("C") == 16
@@ -41,7 +41,7 @@ def test_bilayout_convertible():
 
 def test_bilayout_shape():
     bilayout = tvm.bijective_layout("NCHW", "NCHW16c")
-    assert isinstance(bilayout, tvm.schedule.BijectiveLayout)
+    assert isinstance(bilayout, tvm.tensor.BijectiveLayout)
 
     dst_shape = bilayout.forward_shape((1, 32, 7, 7))
     assert get_const_tuple(dst_shape) == (1, 2, 7, 7, 16)

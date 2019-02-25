@@ -97,7 +97,7 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
     size_t i = layouts[large_idx].ndim();
     for (; i != 0; --i) {
       const auto& axis = layouts[large_idx][i-1];
-      if (!layouts[small_idx].Contains(axis.to_primal())) {
+      if (!layouts[small_idx].Contains(axis.ToPrimal())) {
         break;
       }
     }
