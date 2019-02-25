@@ -96,7 +96,7 @@ def tree_to_dict(t):
 
 def test_nat_value():
     assert count(make_nat(10)) == 10
-    assert count(intrp.evaluate(s(z()))) == 2
+    assert count(intrp.evaluate(s(s(z())))) == 2
 
 
 def test_nat_constructor():
