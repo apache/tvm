@@ -39,7 +39,7 @@ class ContextCallCombiner final : public IRMutator {
         }
         Var ctx_var(name, ctx.type());
         ctx_map_[ctx] = ctx_var;
-        return ctx_var;
+        return std::move(ctx_var);
       }
     } else {
       return IRMutator::Mutate_(op, e);

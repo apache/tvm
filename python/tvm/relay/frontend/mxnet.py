@@ -268,6 +268,18 @@ def _mx_multibox_detection(inputs, attrs):
     return _op.vision.nms(ret[0], ret[1], **new_attrs1)
 
 
+def _mx_arange(inputs, attrs):
+    assert len(inputs) == 0
+    if attrs.get_int("repeat", 1) != 1:
+        raise RuntimeError("arange doesn't support repeat")
+    new_attrs = {}
+    new_attrs["start"] = attrs.get_float("start", 0)
+    new_attrs["stop"] = attrs.get_float("stop")
+    new_attrs["step"] = attrs.get_float("step", 1)
+    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    return _op.arange(**new_attrs)
+
+
 def _mx_roi_align(inputs, attrs):
     new_attrs = {}
     new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
@@ -362,6 +374,7 @@ _convert_map = {
     "Concat"        : _mx_concat,
     "concat"        : _mx_concat,
     "LeakyReLU"     : _mx_leaky_relu,
+    "_arange"       : _mx_arange,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     # vision

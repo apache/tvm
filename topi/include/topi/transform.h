@@ -868,6 +868,19 @@ inline Tensor tensordot(const Tensor& A,
   return compute(output_shape, func, name, tag);
 }
 
+inline Tensor arange(const Expr start,
+                     const Expr stop,
+                     const Expr step,
+                     Type dtype,
+                     std::string name = "tensor",
+                     std::string tag = kInjective) {
+  Expr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
+      tvm::cast(tvm::Float(32), stop - start) / step));
+  Array<Expr> shape;
+  return compute({num_elem}, [&](const Array<Var>& indices) {
+    return tvm::cast(dtype, start + step * indices[0]);
+  }, name, tag);
+}
 
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_
