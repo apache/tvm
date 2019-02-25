@@ -40,13 +40,6 @@ namespace tvm {
 namespace relay {
 namespace pass {
 
-/*! \brief An enumerator to represent the granularity of different passes. */
-enum PassKind : int {
-  kModuleKind = 1,
-  kFunctionKind = 2,
-  kSequentialKind = 3
-};
-
 class PassContext;
 
 /*!
@@ -85,7 +78,7 @@ class PassContext : public NodeRef {
 
 // We use currying here. It runs on a Relay node type NodeT and yields a new
 // node with the same type. The Relay module is captured for optimizations as
-// most of the  current Relay optimizations are module to module. Currying
+// most of the current Relay optimizations are module to module. Currying
 // sketches the optimization, i.e. how we want to mutate an AST, and it is
 // passed as packed functions that will be invoked when called by `run`.
 //
@@ -111,8 +104,6 @@ class PassNode : public RelayNode {
   std::string name;
   /*! \brief The minimal optimization level that this pass will be enabled. */
   int opt_level;
-  /*! \brief The kind of an optimization/analysis pass. */
-  PassKind pass_kind;
 
   /*! \brief Set the context information for a pass. */
   void SetContext(const PassContext& pass_ctx) {
@@ -150,7 +141,6 @@ class PassNode : public RelayNode {
   void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
-    v->Visit("passkind", &pass_kind);
   }
 
   static constexpr const char* _type_key = "relay.Pass";
@@ -193,7 +183,6 @@ class ModulePassNode : public PassNode {
   void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
-    v->Visit("pass_kind", &pass_kind);
   }
 
   Module operator()(const Module& mod) const override {
@@ -242,7 +231,6 @@ class FunctionPassNode : public PassNode {
   void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
-    v->Visit("pass_kind", &pass_kind);
   }
 
   Module operator()(const Module& mod) const override {
@@ -296,7 +284,6 @@ class SequentialPassNode : public PassNode {
   void VisitAttrs(tvm::AttrVisitor* v) override {
     v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
-    v->Visit("pass_kind", &pass_kind);
     v->Visit("passes", &passes);
     v->Visit("disabled", &disabled);
   }

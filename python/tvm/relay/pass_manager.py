@@ -43,9 +43,6 @@ class Pass(RelayNode):
 
     opt_level : int
         The optimization level of this pass.
-
-    pass_kind : PassKind
-        The type of pass for optimization/analysis.
     """
 
     @abstractmethod

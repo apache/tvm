@@ -22,7 +22,6 @@ ModulePass ModulePassNode::make(std::string name, int opt_level,
   auto n = make_node<ModulePassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
-  n->pass_kind = PassKind::kModuleKind;
   n->pass_func = std::move(pass_func);
   return ModulePass(n);
 }
@@ -52,7 +51,6 @@ FunctionPass FunctionPassNode::make(std::string name, int opt_level,
   auto n = make_node<FunctionPassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
-  n->pass_kind = PassKind::kFunctionKind;
   n->pass_func = std::move(pass_func);
   return FunctionPass(n);
 }
@@ -102,7 +100,6 @@ SequentialPass SequentialPassNode::make(std::string name, int opt_level,
   auto n = make_node<SequentialPassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
-  n->pass_kind = PassKind::kSequentialKind;
   n->passes = std::move(passes);
   n->disabled = std::move(disabled);
   return SequentialPass(n);
