@@ -7,7 +7,7 @@
 #include <tvm/ir_operator.h>
 #include <tvm/ir_functor_ext.h>
 #include <limits>
-#include "compute_expr.h"
+#include "pattern_match.h"
 
 namespace tvm {
 namespace arith {
@@ -61,31 +61,14 @@ class ModularSetAnalyzer::Impl :
 
   // Detect useful constraints and use them in the analysis scope.
   std::function<void()> EnterConstraint(const Expr& constraint) {
-    // TODO(tqchen): use pattern matching.
-    // Detect useful invariant pattern and use them to visit child.
-    // Pattern: Var % coeff  == base
-    if (const EQ* eq = constraint.as<EQ>()) {
-      const Mod* mod = eq->a.as<Mod>();
-      int64_t coeff = 0, base = 0;
-      if (mod && arith::GetConst(eq->b, &base)) {
-        const Variable *var = mod->a.as<Variable>();
-        if (var && arith::GetConst(mod->b, &coeff)) {
-          Entry entry;
-          entry.coeff = coeff;
-          entry.base = base;
-          auto key = GetRef<Var>(var);
-          Entry old = Everything();
-          auto it = var_map_.find(key);
-          if (it != var_map_.end()) {
-            old = it->second;
-          }
-          var_map_[key] = Intersect(old, entry);
-          // reover function.
-          return [this, old, key]() {
-            var_map_[key] = old;
-          };
-        }
-      }
+    PVar<Var> var;
+    PVar<Integer> coeff, base;
+    // pattern match interesting constraints
+    if (((var % coeff) == base).Match(constraint)) {
+      Entry entry;
+      entry.coeff = coeff.Eval()->value;
+      entry.base = base.Eval()->value;
+      return UpdateByIntersect(var.Eval(), entry);
     }
     return nullptr;
   }
@@ -236,6 +219,24 @@ class ModularSetAnalyzer::Impl :
   Analyzer* parent_{nullptr};
   // internal variable map
   std::unordered_map<Var, Entry, ExprHash, ExprEqual> var_map_;
+  /*!
+   * \brief Update var by intersecting entry with var's current set.
+   * \param var The variable.
+   * \param entry The entry to be updated.
+   * \return The recovery function of the scope.
+   */
+  std::function<void()> UpdateByIntersect(const Var& var, Entry entry) {
+    Entry old = Everything();
+    auto it = var_map_.find(var);
+    if (it != var_map_.end()) {
+      old = it->second;
+    }
+    var_map_[var] = Intersect(old, entry);
+    // reover function.
+    return [this, old, var]() {
+      var_map_[var] = old;
+    };
+  }
   /*!
    * \brief Create union of two sets.
    * \param a The left operand.
