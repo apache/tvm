@@ -87,7 +87,7 @@ Expr MakeNMS(Expr data,
              int max_output_size,
              double iou_threshold,
              bool force_suppress,
-             int topk,
+             int top_k,
              int id_index,
              bool return_indices,
              bool invalid_to_bottom) {
@@ -95,7 +95,7 @@ Expr MakeNMS(Expr data,
   attrs->max_output_size = max_output_size;
   attrs->iou_threshold = iou_threshold;
   attrs->force_suppress = force_suppress;
-  attrs->topk = topk;
+  attrs->top_k = top_k;
   attrs->id_index = id_index;
   attrs->return_indices = return_indices;
   attrs->invalid_to_bottom = invalid_to_bottom;

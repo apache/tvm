@@ -579,9 +579,9 @@ def test_non_max_suppression():
     valid_count = sym.Variable("valid_count", dtype="int32")
     iou_threshold = 0.7
     force_suppress = True
-    topk = 2
+    top_k = 2
     out = sym.non_max_suppression(data=data, valid_count=valid_count, return_indices=False,
-                                  iou_threshold=iou_threshold, force_suppress=force_suppress, topk=topk)
+                                  iou_threshold=iou_threshold, force_suppress=force_suppress, top_k=top_k)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],

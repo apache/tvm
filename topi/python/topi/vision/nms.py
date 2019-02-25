@@ -113,7 +113,7 @@ def get_valid_counts(data, score_threshold=0):
 @hybrid.script
 def hybrid_nms(data, sorted_index, valid_count,
                max_output_size, iou_threshold, force_suppress,
-               topk, id_index):
+               top_k, id_index):
     """Hybrid routing for non-maximum suppression.
 
     Parameters
@@ -139,7 +139,7 @@ def hybrid_nms(data, sorted_index, valid_count,
     force_suppress : tvm.const
         Whether to suppress all detections regardless of class_id.
 
-    topk : tvm.const
+    top_k : tvm.const
         Keep maximum top k detections before nms, -1 for no limit.
 
     id_index : tvm.const
@@ -167,13 +167,13 @@ def hybrid_nms(data, sorted_index, valid_count,
             if valid_count[i] > 0:
                 # Reorder output
                 nkeep = valid_count[i]
-                if 0 < topk < nkeep:
-                    nkeep = topk
+                if 0 < top_k < nkeep:
+                    nkeep = top_k
                 for j in range(nkeep):
                     for k in range(box_data_length):
                         output[i, j, k] = data[i, sorted_index[i, j], k]
                     box_indices[i, j] = sorted_index[i, j]
-                if 0 < topk < valid_count[i]:
+                if 0 < top_k < valid_count[i]:
                     for j in range(valid_count[i] - nkeep):
                         for k in range(box_data_length):
                             output[i, j + nkeep, k] = -1.0
@@ -235,7 +235,7 @@ def hybrid_nms(data, sorted_index, valid_count,
 
 @tvm.target.generic_func
 def non_max_suppression(data, valid_count, max_output_size=-1,
-                        iou_threshold=0.5, force_suppress=False, topk=-1,
+                        iou_threshold=0.5, force_suppress=False, top_k=-1,
                         id_index=0, return_indices=True, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
@@ -259,7 +259,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     force_suppress : optional, boolean
         Whether to suppress all detections regardless of class_id.
 
-    topk : optional, int
+    top_k : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
 
     id_index : optional, int
@@ -286,8 +286,8 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
         valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
         iou_threshold = 0.7
         force_suppress = True
-        topk = -1
-        out = nms(data, valid_count, iou_threshold, force_suppress, topk)
+        top_k = -1
+        out = nms(data, valid_count, iou_threshold, force_suppress, top_k)
         np_data = np.random.uniform(dshape)
         np_valid_count = np.array([4])
         s = topi.generic.schedule_nms(out)
@@ -325,7 +325,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
                                   tvm.const(max_output_size, dtype="int32"),
                                   tvm.const(iou_threshold, dtype="float32"),
                                   tvm.const(force_suppress, dtype="bool"),
-                                  tvm.const(topk, dtype="int32"),
+                                  tvm.const(top_k, dtype="int32"),
                                   tvm.const(id_index, dtype="int32"))
     if not return_indices and invalid_to_bottom:
         out = hybrid_rearrange_out(out)

@@ -327,7 +327,7 @@ def _mx_multibox_detection(inputs, attrs):
     new_attrs1["return_indices"] = False
     new_attrs1["iou_threshold"] = attrs.get_float("nms_threshold", 0.5)
     new_attrs1["force_suppress"] = attrs.get_bool("force_suppress", False)
-    new_attrs1["topk"] = attrs.get_int("nms_topk", -1)
+    new_attrs1["top_k"] = attrs.get_int("nms_topk", -1)
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
                                             inputs[2], **new_attrs0)
@@ -384,7 +384,7 @@ def _mx_proposal(inputs, attrs):
 def _mx_box_nms(inputs, attrs):
     force_suppress = attrs.get_bool("force_suppress", False)
     iou_thresh = attrs.get_float('overlap_thresh', 0.5)
-    topk = attrs.get_int('topk', -1)
+    top_k = attrs.get_int('topk', -1)
     valid_thresh = attrs.get_float('valid_thresh', 0)
     coord_start = attrs.get_int('coord_start', 2)
     score_index = attrs.get_int('score_index', 1)
@@ -407,7 +407,7 @@ def _mx_box_nms(inputs, attrs):
                                              ret[0],
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
-                                             topk=topk,
+                                             top_k=top_k,
                                              id_index=id_index,
                                              return_indices=False,
                                              invalid_to_bottom=True)

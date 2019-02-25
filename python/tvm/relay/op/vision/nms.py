@@ -32,7 +32,7 @@ def non_max_suppression(data,
                         max_output_size=-1,
                         iou_threshold=0.5,
                         force_suppress=False,
-                        topk=-1,
+                        top_k=-1,
                         id_index=0,
                         return_indices=True,
                         invalid_to_bottom=False):
@@ -58,7 +58,7 @@ def non_max_suppression(data,
     force_suppress : bool, optional
         Suppress all detections regardless of class_id.
 
-    topk : int, optional
+    top_k : int, optional
         Keep maximum top k detections before nms, -1 for no limit.
 
     id_index : int, optional
@@ -76,5 +76,5 @@ def non_max_suppression(data,
         3-D tensor with shape [batch_size, num_anchors, 6].
     """
     return _make.non_max_suppression(data, valid_count, max_output_size,
-                                     iou_threshold, force_suppress, topk,
+                                     iou_threshold, force_suppress, top_k,
                                      id_index, return_indices, invalid_to_bottom)

@@ -447,7 +447,7 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
   bool return_indices;
   float iou_threshold;
   bool force_suppress;
-  int topk;
+  int top_k;
   int id_index;
   int max_output_size;
   bool invalid_to_bottom;
@@ -459,7 +459,7 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
       .describe("Non-maximum suppression threshold.");
     DMLC_DECLARE_FIELD(force_suppress).set_default(false)
       .describe("Suppress all detections regardless of class_id.");
-    DMLC_DECLARE_FIELD(topk).set_default(-1)
+    DMLC_DECLARE_FIELD(top_k).set_default(-1)
       .describe("Keep maximum top k detections before nms, -1 for no limit.");
     DMLC_DECLARE_FIELD(id_index).set_default(0)
       .describe("Axis index of id.");

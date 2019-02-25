@@ -73,7 +73,7 @@ struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
   int max_output_size;
   double iou_threshold;
   bool force_suppress;
-  int topk;
+  int top_k;
   int id_index;
   bool return_indices;
   bool invalid_to_bottom;
@@ -86,7 +86,7 @@ struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
       .describe("Non-maximum suppression threshold.");
     TVM_ATTR_FIELD(force_suppress).set_default(false)
       .describe("Suppress all detections regardless of class_id.");
-    TVM_ATTR_FIELD(topk).set_default(-1)
+    TVM_ATTR_FIELD(top_k).set_default(-1)
       .describe("Keep maximum top k detections before nms, -1 for no limit.");
     TVM_ATTR_FIELD(id_index).set_default(0)
       .describe("Axis index of id.");

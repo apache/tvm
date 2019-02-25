@@ -176,12 +176,12 @@ def test_get_valid_counts():
 
 def test_non_max_suppression():
     def verify_nms(x0_data, x1_data, dshape, ref_res, ref_indices_res,
-                   iou_threshold=0.5, force_suppress=False, topk=-1,
+                   iou_threshold=0.5, force_suppress=False, top_k=-1,
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int"))
-        z = relay.vision.non_max_suppression(x0, x1, -1, iou_threshold, force_suppress, topk, return_indices=False)
-        z_indices = relay.vision.non_max_suppression(x0, x1, -1, iou_threshold, force_suppress, topk)
+        z = relay.vision.non_max_suppression(x0, x1, -1, iou_threshold, force_suppress, top_k, return_indices=False)
+        z_indices = relay.vision.non_max_suppression(x0, x1, -1, iou_threshold, force_suppress, top_k)
         assert "iou_threshold" in z.astext()
         assert "iou_threshold" in z_indices.astext()
         zz = relay.ir_pass.infer_type(z)
@@ -221,10 +221,10 @@ def test_non_max_suppression():
 
     dshape = (tvm.var("n"), num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result, np_indices_result,
-               force_suppress=True, topk=2, check_type_only=True)
+               force_suppress=True, top_k=2, check_type_only=True)
     dshape = (1, num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result, np_indices_result,
-               force_suppress=True, topk=2, check_type_only=False)
+               force_suppress=True, top_k=2, check_type_only=False)
 
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [1, 0.7, 30, 60, 50, 80], [-1, -1, -1, -1, -1, -1],
@@ -235,7 +235,7 @@ def test_non_max_suppression():
                np_indices_result, check_type_only=True)
     dshape = (1, num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result,
-               np_indices_result, topk=3)
+               np_indices_result, top_k=3)
 
 
 def test_multibox_transform_loc():
