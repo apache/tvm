@@ -400,11 +400,8 @@ Type TypeSolver::Unify(const Type& dst, const Type& src, const NodeRef&) {
 }
 
 void TypeSolver::ReportError(const Error& err, const NodeRef& location)  {
-    this->err_reporter_->ReportAt(
-      this->current_func,
-      location,
-      err);
-  }
+  err_reporter_->ReportAt(current_func, location, err);
+}
 
 // Add type constraint to the solver.
 void TypeSolver::AddConstraint(const TypeConstraint& constraint, const NodeRef& loc) {

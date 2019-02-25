@@ -340,7 +340,10 @@ class Prelude:
                                        Match(t, [rose_case]), self.tree(b), [a, b])
 
     def define_tree_size(self):
-        """Defines a function that computes the size of a tree as a nat."""
+        """Defines a function that computes the size of a tree as a nat.
+
+        Signature: fn<a>(t : tree[a]) -> nat
+        """
         self.size = GlobalVar("size")
         a = TypeVar("a")
         t = Var("t", self.tree(a))
@@ -350,6 +353,56 @@ class Prelude:
                            self.s(self.sum(self.map(Function([x], self.size(x)), z))))
         self.mod[self.size] = Function([t],
                                        Match(t, [rose_case]), self.nat(), [a])
+
+    def define_id(self):
+        """Defines a function that return it's argument.
+
+        Signature: fn<a>(x : a) -> a
+        """
+        self.id = GlobalVar("id")
+        a = TypeVar("a")
+        x = Var("x", a)
+        self.mod[self.id] = Function([x], x, a, [a])
+
+
+    def define_compose(self):
+        """Defines a function that compose two function.
+
+        Signature: fn<a, b, c>(f : fn(b) -> c, g : fn(a) -> b) -> fn(a) -> c
+        """
+        self.compose = GlobalVar("compose")
+        a = TypeVar("a")
+        b = TypeVar("b")
+        c = TypeVar("c")
+        f = Var("f", FuncType([b], c))
+        g = Var("g", FuncType([a], b))
+        x = Var("x")
+        self.mod[self.compose] = Function([f, g],
+                                          Function([x], f(g(x))),
+                                          FuncType([a], c),
+                                          [a, b, c])
+
+
+    def define_iterate(self):
+        """Define a function that take a number n, a function f,
+        and return a closure that apply f n time on it's argument.
+
+        Signature: fn<a>(n : nat, f : fn(a) -> a) -> fn(a) -> a
+        """
+        self.iterate = GlobalVar("iterate")
+        a = TypeVar("a")
+        f = Var("f", FuncType([a], a))
+        x = Var("x", self.nat())
+        y = Var("y", self.nat())
+        z = Var("z")
+        z_case = Clause(PatternConstructor(self.z), Function([z], z))
+        # todo: fix typechecker so Function([z], z) can be replaced by self.id
+        s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]),
+                        self.compose(f, self.iterate(f, y)))
+        self.mod[self.iterate] = Function([f, x],
+                                          Match(x, [z_case, s_case]),
+                                          FuncType([a], a),
+                                          [a])
 
     def __init__(self, mod):
         self.mod = mod
@@ -377,3 +430,7 @@ class Prelude:
         self.define_tree_adt()
         self.define_tree_map()
         self.define_tree_size()
+
+        self.define_id()
+        self.define_compose()
+        self.define_iterate()
