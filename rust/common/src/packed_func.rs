@@ -5,7 +5,7 @@ use failure::Error;
 pub use crate::ffi::TVMValue;
 use crate::ffi::*;
 
-pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError>>;
+pub trait PackedFunc = Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync;
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
