@@ -43,6 +43,9 @@ rose = p.rose
 tmap = p.tmap
 size = p.size
 
+compose = p.compose
+iterate = p.iterate
+
 # this is an example of using the adt value in python side
 def count(n):
     assert isinstance(n, ConstructorValue)
@@ -93,6 +96,7 @@ def tree_to_dict(t):
 
 def test_nat_value():
     assert count(make_nat(10)) == 10
+    assert count(intrp.evaluate(s(s(z())))) == 2
 
 
 def test_nat_constructor():
@@ -577,6 +581,17 @@ def test_nested_pattern_match():
 
     assert count(res) == 2
 
+def test_compose():
+    n = relay.Var('n')
+    inc = relay.Function([n], s(n))
+    x = relay.Var('x')
+    res = intrp.evaluate(relay.Call(compose(inc, double), [s(s(z()))]))
+    assert count(res) == 5
+
+def test_iterate():
+    expr = relay.Call(iterate(double, build_nat(2)), [build_nat(3)])
+    res = intrp.evaluate(relay.Function([], expr)())
+    assert count(res) == 12
 
 if __name__ == "__main__":
     test_nat_constructor()
@@ -598,3 +613,5 @@ if __name__ == "__main__":
     test_sum()
     test_tmap()
     test_size()
+    test_compose()
+    test_iterate()
