@@ -36,6 +36,9 @@ python3 -m nose -v nnvm/tests/python/frontend/tensorflow
 echo "Running nnvm CoreML frontend test..."
 python3 -m nose -v nnvm/tests/python/frontend/coreml
 
+echo "Running nnvm DarkNet frontend test..."
+python3 -m nose -v nnvm/tests/python/frontend/darknet || exit -1
+
 echo "Running relay MXNet frontend test..."
 python3 -m nose -v tests/python/frontend/mxnet
 
