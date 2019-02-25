@@ -248,6 +248,10 @@ class HybridParser(ast.NodeVisitor):
         return _api.const(node.n, dtype)
 
 
+    def visit_NameConstant(self, node):
+        return _api.convert(node.value)
+
+
     def visit_AugAssign(self, node):
         buf = self.visit(node.target)
         rhs = self.visit(node.value)
@@ -450,11 +454,11 @@ class HybridParser(ast.NodeVisitor):
 
         func_id = node.func.id
         args = [self.visit(i) for i in node.args]
-        try:
+        if hasattr(calls, func_id):
             return getattr(calls, func_id)(func_id, args)
-        except AttributeError:
+        else:
             _internal_assert(func_id in self.symbols.keys(), \
-                             "The function called is not in the context either!")
+                             "The function called (%s) is not in the context either!" % func_id)
             ty, entry = self.symbols[func_id]
             _internal_assert(ty is Symbol.Callable, \
                              "Are you sure what you call is a function?!")
