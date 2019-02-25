@@ -83,6 +83,7 @@ void ModuleNode::Add(const GlobalVar& var,
     CHECK(AlphaEqual(type, old_type))
         << "Module#update changes type, not possible in this mode.";
   }
+  var->checked_type_ = type;
   AddUnchecked(var, checked_func);
 }
 
