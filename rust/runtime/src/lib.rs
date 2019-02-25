@@ -65,12 +65,22 @@ pub use self::{array::*, errors::*, graph::*, module::*, threading::*, workspace
 #[cfg(target_env = "sgx")]
 use self::sgx::ocall_packed_func;
 
+lazy_static! {
+    static ref LAST_ERROR: std::sync::RwLock<Option<&'static std::ffi::CStr>> =
+        std::sync::RwLock::new(None);
+}
+
 #[no_mangle]
 pub extern "C" fn TVMAPISetLastError(cmsg: *const i8) {
-    #[cfg(not(target_env = "sgx"))]
-    unsafe {
-        panic!(std::ffi::CStr::from_ptr(cmsg).to_str().unwrap());
-    }
+    *LAST_ERROR.write().unwrap() = Some(unsafe { std::ffi::CStr::from_ptr(cmsg) });
     #[cfg(target_env = "sgx")]
     ocall_packed!("__sgx_set_last_error__", cmsg);
+}
+
+#[no_mangle]
+pub extern "C" fn TVMGetLastError() -> *const std::os::raw::c_char {
+    match *LAST_ERROR.read().unwrap() {
+        Some(err) => err.as_ptr(),
+        None => std::ptr::null(),
+    }
 }
