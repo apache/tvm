@@ -39,7 +39,7 @@ pub(super) fn wrap_backend_packed_func(
     func_name: String,
     func: BackendPackedCFunc,
 ) -> Box<dyn PackedFunc> {
-    Box::new(move |args: &[TVMArgValue]| {
+    box move |args: &[TVMArgValue]| {
         let exit_code = func(
             args.iter()
                 .map(|ref arg| arg.value)
@@ -58,7 +58,7 @@ pub(super) fn wrap_backend_packed_func(
                 func_name.clone(),
             ))
         }
-    })
+    }
 }
 
 #[no_mangle]
