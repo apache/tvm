@@ -7,3 +7,4 @@ from .keras import from_keras
 from .darknet import from_darknet
 from .tensorflow import from_tensorflow
 from .caffe2 import from_caffe2
+from .pytorch import from_pytorch

@@ -1,13 +1,12 @@
-# pylint: disable=import-self, invalid-name, unused-argument, too-many-lines
+# pylint: disable=import-self, invalid-name, unused-argument
 """ONNX: Open Neural Network Exchange frontend."""
 from __future__ import absolute_import as _abs
 import numpy as np
 import tvm
 from .. import symbol as _sym
+from .. import graph as _graph
+from ..compiler import graph_util
 from .common import get_nnvm_op, Renamer, SymbolTable, AttrConverter as AttrCvt
-from .onnx_caffe2_utils import dimension_picker, dimension_constraint, \
-    infer_channels, revert_caffe2_pad
-
 __all__ = ['from_onnx']
 
 
@@ -31,9 +30,10 @@ class OnnxOpConverter(object):
             max([i for i, v in enumerate(versions) if v == opset]) - 1]
         if hasattr(cls, '_impl_v{}'.format(version)):
             return getattr(cls, '_impl_v{}'.format(version))
-        raise NotImplementedError(
-            'opset version {} of {} not implemented'.format(
-                version, cls.__name__))
+        else:
+            raise NotImplementedError(
+                'opset version {} of {} not implemented'.format(
+                    version, cls.__name__))
 
 
 class Elemwise(OnnxOpConverter):
@@ -54,9 +54,27 @@ class Elemwise(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(
-            len(inputs))
+
         op_name = cls._math_name_picker(cls.name)(attr)
+
+        if 'pytorch' not in attr:
+            output_shape0 = _shapes[inputs[0].list_output_names()[0]]
+            output_shape1 = _shapes[inputs[1].list_output_names()[0]]
+    
+            if len(output_shape0) != len(output_shape1):
+                if len(output_shape0) < len(output_shape1):
+                    inputs[0] = _sym.expand_dims(inputs[0], axis=0, num_newaxis=output_shape1[0])
+                    output_shape0 = (1,) + output_shape0
+                else:
+                    inputs[1] = _sym.expand_dims(inputs[1], axis=0, num_newaxis=output_shape0[0])
+                    output_shape1 = (1,) + output_shape1
+    
+            _shapes[inputs[0].list_output_names()[0]] = output_shape0
+            _shapes[inputs[1].list_output_names()[0]] = output_shape1
+    
+            if output_shape0 != output_shape1:
+                op_name = op_name.replace('elemwise', 'broadcast')
+
         axis = int(attr.get('axis', 0))
         conv_ops = ["conv2d", "conv2d_transpose"]
         if op_name == 'broadcast_add' and inputs[0].attr('op_name') in conv_ops:
@@ -73,17 +91,23 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        if 'ceil_mode' in attr:
+            extras = {'ceil_mode': attr['ceil_mode']}
+        else:
+            extras = {'ceil_mode': False}
         return AttrCvt(
-            op_name=dimension_picker(cls.name),
+            op_name=_dimension_picker(cls.name),
             transforms={
+                'kernel_size': 'pool_size',
                 'kernel_shape': 'pool_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad)
+                'pads': ('padding', (0, 0), _revert_caffe2_pad),
+                'stride': 'strides',
             },
             # very weird attributes here in onnx, force check
             ignores=['dilations'],
             # TODO(zhreshold): make sure ceil_mode in onnx, and layout?
-            extras={'ceil_mode': False},
-            custom_check=dimension_constraint())(inputs, attr, params)
+            extras=extras,#{'ceil_mode': False},
+            custom_check=_dimension_constraint())(inputs, attr, params)
 
 
 class Absolute(OnnxOpConverter):
@@ -118,18 +142,18 @@ class Conv(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
-        channels = infer_channels(inputs[1], params)
+        channels = _infer_channels(inputs[1], params)
         attr['channels'] = channels
         return AttrCvt(
-            op_name=dimension_picker('conv'),
+            op_name=_dimension_picker('conv'),
             transforms={
                 'kernel_shape': 'kernel_size',
                 'dilations': ('dilation', (0, 0)),
-                'pads': ('padding', (0, 0), revert_caffe2_pad),
+                'pads': ('padding', (0, 0), _revert_caffe2_pad),
                 'group': ('groups', 1)
             },
             extras={'use_bias': len(inputs) == 3},
-            custom_check=dimension_constraint())(inputs, attr, params)
+            custom_check=_dimension_constraint())(inputs, attr, params)
 
 
 class ConvTranspose(OnnxOpConverter):
@@ -137,20 +161,20 @@ class ConvTranspose(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
-        channels = infer_channels(inputs[1], params, True)
+        channels = _infer_channels(inputs[1], params, True)
         attr['channels'] = channels
         groups = attr.pop('group')
         attr['groups'] = groups
         return AttrCvt(
-            op_name=dimension_picker('conv', '_transpose'),
+            op_name=_dimension_picker('conv', '_transpose'),
             transforms={
                 'kernel_shape': 'kernel_size',
-                'dilations': ('dilation', (0, 0)),
-                'pads': ('padding', (0, 0), revert_caffe2_pad)
+                'dilations': ('dilation', (1, 1)),
+                'pads': ('padding', (0, 0), _revert_caffe2_pad)
             },
             disables=['output_shape'],
             extras={'use_bias': len(inputs) == 3},
-            custom_check=dimension_constraint())(inputs, attr, params)
+            custom_check=_dimension_constraint())(inputs, attr, params)
 
 
 class Div(Elemwise):
@@ -172,15 +196,15 @@ class Gemm(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 3, "Gemm op take 3 inputs, {} given".format(
-            len(inputs))
+        if len(inputs) != 3:
+            _raise_not_supported('Non-3 inputs', cls.name)
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get('alpha', 1.0))
         beta = float(attr.get('beta', 1.0))
         transA = int(attr.get('transA', 0))
         transB = int(attr.get('transB', 0))
         # get number of channels
-        channels = infer_channels(inputs[1], params, not transB)
+        channels = _infer_channels(inputs[1], params, not transB)
         if transA:
             inputs[0] = _sym.transpose(inputs[0], axes=(1, 0))
         if not transB:
@@ -199,45 +223,33 @@ class Mul(Elemwise):
 
 
 class Pad(OnnxOpConverter):
-    """ Operator converter for Pad.
-    """
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        pad_width = []
-        pads = attr.pop('paddings')
-        dims = int(len(pads) / 2)
-        for i in range(dims):
-            pad_width.append((pads[i], pads[i+dims]))
-        attr['pad_width'] = pad_width
-
+        # get number of channels
+        # channels = _infer_channels(inputs[0], params, True)
+        # attr['channels'] = 1
+        # groups = attr.pop('group')
+        # attr['groups'] = groups
+        try:
+            attr['mode'] = attr['mode'].decode("utf-8")
+        except:
+            attr['mode'] = attr['mode']
+        pads = attr['pads']
+        if len(pads) % 2 > 0:
+            _raise_attr_value_error('Non even pad width', cls.name)
+        left, right = pads[:len(pads)//2], pads[len(pads)//2:]
+        pads = [(before, after) for before, after in zip(left, right)]
+        attr['pads'] = pads
         return AttrCvt(
             op_name='pad',
             transforms={
                 'value': 'pad_value',
+                'pads': 'pad_width',
             },
             ignores=['mode'],
-            custom_check=(lambda attrs: attrs.get('mode', 'constant').decode("utf-8") == 'constant',
-                          'split mode != constant'))(inputs, attr, params)
-
-    @classmethod
-    def _impl_v2(cls, inputs, attr, params):
-        pad_width = []
-        pads = attr.pop('pads')
-        dims = int(len(pads) / 2)
-        for i in range(dims):
-            pad_width.append((pads[i], pads[i+dims]))
-        attr['pad_width'] = pad_width
-
-        return AttrCvt(
-            op_name='pad',
-            transforms={
-                'value': 'pad_value',
-            },
-            ignores=['mode'],
-            custom_check=(lambda attrs: attrs.get('mode', 'constant').decode("utf-8") == 'constant',
-                          'split mode != constant'))(inputs, attr, params)
-
+            custom_check=(lambda attrs: attrs.get('mode') == 'constant', 'Invalid mode'))(
+inputs, attr, params)
 
 class ParametricSoftPlus(OnnxOpConverter):
 
@@ -254,7 +266,7 @@ class Prelu(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(
             len(inputs))
-        channels = infer_channels(inputs[1], params, False)
+        channels = _infer_channels(inputs[1], params, False)
         if channels == 1:
             return inputs[0] * inputs[1]
         return _sym.broadcast_mul(inputs[0], inputs[1])
@@ -278,12 +290,18 @@ class Reshape(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         if inputs[1].list_output_names()[0] in params:
-            shape = tuple(params[inputs[1].list_output_names()[0]].asnumpy())
+            shape = tuple(params[inputs[1].list_output_names()[0]].asnumpy().astype(int))
             out = _sym.reshape(inputs[0], shape=shape)
         else:
-            out = _sym.reshape_like(inputs[0], inputs[1])
+            i0_shape = _shapes[inputs[0].list_output_names()[0]]
+            i1_shape = _shapes[inputs[1].list_output_names()[0]]
+            if np.prod(i0_shape) != np.prod(i1_shape):
+                out = _sym.reshape(inputs[0], shape=tuple((int(i0_shape[0]), int(np.prod(i0_shape).astype(int) / i0_shape[0]))))
+            else:
+                out = _sym.reshape_like(inputs[0], inputs[1])
 
         return out
+
 
 class Scale(OnnxOpConverter):
 
@@ -346,9 +364,9 @@ class ThresholdedRelu(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get('alpha', 1.0))
-        alpha_tensor = _sym.full_like(inputs[0], fill_value=float(alpha))
-        return _sym.elemwise_mul(inputs[0], _sym.greater(inputs[0], alpha_tensor))
+        alpha = float(attr.get('alpha', 0.0))
+        return _sym.relu(inputs[0] - alpha)
+
 
 class ImageScaler(OnnxOpConverter):
 
@@ -362,6 +380,17 @@ class ImageScaler(OnnxOpConverter):
         return ret
 
 
+def _revert_caffe2_pad(attr):
+    """Caffe2 require two times the normal padding."""
+    if len(attr) == 4:
+        attr = attr[:2]
+    elif len(attr) == 2:
+        pass
+    else:
+        raise ValueError("Invalid caffe2 type padding: {}".format(attr))
+    return attr
+
+
 def _broadcast_constraint():
 
     def _broadcast_check(attrs):
@@ -372,11 +401,48 @@ def _broadcast_constraint():
     return _broadcast_check, "Specifying broadcast axis not allowed."
 
 
+def _dimension_picker(prefix, surfix=''):
+
+    def _impl(attr):
+        kernel = []
+        for k in ['kernel_size', 'kernel_shape']:
+            if k in attr:
+                kernel = attr[k]
+        if len(kernel) == 2:
+            return prefix + '2d' + surfix
+        else:
+            _raise_not_supported("Non-2d kernel", prefix)
+
+    return _impl
+
+
+def _dimension_constraint():
+
+    def _dim_check(attrs):
+        for k in ['kernel_shape', 'kernel_size']:
+            if k in attrs and len(attrs[k]) == 2:
+                return True
+        return False
+
+    return _dim_check, "Only 2d kernel supported."
+
+
+def _infer_channels(inputs, params, transpose=False):
+    """A hack for getting 'channles' or 'units' since onnx don't provide
+    these attributes. We check the shape of weights provided to get the number.
+    """
+    g = _graph.create(inputs)
+    shape_dict = {k: v.shape for k, v in params.items()}
+    _, out_shapes = graph_util.infer_shape(g, **shape_dict)
+    channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
+    return channels
+
+
 def _fully_connected(opset):
 
     def _impl(inputs, attr, params):
         # get number of channels
-        channels = infer_channels(inputs[1], params)
+        channels = _infer_channels(inputs[1], params)
         attr['units'] = channels
         return AttrCvt('dense', ignores=['axis', 'axis_w'])(inputs, attr)
 
@@ -409,8 +475,11 @@ class Shape(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # Result of this operator is prominently used by reshape operator.
         # Just pass the input as it is so that reshape_like can be used there.
-        print("Shape: Differently implemented in NNVM as a bypass (dummy operator)")
-        return inputs[0]
+        name = inputs[0].list_output_names()[0]
+        _shapes[name + "_shape"] = np.array(_shapes[name]).shape
+        return _sym.Variable(name + "_shape", init=np.array(_shapes[name]).astype('int64'))
+
+
 
 class Cast(OnnxOpConverter):
     """ Operator converter for Cast.
@@ -437,25 +506,17 @@ class Unsqueeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        for axes in attr['axes']:
-            inputs[0] = _sym.expand_dims(inputs[0], axis=axes, num_newaxis=1)
-        return inputs[0]
-
-
-class Split(OnnxOpConverter):
-    """ Operator converter for Split.
-    """
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        attr['indices_or_sections'] = []
-        index = 0
-        for i in attr['split'][:-1]:
-            index += i
-            attr['indices_or_sections'].append(index)
-        return AttrCvt(
-            op_name='split',
-            ignores=['split'])(inputs, attr, params)
+        if 'pytorch' in attr:
+            for axes in attr['axes']:
+                inputs[0] = _sym.expand_dims(inputs[0], axis=axes, num_newaxis=1)
+            return inputs[0]
+        else:    
+            out = inputs[0]
+            name = inputs[0].list_output_names()[0]
+            for axes in attr['axes']:
+                out = _sym.expand_dims(out, axis=axes, num_newaxis=1)
+            _shapes[name + "_unsqueezed"] = (1, ) + _shapes[name]
+            return out
 
 
 class Slice(OnnxOpConverter):
@@ -529,7 +590,7 @@ class Maximum(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if not isinstance(inputs, list) or len(inputs) < 2:
-            raise ValueError("Expect minimum 2 inputs")
+            _raise_attr_value_error("Input size smaller than 2 ", cls.name)
         _max = inputs[0]
         for i in range(1, len(inputs)):
             _max = AttrCvt(op_name='broadcast_max')([_max, inputs[i]], {})
@@ -541,7 +602,7 @@ class Minimum(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if not isinstance(inputs, list) or len(inputs) < 2:
-            raise ValueError("Expect minimum 2 inputs")
+            _raise_attr_value_error("Input size smaller than 2 ", cls.name)
         _min = inputs[0]
         for i in range(1, len(inputs)):
             _min = AttrCvt(op_name='broadcast_min')([_min, inputs[i]], {})
@@ -553,7 +614,7 @@ class Mean(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if not isinstance(inputs, list) or len(inputs) < 2:
-            raise ValueError("Expect minimum 2 inputs")
+            _raise_attr_value_error("Input size smaller than 2 ", cls.name)
         count = len(inputs)
         _sum = inputs[0]
         for i in range(1, count):
@@ -615,12 +676,12 @@ class ConstantFill(OnnxOpConverter):
         if 'shape' in attr:
             if num_inputs > 0:
                 raise ImportError(
-                    "Can't set shape and input tensor at a time")
+                        "OperatorAttributeValueNotValid : Can't set shape and input tensor at a time")
             shape = attr.pop('shape')
         else:
             if num_inputs == 0:
                 raise ImportError(
-                    "Either shape attribute or input should be set")
+                    "OperatorAttributeValueNotValid : Either shape attribute or input should be set")
             if 'input_as_shape' in attr and attr['input_as_shape']:
                 shape = params[inputs[0].list_output_names()[0]].asnumpy()
             else:
@@ -629,20 +690,21 @@ class ConstantFill(OnnxOpConverter):
         if not is_full:
             if 'extra_shape' in attr:
                 raise ImportError(
-                    "Extra Shape not supported with fill_like")
+                        "OperatorAttributeValueNotValid : Extra Shape not supported with fill_like")
 
             out = AttrCvt(
                 op_name='full_like',
                 transforms={'value': 'fill_value'},
                 ignores=['dtype'])(inputs, attr)
             return _sym.cast(out, dtype=attr['dtype'].decode("utf-8"))
-        if 'extra_shape' in attr:
-            shape = shape + attr.pop('extra_shape')
+        else:
+            if 'extra_shape' in attr:
+                shape = shape + attr.pop('extra_shape')
 
-        return AttrCvt(
-            op_name='full',
-            transforms={'value': 'fill_value'},
-            extras={'shape':shape})(inputs, attr)
+            return AttrCvt(
+                op_name='full',
+                transforms={'value': 'fill_value'},
+                extras={'shape':shape})(inputs, attr)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -738,6 +800,7 @@ def _get_convert_map(opset):
         'ReduceMin': AttrCvt('min', {'axes': 'axis'}),
         'ReduceSum': AttrCvt('sum', {'axes': 'axis'}),
         'ReduceMean': AttrCvt('mean', {'axes': 'axis'}),
+        # 'ReduceMean'
         # 'ReduceProd'
         # 'ReduceLogSumExp'
         'ArgMax': ArgMax.get_converter(opset),
@@ -747,7 +810,7 @@ def _get_convert_map(opset):
         'Cast': Cast.get_converter(opset),
         'Reshape': Reshape.get_converter(opset),
         'Concat': Renamer('concatenate'),
-        'Split': Split.get_converter(opset),
+        'Split': AttrCvt('split', {'split': 'indices_or_sections'}),
         'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
         'Gather': Gather.get_converter(opset),
@@ -758,6 +821,7 @@ def _get_convert_map(opset):
     }
 
 
+_shapes = {}
 class GraphProto(object):
     """A helper class for handling nnvm graph copying from pb2.GraphProto.
     Definition: https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
@@ -770,7 +834,7 @@ class GraphProto(object):
         self._num_input = 0
         self._num_param = 0
 
-    def from_onnx(self, graph, opset):
+    def from_onnx(self, graph, opset, input_shapes={'actual_input_1': (1, 3, 224, 224)}):
         """Construct nnvm nodes from onnx graph.
         The inputs from onnx graph is vague, only providing "1", "2"...
         For convenience, we rename the `real` input names to "input_0",
@@ -794,6 +858,7 @@ class GraphProto(object):
             if not init_tensor.name.strip():
                 raise ValueError("Tensor's name is required.")
             self._params[init_tensor.name] = self._parse_array(init_tensor)
+        
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
@@ -804,9 +869,14 @@ class GraphProto(object):
                 self._params[i_name] = self._params.pop(i_name)
                 self._nodes[i_name] = _sym.Variable(
                     name=i_name, shape=self._params[i_name].shape)
+                _shapes[i_name] = self._params[i_name].shape
             else:
                 self._num_input += 1
                 self._nodes[i_name] = _sym.Variable(name=i_name)
+                if i_name not in input_shapes:
+                    raise ValueError("Missing input shape for {}".format(i_name))
+                _shapes[i_name] = input_shapes[i_name]
+
         # construct nodes, nodes are stored as directed acyclic graph
         for node in graph.node:
             op_name = node.op_type
@@ -814,19 +884,23 @@ class GraphProto(object):
             inputs = [self._nodes[self._renames.get(i, i)] for i in node.input]
             if op_name == "Constant":
                 t_proto = self._parse_attr(node.attribute)["value"]
+                value = self._parse_array(t_proto)
                 self._num_param += 1
-                self._params[node.output[0]] = self._parse_array(t_proto)
                 self._nodes[node.output[0]] = _sym.Variable(name=node.output[0],
-                                                            shape=list(t_proto.dims))
+                                                            init=value.asnumpy(),
+                                                            shapes=value.shape)
+                _shapes[node.output[0]] = value.shape if len(value.shape) > 0 else (1,)
             else:
                 op = self._convert_operator(op_name, inputs, attr, opset)
                 node_output = self._fix_outputs(op_name, node.output)
                 assert len(node_output) == len(op.list_output_names()), (
                     "Number of output mismatch {} vs {} in {}.".format(
-                        len(node_output), len(op.list_output_names()), op_name))
+                    len(node_output), len(op.list_output_names()), op_name))
+                g = _graph.create(op)
+                _, output_shapes = graph_util.infer_shape(g, **_shapes)
                 for k, i in zip(list(node_output), range(len(node_output))):
                     self._nodes[k] = op[i]
-        # now return the outputs
+                    _shapes[op[i].list_output_names()[0]] = tuple(output_shapes[i])
         out = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         if len(out) > 1:
             out = _sym.Group(out)
@@ -850,7 +924,7 @@ class GraphProto(object):
             raise ImportError(
                 "Unable to import onnx which is required {}".format(e))
         np_array = to_array(tensor_proto).reshape(tuple(tensor_proto.dims))
-        return tvm.nd.array(np_array)
+        return tvm.nd.array(np_array.astype('float32'))
 
     def _parse_attr(self, attr_proto):
         """Convert a list of AttributeProto to a dict, with names as keys."""
@@ -922,8 +996,7 @@ class GraphProto(object):
         elif op_name in convert_map:
             sym = convert_map[op_name](inputs, attrs, self._params)
         else:
-            raise NotImplementedError(
-                "Operator {} not implemented.".format(op_name))
+            _raise_not_supported(op_name)
         return sym
 
     def _fix_outputs(self, op_name, outputs):
@@ -938,7 +1011,7 @@ class GraphProto(object):
         return outputs
 
 
-def from_onnx(model):
+def from_onnx(model, input_shapes):
     """Load onnx graph which is a python protobuf object into nnvm graph.
     The companion parameters will be handled automatically.
     The inputs from onnx graph is vague, only providing "1", "2"...
@@ -964,5 +1037,5 @@ def from_onnx(model):
         opset = model.opset_import[0].version if model.opset_import else 1
     except AttributeError:
         opset = 1
-    sym, params = g.from_onnx(graph, opset)
+    sym, params = g.from_onnx(graph, opset, input_shapes=input_shapes)
     return sym, params
