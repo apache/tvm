@@ -75,8 +75,7 @@ class ConstIntBoundAnalyzer {
    * \return the result of the analysis.
    */
   ConstIntBound operator()(const Expr& expr);
-  /*! \brief reset and clear all internal states. */
-  void Reset();
+
   /*!
    * \brief Update constant int bound information of var.
    *
@@ -87,6 +86,13 @@ class ConstIntBoundAnalyzer {
   void Update(const Var& var,
               const ConstIntBound& info,
               bool override = false);
+  /*!
+   * \brief Bind variable to a range.
+   *
+   * \param var The variable.
+   * \param range The range we bind to.
+   */
+  void Bind(const Var& var, const Range& range);
 
  private:
   friend class Analyzer;
@@ -244,7 +250,17 @@ class Analyzer {
    * \param var The variable.
    * \param expr The expression we bind to.
    */
-  void Bind(const Var& var, const Expr& expr);
+  void Bind(const VarExpr& var, const Expr& expr);
+  /*!
+   * \brief Notify all the sub-analyzers that var
+   *        is created and binded to a range.
+   *
+   *  Each var can only be binded once.
+   *
+   * \param var The variable.
+   * \param range The range we bind to.
+   */
+  void Bind(const VarExpr& var, const Range& range);
   /*!
    * \brief Whether can we proof expr >= val.
 
@@ -512,23 +528,6 @@ IntSet DeduceBound(Expr v, Expr cond,
  * \return The domain that covers all the calls or provides within the given statement.
  */
 Domain DomainTouched(Stmt body, const Tensor &tensor, bool consider_calls, bool consider_provides);
-
-// Temporary entry for modular
-// TODO(tqchen) use Analyzer.
-struct ModularEntry {
-  int64_t coeff{1};
-  int64_t base{0};
-};
-
-/*!
- * \brief Evaluate the expression with modular analysis
- * \param e The expression to be evaluated.
- * \param mod_map Map of modular statistics of known variables.
- * \return The ModularEntry covering all possible value of e.
- */
-ModularEntry EvalModular(
-    const Expr& e,
-    const std::unordered_map<const Variable*, ModularEntry>& mod_map);
 
 // implementation
 inline const IntSetNode* IntSet::operator->() const {

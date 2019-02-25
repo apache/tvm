@@ -100,7 +100,12 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
         });
       } else if (name == "bind") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            self->Bind(args[0], args[1]);
+            auto& sptr = args[1].node_sptr();
+            if (sptr->is_type<Range::ContainerType>()) {
+              self->Bind(args[0], args[1].operator Range());
+            } else {
+              self->Bind(args[0], args[1].operator Expr());
+            }
         });
       } else if (name == "enter_constraint_context") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {

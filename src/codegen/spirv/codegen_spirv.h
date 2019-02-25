@@ -122,8 +122,8 @@ class CodeGenSPIRV:
   std::unordered_map<const Variable*, StorageInfo> storage_info_;
   // The definition of local variable.
   std::unordered_map<const Variable*, spirv::Value> var_map_;
-  // The alignment information
-  std::unordered_map<const Variable*, arith::ModularEntry> align_map_;
+  // The analyzer.
+  std::unique_ptr<arith::Analyzer> analyzer_;
 };
 
 }  // namespace codegen

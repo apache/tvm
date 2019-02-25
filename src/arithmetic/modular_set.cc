@@ -340,22 +340,5 @@ ModularSetAnalyzer::~ModularSetAnalyzer() {
   delete impl_;
 }
 
-
-ModularEntry EvalModular(
-    const Expr& e,
-    const std::unordered_map<const Variable*, ModularEntry>& mod_map) {
-  Analyzer ana;
-  for (const auto& kv : mod_map) {
-    auto v = kv.second;
-    ana.modular_set.Update(
-        GetRef<Var>(kv.first), ModularSetNode::make(v.coeff, v.base));
-  }
-  auto mod = ana.modular_set(e);
-  ModularEntry ret;
-  ret.coeff = mod->coeff;
-  ret.base = mod->base;
-  return ret;
-}
-
 }  // namespace arith
 }  // namespace tvm

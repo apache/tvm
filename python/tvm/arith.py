@@ -62,7 +62,7 @@ class ConstIntBound(NodeBase):
 
 
 class ConstraintScope:
-    """A scope of constraint.
+    """Constraint scope.
 
     Parameters
     ----------
@@ -71,7 +71,7 @@ class ConstraintScope:
 
     Note
     ----
-    Do not create this class directly, use Analyzer.constraint_scope
+    Do not create object directly, use Analyzer.constraint_scope
     """
     def __init__(self, fenter):
         self._fenter = fenter
@@ -82,7 +82,6 @@ class ConstraintScope:
 
     def __exit__(self, ptype, value, trace):
         self._fexit()
-
 
 
 class Analyzer:

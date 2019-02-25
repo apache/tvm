@@ -42,13 +42,28 @@ struct ConstIntBoundAnalyzer::Entry {
 class ConstIntBoundAnalyzer::Impl :
       public ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
  public:
+  void Bind(const Var& var, const Range& range) {
+    Entry a = VisitExpr(range->min);
+    Entry b = VisitExpr(range->extent);
+    Entry ret;
+    ret.min_value = a.min_value;
+    ret.max_value = InfAwareAdd(a.max_value, InfAwareAdd(b.max_value, -1));
+    Update(var, ret, false);
+  }
+
   void Update(const Var& var,
-              const ConstIntBound& info,
+              const Entry& info,
               bool override) {
     if (!override) {
       CHECK(!var_map_.count(var));
     }
-    var_map_[var] = MakeBound(info->min_value, info->max_value);
+    var_map_[var] = info;
+  }
+
+  void Update(const Var& var,
+              const ConstIntBound& info,
+              bool override) {
+    Update(var, MakeBound(info->min_value, info->max_value), override);
   }
 
   // Override visitor behaviors
@@ -356,6 +371,10 @@ void ConstIntBoundAnalyzer::Update(const Var& var,
                                    const ConstIntBound& info,
                                    bool override) {
   impl_->Update(var, info, override);
+}
+
+void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range) {
+  impl_->Bind(var, range);
 }
 
 std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const Expr& constraint) {
