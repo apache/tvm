@@ -8,23 +8,23 @@ use tvm_common::{
 };
 
 pub trait Module {
-    fn get_function<S: AsRef<str>>(&self, name: S) -> Option<PackedFunc>;
+    fn get_function<S: AsRef<str>>(&self, name: S) -> Option<&(dyn PackedFunc)>;
 }
 
 pub struct SystemLibModule;
 
 lazy_static! {
-    static ref SYSTEM_LIB_FUNCTIONS: Mutex<HashMap<String, BackendPackedCFunc>> =
+    static ref SYSTEM_LIB_FUNCTIONS: Mutex<HashMap<String, &'static (dyn PackedFunc)>> =
         Mutex::new(HashMap::new());
 }
 
 impl Module for SystemLibModule {
-    fn get_function<S: AsRef<str>>(&self, name: S) -> Option<PackedFunc> {
+    fn get_function<S: AsRef<str>>(&self, name: S) -> Option<&(dyn PackedFunc)> {
         SYSTEM_LIB_FUNCTIONS
             .lock()
             .unwrap()
             .get(name.as_ref())
-            .map(|func| wrap_backend_packed_func(name.as_ref().to_owned(), func.to_owned()))
+            .map(|f| *f)
     }
 }
 
@@ -35,8 +35,11 @@ impl Default for SystemLibModule {
 }
 
 // @see `WrapPackedFunc` in `llvm_module.cc`.
-pub(super) fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFunc) -> PackedFunc {
-    box move |args: &[TVMArgValue]| {
+pub(super) fn wrap_backend_packed_func(
+    func_name: String,
+    func: BackendPackedCFunc,
+) -> Box<dyn PackedFunc> {
+    Box::new(move |args: &[TVMArgValue]| {
         let exit_code = func(
             args.iter()
                 .map(|ref arg| arg.value)
@@ -55,7 +58,7 @@ pub(super) fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFu
                 func_name.clone(),
             ))
         }
-    }
+    })
 }
 
 #[no_mangle]
@@ -64,9 +67,9 @@ pub extern "C" fn TVMBackendRegisterSystemLibSymbol(
     func: BackendPackedCFunc,
 ) -> i32 {
     let name = unsafe { CStr::from_ptr(cname).to_str().unwrap() };
-    SYSTEM_LIB_FUNCTIONS
-        .lock()
-        .unwrap()
-        .insert(name.to_string(), func);
+    SYSTEM_LIB_FUNCTIONS.lock().unwrap().insert(
+        name.to_string(),
+        &*Box::leak(wrap_backend_packed_func(name.to_string(), func)),
+    );
     return 0;
 }
