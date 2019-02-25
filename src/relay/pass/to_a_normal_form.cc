@@ -319,7 +319,9 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    Var var = v.defined() ? v : VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
+    Var var = v.defined() ?
+      v :
+      VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
     return GetScope(orig)->ll->Push(var, now);
   }
 
