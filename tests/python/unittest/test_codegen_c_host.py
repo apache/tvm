@@ -11,10 +11,7 @@ def test_add():
     s = tvm.create_schedule(C.op)
 
     def check_c():
-        f1 = tvm.lower(s, [A, B, C], name="fadd")
-        fsplits = [x for x in tvm.ir_pass.SplitHostDevice(f1)]
-        fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
-        mhost = tvm.codegen.build_module(fsplits[0], "c")
+        mhost = tvm.build(s, [A, B, C], "c", name="fadd")
         temp = util.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
