@@ -219,6 +219,8 @@ class HybridParser(ast.NodeVisitor):
 
     def visit_Name(self, node):
         name = node.id
+        if sys.version_info[0] == 2 and name in ['True', 'False']:
+            return _api.convert(eval(name)) #pylint: disable=eval-used
         ty, entry = self.symbols[name]
         _internal_assert(name in self.symbols, "Unknown symbol %s!" % name)
         if ty in [Symbol.LoopVar, Symbol.Input, Symbol.ConstLoopVar]:
