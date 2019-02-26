@@ -152,6 +152,39 @@ def test_higher_order_argument():
     assert hc.checked_type == expected
 
 
+def test_higher_order_return():
+    a = relay.TypeVar('a')
+    x = relay.Var('x', a)
+    id_func = relay.Function([x], x, a, [a])
+
+    b = relay.TypeVar('b')
+    nested_id = relay.Function([], id_func, relay.FuncType([b], b), [b])
+
+    ft = relay.ir_pass.infer_type(nested_id)
+    assert ft.checked_type == relay.FuncType([], relay.FuncType([b], b), [b])
+
+
+def test_higher_order_nested():
+    a = relay.TypeVar('a')
+    x = relay.Var('x', a)
+    id_func = relay.Function([x], x, a, [a])
+
+    choice_t = relay.FuncType([], relay.scalar_type('bool'))
+    f = relay.Var('f', choice_t)
+
+    b = relay.TypeVar('b')
+    z = relay.Var('z')
+    top = relay.Function(
+        [f],
+        relay.If(f(), id_func, relay.Function([z], z)),
+        relay.FuncType([b], b),
+        [b])
+
+    expected = relay.FuncType([choice_t], relay.FuncType([b], b), [b])
+    ft = relay.ir_pass.infer_type(top)
+    assert ft.checked_type == expected
+
+
 def test_tuple():
     tp = relay.TensorType((10,))
     x = relay.var("x", tp)

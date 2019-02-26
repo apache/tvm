@@ -395,8 +395,7 @@ class Prelude:
         x = Var("x", self.nat())
         y = Var("y", self.nat())
         z = Var("z")
-        z_case = Clause(PatternConstructor(self.z), Function([z], z))
-        # todo: fix typechecker so Function([z], z) can be replaced by self.id
+        z_case = Clause(PatternConstructor(self.z), self.id)
         s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]),
                         self.compose(f, self.iterate(f, y)))
         self.mod[self.iterate] = Function([f, x],
