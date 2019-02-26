@@ -312,24 +312,19 @@ def _darknet_region(inputs, attrs):
     split_size = classes + coords + 1
     intermediate_shape = (input_shape[0], num, split_size, input_shape[2], input_shape[3])
     data_block = _sym.reshape(inputs[0], shape=intermediate_shape)
-    split_res = _sym.split(data_block, indices_or_sections=split_size, axis=2)
-    splits = []
-    for i in split_res:
-        splits.append(i)
-
-    splits[0] = _sym.sigmoid(splits[0])
-    splits[1] = _sym.sigmoid(splits[1])
+    split_indices = (2, 4, 5)
+    split_res = _sym.split(data_block, indices_or_sections=split_indices, axis=2)
+    split_res0 = _sym.sigmoid(split_res[0])
     if not background:
-        splits[coords] = _sym.sigmoid(splits[coords])
-
+        split_res2 = _sym.sigmoid(split_res[2])
+    else:
+        split_res2 = split_res[2]
     if softmax:
-        offset = coords + int(not background)
-        softmax_input = _sym.concatenate(*splits[offset:], axis=2)
-        softmax_output = _sym.softmax(softmax_input, axis=2)
-        data_block_1 = splits[:offset]
-        splits = data_block_1 + [softmax_output]
-    concat_out = _sym.concatenate(*splits, axis=2)
-    return _sym.reshape(concat_out, shape=input_shape), None
+        split_res3 = _sym.softmax(split_res[3], axis=2)
+    concat_list = [split_res0, split_res[1], split_res2, split_res3]
+    out = _sym.concatenate(*concat_list, axis=2)
+    return _sym.reshape(out, shape=input_shape), None
+
 
 def _darknet_yolo(inputs, attrs):
     """Process the yolo operation."""
