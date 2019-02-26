@@ -394,7 +394,6 @@ class Prelude:
         f = Var("f", FuncType([a], a))
         x = Var("x", self.nat())
         y = Var("y", self.nat())
-        z = Var("z")
         z_case = Clause(PatternConstructor(self.z), self.id)
         s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]),
                         self.compose(f, self.iterate(f, y)))
