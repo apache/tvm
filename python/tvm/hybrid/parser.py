@@ -219,6 +219,8 @@ class HybridParser(ast.NodeVisitor):
 
     def visit_Name(self, node):
         name = node.id
+        if sys.version_info[0] == 2 and name in ['True', 'False']:
+            return _api.convert(eval(name)) #pylint: disable=eval-used
         ty, entry = self.symbols[name]
         _internal_assert(name in self.symbols, "Unknown symbol %s!" % name)
         if ty in [Symbol.LoopVar, Symbol.Input, Symbol.ConstLoopVar]:
@@ -246,6 +248,10 @@ class HybridParser(ast.NodeVisitor):
                              "The data type should be one of (int, float, bool)")
             dtype = "bool"
         return _api.const(node.n, dtype)
+
+
+    def visit_NameConstant(self, node):
+        return _api.convert(node.value)
 
 
     def visit_AugAssign(self, node):
@@ -450,17 +456,18 @@ class HybridParser(ast.NodeVisitor):
 
         func_id = node.func.id
         args = [self.visit(i) for i in node.args]
-        try:
+        # Intrinsics'
+        if hasattr(calls, func_id):
             return getattr(calls, func_id)(func_id, args)
-        except AttributeError:
-            _internal_assert(func_id in self.symbols.keys(), \
-                             "The function called is not in the context either!")
-            ty, entry = self.symbols[func_id]
-            _internal_assert(ty is Symbol.Callable, \
-                             "Are you sure what you call is a function?!")
-            outs = entry(*args)
-            op = outs.op if isinstance(outs, Tensor) else outs[0].op
-            return op
+        # Contexts'
+        _internal_assert(func_id in self.symbols.keys(), \
+                         "The function called (%s) is not in the context either!" % func_id)
+        ty, entry = self.symbols[func_id]
+        _internal_assert(ty is Symbol.Callable, \
+                         "Are you sure what you call is a function?!")
+        outs = entry(*args)
+        op = outs.op if isinstance(outs, Tensor) else outs[0].op
+        return op
 
 
     def visit_For(self, node):
