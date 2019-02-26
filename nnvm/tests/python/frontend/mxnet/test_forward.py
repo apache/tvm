@@ -220,6 +220,14 @@ def test_forward_where():
         tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
         tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
+def test_forward_slice():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.slice(data, begin=(0, 1), end=(2, 4))
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 3))
+    mx_sym = mx.sym.slice(data, begin=(-1, 1), end=(-3, 4), step=(-1, 2))
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 2))
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -242,4 +250,5 @@ if __name__ == '__main__':
     test_forward_argmax()
     test_forward_argmin()
     test_forward_where()
+    test_forward_slice()
 

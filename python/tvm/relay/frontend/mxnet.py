@@ -172,6 +172,21 @@ def _mx_batch_norm(inputs, attrs):
     return _op.nn.batch_norm(*inputs, **new_attrs)
 
 
+def _mx_slice(inputs, attrs):
+    new_attrs = {}
+    begin = attrs.get_int_tuple('begin', None)
+    end = attrs.get_int_tuple('end', None)
+    stride = attrs.get_int_tuple('step', None)
+    if begin is None or end is None:
+        raise RuntimeError("begin and end are required parameters.")
+    if None in begin or None in end:
+        raise RuntimeError("None in begin or end is not supported yet.")
+    new_attrs = {'begin': begin, 'end': end}
+    if stride is not None:
+        new_attrs['strides'] = stride
+    return _op.strided_slice(inputs[0], **new_attrs)
+
+
 def _mx_split(inputs, attrs):
     axis = attrs.get_int("axis", 1)
     new_attrs = {}
@@ -368,6 +383,7 @@ _convert_map = {
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
     "LRN"           : _mx_lrn,
+    "slice"         : _mx_slice,
     "SliceChannel"  : _mx_split,
     "split"         : _mx_split,
     "expand_dims"   : _mx_expand_dims,

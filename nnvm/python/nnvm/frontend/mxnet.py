@@ -189,6 +189,19 @@ def _reshape(inputs, attrs):
     new_attrs['shape'] = _required_attr(attrs, 'shape')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _slice(inputs, attrs):
+    begin = attrs.get('begin', None)
+    end = attrs.get('end', None)
+    stride = attrs.get('step', None)
+    if begin is None or end is None:
+        raise RuntimeError('begin and end are required params')
+    if 'None' in begin or 'None' in end:
+        raise RuntimeError('None in begin or end not supported yet...')
+    new_attrs = {'begin': begin, 'end': end}
+    if stride is not None:
+        new_attrs['stride'] = stride
+    return _get_nnvm_op('strided_slice')(inputs[0], **new_attrs)
+
 def _split(inputs, attrs):
     op_name, new_attrs = 'split', {}
     axis = attrs.get('axis', 1)
@@ -337,6 +350,7 @@ _convert_map = {
     'Pooling'       : _pooling,
     'Pooling_v1'    : _pooling,
     'Reshape'       : _reshape,
+    'slice'         : _slice,
     'SliceChannel'  : _split,
     'split'         : _split,
     'Softmax'       : _rename('softmax'),
