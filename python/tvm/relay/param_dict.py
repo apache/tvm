@@ -1,8 +1,9 @@
 # pylint: disable=invalid-name
 """Helper utility to save parameter dicts."""
 import tvm
-from tvm.relay.backend.interpreter import TensorValue
 
+_save_param_dict = tvm.get_global_func("tvm.relay._save_param_dict")
+_load_param_dict = tvm.get_global_func("tvm.relay._load_param_dict")
 
 def save_param_dict(params):
     """Save parameter dictionary to binary bytes.
@@ -29,16 +30,16 @@ def save_param_dict(params):
           graph, target, shape={"data", data_shape}, params=params)
        module = graph_runtime.create(graph, lib, tvm.gpu(0))
        # save the parameters as byte array
-       param_bytes = nnvm.compiler.save_param_dict(params)
+       param_bytes = tvm.relay.save_param_dict(params)
        # We can serialize the param_bytes and load it back later.
        # Pass in byte array to module to directly set parameters
-       module["load_params"](param_bytes)
+       module.load_params(param_bytes)
     """
-    # Wrap the `NDArray`s in a `TensorValue`, because raw `NDArray`s are not
-    # serializable, and `TensorValue`s are.
-    json_str = tvm.save_json({key: TensorValue(val)
-                              for (key, val) in params.items()})
-    return bytearray(json_str.encode('utf-8'))
+    args = []
+    for k, v in params.items():
+        args.append(k)
+        args.append(tvm.nd.array(v))
+    return _save_param_dict(*args)
 
 
 def load_param_dict(param_bytes):
@@ -54,6 +55,7 @@ def load_param_dict(param_bytes):
     params : dict of str to NDArray
         The parameter dictionary.
     """
-    param_json = tvm.load_json(param_bytes.decode('utf-8'))
-    # Pull the `data` field from each of the `TensorValue`s to get `NDArray`s.
-    return {key: val.data for (key, val) in param_json.items()}
+    if isinstance(param_bytes, (bytes, str)):
+        param_bytes = bytearray(param_bytes)
+    load_arr = _load_param_dict(param_bytes)
+    return {v.name : v.array for v in load_arr}
