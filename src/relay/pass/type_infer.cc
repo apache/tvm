@@ -421,7 +421,20 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
 
     for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
-      this->Unify(fn_ty->arg_types[i], arg_types[i], call->args[i]);
+      Type arg_type = arg_types[i];
+      // if an argument is a higher-order function, we have to
+      // instantiate the type parameters because we only support
+      // polymorphism at the top level
+      if (auto* func_arg = arg_type.as<FuncTypeNode>()) {
+        if (func_arg->type_params.size() != 0) {
+          Array<Type> inner_type_args;
+          for (size_t i = 0; i < func_arg->type_params.size(); i++) {
+            inner_type_args.push_back(IncompleteTypeNode::make(Kind::kType));
+          }
+          arg_type = InstantiateFuncType(func_arg, inner_type_args);
+        }
+      }
+      this->Unify(fn_ty->arg_types[i], arg_type, call->args[i]);
     }
 
     for (auto cs : fn_ty->type_constraints) {
