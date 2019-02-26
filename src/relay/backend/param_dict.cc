@@ -4,12 +4,12 @@
  * \brief Implementation and registration of parameter dictionary
  * serializing/deserializing functions.
  */
-#include <string>
-#include <vector>
+#include "param_dict.h"
 
 #include <dmlc/memory_io.h>
 
-#include "param_dict.h"
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace relay {
