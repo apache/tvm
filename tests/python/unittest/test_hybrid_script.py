@@ -350,6 +350,22 @@ def test_bind():
     func, ins, outs = run_and_check(foo, [a], target='cuda')
     run_and_check(func, ins, outs=outs, target='cuda')
 
+    @tvm.hybrid.script
+    def max_threads(a):
+        b = output_tensor(a.shape, a.dtype)
+        n = a.shape[0]
+        m = max_num_threads(True)
+        for i in bind('threadIdx.x', m):
+            for j in bind('blockIdx.x', ceil_div(n, m)):
+                if i * m + j < n:
+                    b[i * m + j] = a[i * m + j] + a[i * m + j]
+        return b
+
+    a = tvm.placeholder((10000, ), 'float32')
+    with tvm.target.create('cuda'):
+        func, ins, outs = run_and_check(max_threads, [a], target='cuda')
+        run_and_check(func, ins, outs=outs, target='cuda')
+
 
 def test_math_intrin():
     @script

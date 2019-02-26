@@ -1,6 +1,7 @@
 """Intrinsics of TVM-Python Hybrid Script for Python emulation runtime"""
 
 import numpy
+from .. import target
 
 
 class bind(object): #pylint: disable=invalid-name
@@ -72,34 +73,40 @@ def sigmoid(x):
     return 1 / (1 + numpy.exp(-x))
 
 
+def max_num_threads(allow_none=True):
+    """Get max number of threads for GPU targets."""
+    return target.current_target(allow_none).max_num_threads
+
+
 HYBRID_GLOBALS = {
-    'unroll'       : range,
-    'vectorize'    : range,
-    'parallel'     : range,
-    'const_range'  : range,
-    'bind'         : bind,
-    'allocate'     : allocate,
-    'output_tensor': allocate,
-    'sqrt'         : numpy.sqrt,
-    'log'          : numpy.log,
-    'tanh'         : numpy.tanh,
-    'power'        : numpy.power,
-    'exp'          : numpy.exp,
-    'sigmoid'      : sigmoid,
-    'popcount'     : popcount,
-    'likely'       : lambda cond: cond,
-    'uint8'        : numpy.uint8,
-    'uint16'       : numpy.uint16,
-    'uint32'       : numpy.uint32,
-    'uint64'       : numpy.uint64,
-    'int8'         : numpy.int8,
-    'int16'        : numpy.int16,
-    'int32'        : numpy.int32,
-    'int64'        : numpy.int64,
-    'float16'      : numpy.float16,
-    'float32'      : numpy.float32,
-    'float64'      : numpy.float64,
-    'ceil_div'     : lambda a, b: (a + b - 1) / b
+    'unroll'         : range,
+    'vectorize'      : range,
+    'parallel'       : range,
+    'const_range'    : range,
+    'bind'           : bind,
+    'allocate'       : allocate,
+    'output_tensor'  : allocate,
+    'sqrt'           : numpy.sqrt,
+    'log'            : numpy.log,
+    'tanh'           : numpy.tanh,
+    'power'          : numpy.power,
+    'exp'            : numpy.exp,
+    'sigmoid'        : sigmoid,
+    'popcount'       : popcount,
+    'likely'         : lambda cond: cond,
+    'uint8'          : numpy.uint8,
+    'uint16'         : numpy.uint16,
+    'uint32'         : numpy.uint32,
+    'uint64'         : numpy.uint64,
+    'int8'           : numpy.int8,
+    'int16'          : numpy.int16,
+    'int32'          : numpy.int32,
+    'int64'          : numpy.int64,
+    'float16'        : numpy.float16,
+    'float32'        : numpy.float32,
+    'float64'        : numpy.float64,
+    'ceil_div'       : lambda a, b: (a + b - 1) // b,
+    'max_num_threads': max_num_threads
 }
 
 
