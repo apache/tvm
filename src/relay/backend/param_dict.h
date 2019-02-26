@@ -6,6 +6,8 @@
 #ifndef TVM_RELAY_BACKEND_PARAM_DICT_H_
 #define TVM_RELAY_BACKEND_PARAM_DICT_H_
 
+#include <string>
+
 #include <tvm/node/node.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/ndarray.h>

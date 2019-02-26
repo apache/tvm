@@ -4,6 +4,9 @@
  * \brief Implementation and registration of parameter dictionary
  * serializing/deserializing functions.
  */
+#include <string>
+#include <vector>
+
 #include <dmlc/memory_io.h>
 
 #include "param_dict.h"
