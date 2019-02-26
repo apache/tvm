@@ -522,6 +522,14 @@ class TempExprNode : public ExprNode {
 RELAY_DEFINE_NODE_REF(TempExpr, TempExprNode, Expr);
 
 // implementataions
+inline const Type& ExprNode::checked_type() const {
+  CHECK(checked_type_.defined()) << "internal error: the type checker has "
+    "not populated the checked_type "
+    "field for "
+                                 << GetRef<Expr>(this);
+  return this->checked_type_;
+}
+
 template<typename TTypeNode>
 inline const TTypeNode* ExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
