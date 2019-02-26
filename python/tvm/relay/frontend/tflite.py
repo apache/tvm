@@ -35,6 +35,8 @@ class OperatorConverter(object):
         self.builtin_op_code = build_str_map(BuiltinOperator())
         self.activation_fn_type = build_str_map(ActivationFunctionType())
         self.builtin_options = build_str_map(BuiltinOptions())
+
+        # Add more operators
         self.convert_map = {
             'CONV_2D': self.convert_conv2d,
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
@@ -43,7 +45,7 @@ class OperatorConverter(object):
             'SOFTMAX': self.convert_softmax,
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
-            # Add more operators
+            "CONCATENATION": self.convert_concatenation
         }
 
     def check_unsupported_ops(self):
@@ -243,6 +245,48 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
         out = _op.nn.softmax(in_expr, **params)
 
+        return out
+
+    def convert_concatenation(self, op):
+        """ convert TFLite concatenation"""
+        try:
+            from tflite.Operator import Operator
+            from tflite.ConcatenationOptions import ConcatenationOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) >= 1, "input tensors should greater than 1"
+        in_exprs = [self.get_expr(input_tensor.tensor_idx) for input_tensor in input_tensors]
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors should be 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.ConcatenationOptions
+        op_options = op.BuiltinOptions()
+        concatenation_options = ConcatenationOptions()
+        concatenation_options.Init(op_options.Bytes, op_options.Pos)
+        concatenation_axis = concatenation_options.Axis()
+        fused_activation_fn = concatenation_options.FusedActivationFunction()
+        input_shape_length = len(input_tensors[0].tensor.ShapeAsNumpy())
+
+        # TFLite is N H W C, our layout is N C H W
+        if input_shape_length <= 4:
+            axis_convert_map = [0] + list(range(2, input_shape_length)) + [1]
+            concatenation_axis = axis_convert_map[concatenation_axis]
+        else:
+            raise NotImplementedError("Not support input shape length {} of concatenatio : "
+                                      .format(str(input_shape_length)))
+
+        # with axis in N H W C
+        out = _op.concatenate(in_exprs, axis=concatenation_axis)
+
+        # if we have activation fn
+        if fused_activation_fn != ActivationFunctionType.NONE:
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
     def convert_squeeze(self, op):
