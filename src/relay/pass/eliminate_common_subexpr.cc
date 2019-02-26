@@ -39,11 +39,13 @@ class CommonSubexprEliminator : public ExprMutator {
     if (it != expr_map_.end()) {
       for (const CallNode* candidate : it->second) {
         bool is_equivalent = true;
-        if (!new_call->op.same_as(candidate->op)) continue;
+        if (!new_call->op.same_as(candidate->op) ||
+            !attrs_equal(new_call->attrs, candidate->attrs)) {
+          continue;
+        }
         for (size_t i = 0; i < new_call->args.size(); i++) {
           if (!new_call->args[i].same_as(candidate->args[i]) &&
-              !IsEqualScalar(new_call->args[i], candidate->args[i]) &&
-              !attrs_equal(new_call->attrs, candidate->attrs)) {
+              !IsEqualScalar(new_call->args[i], candidate->args[i])) {
             is_equivalent = false;
             break;
           }
