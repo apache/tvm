@@ -256,6 +256,10 @@ bool IsPrimitiveFunction(const Expr& e) {
   return e.as<FunctionNode>() && Downcast<Function>(e)->IsPrimitive();
 }
 
+/* Special care is needed to handle local recursion.
+ * Fill additionally take a (possibly null) Var argument,
+ * If it is not null, Fill is required to bind the transformed result to that var.
+ */
 class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToANormalForm(const Expr& e,
@@ -307,12 +311,18 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 
   Expr VisitExpr(const Expr& e) {
-    Var v = VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
-    return this->VisitExpr(e, v);
+    return this->VisitExpr(e, Var());
+  }
+
+  Expr Atomic(const Expr& orig, const Expr& now, const Var& v) {
+    return v.defined() ? GetScope(orig)->ll->Push(v, now) : now;
   }
 
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    return GetScope(orig)->ll->Push(v, now);
+    Var var = v.defined() ?
+      v :
+      VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
+    return GetScope(orig)->ll->Push(var, now);
   }
 
   Expr VisitExpr_(const CallNode* c, const Var& v) final {
@@ -389,7 +399,8 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 
   Expr VisitExpr_(const VarNode* vn, const Var& v) final {
-    return GetRef<Expr>(vn);
+    Expr e = GetRef<Expr>(vn);
+    return Atomic(e, e, v);
   }
 
   Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
@@ -398,15 +409,17 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
       visited_->insert(gv);
       mod_->Update(gv, Downcast<Function>(relay::ToANormalForm(mod_->Lookup(gv), mod_, visited_)));
     }
-    return std::move(gv);
+    return Atomic(gv, gv, v);
   }
 
   Expr VisitExpr_(const OpNode* op, const Var& v) final {
-    return GetRef<Expr>(op);
+    Expr e = GetRef<Expr>(op);
+    return Atomic(e, e, v);
   }
 
   Expr VisitExpr_(const ConstructorNode* c, const Var& v) final {
-    return GetRef<Expr>(c);
+    Expr e = GetRef<Expr>(c);
+    return Atomic(e, e, v);
   }
 
   Expr VisitExpr_(const MatchNode* m, const Var& v) final {
@@ -418,8 +431,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
         c->lhs,
         GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
     }
-    Expr r = Compound(e, MatchNode::make(data, clauses), v);
-    return r;
+    return Compound(e, MatchNode::make(data, clauses), v);
   }
 };
 
