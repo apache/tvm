@@ -135,6 +135,7 @@ This level enables additional math and transform operators.
    tvm.relay.vision.multibox_prior
    tvm.relay.vision.multibox_transform_loc
    tvm.relay.vision.nms
+   tvm.relay.vision.yolo_reorg
 
 
 **Level 10: Temporary Operators**
@@ -251,6 +252,7 @@ Level 5 Definitions
 .. autofunction:: tvm.relay.vision.multibox_prior
 .. autofunction:: tvm.relay.vision.multibox_transform_loc
 .. autofunction:: tvm.relay.vision.nms
+.. autofunction:: tvm.relay.vision.yolo_reorg
 
 
 Level 10 Definitions

@@ -98,6 +98,17 @@ struct ROIAlignAttrs : public tvm::AttrsNode<ROIAlignAttrs> {
   }
 };
 
+/*! \brief Attributes used in yolo reorg operators */
+struct YoloReorgAttrs : public tvm::AttrsNode<YoloReorgAttrs> {
+  Integer stride;
+
+  TVM_DECLARE_ATTRS(YoloReorgAttrs, "relay.attrs.YoloReorgAttrs") {
+    TVM_ATTR_FIELD(stride)
+      .set_default(1)
+      .describe("Stride value for yolo reorg");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_VISION_H_
