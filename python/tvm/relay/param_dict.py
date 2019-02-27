@@ -26,8 +26,7 @@ def save_param_dict(params):
     .. code-block:: python
 
        # compile and save the modules to file.
-       graph, lib, params = nnvm.compiler.build(
-          graph, target, shape={"data", data_shape}, params=params)
+       graph, lib, params = tvm.relay.build(func, target=target, params=params)
        module = graph_runtime.create(graph, lib, tvm.gpu(0))
        # save the parameters as byte array
        param_bytes = tvm.relay.save_param_dict(params)
