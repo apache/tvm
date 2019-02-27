@@ -20,9 +20,9 @@ namespace relay {
 constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 
 /*!
- * \brief wrapper node container for exchange.
+ * \brief Wrapper node for naming `NDArray`s.
  */
-struct NDArrayWrapperNode : public ::tvm::Node {
+struct NamedNDArrayNode : public ::tvm::Node {
   std::string name;
   tvm::runtime::NDArray array;
 
@@ -31,11 +31,11 @@ struct NDArrayWrapperNode : public ::tvm::Node {
     v->Visit("array", &array);
   }
 
-  static constexpr const char* _type_key = "NDArrayWrapper";
-  TVM_DECLARE_NODE_TYPE_INFO(NDArrayWrapperNode, Node);
+  static constexpr const char* _type_key = "NamedNDArray";
+  TVM_DECLARE_NODE_TYPE_INFO(NamedNDArrayNode, Node);
 };
 
-TVM_DEFINE_NODE_REF(NDArrayWrapper, NDArrayWrapperNode);
+TVM_DEFINE_NODE_REF(NamedNDArray, NamedNDArrayNode);
 
 }  // namespace relay
 }  // namespace tvm

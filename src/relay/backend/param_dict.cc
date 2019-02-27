@@ -69,19 +69,19 @@ TVM_REGISTER_GLOBAL("tvm.relay._load_param_dict")
     size_t size = static_cast<size_t>(sz);
     CHECK(size == names.size())
         << "Invalid parameters file format";
-    tvm::Array<NDArrayWrapper> ret;
+    tvm::Array<NamedNDArray> ret;
     for (size_t i = 0; i < size; ++i) {
       tvm::runtime::NDArray temp;
       temp.Load(strm);
-      auto n = tvm::make_node<NDArrayWrapperNode>();
+      auto n = tvm::make_node<NamedNDArrayNode>();
       n->name = std::move(names[i]);
       n->array = temp;
-      ret.push_back(NDArrayWrapper(n));
+      ret.push_back(NamedNDArray(n));
     }
     *rv = ret;
   });
 
-TVM_REGISTER_NODE_TYPE(NDArrayWrapperNode);
+TVM_REGISTER_NODE_TYPE(NamedNDArrayNode);
 
 }  // namespace relay
 }  // namespace tvm
