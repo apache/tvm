@@ -1,7 +1,8 @@
 """
 Compile CoreML Models
 =====================
-**Author**: `Kazutaka Morita <https://github.com/kazum>`_
+**Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_, \
+            `Kazutaka Morita <https://github.com/kazum>`_
 
 This article is an introductory tutorial to deploy CoreML models with Relay.
 
@@ -65,7 +66,7 @@ shape_dict = {'image': x.shape}
 # Parse CoreML model and convert into Relay computation graph
 func, params = relay.frontend.from_coreml(mlmodel, shape_dict)
 
-with relay.build_config(opt_level=2, add_pass=['AlterOpLayout']):
+with relay.build_config(opt_level=3):
     graph, lib, params = relay.build(func, target, params=params)
 
 ######################################################################
