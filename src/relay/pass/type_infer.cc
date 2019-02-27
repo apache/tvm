@@ -121,7 +121,17 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   Type Unify(const Type& t1, const Type& t2, const NodeRef& expr) {
     // TODO(tqchen, jroesch): propagate span to solver
     try {
-      return solver_.Unify(t1, t2, expr);
+      // instantiate higher-order func types when unifying because
+      // we only allow polymorphism at the top level
+      Type first = t1;
+      Type second = t2;
+      if (auto* ft1 = t1.as<FuncTypeNode>()) {
+        first = InstantiateFuncType(ft1);
+      }
+      if (auto* ft2 = t2.as<FuncTypeNode>()) {
+        second = InstantiateFuncType(ft2);
+      }
+      return solver_.Unify(first, second, expr);
     } catch (const dmlc::Error &e) {
       this->ReportFatalError(
         expr,
@@ -351,6 +361,20 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     return Downcast<FuncType>(inst_ty);
   }
 
+  // instantiates starting from incompletes
+  FuncType InstantiateFuncType(const FuncTypeNode* fn_ty) {
+    if (fn_ty->type_params.size() == 0) {
+      return GetRef<FuncType>(fn_ty);
+    }
+
+    Array<Type> type_args;
+    for (size_t i = 0; i < fn_ty->type_params.size(); i++) {
+      type_args.push_back(IncompleteTypeNode::make(Kind::kType));
+    }
+    return InstantiateFuncType(fn_ty, type_args);
+  }
+
+
   void AddTypeArgs(const Expr& expr, Array<Type> type_args) {
     auto type_info = type_map_.find(expr);
     if (type_info == type_map_.end()) {
@@ -464,6 +488,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       arg_types.push_back(GetType(param));
     }
     Type rtype = GetType(f->body);
+    if (auto* ft = rtype.as<FuncTypeNode>()) {
+      rtype = InstantiateFuncType(ft);
+    }
     if (f->ret_type.defined()) {
       rtype = this->Unify(f->ret_type, rtype, GetRef<Function>(f));
     }
