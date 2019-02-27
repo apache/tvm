@@ -166,6 +166,7 @@ inline int DetectCUDAComputeVersion() {
 }
 
 runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
+  InitializeLLVM();
   CHECK(target.length() >= 5 &&
         target.substr(0, 5) == "nvptx");
   int compute_ver = DetectCUDAComputeVersion();
