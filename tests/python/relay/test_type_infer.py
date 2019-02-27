@@ -133,6 +133,58 @@ def test_incomplete_call():
     assert ft.checked_type == relay.FuncType([tt, f_type], tt)
 
 
+def test_higher_order_argument():
+    a = relay.TypeVar('a')
+    x = relay.Var('x', a)
+    id_func = relay.Function([x], x, a, [a])
+
+    b = relay.TypeVar('b')
+    f = relay.Var('f', relay.FuncType([b], b))
+    y = relay.Var('y', b)
+    ho_func = relay.Function([f, y], f(y), b, [b])
+
+    # id func should be an acceptable argument to the higher-order
+    # function even though id_func takes a type parameter
+    ho_call = ho_func(id_func, relay.const(0, 'int32'))
+
+    hc = relay.ir_pass.infer_type(ho_call)
+    expected = relay.scalar_type('int32')
+    assert hc.checked_type == expected
+
+
+def test_higher_order_return():
+    a = relay.TypeVar('a')
+    x = relay.Var('x', a)
+    id_func = relay.Function([x], x, a, [a])
+
+    b = relay.TypeVar('b')
+    nested_id = relay.Function([], id_func, relay.FuncType([b], b), [b])
+
+    ft = relay.ir_pass.infer_type(nested_id)
+    assert ft.checked_type == relay.FuncType([], relay.FuncType([b], b), [b])
+
+
+def test_higher_order_nested():
+    a = relay.TypeVar('a')
+    x = relay.Var('x', a)
+    id_func = relay.Function([x], x, a, [a])
+
+    choice_t = relay.FuncType([], relay.scalar_type('bool'))
+    f = relay.Var('f', choice_t)
+
+    b = relay.TypeVar('b')
+    z = relay.Var('z')
+    top = relay.Function(
+        [f],
+        relay.If(f(), id_func, relay.Function([z], z)),
+        relay.FuncType([b], b),
+        [b])
+
+    expected = relay.FuncType([choice_t], relay.FuncType([b], b), [b])
+    ft = relay.ir_pass.infer_type(top)
+    assert ft.checked_type == expected
+
+
 def test_tuple():
     tp = relay.TensorType((10,))
     x = relay.var("x", tp)

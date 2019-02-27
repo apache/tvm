@@ -46,7 +46,7 @@ class StageInputReplacer : public IRMutator {
     Var new_var(it->second->var->name_hint + ".sync", op->type);
     inputs_.Set(new_var, it->second);
     replace_[op] = new_var;
-    return new_var;
+    return std::move(new_var);
   }
   Expr Mutate_(const Load* op, const Expr& e) final {
     CHECK(is_zero(op->index))
@@ -60,7 +60,7 @@ class StageInputReplacer : public IRMutator {
     Var data(it->second->var->name_hint + ".load.sync", op->type);
     inputs_.Set(data, it->second);
     replace_[op->buffer_var.get()] = data;
-    return data;
+    return std::move(data);
   }
   // inputs that get replaced.
   Map<Var, StageInput> inputs_;

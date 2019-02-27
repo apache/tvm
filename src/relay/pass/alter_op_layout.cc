@@ -34,7 +34,7 @@ Expr TransformLayout(Expr raw, Layout src_layout, Layout dst_layout) {
   attrs->src_layout = src_layout.name();
   attrs->dst_layout = dst_layout.name();
   Call transform = CallNode::make(transform_op, {raw}, Attrs{attrs});
-  return transform;
+  return std::move(transform);
 }
 
 // Memorize layout transform so we can reuse internal transformed nodes

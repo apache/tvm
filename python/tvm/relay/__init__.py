@@ -13,6 +13,7 @@ from .build_module import build, build_config, create_executor, optimize
 from . import prelude
 from . import parser
 from . import debug
+from . import param_dict
 
 # Root operators
 from .op import Op
@@ -85,3 +86,7 @@ ExprMutator = expr_functor.ExprMutator
 
 # Parser
 fromtext = parser.fromtext
+
+# Param Serialization
+save_param_dict = param_dict.save_param_dict
+load_param_dict = param_dict.load_param_dict

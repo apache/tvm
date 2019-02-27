@@ -34,12 +34,7 @@ class ExprNode : public RelayNode {
   /*!
    * \return The checked_type
    */
-  const Type& checked_type() const {
-    CHECK(checked_type_.defined()) << "internal error: the type checker has "
-                                      "not populated the checked_type "
-                                      "field for this node";
-    return this->checked_type_;
-  }
+  const Type& checked_type() const;
   /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.
@@ -235,8 +230,8 @@ class FunctionNode : public ExprNode {
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
-    v->Visit("span", &span);
     v->Visit("attrs", &attrs);
+    v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -527,6 +522,14 @@ class TempExprNode : public ExprNode {
 RELAY_DEFINE_NODE_REF(TempExpr, TempExprNode, Expr);
 
 // implementataions
+inline const Type& ExprNode::checked_type() const {
+  CHECK(checked_type_.defined()) << "internal error: the type checker has "
+    "not populated the checked_type "
+    "field for "
+                                 << GetRef<Expr>(this);
+  return this->checked_type_;
+}
+
 template<typename TTypeNode>
 inline const TTypeNode* ExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,

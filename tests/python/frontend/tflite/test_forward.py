@@ -284,6 +284,53 @@ def test_forward_reshape():
 
 
 #######################################################################
+# Concatenation
+# -------------
+
+def _test_concatenation(data, axis):
+    """ One iteration of concatenation """
+
+    assert len(data) >= 1
+    need_transpose = False
+    if len(data[0].shape) == 1 or len(data[0].shape) == 2:
+        tvm_data = data
+    elif len(data[0].shape) == 3:
+        #need_transpose = True
+        tvm_data = [np.transpose(d, axes=(0, 2, 1)) for d in data]
+    elif len(data[0].shape) == 4:
+        need_transpose = True
+        tvm_data = [np.transpose(d, axes=(0, 3, 1, 2)) for d in data]
+    else:
+        raise NotImplementedError("Not support input shape {} of reshape : ".
+                                  format(str(len(data))))
+
+    with tf.Graph().as_default():
+        in_data = [
+            array_ops.placeholder(shape=tensor.shape, dtype=tensor.dtype, name="in_{}".format(idx))
+            for idx, tensor in enumerate(data)]
+        out = array_ops.concat(in_data, axis=axis)
+        name = ["in_{}:0".format(idx) for idx in range(len(data))]
+
+        compare_tflite_with_tvm(data, tvm_data, name, in_data, [out], need_transpose)
+
+
+def test_forward_concatenation():
+
+    _test_concatenation(
+        [np.arange(6).reshape((1, 2, 1, 3)),
+        np.arange(6).reshape((1, 2, 1, 3))], 1)
+
+    _test_concatenation(
+        [np.arange(6).reshape((3, 2)),
+         np.arange(6).reshape((3, 2))], 1)
+
+    _test_concatenation(
+        [np.arange(6).reshape((2, 1, 1, 3)),
+         np.arange(6).reshape((2, 1, 1, 3)),
+         np.arange(6).reshape((2, 1, 1, 3))], 1)
+
+
+#######################################################################
 # Squeeze
 # -------
 
@@ -340,6 +387,7 @@ def test_forward_softmax():
 #######################################################################
 # Mobilenet
 # ---------
+
 def test_forward_mobilenet():
     '''test mobilenet v1 tflite model'''
     # MobilenetV1
@@ -347,19 +395,43 @@ def test_forward_mobilenet():
     tflite_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz",
         "mobilenet_v1_1.0_224.tflite", temp)
-    tflite_model_buf = open(tflite_model_file, "rb").read()
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
     data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
     tvm_data = np.transpose(data, axes=(0, 3, 1, 2))
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tvm_output = run_tvm_graph(tflite_model_buf, tvm_data, 'input')
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
                                 rtol=1e-5, atol=1e-5)
+    temp.remove()
+
+#######################################################################
+# Inception V3
+# ------------
+
+def test_forward_inception_v3_net():
+    '''test inception v3 tflite model'''
+    # InceptionV3
+    temp = util.tempdir()
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v3_2018_04_27.tgz",
+        "inception_v3.tflite", temp)
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 299, 299, 3)).astype('float32')
+    tvm_data = np.transpose(data, axes=(0, 3, 1, 2))
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, tvm_data, 'input')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+    temp.remove()
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
     # Transforms
+    test_forward_concatenation()
     test_forward_reshape()
     test_forward_squeeze()
 
@@ -370,3 +442,4 @@ if __name__ == '__main__':
 
     # End to End
     test_forward_mobilenet()
+    test_forward_inception_v3_net()

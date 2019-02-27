@@ -7,7 +7,6 @@ from tvm import relay
 from tvm.relay.testing import ctx_list
 import topi.testing
 
-
 def test_resize_infer_type():
     n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
@@ -307,6 +306,40 @@ def test_roi_align():
     verify_roi_align((4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2)
 
 
+def test_yolo_reorg_infer_shape():
+    def verify_yolo_reorg(shape, stride, out_shape):
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        z = relay.vision.yolo_reorg(x, stride=stride)
+        zz = relay.ir_pass.infer_type(z)
+        assert "stride=" in z.astext()
+        assert zz.checked_type == relay.ty.TensorType(out_shape, "float32")
+
+    n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    verify_yolo_reorg((n, c, 20, 20), 10, (n, c*10*10, 2, 2))
+    verify_yolo_reorg((n, c, h, w), 2, (n, c*2*2, h/2, w/2))
+
+def test_yolo_reorg():
+    def verify_yolo_reorg(shape, stride):
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        ref_res = topi.testing.reorg_python(x_data, stride)
+
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        z = relay.vision.yolo_reorg(x, stride=stride)
+        zz = relay.ir_pass.infer_type(z)
+        assert "stride=" in z.astext()
+        assert zz.checked_type == relay.ty.TensorType(ref_res.shape, "float32")
+
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_yolo_reorg((1, 100, 20, 20), 10)
+    verify_yolo_reorg((1, 4, 6, 6), 2)
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
@@ -314,3 +347,5 @@ if __name__ == "__main__":
     test_multibox_transform_loc()
     test_nms()
     test_roi_align()
+    test_yolo_reorg_infer_shape()
+    test_yolo_reorg()

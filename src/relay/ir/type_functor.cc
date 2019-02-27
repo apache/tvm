@@ -192,7 +192,7 @@ class TypeBinder : public TypeMutator {
     if (it != args_map_.end()) {
       return (*it).second;
     } else {
-      return id;
+      return std::move(id);
     }
   }
 
