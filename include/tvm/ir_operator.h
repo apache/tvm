@@ -513,22 +513,6 @@ inline bool is_negative_const(const Expr& a) {
   }
 }
 
-inline bool is_const_int(const Expr& x, int64_t value) {
-  if (const auto* op = x.as<ir::IntImm>()) {
-    return op->value == value;
-  } else if (const auto* op = x.as<ir::UIntImm>()) {
-    return op->value == static_cast<uint64_t>(value);
-  } else if (const auto* op = x.as<ir::Broadcast>()) {
-    const Expr& val = op->value;
-    if (const auto* opv = val.as<ir::IntImm>()) {
-      return opv->value == value;
-    } else if (const auto* opv = val.as<ir::UIntImm>()) {
-      return opv->value == static_cast<uint64_t>(value);
-    }
-  }
-  return false;
-}
-
 template <typename ValueType>
 inline bool is_const_value(const Expr& e, ValueType value) {
   static_assert(std::is_integral<ValueType>::value,
@@ -537,7 +521,7 @@ inline bool is_const_value(const Expr& e, ValueType value) {
   if (const ir::IntImm* i = e.as<ir::IntImm>()) {
     return i->value == value;
   } else if (const ir::UIntImm* i = e.as<ir::UIntImm>()) {
-    return (value >= 0) && (i->value == (uint64_t)value);
+    return (value >= 0) && (i->value == static_cast<uint64_t>(value));
   } else if (const ir::FloatImm* i = e.as<ir::FloatImm>()) {
     return i->value == value;
   } else if (const ir::Cast* c = e.as<ir::Cast>()) {
@@ -547,6 +531,15 @@ inline bool is_const_value(const Expr& e, ValueType value) {
   } else {
     return false;
   }
+}
+
+inline bool is_const_int(const Expr& x, int64_t value) {
+  if (x.as<ir::IntImm>() || x.as<ir::UIntImm>()) {
+    return is_const_value(x, value);
+  } else if (const auto* op = x.as<ir::Broadcast>()) {
+    return !op->value.as<ir::Broadcast>() && is_const_int(op->value, value);
+  }
+  return false;
 }
 
 inline bool is_no_op(const Stmt& stmt) {
