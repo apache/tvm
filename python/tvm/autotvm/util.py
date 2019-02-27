@@ -4,8 +4,9 @@ import logging
 import multiprocessing
 import time
 
-import numpy as np
 from random import randrange
+
+import numpy as np
 
 from .. import expr, ir_pass
 
