@@ -136,7 +136,7 @@ def load_json(json_str):
 
 
 def save_json(node):
-    """Load tvm object as json string.
+    """Save tvm object as json string.
 
     Parameters
     ----------
