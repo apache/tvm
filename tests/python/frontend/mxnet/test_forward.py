@@ -190,6 +190,13 @@ def test_forward_argmin():
     mx_sym = mx.sym.argmin(data, axis=0)
     verify_mxnet_frontend_impl(mx_sym, (5, 4), (4,))
 
+def test_forward_slice():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.slice(data, begin=(0, 1), end=(2, 4))
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 3))
+    mx_sym = mx.sym.slice(data, begin=(-1, 1), end=(-3, 4), step=(-1, 2))
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 2))
+
 def test_forward_where():
     cond = mx.sym.var('cond')
     x = mx.sym.var('x')
