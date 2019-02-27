@@ -5,20 +5,19 @@
  * passes over a particlar unit of AST. The design is largely inspired from
  * LLVM's pass manager.
  *
- * The responsibilities of pass managers usually at least involve:
- *  - organizing the execution orders of optimization passes though not
+ * The responsibilities of a pass manager usually involves:
+ *  - Organizing the execution order of optimization passes though not
  * necessarily in the optimal sequence.
- *  - collecting required analysis information and keep them up-to-date before
- * pass to run.
- *  - simplifying the implementation of new passes for compiler developers, etc.
+ *  - Collecting required analysis information and keep them up-to-date.
+ *  - Reducing the effort required to implement new passes for compiler
+ * developers, etc.
  *
  * TODO(jroesch, zhiics): We are currently using a very simple design for the
- * pass manager, i.e. it just execute on certain pass or a list of passes that
- * run in order.
+ * pass manager, i.e. it executes a specific pass or sequence of passes.
  *
- * As we move forward we need to generalize the ability to have constraints
- * between them. For example, we might need to preserve the dependencies between
- * different passes and validate them on the completion of a certain pass.
+ * In the future we need to describe constraints between passes. For example,
+ * we may want to preserve dependencies between different passes and validate
+ * them on the completion of a certain pass.
  *
  * We also need to store side information and import the error reporting system.
  */
@@ -44,7 +43,7 @@ class PassContext;
 
 /*!
  * \brief PassContextNode contains the information that a pass can rely on, such as
- * the analysis result.
+ * analysis results.
  */
 class PassContextNode : public RelayNode {
  public:
@@ -175,7 +174,11 @@ class ModulePass;
  */
 class ModulePassNode : public PassNode {
  public:
-  /*! \brief The curried function sketches the real optimization. */
+  /*! \brief The curried function sketches the real optimization. For example,
+   * we may need to perform dead code elimination on the module level. We could
+   * implement the algorithm in the `pass_func` and let it run on a module. It
+   * will then remove the dead code including the unused functions in the module.
+   */
   PassFunc<Module> pass_func;
 
   ModulePassNode() = default;
@@ -223,7 +226,11 @@ class FunctionPass;
  */
 class FunctionPassNode : public PassNode {
  public:
-  /*! \brief The curried packed function that sketches the real optimization. */
+  /*! \brief The curried packed function that sketches the real optimization.
+   * For instance, we can implement a pass that works on a Relay function as
+   * a `pass_func` and let it run on a given module. The same `pass_func` will
+   * then be applied on each function in the module.
+   */
   PassFunc<Function> pass_func;
 
   FunctionPassNode() = default;
