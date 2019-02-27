@@ -280,14 +280,15 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     --------
     .. code-block:: python
 
-        # An example to use nms
+        # An example to use non_max_suppression
         dshape = (1, 5, 6)
         data = tvm.placeholder(dshape, name="data")
         valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
         iou_threshold = 0.7
         force_suppress = True
         top_k = -1
-        out = nms(data, valid_count, iou_threshold, force_suppress, top_k)
+        out = non_max_suppression(data, valid_count, iou_threshold=iou_threshold,
+                                  force_suppress=force_suppress, top_k=top_k)
         np_data = np.random.uniform(dshape)
         np_valid_count = np.array([4])
         s = topi.generic.schedule_nms(out)
