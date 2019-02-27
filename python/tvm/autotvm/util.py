@@ -60,7 +60,6 @@ def sample_ints(low, high, m):
     """
     vis = set()
     assert m <= high - low
-    print("hi fam")
     while len(vis) < m:
         new = randrange(low, high)
         while new in vis:
