@@ -451,6 +451,17 @@ def test_optimize_and_lift_nonzeroness():
     check_eq(B, R, [A])
     assert estimate_performance(B) <= estimate_performance(R)
 
+    B = compute((10,), lambda i:
+                tvm.sum(A[i, k]*tvm.any(tvm.all(i < 5, k < 6), tvm.all(i > 5, k > 4)), k))
+    B = OptimizeAndLiftNonzeronessConditions(B)
+    R = compute((10,), lambda i:
+                tvm.expr.Select(tvm.any(i < 5, i > 5),
+                                tvm.sum(A[i, k], k, where=tvm.all(tvm.any(i < 5, k > 4),
+                                                                  tvm.any(i > 5, k < 6))),
+                                zero))
+    check_eq(B, R, [A])
+    assert estimate_performance(B) <= estimate_performance(R)
+
 if __name__ == "__main__":
     test_is_sum_combiner()
     test_can_factor_zero_from_combiner()

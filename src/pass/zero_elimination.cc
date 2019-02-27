@@ -367,7 +367,11 @@ class NonzeronessConditionFunctor
   : public ExprFunctor<NonzeronessConditionResult(const Expr&, const Expr&)> {
  public:
   NonzeronessConditionResult NonzeronessCondition(const Expr& e) {
-    return VisitExpr(e, e);
+    if (e.type().is_bool()) {
+      return {e, const_true()};
+    } else {
+      return VisitExpr(e, e);
+    }
   }
 
   result_type VisitExpr_(const Variable*, const Expr& e) final { return Default_(e); }
@@ -382,13 +386,6 @@ class NonzeronessConditionFunctor
   result_type VisitExpr_(const Mod* op, const Expr& e) final { return BinOpDivLike_(op, e); }
   result_type VisitExpr_(const Min* op, const Expr& e) final { return BinOpAddLike_(op, e); }
   result_type VisitExpr_(const Max* op, const Expr& e) final { return BinOpAddLike_(op, e); }
-  result_type VisitExpr_(const EQ* op, const Expr& e) final { return Bool_(op, e); }
-  result_type VisitExpr_(const NE* op, const Expr& e) final { return Bool_(op, e); }
-  result_type VisitExpr_(const LE* op, const Expr& e) final { return Bool_(op, e); }
-  result_type VisitExpr_(const LT* op, const Expr& e) final { return Bool_(op, e); }
-  result_type VisitExpr_(const GE* op, const Expr& e) final { return Bool_(op, e); }
-  result_type VisitExpr_(const GT* op, const Expr& e) final { return Bool_(op, e); }
-  result_type VisitExpr_(const Not* op, const Expr& e) final { return Bool_(op, e); }
 
   result_type VisitExpr_(const Cast* op, const Expr& e) final {
     if (op->value.type().is_bool()) {
@@ -445,9 +442,7 @@ class NonzeronessConditionFunctor
       return {new_cond, nz_b.value};
     }
 
-    Expr new_cond =
-      SuperSimplify(Or::make(cond && nz_a.cond,
-                             !cond &&  nz_b.cond));
+    Expr new_cond = SuperSimplify((cond && nz_a.cond) || (!cond &&  nz_b.cond));
     if (nz_a.value.same_as(true_val) && nz_b.value.same_as(false_val)) {
       return {new_cond, e};
     } else {
@@ -467,7 +462,7 @@ class NonzeronessConditionFunctor
         return {nz_a.cond, TNode::make(nz_a.value, nz_b.value)};
       }
     } else {
-      Expr new_cond = SuperSimplify(Or::make(nz_a.cond, nz_b.cond));
+      Expr new_cond = SuperSimplify(nz_a.cond || nz_b.cond);
       Expr new_a = Equal(nz_a.cond, new_cond) ? nz_a.value : nz_a.to_expr();
       Expr new_b = Equal(nz_b.cond, new_cond) ? nz_b.value : nz_b.to_expr();
       Expr new_expr = TNode::make(new_a, new_b);
@@ -498,11 +493,6 @@ class NonzeronessConditionFunctor
     } else {
       return {nz_a.cond, TNode::make(nz_a.value, op->b)};
     }
-  }
-
-  template <class TNode>
-  NonzeronessConditionResult Bool_(const TNode* op, const Expr& e) {
-    return {e, make_const(e.type(), 1)};
   }
 };
 
@@ -628,7 +618,7 @@ class FactorOutAtomicFormulasFunctor
     res_a.atomic_formulas = std::move(new_cond_a);
     res_b.atomic_formulas = std::move(new_cond_b);
 
-    Expr new_rest = Or::make(res_a.to_expr(), res_b.to_expr());
+    Expr new_rest = res_a.to_expr() || res_b.to_expr();
 
     return {res, new_rest};
   }
@@ -670,11 +660,11 @@ class EliminateDivModMutator : public IRMutator {
       if (auto var_pair_opt = AddNewVarPair(op->a, mutated_a, imm->value)) {
         return var_pair_opt.value().first;
       } else {
-        return Div::make(mutated_a, Mutate(op->b));
+        return mutated_a / Mutate(op->b);
       }
     }
 
-    return Div::make(Mutate(op->a), Mutate(op->b));
+    return Mutate(op->a) / Mutate(op->b);
   }
 
   virtual Expr Mutate_(const Mod* op, const Expr& e) {
@@ -689,11 +679,11 @@ class EliminateDivModMutator : public IRMutator {
       if (auto var_pair_opt = AddNewVarPair(op->a, mutated_a, imm->value)) {
         return var_pair_opt.value().second;
       } else {
-        return Mod::make(mutated_a, Mutate(op->b));
+        return mutated_a % Mutate(op->b);
       }
     }
 
-    return Mod::make(Mutate(op->a), Mutate(op->b));
+    return Mutate(op->a) % Mutate(op->b);
   }
 
  private:
@@ -1427,7 +1417,10 @@ std::pair<Expr, Expr> ImplicationNotContainingVars(
   } else if (const Or* op = cond.as<Or>()) {
     auto pair_a = ImplicationNotContainingVars(op->a, vars);
     auto pair_b = ImplicationNotContainingVars(op->b, vars);
-    return {Or::make(pair_a.first, pair_b.first), cond};
+    return {pair_a.first || pair_b.first,
+            (pair_a.first || pair_b.second) &&
+            (pair_b.first || pair_a.second) &&
+            (pair_a.second || pair_b.second)};
   } else if (!ExprUseVar(cond, vars)) {
     return {cond, const_true()};
   } else {
