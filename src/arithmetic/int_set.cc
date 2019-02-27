@@ -531,6 +531,11 @@ class IntSetEvaluator :
     CHECK(eval_vec_);
     return Eval(op->value);
   }
+  IntSet VisitExpr_(const Select* op, const Expr& e) final {
+    IntSet true_set = this->Eval(op->true_value);
+    IntSet false_set = this->Eval(op->false_value);
+    return Union({false_set, true_set});
+  }
   IntSet VisitExprDefault_(const Node* op, const Expr& e) final {
     LOG(WARNING) << "cannot evaluate set type " << e->type_key();
     return IntSet::everything();
