@@ -42,7 +42,7 @@ def get_rank(values):
 def sample_ints(low, high, m):
     """
     Sample m different integer numbers from [low, high) without replacement
-    This function is an alternative of `np.random.choice` when (high - low) > 2 ^ 64, in
+    This function is an alternative of `np.random.choice` when (high - low) > 2 ^ 32, in
     which case numpy does not work.
 
     Parameters
