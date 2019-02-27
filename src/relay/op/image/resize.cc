@@ -3,7 +3,7 @@
  * \file resize.cc
  * \brief Image operators
  */
-#include <tvm/layout.h>
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/image.h>
 #include <topi/elemwise.h>

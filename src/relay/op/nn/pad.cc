@@ -3,7 +3,7 @@
  * \file pad.cc
  * \brief Implementation of operator pad
  */
-#include <tvm/layout.h>
+#include <tvm/data_layout.h>
 #include <tvm/ir_operator.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>

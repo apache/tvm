@@ -3,7 +3,7 @@
  * \file upsampling.cc
  * \brief upsampling operator
  */
-#include <tvm/layout.h>
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op_attr_types.h>

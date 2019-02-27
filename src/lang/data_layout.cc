@@ -1,9 +1,9 @@
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/lang/layout.cc
- * \brief Layout expression.
+ * \file src/lang/data_layout.cc
+ * \brief Data Layout expression.
  */
-#include <tvm/layout.h>
+#include <tvm/data_layout.h>
 #include <tvm/ir_pass.h>
 
 namespace tvm {

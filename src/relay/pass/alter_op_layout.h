@@ -9,7 +9,7 @@
 #ifndef TVM_RELAY_PASS_ALTER_OP_LAYOUT_H_
 #define TVM_RELAY_PASS_ALTER_OP_LAYOUT_H_
 
-#include <tvm/layout.h>
+#include <tvm/data_layout.h>
 #include <tvm/relay/expr.h>
 
 namespace tvm {

@@ -1,11 +1,11 @@
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file tvm/layout.h
+ * \file tvm/data_layout.h
  * \brief Layout expression to describe the data organization of a tensor.
  *  And BijectiveLayout to mapping two data layouts between each other.
  */
-#ifndef TVM_LAYOUT_H_
-#define TVM_LAYOUT_H_
+#ifndef TVM_DATA_LAYOUT_H_
+#define TVM_DATA_LAYOUT_H_
 
 #include <tvm/base.h>
 #include <tvm/expr.h>
@@ -332,4 +332,4 @@ inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
 
 }  // namespace tvm
 
-#endif  // TVM_LAYOUT_H_
+#endif  // TVM_DATA_LAYOUT_H_

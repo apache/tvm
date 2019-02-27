@@ -6,7 +6,7 @@
  * \brief Fold axis scaling into weights of
  *  conv/dense operators.
  */
-#include <tvm/layout.h>
+#include <tvm/data_layout.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>

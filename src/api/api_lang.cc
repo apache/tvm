@@ -11,7 +11,7 @@
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>
 #include <tvm/build_module.h>
-#include <tvm/layout.h>
+#include <tvm/data_layout.h>
 
 namespace tvm {
 
