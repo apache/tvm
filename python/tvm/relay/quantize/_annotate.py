@@ -124,7 +124,6 @@ def conv2d_nchwc_rewrite(ref_call, new_args, ctx):
     warnings.warn("NCHWc layout Conv2D detected, please use a lower "
                   "optimization level before applying the quantization "
                   "pass as quantization will have no effect here...")
-    return None
 
 
 @register_annotate_function("nn.conv2d")
