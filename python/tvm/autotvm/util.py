@@ -5,6 +5,7 @@ import multiprocessing
 import time
 
 import numpy as np
+from random import randrange
 
 from .. import expr, ir_pass
 
@@ -40,7 +41,7 @@ def get_rank(values):
 def sample_ints(low, high, m):
     """
     Sample m different integer numbers from [low, high) without replacement
-    This function is an alternative of `np.random.choice` when (high - low) > 2 ^ 32, in
+    This function is an alternative of `np.random.choice` when (high - low) > 2 ^ 64, in
     which case numpy does not work.
 
     Parameters
@@ -58,10 +59,11 @@ def sample_ints(low, high, m):
     """
     vis = set()
     assert m <= high - low
+    print("hi fam")
     while len(vis) < m:
-        new = np.random.randint(low, high)
+        new = randrange(low, high)
         while new in vis:
-            new = np.random.randint(low, high)
+            new = randrange(low, high)
         vis.add(new)
 
     return list(vis)
