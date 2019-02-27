@@ -377,6 +377,16 @@ def _dropout(children, attrs, odtype='float32'):
     rate = attrs.get_float('rate', 0.5)
     return op.nn.dropout(children[0], rate)
 
+def _mean(children, attrs, odtype='float32'):
+    axis = None
+    try:
+        axis = [attrs.get_int('axis', None)]
+    except ValueError:
+        axis = axis or attrs.get_int_tuple('axis', None)
+    keepdims = attrs.get_bool('keepdims')
+
+    return op.mean(children[0], axis, keepdims)
+
 
 NNVM_OP_2_RELAY_OP = {
     'flatten': _nn_batch_flatten,
@@ -388,6 +398,7 @@ NNVM_OP_2_RELAY_OP = {
     'reshape': _reshape,
     'transpose': _transpose,
     'dropout': _dropout,
+    'mean': _mean,
     # Addition
     '__add_scalar__': _add,
     'broadcast_add': _add,
