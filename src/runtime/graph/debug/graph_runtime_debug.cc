@@ -39,6 +39,65 @@ class GraphRuntimeDebug : public GraphRuntime {
   }
 
   /*!
+   * \brief Run each operation in the graph and print out the runtime per op.
+   * \param number The number of times to run this function for taking average.
+   * \param repeat The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warmed up and will be discarded in case
+            there is lazy initialization.
+   * \param min_repeat_ms The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+   */
+  void RunIndividual(int number, int repeat, int min_repeat_ms) {
+    // warmup run
+    GraphRuntime::Run();
+
+    std::vector<double> time_per_op(op_execs_.size(), 0);
+    for (int i = 0; i < repeat; ++i) {
+      std::chrono::time_point<
+        std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin, tend;
+      double duration_ms = 0.0;
+      do {
+        std::fill(time_per_op.begin(), time_per_op.end(), 0);
+        if (duration_ms > 0.0) {
+          number = static_cast<int>(
+              std::max((min_repeat_ms / (duration_ms / number) + 1),
+                       number * 1.618));  // 1.618 is chosen by random
+        }
+        tbegin = std::chrono::high_resolution_clock::now();
+        for (int k = 0; k < number; k++) {
+          for (size_t index = 0; index < op_execs_.size(); ++index) {
+            if (op_execs_[index]) {
+              const TVMContext& ctx = data_entry_[entry_id(index, 0)]->ctx;
+              auto op_tbegin = std::chrono::high_resolution_clock::now();
+              op_execs_[index]();
+              TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
+              auto op_tend = std::chrono::high_resolution_clock::now();
+              double op_duration = std::chrono::duration_cast<
+                  std::chrono::duration<double> >(op_tend - op_tbegin).count();
+              time_per_op[index] += op_duration * 1000;  // ms
+            }
+          }
+        }
+        tend = std::chrono::high_resolution_clock::now();
+        duration_ms = std::chrono::duration_cast<std::chrono::duration<double> >
+            (tend - tbegin).count() * 1000;
+      } while (duration_ms < min_repeat_ms);
+
+      LOG(INFO) << "Repeat: " << i;
+      int op = 0;
+      for (size_t index = 0; index < time_per_op.size(); index++) {
+        if (op_execs_[index]) {
+          time_per_op[index] /= number;
+          LOG(INFO) << "Op #" << op++ << ": " << time_per_op[index] << " ms/iter";
+        }
+      }
+    }
+  }
+
+  /*!
    * \brief Run each operation and get the output.
    * \param index The index of op which needs to be returned.
    * \param eid The Entry id of the op.
@@ -119,6 +178,16 @@ PackedFunc GraphRuntimeDebug::GetFunction(
           this->DebugGetNodeOutput(args[0], args[1]);
         }
       });
+  } else if (name == "run_individual") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      int number = args[0];
+      int repeat = args[1];
+      int min_repeat_ms = args[2];
+      CHECK_GT(number, 0);
+      CHECK_GT(repeat, 0);
+      CHECK_GE(min_repeat_ms, 0);
+      this->RunIndividual(number, repeat, min_repeat_ms);
+    });
   } else {
     return GraphRuntime::GetFunction(name, sptr_to_self);
   }
