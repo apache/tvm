@@ -61,24 +61,6 @@ def schedule_reorg(outs):
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.cuda.schedule_injective(cpp_target, outs)
 
-@generic.schedule_region.register(["cuda", "gpu"])
-def schedule_region(outs):
-    """Schedule for region operator.
-    Parameters
-    ----------
-    outs: Array of Tensor
-        The computation graph description of region
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for region.
-    """
-    target = tvm.target.current_target(allow_none=False)
-    cpp_target = cpp.TEST_create_target(target.target_name)
-    return cpp.cuda.schedule_region(cpp_target, outs)
-
 @generic.schedule_nms.register(["cuda", "gpu"])
 def schedule_nms(outs):
     """Schedule for non-maximum suppression
