@@ -302,18 +302,29 @@ def _darknet_reorg(inputs, attrs):
 
 def _darknet_region(inputs, attrs):
     """Process the region operation."""
-    op_name, new_attrs = 'yolo_region', {}
-    if 'n' in attrs:
-        new_attrs['n'] = attrs.get('n', 1)
-    if 'classes' in attrs:
-        new_attrs['classes'] = attrs.get('classes', 1)
-    if 'coords' in attrs:
-        new_attrs['coords'] = attrs.get('coords', 0)
-    if 'background' in attrs:
-        new_attrs['background'] = attrs.get('background', 0)
-    if 'softmax' in attrs:
-        new_attrs['softmax'] = attrs.get('softmax', 0)
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    num = attrs.get('n', 1)
+    classes = attrs.get('classes', 1)
+    coords = attrs.get('coords', 0)
+    background = attrs.get('background', 0)
+    softmax = attrs.get('softmax', True)
+    input_shape = attrs.get('shape')
+
+    split_size = classes + coords + 1
+    intermediate_shape = (input_shape[0], num, split_size, input_shape[2], input_shape[3])
+    data_block = _sym.reshape(inputs[0], shape=intermediate_shape)
+    split_indices = (2, 4, 5)
+    split_res = _sym.split(data_block, indices_or_sections=split_indices, axis=2)
+    split_res0 = _sym.sigmoid(split_res[0])
+    if not background:
+        split_res2 = _sym.sigmoid(split_res[2])
+    else:
+        split_res2 = split_res[2]
+    if softmax:
+        split_res3 = _sym.softmax(split_res[3], axis=2)
+    concat_list = [split_res0, split_res[1], split_res2, split_res3]
+    out = _sym.concatenate(*concat_list, axis=2)
+    return _sym.reshape(out, shape=input_shape), None
+
 
 def _darknet_yolo(inputs, attrs):
     """Process the yolo operation."""
@@ -638,6 +649,7 @@ class GraphProto(object):
             attr.update({'coords' : layer.coords})
             attr.update({'background' : layer.background})
             attr.update({'softmax' : layer.softmax})
+            attr.update({'shape' : (1, layer.c, layer.h, layer.w)})
 
         elif LAYERTYPE.YOLO == layer.type:
             attr.update({'n' : layer.n})

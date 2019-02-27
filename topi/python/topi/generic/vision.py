@@ -18,23 +18,6 @@ def _default_schedule(outs, auto_inline):
     return s
 
 @tvm.target.generic_func
-def schedule_shortcut(outs):
-    """Schedule for shortcut
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of shortcut
-      in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-@tvm.target.generic_func
 def schedule_reorg(outs):
     """Schedule for reorg
 
@@ -42,25 +25,6 @@ def schedule_reorg(outs):
     ----------
     outs: Array of Tensor
       The computation graph description of reorg
-      in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-      The computation schedule for the op.
-    """
-    target = tvm.target.current_target(allow_none=False)
-    cpp_target = cpp.TEST_create_target(target.target_name)
-    return cpp.generic.default_schedule(cpp_target, outs, False)
-
-@tvm.target.generic_func
-def schedule_region(outs):
-    """Schedule for region
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-      The computation graph description of region
       in the format of an array of tensors.
 
     Returns
