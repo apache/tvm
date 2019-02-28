@@ -5,7 +5,7 @@ Install from Source
 This page gives instructions on how to build and install the tvm package from
 scratch on various systems. It consists of two steps:
 
-1. First build the shared library from the C++ codes (`libtvm.so` for linux/macOS and `libtvm.dll` for windows).
+1. First build the shared library from the C++ codes (`libtvm.so` for linux, `libtvm.dylib` for macOS and `libtvm.dll` for windows).
 2. Setup for the language packages (e.g. Python Package).
 
 To get started, clone tvm repo from github. It is important to clone the submodules along, with ``--recursive`` option.
