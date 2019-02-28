@@ -33,15 +33,21 @@ class PrettyPrinter :
     // numbers to be reused and prevents hoisted vars from escaping too far
     Doc PrintNestedScope(const NodeRef& node) {
       if (GNF_) {
-        return PrettyPrinter(memo_, name_alloc_map_, temp_var_counter_, GNF_).PrintFinal(node);
+        // print in a new scope
+        doc_stack_.push_back(Nil());
+        Doc doc = PrintFinal(node);
+        doc_stack_.pop_back();
+        return doc;
       } else {
         return Print(node);
       }
     }
 
     Doc PrintFinal(const NodeRef& node) {
-      doc << Print(node, false);
-      return doc;
+      // TODO(@jmp): If these lines are combined it segfaults??
+      Doc doc = Print(node, false);
+      doc_stack_.back() << doc;
+      return doc_stack_.back();
     }
 
     // note: gnf flag is only one level deep
@@ -82,11 +88,11 @@ class PrettyPrinter :
       return Text(prefix);
     }
 
-   /*!
-    * \brief Allocate name to a variable.
-    * \param var The input variable.
-    * \return The corresponding name.
-    */
+    /*!
+     * \brief Allocate name to a variable.
+     * \param var The input variable.
+     * \return The corresponding name.
+     */
     Doc AllocVar(const Var& var) {
       std::string name = var->name_hint();
       // always make sure first name is alpha
@@ -114,7 +120,7 @@ class PrettyPrinter :
       if (gnf && GNF_) {
         Doc temp_var = AllocTemp();
         memo_[expr] = temp_var;
-        doc << temp_var << " = " << printed_expr << "\n";
+        doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
         return temp_var;
       } else {
         memo_[expr] = printed_expr;
@@ -210,8 +216,9 @@ class PrettyPrinter :
     }
 
   private:
+    /*! \brief Stack of docs to implement scoped GNFing. */
+    std::vector<Doc> doc_stack_{Nil()};
     /*! \brief Map from Expr to Doc */
-    Doc doc = Nil();
     std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
     std::unordered_map<std::string, int> name_alloc_map_;
     size_t temp_var_counter_;

@@ -48,6 +48,7 @@ if __name__ == "__main__":
     tup = relay.Tuple([relay.const(1), relay.const(1)])
     print(gnf_print(relay.TupleGetItem(relay.Tuple([one, one]), 0)))
     print(relay.If(relay.const(True), relay.TupleGetItem(relay.Tuple([one, one]), 0), relay.TupleGetItem(relay.Tuple([one, one, relay.const(1)]), 0)).astext())
+    print(gnf_print(relay.If(relay.const(True), relay.const(1), relay.const(1))))
     print(gnf_print(relay.If(relay.const(True), relay.TupleGetItem(relay.Tuple([one, one]), 0), relay.TupleGetItem(relay.Tuple([one, one, relay.const(1)]), 0))))
     print(anf_print(relay.If(relay.const(True), relay.TupleGetItem(relay.Tuple([one, one]), 0), relay.TupleGetItem(relay.Tuple([one, one, relay.const(1)]), 0))))
     SEMVER = "v0.0.1"
@@ -65,3 +66,4 @@ if __name__ == "__main__":
     print(gnf_print(relay.fromtext(SEMVER+"fn(%x) { %x }")))
     print(gnf_print(relay.fromtext(SEMVER+"fn(%x) { (%x, %x) }")))
     print(gnf_print(relay.If(one, relay.TupleGetItem(relay.Tuple([one, one]), 0), one)))
+    print(relay.If(relay.const(True), tup, tup).astext())
