@@ -1,7 +1,7 @@
 """
 Using External Libraries in Relay
 ================================
-**Author**: `Masahiro Masuda <https://github.com/masahi>`_
+**Author**: `Masahiro Masuda <https://github.com/masahi>`_, `Truman Tian <https://github.com/SiNZeRo>`_
 
 This is a short tutorial on how to use external libraries such as cuDNN, or cuBLAS with Relay.
 
