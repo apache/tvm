@@ -130,13 +130,14 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+template<class Param>
 inline bool WinogradConv2DInferShape(const nnvm::NodeAttrs& attrs,
                                      std::vector<TShape>* in_shape,
                                      std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   static const Layout kOIHW("OIHW");
 
-  const WinogradConv2DParam& param = nnvm::get<WinogradConv2DParam>(attrs.parsed);
+  const Param& param = nnvm::get<Param>(attrs.parsed);
 
   const Layout in_layout(param.layout);
   const Layout kernel_layout(param.kernel_layout);
@@ -403,7 +404,7 @@ NNVM_REGISTER_OP(_contrib_conv2d_winograd_without_weight_transform)
 .set_attr_parser(ParamParser<WinogradConv2DParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<WinogradConv2DParam>)
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<WinogradConv2DParam>)
-.set_attr<FInferShape>("FInferShape", WinogradConv2DInferShape)
+.set_attr<FInferShape>("FInferShape", WinogradConv2DInferShape<WinogradConv2DParam>)
 .set_attr<FInferType>("FInferType", Conv2DInferType<WinogradConv2DParam>)
 .set_attr<FCorrectLayout>("FCorrectLayout", Conv2DCorrectLayout<WinogradConv2DParam>)
 .set_num_outputs(1)
@@ -411,6 +412,82 @@ NNVM_REGISTER_OP(_contrib_conv2d_winograd_without_weight_transform)
 .set_support_level(5);
 
 DMLC_REGISTER_PARAMETER(WinogradConv2DParam);
+
+
+inline bool Conv2DWinogradNNPACKWTInferType(const nnvm::NodeAttrs& attrs,
+                                            std::vector<int>* in_type,
+                                            std::vector<int>* out_type) {
+  const WinogradNNPACKWeightTransformParam& param =
+      nnvm::get<WinogradNNPACKWeightTransformParam>(attrs.parsed);
+
+  CHECK_EQ(in_type->size(), 1U) << "Input:[weight]";
+  CHECK_EQ(out_type->size(), 1U);
+
+  if (param.out_dtype != -1) {
+    NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_type, 0, param.out_dtype);
+  } else {
+    ElemwiseType<1, 1>(attrs, in_type, out_type);
+  }
+  return true;
+}
+
+NNVM_REGISTER_OP(_contrib_conv2d_winograd_nnpack_weight_transform)
+.describe(R"code(Weight transformation of winograd fast convolution algorithm.
+Separate this into another nnvm symbol in order to enable Precompute Pass to compute the
+weight transformation in advance.
+- **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
+)code" NNVM_ADD_FILELINE)
+.add_argument("weight", "4D Tensor", "Weight tensor.")
+.add_arguments(WinogradNNPACKWeightTransformParam::__FIELDS__())
+.set_attr_parser(ParamParser<WinogradNNPACKWeightTransformParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<WinogradNNPACKWeightTransformParam>)
+.set_attr<FInferShape>("FInferShape", [](const nnvm::NodeAttrs& attrs,
+                                         std::vector<TShape> *in_shape,
+                                         std::vector<TShape> *out_shape) {
+  const TShape &wshape = (*in_shape)[0];
+  CHECK_EQ(wshape.ndim(), 4) << "Weight should be a 4 dimensional tensor";
+  TShape oshape({wshape[0], wshape[1], 8, 8});
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  return true;
+})
+.set_attr<FCorrectLayout>("FCorrectLayout", [](const NodeAttrs& attrs,
+                                              std::vector<Layout> *ilayouts,
+                                              const std::vector<Layout> *last_ilayouts,
+                                              std::vector<Layout> *olayouts) {
+  Layout layout("OIHW");
+  NNVM_ASSIGN_LAYOUT(*ilayouts, 0, layout);
+  NNVM_ASSIGN_LAYOUT(*olayouts, 0, layout);
+  return true;
+})
+.set_attr<FInferType>("FInferType", Conv2DWinogradNNPACKWTInferType)
+.set_num_outputs(1)
+.set_num_inputs(1)
+.set_support_level(5);
+
+DMLC_REGISTER_PARAMETER(WinogradNNPACKWeightTransformParam);
+
+NNVM_REGISTER_OP(_contrib_conv2d_winograd_nnpack_without_weight_transform)
+.describe(R"code(Compute conv2d with winograd nnpack.
+- **data**: Input is 4D array of shape  (batch_size, in_channels, height, width)
+- **weight**: Any shape
+            We do not check shape for this input tensor.
+- **bias**: (channels,)
+- **out**:  Output is 4D array of shape (batch_size, channels, out_height, out_width)
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.add_argument("weight", "4D Tensor", "Transformed weight tensor.")
+.add_argument("bias", "1D Tensor", "Bias parameter.")
+.add_arguments(Conv2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Conv2DParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
+.set_attr<FInferShape>("FInferShape", WinogradConv2DInferShape<Conv2DParam>)
+.set_attr<FInferType>("FInferType", Conv2DInferType<Conv2DParam>)
+.set_attr<FCorrectLayout>("FCorrectLayout", Conv2DCorrectLayout<Conv2DParam>)
+.set_num_outputs(1)
+.set_num_inputs(UseBiasNumInputs<Conv2DParam>)
+.set_support_level(5);
+
 
 NNVM_REGISTER_OP(_conv2d_grad)
   .describe(R"code(2D convolution grad.

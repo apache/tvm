@@ -1,13 +1,13 @@
-"""Example code to do convolution."""
-
 import numpy as np
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import FallbackConfigEntity
+from tvm.contrib import nnpack
+from tvm.contrib.pickle_memoize import memoize
 import topi
 import topi.testing
-from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
+from nose import SkipTest
 
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,
@@ -44,8 +44,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
+            raise SkipTest("Skip because %s is not enabled" % device)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             C = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NCHW', out_dtype=dtype)
@@ -65,7 +64,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         else:
             func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-4)
 
 
     for device in devices:
@@ -78,33 +77,51 @@ class WinogradFallback(autotvm.FallbackContext):
         if key in self.memory:
             return self.memory[key]
         cfg = FallbackConfigEntity()
-        cfg.template_key = 'winograd'
+        cfg.template_key = 'winograd_nnpack_fp32'
         self.memory[key] = cfg
         return cfg
 
-
 def test_conv2d_nchw():
-    autotvm.DispatchContext.current.silent = True
+    if not tvm.get_global_func("tvm.contrib.nnpack.convolution_inference_without_weight_transform", True):
+        raise SkipTest("skip because extern function is not available")
 
+    if not nnpack.is_available():
+        raise SkipTest("skip because nnpack is not available")
+
+    devices = ['llvm -device=arm_cpu']
+    autotvm.DispatchContext.current.silent = True
     with WinogradFallback():
         # resnet 18 workloads
-        verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
-        verify_conv2d_nchw(1, 128, 28, 128, 3, 1, 1)
-        verify_conv2d_nchw(1, 256, 14, 256, 3, 1, 1)
-        verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
+        verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1, devices=devices)
+        verify_conv2d_nchw(1, 128, 28, 128, 3, 1, 1, devices=devices)
+        verify_conv2d_nchw(1, 256, 14, 256, 3, 1, 1, devices=devices)
+        verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1, devices=devices)
 
-        # batch size = 2
-        verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1)
+        # unet workloads
+        verify_conv2d_nchw(1, 3, 192, 12, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 4, 192, 12, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 12, 96, 24, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 24, 48, 48, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 48, 24, 96, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 96, 12, 180, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 180, 6, 220, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 220, 6, 180, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 180, 12, 96, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 96, 24, 48, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 48, 48, 24, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 24, 96, 12, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 12, 192, 1, 3, 1, 1, add_bias=True, devices=devices)
 
         # relu, bias
-        verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_bias=True)
-        verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_relu=True)
-        verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_relu=True, add_bias=True)
+        verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1, add_bias=True, devices=devices)
+        verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1, add_relu=True, devices=devices)
+        verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1, add_relu=True, add_bias=True, devices=devices)
 
         # werid workloads
-        verify_conv2d_nchw(1, 1, 1, 1, 3, 1, 1)
-        verify_conv2d_nchw(3, 3, 3, 3, 3, 1, 1)
-        verify_conv2d_nchw(2, 13, 71, 59, 3, 1, 1)
+        verify_conv2d_nchw(1, 3, 3, 3, 3, 1, 1, devices=devices)
+        verify_conv2d_nchw(1, 13, 71, 59, 3, 1, 1, devices=devices)
+
 
 if __name__ == "__main__":
-    test_conv2d_nchw()
+    import nose
+    nose.runmodule()
