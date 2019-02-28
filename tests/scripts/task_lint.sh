@@ -7,10 +7,10 @@ echo "Check codestyle of jni code..."
 make jnilint || exit -1
 echo "Check documentations of c++ code..."
 make doc 2>log.txt
-(cat log.txt| grep -v -E "ENABLE_PREPROCESSING|unsupported tag") > logclean.txt
+grep -v -E "ENABLE_PREPROCESSING|unsupported tag" < log.txt > logclean.txt
 echo "---------Error Log----------"
 cat logclean.txt
 echo "----------------------------"
-(cat logclean.txt|grep -E "warning|error") && exit -1
+grep -E "warning|error" < logclean.txt && exit -1
 rm logclean.txt
 rm log.txt
