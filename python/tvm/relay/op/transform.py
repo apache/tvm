@@ -17,7 +17,7 @@
 """Transform operators."""
 
 from . import _make
-from ..expr import TupleWrapper
+from ..expr import TupleWrapper, const
 
 
 def cast(data, dtype):
@@ -272,7 +272,7 @@ def full_like(data, fill_value):
     return _make.full_like(data, fill_value)
 
 
-def arange(start, stop=None, step=1, dtype="float32"):
+def arange(start, stop=None, step=const(1, dtype="float32"), dtype="float32"):
     """Return evenly spaced values within a given interval.
 
     .. note::
@@ -312,7 +312,7 @@ def arange(start, stop=None, step=1, dtype="float32"):
     """
     if stop is None:
         stop = start
-        start = 0
+        start = const(0, dtype=dtype)
     return _make.arange(start, stop, step, dtype)
 
 

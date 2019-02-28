@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -89,7 +89,6 @@ class TypeSolver {
    * \param location The location at which the unification problem arose.
    */
   Type Unify(const Type& lhs, const Type& rhs, const NodeRef& location);
-
   /*!
    * \brief Report an error at the provided location.
    * \param err The error to report.
@@ -124,6 +123,7 @@ class TypeSolver {
     TypeNode* parent{nullptr};
     /*! \brief set of relations that is related to this type node */
     std::unordered_set<RelationNode*> rel_set;
+
     /*!
      * \brief Find the root type node, perform path compression
      * \return The root type node.
@@ -159,13 +159,15 @@ class TypeSolver {
     NodeRef location;
   };
 
+  /*! \brief A simple union find between shapes. */
+  tvm::Map<IndexExpr, IndexExpr> shape_uf_;
   /*! \brief List of all allocated type nodes */
   std::vector<TypeNode*> type_nodes_;
   /*! \brief List of all allocated relation nodes */
   std::vector<RelationNode*> rel_nodes_;
   /*! \brief Number of resolved relations */
   size_t num_resolved_rels_{0};
-  /*! \brief map from type node to types. */
+  /*! \brief map from types to type nodes. */
   std::unordered_map<Type, TypeNode*, NodeHash, NodeEqual> tmap_;
   /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
@@ -205,6 +207,7 @@ class TypeSolver {
     rel->inqueue = true;
     update_queue_.push(rel);
   }
+
   /*!
    * \brief Merge rhs type node to lhs
    * \param src The source operand

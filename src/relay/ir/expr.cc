@@ -285,6 +285,8 @@ RefCreate RefCreateNode::make(Expr value) {
   return RefCreate(n);
 }
 
+TVM_REGISTER_NODE_TYPE(RefCreateNode);
+
 TVM_REGISTER_API("relay._make.RefCreate")
 .set_body_typed(RefCreateNode::make);
 
@@ -298,6 +300,8 @@ RefRead RefReadNode::make(Expr ref) {
   n->ref = std::move(ref);
   return RefRead(n);
 }
+
+TVM_REGISTER_NODE_TYPE(RefReadNode);
 
 TVM_REGISTER_API("relay._make.RefRead")
 .set_body_typed(RefReadNode::make);
@@ -313,6 +317,8 @@ RefWrite RefWriteNode::make(Expr ref, Expr value) {
   n->value = std::move(value);
   return RefWrite(n);
 }
+
+TVM_REGISTER_NODE_TYPE(RefWriteNode);
 
 TVM_REGISTER_API("relay._make.RefWrite")
 .set_body_typed(RefWriteNode::make);

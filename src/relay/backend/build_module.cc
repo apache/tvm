@@ -417,10 +417,10 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Build relay function to runtime module
+   * \brief Compile a Relay function to runtime module.
    *
-   * \param func Relay Function
-   * \param params parameters
+   * \param func The Relay function.
+   * \param params The parameters.
    */
   void BuildRelay(
       Function func,
@@ -444,8 +444,13 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    ret_.mod = tvm::build(graph_codegen_->GetLoweredFunc(), target_host_,
-                          BuildConfig::Current());
+    auto lowered_funcs = graph_codegen_->GetLoweredFunc();
+    if (lowered_funcs.size() != 0) {
+      ret_.mod = tvm::build(
+        lowered_funcs,
+        target_host_,
+        BuildConfig::Current());
+    }
   }
 
  protected:

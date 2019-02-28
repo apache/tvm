@@ -138,6 +138,15 @@ struct Reduce : public ExprNode<Reduce> {
   static constexpr const char* _type_key = "Reduce";
 };
 
+/*! \brief Any shape. */
+struct Any : public ExprNode<Any> {
+  TVM_DLL static Expr make();
+
+  void VisitAttrs(AttrVisitor* v) final {}
+  static const IRNodeType _type_info = IRNodeType::ExtensionExpr;
+  static constexpr const char* _type_key = "Any";
+};
+
 /*!
  * \brief Auxiliary data structure used in IR Pass to indicate a tensor.
  */

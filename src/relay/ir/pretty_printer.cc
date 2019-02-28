@@ -664,7 +664,9 @@ class PrettyPrinter :
   Doc PrintAttr(const NodeRef& value, bool meta = false) {
     if (value.defined()) {
       Doc printed_attr;
-      if (meta) {
+      if (value.as<tvm::ir::Any>()) {
+        printed_attr << "?";
+      } else if (meta) {
         printed_attr = meta_.GetMetaNode(value);
       } else {
         printed_attr = VisitAttr(value);
@@ -804,6 +806,12 @@ std::string PrettyPrint_(const NodeRef& node,
   Doc doc;
   doc << "v0.0.1" << "\n"
       << PrettyPrinter(show_meta_data, annotate).PrintFinal(node);
+  return doc.str();
+}
+
+std::string PrettyPrint(const NodeRef& node) {
+  Doc doc;
+  doc << PrettyPrinter(false, runtime::TypedPackedFunc<std::string(Expr)>()).PrintFinal(node);
   return doc.str();
 }
 

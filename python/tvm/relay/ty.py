@@ -20,6 +20,7 @@ from enum import IntEnum
 from .base import RelayNode, register_relay_node
 from . import _make
 
+Any = _make.Any
 
 class Type(RelayNode):
     """The base type for all Relay types."""
@@ -137,6 +138,19 @@ class TypeVar(Type):
         """
         self.__init_handle_by_constructor__(_make.TypeVar, var, kind)
 
+def ShapeVar(name):
+    """A helper which constructs a type var of which the shape kind.
+
+    Parameters
+    ----------
+    name : str
+
+    Returns
+    -------
+    type_var : tvm.relay.TypeVar
+        The shape variable.
+    """
+    return TypeVar(name, kind=Kind.ShapeVar)
 
 @register_relay_node
 class GlobalTypeVar(Type):
