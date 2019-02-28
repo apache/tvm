@@ -294,7 +294,8 @@ class ApplyHistoryBest(DispatchContext):
             # use model as key to build best map
             key = (inp.target.model, inp.task.workload)
             if key not in best_by_model:
-                best_by_model[key] = (inp, res)
+                if inp.target.model != 'unknown':
+                    best_by_model[key] = (inp, res)
             else:
                 _, other_res = best_by_model[key]
                 if np.mean(other_res.costs) > np.mean(res.costs):

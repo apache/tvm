@@ -4,7 +4,7 @@ from __future__ import absolute_import
 
 import ctypes
 from ..base import _LIB, check_call, c_str
-from ..runtime_ctypes import TVMArrayHandle
+from ..runtime_ctypes import TVMArrayHandle, TVMNDArrayContainerHandle
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _return_handle
 
 
@@ -28,7 +28,7 @@ def _from_dlpack(dltensor):
         check_call(_LIB.TVMArrayFromDLPack(ptr, ctypes.byref(handle)))
         ctypes.pythonapi.PyCapsule_SetName(dltensor, _c_str_used_dltensor)
         ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
-        return _make_array(handle, False)
+        return _make_array(handle, False, False)
     raise ValueError("Expect a dltensor field, PyCapsule can only be consumed once")
 
 
@@ -77,9 +77,15 @@ class NDArrayBase(object):
         return ctypes.pythonapi.PyCapsule_New(handle, _c_str_dltensor, _c_dlpack_deleter)
 
 
-def _make_array(handle, is_view):
+def _make_array(handle, is_view, is_container):
+    global _TVM_ND_CLS
     handle = ctypes.cast(handle, TVMArrayHandle)
-    return _CLASS_NDARRAY(handle, is_view)
+    fcreate = _CLASS_NDARRAY
+    if is_container and _TVM_ND_CLS:
+        array_type_info = ctypes.cast(handle, TVMNDArrayContainerHandle).array_type_info.value
+        if array_type_info > 0:
+            fcreate = _TVM_ND_CLS[array_type_info]
+    return fcreate(handle, is_view)
 
 _TVM_COMPATS = ()
 
@@ -91,6 +97,11 @@ def _reg_extension(cls, fcreate):
         RETURN_SWITCH[cls._tvm_tcode] = fret
         C_TO_PY_ARG_SWITCH[cls._tvm_tcode] = _wrap_arg_func(fret, cls._tvm_tcode)
 
+_TVM_ND_CLS = {}
+
+def _reg_ndarray(cls, fcreate):
+    global _TVM_ND_CLS
+    _TVM_ND_CLS[cls._array_type_code] = fcreate
 
 _CLASS_NDARRAY = None
 

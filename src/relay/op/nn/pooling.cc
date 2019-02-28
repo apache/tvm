@@ -3,12 +3,12 @@
  * \file pooling.cc
  * \brief Pooling operators
  */
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
 #include <topi/nn/pooling.h>
 #include <vector>
-#include "../layout.h"
 #include "../../pass/alter_op_layout.h"
 
 namespace tvm {
@@ -32,14 +32,15 @@ Array<Array<Layout> > Pool2DInferCorrectLayout(
 
     Layout raw_layout(params->layout);
     Layout input = new_in_layouts[0];
-    if (input.Indexof('W') == raw_layout.Indexof('W') &&
-        input.Indexof('H') == raw_layout.Indexof('H') &&
-        !input.Contains('w') && !input.Contains('h')) {
+    if (input.IndexOf(LayoutAxis::Get('W')) == raw_layout.IndexOf(LayoutAxis::Get('W')) &&
+    input.IndexOf(LayoutAxis::Get('H')) == raw_layout.IndexOf(LayoutAxis::Get('H')) &&
+        !input.Contains(LayoutAxis::Get('w')) && !input.Contains(LayoutAxis::Get('h'))) {
       params->layout = input.name();  // modify self to follow the input layout
     }
   }
 
-  return Array<Array<Layout> >{{params->layout}, {params->layout}};
+  Layout inferred_layout(params->layout);
+  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
 }
 
 template <typename AttrType>
@@ -59,13 +60,13 @@ bool Pool2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
-  CHECK(layout.Contains('H') && layout.Contains('W') &&
-        !layout.Contains('h') && !layout.Contains('w'))
+  CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
+        !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
     << "Invalid layout " << layout
     << ". Pool2D layout must have H and W, which cannot be split";
 
-  const auto hidx = layout.Indexof('H');
-  const auto widx = layout.Indexof('W');
+  const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
+  const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
 
   IndexExpr pad_h, pad_w;
   if (param->padding.size() == 1) {
@@ -125,6 +126,7 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
                             const Array<Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
+  static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
   auto pool_size = param->pool_size;
@@ -132,10 +134,13 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   auto padding = param->padding;
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
-  CHECK(layout.Convertible(Layout("NCHW")))
+
+  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
       << "max_pool2d currently only supports layouts that are convertible from NCHW";
-  CHECK_EQ(layout.Indexof('h'), -1) << "max_pool2d does not support input split on height";
-  CHECK_EQ(layout.Indexof('w'), -1) << "max_pool2d does not support input split on width";
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
+      << "max_pool2d does not support input split on height";
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
+      << "max_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
       << "Pool2D only support 4-D input (e.g., NCHW)"
@@ -271,13 +276,13 @@ bool GlobalPool2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
-  CHECK(layout.Contains('H') && layout.Contains('W') &&
-        !layout.Contains('h') && !layout.Contains('w'))
+  CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
+        !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
     << "Invalid layout " << layout
     << ". Pool2D layout must have H and W, which cannot be split";
 
-  const auto hidx = layout.Indexof('H');
-  const auto widx = layout.Indexof('W');
+  const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
+  const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
   Array<IndexExpr> oshape(dshape);
   oshape.Set(hidx, 1);
   oshape.Set(widx, 1);
@@ -293,14 +298,15 @@ Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
                                   const Array<Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
+  static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
-  CHECK(layout.Convertible(Layout("NCHW")))
+  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
     << "global_avg_pool2d currently only supports layouts that are convertible from NCHW";
-  CHECK_EQ(layout.Indexof('h'), -1)
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
     << "global_avg_pool2d does not support input split on height";
-  CHECK_EQ(layout.Indexof('w'), -1)
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
     << "global_avg_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)

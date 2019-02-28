@@ -168,7 +168,7 @@ def register_pattern(op_name, pattern, level=10):
     """
     return register(op_name, "TOpPattern", pattern, level)
 
-def register_gradient(op_name, fgradient, level=10):
+def register_gradient(op_name, fgradient=None, level=10):
     """Register operator pattern for an op.
 
     Parameters

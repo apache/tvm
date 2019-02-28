@@ -166,8 +166,9 @@ def reshape_like(data, shape_like):
     """Reshapes the input array by the size of another array.
     For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
     the input array into an output array with the same shape as the second input array.
+
     .. note::
-    Sizes for both array should be compatible.
+        Sizes for both array should be compatible.
 
     Parameters
     ----------
@@ -249,9 +250,56 @@ def full_like(data, fill_value):
     return _make.full_like(data, fill_value)
 
 
+def arange(start, stop=None, step=1, dtype="float32"):
+    """Return evenly spaced values within a given interval.
+
+    .. note::
+        Similar to ``numpy.arange``, when only one argument is given, it is used
+        as `stop` instead of `start` while `start` takes default value 0.
+
+        Warning: Undefined behavior when dtype is incompatible with start/stop/step.
+        It could lead to different results compared to numpy, MXNet, pytorch, etc.
+
+    Parameters
+    ----------
+    start : tvm.Expr, optional
+        Start of interval. The interval includes this value. The default start
+        value is 0.
+
+    stop : tvm.Expr
+        Stop of interval. The interval does not include this value.
+
+    step : tvm.Expr, optional
+        Spacing between values. The default step size is 1.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        relay.arange(5) = [0, 1, 2, 3, 4]
+        relay.arange(1, 5) = [1, 2, 3, 4]
+        relay.arange(1, 5, 1.5) = [1, 2.5, 4]
+    """
+    if stop is None:
+        stop = start
+        start = 0
+    return _make.arange(start, stop, step, dtype)
+
+
 def where(condition, x, y):
     """Selecting elements from either x or y depending on the value of the
     condition.
+
+    .. note::
+        The shape of condition, x, and y needs to be the same.
 
     Parameters
     ----------
@@ -282,8 +330,6 @@ def where(condition, x, y):
 
         condition = [1, 0]
         relay.where(conditon, x, y) = [[1, 2], [7, 8]]
-
-    Note that the shape of condition, x, and y needs to be the same.
     """
     return _make.where(condition, x, y)
 

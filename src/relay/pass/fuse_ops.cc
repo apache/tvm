@@ -773,7 +773,7 @@ class FuseMutator : private ExprMutator {
       } else {
         // This is an intermediate node of a fused function
         // simply return the new call.
-        return new_call;
+        return std::move(new_call);
       }
     } else {
       return ExprMutator::VisitExpr_(call);

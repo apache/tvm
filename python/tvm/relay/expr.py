@@ -51,6 +51,9 @@ class Expr(RelayNode):
         """
         return _make.cast(self, dtype)
 
+    def __neg__(self):
+        return _op_make.negative(self)
+
     def __add__(self, other):
         if isinstance(other, Expr):
             return _op_make.add(self, other)

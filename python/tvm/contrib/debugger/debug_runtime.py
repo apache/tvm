@@ -89,6 +89,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self._dump_path = None
         self._debug_run = module["debug_run"]
         self._get_output_by_layer = module["get_output_by_layer"]
+        self._run_individual = module["run_individual"]
         graph_runtime.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, ctx)
 
@@ -221,6 +222,9 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self.debug_datum.dump_output_tensor()
         # Step 3. Display the collected information
         self.debug_datum.display_debug_result()
+
+    def run_individual(self, number, repeat=1, min_repeat_ms=0):
+        self._run_individual(number, repeat, min_repeat_ms)
 
     def exit(self):
         """Exits the dump folder and all its contents"""

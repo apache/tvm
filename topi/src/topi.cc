@@ -31,7 +31,6 @@
 
 #include <topi/vision/reorg.h>
 #include <topi/image/resize.h>
-#include <topi/vision/yolo/region.h>
 #include <topi/generic/default.h>
 #include <topi/generic/extern.h>
 #include <topi/generic/injective.h>
@@ -42,7 +41,6 @@
 #include <topi/cuda/pooling.h>
 #include <topi/cuda/reduction.h>
 #include <topi/cuda/softmax.h>
-#include <topi/cuda/vision.h>
 #include <topi/cuda/normalization.h>
 
 #include <topi/x86/bnn.h>
@@ -50,7 +48,6 @@
 #include <topi/x86/injective.h>
 
 #include <topi/rocm/dense.h>
-#include <topi/rocm/vision.h>
 #include <topi/rocm/normalization.h>
 
 namespace topi {
@@ -276,6 +273,11 @@ TVM_REGISTER_GLOBAL("topi.split")
   }
   });
 
+TVM_REGISTER_GLOBAL("topi.layout_transform")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = layout_transform(args[0], args[1], args[2]);
+});
+
 TVM_REGISTER_GLOBAL("topi.take")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   if (args.size() == 2) {
@@ -289,6 +291,11 @@ TVM_REGISTER_GLOBAL("topi.take")
 TVM_REGISTER_GLOBAL("topi.where")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = where(args[0], args[1], args[2]);
+});
+
+TVM_REGISTER_GLOBAL("topi.arange")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = arange(args[0], args[1], args[2], args[3]);
 });
 
 TVM_REGISTER_GLOBAL("topi.gather_nd")
@@ -418,11 +425,6 @@ TVM_REGISTER_GLOBAL("topi.vision.reorg")
   *rv = vision::reorg(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.vision.yolo.region")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = vision::yolo::region(args[0], args[1], args[2], args[3], args[4], args[5]);
-  });
-
 /* Ops from image/resize.h */
 TVM_REGISTER_GLOBAL("topi.image.bilinear_sample_nchw")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -490,11 +492,6 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
   *rv = topi::rocm::schedule_dense(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.rocm.schedule_region")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::rocm::schedule_region(args[0], args[1]);
-  });
-
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_lrn")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::rocm::schedule_lrn(args[0], args[1]);
@@ -544,11 +541,6 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_reduce")
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_softmax")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_softmax(args[0], args[1]);
-  });
-
-TVM_REGISTER_GLOBAL("topi.cuda.schedule_region")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_region(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_lrn")

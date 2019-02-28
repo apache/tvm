@@ -60,21 +60,21 @@ def _convert_activation(inexpr, keras_layer, _):
         alpha = _expr.const(alpha, dtype='float32')
         beta = _expr.const(beta, dtype='float32')
         return _op.add(_op.multiply(inexpr, alpha), beta)
-    elif act_type == 'softmax':
+    if act_type == 'softmax':
         return _op.nn.softmax(inexpr, axis=1)
-    elif act_type == 'sigmoid':
+    if act_type == 'sigmoid':
         return _op.sigmoid(inexpr)
-    elif act_type == 'tanh':
+    if act_type == 'tanh':
         return _op.tanh(inexpr)
-    elif act_type == 'relu':
+    if act_type == 'relu':
         return _op.nn.relu(inexpr)
-    elif act_type == 'softplus':
+    if act_type == 'softplus':
         return _op.log(_op.add(_op.exp(inexpr), _expr.const(1., dtype='float32')))
-    elif act_type == 'elu':
+    if act_type == 'elu':
         alpha = keras_layer.alpha if hasattr(keras_layer, 'alpha') else 1.
         alpha = _expr.const(alpha, dtype='float32')
         return _get_elu(inexpr, alpha)
-    elif act_type == 'selu':
+    if act_type == 'selu':
         # Alpha, Gamma values obtained from https://arxiv.org/abs/1706.02515
         alpha = keras_layer.alpha if hasattr(keras_layer, 'alpha') \
             else 1.6732632423543772848170429916717
@@ -83,15 +83,15 @@ def _convert_activation(inexpr, keras_layer, _):
         alpha = _expr.const(alpha, dtype='float32')
         gamma = _expr.const(gamma, dtype='float32')
         return gamma * _get_elu(inexpr, alpha)
-    elif act_type == 'relu6':
+    if act_type == 'relu6':
         return _op.clip(inexpr, a_min=0., a_max=6.)
-    elif act_type == 'softsign':
+    if act_type == 'softsign':
         return inexpr / (_expr.const(1., dtype='float32') + _op.abs(inexpr))
-    elif act_type == 'hard_sigmoid':
+    if act_type == 'hard_sigmoid':
         x = (_expr.const(0.2, dtype='float32') * inexpr) + _expr.const(0.5, dtype='float32')
         return _op.clip(x, a_min=0., a_max=1.)
-    else:
-        raise TypeError("Unsupported activation type : {}".format(act_type))
+
+    raise TypeError("Unsupported activation type : {}".format(act_type))
 
 
 def _convert_advanced_activation(inexpr, keras_layer, etab):
@@ -100,25 +100,25 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
         if keras_layer.max_value:
             return _op.clip(inexpr, a_min=0., a_max=float(keras_layer.max_value))
         return _op.nn.relu(inexpr)
-    elif act_type == 'LeakyReLU':
+    if act_type == 'LeakyReLU':
         return _op.nn.leaky_relu(inexpr, alpha=float(keras_layer.alpha))
-    elif act_type == 'ELU':
+    if act_type == 'ELU':
         alpha = keras_layer.alpha if hasattr(keras_layer, 'alpha') else 1.
         alpha = _expr.const(alpha, dtype='float32')
         return _get_elu(inexpr, alpha)
-    elif act_type == 'PReLU':
+    if act_type == 'PReLU':
         assert hasattr(keras_layer, 'alpha'), "alpha required for PReLU."
         _check_data_format(keras_layer)
         size = len(keras_layer.alpha.shape)
         alpha = etab.new_const(keras_layer.get_weights()[0] \
                                .transpose(np.roll(range(size), 1)))
         return _op.negative(alpha) * _op.nn.relu(_op.negative(inexpr)) + _op.nn.relu(inexpr)
-    elif act_type == 'ThresholdedReLU':
+    if act_type == 'ThresholdedReLU':
         theta = keras_layer.theta if hasattr(keras_layer, 'theta') else 1.
         return _op.multiply(inexpr, _op.greater(inexpr, \
             _expr.const(theta, dtype='float32')).astype('float32'))
-    else:
-        raise TypeError("Unsupported advanced activation type : {}".format(act_type))
+
+    raise TypeError("Unsupported advanced activation type : {}".format(act_type))
 
 
 def _convert_merge(inexpr, keras_layer, _):
@@ -297,31 +297,29 @@ def _convert_pooling(inexpr, keras_layer, etab):
     # global pool in keras = global pool + flatten in nnvm/relay
     if pool_type == 'GlobalMaxPooling2D':
         return _convert_flatten(_op.nn.global_max_pool2d(inexpr), keras_layer, etab)
-    elif pool_type == 'GlobalAveragePooling2D':
+    if pool_type == 'GlobalAveragePooling2D':
         return _convert_flatten(_op.nn.global_avg_pool2d(inexpr), keras_layer, etab)
+    pool_h, pool_w = keras_layer.pool_size
+    stride_h, stride_w = keras_layer.strides
+    params = {'pool_size': [pool_h, pool_w],
+              'strides': [stride_h, stride_w],
+              'padding': [0, 0]}
+    if keras_layer.padding == 'valid':
+        pass
+    elif keras_layer.padding == 'same':
+        in_h = keras_layer.input_shape[1]
+        in_w = keras_layer.input_shape[2]
+        pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
+        pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
+        params['padding'] = [pad_t, pad_l, pad_b, pad_r]
     else:
-        pool_h, pool_w = keras_layer.pool_size
-        stride_h, stride_w = keras_layer.strides
-        params = {'pool_size': [pool_h, pool_w],
-                  'strides': [stride_h, stride_w],
-                  'padding': [0, 0]}
-        if keras_layer.padding == 'valid':
-            pass
-        elif keras_layer.padding == 'same':
-            in_h = keras_layer.input_shape[1]
-            in_w = keras_layer.input_shape[2]
-            pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
-            pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
-            params['padding'] = [pad_t, pad_l, pad_b, pad_r]
-        else:
-            raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
-        if pool_type == 'MaxPooling2D':
-            return _op.nn.max_pool2d(inexpr, **params)
-        elif pool_type == 'AveragePooling2D':
-            params['count_include_pad'] = False
-            return _op.nn.avg_pool2d(inexpr, **params)
-        else:
-            raise TypeError("Unsupported pooling type : {}".format(keras_layer))
+        raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
+    if pool_type == 'MaxPooling2D':
+        return _op.nn.max_pool2d(inexpr, **params)
+    if pool_type == 'AveragePooling2D':
+        params['count_include_pad'] = False
+        return _op.nn.avg_pool2d(inexpr, **params)
+    raise TypeError("Unsupported pooling type : {}".format(keras_layer))
 
 
 def _convert_upsample(inexpr, keras_layer, _):

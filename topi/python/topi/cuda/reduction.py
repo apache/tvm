@@ -96,7 +96,7 @@ def schedule_reduce(outs):
         """Internal travserse function"""
         if isinstance(operator, tvm.tensor.PlaceholderOp):
             return
-        elif tag.is_injective(operator.tag):
+        if tag.is_injective(operator.tag):
             sch[operator].compute_inline()
             for tensor in operator.input_tensors:
                 if tensor.op not in scheduled_ops:

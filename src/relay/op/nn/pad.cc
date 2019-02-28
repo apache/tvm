@@ -3,12 +3,12 @@
  * \file pad.cc
  * \brief Implementation of operator pad
  */
+#include <tvm/data_layout.h>
 #include <tvm/ir_operator.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <topi/nn.h>
 #include <vector>
-#include "../layout.h"
 #include "../op_common.h"
 
 namespace tvm {

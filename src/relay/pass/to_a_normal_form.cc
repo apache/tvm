@@ -120,6 +120,22 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
     Depend(n, t->tuple);
   }
 
+  void VisitExpr_(const RefCreateNode* r) final {
+    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(r)];
+    Depend(n, r->value);
+  }
+
+  void VisitExpr_(const RefReadNode* r) final {
+    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(r)];
+    Depend(n, r->ref);
+  }
+
+  void VisitExpr_(const RefWriteNode* r) final {
+    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(r)];
+    Depend(n, r->ref);
+    Depend(n, r->value);
+  }
+
   void VisitExpr_(const IfNode* i) final {
     DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(i)];
     DependencyGraph::Node* t = NewNode(true);
@@ -150,6 +166,21 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
     graph_.post_dfs_order.push_back(b);
   }
 
+  void VisitExpr_(const MatchNode* m) final {
+    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(m)];
+    Depend(n, m->data);
+    std::vector<DependencyGraph::Node*> v;
+    for (const Clause& c : m->clauses) {
+      DependencyGraph::Node* b = NewNode(true);
+      Depend(n, b);
+      Depend(b, c->rhs);
+      v.push_back(b);
+    }
+    for (auto it = v.rbegin(); it != v.rend(); ++it) {
+      graph_.post_dfs_order.push_back(*it);
+    }
+  }
+
   void VisitExpr_(const VarNode* v) final { }
 
   void VisitExpr_(const GlobalVarNode* v) final { }
@@ -157,13 +188,15 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
   void VisitExpr_(const ConstantNode* c) final { }
 
   void VisitExpr_(const OpNode* o) final { }
+
+  void VisitExpr_(const ConstructorNode* c) final { }
 };
 
 DependencyGraph DependencyGraph::Create(common::Arena* arena, const Expr& body) {
   return Creator(arena).Create(body);
 }
 
-Expr ToANF(const Expr& e, const Module& m, std::set<GlobalVar>* gv);
+Expr ToANormalForm(const Expr& e, const Module& m, std::set<GlobalVar>* gv);
 
 struct ScopeNode;
 using Scope = std::shared_ptr<ScopeNode>;
@@ -223,13 +256,17 @@ bool IsPrimitiveFunction(const Expr& e) {
   return e.as<FunctionNode>() && Downcast<Function>(e)->IsPrimitive();
 }
 
+/* Special care is needed to handle local recursion.
+ * Fill additionally take a (possibly null) Var argument,
+ * If it is not null, Fill is required to bind the transformed result to that var.
+ */
 class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
-  static Expr ToANF(const Expr& e,
-                    const Module& m,
-                    const DependencyGraph& dg,
-                    std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                    std::set<GlobalVar>* gv) {
+  static Expr ToANormalForm(const Expr& e,
+                            const Module& m,
+                            const DependencyGraph& dg,
+                            std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
+                            std::set<GlobalVar>* gv) {
     Fill fi(m, dg, node_scope, gv);
     return fi.GetScope(e)->ll->Get(fi.VisitExpr(e));
   }
@@ -274,12 +311,18 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 
   Expr VisitExpr(const Expr& e) {
-    Var v = VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
-    return this->VisitExpr(e, v);
+    return this->VisitExpr(e, Var());
+  }
+
+  Expr Atomic(const Expr& orig, const Expr& now, const Var& v) {
+    return v.defined() ? GetScope(orig)->ll->Push(v, now) : now;
   }
 
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    return GetScope(orig)->ll->Push(v, now);
+    Var var = v.defined() ?
+      v :
+      VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
+    return GetScope(orig)->ll->Push(var, now);
   }
 
   Expr VisitExpr_(const CallNode* c, const Var& v) final {
@@ -303,6 +346,21 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {
     Expr e = GetRef<Expr>(t);
     return Compound(e, TupleGetItemNode::make(VisitExpr(t->tuple), t->index), v);
+  }
+
+  Expr VisitExpr_(const RefCreateNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefCreateNode::make(VisitExpr(r->value)), v);
+  }
+
+  Expr VisitExpr_(const RefReadNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefReadNode::make(VisitExpr(r->ref)), v);
+  }
+
+  Expr VisitExpr_(const RefWriteNode* r, const Var& v) final {
+    Expr e = GetRef<Expr>(r);
+    return Compound(e, RefWriteNode::make(VisitExpr(r->ref), VisitExpr(r->value)), v);
   }
 
   Expr VisitExpr_(const IfNode* i, const Var& v) final {
@@ -341,24 +399,43 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 
   Expr VisitExpr_(const VarNode* vn, const Var& v) final {
-    return GetRef<Expr>(vn);
+    Expr e = GetRef<Expr>(vn);
+    return Atomic(e, e, v);
   }
 
   Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
     GlobalVar gv = GetRef<GlobalVar>(gvn);
     if (visited_->count(gv) == 0) {
       visited_->insert(gv);
-      mod_->Update(gv, Downcast<Function>(relay::ToANF(mod_->Lookup(gv), mod_, visited_)));
+      mod_->Update(gv, Downcast<Function>(relay::ToANormalForm(mod_->Lookup(gv), mod_, visited_)));
     }
-    return gv;
+    return Atomic(gv, gv, v);
   }
 
   Expr VisitExpr_(const OpNode* op, const Var& v) final {
-    return GetRef<Expr>(op);
+    Expr e = GetRef<Expr>(op);
+    return Atomic(e, e, v);
+  }
+
+  Expr VisitExpr_(const ConstructorNode* c, const Var& v) final {
+    Expr e = GetRef<Expr>(c);
+    return Atomic(e, e, v);
+  }
+
+  Expr VisitExpr_(const MatchNode* m, const Var& v) final {
+    Expr e = GetRef<Expr>(m);
+    Expr data = VisitExpr(m->data);
+    std::vector<Clause> clauses;
+    for (const Clause& c : m->clauses) {
+      clauses.push_back(ClauseNode::make(
+        c->lhs,
+        GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
+    }
+    return Compound(e, MatchNode::make(data, clauses), v);
   }
 };
 
-Expr ToANFAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
+Expr ToANormalFormAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
   /* When you lift a lambda, what is inside is also being lift.
    *
    * So we must determine the scope of the lambda before determining the scope of it's body.
@@ -381,29 +458,29 @@ Expr ToANFAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
    * We do an additional pass to fill all the LetList and we are done.
    */
   std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg);
-  return Fill::ToANF(e, m, dg, &node_scope, gv);
+  return Fill::ToANormalForm(e, m, dg, &node_scope, gv);
 }
 
-Expr ToANF(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
+Expr ToANormalForm(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
   if (const auto* f = e.as<FunctionNode>()) {
     return FunctionNode::make(f->params,
-                              ToANFAux(f->body, m, gv),
+                              ToANormalFormAux(f->body, m, gv),
                               f->ret_type,
                               f->type_params,
                               f->attrs);
   } else {
-    return ToANFAux(e, m, gv);
+    return ToANormalFormAux(e, m, gv);
   }
 }
 
-Expr ToANF(const Expr& e, const Module& m) {
+Expr ToANormalForm(const Expr& e, const Module& m) {
   std::set<GlobalVar> gv;
-  return ToANF(e, m, &gv);
+  return ToANormalForm(e, m, &gv);
 }
 
-TVM_REGISTER_API("relay._ir_pass.to_anf")
+TVM_REGISTER_API("relay._ir_pass.to_a_normal_form")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ToANF(args[0], args[1]);
+    *ret = ToANormalForm(args[0], args[1]);
   });
 
 }  // namespace relay

@@ -93,10 +93,9 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
 
     if layout == 'NCHW':
         return nn.conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
-    elif layout == 'HWCN':
+    if layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
-    else:
-        raise ValueError("not support this layout {} yet".format(layout))
+    raise ValueError("not support this layout {} yet".format(layout))
 
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_nchw, ["cuda", "gpu"],

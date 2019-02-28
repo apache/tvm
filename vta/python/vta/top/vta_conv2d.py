@@ -193,7 +193,7 @@ def _build(funcs, target, target_host):
     tvm_t = tvm.target.create(target)
     if tvm_t.device_name == "vta":
         return tvm.build(funcs, target="ext_dev", target_host=target_host)
-    elif tvm_t.device_name == "rasp" or tvm_t.device_name == "vtacpu":
+    if tvm_t.device_name == "rasp" or tvm_t.device_name == "vtacpu":
         return tvm.build(funcs, target=target_host)
     return tvm.build(funcs, target=target)
 
@@ -279,10 +279,9 @@ def schedule_conv2d(attrs, outs, target):
         target = tvm.target.create(target)
         if target.device_name == "vta":
             return schedule_packed_conv2d(outs)
-        elif str(target).startswith("llvm"):
+        if str(target).startswith("llvm"):
             return tvm.create_schedule([x.op for x in outs])
-        else:
-            raise RuntimeError("not support target %s" % target)
+        raise RuntimeError("not support target %s" % target)
     return _nn.schedule_conv2d(attrs, outs, target)
 
 

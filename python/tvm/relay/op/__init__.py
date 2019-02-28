@@ -18,6 +18,7 @@ from . import op_attrs
 
 # operator registry
 from . import _tensor
+from . import _tensor_grad
 from . import _transform
 from . import _reduce
 from ..expr import Expr

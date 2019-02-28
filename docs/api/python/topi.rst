@@ -68,6 +68,8 @@ List of operators
    topi.not_equal
    topi.greater_equal
    topi.less_equal
+   topi.arange
+   topi.layout_transform
    topi.image.resize
 
 
@@ -124,6 +126,8 @@ topi
 .. autofunction:: topi.power
 .. autofunction:: topi.greater
 .. autofunction:: topi.less
+.. autofunction:: topi.arange
+.. autofunction:: topi.layout_transform
 
 topi.nn
 ~~~~~~~

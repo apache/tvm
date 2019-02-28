@@ -223,10 +223,9 @@ class Environment(object):
         """The target host"""
         if self.TARGET == "pynq":
             return "llvm -target=armv7-none-linux-gnueabihf"
-        elif self.TARGET == "sim":
+        if self.TARGET == "sim":
             return "llvm"
-        else:
-            raise ValueError("Unknown target %s" % self.TARGET)
+        raise ValueError("Unknown target %s" % self.TARGET)
 
 
 def get_env():

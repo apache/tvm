@@ -20,7 +20,7 @@ def _from_dlpack(object dltensor):
         # set name and destructor to be empty
         pycapsule.PyCapsule_SetDestructor(dltensor, NULL)
         pycapsule.PyCapsule_SetName(dltensor, _c_str_used_dltensor)
-        return c_make_array(chandle, 0)
+        return c_make_array(chandle, False, False)
     raise ValueError("Expect a dltensor field, pycapsule.PyCapsule can only be consumed once")
 
 
@@ -73,8 +73,15 @@ cdef class NDArrayBase:
         return pycapsule.PyCapsule_New(dltensor, _c_str_dltensor, _c_dlpack_deleter)
 
 
-cdef c_make_array(void* chandle, is_view):
-    ret = _CLASS_NDARRAY(None, is_view)
+cdef c_make_array(void* chandle, is_view, is_container):
+    global _TVM_ND_CLS
+    cdef int32_t array_type_info
+    fcreate = _CLASS_NDARRAY
+    if is_container and len(_TVM_ND_CLS) > 0:
+        array_type_info = (<TVMNDArrayContainerHandle>chandle).array_type_info
+        if array_type_info > 0:
+            fcreate = _TVM_ND_CLS[array_type_info]
+    ret = fcreate(None, is_view)
     (<NDArrayBase>ret).chandle = <DLTensor*>chandle
     return ret
 
@@ -89,11 +96,16 @@ def _reg_extension(cls, fcreate):
     if fcreate:
         _TVM_EXT_RET[cls._tvm_tcode] = fcreate
 
+cdef _TVM_ND_CLS = {}
 
-def _make_array(handle, is_view):
+def _reg_ndarray(cls, fcreate):
+    global _TVM_ND_CLS
+    _TVM_ND_CLS[cls._array_type_code] = fcreate
+
+def _make_array(handle, is_view, is_container):
     cdef unsigned long long ptr
     ptr = ctypes.cast(handle, ctypes.c_void_p).value
-    return c_make_array(<void*>ptr, is_view)
+    return c_make_array(<void*>ptr, is_view, is_container)
 
 cdef object _CLASS_NDARRAY = None
 

@@ -90,8 +90,8 @@ bool BroadcastRel(const Array<Type>& types,
                   const Attrs& attrs,
                   const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
-  RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1]
-                  << "Out: " << types[2] << std::endl;
+  RELAY_LOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
+                  << ",Out:" << types[2] << std::endl;
   if (auto t0 = ToTensorType(types[0])) {
     if (auto t1 = ToTensorType(types[1])) {
       CHECK_EQ(t0->dtype, t1->dtype);
@@ -108,8 +108,8 @@ bool BroadcastCompRel(const Array<Type>& types,
                       const Attrs& attrs,
                       const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
-  RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1]
-                  << "Out: " << types[2] << std::endl;
+  RELAY_LOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
+                  << ",Out:" << types[2] << std::endl;
   if (auto t0 = ToTensorType(types[0])) {
     if (auto t1 = ToTensorType(types[1])) {
       CHECK_EQ(t0->dtype, t1->dtype);

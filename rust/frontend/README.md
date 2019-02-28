@@ -215,5 +215,5 @@ fn main() {
         .unwrap();
 
     assert_eq!(ret, 14f64);
-    }
+}
 ```

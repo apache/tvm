@@ -400,6 +400,8 @@ void CodeGenHybrid::ReserveKeywords() {
   GetUniqueName("for");
   GetUniqueName("in");
   GetUniqueName("range");
+  GetUniqueName("True");
+  GetUniqueName("False");
   GetUniqueName("unroll");
   GetUniqueName("const_range");
   GetUniqueName("parallel");
@@ -434,6 +436,7 @@ void CodeGenHybrid::ReserveKeywords() {
   GetUniqueName("float32");
   GetUniqueName("float64");
   GetUniqueName("ceil_div");
+  GetUniqueName("max_num_threads");
 }
 
 void CodeGenHybrid::DumpStmt(const Stmt &stmt,

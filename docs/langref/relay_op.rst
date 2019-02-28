@@ -95,6 +95,7 @@ This level enables additional math and transform operators.
    tvm.relay.full_like
    tvm.relay.cast
    tvm.relay.split
+   tvm.relay.arange
 
 
 **Level 4: Broadcast and Reductions**
@@ -134,6 +135,7 @@ This level enables additional math and transform operators.
    tvm.relay.vision.multibox_prior
    tvm.relay.vision.multibox_transform_loc
    tvm.relay.vision.nms
+   tvm.relay.vision.yolo_reorg
 
 
 **Level 10: Temporary Operators**
@@ -217,6 +219,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.full_like
 .. autofunction:: tvm.relay.cast
 .. autofunction:: tvm.relay.split
+.. autofunction:: tvm.relay.arange
 
 
 Level 4 Definitions
@@ -250,6 +253,7 @@ Level 5 Definitions
 .. autofunction:: tvm.relay.vision.multibox_prior
 .. autofunction:: tvm.relay.vision.multibox_transform_loc
 .. autofunction:: tvm.relay.vision.nms
+.. autofunction:: tvm.relay.vision.yolo_reorg
 
 
 Level 10 Definitions

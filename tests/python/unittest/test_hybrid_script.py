@@ -300,6 +300,7 @@ def test_bind():
     if not tvm.gpu(0).exist:
         print('[Warning] No GPU found! Skip bind test!')
         return
+
     @script
     def vec_add(a, b):
         c = output_tensor((1000, ), 'float32')
@@ -326,23 +327,45 @@ def test_bind():
     func, ins, outs = run_and_check(raw, [a, b], sch=sch, outs=[c], target='cuda')
     run_and_check(func, ins, outs=outs, target='cuda')
 
-    # Test loop binds
+
     @tvm.hybrid.script
-    def goo(a, b):
-        c = output_tensor(a.shape, a.dtype)
-        len_b = len(b)
-        for i in const_range(len_b * 2):
-            if i < len_b:
-                c[i] = a[i] + b[i]
-            else:
-                c[i - len_b] = a[i - len_b] + b[i - len_b]
+    def foo(a):
+        c = output_tensor((a.shape[0],), a.dtype)
+        total = allocate((1,), a.dtype, 'local')
+        len_i = a.shape[0]
+        len_j = a.shape[1]
+        for i in bind('threadIdx.x', len_i):
+            total[0] = 0.
+            for k in const_range(len_j):
+                total[0] += a[i, k]
+            c[i] = total[0]
+    
         return c
-    a = tvm.placeholder((5, ), name='a', dtype='int32')
-    b = [1, 2, 3, 4, 5]
-    c = goo(a, tvm.convert(b))
-    sch = tvm.create_schedule(c.op)
-    func, ins, outs = run_and_check(goo, [a, b], sch=sch, outs=[c])
-    run_and_check(func, ins, outs=outs)
+    
+    a = tvm.placeholder((8, 4), 'float32')
+    c = foo(a)
+    s = tvm.create_schedule(c.op)
+    ir = tvm.lower(s, [a, c], simple_mode=True)
+    assert not isinstance(ir, tvm.stmt.AttrStmt)
+    func, ins, outs = run_and_check(foo, [a], target='cuda')
+    run_and_check(func, ins, outs=outs, target='cuda')
+
+    @tvm.hybrid.script
+    def max_threads(a):
+        b = output_tensor(a.shape, a.dtype)
+        n = a.shape[0]
+        m = max_num_threads(True)
+        for i in bind('threadIdx.x', m):
+            for j in bind('blockIdx.x', ceil_div(n, m)):
+                if i * m + j < n:
+                    b[i * m + j] = a[i * m + j] + a[i * m + j]
+        return b
+
+    a = tvm.placeholder((10000, ), 'float32')
+    with tvm.target.create('cuda'):
+        func, ins, outs = run_and_check(max_threads, [a], target='cuda')
+        run_and_check(func, ins, outs=outs, target='cuda')
+
 
 def test_math_intrin():
     @script
@@ -455,6 +478,7 @@ def test_allocate():
 
         a = tvm.placeholder((256, ), dtype='float32', name='a')
         b = tvm.placeholder((256, ), dtype='float32', name='b')
+        c = share_vec_add(a, b)
         func, ins, outs = run_and_check(share_vec_add, [a, b], target='cuda')
         run_and_check(func, ins, outs=outs, target='cuda')
     else:
