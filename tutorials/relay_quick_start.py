@@ -5,7 +5,7 @@ Quick Start Tutorial for Compiling Deep Learning Models
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Truman Tian <https://github.com/SiNZeRo>`_
 
 This example shows how to build a neural network with Relay python frontend and
-generate runtime library for Nvidia GPU with TVM.
+generates a runtime library for Nvidia GPU with TVM.
 Notice that you need to build TVM with cuda and llvm enabled.
 """
 
@@ -50,7 +50,9 @@ out_shape = (batch_size, num_class)
 
 net, params = relay.testing.resnet.get_workload(
     num_layers=18, batch_size=batch_size, image_shape=image_shape)
-print(net.astext(show_meta_data=True))
+
+# set show_meta_data=True if you want to show meta data
+print(net.astext(show_meta_data=False))
 
 ######################################################################
 # Compilation
@@ -71,7 +73,7 @@ print(net.astext(show_meta_data=True))
 # first does a number of graph-level optimizations, e.g. pruning, fusing, etc.,
 # then registers the operators (i.e. the nodes of the optimized graphs) to
 # TVM implementations to generate a `tvm.module`.
-# To generate the module library, TVM will first transfer the High level IR
+# To generate the module library, TVM will first transfer the high level IR
 # into the lower intrinsic IR of the specified target backend, which is CUDA
 # in this example. Then the machine code will be generated as the module library.
 
@@ -97,12 +99,10 @@ module.set_input(**params)
 # run
 module.run()
 # get output
-out = module.get_output(0, tvm.nd.empty(out_shape))
-# convert to numpy
-out.asnumpy()
+out = module.get_output(0, tvm.nd.empty(out_shape)).asnumpy()
 
 # Print first 10 elements of output
-print(out.asnumpy().flatten()[0:10])
+print(out.flatten()[0:10])
 
 ######################################################################
 # Save and Load Compiled Module
@@ -135,7 +135,10 @@ input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
 module = graph_runtime.create(loaded_json, loaded_lib, ctx)
 module.load_params(loaded_params)
 module.run(data=input_data)
-out = module.get_output(0).asnumpy()
+out_deploy = module.get_output(0).asnumpy()
 
 # Print first 10 elements of output
-print(out.flatten()[0:10])
+print(out_deploy.flatten()[0:10])
+
+# check whether the output from deployed module is consistent with original one
+tvm.testing.assert_allclose(out_deploy, out, atol=1e-3)

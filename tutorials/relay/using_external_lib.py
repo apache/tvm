@@ -499,7 +499,7 @@ out_cudnn = out.asnumpy()
 #
 # .. code-block:: text
 #
-#      DEBUG:root:// attr [y] storage_scope = "global"
+#      // attr [y] storage_scope = "global"
 #      allocate y[float32 * 802816]
 #      produce y {
 #        // attr [0] extern_scope = 0
