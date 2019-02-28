@@ -248,23 +248,24 @@ Array<IterVar> IterVarsFromMap(const Array<Var>& vars, const Map<Var, Range>& vr
 }
 
 // Return true if this combiner is just a sum.
-bool IsSumCombiner(const CommReducer& combiner) {
+bool IsSumCombiner(const CommReducer& combiner, const Map<Var, Range>& vranges) {
   if (combiner->result.size() != 1) {
     return false;
   }
 
-  if (!is_const_value(SuperSimplify(combiner->identity_element[0]), 0)) {
+  if (!is_const_value(SuperSimplify(combiner->identity_element[0], vranges), 0)) {
     return false;
   }
 
-  return is_const_value(SuperSimplify(combiner->result[0] -
-                                      (combiner->lhs[0] + combiner->rhs[0])),
-                        0);
+  Expr should_be_zero =
+      SuperSimplify(combiner->result[0] - (combiner->lhs[0] + combiner->rhs[0]), vranges);
+  return is_const_value(should_be_zero, 0);
 }
 
 // Return true if zero may be factored out of a reduction with this combiner.
-bool CanFactorZeroFromCombiner(const CommReducer& combiner, int value_index) {
-  if (!is_const_value(combiner->identity_element[value_index], 0)) {
+bool CanFactorZeroFromCombiner(const CommReducer& combiner, int value_index,
+                               const Map<Var, Range>& vranges) {
+  if (!is_const_value(SuperSimplify(combiner->identity_element[value_index], vranges), 0)) {
     return false;
   }
 
@@ -272,7 +273,7 @@ bool CanFactorZeroFromCombiner(const CommReducer& combiner, int value_index) {
   Expr in = Substitute(combiner->result[value_index],
                        {{combiner->lhs[value_index], zero},
                         {combiner->rhs[value_index], zero}});
-  in = SuperSimplify(in);
+  in = SuperSimplify(in, vranges);
 
   return is_const_value(in, 0);
 }
@@ -1545,13 +1546,16 @@ Expr ExtractNonTopReductions(const Expr& expr,
   }
 }
 
-Expr OptimizeAndLiftNonzeronessConditionsImpl(const Expr& expr, const Array<IterVar>& axis) {
+Expr OptimizeAndLiftNonzeronessConditionsImpl(const Expr& expr,
+                                              const Array<IterVar>& axis,
+                                              const Map<Var, Range>& vranges) {
   Expr result;
+  Map<Var, Range> combined_vranges = Merge(vranges, IterVarsToMap(axis));
 
   if (const Reduce* red = expr.as<Reduce>()) {
     // TODO(sgrechanik-h): There are some other operations which behave like sum
-    bool is_sum = IsSumCombiner(red->combiner);
-    if (is_sum || CanFactorZeroFromCombiner(red->combiner, red->value_index)) {
+    bool is_sum = IsSumCombiner(red->combiner, vranges);
+    if (is_sum || CanFactorZeroFromCombiner(red->combiner, red->value_index, vranges)) {
       Expr new_red = expr;
 
       // Here we simplify the reduction
@@ -1568,12 +1572,12 @@ Expr OptimizeAndLiftNonzeronessConditionsImpl(const Expr& expr, const Array<Iter
         }
 
         new_red = Reduce::make(red->combiner, source, red->axis, cond, red->value_index);
-        new_red = SimplifyReductionDomain(new_red, IterVarsToMap(axis));
+        new_red = SimplifyReductionDomain(new_red, combined_vranges);
         red = new_red.as<Reduce>();
 
         // If the reduction disappears completely then transform the result as a non-reduction
         if (!red) {
-          return OptimizeAndLiftNonzeronessConditionsImpl(new_red, axis);
+          return OptimizeAndLiftNonzeronessConditionsImpl(new_red, axis, vranges);
         }
       }
 
@@ -1600,15 +1604,17 @@ Expr OptimizeAndLiftNonzeronessConditionsImpl(const Expr& expr, const Array<Iter
       Expr new_reduce = Reduce::make(red->combiner, new_source, red->axis,
                                      new_reduce_cond, red->value_index);
       new_reduce = ExtractAsTensorMaybe(new_reduce, new_outer_cond,
-                                        IterVarsToVars(axis), IterVarsToMap(axis));
+                                        IterVarsToVars(axis),
+                                        combined_vranges);
       result = SelectElseZero(new_outer_cond, new_reduce);
     } else {
-      return SimplifyReductionDomain(expr, IterVarsToMap(axis));
+      return SimplifyReductionDomain(expr, combined_vranges);
     }
   } else {
     auto nz = NonzeronessCondition(expr);
     Expr new_expr = ExtractAsTensorMaybe(nz.value, nz.cond,
-                                         IterVarsToVars(axis), IterVarsToMap(axis));
+                                         IterVarsToVars(axis),
+                                         combined_vranges);
     result = SelectElseZero(nz.cond, new_expr);
   }
 
@@ -1619,23 +1625,33 @@ Expr OptimizeAndLiftNonzeronessConditionsImpl(const Expr& expr, const Array<Iter
 
   // Sometimes ExtractAsTensorMaybe doesn't perform extraction, so there may be some non-top
   // reductions left, take care of them
-  Map<Var, Range> vrange = IterVarsToMap(axis);
-  return SuperSimplify(ExtractReductions(result, IterVarsToVars(axis), vrange),
-                       vrange);
+  return SuperSimplify(ExtractReductions(result, IterVarsToVars(axis), combined_vranges),
+                       combined_vranges);
 }
 
-Tensor OptimizeAndLiftNonzeronessConditions(const Tensor& tensor) {
-  return op::TransformBody(tensor, OptimizeAndLiftNonzeronessConditionsImpl);
+Tensor OptimizeAndLiftNonzeronessConditions(const Tensor& tensor, const Map<Var, Range>& vranges) {
+  auto transform_func = [&vranges](const Expr& expr, const Array<IterVar>& axis) {
+    return OptimizeAndLiftNonzeronessConditionsImpl(expr, axis, vranges);
+  };
+  return op::TransformBody(tensor, transform_func);
 }
 
 TVM_REGISTER_API("ir_pass.IsSumCombiner")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = IsSumCombiner(args[0]);
+    if (args.size() >= 2) {
+      *ret = IsSumCombiner(args[0], args[1]);
+    } else {
+      *ret = IsSumCombiner(args[0]);
+    }
   });
 
 TVM_REGISTER_API("ir_pass.CanFactorZeroFromCombiner")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = CanFactorZeroFromCombiner(args[0], args[1]);
+    if (args.size() >= 3) {
+      *ret = CanFactorZeroFromCombiner(args[0], args[1], args[2]);
+    } else {
+      *ret = CanFactorZeroFromCombiner(args[0], args[1]);
+    }
   });
 
 TVM_REGISTER_API("ir_pass.LiftNonzeronessCondition")
@@ -1705,7 +1721,11 @@ TVM_REGISTER_API("ir_pass.ExtractNonTopReductions")
 
 TVM_REGISTER_API("ir_pass.OptimizeAndLiftNonzeronessConditions")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = OptimizeAndLiftNonzeronessConditions(args[0]);
+    if (args.size() >= 2) {
+      *ret = OptimizeAndLiftNonzeronessConditions(args[0], args[1]);
+    } else {
+      *ret = OptimizeAndLiftNonzeronessConditions(args[0]);
+    }
   });
 
 }  // namespace ir

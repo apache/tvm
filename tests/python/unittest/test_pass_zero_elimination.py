@@ -91,6 +91,13 @@ sum_both_combiner = comm_reducer(lambda x, y: (x[0] + y[0], x[0] + y[0] + x[1] +
                                         lambda t0, t1: (tvm.const(0, t0), tvm.const(0, t1)))
 xor_combiner = comm_reducer(lambda x, y: x ^ y, lambda t0: tvm.const(0, t0))
 
+m_param = tvm.var('m_param')
+sum_or_prod_combiner = comm_reducer(lambda x, y: tvm.expr.Select(m_param < 0, x + y, x*y),
+                                    lambda t0: tvm.expr.Select(m_param < 0,
+                                                               tvm.const(0, t0), tvm.const(1, t0)))
+shifted_sum_combiner = comm_reducer(lambda x, y: x + y - m_param,
+                                    lambda t0: m_param)
+
 def test_is_sum_combiner():
     k = tvm.reduce_axis((0, 10), name="k")
     i = tvm.const(0, "int32")
@@ -102,6 +109,11 @@ def test_is_sum_combiner():
     assert not IsSumCombiner(sum_derivative_combiner((f, f), k)[0].combiner)
     assert not IsSumCombiner(prod_combiner(f, k).combiner)
     assert not IsSumCombiner(prod_derivative_combiner((f, f), k)[1].combiner)
+    assert not IsSumCombiner(sum_or_prod_combiner(f, k).combiner)
+    assert not IsSumCombiner(sum_or_prod_combiner(f, k).combiner, {m_param: tvm.Range(-5, 1)})
+    assert IsSumCombiner(sum_or_prod_combiner(f, k).combiner, {m_param: tvm.Range(-5, -1)})
+    assert not IsSumCombiner(shifted_sum_combiner(i, k).combiner)
+    assert IsSumCombiner(shifted_sum_combiner(i, k).combiner, {m_param: tvm.Range(0, 1)})
 
 def test_can_factor_zero_from_combiner():
     k = tvm.reduce_axis((0, 10), name="k")
@@ -115,6 +127,13 @@ def test_can_factor_zero_from_combiner():
     assert CanFactorZeroFromCombiner(prod_derivative_combiner((f, f), k)[0].combiner, 1)
     assert CanFactorZeroFromCombiner(sum_both_combiner((f, f), k)[0].combiner, 0)
     assert not CanFactorZeroFromCombiner(sum_both_combiner((f, f), k)[0].combiner, 1)
+    assert not CanFactorZeroFromCombiner(sum_or_prod_combiner(f, k).combiner, 0,
+                                         {m_param: tvm.Range(-5, 1)})
+    assert CanFactorZeroFromCombiner(sum_or_prod_combiner(f, k).combiner, 0,
+                                     {m_param: tvm.Range(-5, -1)})
+    assert not CanFactorZeroFromCombiner(shifted_sum_combiner(i, k).combiner, 0)
+    assert CanFactorZeroFromCombiner(shifted_sum_combiner(i, k).combiner, 0,
+                                     {m_param: tvm.Range(0, 1)})
 
 def test_lift_nonzeroness_condition():
     k = tvm.reduce_axis((0, 5), name="k")
@@ -461,6 +480,19 @@ def test_optimize_and_lift_nonzeroness():
                                 zero))
     check_eq(B, R, [A])
     assert estimate_performance(B) <= estimate_performance(R)
+
+    # Specifying ranges of parameters
+    B = compute((10, 10), lambda i, j: sum_or_prod_combiner((i == j)*A[i, k] + A[k, j]*(i == j), k))
+    B = OptimizeAndLiftNonzeronessConditions(B, {m_param: tvm.Range(-5, -3)})
+    R = lambda i, j: tvm.expr.Select(i == j,
+                                     tvm.sum(A[j, k] + A[k, j], k),
+                                     zero)
+    check_tensor_symeq(B, R)
+
+    B = compute((10, 10), lambda i, j: tvm.sum(((i - k) <= m_param) * A[i, k], k))
+    B = OptimizeAndLiftNonzeronessConditions(B, {m_param: tvm.Range(11, 20)})
+    R = lambda i, j: tvm.sum(A[i, k], k)
+    check_tensor_symeq(B, R)
 
 if __name__ == "__main__":
     test_is_sum_combiner()
