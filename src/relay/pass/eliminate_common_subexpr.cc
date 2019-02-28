@@ -35,12 +35,11 @@ class CommonSubexprEliminator : public ExprMutator {
       return new_expr;
     }
 
-    auto it = expr_map_.find(new_call->args[0]);
+    auto it = expr_map_.find(new_call->op);
     if (it != expr_map_.end()) {
       for (const CallNode* candidate : it->second) {
         bool is_equivalent = true;
-        if (!new_call->op.same_as(candidate->op) ||
-            !attrs_equal(new_call->attrs, candidate->attrs)) {
+        if (!attrs_equal(new_call->attrs, candidate->attrs)) {
           continue;
         }
         for (size_t i = 0; i < new_call->args.size(); i++) {
@@ -54,7 +53,7 @@ class CommonSubexprEliminator : public ExprMutator {
         return GetRef<Call>(candidate);
       }
     }
-    expr_map_[new_call->args[0]].push_back(new_call);
+    expr_map_[new_call->op].push_back(new_call);
     return new_expr;
   }
 
