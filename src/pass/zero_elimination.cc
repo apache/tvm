@@ -278,6 +278,7 @@ bool CanFactorZeroFromCombiner(const CommReducer& combiner, int value_index,
   return is_const_value(in, 0);
 }
 
+// If expr is a Call node, perform inlining, otherwise do nothing
 Expr InlineThisCall(const Expr& expr) {
   if (const Call* op = expr.as<Call>()) {
     if (op->call_type == Call::CallType::Halide) {
@@ -304,6 +305,7 @@ Tensor InlineTailCall(const Tensor& tensor) {
   return op::TransformBody(tensor, InlineThisCall);
 }
 
+// Implements InlineTensors by trying to inline every Call of the given Expr
 class InlineTensorsMutator : public IRMutator {
  public:
   explicit InlineTensorsMutator(const Array<Tensor>& inlineable, bool inline_reductions = false)
@@ -317,26 +319,20 @@ class InlineTensorsMutator : public IRMutator {
     if (op->call_type == Call::CallType::Halide) {
       const ComputeOpNode* op_comp = op->func.as<ComputeOpNode>();
       if (inlineable_.empty() || inlineable_.count({op_comp, op->value_index})) {
+        // Inline only compute nodes that are not reductions (unless inline reductions is allowed)
         if (op_comp && (inline_reductions_ || !op_comp->body[0].as<Reduce>())) {
-          Array<Var> tensor_axes;
-          for (const auto& var : op_comp->axis) {
-            tensor_axes.push_back(var->var);
-          }
-
-          Stmt inlined = Inline(Evaluate::make(e), op->func, tensor_axes,
-                                op_comp->body[op->value_index]);
-          if (const ir::Evaluate* ev = inlined.as<ir::Evaluate>()) {
-            // If it is a reduction, clone it
-            return Mutate(ev->value);
-          }
+          // Inline this call and then try to perform further inlining
+          return Mutate(InlineThisCall(e));
         }
       }
     }
 
-    return e;
+    // If we cannot inline this call, we should try to doinlining in its arguments
+    return IRMutator::Mutate_(op, e);
   }
 
  private:
+  // Tensors which are allowed to be inlined, represented as pairs (op_node, value_index)
   std::set<std::pair<const OperationNode*, int>> inlineable_;
   bool inline_reductions_;
 };

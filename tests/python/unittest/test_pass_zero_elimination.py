@@ -194,6 +194,7 @@ def test_inline_tensors():
     k = tvm.reduce_axis((0, 5), name="k")
     D = tvm.compute((10, 10), lambda i, j: tvm.sum(A[i, k], k))
     E = tvm.compute((10, 10), lambda i, j: A[2, j] + C[i, 2] + D[i, j])
+    F = tvm.compute((10, 10), lambda i, j: tvm.exp(A[i, j]) + B[i, A[i, j]])
 
     R = InlineTensors(E)
     resbody = lambda i, j: 2 + j + i + 2 + i*2 + D[i, j]
@@ -209,6 +210,18 @@ def test_inline_tensors():
 
     R = InlineTensors(E, [B, C])
     resbody = lambda i, j: A[2, j] + (A[i, 2] + i*2) + D[i, j]
+    check_symeq(R.op.body[0], resbody(*[iv.var for iv in R.op.axis]))
+
+    R = InlineTensors(F)
+    resbody = lambda i, j: tvm.exp(i + j) + i * (i + j)
+    check_symeq(R.op.body[0], resbody(*[iv.var for iv in R.op.axis]))
+
+    R = InlineTensors(F, [A])
+    resbody = lambda i, j: tvm.exp(i + j) + B[i, (i + j)]
+    check_symeq(R.op.body[0], resbody(*[iv.var for iv in R.op.axis]))
+
+    R = InlineTensors(F, [B])
+    resbody = lambda i, j: tvm.exp(A[i, j]) + i * A[i, j]
     check_symeq(R.op.body[0], resbody(*[iv.var for iv in R.op.axis]))
 
 def test_solve_system_of_inequalities():
