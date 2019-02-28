@@ -257,6 +257,23 @@ def test_forward_arange():
     verify(20, 1, -1.5)
 
 
+def test_forward_slice_axis():
+    def verify(shape, axis, begin, end):
+        data_np = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.slice_axis(mx.nd.array(data_np), axis, begin, end)
+        mx_sym = mx.sym.slice_axis(mx.sym.var("data"), axis, begin, end)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"data": shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((3, 4), 0, 1, 2)
+    verify((3, 4), 0, 1, None)
+    verify((3, 4), 1, 0, 2)
+    verify((3, 4), 1, -3, -1)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -280,3 +297,4 @@ if __name__ == '__main__':
     test_forward_argmin()
     test_forward_where()
     test_forward_arange()
+    test_forward_slice_axis()
