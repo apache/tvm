@@ -60,7 +60,7 @@ The configuration of tvm can be modified by `config.cmake`.
 
 - Edit ``build/config.cmake`` to customize the compilation options
 
-  - On macOS, for some versions of XCode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
+  - On macOS, for some versions of Xcode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
   - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. So do other backends and libraries
     (OpenCL, RCOM, METAL, VULKAN, ...).
 
