@@ -258,8 +258,8 @@ def test_forward_arange():
     verify(20, 1, -1.5)
 
 def _mx_symbol(F, op_name, inputs):
-        op = getattr(F, op_name)
-        return op(*inputs)
+    op = getattr(F, op_name)
+    return op(*inputs)
 
 def test_forward_broadcast_ops():
     for op in ["broadcast_add", "broadcast_sub", "broadcast_mul",
