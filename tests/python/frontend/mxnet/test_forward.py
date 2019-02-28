@@ -282,7 +282,6 @@ def test_forward_broadcast_ops():
         shapes = {'a': a_shape, 'b': b_shape}
         new_sym, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, ctx in ctx_list():
-            print(target, ctx)
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(new_sym)(a_np, b_np)
@@ -300,7 +299,6 @@ def test_forward_elemwise_ops():
         shapes = {'a': shape, 'b': shape}
         new_sym, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, ctx in ctx_list():
-            print(target, ctx)
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(new_sym)(a_np, b_np)
