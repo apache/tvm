@@ -21,6 +21,7 @@ OPT_PASS_LEVEL = {
     "CombineParallelConv2D": 3,
     "FoldScaleAxis": 3,
     "AlterOpLayout": 3,
+    "CanonicalizeOps": 3,
 }
 
 
@@ -177,13 +178,15 @@ def optimize(func, target=None, params=None):
         func = ir_pass.forward_fold_scale_axis(func)
         func = ir_pass.fold_constant(func)
 
+    if cfg.pass_enabled("CanonicalizeOps"):
+        func = ir_pass.infer_type(func)
+        func = ir_pass.canonicalize_ops(func)
+
     # FIXME(zhiics) Skip AlterOpLayout pass for heterogeneous compilation for
     # now. We probably need to pass target to this pass as well. Fix it in
     # a followup PR.
     if cfg.pass_enabled("AlterOpLayout"):
         if isinstance(target, _target.Target):
-            func = ir_pass.infer_type(func)
-            func = ir_pass.canonicalize_ops(func)
             func = ir_pass.infer_type(func)
             with target:
                 func = ir_pass.alter_op_layout(func)
