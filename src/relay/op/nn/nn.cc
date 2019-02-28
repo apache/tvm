@@ -4,6 +4,7 @@
  * \brief Property def of nn operators.
  */
 
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/image.h>
@@ -14,7 +15,6 @@
 #include "../type_relations.h"
 #include "../../pass/alter_op_layout.h"
 #include "../op_common.h"
-#include "../layout.h"
 
 namespace tvm {
 namespace relay {

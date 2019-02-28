@@ -4,13 +4,13 @@
  * \brief Property def of nn operators.
  */
 
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/debug.h>
 #include <topi/elemwise.h>
 #include <vector>
 #include "./type_relations.h"
 #include "./op_common.h"
-#include "./layout.h"
 
 namespace tvm {
 namespace relay {

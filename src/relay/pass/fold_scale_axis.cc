@@ -6,12 +6,12 @@
  * \brief Fold axis scaling into weights of
  *  conv/dense operators.
  */
+#include <tvm/data_layout.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
 #include "pattern_util.h"
 #include "pass_util.h"
-#include "../op/layout.h"
 
 
 namespace tvm {
@@ -435,8 +435,8 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
   CHECK(param != nullptr);
   Layout data_layout(param->data_layout);
   Layout kernel_layout(param->kernel_layout);
-  int c_big_axis = data_layout.Indexof('C');
-  int c_small_axis = data_layout.Indexof('c');
+  int c_big_axis = data_layout.IndexOf(LayoutAxis::Get('C'));
+  int c_small_axis = data_layout.IndexOf(LayoutAxis::Get('c'));
 
   CHECK_GE(c_big_axis, 0);
   Message none = NullValue<Message>();
@@ -449,7 +449,7 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
   // only handle depthwise or full conv2d.
   // TODO(tvm-team) handle grouped conv by reshape + bcast
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  if (kernel_layout.Indexof('i') < 0 &&
+  if (kernel_layout.IndexOf(LayoutAxis::Get('i')) < 0 &&
       c_small_axis < 0 &&
       (param->groups == 1 || is_depthwise_conv2d)) {
     data_axes = {c_big_axis};
@@ -473,15 +473,15 @@ Expr Conv2DForwardRewrite(const Call& ref_call,
   CHECK(param != nullptr);
   Layout data_layout(param->data_layout);
   Layout kernel_layout(param->kernel_layout);
-  int c_big_axis = data_layout.Indexof('C');
+  int c_big_axis = data_layout.IndexOf(LayoutAxis::Get('C'));
   CHECK_GE(c_big_axis, 0);
   // For now, we only support simple pattern (no folded weight/data)
   // TODO(tvm-team) support general data layout
-  CHECK_EQ(kernel_layout.Indexof('i'), -1);
+  CHECK_EQ(kernel_layout.IndexOf(LayoutAxis::Get('i')), -1);
   CHECK(sdata->axes.size() == 1 &&
         c_big_axis == sdata->axes[0]->value);
-  int big_oc_axis = kernel_layout.Indexof('O');
-  int big_ic_axis = kernel_layout.Indexof('I');
+  int big_oc_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
+  int big_ic_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
 
   // Check it must be depthwise or full conv2d.
   bool is_depthwise_conv2d = IsDepthwiseConv2D(ref_call, param, kernel_layout);
@@ -857,8 +857,8 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   CHECK(param != nullptr);
   Layout kernel_layout(param->kernel_layout);
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
-  int c_big_axis = out_layout.Indexof('C');
-  int c_small_axis = out_layout.Indexof('c');
+  int c_big_axis = out_layout.IndexOf(LayoutAxis::Get('C'));
+  int c_small_axis = out_layout.IndexOf(LayoutAxis::Get('c'));
 
   CHECK_GE(c_big_axis, 0);
   // For now, we only support simple pattern (no folded weight/data)
@@ -869,8 +869,8 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   // only handle depthwise or full conv2d.
   // TODO(tvm-team) handle grouped conv by reshape + bcast
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  if (kernel_layout.Indexof('o') < 0 &&
-      kernel_layout.Indexof('i') < 0 &&
+  if (kernel_layout.IndexOf(LayoutAxis::Get('o')) < 0 &&
+  kernel_layout.IndexOf(LayoutAxis::Get('i')) < 0 &&
       c_small_axis < 0 &&
       (param->groups == 1 || is_depthwise_conv2d)) {
     return MessageNode::make({c_big_axis}, false);
@@ -891,16 +891,16 @@ Expr Conv2DBackwardTransform(const Call& call,
   CHECK(param != nullptr);
   Layout kernel_layout(param->kernel_layout);
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
-  int c_big_axis = out_layout.Indexof('C');
+  int c_big_axis = out_layout.IndexOf(LayoutAxis::Get('C'));
   CHECK_GE(c_big_axis, 0);
   // For now, we only support simple pattern (no folded weight/data)
   // TODO(tvm-team) support general data layout
-  CHECK_EQ(kernel_layout.Indexof('o'), -1);
-  CHECK_EQ(kernel_layout.Indexof('i'), -1);
+  CHECK_EQ(kernel_layout.IndexOf(LayoutAxis::Get('o')), -1);
+  CHECK_EQ(kernel_layout.IndexOf(LayoutAxis::Get('i')), -1);
   CHECK(message->axes.size() == 1 &&
         c_big_axis == message->axes[0]->value);
 
-  int big_oc_axis = kernel_layout.Indexof('O');
+  int big_oc_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
   // Check it must be depthwise or full conv2d.
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
   CHECK(param->groups == 1 || is_depthwise_conv2d);
