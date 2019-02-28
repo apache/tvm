@@ -16,6 +16,7 @@
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
+#include "tvm/data_layout.h"
 
 namespace topi {
 using namespace tvm;
@@ -879,6 +880,44 @@ inline Tensor arange(const Expr start,
   Array<Expr> shape;
   return compute({num_elem}, [&](const Array<Var>& indices) {
     return tvm::cast(dtype, start + step * indices[0]);
+  }, name, tag);
+}
+
+/*!
+ * \brief Transform the layout according to \p src_layout and \p dst_layout
+ * \param src the source input.
+ * \param src_layout the source layout.
+ * \param dst_layout the destination layout.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return A tensor with shape in \p dst_layout
+ */
+inline Tensor layout_transform(const Tensor& src,
+                               const std::string& src_layout,
+                               const std::string& dst_layout,
+                               const std::string name = "layout_transform",
+                               const std::string tag = kInjective) {
+  Layout src_layout_struct = LayoutNode::make(src_layout);
+  Layout dst_layout_struct = LayoutNode::make(dst_layout);
+
+  if (src_layout_struct.Equals(dst_layout_struct)) {
+    return src;
+  }
+
+  CHECK(src_layout_struct.defined() && dst_layout_struct.defined())
+    << "cannot convert from/to undefined layout";
+
+  auto layout_converter = BijectiveLayoutNode::make(src_layout_struct, dst_layout_struct);
+  CHECK(layout_converter.defined())
+    << "cannot convert from " << src_layout << " to " << dst_layout;
+
+  Array<Expr> dst_shape = layout_converter.ForwardShape(src->shape);
+
+  return compute(
+    dst_shape, [&](const Array<Var>& dst_indices) {
+      Array<Expr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+      Array<Expr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
+      return src(src_indices);
   }, name, tag);
 }
 

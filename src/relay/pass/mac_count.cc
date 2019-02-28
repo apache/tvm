@@ -11,7 +11,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
-#include "../op/layout.h"
+#include <tvm/data_layout.h>
 
 namespace tvm {
 namespace relay {
@@ -51,8 +51,8 @@ int64_t ConvMacCount(const Call& call_node) {
   const auto* data_type = args[0]->checked_type().as<TensorTypeNode>();
   Array<IndexExpr> data_shape = data_type->shape;
   std::string data_layout = conv_2d_attr->data_layout;
-  int32_t C_ind = Layout(data_layout).Indexof('C');
-  int32_t c_ind = Layout(data_layout).Indexof('c');
+  int32_t C_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('C'));
+  int32_t c_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('c'));
   CHECK(C_ind != -1)
       << "There is no input channel dimension.";
   int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);

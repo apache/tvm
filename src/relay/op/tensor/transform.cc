@@ -7,6 +7,7 @@
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir_operator.h>
 #include <tvm/ir.h>
+#include <tvm/data_layout.h>
 #include <topi/transform.h>
 #include <topi/elemwise.h>
 #include <topi/broadcast.h>
@@ -16,7 +17,6 @@
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
 #include "../../pass/alter_op_layout.h"
-#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -218,7 +218,7 @@ Array<Array<Layout>> ConcatenateLayout(
 
   Layout ret;
   if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
-    Layout::LayoutDim concate_dim = old_in_layouts[0][axis];
+    const auto& concate_dim = old_in_layouts[0][axis];
     for (size_t i = 0; i < new_in_layouts.size(); ++i) {
       if (new_in_layouts[i].ndim() > axis &&
           new_in_layouts[i][axis] == concate_dim) {
@@ -234,7 +234,7 @@ Array<Array<Layout>> ConcatenateLayout(
       }
     }
 
-    if (ret.ndim() <= axis || Layout::IsSubdim(ret[axis])) {
+    if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
       return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
     }
   }
@@ -1682,46 +1682,10 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
                                      const Array<Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
-  const LayoutTransformAttrs *param = attrs.as<LayoutTransformAttrs>();
+  const auto* param = attrs.as<LayoutTransformAttrs>();
   CHECK(param != nullptr);
-
-  Layout src_layout(param->src_layout);
-  Layout dst_layout(param->dst_layout);
-
-  if (src_layout.Equals(dst_layout)) {
-    return Array<Tensor>{ inputs[0] };
-  }
-
-  CHECK(src_layout.defined() && dst_layout.defined())
-    << "cannot convert from/to undefined layout";
-  CHECK(src_layout.Convertible(dst_layout))
-    << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
-
-  const auto& out_shape = ConvertLayout(inputs[0]->shape, src_layout, dst_layout);
-  return Array<Tensor> {
-      topi::layout_transform(inputs[0], out_shape, [&](const Array<tvm::Var>& dst_indices) {
-        std::vector<tvm::Expr> dst_to_src_indices;
-        for (size_t i = 0; i < src_layout.ndim(); ++i) {
-          Layout::LayoutDim src_axis = src_layout[i];
-          int dst_major_pos = dst_layout.Indexof(Layout::ToSuperdim(src_axis));
-          int dst_minor_pos = dst_layout.Indexof(Layout::ToSubdim(src_axis));
-          int32_t src_factor = static_cast<int32_t>(src_layout.Subsizeof(src_axis));
-          int32_t dst_factor = static_cast<int32_t>(dst_layout.Subsizeof(src_axis));
-
-          tvm::Expr src_index(dst_indices[dst_major_pos]);
-          if (dst_minor_pos >= 0) {
-            CHECK_GT(dst_factor, 0);
-            src_index = src_index * dst_factor + dst_indices[dst_minor_pos];
-          }
-          if (Layout::IsSuperdim(src_axis) && src_factor > 0) {
-            src_index = src_index / src_factor;
-          } else if (Layout::IsSubdim(src_axis) && src_factor > 0) {
-            src_index = src_index % src_factor;
-          }
-          dst_to_src_indices.push_back(src_index);
-        }
-        return Array<tvm::Expr>(dst_to_src_indices);
-      })
+  return Array<Tensor>{
+    topi::layout_transform(inputs[0], param->src_layout, param->dst_layout)
   };
 }
 
@@ -1738,10 +1702,12 @@ bool LayoutTransformRel(const Array<Type>& types,
 
   CHECK(src_layout.defined() && dst_layout.defined())
     << "cannot convert from/to undefined layout";
-  CHECK(src_layout.Convertible(dst_layout))
+
+  auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
+  CHECK(layout_converter.defined())
     << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
 
-  const auto& out_shape = ConvertLayout(data->shape, src_layout, dst_layout);
+  const auto& out_shape = layout_converter.ForwardShape(data->shape);
   reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));
   return true;
 }

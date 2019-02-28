@@ -515,7 +515,7 @@ def decl_buffer(shape,
                 scope="",
                 data_alignment=-1,
                 offset_factor=0):
-    """Decleare a new symbolic buffer.
+    """Declare a new symbolic buffer.
 
     Normally buffer is created automatically during lower and build.
     This is only needed if user want to specify their own buffer layout.
@@ -586,6 +586,49 @@ def decl_buffer(shape,
     return _api_internal._Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor)
+
+def layout(layout_str):
+    """Create a layout node from a string.
+
+    Parameters
+    ----------
+    layout_str : str
+        A layout representation is composed of upper cases, lower cases and numbers,
+        where upper case indicates a primal axis and
+        the corresponding lower case with factor size indicates the subordinate axis.
+        For example, NCHW16c can describe a 5-D tensor of
+        [batch_size, channel, height, width, channel_block].
+        Here subordinate axis channel_block=16 is the factor size of
+        the primal axis C (channel).
+
+    Returns
+    -------
+    layout : Layout
+        The created layout
+    """
+    return _api_internal._Layout(layout_str)
+
+def bijective_layout(src_layout, dst_layout):
+    """Create a bijective layout mapping.
+
+    Parameters
+    ----------
+    src_layout : str or Layout
+        source layout.
+
+    dst_layout : str or Layout
+        destination layout.
+
+    Returns
+    -------
+    bijective_layout : BijectiveLayout
+        The created bijective layout
+    """
+    if isinstance(src_layout, str):
+        src_layout = layout(src_layout)
+    if isinstance(dst_layout, str):
+        dst_layout = layout(dst_layout)
+    return _api_internal._BijectiveLayout(src_layout, dst_layout)
 
 def _IterVar(dom, name, iter_type, thread_tag=''):
     """Internal function to create IterVar
