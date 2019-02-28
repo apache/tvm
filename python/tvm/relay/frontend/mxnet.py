@@ -335,6 +335,8 @@ _convert_map = {
     "broadcast_mul"          : _rename(_op.multiply),
     "broadcast_div"          : _rename(_op.divide),
     "broadcast_mod"          : _rename(_op.mod),
+    "broadcast_maximum"      : _rename(_op.maximum),
+    "broadcast_minimum"      : _rename(_op.minimum),
     "broadcast_equal"        : _mx_compare(_op.equal, _rename),
     "broadcast_not_equal"    : _mx_compare(_op.not_equal, _rename),
     "broadcast_greater"      : _mx_compare(_op.greater, _rename),

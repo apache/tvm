@@ -263,10 +263,10 @@ def _mx_symbol(F, op_name, inputs):
 
 def test_forward_broadcast_ops():
     for op in ["broadcast_add", "broadcast_sub", "broadcast_mul",
-               "broadcast_div", "broadcast_mod", "broadcast_equal",
-               "broadcast_not_equal", "broadcast_greater",
-               "broadcast_greater_equal", "broadcast_lesser",
-               "broadcast_lesser_equal"]:
+               "broadcast_div", "broadcast_mod", "broadcast_maximum",
+               "broadcast_minimum", "broadcast_equal", "broadcast_not_equal",
+               "broadcast_greater", "broadcast_greater_equal",
+               "broadcast_lesser", "broadcast_lesser_equal"]:
         a_shape = (3, 4, 5)
         b_shape = (4, 5)
         if op == "broadcast_mod":
