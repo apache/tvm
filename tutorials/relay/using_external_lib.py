@@ -483,7 +483,7 @@ out_cuda = out.asnumpy()
 # To do that, all we need to do is to append the option " -libs=cudnn" to the target string.
 net, params = testing.create_workload(simple_net)
 target = "cuda -libs=cudnn" # use cudnn for convolution
-with relay.build_config(opt_level=2):
+with relay.build_config(opt_level=3):
     graph, lib, params = relay.build_module.build(
         net, target, params=params)
 
@@ -496,7 +496,6 @@ module.run()
 out_shape = (batch_size, out_channels, 224, 224)
 out = module.get_output(0, tvm.nd.empty(out_shape))
 out_cudnn = out.asnumpy()
-exit(-1)
 
 ######################################################################
 # Note that if you use cuDNN, Relay cannot fuse convolution with layers following it.
@@ -517,7 +516,7 @@ exit(-1)
 #         // attr [iter_var(threadIdx.x, , threadIdx.x)] thread_extent = 512
 #         for (ax0.ax1.fused.ax2.fused.ax3.fused.outer, 0, 2) {
 #           if (likely(((blockIdx.x*512) < ((200704 - (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072)) - threadIdx.x)))) {
-#             tensor[(((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/200704)*200704) + (((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/224) % 224)*224) + ((((blockIdx.x*64) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*32)) % 224))) + ((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/50176) % 4)*50176))] = max(((y[(((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/200704)*200704) + (((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/224) % 224)*224) + ((((blockIdx.x*64) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*32)) % 224))) + ((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/50176) % 4)*50176))]*placeholder[(((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/50176) % 4)]) + placeholder[(((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/50176) % 4)]), 0.000000f)
+#             tensor[(((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/200704)*200704) + (((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/224) % 224)*224) + ((((blockIdx.x*64) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*32)) % 224))) + ((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/50176) % 4)*50176))] = max((y[(((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/200704)*200704) + (((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/224) % 224)*224) + ((((blockIdx.x*64) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*32)) % 224))) + ((((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/50176) % 4)*50176))] + placeholder[(((((blockIdx.x*512) + threadIdx.x) + (ax0.ax1.fused.ax2.fused.ax3.fused.outer*131072))/50176) % 4)]), 0.000000f)
 #           }
 #         }
 #       }
