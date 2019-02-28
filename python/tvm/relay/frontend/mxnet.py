@@ -66,7 +66,7 @@ def _mx_activations(inputs, attrs):
 
 def _mx_compare(new_op, wrapper):
     def impl(inputs, attrs):
-        dtype = ir_pass.infer_type(inputs[0])._checked_type_.dtype
+        dtype = ir_pass.infer_type(inputs[0]).checked_type.dtype
         return wrapper(new_op)(inputs, attrs).astype(dtype)
     return impl
 
