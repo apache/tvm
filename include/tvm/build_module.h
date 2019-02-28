@@ -311,6 +311,23 @@ struct BuildConfigContext {
 TVM_DLL BuildConfig build_config();
 
 /*!
+ * \brief Build a Stmt given a schedule, args and binds. This function runs the IR passes.
+ * \param sch The schedule to build.
+ * \param args The arguments for the schedule.
+ * \param binds Buffer assignments.
+ * \param loop_partition True if the LoopPartition pass should be included.
+ * \param out_arg_list Returns the arguments for the Stmt.
+ * \param config The build configuration.
+ * \return The built Stmt.
+ */
+TVM_DLL Stmt BuildStmt(Schedule sch,
+                       const Array<Tensor>& args,
+                       const std::unordered_map<Tensor,
+                       Buffer>& binds, bool loop_partition,
+                       Array<NodeRef>* out_arg_list,
+                       const BuildConfig& config);
+
+/*!
 * \brief Build a LoweredFunc given a schedule, args and binds
 * \param sch The schedule to lower.
 * \param args The arguments to the function.
