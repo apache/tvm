@@ -106,7 +106,7 @@ class StrAttrsDict(object):
         """
         if key in self.attrs:
             tshape = self.attrs[key]
-            return tuple(int(x.strip()) for x in tshape.strip('()[]').split(','))
+            return tuple(int(x.strip()) for x in tshape.strip('()[]').split(',') if x)
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
