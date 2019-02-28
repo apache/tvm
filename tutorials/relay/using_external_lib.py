@@ -533,7 +533,7 @@ tvm.testing.assert_allclose(out_cuda, out_cudnn, rtol=1e-5)
 # Conclusion
 # ----------
 # This tutorial covered the usage of cuDNN with Relay.
-# We also have support for cuBLAS. If cuBLAS is enabled, it will be used inside a fully connected layer (nnvm.symbol.dense).
+# We also have support for cuBLAS. If cuBLAS is enabled, it will be used inside a fully connected layer (relay.dense).
 # To use cuBLAS, set a target string as "cuda -libs=cublas".
 # You can use both cuDNN and cuBLAS with "cuda -libs=cudnn,cublas".
 #
