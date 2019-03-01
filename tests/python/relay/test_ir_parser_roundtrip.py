@@ -67,3 +67,4 @@ if __name__ == "__main__":
     print(gnf_print(relay.fromtext(SEMVER+"fn(%x) { (%x, %x) }")))
     print(gnf_print(relay.If(one, relay.TupleGetItem(relay.Tuple([one, one]), 0), one)))
     print(relay.If(relay.const(True), tup, tup).astext())
+    print(gnf_print(relay.If(relay.GlobalVar("foo"), relay.TupleGetItem(relay.Tuple([one, one]), 0), one)))

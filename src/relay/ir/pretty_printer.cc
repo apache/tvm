@@ -46,8 +46,7 @@ class PrettyPrinter :
     Doc PrintFinal(const NodeRef& node) {
       // TODO(@jmp): If these lines are combined it segfaults??
       Doc doc = Print(node, false);
-      doc_stack_.back() << doc;
-      return doc_stack_.back();
+      return doc_stack_.back() << doc;
     }
 
     // note: gnf flag is only one level deep
@@ -117,7 +116,8 @@ class PrettyPrinter :
       auto it = memo_.find(expr);
       if (it != memo_.end()) return it->second;
       Doc printed_expr = VisitExpr(expr);
-      if (gnf && GNF_) {
+      // we choose to inline some nodes
+      if (GNF_ && gnf && !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>()) {
         Doc temp_var = AllocTemp();
         memo_[expr] = temp_var;
         doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
@@ -196,7 +196,6 @@ class PrettyPrinter :
         << "generic fn not yet supported";
         Doc doc = Nil();
         doc << prefix << "(";
-        // TODO: need nested var scopes for this!!
         std::vector<Doc> params;
         for (Var param : fn->params) {
           params.push_back(AllocVar(param));
@@ -213,6 +212,10 @@ class PrettyPrinter :
 
     Doc VisitExpr_(const FunctionNode* op) final {
       return PrintFunc(Text("fn "), op);
+    }
+
+    Doc VisitExpr_(const GlobalVarNode* op) final {
+      return Text('@' + op->name_hint);
     }
 
   private:
