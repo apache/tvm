@@ -229,7 +229,85 @@ def test_tensorize_op():
     s = s.normalize()
     tvm.lower(s, [A, B])
 
+# This test asserts that tensorize does not have any effect on
+# TensorComputeOp operations
+def test_tensorize_tensor_compute_op():
+    # an intrinsic called "multivadd" whose definition (pattern)
+    # is a loop of another intrinsic called "vadd"
+    def intrin_multivadd(n):
+        n_a = tvm.var("n_a")
+        Ab = tvm.decl_buffer((n, ), tvm.float32, strides=[n_a])
+
+        n_b = tvm.var("n_b")
+        Bb = tvm.decl_buffer((n, ), tvm.float32, strides=[n_b])
+
+        n_c = tvm.var("n_c")
+        Cb = tvm.decl_buffer((n, ), tvm.float32, strides=[n_c])
+
+        z = tvm.compute((n,), lambda i: tvm.call_extern("float32", 'vadd',
+                                                        Ab.access_ptr("w", offset=n_a*i),
+                                                        Bb.access_ptr("r", offset=n_b*i),
+                                                        Cb.access_ptr("r", offset=n_c*i)))
+
+        # replace the pattern with the multivadd call. I need to figure out
+        # how to pass it the right parameters.
+        def intrin_func(ins, outs):
+            return tvm.call_packed("multivadd")
+
+        with tvm.build_config():
+            return tvm.decl_tensor_intrin(z.op, intrin_func, name="multivadd")
+
+    def intrin_vadd(n):
+        dtype = 'float32'
+        x = tvm.placeholder((n,), dtype=dtype, name='vx')
+        y = tvm.placeholder((n,), dtype=dtype, name='vy')
+        z = tvm.compute(x.shape, lambda i: x[i] + y[i], name='z')
+        s = tvm.create_schedule(z.op)
+
+        def create_buffer(t):
+            return tvm.decl_buffer(t.shape, t.dtype,
+                                   name='W'+t.name,
+                                   offset_factor=16)
+
+        def intrin_func(ins, outs):
+            ib = tvm.ir_builder.create()
+            ib.emit(tvm.call_extern("float32", 'vadd',
+                                    ins[0].access_ptr("r"), ins[1].access_ptr('r'),
+                                    outs[0].access_ptr('wr')))
+            return ib.get()
+
+        with tvm.build_config(offset_factor=16):
+            return tvm.decl_tensor_intrin(z.op, intrin_func, binds={x: create_buffer(x),
+                                                                    y: create_buffer(y),
+                                                                    z: create_buffer(z)})
+
+    # cache_read, cache_write
+    M = 1024
+    factor = 16
+    dtype = 'float32'
+
+    A = tvm.placeholder((M//factor, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((M//factor, factor), name="B", dtype=dtype)
+
+    vadd = intrin_vadd(factor)
+    C = tvm.compute((M//factor, factor),
+                    lambda i: vadd(A[i, 0:factor], B[i, 0:factor]), name='C')
+
+    s = tvm.create_schedule(C.op)
+    multivadd = intrin_multivadd(64)
+    s[C].tensorize(C.op.axis[0], multivadd)
+    s = s.normalize()
+    dom_map = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, dom_map)
+    # The loop that we tried to tensorize still exists in the code
+    # That means tensorize didn't work as expected
+    assert isinstance(stmt.body.body.body, tvm.stmt.For)
+    assert stmt.body.body.body.loop_var.name == C.op.axis[0].var.name
+
+
+
 if __name__ == "__main__":
     test_tensorize_vadd()
     test_tensorize_matmul()
     test_tensorize_op()
+    test_tensorize_tensor_compute_op()
