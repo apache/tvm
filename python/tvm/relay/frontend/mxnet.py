@@ -284,13 +284,15 @@ def _mx_multibox_detection(inputs, attrs):
 
 
 def _mx_batch_dot(inputs, attrs):
+    assert len(inputs) == 2
+    a, b = inputs
     transpose_a = attrs.get_bool("transpose_a", False)
     transpose_b = attrs.get_bool("transpose_b", False)
     if transpose_a is True:
         raise RuntimeError("batch_dot: only support transpose_a=False")
     if transpose_b is False:
         b = _op.transpose(b, axes=[0, 2, 1])
-    return _op.batch_matmul(inputs[0], inputs[1])
+    return _op.batch_matmul(a, b)
 
 
 def _mx_arange(inputs, attrs):
