@@ -301,7 +301,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     kh, kw = attrs.get_int_tuple("kernel_size")
 
     dtype = data.dtype
-    out_dtype = dtype if attrs["out_dtype"] == "same" else attrs["out_dtype"]
+    out_dtype = dtype if attrs["out_dtype"] == "same" or attrs["out_dtype"] == "" else attrs["out_dtype"]
     is_depthwise = groups == in_channel and groups == out_channel
 
     # only optimize for NCHW
