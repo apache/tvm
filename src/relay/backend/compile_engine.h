@@ -9,8 +9,8 @@
 
 #include <tvm/lowered_func.h>
 #include <tvm/relay/expr.h>
-#include <string>
 #include <functional>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -42,7 +42,6 @@ struct CachedFuncNode : public Node {
 
 TVM_DEFINE_NODE_REF(CachedFunc, CachedFuncNode);
 
-
 class CCacheKey;
 /*! \brief Compile cache key */
 class CCacheKeyNode : public Node {
@@ -70,8 +69,7 @@ class CCacheKeyNode : public Node {
    * \param target The target device.
    * \return the created key.
    */
-  TVM_DLL static CCacheKey make(Function source_func,
-                                Target target);
+  TVM_DLL static CCacheKey make(Function source_func, Target target);
 
   static constexpr const char* _type_key = "relay.CCacheKey";
   TVM_DECLARE_NODE_TYPE_INFO(CCacheKeyNode, tvm::Node);
@@ -88,9 +86,7 @@ class CCacheKey : public NodeRef {
  public:
   CCacheKey() {}
   explicit CCacheKey(NodePtr<Node> n) : NodeRef(n) {}
-  const CCacheKeyNode* operator->() const {
-    return static_cast<CCacheKeyNode*>(node_.get());
-  }
+  const CCacheKeyNode* operator->() const { return static_cast<CCacheKeyNode*>(node_.get()); }
   // comparator
   inline bool operator==(const CCacheKey& other) const {
     CHECK(defined() && other.defined());
@@ -122,9 +118,7 @@ class CCacheValue : public NodeRef {
  public:
   CCacheValue() {}
   explicit CCacheValue(NodePtr<Node> n) : NodeRef(n) {}
-  CCacheValueNode* operator->() {
-    return static_cast<CCacheValueNode*>(node_.get());
-  }
+  CCacheValueNode* operator->() { return static_cast<CCacheValueNode*>(node_.get()); }
   const CCacheValueNode* operator->() const {
     return static_cast<const CCacheValueNode*>(node_.get());
   }
@@ -164,9 +158,7 @@ class CompileEngine : public NodeRef {
  public:
   CompileEngine() {}
   explicit CompileEngine(NodePtr<Node> n) : NodeRef(n) {}
-  CompileEngineNode* operator->() {
-    return static_cast<CompileEngineNode*>(node_.get());
-  }
+  CompileEngineNode* operator->() { return static_cast<CompileEngineNode*>(node_.get()); }
   using ContainerType = CompileEngineNode;
   /*! \brief The global compile engine. */
   TVM_DLL static const CompileEngine& Global();
@@ -177,17 +169,15 @@ inline size_t CCacheKeyNode::Hash() const {
   if (hash_ != 0) return hash_;
   // do structral hash, avoid 0.
   hash_ = StructuralHash()(this->source_func);
-  hash_ = dmlc::HashCombine(
-      hash_, std::hash<std::string>()(target->str()));
+  hash_ = dmlc::HashCombine(hash_, std::hash<std::string>()(target->str()));
   if (hash_ == 0) hash_ = 1;
   return hash_;
 }
 
-inline bool CCacheKeyNode::Equal(
-    const CCacheKeyNode* other) const {
+inline bool CCacheKeyNode::Equal(const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
-      AlphaEqual(this->source_func, other->source_func);
+         AlphaEqual(this->source_func, other->source_func);
 }
 
 }  // namespace relay
@@ -195,7 +185,7 @@ inline bool CCacheKeyNode::Equal(
 
 namespace std {
 // overload hash
-template<>
+template <>
 struct hash<::tvm::relay::CCacheKey> {
   size_t operator()(const ::tvm::relay::CCacheKey& key) const {
     CHECK(key.defined());
