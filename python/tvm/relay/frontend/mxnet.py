@@ -205,10 +205,10 @@ def _mx_slice_axis(inputs, attrs):
     assert ax_end > ax_beg and ax_end <= int(shape[axis])
     begin = []
     end = []
-    for i in range(len(shape)):
+    for i, dim in enumerate(shape):
         if i != axis:
             begin.append(0)
-            end.append(shape[i])
+            end.append(dim)
         else:
             begin.append(ax_beg)
             end.append(ax_end)
