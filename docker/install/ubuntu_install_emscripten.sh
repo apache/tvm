@@ -1,3 +1,9 @@
+#!/bin/bash
+
+set -e
+set -u
+set -o pipefail
+
 alias make="make -j4"
 
 # Get latest cmake

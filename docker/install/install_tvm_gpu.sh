@@ -1,5 +1,11 @@
+#!/bin/bash
+
+set -e
+set -u
+set -o pipefail
+
 cd /usr
-git clone https://github.com/dmlc/tvm --recursive
+git clone --depth=1 https://github.com/dmlc/tvm --recursive
 cd /usr/tvm
 echo set\(USE_LLVM llvm-config-6.0\) >> config.cmake
 echo set\(USE_CUDA ON\) >> config.cmake
