@@ -306,7 +306,6 @@ def test_dense():
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 
-
 if __name__ == "__main__":
     test_concatenate()
     test_bias_add()
