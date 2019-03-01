@@ -91,7 +91,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
         msg = "Compilation error:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
-    link_cmd = ["link"]
+    link_cmd = ["lld-link"]
     link_cmd += ["-dll", "-FORCE:MULTIPLE"]
 
     for obj in objects:
