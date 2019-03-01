@@ -410,3 +410,9 @@ def schedule_l2_normalize(outs):
     target = tvm.target.current_target(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.generic.default_schedule(cpp_target, outs, False)
+
+@tvm.target.generic_func
+def schedule_batch_matmul(outs):
+    target = tvm.target.current_target(allow_none=False)
+    cpp_target = cpp.TEST_create_target(target.target_name)
+    return cpp.generic.default_schedule(cpp_target, outs, False)

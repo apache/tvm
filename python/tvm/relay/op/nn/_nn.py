@@ -46,6 +46,21 @@ def schedule_dense(attrs, outputs, target):
 reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# batch_matmul
+@reg.register_compute("nn.batch_matmul")
+def compute_batch_matmul(attrs, inputs, out_type, target):
+    """Compute definition of batch_matmul"""
+    return [topi.nn.batch_matmul(inputs[0], inputs[1])]
+
+@reg.register_schedule("nn.batch_matmul")
+def schedule_batch_matmul(attrs, outputs, target):
+    """Schedule definition of batch_matmul"""
+    with target:
+        return topi.generic.schedule_batch_matmul(outputs)
+
+reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # conv2d
 @reg.register_compute("nn.conv2d")
 def compute_conv2d(attrs, inputs, out_type, target):
