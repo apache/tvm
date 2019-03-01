@@ -224,7 +224,7 @@ using FCorrectLayout = std::function<bool(
  * \return success flag.
  */
 using FCorrectLayoutEx = std::function<bool(
-    NodeAttrs& attrs,
+    const NodeAttrs& attrs,
     std::vector<TShape>* ishapes,
     std::vector<Layout>* ilayouts,
     const std::vector<Layout>* last_ilayouts,

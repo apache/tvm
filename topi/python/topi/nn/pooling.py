@@ -1,8 +1,8 @@
 """TVM operator pooling compute."""
 from __future__ import absolute_import
+import tvm
 from .. import cpp
 
-import tvm
 
 POOL_TYPE_CODE = {
     "avg": 0,
@@ -102,6 +102,7 @@ def pool(data,
 
 @tvm.target.generic_func
 def max_pool2d_alter_layout(attrs, inputs, tinfos):
+    #pylint: disable=unused-argument
     """Change max pool2d layout.
 
     Parameters
@@ -119,6 +120,7 @@ def max_pool2d_alter_layout(attrs, inputs, tinfos):
 
 @tvm.target.generic_func
 def avg_pool2d_alter_layout(attrs, inputs, tinfos):
+    #pylint: disable=unused-argument
     """Change average pool2d layout.
 
     Parameters
@@ -136,6 +138,7 @@ def avg_pool2d_alter_layout(attrs, inputs, tinfos):
 
 @tvm.target.generic_func
 def global_max_pool2d_alter_layout(attrs, inputs, tinfos):
+    #pylint: disable=unused-argument
     """Change global max pool2d layout.
 
     Parameters
@@ -153,6 +156,7 @@ def global_max_pool2d_alter_layout(attrs, inputs, tinfos):
 
 @tvm.target.generic_func
 def global_avg_pool2d_alter_layout(attrs, inputs, tinfos):
+    #pylint: disable=unused-argument
     """Change global average pool2d layout.
 
     Parameters

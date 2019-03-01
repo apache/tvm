@@ -7,6 +7,7 @@ the correctness of the program.
 from __future__ import absolute_import as _abs
 import numpy as _np
 
+from ._ffi.function import register_func
 from ._ffi.ndarray import TVMContext, TVMType, NDArrayBase
 from ._ffi.ndarray import context, empty, from_dlpack
 from ._ffi.ndarray import _set_class_ndarray
@@ -199,7 +200,6 @@ def array(arr, ctx=cpu(0)):
     return empty(arr.shape, arr.dtype, ctx).copyfrom(arr)
 
 
-from ._ffi.function import register_func
 @register_func("tvm.nd.random_uniform")
 def random_uniform(size, dtype, target):
     size = [int(x) for x in size.split()]

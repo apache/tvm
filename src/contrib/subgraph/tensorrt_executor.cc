@@ -9,13 +9,13 @@
 #include <dmlc/parameter.h>
 #include <dmlc/timer.h>
 #include <unordered_set>
+#include <cmath>
 #include <functional>
 #include <iostream>
 #include <sstream>
 #include "./subgraph.h"
 #include "./tensorrt_executor.h"
 #include "../../runtime/cuda/cuda_common.h"
-#include <cmath>
 
 namespace tvm {
 namespace contrib {

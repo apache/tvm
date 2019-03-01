@@ -3,7 +3,6 @@
 import tvm
 from .. import tag
 from .. import generic
-from ..nn.pooling import *
 
 @generic.schedule_global_pool.register(["cuda", "gpu"])
 def schedule_global_pool(outs):

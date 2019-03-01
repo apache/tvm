@@ -274,8 +274,8 @@ def _lrn(inputs, attrs):
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 def _symbol_ring_buffer(inputs, attrs):
-  output = _get_nnvm_op('ring_buffer')(*inputs, **attrs)
-  return _sym._assign(inputs[1], output)
+    output = _get_nnvm_op('ring_buffer')(*inputs, **attrs)
+    return _sym._assign(inputs[1], output)
 
 
 def _copy(inputs, _):
@@ -365,8 +365,7 @@ _convert_map = {
     'expand_dims'   : _expand_dims,
     'LRN'           : _lrn,
     'ring_buffer'   : _symbol_ring_buffer,
-    'LinearRegressionOutput' : _copy,
-    'argmax'                 : _argmax
+    'LinearRegressionOutput' : _copy
 }
 
 def _convert_symbol(op_name, inputs, attrs,

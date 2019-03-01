@@ -194,7 +194,7 @@ inline bool BatchNormInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool BatchNormCorrectLayout(NodeAttrs& attrs,
+inline bool BatchNormCorrectLayout(const NodeAttrs& attrs,
                                    std::vector<TShape>* ishapes,
                                    std::vector<Layout> *in_layouts,
                                    const std::vector<Layout> *last_in_layouts,
@@ -593,7 +593,7 @@ inline bool PadInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool PadCorrectLayout(NodeAttrs& attrs,
+inline bool PadCorrectLayout(const NodeAttrs& attrs,
                              std::vector<TShape>* ishapes,
                              std::vector<Layout>* ilayouts,
                              const std::vector<Layout>* last_ilayouts,

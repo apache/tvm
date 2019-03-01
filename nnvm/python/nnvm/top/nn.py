@@ -121,12 +121,12 @@ def compute_conv2d(attrs, inputs, _):
     else:
         raise ValueError("not support arbitrary group number for now")
 
-        if attrs.get_bool("use_bias"):
-            bias = inputs[2]
-            expand_axis = 1 if layout == "NCHW" else 0
-            bias = topi.expand_dims(bias, axis=expand_axis, num_newaxis=2)
-            out = topi.add(out, bias)
-        return out
+    if attrs.get_bool("use_bias"):
+        bias = inputs[2]
+        expand_axis = 1 if layout == "NCHW" else 0
+        bias = topi.expand_dims(bias, axis=expand_axis, num_newaxis=2)
+        out = topi.add(out, bias)
+    return out
 
 @reg.register_schedule("conv2d")
 def schedule_conv2d(attrs, outs, target):
@@ -260,11 +260,11 @@ def compute_contrib_conv2d_winograd_without_weight_transform(attrs, inputs, _):
         inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype,
         tile_size)
 
-        if attrs.get_bool("use_bias"):
-            bias = inputs[2]
-            bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
-            out = topi.add(out, bias)
-        return out
+    if attrs.get_bool("use_bias"):
+        bias = inputs[2]
+        bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
+        out = topi.add(out, bias)
+    return out
 
 @reg.register_schedule("_contrib_conv2d_winograd_without_weight_transform")
 def schedule_contrib_conv2d_winograd_without_weight_transform(attrs, outs, target):
@@ -312,22 +312,22 @@ def schedule_conv2d_transpose(attrs, outs, target):
 reg.register_pattern("conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_alter_op_layout("max_pool2d")
-def alter_pooling_layout(attrs, inputs, tinfos):
+def alter_pooling_layout_max_pool2d(attrs, inputs, tinfos):
     with tvm.target.create(attrs.get_string("target")):
         return topi.nn.max_pool2d_alter_layout(attrs, inputs, tinfos)
 
 @reg.register_alter_op_layout("avg_pool2d")
-def alter_pooling_layout(attrs, inputs, tinfos):
+def alter_pooling_layout_avg_pool2d(attrs, inputs, tinfos):
     with tvm.target.create(attrs.get_string("target")):
         return topi.nn.avg_pool2d_alter_layout(attrs, inputs, tinfos)
 
 @reg.register_alter_op_layout("global_max_pool2d")
-def alter_pooling_layout(attrs, inputs, tinfos):
+def alter_pooling_layout_global_max_pool2d(attrs, inputs, tinfos):
     with tvm.target.create(attrs.get_string("target")):
         return topi.nn.global_max_pool2d_alter_layout(attrs, inputs, tinfos)
 
 @reg.register_alter_op_layout("global_avg_pool2d")
-def alter_pooling_layout(attrs, inputs, tinfos):
+def alter_pooling_layout_global_avg_pool2d(attrs, inputs, tinfos):
     with tvm.target.create(attrs.get_string("target")):
         return topi.nn.global_avg_pool2d_alter_layout(attrs, inputs, tinfos)
 
