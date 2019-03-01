@@ -44,7 +44,7 @@ class PrettyPrinter :
     }
 
     Doc PrintFinal(const NodeRef& node) {
-      // TODO(@jmp): If these lines are combined it segfaults??
+      // must print first so doc_stack_.back() reference doesn't become stale
       Doc doc = Print(node, false);
       return doc_stack_.back() << doc;
     }
@@ -117,7 +117,7 @@ class PrettyPrinter :
       if (it != memo_.end()) return it->second;
       Doc printed_expr = VisitExpr(expr);
       // we choose to inline some nodes
-      if (GNF_ && gnf && !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>()) {
+      if (GNF_ && gnf && !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>() && !expr.as<OpNode>()) {
         Doc temp_var = AllocTemp();
         memo_[expr] = temp_var;
         doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
@@ -216,6 +216,20 @@ class PrettyPrinter :
 
     Doc VisitExpr_(const GlobalVarNode* op) final {
       return Text('@' + op->name_hint);
+    }
+
+    Doc VisitExpr_(const OpNode* op) final {
+      return Text(op->name);
+    }
+
+    Doc VisitExpr_(const CallNode* op) final {
+      Doc doc = Nil();
+      doc << Print(op->op);
+      std::vector<Doc> args;
+      for (Expr arg : op->args) {
+        args.push_back(Print(arg));
+      }
+      return doc << "(" << PrintVec(args, Text(", ")) << ")";
     }
 
   private:
