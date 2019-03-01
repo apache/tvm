@@ -29,7 +29,7 @@ def test_tuple():
 
 
 def test_tuple_get_item():
-    t = relay.Var('t')
+    t = relay.Var("t")
     assert well_formed(relay.TupleGetItem(t, 2))
 
 
