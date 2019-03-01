@@ -28,26 +28,9 @@ int TensorComputeOpNode::num_outputs() const {
   return static_cast<int>(this->intrin->buffers.size() - this->inputs.size());
 }
 
-Array<IterVar> TensorComputeOpNode::root_iter_vars() const {
-  Array<IterVar> ret = axis;
-  for (IterVar iv : reduce_axis) {
-    ret.push_back(iv);
-  }
-  return ret;
-}
-
 Type TensorComputeOpNode::output_dtype(size_t i) const {
   return this->intrin->buffers[this->inputs.size() + i]->dtype;
 }
-
-Array<Expr> TensorComputeOpNode::output_shape(size_t i) const {
-  Array<Expr> shape;
-  for (const auto& ivar : this->axis) {
-    shape.push_back(ivar->dom->extent);
-  }
-  return shape;
-}
-
 
 Operation TensorComputeOpNode::make(std::string name,
                                     std::string tag,
@@ -121,122 +104,9 @@ void TensorComputeOpNode::PropBoundToInputs(
   }
 }
 
-void TensorComputeOpNode::GatherBound(
-    const Operation& self,
-    const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
-  const TensorDom& tdom = tensor_dom.at(self.output(0));
-  for (size_t i = 0; i < this->axis.size(); ++i) {
-    Range r = arith::Union(tdom.data.at(i)).cover_range(this->axis[i]->dom);
-    CHECK(!out_dom_map->count(this->axis[i]));
-    (*out_dom_map)[this->axis[i]] = r;
-  }
-  for (size_t i = 0; i < this->reduce_axis.size(); ++i) {
-    CHECK(!out_dom_map->count(this->reduce_axis[i]));
-    (*out_dom_map)[this->reduce_axis[i]] = this->reduce_axis[i]->dom;
-  }
+size_t TensorComputeOpNode::num_schedulable_dims() const {
+  return schedulable_ndim;
 }
-
-Stmt TensorComputeOpNode::BuildRealize(
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& realize_map,
-    const Stmt& body) const {
-  CHECK_EQ(stage->op.get(), this);
-  HalideIR::Internal::Region bounds;
-  for (IterVar iv : this->axis) {
-    bounds.push_back(realize_map.at(iv));
-  }
-  Stmt realize = body;
-  for (int i = this->num_outputs(); i > 0; --i) {
-    Tensor t = stage->op.output(i-1);
-    realize = ir::Realize::make(t->op, t->value_index,
-      t->dtype, bounds, const_true(), realize);
-    // alignment requirement, only useful for compute
-    for (int i = 0; i < schedulable_ndim; ++i) {
-      auto it = stage->iter_var_attrs.find(this->axis[i]);
-      if (it != stage->iter_var_attrs.end()) {
-        IterVarAttr attr = (*it).second;
-        if (attr->dim_align_factor != 0) {
-          Array<Expr> tuple = {static_cast<int>(i),
-                               attr->dim_align_factor,
-                               attr->dim_align_offset};
-          realize = ir::AttrStmt::make(
-              t, ir::attr::buffer_dim_align,
-              Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic),
-              realize);
-        }
-      }
-    }
-  }
-  return realize;
-}
-
-ComputeLoopNest MakeLoopNest(
-    const TensorComputeOpNode* self,
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    bool debug_keep_trivial_loop) {
-  CHECK_EQ(stage->op.operator->(), self);
-  ComputeLoopNest ret;
-  // make main loop nest
-  ret.main_nest = op::MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap,
-      debug_keep_trivial_loop);
-  ret.main_predicates = schedule::MakeBoundCheck(
-      stage, dom_map, ret.main_vmap, false,
-      std::unordered_set<IterVar>());
-  for (auto& e : ret.main_predicates) {
-    e = likely(e);
-  }
-  if (stage->store_predicate.defined()) {
-    ret.main_predicates.push_back(stage->store_predicate);
-  }
-  if (self->reduce_axis.size() != 0) {
-    // try to find the location to insert the initialization.
-    // Fuse the initialization and provide loop when possible.
-    std::unordered_map<IterVar, int> update_state;
-    for (IterVar iv : self->reduce_axis) {
-      update_state[iv] = 2;
-    }
-    for (int i = 0; i < self->schedulable_ndim; ++i) {
-      update_state[self->axis[i]] = 1;
-    }
-    // find which iter var is related to reduction and which is related to axis.
-    schedule::PassDownBitMaskOr(stage, &update_state);
-    auto leaf_iter_vars = stage->leaf_iter_vars;
-    // first first loop that is related to reduction.
-    size_t begin_loop = leaf_iter_vars.size();
-    for (size_t i = 0; i < leaf_iter_vars.size(); ++i) {
-      auto iv = leaf_iter_vars[i];
-      int flag = update_state.at(iv);
-      if ((flag & 2) != 0) {
-        begin_loop = i; break;
-      }
-      ret.init_vmap[iv] = ret.main_vmap.at(iv);
-    }
-    ret.num_common_loop = begin_loop;
-    // skip loops that are related to reduction and are unrelated to axis.
-    std::unordered_set<IterVar> skip_iter;
-    for (auto kv : update_state) {
-      int flag = kv.second;
-      if (flag == 2) skip_iter.insert(kv.first);
-    }
-    ret.init_nest = op::MakeLoopNest(
-        stage, dom_map, begin_loop, true,
-        skip_iter, &(ret.init_vmap), debug_keep_trivial_loop);
-    ret.init_predicates = schedule::MakeBoundCheck(
-        stage, dom_map, ret.init_vmap, true, skip_iter);
-    for (auto& e : ret.init_predicates) {
-      e = likely(e);
-    }
-  } else {
-    CHECK_EQ(ret.main_nest.size(), stage->leaf_iter_vars.size() + 1);
-    ret.num_common_loop = stage->leaf_iter_vars.size();
-  }
-  // copy elison here.
-  return ret;
-}
-
 
 Stmt TensorComputeOpNode::BuildProvide(
     const Stage& stage,
@@ -296,7 +166,7 @@ Stmt TensorComputeOpNode::BuildProvide(
   ir::ArgBinder binder(&vmap);
 
   size_t tloc = stage->leaf_iter_vars.size();
-  ComputeLoopNest n = MakeLoopNest(this, stage, dom_map, debug_keep_trivial_loop);
+  ComputeLoopNest n = ComputeLoopNest::make(this, stage, dom_map, debug_keep_trivial_loop);
 
   if (this->reduce_axis.size() == 0) {
     std::vector<std::vector<Stmt> > nest(

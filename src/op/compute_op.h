@@ -41,7 +41,7 @@ struct ComputeLoopNest {
    * \return The constructed loop nest
    */
   static ComputeLoopNest make(
-      const ComputeOpNode* self,
+      const BaseComputeOpNode* self,
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
       bool debug_keep_trivial_loop);

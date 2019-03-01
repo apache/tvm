@@ -184,22 +184,45 @@ class PlaceholderOpNode : public OperationNode {
 
 /*!
  * \brief A Compute op that compute a tensor on certain domain.
+ * This is the base class for ComputeOp (operating on a scalar at a time) and
+ * TensorComputeOp (operating on a TensorSlice at a time)
  */
-class TVM_DLL ComputeOpNode : public OperationNode {
+class TVM_DLL BaseComputeOpNode : public OperationNode {
  public:
   /*! \brief IterVar on each axis */
   Array<IterVar> axis;
   /*! \brief IterVar on each reduction axis, if the body is a Reduce */
   Array<IterVar> reduce_axis;
+  // override functions
+  Array<IterVar> root_iter_vars() const final;
+  Array<Expr> output_shape(size_t idx) const final;
+  void GatherBound(
+          const Operation& self,
+          const std::unordered_map<Tensor, TensorDom>& tensor_dom,
+          std::unordered_map<IterVar, Range>* out_dom_map) const final;
+  Stmt BuildRealize(
+          const Stage& stage,
+          const std::unordered_map<IterVar, Range>& realize_map,
+          const Stmt& body) const final;
+  virtual size_t num_schedulable_dims() const = 0;
+
+  static constexpr const char* _type_key = "BaseComputeOp";
+  TVM_DECLARE_BASE_NODE_INFO(BaseComputeOpNode, OperationNode);
+};
+
+
+/*!
+ * \brief A Compute op that compute a tensor on certain domain.
+ */
+class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
+ public:
   /*! \brief the compute expression */
   Array<Expr> body;
   /*! \brief constructor */
   ComputeOpNode() {}
   // override functions
   int num_outputs() const final;
-  Array<IterVar> root_iter_vars() const final;
   Type output_dtype(size_t i) const final;
-  Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -208,18 +231,11 @@ class TVM_DLL ComputeOpNode : public OperationNode {
       const Operation& self,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
-  void GatherBound(
-      const Operation& self,
-      const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-      std::unordered_map<IterVar, Range>* out_dom_map) const final;
-  Stmt BuildRealize(
-      const Stage& stage,
-      const std::unordered_map<IterVar, Range>& realize_map,
-      const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
       bool debug_keep_trivial_loop) const final;
+  size_t num_schedulable_dims() const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -236,18 +252,14 @@ class TVM_DLL ComputeOpNode : public OperationNode {
                         Array<Expr> body);
 
   static constexpr const char* _type_key = "ComputeOp";
-  TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode, OperationNode);
+  TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode, BaseComputeOpNode);
 };
 
 /*!
  * \brief A TenorCompute op that compute a tensor with an tensor intrinsic.
  */
-class TensorComputeOpNode : public OperationNode {
+class TensorComputeOpNode : public BaseComputeOpNode {
  public:
-  /*! \brief IterVar on each axis */
-  Array<IterVar> axis;
-  /*! \brief IterVar on each reduction axis, if the intrin will use the reduce axis */
-  Array<IterVar> reduce_axis;
   /*! \brief number of axes that can be scheduled */
   int schedulable_ndim;
   /*! \brief TensorIntrin used to compute */
@@ -260,9 +272,7 @@ class TensorComputeOpNode : public OperationNode {
   TensorComputeOpNode() {}
   // override functions
   int num_outputs() const final;
-  Array<IterVar> root_iter_vars() const final;
   Type output_dtype(size_t i) const final;
-  Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -271,18 +281,11 @@ class TensorComputeOpNode : public OperationNode {
       const Operation& self,
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
-  void GatherBound(
-      const Operation& self,
-      const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-      std::unordered_map<IterVar, Range>* out_dom_map) const final;
-  Stmt BuildRealize(
-      const Stage& stage,
-      const std::unordered_map<IterVar, Range>& realize_map,
-      const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
       const std::unordered_map<IterVar, Range>& dom_map,
       bool debug_keep_trivial_loop) const final;
+  size_t num_schedulable_dims() const final;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("name", &name);
@@ -304,7 +307,7 @@ class TensorComputeOpNode : public OperationNode {
                         Array<Region> regions);
 
   static constexpr const char* _type_key = "TensorComputeOp";
-  TVM_DECLARE_NODE_TYPE_INFO(TensorComputeOpNode, OperationNode);
+  TVM_DECLARE_NODE_TYPE_INFO(TensorComputeOpNode, BaseComputeOpNode);
 };
 
 /*!
