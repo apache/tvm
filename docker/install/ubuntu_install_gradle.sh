@@ -1,6 +1,9 @@
+#!/bin/bash
+
 . /etc/profile
 
 set -o errexit -o nounset
+set -o pipefail
 
 GRADLE_HOME=/opt/gradle
 GRADLE_VERSION=4.10-rc-2
