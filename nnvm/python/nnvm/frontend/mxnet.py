@@ -286,6 +286,12 @@ def _lrn(inputs, attrs):
     new_attrs['size'] = _required_attr(attrs, 'nsize')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _minimum(inputs, attrs):
+    return _get_nnvm_op('broadcast_min')(*inputs, **attrs)
+
+def _maximum(inputs, attrs):
+    return _get_nnvm_op('broadcast_max')(*inputs, **attrs)
+
 def _ones(_, attrs):
     op_name = 'ones'
     return _get_nnvm_op(op_name)(**attrs)
@@ -330,6 +336,8 @@ _convert_map = {
     '_rminus_scalar': _rename('__rsub_scalar__'),
     '_contrib_MultiBoxPrior' : _rename('multibox_prior'),
     '_contrib_MultiBoxDetection' : _contrib_multibox_detection,
+    '_minimum'      : _minimum,
+    '_maximum'      : _maximum,
     '_ones'         : _ones,
     '_zeros'        : _zeros,
     'argmax'        : _argmax,
