@@ -56,11 +56,8 @@ Graph AlterOpLayout(const Graph& src) {
     const auto& layouts = src.GetAttr<std::vector<Layout> >("layout");
     for (uint32_t nid = 0; nid < idx_graph.num_nodes(); ++nid) {
       const auto &inode = idx_graph[nid];
-<<<<<<< HEAD
-=======
       // record input layouts for all nodes,
       // while replaced nodes will ignore the records here and have undefined input layouts.
->>>>>>> [Bugfix] Recover original layout when alter_layout function return None (#2101)
       std::vector<Layout> in_layout;
       for (const auto& e : inode.inputs) {
         in_layout.emplace_back(layouts[idx_graph.entry_id(e)]);

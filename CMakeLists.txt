@@ -29,36 +29,6 @@ tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
-if(USE_LLVM STREQUAL "ON")
-    getFromList(BUILD_PATH_SRC ".*LLVM.*" LLVM_PATH)
-endif()
-if(USE_CUDA STREQUAL "ON")
-    getFromList(BUILD_PATH_SRC ".*\/Cuda.*" USE_CUDA)
-    execute_process(COMMAND ls ${USE_CUDA} OUTPUT_VARIABLE CUDA_SRC_DIR)
-    if (NOT ${CUDA_SRC_DIR} MATCHES "build[^-]")
-        set(USE_CUDA ${USE_CUDA}/../../DEV.STD.PTHREAD/build)
-    else()
-        set(USE_CUDA ${USE_CUDA}/build)
-    endif()
-endif()
-if(USE_CUDNN STREQUAL "ON")
-    getFromList(BUILD_PATH_SRC ".*Cudnn.*" USE_CUDNN)
-    execute_process(COMMAND ls ${USE_CUDNN} OUTPUT_VARIABLE CUDNN_SRC_DIR)
-    if (NOT ${CUDNN_SRC_DIR} MATCHES "build[^-]")
-        set(USE_CUDNN ${USE_CUDNN}/../../DEV.STD.PTHREAD/build)
-    else()
-        set(USE_CUDNN ${USE_CUDNN}/build)
-    endif()
-endif()
-if(USE_TENSORRT STREQUAL "ON")
-    getFromList(BUILD_PATH_SRC ".*DLC_TENSORRT.*" USE_TENSORRT)
-    execute_process(COMMAND ls ${USE_TENSORRT} OUTPUT_VARIABLE TENSORRT_SRC_DIR)
-    if (NOT ${TENSORRT_SRC_DIR} MATCHES "Config")
-        set(USE_TENSORRT ${USE_TENSORRT}/../../DEV.STD.PTHREAD/build)
-    else()
-        set(USE_TENSORRT ${USE_TENSORRT}/build)
-    endif()
-endif()
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
@@ -161,14 +131,8 @@ file(GLOB_RECURSE NNVM_COMPILER_SRCS
     nnvm/src/core/*.cc
     nnvm/src/pass/*.cc
     nnvm/src/compiler/*.cc
-    nnvm/src/frontend/*.cc
     nnvm/src/top/*.cc
-    3rdparty/dmlc-core/src/*.cc
-    3rdparty/dmlc-core/include/*.h
 )
-list(FILTER NNVM_COMPILER_SRCS EXCLUDE REGEX ".*/io/azure_filesys.cc")
-list(FILTER NNVM_COMPILER_SRCS EXCLUDE REGEX ".*/io/hdfs_filesys.cc")
-list(FILTER NNVM_COMPILER_SRCS EXCLUDE REGEX ".*/io/s3_filesys.cc")
 
 file(GLOB TOPI_SRCS
     topi/src/*.cc
