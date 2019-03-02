@@ -5,7 +5,6 @@
 This file exposes differen granularity of interfaces for users to implement and
 use passes more conveniently.
 """
-from abc import abstractmethod
 from enum import IntEnum
 
 from . import _ir_pass
@@ -45,23 +44,6 @@ class Pass(RelayNode):
         The optimization level of this pass.
     """
 
-    @abstractmethod
-    def run(self, mod):
-        """Execute the pass. It is an abstract function that will be
-        implemented by subclasses.
-
-        Parameters
-        ----------
-        mod : tvm.relay.Module
-            The module that a certain optimization is performed on.
-
-        Returns
-        -------
-        mod : tvm.relay.Module
-            The updated module after applying this pass.
-        """
-        raise NotImplementedError("Pure virtual function is not implemented.")
-
     def set_pass_context(self, pass_ctx):
         """Setup the pass context for analysis and optimizations. This context
         could be shared by different passes for sequential passes.
@@ -82,7 +64,20 @@ class Pass(RelayNode):
         return _ir_pass.SetContext(self, pass_ctx)
 
     def __call__(self, mod):
-        return self.run(mod)
+        """Execute the pass. It is an abstract function that will be
+        implemented by subclasses.
+
+        Parameters
+        ----------
+        mod : tvm.relay.Module
+            The module that a certain optimization is performed on.
+
+        Returns
+        -------
+        mod : tvm.relay.Module
+            The updated module after applying this pass.
+        """
+        raise NotImplementedError("Pure virtual function is not implemented.")
 
 
 @register_relay_node
@@ -105,7 +100,7 @@ class ModulePass(Pass):
         self.__init_handle_by_constructor__(_ir_pass.CreateModulePass, name,
                                             opt_level, pass_func)
 
-    def run(self, mod):
+    def __call__(self, mod):
         """Execute a module pass.
 
         Parameters
@@ -120,8 +115,6 @@ class ModulePass(Pass):
         """
         return _ir_pass.RunModulePass(self, mod)
 
-    def __call__(self, mod):
-        return self.run(mod)
 
 @register_relay_node
 class FunctionPass(Pass):
@@ -143,7 +136,7 @@ class FunctionPass(Pass):
         self.__init_handle_by_constructor__(_ir_pass.CreateFunctionPass, name,
                                             opt_level, pass_func)
 
-    def run(self, mod):
+    def __call__(self, mod):
         """Execute a function pass.
 
         Parameters
@@ -158,8 +151,6 @@ class FunctionPass(Pass):
         """
         return _ir_pass.RunFunctionPass(self, mod)
 
-    def __call__(self, mod):
-        return self.run(mod)
 
 @register_relay_node
 class SequentialPass(Pass):
@@ -187,7 +178,7 @@ class SequentialPass(Pass):
         self.__init_handle_by_constructor__(_ir_pass.CreateSequentialPass,
                                             name, opt_level, passes, disabled)
 
-    def run(self, mod):
+    def __call__(self, mod):
         """Execute a sequence of passes.
 
         Parameters
@@ -201,9 +192,6 @@ class SequentialPass(Pass):
             The updated module.
         """
         return _ir_pass.RunSequentialPass(self, mod)
-
-    def __call__(self, mod):
-        return self.run(mod)
 
 
 def create_pass(pass_name, opt_level,

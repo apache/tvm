@@ -4,13 +4,224 @@
  * \brief Relay pass manager implementation.
  */
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass_manager.h>
+#include <tvm/relay/pass.h>
 
 namespace tvm {
 namespace relay {
 namespace pass {
 
 using tvm::IRPrinter;
+
+/*!
+ * \brief Module-level passes are designed to implement global
+ * analysis/optimizations, i.e. interprocedural optimizations (IPO), etc. Passes
+ * at this level have the full control of a given Relay program including
+ * addition and deletion of functions.
+ */
+class ModulePassNode : public PassNode {
+ public:
+  /*! \brief The curried function sketches the real optimization. For example,
+   * we may need to perform dead code elimination on the module level. We could
+   * implement the algorithm in the `pass_func` and let it run on a module. It
+   * will then remove the dead code including the unused functions in the module.
+   */
+  PassFunc<Module> pass_func;
+
+  ModulePassNode() = default;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("opt_level", &opt_level);
+  }
+
+  /*!
+   * \brief Run a function pass on a certain module.
+   *
+   * \param mod The module that an optimization pass runs on.
+   *
+   * \return Return the updated module.
+   */
+  Module operator()(const Module& mod) const final;
+
+  /*! \brief Collect the required passes for this module pass. */
+  std::vector<std::string> Required() const final;
+
+  /*!
+   * \brief Set the context information for a module pass.
+   *
+   * \param pass_ctx The context information for a module pass.
+   */
+  void SetContext(const PassContext& pass_ctx) final;
+
+  TVM_DLL static ModulePass make(std::string name, int opt_level,
+                                 PassFunc<Module> pass_func);
+
+  static constexpr const char* _type_key = "relay.ModulePass";
+  TVM_DECLARE_NODE_TYPE_INFO(ModulePassNode, PassNode);
+
+ private:
+  /*!
+   * \brief The context information that is used to help perform a module pass.
+   */
+  PassContext pass_ctx_;
+};
+
+RELAY_DEFINE_NODE_REF(ModulePass, ModulePassNode, Pass);
+
+/*!
+ * \brief Function-level passes are used to implement various global
+ * optimizations for a given Relay module. It fetches one function at a time
+ * from the function list in the module for optimization.
+ *
+ * Note that the scope of passes at this level is a Relay function. Therefore,
+ * we cannot add or delete a function through these passes as they are not aware
+ * of the global information.
+ */
+class FunctionPassNode : public PassNode {
+ public:
+  /*! \brief The curried packed function that sketches the real optimization.
+   * For instance, we can implement a pass that works on a Relay function as
+   * a `pass_func` and let it run on a given module. The same `pass_func` will
+   * then be applied on each function in the module.
+   */
+  PassFunc<Function> pass_func;
+
+  FunctionPassNode() = default;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("opt_level", &opt_level);
+  }
+
+  /*!
+   * \brief Run a function pass on a certain module.
+   *
+   * \param mod The module that an optimization pass runs on.
+   *
+   * \return Return the updated module.
+   */
+  Module operator()(const Module& mod) const final;
+
+  /*! \brief Collect the required passes for this module pass. */
+  std::vector<std::string> Required() const final;
+
+  /*!
+   * \brief Set the context information for a function-level pass.
+   *
+   * \param pass_ctx The context information for a function-level pass.
+   */
+  void SetContext(const PassContext& pass_ctx) final;
+
+  TVM_DLL static FunctionPass make(std::string name, int opt_level,
+                                   PassFunc<Function> pass_func);
+
+  static constexpr const char* _type_key = "relay.FunctionPass";
+  TVM_DECLARE_NODE_TYPE_INFO(FunctionPassNode, PassNode);
+
+ private:
+  /*
+   * \brief Check if a function should be skipped for optimization.
+   *
+   * \param func The target function to be checked.
+   *
+   * \return Return true if the function will be skipped, otherwise false.
+   */
+  bool SkipFunction(const Function& func) const;
+
+  /*!
+   * \brief The context information that is used to help perform a module pass.
+   */
+  PassContext pass_ctx_;
+};
+
+RELAY_DEFINE_NODE_REF(FunctionPass, FunctionPassNode, Pass);
+
+/*!
+ * \brief The SequentialPassNode contains a set of passes that transform Relay
+ * programs from one AST to another semantically equivalent one.
+ *
+ * One example of this level of pass is that the pass manager needs to correctly
+ * perform a host of optimizations with a given optimization level and disabled
+ * passes.
+ */
+class SequentialPassNode : public PassNode {
+ public:
+  /*! \brief A list of passes that used to compose a sequential pass. */
+  tvm::Array<Pass> passes;
+  /*!
+   * \brief A list of disabled passes that should be excluded when executing the
+   * sequential pass.
+   */
+  tvm::Array<tvm::Expr> disabled;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("opt_level", &opt_level);
+    v->Visit("passes", &passes);
+    v->Visit("disabled", &disabled);
+  }
+
+  /*!
+   * \brief Add a pass to the pass list.
+   *
+   * \param pass The candidate pass to be added.
+   */
+  void AddPass(const Pass& pass) {
+    passes.push_back(pass);
+  }
+
+  TVM_DLL static SequentialPass make(std::string name, int opt_level,
+                                     tvm::Array<Pass> passes,
+                                     tvm::Array<tvm::Expr> disabled);
+
+  /*!
+   * \brief Resolve the pass dependency. It globs all required passes by
+   *        a given pass and executes them.
+   *
+   * \param mod The module that an optimization pass runs on.
+   *
+   * \return The updated module after resolving pass dependencies.
+   *
+   * TODO(zhiics) Build a dependency graph among the passes using provided
+   * metadata, i.e. required_passes. Likely, we can have a data structure, i.e.
+   * PassInfo, to store the relevant information including the parent passes.
+   */
+  void ResolveDependency(const Module& mod);
+
+  std::vector<std::string> Required() const final;
+
+  TVM_DLL std::vector<std::string> DisabledPasses() const;
+
+  /*!
+   * \brief Perform optimizations on a series of passes. The aforementioned
+   *        typical pass manager jobs could be done by it. This function could
+   *        be overloaded to focus on different metrics, i.e. performance,
+   *        memory footprint, etc.
+   *
+   * \param mod The module that an optimization pass runs on.
+   *
+   * \return Return the updated module.
+   */
+  Module operator()(const Module& mod) const final;
+
+  /*!
+   * \brief Set the context information for a sequential pass.
+   *
+   * \param pass_ctx The context information for a sequential pass.
+   */
+  void SetContext(const PassContext& pass_ctx) final;
+
+  static constexpr const char* _type_key = "relay.SequentialPass";
+  TVM_DECLARE_NODE_TYPE_INFO(SequentialPassNode, PassNode);
+
+ private:
+  /*!
+   * \brief The context information that is used to help perform a module pass.
+   */
+  PassContext pass_ctx_;
+};
+
+RELAY_DEFINE_NODE_REF(SequentialPass, SequentialPassNode, Pass);
 
 PassContext PassContextNode::make() {
   auto ctx = make_node<PassContextNode>();
@@ -30,7 +241,7 @@ ModulePass ModulePassNode::make(std::string name, int opt_level,
 // TODO(zhiics) 1. Check and handle the required passes.
 //              2. Probably use CoW for all places that use module instead of
 //              returning the updated one.
-Module ModulePassNode::Run(const Module& mod) const {
+Module ModulePassNode::operator()(const Module& mod) const {
   LOG(INFO) << "Executing module pass : " << this->name
             << " with opt level: " << opt_level << "\n";
   CHECK(mod.defined());
@@ -46,6 +257,10 @@ std::vector<std::string> ModulePassNode::Required() const {
   return required;
 }
 
+void ModulePassNode::SetContext(const PassContext& pass_ctx) {
+  pass_ctx_ = pass_ctx;
+}
+
 FunctionPass FunctionPassNode::make(std::string name, int opt_level,
                                     PassFunc<Function> pass_func) {
   auto n = make_node<FunctionPassNode>();
@@ -57,7 +272,7 @@ FunctionPass FunctionPassNode::make(std::string name, int opt_level,
 
 // Perform Module -> Module optimizations at the Function level.
 // TODO(zhiics) Check and handle the required passes.
-Module FunctionPassNode::Run(const Module& mod) const {
+Module FunctionPassNode::operator()(const Module& mod) const {
   LOG(INFO) << "Executing function pass : " << this->name
             << " with opt level: " << this->opt_level << "\n";
   CHECK(mod.defined());
@@ -78,6 +293,10 @@ Module FunctionPassNode::Run(const Module& mod) const {
   }
 
   return GetRef<Module>(mod_node);
+}
+
+void FunctionPassNode::SetContext(const PassContext& pass_ctx) {
+  pass_ctx_ = pass_ctx;
 }
 
 // TODO(zhiics) Create an enum attribute for FunctionNode
@@ -105,11 +324,12 @@ SequentialPass SequentialPassNode::make(std::string name, int opt_level,
   return SequentialPass(n);
 }
 
-Module SequentialPassNode::Run(const Module& module) const {
+Module SequentialPassNode::operator()(const Module& module) const {
   Module mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
-    mod = pass->Run(mod);
+    const auto* pn = pass.operator->();
+    mod = (*pn)(mod);
   }
   return mod;
 }
@@ -135,6 +355,10 @@ std::vector<std::string> SequentialPassNode::DisabledPasses() const {
     ret.push_back(str->value);
   }
   return ret;
+}
+
+void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
+  pass_ctx_ = pass_ctx;
 }
 
 ModulePass CreateModulePass(const std::string& name, int opt_level,
@@ -178,7 +402,9 @@ TVM_REGISTER_API("relay._ir_pass.RunModulePass")
   CHECK(pass.defined())
       << "Running a pass on undefined ModulePass is not allowed."
       << "\n";
-  *ret = pass->Run(mod);
+
+  const auto* pn = pass.operator->();
+  *ret = (*pn)(mod);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -213,7 +439,8 @@ TVM_REGISTER_API("relay._ir_pass.RunFunctionPass")
   CHECK(pass.defined())
       << "Running a pass on undefined ModulePass is not allowed."
       << "\n";
-  *ret = pass->Run(mod);
+  const auto* pn = pass.operator->();
+  *ret = (*pn)(mod);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -241,7 +468,8 @@ TVM_REGISTER_API("relay._ir_pass.RunSequentialPass")
   CHECK(pass.defined())
       << "Running passes on undefined SequentialPass is not allowed."
       << "\n";
-  *ret = pass->Run(mod);
+  const auto* pn = pass.operator->();
+  *ret = (*pn)(mod);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)

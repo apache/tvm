@@ -134,7 +134,7 @@ def test_module_pass():
         module_pass = pass_manager.ModulePass(pass_name, opt_level, pass_func)
         assert pass_name in module_pass.astext()
 
-        updated_mod = module_pass.run(mod)
+        updated_mod = module_pass(mod)
         assert isinstance(updated_mod, relay.Module)
 
         # Check the abs function in the updated module.
@@ -200,7 +200,7 @@ def test_function_pass():
         function_pass = pass_manager.FunctionPass(pass_name, opt_level, pass_func)
         assert pass_name in function_pass.astext()
 
-        updated_mod = function_pass.run(mod)
+        updated_mod = function_pass(mod)
         assert isinstance(updated_mod, relay.Module)
 
         # Check the log function in the updated module.
@@ -284,7 +284,7 @@ def test_sequential_pass():
         passes = []
         sequential_pass = pass_manager.SequentialPass("sequential_pass", 1,
                                                       passes)
-        ret_mod = sequential_pass.run(mod)
+        ret_mod = sequential_pass(mod)
         mod_func = ret_mod[v_sub]
         check_func(sub, mod_func)
 
@@ -292,7 +292,7 @@ def test_sequential_pass():
         passes = [module_pass]
         sequential_pass = pass_manager.SequentialPass("sequential_pass", 1,
                                                       passes)
-        ret_mod = sequential_pass.run(mod)
+        ret_mod = sequential_pass(mod)
         # Check the subtract function.
         sub_var, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, sub)
@@ -307,7 +307,7 @@ def test_sequential_pass():
         passes = [function_pass]
         sequential_pass = pass_manager.SequentialPass("sequential_pass", 2,
                                                       passes)
-        ret_mod = sequential_pass.run(mod)
+        ret_mod = sequential_pass(mod)
         _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
 
@@ -321,7 +321,7 @@ def test_sequential_pass():
         mod = relay.Module({v_sub: sub, v_log: log})
         passes = [module_pass, function_pass]
         sequential_pass = pass_manager.SequentialPass("sequential_pass", 2, passes)
-        ret_mod = sequential_pass.run(mod)
+        ret_mod = sequential_pass(mod)
 
         # Check the abs function is added.
         abs_var, abs_func = get_var_func()
