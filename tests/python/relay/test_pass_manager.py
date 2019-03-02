@@ -5,8 +5,7 @@ import tvm
 from tvm import relay
 from tvm.relay import ExprFunctor
 from tvm.relay import Function, Call
-from tvm.relay.ir_pass import infer_type, graph_equal
-from tvm.relay import pass_manager
+from tvm.relay import ir_pass
 from tvm.relay.testing import ctx_list
 
 
@@ -103,9 +102,9 @@ def pass_function(mod):
 
 
 def check_func(func, ref_func):
-    func = infer_type(func)
-    ref_func = infer_type(ref_func)
-    assert graph_equal(func, ref_func)
+    func = ir_pass.infer_type(func)
+    ref_func = ir_pass.infer_type(ref_func)
+    assert ir_pass.graph_equal(func, ref_func)
 
 
 def test_module_pass():
@@ -120,18 +119,16 @@ def test_module_pass():
 
     pass_name = "module_pass_test"
     opt_level = 0
-    pass_kind = pass_manager.PassKind.ModuleKind
     pass_func = pass_function
 
     def test_pass_registration():
-        mod_pass = pass_manager.create_pass(pass_name, opt_level, pass_kind,
-                                            pass_func=pass_func)
-        assert isinstance(mod_pass, pass_manager.ModulePass)
+        mod_pass = ir_pass.create_module_pass(pass_name, opt_level, pass_func)
+        assert isinstance(mod_pass, ir_pass.ModulePass)
         assert mod_pass.name == pass_name
         assert mod_pass.opt_level == opt_level
 
     def test_pass_run():
-        module_pass = pass_manager.ModulePass(pass_name, opt_level, pass_func)
+        module_pass = ir_pass.ModulePass(pass_name, opt_level, pass_func)
         assert pass_name in module_pass.astext()
 
         updated_mod = module_pass(mod)
@@ -182,7 +179,6 @@ def test_function_pass():
 
     pass_name = "function_pass_test"
     opt_level = 1
-    pass_kind = pass_manager.PassKind.FunctionKind
     pass_func = pass_function
 
     def get_ref_log():
@@ -190,14 +186,14 @@ def test_function_pass():
         return ref_log
 
     def test_pass_registration():
-        function_pass = pass_manager.create_pass(pass_name, opt_level,
-                                                 pass_func=pass_func)
-        assert isinstance(function_pass, pass_manager.FunctionPass)
+        function_pass = ir_pass.create_function_pass(pass_name, opt_level,
+                                                     pass_func)
+        assert isinstance(function_pass, ir_pass.FunctionPass)
         assert function_pass.name == pass_name
         assert function_pass.opt_level == opt_level
 
     def test_pass_run():
-        function_pass = pass_manager.FunctionPass(pass_name, opt_level, pass_func)
+        function_pass = ir_pass.FunctionPass(pass_name, opt_level, pass_func)
         assert pass_name in function_pass.astext()
 
         updated_mod = function_pass(mod)
@@ -261,37 +257,33 @@ def test_sequential_pass():
 
     # Register a module pass.
     module_pass_func = pass_function
-    module_pass = pass_manager.ModulePass("module_pass", 1, module_pass_func)
+    module_pass = ir_pass.ModulePass("module_pass", 1, module_pass_func)
 
     # Register a function pass.
     function_pass_func = pass_function
-    function_pass = pass_manager.FunctionPass("function_pass", 2,
-                                              function_pass_func)
+    function_pass = ir_pass.FunctionPass("function_pass", 2,
+                                         function_pass_func)
 
     def test_pass_registration():
-        pass_kind = pass_manager.PassKind.SequentialKind
         passes = [module_pass, function_pass]
         pass_name = "sequential_pass"
         opt_level = 2
-        sequential_pass = pass_manager.create_pass(pass_name, opt_level,
-                                                   pass_kind,
-                                                   sequential_passes=passes)
-        assert isinstance(sequential_pass, pass_manager.SequentialPass)
+        sequential_pass = ir_pass.create_sequential_pass(pass_name, opt_level,
+                                                         passes)
+        assert isinstance(sequential_pass, ir_pass.SequentialPass)
         assert sequential_pass.name == pass_name
         assert sequential_pass.opt_level == opt_level
 
     def test_no_pass():
         passes = []
-        sequential_pass = pass_manager.SequentialPass("sequential_pass", 1,
-                                                      passes)
+        sequential_pass = ir_pass.SequentialPass("sequential_pass", 1, passes)
         ret_mod = sequential_pass(mod)
         mod_func = ret_mod[v_sub]
         check_func(sub, mod_func)
 
     def test_only_module_pass():
         passes = [module_pass]
-        sequential_pass = pass_manager.SequentialPass("sequential_pass", 1,
-                                                      passes)
+        sequential_pass = ir_pass.SequentialPass("sequential_pass", 1, passes)
         ret_mod = sequential_pass(mod)
         # Check the subtract function.
         sub_var, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
@@ -305,8 +297,7 @@ def test_sequential_pass():
     def test_only_function_pass():
         # Check the subtract function.
         passes = [function_pass]
-        sequential_pass = pass_manager.SequentialPass("sequential_pass", 2,
-                                                      passes)
+        sequential_pass = ir_pass.SequentialPass("sequential_pass", 2, passes)
         ret_mod = sequential_pass(mod)
         _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
@@ -320,7 +311,7 @@ def test_sequential_pass():
         # function pass.
         mod = relay.Module({v_sub: sub, v_log: log})
         passes = [module_pass, function_pass]
-        sequential_pass = pass_manager.SequentialPass("sequential_pass", 2, passes)
+        sequential_pass = ir_pass.SequentialPass("sequential_pass", 2, passes)
         ret_mod = sequential_pass(mod)
 
         # Check the abs function is added.

@@ -12,6 +12,8 @@ namespace pass {
 
 using tvm::IRPrinter;
 
+class ModulePass;
+
 /*!
  * \brief Module-level passes are designed to implement global
  * analysis/optimizations, i.e. interprocedural optimizations (IPO), etc. Passes
@@ -67,6 +69,8 @@ class ModulePassNode : public PassNode {
 };
 
 RELAY_DEFINE_NODE_REF(ModulePass, ModulePassNode, Pass);
+
+class FunctionPass;
 
 /*!
  * \brief Function-level passes are used to implement various global
@@ -135,6 +139,8 @@ class FunctionPassNode : public PassNode {
 };
 
 RELAY_DEFINE_NODE_REF(FunctionPass, FunctionPassNode, Pass);
+
+class SequentialPass;
 
 /*!
  * \brief The SequentialPassNode contains a set of passes that transform Relay
@@ -324,6 +330,9 @@ SequentialPass SequentialPassNode::make(std::string name, int opt_level,
   return SequentialPass(n);
 }
 
+// TODO(jroesch, zhiics): we currenlty only sequentially execute each pass in
+// a SequentialPass without the consideration of their orders. The phase
+// ordering problem needed to be handled in the future.
 Module SequentialPassNode::operator()(const Module& module) const {
   Module mod = module;
   for (const Pass& pass : passes) {
@@ -361,19 +370,19 @@ void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
   pass_ctx_ = pass_ctx;
 }
 
-ModulePass CreateModulePass(const std::string& name, int opt_level,
-                            const PassFunc<Module>& pass_func) {
+Pass CreateModulePass(const std::string& name, int opt_level,
+                      const PassFunc<Module>& pass_func) {
   return ModulePassNode::make(name, opt_level, pass_func);
 }
 
-FunctionPass CreateFunctionPass(const std::string& name, int opt_level,
-                                const PassFunc<Function>& pass_func) {
+Pass CreateFunctionPass(const std::string& name, int opt_level,
+                        const PassFunc<Function>& pass_func) {
   return FunctionPassNode::make(name, opt_level, pass_func);
 }
 
-SequentialPass CreateSequentialPass(const std::string& name, int opt_level,
-                                    const tvm::Array<Pass>& passes,
-                                    const tvm::Array<tvm::Expr>& disabled) {
+Pass CreateSequentialPass(const std::string& name, int opt_level,
+                          const tvm::Array<Pass>& passes,
+                          const tvm::Array<tvm::Expr>& disabled) {
   return SequentialPassNode::make(name, opt_level, passes, disabled);
 }
 

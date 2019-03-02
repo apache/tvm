@@ -11,7 +11,6 @@ from . import adt
 from . import ir_pass
 from .build_module import build, build_config, create_executor, optimize
 from . import prelude
-from . import pass_manager
 from . import parser
 from . import debug
 from . import param_dict
@@ -80,7 +79,9 @@ Match = adt.Match
 var = expr.var
 const = expr.const
 bind = expr.bind
-create_pass = pass_manager.create_pass
+create_module_pass = ir_pass.create_module_pass
+create_function_pass = ir_pass.create_function_pass
+create_sequential_pass = ir_pass.create_sequential_pass
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
@@ -94,8 +95,8 @@ save_param_dict = param_dict.save_param_dict
 load_param_dict = param_dict.load_param_dict
 
 # Pass manager
-PassContext = pass_manager.PassContext
-Pass = pass_manager.Pass
-ModulePass = pass_manager.ModulePass
-FunctionPass = pass_manager.FunctionPass
-SequentialPass = pass_manager.SequentialPass
+PassContext = ir_pass.PassContext
+Pass = ir_pass.Pass
+ModulePass = ir_pass.ModulePass
+FunctionPass = ir_pass.FunctionPass
+SequentialPass = ir_pass.SequentialPass
