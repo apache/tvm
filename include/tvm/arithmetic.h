@@ -55,7 +55,10 @@ class ConstIntBoundNode : public Node {
 
   /*! \brief Number to represent +inf */
   static const constexpr int64_t kPosInf = std::numeric_limits<int64_t>::max();
-  /*! \brief Number to represent -inf */
+  /*!
+   * \brief Number to represent -inf
+   * \note We can make use the of fact that -kPosInf == kNegInf in the project.
+   */
   static const constexpr int64_t kNegInf = -kPosInf;
 
   static constexpr const char* _type_key = "arith.ConstIntBound";
