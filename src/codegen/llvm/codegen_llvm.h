@@ -23,7 +23,6 @@ namespace codegen {
 
 using namespace ir;
 
-
 /*!
  * \brief A base class to generate a LLVM.
  */
@@ -267,8 +266,8 @@ class CodeGenLLVM :
   std::unordered_map<std::string, llvm::Constant*> str_map_;
   // Whether current function is restricted
   bool is_restricted_{true};
-  // The alignment information
-  std::unordered_map<const Variable*, arith::ModularEntry> align_map_;
+  // The analyzer information
+  std::unique_ptr<arith::Analyzer> analyzer_;
   // set of var that are not restricted(can alias)
   std::unordered_set<const Variable*> alias_var_set_;
   // set of volatile buffer.

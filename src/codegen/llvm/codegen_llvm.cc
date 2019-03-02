@@ -9,7 +9,6 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include "codegen_llvm.h"
 #include "codegen_cpu.h"
-#include "../codegen_common.h"
 #include "../../pass/ir_util.h"
 #include "../../arithmetic/compute_expr.h"
 
@@ -84,9 +83,9 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
 void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
   alias_var_set_.clear();
-  align_map_.clear();
   alloc_storage_info_.clear();
   volatile_buf_.clear();
+  analyzer_.reset(new arith::Analyzer());
 }
 
 void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
@@ -381,14 +380,16 @@ void CodeGenLLVM::GetAlignment(Type t,
     *p_native_bits = native_vector_bits_;
   }
 
-  arith::ModularEntry me = arith::EvalModular(index, align_map_);
+  arith::ModularSet me = analyzer_->modular_set(index);
+  int64_t base = me->base;
+  int64_t coeff = me->coeff;
 
   int align_bits = t.bits();
   while (align_bits < max_align_bits &&
-         me.base % 2  == 0 &&
-         me.coeff % 2 == 0) {
-    me.base =  me.base / 2;
-    me.coeff =  me.coeff / 2;
+         base % 2  == 0 &&
+         coeff % 2 == 0) {
+    base =  base / 2;
+    coeff =  coeff / 2;
     align_bits *= 2;
   }
   if (align_bits < 8) {
@@ -874,7 +875,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Select* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const Let* op) {
   CHECK(!var_map_.count(op->var.get()));
   var_map_[op->var.get()] = MakeValue(op->value);
-  align_map_[op->var.get()] = EvalModular(op->value, align_map_);
+  analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
 
@@ -998,6 +999,7 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
 
 void CodeGenLLVM::VisitStmt_(const For* op) {
   CHECK(is_zero(op->min));
+  analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
   if (op->for_type == ForType::Unrolled) {
     LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
                  << " consider set unroll_explicit=True";
@@ -1078,6 +1080,7 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv);
+        analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
       }
     }
   } else if (op->attr_key == ir::attr::storage_scope) {
@@ -1099,21 +1102,19 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
-  VisitAssert(op, &align_map_, [this](const Stmt& body) {
-      this->VisitStmt(body);
-    });
+  arith::ConstraintContext cctx(analyzer_.get(), op->condition);
+  this->VisitStmt(op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmt* op) {
   CHECK(!var_map_.count(op->var.get()));
-  CHECK(!align_map_.count(op->var.get()));
   if (op->var.type().is_handle()) {
     if (!is_restricted_) {
       alias_var_set_.insert(op->var.get());
     }
   }
   var_map_[op->var.get()] = MakeValue(op->value);
-  align_map_[op->var.get()] = EvalModular(op->value, align_map_);
+  analyzer_->Bind(op->var, op->value);
   this->VisitStmt(op->body);
 }
 
