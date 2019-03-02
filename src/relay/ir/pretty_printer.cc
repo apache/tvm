@@ -6,14 +6,17 @@
  */
 #include "doc.h"
 #include <tvm/relay/expr_functor.h>
+#include "type_functor.h"
+#include "../../lang/attr_functor.h"
 
 namespace tvm {
 namespace relay {
 
 class PrettyPrinter :
-    public ExprFunctor<Doc(const Expr&)> {
+    public ExprFunctor<Doc(const Expr&)>,
+    public TypeFunctor<Doc(const Type&)> {
   public:
-    explicit PrettyPrinter(const std::unordered_map<Expr, Doc, NodeHash, NodeEqual>& memo_, const std::unordered_map<std::string, int>& name_alloc_map_, size_t temp_var_counter_, bool GNF_) : memo_(memo_), name_alloc_map_(name_alloc_map_), temp_var_counter_(temp_var_counter_), GNF_(GNF_) {}
+    explicit PrettyPrinter(const std::unordered_map<Expr, Doc, NodeHash, NodeEqual>& memo_, const std::unordered_map<Type, Doc, NodeHash, NodeEqual>& memo_type_, const std::unordered_map<std::string, int>& name_alloc_map_, size_t temp_var_counter_, bool GNF_) : memo_(memo_), memo_type_(memo_type_), name_alloc_map_(name_alloc_map_), temp_var_counter_(temp_var_counter_), GNF_(GNF_) {}
 
     explicit PrettyPrinter() : temp_var_counter_(0), GNF_(true) {}
 
@@ -49,10 +52,14 @@ class PrettyPrinter :
       return doc_stack_.back() << doc;
     }
 
+    Doc PrintAttrs(const Attrs& attrs);
+
     // note: gnf flag is only one level deep
     Doc Print(const NodeRef& node, bool gnf = true) {
       if (node.as_derived<ExprNode>()) {
         return PrintExpr(Downcast<Expr>(node), gnf);
+      } else if (node.as_derived<TypeNode>()) {
+        return PrintType(Downcast<Type>(node));
       } else { assert(false); }
     }
 
@@ -108,6 +115,9 @@ class PrettyPrinter :
       return val;
     }
 
+    //------------------------------------
+    // Overload of Expr printing functions
+    //------------------------------------
     Doc PrintExpr(const Expr& expr, bool gnf = true) {
       // Exploit memoization to print GNF.
       // The first time we visit an expression, we need to allocate a temp var
@@ -156,7 +166,7 @@ class PrettyPrinter :
         fields.push_back(Print(field));
       }
       Doc doc = Nil();
-      return doc << "(" << PrintVec(fields, Text(", ")) << ")";
+      return doc << "(" << PrintVec(fields) << ")";
     }
 
     Doc VisitExpr_(const TupleGetItemNode* op) final {
@@ -200,7 +210,7 @@ class PrettyPrinter :
         for (Var param : fn->params) {
           params.push_back(AllocVar(param));
         }
-        doc << PrintVec(params, Text(", "));
+        doc << PrintVec(params) << PrintAttrs(fn->attrs);
         doc << ") ";
         /* if (fn->ret_type.defined()) {
           doc << " -> ";
@@ -229,7 +239,18 @@ class PrettyPrinter :
       for (Expr arg : op->args) {
         args.push_back(Print(arg));
       }
-      return doc << "(" << PrintVec(args, Text(", ")) << ")";
+      return doc << "(" << PrintVec(args) << PrintAttrs(op->attrs) << ")";
+    }
+
+    //------------------------------------
+    // Overload of Expr printing functions
+    //------------------------------------
+    Doc PrintType(const Type& type) {
+      auto it = memo_type_.find(type);
+      if (it != memo_type_.end()) return it->second;
+      Doc printed_type = VisitType(type);
+      memo_type_[type] = printed_type;
+      return printed_type;
     }
 
   private:
@@ -237,10 +258,124 @@ class PrettyPrinter :
     std::vector<Doc> doc_stack_{Nil()};
     /*! \brief Map from Expr to Doc */
     std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
+    /*! \brief Map from Type to Doc */
+    std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
     std::unordered_map<std::string, int> name_alloc_map_;
     size_t temp_var_counter_;
     bool GNF_;
+    class AttrPrinter;
+    friend class AttrPrinter;
 };
+
+/*!
+ * \brief Attribute printer which prints the attributes in the call.
+ */
+class PrettyPrinter::AttrPrinter :
+  public AttrVisitor,
+  public AttrFunctor<Doc(const NodeRef&)> {
+ public:
+  AttrPrinter(Doc& doc_) : doc_(doc_) {}
+
+  template<typename T>
+  Doc PrintKV(const char* key, const T& value) {
+    Doc doc = Nil();
+    return doc << ", " << key << "=" << value;
+  }
+
+  void Visit(const char* key, double* value) final {
+    doc_ << PrintKV(key, value[0]);
+  }
+  void Visit(const char* key, int64_t* value) final {
+    doc_ << PrintKV(key, value[0]);
+  }
+  void Visit(const char* key, uint64_t* value) final {
+    doc_ << PrintKV(key, value[0]);
+  }
+  void Visit(const char* key, int* value) final {
+    doc_ << PrintKV(key, value[0]);
+  }
+  void Visit(const char* key, bool* value) final {
+    doc_ << PrintKV(key, PrintBool(value[0]));
+  }
+  void Visit(const char* key, std::string* value) final {
+    doc_ << PrintKV(key, PrintString(value[0]));
+  }
+  void Visit(const char* key, void** value) final {
+    LOG(FATAL) << "do not allow void as argument";
+  }
+  void Visit(const char* key, DataType* value) final {
+    doc_ << PrintKV(key, PrintString(runtime::TVMType2String(Type2TVMType(value[0]))));
+  }
+  void Visit(const char* key, NodeRef* value) final {
+    doc_ << PrintKV(key, PrintAttr(value[0]));
+  }
+  void Visit(const char* key, runtime::NDArray* value) final {
+    LOG(FATAL) << "do not allow NDarray as argument";
+  }
+
+  //------------------------------------
+  // Overload of Attr printing functions
+  //------------------------------------
+
+  Doc PrintAttr(const NodeRef& value) {  // NOLINT(*)
+    if (value.defined()) {
+      return VisitAttr(value);
+    } else {
+      return Text("None");
+    }
+  }
+
+  Doc VisitAttr_(const ArrayNode* op) final {  // NOLINT(*)
+    Doc doc = Nil();
+    doc << "[";
+    std::vector<Doc> arr_vals;
+    for (NodePtr<Node> val : op->data) {
+      arr_vals.push_back(PrintAttr(NodeRef(val)));
+    }
+    doc << PrintVec(arr_vals);
+    doc << "]";
+    return doc;
+  }
+
+  Doc VisitAttrDefault_(const Node* op) final { // NOLINT(*)
+    // os << meta_.GetMetaNode(GetRef<NodeRef>(op));
+    assert(false);
+  }
+
+  Doc VisitAttr_(const ir::IntImm* op) final {  // NOLINT(*)
+    return PrintConstScalar(op->type, &(op->value));
+  }
+
+  Doc VisitAttr_(const ir::UIntImm* op) final {  // NOLINT(*)
+    return PrintConstScalar(op->type, &(op->value));
+  }
+
+  Doc VisitAttr_(const ir::FloatImm* op) final {  // NOLINT(*)
+    return PrintConstScalar(op->type, &(op->value));
+  }
+
+  Doc PrintString(const std::string& value) { // NOLINT(*)
+    // TODO(M.K.): add escape.
+    Doc doc = Nil();
+    return doc << "\"" << value << "\"";
+  }
+
+  Doc VisitAttr_(const ir::StringImm* op) final {  // NOLINT(*)
+    return PrintString(op->value);
+  }
+
+  private:
+    Doc& doc_;
+};
+
+Doc PrettyPrinter::PrintAttrs(const Attrs& attrs) {  // NOLINT(*)
+  // TODO: meta
+  if (!attrs.defined()) return Nil();
+  Doc doc = Nil();
+  AttrPrinter printer(doc);
+  const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
+  return doc;
+}
 
 std::string RelayGNFPrint(const NodeRef& node) {
   return "v0.0.1\n" + Layout(PrettyPrinter().PrintFinal(node)) + "\n";

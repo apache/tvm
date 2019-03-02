@@ -74,3 +74,7 @@ if __name__ == "__main__":
     print(relay.fromtext(SEMVER+"fn(%x, %y) { %x + %y }").astext())
     print(anf_print(relay.fromtext(SEMVER+"fn(%x, %y) { %x + %y }")))
     print(gnf_print(relay.fromtext(SEMVER+"fn(%x, %y) { %x + %y }")))
+    print(relay.Call(relay.fromtext(SEMVER+"fn(%x) { %x }"), [relay.const(1)], attrs=tvm.make.node("DictAttrs", n="foo")).astext())
+    print(anf_print(relay.Call(relay.fromtext(SEMVER+"fn(%x) { %x }"), [relay.const(1)], attrs=tvm.make.node("DictAttrs", n="foo"))))
+    # print(relay.fromtext(SEMVER+"add(n=5)").astext())
+    # print(anf_print(relay.fromtext(SEMVER+"fn (n=5) { () }")))
