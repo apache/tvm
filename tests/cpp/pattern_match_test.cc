@@ -107,6 +107,23 @@ TEST(Pattern, Basic) {
   }
 }
 
+TEST(Pattern, Integer) {
+  using namespace tvm;
+  tvm::Var tx, ty;
+  arith::PVar<Integer> c;
+  arith::PVar<Var> v;
+  {
+    // We can match integer and Var, both of which are
+    // special case container of Expr
+    CHECK((v * c).Match(tx * 3));
+    CHECK_EQ(c.Eval()->value, 3);
+  }
+  // cannot match c to ty
+  CHECK(!(v * c).Match(tx * ty));
+  // cannot match tx + 1 to v
+  CHECK(!(v * c).Match((tx + 1) * 3));
+}
+
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

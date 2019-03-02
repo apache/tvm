@@ -26,11 +26,6 @@ TVM_REGISTER_API("arith.intset_interval")
     *ret = IntSet::interval(args[0], args[1]);
   });
 
-TVM_REGISTER_API("arith.EvalModular")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = EvalModular(args[0], Map<Var, IntSet>());
-  });
-
 TVM_REGISTER_API("arith.DetectLinearEquation")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = DetectLinearEquation(args[0], args[1]);
@@ -74,6 +69,57 @@ TVM_REGISTER_API("_IntSetIsEverything")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = args[0].operator IntSet().is_everything();
   });
+
+TVM_REGISTER_API("arith._make_ConstIntBound")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = ConstIntBoundNode::make(args[0], args[1]);
+  });
+
+TVM_REGISTER_API("arith._make_ModularSet")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = ModularSetNode::make(args[0], args[1]);
+  });
+
+TVM_REGISTER_API("arith._CreateAnalyzer")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    using runtime::PackedFunc;
+    using runtime::TypedPackedFunc;
+    auto self = std::make_shared<Analyzer>();
+    auto f = [self](std::string name) -> PackedFunc {
+      if (name == "const_int_bound") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            *ret = self->const_int_bound(args[0]);
+          });
+      } else if (name == "modular_set") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            *ret = self->modular_set(args[0]);
+        });
+      } else if (name == "const_int_bound_update") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            self->const_int_bound.Update(args[0], args[1], args[2]);
+        });
+      } else if (name == "bind") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            auto& sptr = args[1].node_sptr();
+            if (sptr->is_type<Range::ContainerType>()) {
+              self->Bind(args[0], args[1].operator Range());
+            } else {
+              self->Bind(args[0], args[1].operator Expr());
+            }
+        });
+      } else if (name == "enter_constraint_context") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            auto ctx = std::make_shared<ConstraintContext>(self.get(), args[0]);
+            auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable {
+              ctx.reset();
+            };
+            *ret = PackedFunc(fexit);
+        });
+      }
+      return PackedFunc();
+    };
+    *ret = TypedPackedFunc<PackedFunc(std::string)>(f);
+});
 
 }  // namespace arith
 }  // namespace tvm
