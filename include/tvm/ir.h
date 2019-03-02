@@ -17,6 +17,7 @@
 namespace tvm {
 namespace ir {
 
+using HalideIR::Internal::BaseExprNode;
 using HalideIR::Internal::ExprNode;
 using HalideIR::Internal::StmtNode;
 using HalideIR::Internal::IRNodeType;
