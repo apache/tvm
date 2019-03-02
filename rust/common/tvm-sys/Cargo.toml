@@ -1,0 +1,9 @@
+[package]
+name = "tvm-sys"
+version = "0.1.0"
+authors = ["TVM Contributors"]
+license = "Apache-2.0"
+description = "Raw C API"
+
+[build-dependencies]
+bindgen = "0.37.4"

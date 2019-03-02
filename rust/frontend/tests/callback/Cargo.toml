@@ -1,0 +1,8 @@
+[package]
+name = "callback"
+version = "0.0.0"
+authors = ["TVM Contributors"]
+
+[dependencies]
+ndarray = "0.12.1"
+tvm-frontend = { path = "../../" }

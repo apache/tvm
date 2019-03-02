@@ -101,7 +101,7 @@ def conv2d_transpose(data,
                      kernel_layout="OIHW",
                      output_padding=(0, 0),
                      out_dtype=""):
-    """Two dimensional trnasposed convolution operator.
+    """Two dimensional transposed convolution operator.
 
     Parameters
     ----------
@@ -767,6 +767,31 @@ def batch_norm(data,
     return TupleWrapper(result, 3)
 
 
+def batch_matmul(x, y):
+    r"""
+    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
+    in batch.
+
+    .. math::
+
+        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
+
+    Parameters
+    ----------
+    x : tvm.relay.Expr
+        The first input.
+
+    y : tvm.relay.Expr
+        The second input.
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        The computed result.
+    """
+    return _make.batch_matmul(x, y)
+
+
 def contrib_conv2d_winograd_without_weight_transform(data,
                                                      weight,
                                                      tile_size,
@@ -835,6 +860,72 @@ def contrib_conv2d_winograd_without_weight_transform(data,
         data, weight, tile_size, strides, padding, dilation,
         groups, channels, kernel_size, data_layout,
         kernel_layout, out_layout, out_dtype)
+
+
+def contrib_conv2d_nchwc(data,
+                         kernel,
+                         strides=(1, 1),
+                         padding=(0, 0),
+                         dilation=(1, 1),
+                         groups=1,
+                         channels=None,
+                         kernel_size=None,
+                         data_layout="NCHW8c",
+                         kernel_layout="OIHW",
+                         out_layout="",
+                         out_dtype=""):
+    r"""Variant of 2D convolution.
+
+    This operator takes the weight as the convolution kernel
+    and convolves it with data to produce an output, following a specialized
+    NCHWc data layout.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    kernel : tvm.relay.Expr
+        The kernel expressions.
+
+    strides : tuple of int, optional
+        The strides of convoltution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_conv2d_NCHWc(data, kernel, strides, padding, dilation,
+                                      groups, channels, kernel_size, data_layout,
+                                      kernel_layout, out_layout, out_dtype)
 
 
 def contrib_conv2d_winograd_weight_transform(weight,

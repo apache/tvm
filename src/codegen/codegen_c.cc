@@ -791,10 +791,9 @@ void CodeGenC::VisitStmt_(const AttrStmt* op) {
 void CodeGenC::VisitStmt_(const AssertStmt* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
-  if (op->message.as<StringImm>()) {
+  if (const auto* str = op->message.as<StringImm>()) {
     // GLOG style check
-    stream << "CHECK(" << cond << ") << \""
-           << op->message.as<StringImm>()->value << "\";\n";
+    stream << "CHECK(" << cond << ") << \"" << str->value << "\";\n";
   } else {
     stream << "assert(" << cond << ");\n";
   }

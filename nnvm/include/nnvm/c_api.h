@@ -16,7 +16,7 @@
 #define NNVM_DLL __declspec(dllimport)
 #endif
 #else
-#define NNVM_DLL
+#define NNVM_DLL __attribute__((visibility("default")))
 #endif
 
 /*! \brief manually define unsigned int */

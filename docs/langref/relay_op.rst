@@ -2,9 +2,9 @@ Relay Core Tensor Operators
 ===========================
 
 This page contains the list of core tensor operator primitives pre-defined in tvm.relay.
-The core tensor operator primitives covers typical workloads in deep learning.
-They can represent workloads in front-end frameworks, and provide basic building blocks for optimization.
-Since deep learning is a fast evolving field and it is that possible to have operators that are not in here.
+The core tensor operator primitives cover typical workloads in deep learning.
+They can represent workloads in front-end frameworks and provide basic building blocks for optimization.
+Since deep learning is a fast evolving field, it is possible to have operators that are not in here.
 
 
 .. note::
@@ -27,20 +27,19 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.exp
    tvm.relay.sigmoid
    tvm.relay.add
-   tvm.relay.expand_dims
-   tvm.relay.concatenate
-   tvm.relay.nn.softmax
-   tvm.relay.nn.log_softmax
    tvm.relay.subtract
    tvm.relay.multiply
    tvm.relay.divide
    tvm.relay.mod
    tvm.relay.tanh
+   tvm.relay.concatenate
+   tvm.relay.expand_dims
+   tvm.relay.nn.softmax
+   tvm.relay.nn.log_softmax
    tvm.relay.nn.relu
    tvm.relay.nn.dropout
    tvm.relay.nn.batch_norm
    tvm.relay.nn.bias_add
-
 
 
 **Level 2: Convolutions**
@@ -62,6 +61,8 @@ This level enables typical convnet models.
    tvm.relay.nn.pad
    tvm.relay.nn.lrn
    tvm.relay.nn.l2_normalize
+   tvm.relay.nn.contrib_conv2d_winograd_without_weight_transform
+   tvm.relay.nn.contrib_conv2d_winograd_weight_transform
 
 
 **Level 3: Additional Math And Transform Operators**
@@ -71,12 +72,8 @@ This level enables additional math and transform operators.
 .. autosummary::
    :nosignatures:
 
-   tvm.relay.zeros
    tvm.relay.nn.leaky_relu
    tvm.relay.nn.prelu
-   tvm.relay.zeros_like
-   tvm.relay.ones
-   tvm.relay.ones_like
    tvm.relay.reshape
    tvm.relay.reshape_like
    tvm.relay.copy
@@ -85,6 +82,7 @@ This level enables additional math and transform operators.
    tvm.relay.floor
    tvm.relay.ceil
    tvm.relay.trunc
+   tvm.relay.clip
    tvm.relay.round
    tvm.relay.abs
    tvm.relay.negative
@@ -97,6 +95,7 @@ This level enables additional math and transform operators.
    tvm.relay.full_like
    tvm.relay.cast
    tvm.relay.split
+   tvm.relay.arange
 
 
 **Level 4: Broadcast and Reductions**
@@ -136,6 +135,7 @@ This level enables additional math and transform operators.
    tvm.relay.vision.multibox_prior
    tvm.relay.vision.multibox_transform_loc
    tvm.relay.vision.nms
+   tvm.relay.vision.yolo_reorg
 
 
 **Level 10: Temporary Operators**
@@ -148,8 +148,11 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.broadcast_to_like
    tvm.relay.collapse_sum_like
    tvm.relay.slice_like
+   tvm.relay.layout_transform
    tvm.relay.device_copy
    tvm.relay.annotation.on_device
+   tvm.relay.reverse_reshape
+   tvm.relay.nn.batch_matmul
 
 
 Level 1 Definitions
@@ -185,25 +188,28 @@ Level 2 Definitions
 .. autofunction:: tvm.relay.nn.global_avg_pool2d
 .. autofunction:: tvm.relay.nn.upsampling
 .. autofunction:: tvm.relay.nn.batch_flatten
+.. autofunction:: tvm.relay.nn.pad
 .. autofunction:: tvm.relay.nn.lrn
 .. autofunction:: tvm.relay.nn.l2_normalize
-
+.. autofunction:: tvm.relay.nn.contrib_conv2d_winograd_without_weight_transform
+.. autofunction:: tvm.relay.nn.contrib_conv2d_winograd_weight_transform
 
 Level 3 Definitions
 -------------------
 .. autofunction:: tvm.relay.nn.leaky_relu
 .. autofunction:: tvm.relay.nn.prelu
-.. autofunction:: tvm.relay.floor
-.. autofunction:: tvm.relay.ceil
-.. autofunction:: tvm.relay.trunc
-.. autofunction:: tvm.relay.round
-.. autofunction:: tvm.relay.abs
-.. autofunction:: tvm.relay.negative
 .. autofunction:: tvm.relay.reshape
 .. autofunction:: tvm.relay.reshape_like
 .. autofunction:: tvm.relay.copy
-.. autofunction:: tvm.relay.squeeze
 .. autofunction:: tvm.relay.transpose
+.. autofunction:: tvm.relay.squeeze
+.. autofunction:: tvm.relay.floor
+.. autofunction:: tvm.relay.ceil
+.. autofunction:: tvm.relay.trunc
+.. autofunction:: tvm.relay.clip
+.. autofunction:: tvm.relay.round
+.. autofunction:: tvm.relay.abs
+.. autofunction:: tvm.relay.negative
 .. autofunction:: tvm.relay.take
 .. autofunction:: tvm.relay.zeros
 .. autofunction:: tvm.relay.zeros_like
@@ -213,6 +219,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.full_like
 .. autofunction:: tvm.relay.cast
 .. autofunction:: tvm.relay.split
+.. autofunction:: tvm.relay.arange
 
 
 Level 4 Definitions
@@ -237,6 +244,7 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.mean
 .. autofunction:: tvm.relay.prod
 .. autofunction:: tvm.relay.strided_slice
+.. autofunction:: tvm.relay.broadcast_to
 
 
 Level 5 Definitions
@@ -245,6 +253,7 @@ Level 5 Definitions
 .. autofunction:: tvm.relay.vision.multibox_prior
 .. autofunction:: tvm.relay.vision.multibox_transform_loc
 .. autofunction:: tvm.relay.vision.nms
+.. autofunction:: tvm.relay.vision.yolo_reorg
 
 
 Level 10 Definitions
@@ -252,3 +261,8 @@ Level 10 Definitions
 .. autofunction:: tvm.relay.broadcast_to_like
 .. autofunction:: tvm.relay.collapse_sum_like
 .. autofunction:: tvm.relay.slice_like
+.. autofunction:: tvm.relay.layout_transform
+.. autofunction:: tvm.relay.device_copy
+.. autofunction:: tvm.relay.annotation.on_device
+.. autofunction:: tvm.relay.reverse_reshape
+.. autofunction:: tvm.relay.nn.batch_matmul

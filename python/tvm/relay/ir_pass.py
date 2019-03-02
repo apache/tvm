@@ -9,6 +9,7 @@ from . import _ir_pass
 from . import _make
 from .expr import Expr
 from .ty import Type
+from .module import Module
 
 def post_order_visit(expr, fvisit):
     """Recursively visit the ir in post DFS order node,
@@ -19,6 +20,7 @@ def post_order_visit(expr, fvisit):
     ----------
     expr : tvm.relay.Expr
         The input expression.
+
     fvisit : function
         The visitor function to be applied.
     """
@@ -34,7 +36,6 @@ def infer_type(expr, mod=None):
 
     mod: Optional[tvm.relay.Module]
         The global module.
-
 
     Returns
     -------
@@ -107,28 +108,28 @@ def well_formed(expr):
 
 
 def check_kind(t, mod=None):
-    """Check that the type is well kinded.
+    """Check that the type is well kinded and return the kind.
     For example, this mean type cannot has tensor of tensor, or is a tuple type of 2 shapes.
 
     Parameters
     ----------
-    t: tvm.relay.Type
+    t : tvm.relay.Type
         The type to check
 
-    mod: tvm.relay.Module, optional
-        The global module
+    mod : Optional[tvm.relay.Module]
+        The global module.
 
     Returns
     -------
-    well_kinded : bool
-        whether the input type is well kinded.
+    kind : Kind
+        the kind of t
 
     Examples
     --------
     .. code:: python
 
-        assert not check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Shape)]))
-        assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Type)]))
+        assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Shape)])) == Shape
+        assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Type)])) == Type
     """
     if mod is not None:
         return _ir_pass.check_kind(t, mod)
@@ -190,52 +191,61 @@ def all_vars(expr):
     return _ir_pass.all_vars(expr)
 
 
-def free_type_vars(expr):
+def free_type_vars(expr, mod=None):
     """Get free type variables from expression/type e
 
     Parameters
     ----------
     expr: Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
+    mod: tvm.relay.Module, optional
+        The global module
 
     Returns
     -------
     free : List[tvm.relay.TypeVar]
         The list of free type variables in post-DFS order
     """
-    return _ir_pass.free_type_vars(expr)
+    use_mod = mod if mod is not None else Module()
+    return _ir_pass.free_type_vars(expr, use_mod)
 
 
-def bound_type_vars(expr):
+def bound_type_vars(expr, mod=None):
     """Get bound type variables from expression/type e
 
     Parameters
     ----------
     expr: Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
+    mod: tvm.relay.Module, optional
+        The global module
 
     Returns
     -------
     free : List[tvm.relay.TypeVar]
         The list of bound type variables in post-DFS order
     """
-    return _ir_pass.bound_type_vars(expr)
+    use_mod = mod if mod is not None else Module()
+    return _ir_pass.bound_type_vars(expr, use_mod)
 
 
-def all_type_vars(expr):
+def all_type_vars(expr, mod=None):
     """Get all type variables from expression/type e
 
     Parameters
     ----------
     expr: Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
+    mod: tvm.relay.Module, optional
+        The global module
 
     Returns
     -------
     free : List[tvm.relay.TypeVar]
         The list of all type variables in post-DFS order
     """
-    return _ir_pass.all_type_vars(expr)
+    use_mod = mod if mod is not None else Module()
+    return _ir_pass.all_type_vars(expr, use_mod)
 
 
 def simplify_inference(expr):
@@ -480,8 +490,49 @@ def collect_device_annotation_ops(expr):
     return _ir_pass.CollectDeviceAnnotationOps(expr)
 
 
+def to_a_normal_form(expr, mod=None):
+    """
+    Turn Graph Normal Form expression into A Normal Form Expression.
+
+    The scope of the root expression is the global scope.
+
+    The scope of any non root expression is the least common ancestor of all it's scope.
+
+    Values are ordered by post-DFS order in each scope.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    mod: Optional[tvm.relay.Module]
+        The global module.
+
+    Returns
+    -------
+    expr: tvm.relay.Expr
+      The output expression.
+    """
+    return _ir_pass.to_a_normal_form(expr, mod)
+
+
+def to_graph_normal_form(expr):
+    """Turn A Normal Form expression into Graph Normal Form expression
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression
+    Returns
+    -------
+    expr : tvm.relay.Expr
+      The output expression
+    """
+    return _ir_pass.to_graph_normal_form(expr)
+
+
 def gradient(expr, mod=None):
-    """.
+    """
+    Transform a function to return original result paired with gradient of input.
 
     Parameters
     ----------
@@ -489,11 +540,27 @@ def gradient(expr, mod=None):
         The input expression, which is a Function or a GlobalVar.
 
     mod : Optional[tvm.relay.Module]
-        The global module.
 
     Returns
     -------
-    ret : tvm.relay.Expr
-        A function that calculate the original result paired with gradient.
+    expr : tvm.relay.Expr
+      The output expression.
     """
     return _ir_pass.first_order_gradient(expr, mod)
+
+
+def get_total_mac_number(expr):
+    """
+    Count the number of MACs (multiply-accumulate) of a model
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    ret : int64
+      The number of MACs (multiply-accumulate) of a model
+    """
+    return _ir_pass.GetTotalMacNumber(expr)

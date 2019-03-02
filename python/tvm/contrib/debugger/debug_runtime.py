@@ -7,6 +7,7 @@ from datetime import datetime
 from tvm._ffi.base import string_types
 from tvm._ffi.function import get_global_func
 from tvm.contrib import graph_runtime
+from tvm.ndarray import array
 from tvm.rpc import base as rpc_base
 from . import debug_result
 
@@ -88,6 +89,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self._dump_path = None
         self._debug_run = module["debug_run"]
         self._get_output_by_layer = module["get_output_by_layer"]
+        self._run_individual = module["run_individual"]
         graph_runtime.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, ctx)
 
@@ -158,11 +160,12 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self.debug_datum = debug_result.DebugResult(graph_json, self._dump_path)
 
     def _run_debug(self):
-        """Execute the node spcified with index will be executed.
+        """Execute the node specified with index will be executed.
         Each debug output will be copied to the buffer
-        Time consumed for each execuion will be set as debug output.
+        Time consumed for each execution will be set as debug output.
 
         """
+        self.debug_datum._time_list = []
 
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             start_time = datetime.now().time()
@@ -172,10 +175,11 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 out_tensor = self._get_output_by_layer(i, j)
+                out_tensor = array(out_tensor)
                 self.debug_datum._output_tensor_list.append(out_tensor)
 
     def debug_get_output(self, node, out):
-        """Run graph upto node and get the output to out
+        """Run graph up to node and get the output to out
 
         Parameters
         ----------
@@ -218,6 +222,9 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self.debug_datum.dump_output_tensor()
         # Step 3. Display the collected information
         self.debug_datum.display_debug_result()
+
+    def run_individual(self, number, repeat=1, min_repeat_ms=0):
+        self._run_individual(number, repeat, min_repeat_ms)
 
     def exit(self):
         """Exits the dump folder and all its contents"""

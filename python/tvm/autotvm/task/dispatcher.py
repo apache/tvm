@@ -294,7 +294,8 @@ class ApplyHistoryBest(DispatchContext):
             # use model as key to build best map
             key = (inp.target.model, inp.task.workload)
             if key not in best_by_model:
-                best_by_model[key] = (inp, res)
+                if inp.target.model != 'unknown':
+                    best_by_model[key] = (inp, res)
             else:
                 _, other_res = best_by_model[key]
                 if np.mean(other_res.costs) > np.mean(res.costs):
@@ -460,7 +461,16 @@ class ApplyGraphBest(DispatchContext):
             self.update(target, workload, cfg)
             return cfg
         key = (str(target), workload)
-        return self._global_cfg_dict[key]
+        if key not in self._global_cfg_dict:
+            msg = "Config for target=%s, workload=%s is missing in ApplyGraphBest context. " \
+                  "A fallback configuration is used, which may bring great performance " \
+                  "regression." % (target, workload)
+            logger.warning(msg)
+            cfg = FallbackConfigEntity()
+            self._global_cfg_dict[key] = cfg
+        else:
+            cfg = self._global_cfg_dict[key]
+        return cfg
 
     def update(self, target, workload, cfg):
         key = (str(target), workload)

@@ -4,6 +4,8 @@ import logging
 import multiprocessing
 import time
 
+from random import randrange
+
 import numpy as np
 
 from .. import expr, ir_pass
@@ -59,9 +61,9 @@ def sample_ints(low, high, m):
     vis = set()
     assert m <= high - low
     while len(vis) < m:
-        new = np.random.randint(low, high)
+        new = randrange(low, high)
         while new in vis:
-            new = np.random.randint(low, high)
+            new = randrange(low, high)
         vis.add(new)
 
     return list(vis)

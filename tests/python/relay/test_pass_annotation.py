@@ -1,9 +1,9 @@
 """Unit tests for heterogeneous compilation and execution."""
+import json
 import numpy as np
 
 import tvm
 from tvm import relay
-from tvm.relay import testing
 from tvm.contrib import graph_runtime
 
 
@@ -73,6 +73,7 @@ def test_annotate_all():
 
     annotated_func = relay.ir_pass.infer_type(annotated())
     expected_func = relay.ir_pass.infer_type(expected())
+    assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
 
 def test_annotate_none():
     ctx1 = tvm.context(1)
@@ -204,7 +205,7 @@ def test_conv_network():
             for did in storage_dev_type[1]:
                 device_types.append(did.value)
         assert len(storage_ids) == 10
-        assert len(set(storage_ids)) == 7
+        assert len(set(storage_ids)) == 8
         assert len(set(device_types)) == 2
         assert set(device_types) == {1, 2}
 
@@ -246,15 +247,22 @@ def test_fusible_network():
         func = relay.Function([x, y], exp)
         return func
 
-    def test_runtime(target, device, func, fallback_device=None):
+    def test_runtime(target, device, func, fallback_device=None,
+                     expected_index=None):
         params = {"x": x_data, "y": y_data}
-        with relay.build_config(opt_level=1):
+        config = {"opt_level": 1}
+        if fallback_device:
+            config["fallback_device"] = fallback_device
+        with relay.build_config(**config):
             graph, lib, params = relay.build(
                 func,
                 target,
-                params=params,
-                fallback_device=fallback_device)
+                params=params)
             contexts = [tvm.cpu(0), tvm.context(device)]
+            graph_json = json.loads(graph)
+            if "device_index" in graph_json["attrs"]:
+                device_index = graph_json["attrs"]["device_index"][1]
+                assert device_index == expected_index
             mod = graph_runtime.create(graph, lib, contexts)
             mod.set_input(**params)
             mod.run()
@@ -301,8 +309,10 @@ def test_fusible_network():
 
         annotated_func = annotated()
         expected_func = expected()
+        expected_index = [1, 1, 1, 2, 2, 1, 1, 2, 2]
         check_annotated_graph(annotated_func, expected_func)
-        test_runtime(target, device, annotated_func, fallback_device)
+        test_runtime(target, device, annotated_func, fallback_device,
+                     expected_index)
 
     def test_fuse_all(device, tgt):
         """Fuse all operators."""
@@ -343,6 +353,7 @@ def test_fusible_network():
         fallback_device = tvm.context("cpu")
         target = {"cpu": "llvm", device: tgt}
         cpu_ctx = fallback_device
+        dev_ctx = tvm.context(device)
 
         def annotated():
             add = relay.add(x, y)
@@ -356,24 +367,35 @@ def test_fusible_network():
                                   relay.Tuple(tvm.convert([_exp, exp])))
             func = relay.ir_pass.infer_type(func)
             func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                       cpu_ctx.device_type)
+                                                       dev_ctx.device_type)
             func = relay.ir_pass.infer_type(func)
             return relay.Function(relay.ir_pass.free_vars(func.body[1]),
                                   func.body[1])
 
+        def expected():
+            add = relay.add(x, y)
+            sqrt = relay.sqrt(add)
+            log = relay.log(add)
+            subtract = relay.subtract(sqrt, log)
+            copy_sub_exp = relay.device_copy(subtract, dev_ctx, cpu_ctx)
+            exp = relay.exp(copy_sub_exp)
+
+            func = relay.Function([x, y], exp)
+            return func
+
         annotated_func = annotated()
-        expected_func = get_func()
+        expected_func = expected()
+        expected_index = [2, 2, 2, 1, 1]
         check_annotated_graph(annotated_func, expected_func)
-        test_runtime(target, device, annotated_func, fallback_device)
+        test_runtime(target, device, annotated_func, fallback_device,
+                     expected_index)
 
     def test_fallback_all_operators(device, tgt):
-        target = {"cpu": "llvm", device: tgt}
-        fallback_device = tvm.cpu(0)
-
+        target = {device: tgt}
         annotated_func = get_func()
         expected_func = get_func()
         check_annotated_graph(annotated_func, expected_func)
-        test_runtime(target, device, annotated_func, fallback_device)
+        test_runtime(target, device, annotated_func)
 
     for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
                      ("opencl", str(tvm.target.intel_graphics()))]:

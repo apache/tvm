@@ -406,7 +406,6 @@ void StackVM::Run(State* s) const {
           case intrinsic::kArrByteOffset: {
             stack[sp].v_int64 = static_cast<int64_t>(
                 arr[index].byte_offset); break;
-            break;
           }
           case intrinsic::kArrDeviceId: {
             stack[sp].v_int64 = arr[index].ctx.device_id; break;
@@ -531,7 +530,6 @@ const PackedFunc& StackVM::GetExtern(State* s, int fid) const {
   if (f == nullptr) {
     CHECK(s->mod_ctx != nullptr)
         << "No local context is set in stackvm";
-    CHECK(s->mod_ctx != nullptr);
     const PackedFunc* pf = s->mod_ctx->GetFuncFromEnv(extern_func_name[fid]);
     CHECK(pf != nullptr);
     f = *pf;

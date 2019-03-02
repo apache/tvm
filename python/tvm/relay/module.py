@@ -6,6 +6,7 @@ from . import _make
 from . import _module
 from . import expr as _expr
 
+from . import ty as _ty
 
 @register_relay_node
 class Module(RelayNode):
@@ -20,7 +21,7 @@ class Module(RelayNode):
     functions : dict, optional.
         Map of global var to Function
     """
-    def __init__(self, functions=None):
+    def __init__(self, functions=None, type_definitions=None):
         if functions is None:
             functions = {}
         elif isinstance(functions, dict):
@@ -32,28 +33,46 @@ class Module(RelayNode):
                     raise TypeError("Expect functions to be Dict[GlobalVar, Function]")
                 mapped_funcs[k] = v
             functions = mapped_funcs
-        self.__init_handle_by_constructor__(_make.Module, functions)
+        if type_definitions is None:
+            type_definitions = {}
+        elif isinstance(type_definitions, dict):
+            mapped_type_defs = {}
+            for k, v in type_definitions.items():
+                if isinstance(k, _base.string_types):
+                    k = _ty.GlobalTypeVar(k)
+                if not isinstance(k, _ty.GlobalTypeVar):
+                    raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
+                mapped_type_defs[k] = v
+            type_definitions = mapped_type_defs
+        self.__init_handle_by_constructor__(_make.Module, functions, type_definitions)
 
-    def __setitem__(self, var, func):
-        """Add a function to the module.
+
+    def __setitem__(self, var, val):
+        """Add a mapping to the module.
 
         Parameters
         ---------
         var: GlobalVar
-            The global variable which names the function.
+            The global variable.
 
-        func: Function
-            The function.
+        val: Union[Function, Type]
+            The value.
         """
-        return self._add(var, func)
+        return self._add(var, val)
 
-    def _add(self, var, func, update=False):
-        if isinstance(var, _base.string_types):
-            var = _expr.GlobalVar(var)
-        return _module.Module_Add(self, var, func, update)
+    def _add(self, var, val, update=False):
+        if isinstance(val, _expr.Function):
+            if isinstance(var, _base.string_types):
+                var = _expr.GlobalVar(var)
+            _make.Module_Add(self, var, val, update)
+        else:
+            assert isinstance(val, _ty.Type)
+            if isinstance(var, _base.string_types):
+                var = _ty.GlobalTypeVar(var)
+            _module.Module_AddDef(self, var, val)
 
     def __getitem__(self, var):
-        """Lookup a global function by name or by variable.
+        """Lookup a global definition by name or by variable.
 
         Parameters
         ----------
@@ -62,13 +81,15 @@ class Module(RelayNode):
 
         Returns
         -------
-            func: Function
-                The function referenced by :code:`var`.
+        val: Union[Function, Type]
+            The definition referenced by :code:`var` (either a function or type).
         """
         if isinstance(var, _base.string_types):
             return _module.Module_Lookup_str(self, var)
-        else:
+        elif isinstance(var, _expr.GlobalVar):
             return _module.Module_Lookup(self, var)
+        else:
+            return _module.Module_LookupDef(self, var)
 
     def update(self, other):
         """Insert functions in another Module to current one.
@@ -100,3 +121,22 @@ class Module(RelayNode):
         tvm.TVMError if we cannot find corresponding global var.
         """
         return _module.Module_GetGlobalVar(self, name)
+
+    def get_global_type_var(self, name):
+        """Get a global type variable in the function by name.
+
+        Parameters
+        ----------
+        name: str
+            The name of the global type variable.
+
+        Returns
+        -------
+        global_type_var: GlobalTypeVar
+            The global variable mapped to :code:`name`.
+
+        Raises
+        ------
+        tvm.TVMError if we cannot find corresponding global type var.
+        """
+        return _module.Module_GetGlobalTypeVar(self, name)

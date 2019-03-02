@@ -381,7 +381,7 @@ def stmt_list(stmt):
     """
     if isinstance(stmt, Block):
         return stmt_list(stmt.first) + stmt_list(stmt.rest)
-    elif isinstance(stmt, ProducerConsumer):
+    if isinstance(stmt, ProducerConsumer):
         return stmt_list(stmt.body)
     return [stmt]
 

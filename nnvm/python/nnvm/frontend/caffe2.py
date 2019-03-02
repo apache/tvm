@@ -73,9 +73,8 @@ class Caffe2OpConverter(object):
 
         if hasattr(cls, '_impl'):
             return getattr(cls, '_impl')
-        else:
-            raise NotImplementedError('{} not implemented'.format(
-                cls.__name__))
+        raise NotImplementedError('{} not implemented'.format(
+            cls.__name__))
 
 
 _caffe2_internal_args = {
@@ -175,11 +174,10 @@ class Concat(Caffe2OpConverter):
             order = order if isinstance(order, str) else order.decode('UTF-8')
             if order == 'NCHW':
                 return 1
-            elif order == 'NHWC':
+            if order == 'NHWC':
                 return 3
-            else:
-                raise RuntimeError(
-                    "Unsupported storage order: {} in caffe2".format(order))
+            raise RuntimeError(
+                "Unsupported storage order: {} in caffe2".format(order))
 
         return AttrCvt(
             op_name='concatenate',

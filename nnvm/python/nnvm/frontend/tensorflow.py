@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 from __future__ import print_function
 
+import warnings
 # Numpy support
 import numpy as np
 
@@ -67,8 +68,7 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        else:
-            raise NotImplementedError("Only 2d kernel supported.")
+        raise NotImplementedError("Only 2d kernel supported.")
     return _impl
 
 def _dimension_constraint():
@@ -303,7 +303,8 @@ def _conv(opname):
 def _decode_image():
     def _impl(inputs, attr, params):
         # Image decode wrapper: Expecting user to feed decoded input to next layer drop this layer.
-        print("DecodeJpeg: It's a pass through, please handle preprocessing before input")
+        warnings.warn("DecodeJpeg: It's a pass through, "
+                      "please handle preprocessing before input")
         return inputs[0]
     return _impl
 
@@ -353,6 +354,11 @@ def _matmul():
                        extras={'use_bias': False, 'units': channels},
                        ignores=['transpose_a', 'transpose_b', 'T'])(inputs, attr)
 
+    return _impl
+
+def _undef():
+    def _impl(inputs, attr, params):
+        return _sym.__undef__()
     return _impl
 
 def _identity():
@@ -426,8 +432,7 @@ def _reshape():
                     op_name="reshape",
                     extras={'shape':tuple(params_new[0].asnumpy().flatten())},
                     ignores=['Tshape'])(inputs, attr)
-            else:
-                raise RuntimeError("Reshape with dynamic shape input not supported yet.")
+            raise RuntimeError("Reshape with dynamic shape input not supported yet.")
     return _impl
 
 def _bias_add():
@@ -1137,6 +1142,7 @@ class GraphProto(object):
         self._num_param = 0
         self._num_rnn_layer = False
         self._outputs_are_0d = {}
+        self._input_shapes = {}
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
@@ -1185,43 +1191,63 @@ class GraphProto(object):
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
 
+        for node in graph.node:
+            if node.op == 'Placeholder':
+                if shape and node.name in shape:
+                    self._input_shapes[node.name] = list(shape[node.name])
+                    continue
+                self._input_shapes[node.name] = \
+                    tensor_util.TensorShapeProtoToList(node.attr['shape'].shape)
+                for idx, dim in enumerate(self._input_shapes[node.name]):
+                    if dim < 0:
+                        self._input_shapes[node.name][idx] = 1
+                        warnings.warn("Use 1 instead of -1 in shape of operator %s."
+                                      % node.name)
+
+            # Ignore user's input shape for Non placeholder
+            elif node.op == 'Const':
+                tensor_value = node.attr['value'].tensor
+                self._input_shapes[node.name] = \
+                    tensor_util.TensorShapeProtoToList(tensor_value.tensor_shape)
+                if shape and node.name in shape:
+                    warnings.warn("Ignore the passed shape. "
+                                  "Shape in graphdef will be used for operator %s." % node.name)
+
         final_op = None
         # Parse the nodes to re-create TF graph using Symbol API of NNVM
         for node in graph.node:
-            # Tensorflow doesn't have seperate list for params extraction.
+            # Tensorflow doesn't have separate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
 
             input_shapes = {}
             input_0d_mismatch = set()
             attr = self._parse_attr(node.attr)
 
-            #Variable converted to Const will not have only value attr
+            #  Variable converted to Const will not have only value attr
             if 'value' in attr and node.op == 'Const':
-                tensor_value = attr['value']
-                self._output_shapes[node.name] = \
-                    [tensor_util.TensorShapeProtoToList( \
-                        tensor_value.tensor_shape)]
+                self._output_shapes[node.name] = [self._input_shapes[node.name]]
             elif shape and node.name in shape:
                 # Give priority to user argument.
                 self._output_shapes[node.name] = [shape[node.name]]
+            elif node.op == 'Placeholder':
+                self._output_shapes[node.name] = [self._input_shapes[node.name]]
             elif '_output_shapes' in attr:
                 self._output_shapes[node.name] = \
                     [tensor_util.TensorShapeProtoToList(tshape) \
                     for tshape in attr['_output_shapes']]
-            elif shape:
+            else:
                 # Keep the list indexable to avoid key error.
                 # Actual value will be filled after node creation.
+                # Will infer shapes if the graph is not frozen with add_shapes=True
                 self._output_shapes[node.name] = [None]
-            else:
-                raise NotImplementedError( \
-                    "Please freeze the graph with add_shapes=True")
+
             self._outputs_are_0d[node.name] = [ \
                 not tshape if isinstance(tshape, list) else False \
                 for tshape in self._output_shapes[node.name]]
 
             if node.op == "Placeholder":
                 self._nodes[node.name] = _sym.Variable(name=node.name,
-                                                       shape=self._output_shapes[node.name][0])
+                                                       shape=self._input_shapes[node.name])
 
             elif node.op == "Const":
                 # All Const nodes are Param nodes, lets parse
@@ -1236,7 +1262,7 @@ class GraphProto(object):
 
             else:
                 # Pass the parsed shapes instead
-                attr["_output_shapes"] = self._output_shapes[node.name]
+                attr["_output_shapes"] = output_shapes = self._output_shapes[node.name]
 
                 # Pass the node name too in attr
                 attr["_node_name"] = node.name
@@ -1277,7 +1303,7 @@ class GraphProto(object):
                 inputs = self._fix_extranodes(node.op, attr, inputs)
                 op = self._convert_operator(node.op, inputs, attr, graph)
 
-                # Check is op is converted to param
+                # Check if op is converted to param
                 if isinstance(op, np.ndarray):
                     self._params[node.name] = tvm.nd.array(op)
                     op = _sym.Variable(name=node.name,
@@ -1287,9 +1313,19 @@ class GraphProto(object):
                 self._nodes[node.name] = op
                 final_op = op
 
+                # Infer shapes even without specifying "add_shapes=True"
+                if output_shapes == [None]:
+                    g = _graph.create(final_op)
+                    self._output_shapes[node.name] = \
+                        list(graph_util.infer_shape(g, **self._input_shapes))[-1]
+
+                if self._output_shapes[node.name] and shape and node.name in shape:
+                    assert self._output_shapes[node.name] == list(shape[node.name])
+
             # Infer shapes if passed explicitely
             node_output = self._nodes[node.name]
-            if shape:
+            if shape and (not self._output_shapes[node.name][0]
+                          or -1 in self._output_shapes[node.name][0]):
                 g = _graph.create(node_output)
                 shape_dict = {k: v.shape for k, v in self._params.items()}
                 shape_dict.update(shape)
@@ -1364,7 +1400,7 @@ class GraphProto(object):
             self._nodes[name] = _sym.Variable(name=name,
                                               shape=self._params[name].shape)
         else:
-            if key != 'dtype' and key != '_output_shapes' and key != '_class':
+            if key not in ('dtype', '_output_shapes', '_class'):
                 raise NotImplementedError \
                     ("Other attributes for a Const(param) Node {} ? .".format(key))
 

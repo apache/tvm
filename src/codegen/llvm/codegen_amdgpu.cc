@@ -156,6 +156,7 @@ inline int DetectROCMComputeVersion(const std::string& target) {
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
+  InitializeLLVM();
   CHECK(target.length() >= 4 &&
         target.substr(0, 4) == "rocm");
   std::ostringstream config;

@@ -39,7 +39,7 @@ def _mx_fully_connected(inputs, attrs):
 def _get_channel_axis(layout, op_name):
     if layout == "NCHW":
         return 1
-    elif layout == "NHWC":
+    if layout == "NHWC":
         return 3
     raise RuntimeError("layout: {} is not supported in {}".format(layout, op_name))
 
@@ -49,11 +49,11 @@ def _mx_activations(inputs, attrs):
     assert len(inputs) == 1
     if act_type == "sigmoid":
         return _op.sigmoid(inputs[0])
-    elif act_type == "tanh":
+    if act_type == "tanh":
         return _op.tanh(inputs[0])
-    elif act_type == "relu":
+    if act_type == "relu":
         return _op.nn.relu(inputs[0])
-    elif act_type == "softrelu":
+    if act_type == "softrelu":
         def _stable_softrelu(x):
             # log(1 + exp(-abs(x))) + relu(x)
             one = _expr.const(1, dtype="float32")
@@ -147,7 +147,7 @@ def _mx_pooling(inputs, attrs):
         if global_pool:
             return _op.nn.global_max_pool2d(inputs[0])
         return _pool2d(_op.nn.max_pool2d, False)
-    elif pool_type == "avg":
+    if pool_type == "avg":
         if global_pool:
             return _op.nn.global_avg_pool2d(inputs[0])
         return _pool2d(_op.nn.avg_pool2d, True)
@@ -170,6 +170,21 @@ def _mx_batch_norm(inputs, attrs):
     new_attrs["center"] = True
     new_attrs["scale"] = not attrs.get_bool("fix_gamma", False)
     return _op.nn.batch_norm(*inputs, **new_attrs)
+
+
+def _mx_slice(inputs, attrs):
+    new_attrs = {}
+    begin = attrs.get_int_tuple('begin', None)
+    end = attrs.get_int_tuple('end', None)
+    stride = attrs.get_int_tuple('step', None)
+    if begin is None or end is None:
+        raise RuntimeError("begin and end are required parameters.")
+    if None in begin or None in end:
+        raise RuntimeError("None in begin or end is not supported yet.")
+    new_attrs = {'begin': begin, 'end': end}
+    if stride is not None:
+        new_attrs['strides'] = stride
+    return _op.strided_slice(inputs[0], **new_attrs)
 
 
 def _mx_split(inputs, attrs):
@@ -209,10 +224,10 @@ def _mx_leaky_relu(inputs, attrs):
     act_type = attrs.get_str("act_type")
     if act_type == "leaky":
         return _op.nn.leaky_relu(inputs[0], alpha=attrs.get_float("slope", 0.25))
-    elif act_type == "prelu":
+    if act_type == "prelu":
         assert len(inputs) == 2
         return _op.nn.prelu(*inputs)
-    elif act_type == "elu":
+    if act_type == "elu":
         # -slope * relu(1-exp(x)) + relu(x)
         slope = attrs.get_float("slope", 0.25)
         one = _expr.const(1, dtype="float32")
@@ -220,7 +235,7 @@ def _mx_leaky_relu(inputs, attrs):
         mslope = _op.nn.relu(_op.subtract(one, _op.exp(x)))
         mslope = _op.multiply(mslope, _expr.const(-slope, dtype="float32"))
         return _op.add(mslope, _op.nn.relu(x))
-    elif act_type == "rrelu":
+    if act_type == "rrelu":
         # NOTE this is only converted for inference.
         lower_bound = attrs.get_float("lower_bound")
         upper_bound = attrs.get_float("upper_bound")
@@ -268,6 +283,39 @@ def _mx_multibox_detection(inputs, attrs):
     return _op.vision.nms(ret[0], ret[1], **new_attrs1)
 
 
+def _mx_batch_dot(inputs, attrs):
+    assert len(inputs) == 2
+    a, b = inputs
+    transpose_a = attrs.get_bool("transpose_a", False)
+    transpose_b = attrs.get_bool("transpose_b", False)
+    if transpose_a is True:
+        raise RuntimeError("batch_dot: only support transpose_a=False")
+    if transpose_b is False:
+        b = _op.transpose(b, axes=[0, 2, 1])
+    return _op.batch_matmul(a, b)
+
+
+def _mx_arange(inputs, attrs):
+    assert len(inputs) == 0
+    if attrs.get_int("repeat", 1) != 1:
+        raise RuntimeError("arange doesn't support repeat")
+    new_attrs = {}
+    new_attrs["start"] = attrs.get_float("start", 0)
+    new_attrs["stop"] = attrs.get_float("stop")
+    new_attrs["step"] = attrs.get_float("step", 1)
+    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    return _op.arange(**new_attrs)
+
+
+def _mx_roi_align(inputs, attrs):
+    new_attrs = {}
+    new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
+    new_attrs["spatial_scale"] = attrs.get_float("spatial_scale")
+    new_attrs["sample_ratio"] = attrs.get_int("sample_ratio", -1)
+    new_attrs["layout"] = "NCHW"
+    return _op.vision.roi_align(inputs[0], inputs[1], **new_attrs)
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -281,6 +329,7 @@ _identity_list = [
     "slice_like",
     "zeros_like",
     "ones_like",
+    "where",
 ]
 
 _convert_map = {
@@ -346,24 +395,27 @@ _convert_map = {
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
     "LRN"           : _mx_lrn,
+    "slice"         : _mx_slice,
     "SliceChannel"  : _mx_split,
     "split"         : _mx_split,
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,
     "concat"        : _mx_concat,
+    "batch_dot"     : _mx_batch_dot,
     "LeakyReLU"     : _mx_leaky_relu,
+    "_arange"       : _mx_arange,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     # vision
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
     "_contrib_MultiBoxDetection" : _mx_multibox_detection,
+    "_contrib_ROIAlign" : _mx_roi_align,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
     # "gather_nd",
     # "Crop"          : _crop_like,
-
 }
 
 # set identity list

@@ -21,7 +21,7 @@ namespace runtime {
 class NDArray {
  public:
   // internal container type
-  struct Container;
+  class Container;
   /*! \brief default constructor */
   NDArray() {}
   /*!
@@ -173,13 +173,33 @@ class NDArray {
 
   // internal namespace
   struct Internal;
- private:
+ protected:
   /*! \brief Internal Data content */
   Container* data_{nullptr};
   // enable internal functions
   friend struct Internal;
+  friend class TVMPODValue_;
+  friend class TVMArgValue;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
+};
+
+/*!
+ * \brief The type trait indicates subclass of TVM's NDArray.
+ *  For irrelavant classes, code = -1.
+ *  For TVM NDArray itself, code = 0.
+ *  All subclasses of NDArray should override code > 0.
+ */
+template<typename T>
+struct array_type_info {
+  /*! \brief the value of the traits */
+  static const int code = -1;
+};
+
+// Overrides the type trait for tvm's NDArray.
+template<>
+struct array_type_info<NDArray> {
+  static const int code = 0;
 };
 
 /*!
@@ -196,9 +216,9 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
  *    the pointer to the NDArrayContainer can be directly
  *    interpreted as a DLTensor*
  *
- * \note: do not use this function directly, use NDArray.
+ * \note do not use this function directly, use NDArray.
  */
-struct NDArray::Container {
+class NDArray::Container {
  public:
   // NOTE: the first part of this structure is the same as
   // DLManagedTensor, note that, however, the deleter
@@ -225,6 +245,31 @@ struct NDArray::Container {
    *  currently defined by the system.
    */
   void (*deleter)(Container* self) = nullptr;
+
+ protected:
+  friend class NDArray;
+  friend class TVMPODValue_;
+  friend class TVMArgValue;
+  friend class TVMRetValue;
+  friend class RPCWrappedFunc;
+  /*!
+   * \brief Type flag used to indicate subclass.
+   *  Default value 0 means normal NDArray::Conatainer.
+   *
+   *  We can extend a more specialized NDArray::Container
+   *  and use the array_type_code_ to indicate
+   *  the specific array subclass.
+   */
+  int32_t array_type_code_{0};
+  /*! \brief The internal reference counter */
+  std::atomic<int> ref_counter_{0};
+  /*!
+   * \brief The shape container,
+   *  can be used used for shape data.
+   */
+  std::vector<int64_t> shape_;
+
+ public:
   /*! \brief default constructor */
   Container() {
     dl_tensor.data = nullptr;
@@ -246,17 +291,6 @@ struct NDArray::Container {
       }
     }
   }
-
- private:
-  friend class NDArray;
-  friend class RPCWrappedFunc;
-  /*!
-   * \brief The shape container,
-   *  can be used used for shape data.
-   */
-  std::vector<int64_t> shape_;
-  /*! \brief The internal array object */
-  std::atomic<int> ref_counter_{0};
 };
 
 // implementations of inline functions

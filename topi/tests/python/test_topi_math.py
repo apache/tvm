@@ -18,11 +18,14 @@ def test_ewise():
 
     shape = (20, 3)
 
-    def test_apply(func, name, f_numpy, low, high):
+    def test_apply(func, name, f_numpy, low, high, check_round=False):
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
         assert B.op.body[0].name == name
         a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
+        # avoid round check too close to boundary
+        if check_round:
+            a_np += ((np.fmod(a_np, 1) - 0.5) < 1e-6) * 1e-5
         b_np = f_numpy(a_np)
 
         def check_device(device):
@@ -48,7 +51,7 @@ def test_ewise():
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
     test_apply(topi.trunc, "trunc", np.trunc, -100, 100)
     test_apply(topi.abs, "fabs", np.abs, -100, 100)
-    test_apply(topi.round, "round", np.round, -100, 100)
+    test_apply(topi.round, "round", np.round, -100, 100, check_round=True)
     test_apply(topi.exp, "exp", np.exp, -1, 1)
     test_apply(topi.tanh, "tanh", np.tanh, -10, 10)
     test_apply(topi.sigmoid, "sigmoid", lambda x:1/(1+np.exp(-x)), -1, 1)

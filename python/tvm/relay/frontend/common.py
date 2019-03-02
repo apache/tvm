@@ -10,7 +10,6 @@ from .. import op as _op
 
 class RequiredAttr(object):
     """Dummpy class to represent required attr"""
-    pass
 
 
 class StrAttrsDict(object):
@@ -107,7 +106,7 @@ class StrAttrsDict(object):
         """
         if key in self.attrs:
             tshape = self.attrs[key]
-            return tuple(int(x.strip()) for x in tshape.strip('()[]').split(','))
+            return tuple(int(x.strip()) for x in tshape.strip('()[]').split(',') if x)
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
@@ -240,6 +239,7 @@ class ExprTable(object):
         self.exprs = {}
         self.params = {}
         self.const_ctr = 1
+        self.in_padding = False
 
     def new_const(self, value, shape=None, dtype="float32"):
         name = "_param_%d" % (self.const_ctr)
@@ -256,6 +256,13 @@ class ExprTable(object):
     def set_expr(self, name, expr):
         assert isinstance(expr, _expr.Expr)
         self.exprs[name] = expr
+
+    def set_padding(self, paddings):
+        self.paddings = paddings
+        self.in_padding = True
+
+    def clear_padding(self):
+        self.in_padding = False
 
 
 class AttrCvt(object):

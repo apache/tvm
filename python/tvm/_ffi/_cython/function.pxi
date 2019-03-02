@@ -33,7 +33,7 @@ cdef int tvm_callback(TVMValue* args,
         if tcode != kArrayHandle:
             pyargs.append(make_ret(value, tcode))
         else:
-            pyargs.append(c_make_array(value.v_handle, True))
+            pyargs.append(c_make_array(value.v_handle, True, False))
     try:
         rv = local_pyfunc(*pyargs)
     except Exception:
@@ -175,7 +175,7 @@ cdef inline object make_ret(TVMValue value, int tcode):
     elif tcode == kFloat:
         return value.v_float64
     elif tcode == kNDArrayContainer:
-        return c_make_array(value.v_handle, False)
+        return c_make_array(value.v_handle, False, True)
     elif tcode == kStr:
         return py_str(value.v_str)
     elif tcode == kBytes:

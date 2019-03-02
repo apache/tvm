@@ -15,7 +15,7 @@ namespace tvm {
 namespace relay {
 
 TensorType ToTensorType(const Type& t) {
-  if (auto tt_node = t.as<TensorTypeNode>()) {
+  if (const auto* tt_node = t.as<TensorTypeNode>()) {
     return GetRef<TensorType>(tt_node);
   } else {
     return TensorType(nullptr);
@@ -70,9 +70,12 @@ Type ConcreteBroadcast(const TensorType& t1,
     } else if (EqualConstInt(s2, 1)) {
       oshape.push_back(s1);
     } else {
-      LOG(FATAL) << "Incompatible broadcast type " << t1 << " and " << t2;
+      RELAY_ERROR(
+          "Incompatible broadcast type "
+              << t1 << " and " << t2).Raise();
     }
   }
+
   size_t max_ndim = std::max(ndim1, ndim2);
   auto& rshape = (ndim1 > ndim2) ? t1->shape : t2->shape;
   for (; i <= max_ndim; ++i) {
@@ -87,12 +90,13 @@ bool BroadcastRel(const Array<Type>& types,
                   const Attrs& attrs,
                   const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
-  RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1]
-                  << "Out: " << types[2] << std::endl;
+  RELAY_LOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
+                  << ",Out:" << types[2] << std::endl;
   if (auto t0 = ToTensorType(types[0])) {
     if (auto t1 = ToTensorType(types[1])) {
       CHECK_EQ(t0->dtype, t1->dtype);
-      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, t0->dtype));
+      reporter->Assign(types[2],
+        ConcreteBroadcast(t0, t1, t0->dtype));
       return true;
     }
   }
@@ -104,8 +108,8 @@ bool BroadcastCompRel(const Array<Type>& types,
                       const Attrs& attrs,
                       const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
-  RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1]
-                  << "Out: " << types[2] << std::endl;
+  RELAY_LOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
+                  << ",Out:" << types[2] << std::endl;
   if (auto t0 = ToTensorType(types[0])) {
     if (auto t1 = ToTensorType(types[1])) {
       CHECK_EQ(t0->dtype, t1->dtype);

@@ -1,4 +1,4 @@
-import urllib
+from six.moves import urllib
 import os
 from PIL import Image
 import numpy as np
@@ -7,7 +7,7 @@ def download(url, path, overwrite=False):
     if os.path.exists(path) and not overwrite:
         return
     print('Downloading {} to {}.'.format(url, path))
-    urllib.URLopener().retrieve(url, path)
+    urllib.request.urlretrieve(url, path)
 
 def get_mobilenet():
     url = 'https://docs-assets.developer.apple.com/coreml/models/MobileNet.mlmodel'

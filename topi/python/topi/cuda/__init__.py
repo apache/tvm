@@ -14,7 +14,9 @@ from .dense import dense_cuda, schedule_dense
 from .pooling import schedule_pool, schedule_global_pool
 from .extern import schedule_extern
 from .nn import schedule_lrn, schedule_l2_normalize
+from .batch_matmul import schedule_batch_matmul
 from .vision import *
 from . import ssd
 from .ssd import *
 from .nms import *
+from .rcnn import *

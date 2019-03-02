@@ -16,7 +16,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
       : solver_(solver) {}
 
   void Assign(const Type& dst, const Type& src) final {
-    solver_->Unify(dst, src);
+    solver_->Unify(dst, src, location);
   }
 
   bool Assert(const IndexExpr& cond) final {
@@ -35,7 +35,14 @@ class TypeSolver::Reporter : public TypeReporterNode {
     return true;
   }
 
+  TVM_DLL void SetLocation(const NodeRef& ref) final {
+    location = ref;
+  }
+
  private:
+  /*! \brief The location to report unification errors at. */
+  mutable NodeRef location;
+
   TypeSolver* solver_;
 };
 
@@ -109,7 +116,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   }
 
   // default: unify only if alpha-equal
-  Type VisitTypeDefault_(const Node* op, const Type& tn) override {
+  Type VisitTypeDefault_(const Node* op, const Type& tn) final {
     NodeRef nr = GetRef<NodeRef>(op);
     Type t1 = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
     if (!AlphaEqual(t1, tn)) {
@@ -118,7 +125,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return t1;
   }
 
-  Type VisitType_(const TupleTypeNode* op, const Type& tn) override {
+  Type VisitType_(const TupleTypeNode* op, const Type& tn) final {
     const auto* ttn = tn.as<TupleTypeNode>();
     if (!ttn || op->fields.size() != ttn->fields.size()) {
       return Type(nullptr);
@@ -135,7 +142,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return TupleTypeNode::make(new_fields);
   }
 
-  Type VisitType_(const FuncTypeNode* op, const Type& tn) override {
+  Type VisitType_(const FuncTypeNode* op, const Type& tn) final {
     const auto* ftn = tn.as<FuncTypeNode>();
     if (!ftn
         || op->arg_types.size() != ftn->arg_types.size()
@@ -172,6 +179,28 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     return FuncTypeNode::make(arg_types, ret_type, ft1->type_params, type_constraints);
+  }
+
+  Type VisitType_(const RefTypeNode* op, const Type& tn) final {
+    const auto* rtn = tn.as<RefTypeNode>();
+    if (!rtn) {
+      return Type(nullptr);
+    }
+    return RefTypeNode::make(Unify(op->value, rtn->value));
+  }
+
+  Type VisitType_(const TypeCallNode* op, const Type& tn) override {
+    const auto* tcn = tn.as<TypeCallNode>();
+    if (!tcn || tcn->args.size() != op->args.size()) {
+      return Type();
+    }
+
+    Type func = Unify(op->func, tcn->func);
+    tvm::Array<Type> args;
+    for (size_t i = 0; i < op->args.size(); i++) {
+      args.push_back(Unify(op->args[i], tcn->args[i]));
+    }
+    return TypeCallNode::make(func, args);
   }
 
  private:
@@ -248,6 +277,16 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
     for (auto type_cs : ft->type_constraints) {
       Propagate(type_cs);
+    }
+  }
+
+  void VisitType_(const TypeCallNode* op) override {
+    TypeCall tc = GetRef<TypeCall>(op);
+    UpdateRelSet(tc);
+
+    Propagate(tc->func);
+    for (auto arg : tc->args) {
+      Propagate(arg);
     }
   }
 
@@ -329,8 +368,10 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 };
 
 // constructor
-TypeSolver::TypeSolver()
-  : reporter_(make_node<Reporter>(this)) {
+TypeSolver::TypeSolver(const GlobalVar &current_func, ErrorReporter* err_reporter)
+  : reporter_(make_node<Reporter>(this)),
+    current_func(current_func),
+    err_reporter_(err_reporter) {
 }
 
 // destructor
@@ -351,16 +392,23 @@ void TypeSolver::MergeFromTo(TypeNode* src, TypeNode* dst) {
 }
 
 // Add equality constraint
-Type TypeSolver::Unify(const Type& dst, const Type& src) {
+Type TypeSolver::Unify(const Type& dst, const Type& src, const NodeRef&) {
+  // NB(@jroesch): we should probably pass location into the unifier to do better
+  // error reporting as well.
   Unifier unifier(this);
   return unifier.Unify(dst, src);
 }
 
+void TypeSolver::ReportError(const Error& err, const NodeRef& location)  {
+  err_reporter_->ReportAt(current_func, location, err);
+}
+
 // Add type constraint to the solver.
-void TypeSolver::AddConstraint(const TypeConstraint& constraint) {
-  if (auto *op = constraint.as<TypeRelationNode>()) {
+void TypeSolver::AddConstraint(const TypeConstraint& constraint, const NodeRef& loc) {
+  if (const auto* op = constraint.as<TypeRelationNode>()) {
     // create a new relation node.
     RelationNode* rnode = arena_.make<RelationNode>();
+    rnode->location = loc;
     rnode->rel = GetRef<TypeRelation>(op);
     rel_nodes_.push_back(rnode);
     // populate the type information.
@@ -404,29 +452,52 @@ bool TypeSolver::Solve() {
       args.push_back(Resolve(tlink->value->FindRoot()->resolved_type));
       CHECK_LE(args.size(), rel->args.size());
     }
-    // call the function
-    bool resolved = rel->func(args, rel->num_inputs, rel->attrs, reporter_);
-    // mark inqueue as false after the function call
+
+    CHECK(rnode->location.defined())
+      << "undefined location, should be set when constructing relation node";
+
+    // We need to set this in order to understand where unification
+    // errors generated by the error reporting are coming from.
+    reporter_->SetLocation(rnode->location);
+
+    try {
+      // Call the Type Relation's function.
+      bool resolved = rel->func(args, rel->num_inputs, rel->attrs, reporter_);
+
+      if (resolved) {
+        ++num_resolved_rels_;
+      }
+
+      rnode->resolved = resolved;
+    } catch (const Error& err) {
+      this->ReportError(err, rnode->location);
+      rnode->resolved = false;
+    } catch (const dmlc::Error& err) {
+      rnode->resolved = false;
+      this->ReportError(
+          RELAY_ERROR(
+            "an internal invariant was violdated while" \
+            "typechecking your program" <<
+            err.what()), rnode->location);
+    }
+
+    // Mark inqueue as false after the function call
     // so that rnode itself won't get enqueued again.
     rnode->inqueue = false;
-
-    if (resolved) {
-      ++num_resolved_rels_;
-    }
-    rnode->resolved = resolved;
   }
+
   // This criterion is not necessarily right for all the possible cases
   // TODO(tqchen): We should also count the number of in-complete types.
   return num_resolved_rels_ == rel_nodes_.size();
 }
-
 
 // Expose type solver only for debugging purposes.
 TVM_REGISTER_API("relay._ir_pass._test_type_solver")
 .set_body([](runtime::TVMArgs args, runtime::TVMRetValue* ret) {
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
-    auto solver = std::make_shared<TypeSolver>();
+    ErrorReporter err_reporter;
+    auto solver = std::make_shared<TypeSolver>(GlobalVarNode::make("test"), &err_reporter);
 
     auto mod = [solver](std::string name) -> PackedFunc {
       if (name == "Solve") {
@@ -435,7 +506,7 @@ TVM_REGISTER_API("relay._ir_pass._test_type_solver")
           });
       } else if (name == "Unify") {
         return TypedPackedFunc<Type(Type, Type)>([solver](Type lhs, Type rhs) {
-            return solver->Unify(lhs, rhs);
+            return solver->Unify(lhs, rhs, lhs);
           });
       } else if (name == "Resolve") {
         return TypedPackedFunc<Type(Type)>([solver](Type t) {
@@ -443,7 +514,9 @@ TVM_REGISTER_API("relay._ir_pass._test_type_solver")
           });
       } else if (name == "AddConstraint") {
         return TypedPackedFunc<void(TypeConstraint)>([solver](TypeConstraint c) {
-            return solver->AddConstraint(c);
+            Expr e = VarNode::make("dummy_var",
+              IncompleteTypeNode::make(Kind::kType));
+            return solver->AddConstraint(c, e);
           });
       } else {
         return PackedFunc();

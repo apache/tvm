@@ -10,6 +10,7 @@
 #include <vta/hw_spec.h>
 #include <vta/runtime.h>
 #include <dmlc/logging.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 #include <cassert>
 #include <cstring>
@@ -637,31 +638,23 @@ class InsnQueue : public BaseQueue {
                  static_cast<int>(c.mem.push_prev_dep),
                  static_cast<int>(c.mem.push_next_dep));
           // Count status in queues
-          if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
-            if (c.mem.opcode == VTA_OPCODE_STORE) {
-                CHECK(c.mem.pop_next_dep == false);
-                CHECK(c.mem.push_next_dep == false);
-                if (c.mem.pop_prev_dep) g2s_queue--;
-                if (c.mem.push_prev_dep) s2g_queue++;
-            } else if (c.mem.opcode == VTA_OPCODE_LOAD &&
-                       (c.mem.memory_type == VTA_MEM_ID_INP ||
-                        c.mem.memory_type == VTA_MEM_ID_WGT) ) {
-                CHECK(c.mem.pop_prev_dep == false);
-                CHECK(c.mem.push_prev_dep == false);
-                if (c.mem.pop_next_dep) g2l_queue--;
-                if (c.mem.push_next_dep) l2g_queue++;
-            } else {
-                if (c.mem.pop_prev_dep) l2g_queue--;
-                if (c.mem.push_prev_dep) g2l_queue++;
-                if (c.mem.pop_next_dep) s2g_queue--;
-                if (c.mem.push_next_dep) g2s_queue++;
-            }
-          } else if (c.mem.opcode == VTA_OPCODE_GEMM) {
-            // Print instruction field information
-            if (c.gemm.pop_prev_dep) l2g_queue--;
-            if (c.gemm.push_prev_dep) g2l_queue++;
-            if (c.gemm.pop_next_dep) s2g_queue--;
-            if (c.gemm.push_next_dep) g2s_queue++;
+          if (c.mem.opcode == VTA_OPCODE_STORE) {
+            CHECK(c.mem.pop_next_dep == false);
+            CHECK(c.mem.push_next_dep == false);
+            if (c.mem.pop_prev_dep) g2s_queue--;
+            if (c.mem.push_prev_dep) s2g_queue++;
+          } else if (c.mem.opcode == VTA_OPCODE_LOAD &&
+                     (c.mem.memory_type == VTA_MEM_ID_INP ||
+                      c.mem.memory_type == VTA_MEM_ID_WGT) ) {
+            CHECK(c.mem.pop_prev_dep == false);
+            CHECK(c.mem.push_prev_dep == false);
+            if (c.mem.pop_next_dep) g2l_queue--;
+            if (c.mem.push_next_dep) l2g_queue++;
+          } else {
+            if (c.mem.pop_prev_dep) l2g_queue--;
+            if (c.mem.push_prev_dep) g2l_queue++;
+            if (c.mem.pop_next_dep) s2g_queue--;
+            if (c.mem.push_next_dep) g2s_queue++;
           }
           printf("\tl2g_queue = %d, g2l_queue = %d\n", l2g_queue, g2l_queue);
           printf("\ts2g_queue = %d, g2s_queue = %d\n", s2g_queue, g2s_queue);

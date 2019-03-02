@@ -37,8 +37,4 @@ Node::~Node() {
   }
 }
 
-NodePtr Node::Create() {
-  return std::make_shared<Node>();
-}
-
 }  // namespace nnvm

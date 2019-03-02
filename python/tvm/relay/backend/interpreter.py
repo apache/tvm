@@ -45,10 +45,17 @@ class TupleValue(Value):
     def __iter__(self):
         return iter(self.fields)
 
+
 @register_relay_node
 class Closure(Value):
     """A closure produced by the interpreter."""
-    pass
+
+
+@register_relay_node
+class ConstructorValue(Value):
+    def __init__(self, constructor, fields, types):
+        self.__init_handle_by_constructor__(
+            _make.ConstructorValue, constructor, fields, types)
 
 
 @register_relay_node
@@ -77,6 +84,13 @@ class TensorValue(Value):
 
     def __str__(self):
         return str(self.data)
+
+
+@register_relay_node
+class RefValue(Value):
+    def __init__(self, value):
+        self.__init_handle_by_constructor__(
+            _make.RefValue, value)
 
 
 def _arg_to_ast(arg):
@@ -236,12 +250,15 @@ class Interpreter(Executor):
             The optimized expression.
         """
         # TODO: We need to move this optimization code into the optimizer/pass manager
-        ck_expr = ir_pass.infer_type(expr, mod=self.mod)
+        wrapped_expr = expr if isinstance(expr, Function) else Function([], expr)
+        if self.mod:
+            self.mod[self.mod.entry_func] = wrapped_expr
+        ck_expr = ir_pass.infer_type(wrapped_expr, mod=self.mod)
         simp_expr = ir_pass.simplify_inference(ck_expr)
         ck_simp = ir_pass.infer_type(simp_expr, mod=self.mod)
         fused_expr = ir_pass.fuse_ops(ck_simp)
         ck_fused = ir_pass.infer_type(fused_expr, mod=self.mod)
-        return ck_fused
+        return ck_fused if isinstance(expr, Function) else Call(ck_fused, [])
 
     def _make_executor(self, expr):
         def _interp_wrapper(*args, **kwargs):

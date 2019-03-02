@@ -127,7 +127,7 @@ def _max_pool2d(children, attrs, odtype='float32'):
     pool_size = attrs.get_int_tuple('pool_size', (1, 1))
     strides = attrs.get_int_tuple('strides', (1, 1))
     padding = attrs.get_int_tuple('padding', (0, 0))
-    layout = attrs.get_int_tuple('layout', 'NCHW')
+    layout = attrs.get_str('layout', 'NCHW')
     ceil_mode = attrs.get_bool('ceil_mode', False)
 
     return op.nn.max_pool2d(
@@ -377,6 +377,16 @@ def _dropout(children, attrs, odtype='float32'):
     rate = attrs.get_float('rate', 0.5)
     return op.nn.dropout(children[0], rate)
 
+def _mean(children, attrs, odtype='float32'):
+    axis = None
+    try:
+        axis = [attrs.get_int('axis', None)]
+    except ValueError:
+        axis = axis or attrs.get_int_tuple('axis', None)
+    keepdims = attrs.get_bool('keepdims')
+
+    return op.mean(children[0], axis, keepdims)
+
 
 NNVM_OP_2_RELAY_OP = {
     'flatten': _nn_batch_flatten,
@@ -388,6 +398,7 @@ NNVM_OP_2_RELAY_OP = {
     'reshape': _reshape,
     'transpose': _transpose,
     'dropout': _dropout,
+    'mean': _mean,
     # Addition
     '__add_scalar__': _add,
     'broadcast_add': _add,

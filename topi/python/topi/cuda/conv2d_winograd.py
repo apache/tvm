@@ -362,7 +362,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     data_layout_key = "data_layout" if "data_layout" in new_attrs else "layout"
     layout = attrs[data_layout_key]
     out_dtype = attrs["out_dtype"]
-    if out_dtype == "" or out_dtype == "same":
+    if out_dtype in ("", "same"):
         out_dtype = tinfos[0].dtype
 
     data, kernel = tinfos[0:2]
@@ -428,7 +428,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
         )
         dispatch_ctx.update(target, new_workload, cfg)
         return F.nn.contrib_conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
-    elif groups != CI:
+    if groups != CI:
         workload = autotvm.task.args_to_workload(
             [tinfos[0], tinfos[1], strides, padding, dilation, groups, out_dtype],
             group_conv2d_nchw)

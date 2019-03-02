@@ -31,7 +31,7 @@ import numpy as np
 
 ######################################################################
 # We first write a very simple vector add and build it with the default schedule. Then, we use
-# our customized lowering pass to manipulate the IR directly instead of using schedule premitives.
+# our customized lowering pass to manipulate the IR directly instead of using schedule primitives.
 #
 
 n = tvm.const(128, "int32")

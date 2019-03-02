@@ -27,7 +27,7 @@ namespace ir {
  * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-EXPORT Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
+TVM_DLL Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify the statement.
@@ -52,7 +52,7 @@ Stmt CanonicalSimplify(Stmt stmt,
  * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-EXPORT Expr CanonicalSimplify(Expr expr,
+TVM_DLL Expr CanonicalSimplify(Expr expr,
                               Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
@@ -61,7 +61,7 @@ EXPORT Expr CanonicalSimplify(Expr expr,
  * \param rhs The right operand
  * \return The comparison result.
  */
-EXPORT bool Equal(const Expr& lhs, const Expr& rhs);
+TVM_DLL bool Equal(const Expr& lhs, const Expr& rhs);
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -92,13 +92,13 @@ int Compare(const Expr& lhs, const Expr& rhs);
  * \return Whether IR is in SSA form.
  * \note All the passes in this file uses SSA form and outputs SSA form.
  */
-bool VerifySSA(const Stmt& ir);
+TVM_DLL bool VerifySSA(const Stmt& ir);
 
 /*!
  * \brief Whether the expression have side effect.
  * \return whether expression have side effect
  */
-bool HasSideEffect(const Expr& e);
+TVM_DLL bool HasSideEffect(const Expr& e);
 
 /*!
  * \brief Whether e expression used var.
@@ -121,7 +121,7 @@ bool ExprUseVar(const Expr& e, const std::unordered_set<const Variable*>& vset);
  * \param stmt The source statement to be converted.
  * \return The converted form.
  */
-Stmt ConvertSSA(Stmt stmt);
+TVM_DLL Stmt ConvertSSA(Stmt stmt);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.

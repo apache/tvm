@@ -41,6 +41,7 @@ List of operators
    topi.nn.upsampling
    topi.nn.softmax
    topi.nn.dense
+   topi.nn.batch_matmul
    topi.nn.log_softmax
    topi.nn.conv2d_nchw
    topi.nn.conv2d_hwcn
@@ -70,6 +71,8 @@ List of operators
    topi.logical_and
    topi.logical_or
    topi.logical_not
+   topi.arange
+   topi.layout_transform
    topi.image.resize
 
 
@@ -126,6 +129,8 @@ topi
 .. autofunction:: topi.power
 .. autofunction:: topi.greater
 .. autofunction:: topi.less
+.. autofunction:: topi.arange
+.. autofunction:: topi.layout_transform
 
 topi.nn
 ~~~~~~~
@@ -137,6 +142,7 @@ topi.nn
 .. autofunction:: topi.nn.upsampling
 .. autofunction:: topi.nn.softmax
 .. autofunction:: topi.nn.dense
+.. autofunction:: topi.nn.batch_matmul
 .. autofunction:: topi.nn.log_softmax
 .. autofunction:: topi.nn.conv2d_nchw
 .. autofunction:: topi.nn.conv2d_hwcn
@@ -147,6 +153,11 @@ topi.image
 ~~~~~~~~~~
 .. autofunction:: topi.image.resize
 
+topi.sparse
+~~~~~~~~~~~
+.. autofunction:: topi.sparse.csrmv
+.. autofunction:: topi.sparse.csrmm
+.. autofunction:: topi.sparse.dense
 
 topi.generic
 ~~~~~~~~~~~~
