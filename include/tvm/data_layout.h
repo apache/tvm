@@ -16,7 +16,7 @@
 #include <utility>
 #include <algorithm>
 
-#include "ir_operator.h"
+#include "expr_operator.h"
 
 namespace tvm {
 

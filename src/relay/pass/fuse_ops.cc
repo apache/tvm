@@ -6,7 +6,7 @@
  * \brief This is a backend-aware optimization pass.
  *   Fuse necessary ops into a single one.
  */
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>

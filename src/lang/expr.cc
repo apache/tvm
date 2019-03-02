@@ -5,7 +5,7 @@
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <ir/IRPrinter.h>
 #include <memory>
 
