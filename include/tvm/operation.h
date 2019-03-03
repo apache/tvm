@@ -10,7 +10,7 @@
 #include <vector>
 #include <unordered_map>
 #include "expr.h"
-#include "ir_operator.h"
+#include "expr_operator.h"
 #include "tensor.h"
 #include "schedule.h"
 #include "arithmetic.h"
