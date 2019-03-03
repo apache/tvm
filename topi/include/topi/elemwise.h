@@ -72,6 +72,23 @@ inline Tensor negative(const Tensor& x,
 }
 
 /*!
+* \brief Creates an operation that returns the logical NOT of a given tensor
+*
+* \param x The input tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the logical NOT operation
+*/
+inline Tensor logical_not(const Tensor& x,
+                          std::string name = "tensor",
+                          std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    return !x(i);
+  }, name, tag);
+}
+
+/*!
 * \brief Creates an operation that clips each element of a tensor to
 * the interval [a_min, a_max]
 *

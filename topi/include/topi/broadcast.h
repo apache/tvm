@@ -93,6 +93,33 @@ inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
     return topi::OpName(A, B);                                      \
   }
 
+/*!
+ * \fn logical_and
+ * \brief Compute A && B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(logical_and, { return a && b; });
+TOPI_DEFINE_OP_OVERLOAD(operator&&, logical_and);
+
+/*!
+ * \fn logical_or
+ * \brief Compute A || B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(logical_or, { return a || b; });
+TOPI_DEFINE_OP_OVERLOAD(operator||, logical_or);
 
 /*!
  * \fn add

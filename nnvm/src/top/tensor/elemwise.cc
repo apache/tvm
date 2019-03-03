@@ -361,6 +361,31 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_pow)
       return Array<Tensor>{ topi::power(inputs[0], inputs[1]) };
 });
 
+// logical
+NNVM_REGISTER_ELEMWISE_BINARY_OP(logical_and)
+.describe(R"code(Elementwise compute the logical AND
+
+)code")
+.set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::logical_and(inputs[0], inputs[1]) };
+});
+
+NNVM_REGISTER_ELEMWISE_BINARY_OP(logical_or)
+.describe(R"code(Elementwise compute the logical OR
+
+)code")
+.set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::logical_or(inputs[0], inputs[1]) };
+});
+
 // negative
 NNVM_REGISTER_ELEMWISE_UNARY_OP(negative)
 .describe(R"code(Elemenwise numeric negative
@@ -381,6 +406,19 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(negative)
     return std::vector<NodeEntry>{
       MakeNode("negative", n->attrs.name + "_grad_0", {ograds[0]}),
     };
+});
+
+// logical NOT
+NNVM_REGISTER_ELEMWISE_UNARY_OP(logical_not)
+.describe(R"code(Elementwise compute the logical NOT
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::logical_not(inputs[0]) };
 });
 
 // copy

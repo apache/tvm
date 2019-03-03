@@ -867,6 +867,11 @@ def _expand_dims_0d_aware(data, attr, axis, num_newaxis=1):
 
     return _sym.expand_dims(data, axis=axis, num_newaxis=num_newaxis)
 
+def _logical(name):
+    def _impl(inputs, attr, params):
+        return AttrCvt(op_name=name)(inputs, attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -929,6 +934,9 @@ _convert_map = {
     'Transpose'                         : _transpose(),
     'Tanh'                              : AttrCvt('tanh'),
     'Mean'                              : _mean(),
+    'LogicalAnd'                        : _logical('logical_and'),
+    'LogicalOr'                         : _logical('logical_or'),
+    'LogicalNot'                        : _logical('logical_not'),
     'Less'                              : _broadcast('less'),
     'Greater'                           : _broadcast('greater'),
     'LessEqual'                         : _broadcast('less_equal'),
