@@ -71,7 +71,7 @@ class OptTester():
         pass
 
     @staticmethod
-    def transform(node):
+    def transform(node, ctx=None):
         """Perform optimization on node."""
         if isinstance(node, relay.Module):
             # Add a function to the module and return an updated module.
@@ -87,18 +87,6 @@ class OptTester():
 
 def get_rand(shape, dtype='float32'):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
-
-
-def pass_function(mod):
-    """This function uses currying. It is designed to be flexible for
-    passing Relay nodes at various granularity.
-    """
-    opt_tester = OptTester(mod)
-
-    def _transform(m):
-        return opt_tester.transform(m)
-
-    return _transform
 
 
 def check_func(func, ref_func):
@@ -119,16 +107,20 @@ def test_module_pass():
 
     pass_name = "module_pass_test"
     opt_level = 0
-    pass_func = pass_function
+    opt_tester = OptTester(mod)
+    pass_ctx = None
+
+    def transform(expr, ctx):
+        return opt_tester.transform(mod, ctx)
 
     def test_pass_registration():
-        mod_pass = ir_pass.create_module_pass(pass_name, opt_level, pass_func)
+        mod_pass = ir_pass.create_module_pass(pass_name, opt_level, transform)
         assert isinstance(mod_pass, ir_pass.ModulePass)
         assert mod_pass.name == pass_name
         assert mod_pass.opt_level == opt_level
 
     def test_pass_run():
-        module_pass = ir_pass.ModulePass(pass_name, opt_level, pass_func)
+        module_pass = ir_pass.ModulePass(pass_name, opt_level, transform)
         assert pass_name in module_pass.astext()
 
         updated_mod = module_pass(mod)
@@ -146,11 +138,11 @@ def test_module_pass():
         new_add = updated_mod[new_v_add]
         check_func(new_add, func)
         
-        # Check the add function in the python currying module.
-        ret = pass_function(mod)(mod)
-        currying_v_add = ret.get_global_var(v_add.name_hint)
-        currying_add = mod[currying_v_add]
-        check_func(new_add, currying_add)
+        # Check the add function in the python transformed module.
+        ret = transform(mod, pass_ctx)
+        transformed_v_add = ret.get_global_var(v_add.name_hint)
+        transformed_add = mod[transformed_v_add]
+        check_func(new_add, transformed_add)
 
         # Execute the add function.
         x_nd = get_rand(shape, dtype)
@@ -179,7 +171,11 @@ def test_function_pass():
 
     pass_name = "function_pass_test"
     opt_level = 1
-    pass_func = pass_function
+    opt_tester = OptTester(mod)
+    pass_ctx = None
+
+    def transform(expr, ctx):
+        return opt_tester.transform(expr, ctx)
 
     def get_ref_log():
         ref_log = relay.Function([x], relay.log(relay.add(x, x)))
@@ -187,13 +183,13 @@ def test_function_pass():
 
     def test_pass_registration():
         function_pass = ir_pass.create_function_pass(pass_name, opt_level,
-                                                     pass_func)
+                                                     transform)
         assert isinstance(function_pass, ir_pass.FunctionPass)
         assert function_pass.name == pass_name
         assert function_pass.opt_level == opt_level
 
     def test_pass_run():
-        function_pass = ir_pass.FunctionPass(pass_name, opt_level, pass_func)
+        function_pass = ir_pass.FunctionPass(pass_name, opt_level, transform)
         assert pass_name in function_pass.astext()
 
         updated_mod = function_pass(mod)
@@ -204,8 +200,8 @@ def test_function_pass():
         new_log = updated_mod[new_v_log]
         check_func(new_log, get_ref_log())
 
-        # Check the log function in the python currying function.
-        ret = pass_function(mod)(log)
+        # Check the log function in the python transformed function.
+        ret = transform(log, pass_ctx)
         check_func(new_log, ret)
 
         # Execute the add function.
@@ -256,11 +252,17 @@ def test_sequential_pass():
         return ref_abs
 
     # Register a module pass.
-    module_pass_func = pass_function
+    opt_tester = OptTester(mod)
+    pass_ctx = None
+
+    def transform(expr, ctx):
+        return opt_tester.transform(expr, ctx)
+
+    module_pass_func = transform
     module_pass = ir_pass.ModulePass("module_pass", 1, module_pass_func)
 
     # Register a function pass.
-    function_pass_func = pass_function
+    function_pass_func = transform
     function_pass = ir_pass.FunctionPass("function_pass", 2,
                                          function_pass_func)
 

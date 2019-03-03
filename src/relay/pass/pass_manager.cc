@@ -22,12 +22,12 @@ class ModulePass;
  */
 class ModulePassNode : public PassNode {
  public:
-  /*! \brief The curried function sketches the real optimization. For example,
+  /*! \brief The pass function sketches the real optimization. For example,
    * we may need to perform dead code elimination on the module level. We could
    * implement the algorithm in the `pass_func` and let it run on a module. It
    * will then remove the dead code including the unused functions in the module.
    */
-  PassFunc<Module> pass_func;
+  ModulePassFunc pass_func;
 
   ModulePassNode() = default;
 
@@ -56,7 +56,7 @@ class ModulePassNode : public PassNode {
   void SetContext(const PassContext& pass_ctx) final;
 
   TVM_DLL static ModulePass make(std::string name, int opt_level,
-                                 PassFunc<Module> pass_func);
+                                 ModulePassFunc pass_func);
 
   static constexpr const char* _type_key = "relay.ModulePass";
   TVM_DECLARE_NODE_TYPE_INFO(ModulePassNode, PassNode);
@@ -83,12 +83,12 @@ class FunctionPass;
  */
 class FunctionPassNode : public PassNode {
  public:
-  /*! \brief The curried packed function that sketches the real optimization.
-   * For instance, we can implement a pass that works on a Relay function as
-   * a `pass_func` and let it run on a given module. The same `pass_func` will
+  /*! \brief The packed pass function sketches the real optimization. For
+   * instance, we can implement a pass that works on a Relay function as a
+   * `pass_func` and let it run on a given module. The same `pass_func` will
    * then be applied on each function in the module.
    */
-  PassFunc<Function> pass_func;
+  FunctionPassFunc pass_func;
 
   FunctionPassNode() = default;
 
@@ -117,7 +117,7 @@ class FunctionPassNode : public PassNode {
   void SetContext(const PassContext& pass_ctx) final;
 
   TVM_DLL static FunctionPass make(std::string name, int opt_level,
-                                   PassFunc<Function> pass_func);
+                                   FunctionPassFunc pass_func);
 
   static constexpr const char* _type_key = "relay.FunctionPass";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionPassNode, PassNode);
@@ -235,7 +235,7 @@ PassContext PassContextNode::make() {
 }
 
 ModulePass ModulePassNode::make(std::string name, int opt_level,
-                                PassFunc<Module> pass_func) {
+                                ModulePassFunc pass_func) {
   auto n = make_node<ModulePassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
@@ -251,8 +251,7 @@ Module ModulePassNode::operator()(const Module& mod) const {
   LOG(INFO) << "Executing module pass : " << this->name
             << " with opt level: " << opt_level << "\n";
   CHECK(mod.defined());
-  auto foreach = pass_func(mod);
-  auto updated_mod = foreach(mod);
+  auto updated_mod = pass_func(mod, pass_ctx_);
   CHECK(updated_mod.defined());
   return updated_mod;
 }
@@ -268,7 +267,7 @@ void ModulePassNode::SetContext(const PassContext& pass_ctx) {
 }
 
 FunctionPass FunctionPassNode::make(std::string name, int opt_level,
-                                    PassFunc<Function> pass_func) {
+                                    FunctionPassFunc pass_func) {
   auto n = make_node<FunctionPassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
@@ -282,12 +281,11 @@ Module FunctionPassNode::operator()(const Module& mod) const {
   LOG(INFO) << "Executing function pass : " << this->name
             << " with opt level: " << this->opt_level << "\n";
   CHECK(mod.defined());
-  auto foreach = pass_func(mod);
   std::vector<std::pair<GlobalVar, Function>> updated_funcs;
   ModuleNode* mod_node = mod.operator->();
   for (const auto& it : mod_node->functions) {
     if (!SkipFunction(it.second)) {
-      auto updated_func = foreach(it.second);
+      auto updated_func = pass_func(it.second, pass_ctx_);
       CHECK(updated_func.defined());
       updated_funcs.push_back({std::move(it.first), std::move(updated_func)});
     }
@@ -371,12 +369,12 @@ void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
 }
 
 Pass CreateModulePass(const std::string& name, int opt_level,
-                      const PassFunc<Module>& pass_func) {
+                      const ModulePassFunc& pass_func) {
   return ModulePassNode::make(name, opt_level, pass_func);
 }
 
 Pass CreateFunctionPass(const std::string& name, int opt_level,
-                        const PassFunc<Function>& pass_func) {
+                        const FunctionPassFunc& pass_func) {
   return FunctionPassNode::make(name, opt_level, pass_func);
 }
 
@@ -392,15 +390,7 @@ TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string pass_name = args[0];
   int opt_level = args[1];
-  PackedFunc py_pass_func = args[2];
-  PassFunc<Module> pass_func = [py_pass_func](const Module& mod) {
-    PackedFunc py_for_each = py_pass_func(mod);
-    return [py_for_each](Module m) {
-      Module r = py_for_each(m);
-      CHECK(r.defined());
-      return r;
-    };
-  };
+  PackedFunc pass_func = args[2];
   *ret = CreateModulePass(pass_name, opt_level, pass_func);
 });
 
@@ -429,15 +419,7 @@ TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string pass_name = args[0];
   int opt_level = args[1];
-  PackedFunc py_pass_func = args[2];
-  PassFunc<Function> pass_func = [py_pass_func](const Module& mod) {
-    PackedFunc py_for_each = py_pass_func(mod);
-    return [py_for_each](Function i) {
-      Function r = py_for_each(i);
-      CHECK(r.defined());
-      return r;
-    };
-  };
+  PackedFunc pass_func = args[2];
   *ret = CreateFunctionPass(pass_name, opt_level, pass_func);
 });
 

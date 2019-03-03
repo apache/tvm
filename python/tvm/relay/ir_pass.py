@@ -93,7 +93,7 @@ class ModulePass(Pass):
         The optimization level of this pass.
 
     pass_func : Callable[PassContext: tvm.relay.Module -> tvm.relay.Module]
-        The curried callback that sketches a certain optimization.
+        The callback function that sketches a certain optimization.
     """
 
     def __init__(self, name, opt_level, pass_func):
@@ -129,7 +129,7 @@ class FunctionPass(Pass):
         The optimization level of this pass.
 
     pass_func : Callable[PassContext: tvm.relay.Function -> tvm.relay.Function]
-        The curried callback that sketches a certain optimization.
+        The callback function that sketches a certain optimization.
     """
 
     def __init__(self, name, opt_level, pass_func):

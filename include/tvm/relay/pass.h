@@ -82,21 +82,6 @@ class PassContextNode : public RelayNode {
 
 TVM_DEFINE_NODE_REF(PassContext, PassContextNode)
 
-// We use currying here. It runs on a Relay node type NodeT and yields a new
-// node with the same type. The Relay module is captured for optimizations as
-// most of the current Relay optimizations are module to module. Currying
-// sketches the optimization, i.e. how we want to mutate an AST, and it is
-// passed as packed functions that will be invoked when called by `run`.
-//
-// For example, PassFunc<Function> indicates we perform a Function to Function
-// transformation on the given Module.
-template <typename NodeT,
-          typename = std::enable_if<(std::is_same<NodeT, Module>::value ||
-                                     std::is_same<NodeT, Function>::value)>>
-using PassFunc =
-    runtime::TypedPackedFunc<runtime::TypedPackedFunc<NodeT(NodeT)>(
-        const Module& mod)>;
-
 class Pass;
 
 /*!
@@ -155,6 +140,15 @@ class Pass : public NodeRef {
   using ContainerType = PassNode;
 };
 
+// Define pass function at different granularity. It runs on a certain Relay
+// node type and yields a new node with the same type. Each pass function
+// sketches an optimization, i.e. how we want to mutate an AST, and it is used
+// as a packed function that will be invoked when called by the functor of each
+// pass.
+using ModulePassFunc = runtime::TypedPackedFunc<Module(Module, PassContext)>;
+using FunctionPassFunc =
+    runtime::TypedPackedFunc<Function(Function, PassContext)>;
+
 /*
  * \brief Create a module pass.
  *
@@ -165,7 +159,7 @@ class Pass : public NodeRef {
  * \return The created module pass.
  */
 Pass CreateModulePass(const std::string& name, int opt_level,
-                      const PassFunc<Module>& pass_func);
+                      const ModulePassFunc& pass_func);
 
 /*
  * \brief Create a function pass.
@@ -177,7 +171,7 @@ Pass CreateModulePass(const std::string& name, int opt_level,
  * \return The created function pass.
  */
 Pass CreateFunctionPass(const std::string& name, int opt_level,
-                        const PassFunc<Function>& pass_func);
+                        const FunctionPassFunc& pass_func);
 /*
  * \brief Create a sequential pass.
  *
