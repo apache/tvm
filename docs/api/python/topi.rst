@@ -68,6 +68,9 @@ List of operators
    topi.not_equal
    topi.greater_equal
    topi.less_equal
+   topi.logical_and
+   topi.logical_or
+   topi.logical_not
    topi.arange
    topi.layout_transform
    topi.image.resize

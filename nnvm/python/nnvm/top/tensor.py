@@ -140,6 +140,18 @@ reg.register_schedule("__lshift_scalar__", _fschedule_broadcast)
 reg.register_pattern("__rshift_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__rshift_scalar__", _fschedule_broadcast)
 
+# logical_and
+reg.register_pattern("logical_and", OpPattern.ELEMWISE)
+reg.register_schedule("logical_and", _fschedule_broadcast)
+
+# logical_or
+reg.register_pattern("logical_or", OpPattern.ELEMWISE)
+reg.register_schedule("logical_or", _fschedule_broadcast)
+
+# logical_not
+reg.register_pattern("logical_not", OpPattern.ELEMWISE)
+reg.register_schedule("logical_not", _fschedule_broadcast)
+
 # elemwise_add
 reg.register_pattern("elemwise_add", OpPattern.BROADCAST)
 reg.register_schedule("elemwise_add", _fschedule_broadcast)

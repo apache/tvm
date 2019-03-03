@@ -39,6 +39,7 @@ DTYPE_TO_TCODE = {
     "uint16": 8,
     "uint32": 9,
     "uint64": 10,
+    "bool": 11,
 }
 
 TCODE_TO_DTYPE = {
@@ -54,6 +55,7 @@ TCODE_TO_DTYPE = {
     8: "uint16",
     9: "uint32",
     10: "uint64",
+    11: "bool",
 }
 
 def set_dtype_inputs(g, dtype):
