@@ -359,6 +359,50 @@ def verify_arange(start, stop, step):
     for device in get_all_backend():
         check_device(device)
 
+def verify_repeat(in_shape, repeats, axis):
+    A = tvm.placeholder(shape=in_shape, name="A")
+    B = topi.repeat(A, repeats, axis)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_broadcast(B)
+        foo = tvm.build(s, [A, B], device, name="repeat")
+        data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
+        out_npy = np.repeat(data_npy, repeats, axis)
+        data_nd = tvm.nd.array(data_npy, ctx)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
+        foo(data_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
+def verify_tile(in_shape, reps):
+    A = tvm.placeholder(shape=in_shape, name="A")
+    B = topi.tile(A, reps)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_broadcast(B)
+        foo = tvm.build(s, [A, B], device, name="tile")
+        data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
+        out_npy = np.tile(data_npy, reps)
+        data_nd = tvm.nd.array(data_npy, ctx)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
+        foo(data_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
@@ -481,6 +525,16 @@ def test_arange():
     verify_arange(20, 1, -1)
     verify_arange(20, 1, -1.5)
 
+def test_repeat():
+    verify_repeat((2,), 1, 0)
+    verify_repeat((3, 2), 2, 0)
+    verify_repeat((3, 2, 4), 3, 1)
+    verify_repeat((1, 3, 2, 4), 4, -1)
+
+def test_tile():
+    verify_tile((3, 2), (2, 3))
+    verify_tile((3, 2, 5), (2,))
+    verify_tile((3, ), (2, 3, 3))
 
 def test_layout_transform():
     in_shape = (1, 32, 8, 8)
@@ -525,3 +579,5 @@ if __name__ == "__main__":
     test_gather_nd()
     test_arange()
     test_layout_transform()
+    test_repeat()
+    test_tile()

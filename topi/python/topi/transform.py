@@ -339,6 +339,45 @@ def arange(start, stop=None, step=1, dtype="float32"):
     return cpp.arange(start, stop, step, dtype)
 
 
+def repeat(a, repeats, axis):
+    """Repeats elements of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be repeated.
+
+    repeats: int, required
+        Number of repetitions for each element
+
+    axis: int, optional
+        The axis along which to repeat values
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.repeat(a, repeats, axis)
+
+
+def tile(a, reps):
+    """Repeats the whole array multiple times.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be tiled.
+
+    reps: tuple of ints, required
+        The number of times for repeating the tensor
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.tile(a, reps)
+
+
 def layout_transform(array, src_layout, dst_layout):
     """Transform the layout according to src_layout and dst_layout
 

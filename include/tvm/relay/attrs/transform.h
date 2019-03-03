@@ -124,6 +124,28 @@ struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
   }
 };  // struct StackAttrs
 
+/*! \brief Attributes used in repeat operators */
+struct RepeatAttrs : public tvm::AttrsNode<RepeatAttrs> {
+  Integer repeats;
+  Integer axis;
+  TVM_DECLARE_ATTRS(RepeatAttrs, "relay.attrs.RepeatAttrs") {
+    TVM_ATTR_FIELD(repeats)
+        .describe("The number of repetitions for each element.");
+    TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
+        .describe(" The axis along which to repeat values.");
+  }
+};  // struct RepeatAttrs
+
+/*! \brief Attributes used in tile operators */
+struct TileAttrs : public tvm::AttrsNode<TileAttrs> {
+  Array<Integer> reps;
+  TVM_DECLARE_ATTRS(TileAttrs, "relay.attrs.TileAttrs") {
+    TVM_ATTR_FIELD(reps)
+        .describe("The number of times for repeating the tensor a."
+                  "Each dim sizeof reps must be a positive integer.");
+  }
+};  // struct TileAttrs
+
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
   // use axis to make the name numpy compatible.
