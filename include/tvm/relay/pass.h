@@ -109,9 +109,7 @@ class PassNode : public RelayNode {
   virtual std::vector<std::string> Required() const = 0;
 
   /*!
-   * \brief Execute the optimization pass using a functor. This functor invokes
-   *        the `run` method to perform a real optimization on a certain type
-   *        of node.
+   * \brief Execute the optimization pass using a functor.
    *
    * \param mod The module that an optimization pass runs on.
    *
@@ -145,7 +143,7 @@ class Pass : public NodeRef {
  *
  * \param name The name of the module pass.
  * \param opt_level The optimization level of the module pass.
- * \param pass_func The curried packed function that contains the optimization.
+ * \param pass_func The packed function that contains the optimization.
  *
  * \return The created module pass.
  */
@@ -158,7 +156,7 @@ Pass CreateModulePass(
  *
  * \param name The name of the function pass.
  * \param opt_level The optimization level of the function pass.
- * \param pass_func The curried packed function that contains the optimization.
+ * \param pass_func The packed function that contains the optimization.
  *
  * \return The created function pass.
  */

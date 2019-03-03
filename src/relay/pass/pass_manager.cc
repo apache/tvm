@@ -37,7 +37,7 @@ class ModulePassNode : public PassNode {
   }
 
   /*!
-   * \brief Run a function pass on a certain module.
+   * \brief Run a module pass on a certain module.
    *
    * \param mod The module that an optimization pass runs on.
    *

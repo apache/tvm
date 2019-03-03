@@ -23,7 +23,7 @@ class PassContext(RelayNode):
     """The basis where a Relay optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
-    to record the errors of during the performing the optimization, etc.
+    to record the errors of during the optimization, etc.
     """
 
     def __init__(self):
@@ -61,7 +61,7 @@ class Pass(RelayNode):
         """
         if not isinstance(pass_ctx, PassContext):
             raise TypeError("pass_ctx is expected to be the PassContext type")
-        return _ir_pass.SetContext(self, pass_ctx)
+        _ir_pass.SetContext(self, pass_ctx)
 
     def __call__(self, mod):
         """Execute the pass. It is an abstract function that will be
@@ -92,7 +92,7 @@ class ModulePass(Pass):
     opt_level : int
         The optimization level of this pass.
 
-    pass_func : Callable[PassContext: tvm.relay.Module -> tvm.relay.Module]
+    pass_func : Callable[(tvm.relay.Module, PassContext) -> tvm.relay.Module]
         The callback function that sketches a certain optimization.
     """
 
@@ -128,7 +128,8 @@ class FunctionPass(Pass):
     opt_level : int
         The optimization level of this pass.
 
-    pass_func : Callable[PassContext: tvm.relay.Function -> tvm.relay.Function]
+    pass_func : Callable[(tvm.relay.Function, PassContext) ->
+                tvm.relay.Function]
         The callback function that sketches a certain optimization.
     """
 
@@ -205,7 +206,7 @@ def create_module_pass(pass_name, opt_level, pass_func):
     opt_level : int
         The optimization level of this pass.
 
-    pass_func : Optional[Callable[PassContext: Module/Function ->
+    pass_func : Optional[Callable[(Module/Function, PassContext) ->
                 Module/Function]]
         The implemented optimization pass.
 
@@ -232,7 +233,7 @@ def create_function_pass(pass_name, opt_level, pass_func):
     opt_level : int
         The optimization level of this pass.
 
-    pass_func : Optional[Callable[PassContext: Module/Function ->
+    pass_func : Optional[Callable[(Module/Function, PassContext) ->
                 Module/Function]]
         The implemented optimization pass.
 
