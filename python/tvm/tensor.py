@@ -146,7 +146,7 @@ class PlaceholderOp(Operation):
 
 
 @register_node
-class ComputeOp(Operation):
+class BaseComputeOp(Operation):
     """Compute operation."""
     @property
     def axis(self):
@@ -160,7 +160,13 @@ class ComputeOp(Operation):
 
 
 @register_node
-class TensorComputeOp(Operation):
+class ComputeOp(BaseComputeOp):
+    """Scalar operation."""
+    pass
+
+
+@register_node
+class TensorComputeOp(BaseComputeOp):
     """Tensor operation."""
 
 

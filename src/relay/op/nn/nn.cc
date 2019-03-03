@@ -654,5 +654,68 @@ axis to be the last item in the input shape.
 .set_support_level(1)
 .add_type_rel("BatchNorm", BatchNormRel);
 
+
+// relay.nn.batch_matmul
+bool BatchMatmulRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* x = types[0].as<TensorTypeNode>();
+  const auto* y = types[1].as<TensorTypeNode>();
+  if (x == nullptr || y == nullptr) return false;
+  if (x->shape.size() != 3 || y->shape.size() != 3) return false;
+  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+      << "BatchDot: batch dimension doesn't match, "
+      << " x shape=" << x->shape
+      << ", y shape=" << y->shape;
+  CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
+      << "BatchDot: shapes of x and y is inconsistent, "
+      << " x shape=" << x->shape
+      << ", y shape=" << y->shape;
+
+  Array<tvm::Expr> oshape = x->shape;
+  oshape.Set(2, y->shape[1]);
+
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, x->dtype));
+  return true;
+}
+
+
+// Positional relay function to create batch_matmul operator used by frontend FFI.
+Expr MakeBatchMatmul(Expr x,
+                     Expr y) {
+  static const Op& op = Op::Get("nn.batch_matmul");
+  return CallNode::make(op, {x, y}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.batch_matmul")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeBatchMatmul, args, rv);
+  });
+
+
+RELAY_REGISTER_OP("nn.batch_matmul")
+.describe(R"code(Computes matrix multiplication of `x` and `y` when `x` and `y`
+are data in batch.
+
+.. math::
+
+  batch\_matmul(x, y)[i, :, :] = matmul(x[i, :, :], y[i, :, :]^T)
+
+- **x**: `(b, m, k)`
+- **y**: `(b, n, k)`
+- **out**: `(b, m, n)`.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("x", "3D Tensor", "First input.")
+.add_argument("y", "3D Tensor", "Second input.")
+.set_support_level(10)
+.add_type_rel("BatchMatmul", BatchMatmulRel);
+
+
 }  // namespace relay
 }  // namespace tvm

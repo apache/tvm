@@ -75,7 +75,7 @@ def test_quantize_pass():
     graph = relay.create_executor('graph')
     res0 = graph.evaluate(qgraph0)(dataset[0]['data'])
     res1 = graph.evaluate(qgraph1)(dataset[0]['data'])
-    tvm.testing.assert_allclose(res0.asnumpy(), res1.asnumpy())
+    tvm.testing.assert_allclose(res0.asnumpy(), res1.asnumpy(), rtol=1e-3)
 
 
 if __name__ == "__main__":

@@ -41,6 +41,7 @@ List of operators
    topi.nn.upsampling
    topi.nn.softmax
    topi.nn.dense
+   topi.nn.batch_matmul
    topi.nn.log_softmax
    topi.nn.conv2d_nchw
    topi.nn.conv2d_hwcn
@@ -67,6 +68,9 @@ List of operators
    topi.not_equal
    topi.greater_equal
    topi.less_equal
+   topi.logical_and
+   topi.logical_or
+   topi.logical_not
    topi.arange
    topi.layout_transform
    topi.image.resize
@@ -138,6 +142,7 @@ topi.nn
 .. autofunction:: topi.nn.upsampling
 .. autofunction:: topi.nn.softmax
 .. autofunction:: topi.nn.dense
+.. autofunction:: topi.nn.batch_matmul
 .. autofunction:: topi.nn.log_softmax
 .. autofunction:: topi.nn.conv2d_nchw
 .. autofunction:: topi.nn.conv2d_hwcn

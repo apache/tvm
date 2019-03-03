@@ -4,6 +4,8 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.testing import ctx_list
+import topi
+import topi.testing
 
 def test_collapse_sum_like():
     shape = (3, 4, 5, 6)
@@ -126,7 +128,6 @@ def test_reverse_reshape():
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.reverse_reshape(x, newshape=newshape)
         zz = relay.ir_pass.infer_type(z)
-        print(zz.checked_type)
         assert "newshape=" in z.astext()
         assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
 
@@ -144,8 +145,41 @@ def test_reverse_reshape():
     verify_reverse_reshape((2, 3, 4), (-1, 0), (6, 4))
     verify_reverse_reshape((2, 3, 4), (0, -3), (2, 12))
 
+def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
+    x = relay.var("x", relay.TensorType(x_shape, dtype))
+    y = relay.var("y", relay.TensorType(y_shape, dtype))
+    z = relay.nn.batch_matmul(x, y)
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.ty.TensorType(out_shape, dtype)
+
+    func = relay.Function([x, y], z)
+    x_np = np.random.uniform(size=x_shape).astype(dtype)
+    y_np = np.random.uniform(size=y_shape).astype(dtype)
+    z_np = topi.testing.batch_matmul(x_np, y_np)
+
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            z = intrp.evaluate(func)(x_np, y_np)
+            tvm.testing.assert_allclose(z.asnumpy(), z_np, rtol=1e-5)
+
+def test_batch_matmul():
+    b, m, n, k = tvm.var("b"), tvm.var("m"), tvm.var("n"), tvm.var("k")
+    x = relay.var("x", relay.TensorType((b, m, k), "float32"))
+    y = relay.var("y", relay.TensorType((b, n, k), "float32"))
+    z = relay.nn.batch_matmul(x, y)
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.TensorType((b, m, n), "float32")
+
+    verify_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16))
+    verify_batch_matmul((5, 16, 32), (5, 16, 32), (5, 16, 16))
+    verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
+    verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
+
+
 if __name__ == "__main__":
     test_collapse_sum_like()
     test_broadcast_to_like()
     test_slice_like()
     test_reverse_reshape()
+    test_batch_matmul()

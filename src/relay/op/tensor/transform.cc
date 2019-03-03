@@ -5,7 +5,7 @@
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <tvm/ir.h>
 #include <tvm/data_layout.h>
 #include <topi/transform.h>

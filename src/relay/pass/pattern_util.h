@@ -191,6 +191,21 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
   return ConstantNode::make(arr);
 }
 
+/*!
+ * \brief Check if two expressions are equal scalars.
+ * \param a The expression to be checked.
+ * \param b The expression to be checked
+ * \return Whether two expressions are equal scalars.
+ */
+inline bool IsEqualScalar(const Expr& a, const Expr& b) {
+  const auto* constant_a = a.as<ConstantNode>();
+  const auto* constant_b = b.as<ConstantNode>();
+  if (!constant_a || !constant_b || !constant_a->is_scalar() || !constant_b->is_scalar()) {
+    return false;
+  }
+  return AlphaEqual(a, b);
+}
+
 inline Expr GetField(Expr t, size_t i) {
   return TupleGetItemNode::make(t, i);
 }

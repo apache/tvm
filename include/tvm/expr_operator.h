@@ -1,13 +1,13 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file tvm/ir_operator.h
+ * \file tvm/expr_operator.h
  * \brief Common operators defined for Expr.
  *
  * \note Most of the operator defined here perform simple constant folding
  *   when the type is int32 or int64 for simplifying the index expressions.
  */
-#ifndef TVM_IR_OPERATOR_H_
-#define TVM_IR_OPERATOR_H_
+#ifndef TVM_EXPR_OPERATOR_H_
+#define TVM_EXPR_OPERATOR_H_
 
 #include <algorithm>
 #include <type_traits>
@@ -617,4 +617,4 @@ TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator&&);
 TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator||);
 
 }  // namespace tvm
-#endif  // TVM_IR_OPERATOR_H_
+#endif  // TVM_EXPR_OPERATOR_H_

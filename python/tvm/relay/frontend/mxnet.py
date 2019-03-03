@@ -64,6 +64,13 @@ def _mx_activations(inputs, attrs):
     raise RuntimeError("Do not support act_type: {}".format(act_type))
 
 
+def _mx_compare(new_op, wrapper):
+    def impl(inputs, attrs):
+        dtype = ir_pass.infer_type(inputs[0]).checked_type.dtype
+        return wrapper(new_op)(inputs, attrs).astype(dtype)
+    return impl
+
+
 def _mx_conv2d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
@@ -311,6 +318,18 @@ def _mx_multibox_detection(inputs, attrs):
     return _op.vision.nms(ret[0], ret[1], **new_attrs1)
 
 
+def _mx_batch_dot(inputs, attrs):
+    assert len(inputs) == 2
+    a, b = inputs
+    transpose_a = attrs.get_bool("transpose_a", False)
+    transpose_b = attrs.get_bool("transpose_b", False)
+    if transpose_a is True:
+        raise RuntimeError("batch_dot: only support transpose_a=False")
+    if transpose_b is False:
+        b = _op.transpose(b, axes=[0, 2, 1])
+    return _op.batch_matmul(a, b)
+
+
 def _mx_arange(inputs, attrs):
     assert len(inputs) == 0
     if attrs.get_int("repeat", 1) != 1:
@@ -349,32 +368,52 @@ _identity_list = [
 ]
 
 _convert_map = {
-    "_copy"         : _rename(_op.copy),
-    "relu"          : _rename(_op.nn.relu),
-    "broadcast_add" : _rename(_op.add),
-    "broadcast_sub" : _rename(_op.subtract),
-    "broadcast_mul" : _rename(_op.multiply),
-    "broadcast_div" : _rename(_op.divide),
-    "elemwise_add"  : _rename(_op.add),
-    "elemwise_sub"  : _rename(_op.subtract),
-    "elemwise_mul"  : _rename(_op.multiply),
-    "elemwise_div"  : _rename(_op.divide),
-    "flatten"       : _rename(_op.nn.batch_flatten),
-    "Flatten"       : _rename(_op.nn.batch_flatten),
-    "_plus_scalar"  : _binop_scalar(_op.add),
-    "__add_scalar__": _binop_scalar(_op.add),
-    "__sub_scalar__": _binop_scalar(_op.subtract),
-    "_minus_scalar" : _binop_scalar(_op.subtract),
-    "__mul_scalar__": _binop_scalar(_op.multiply),
-    "_mul_scalar"   : _binop_scalar(_op.multiply),
-    "__div_scalar__": _binop_scalar(_op.divide),
-    "_div_scalar"   : _binop_scalar(_op.divide),
-    "__pow_scalar__": _binop_scalar(_op.power),
-    "_rminus_scalar": _rbinop_scalar(_op.subtract),
-    "__rsub_scalar__": _rbinop_scalar(_op.subtract),
-    "_rdiv_scalar"  : _rbinop_scalar(_op.divide),
-    "__rdiv_scalar__"  : _rbinop_scalar(_op.divide),
-    "__rpow_scalar__": _rbinop_scalar(_op.power),
+    "_copy"                  : _rename(_op.copy),
+    "relu"                   : _rename(_op.nn.relu),
+    "broadcast_add"          : _rename(_op.add),
+    "broadcast_sub"          : _rename(_op.subtract),
+    "broadcast_mul"          : _rename(_op.multiply),
+    "broadcast_div"          : _rename(_op.divide),
+    "broadcast_mod"          : _rename(_op.mod),
+    "broadcast_maximum"      : _rename(_op.maximum),
+    "broadcast_minimum"      : _rename(_op.minimum),
+    "broadcast_equal"        : _mx_compare(_op.equal, _rename),
+    "broadcast_not_equal"    : _mx_compare(_op.not_equal, _rename),
+    "broadcast_greater"      : _mx_compare(_op.greater, _rename),
+    "broadcast_greater_equal": _mx_compare(_op.greater_equal, _rename),
+    "broadcast_lesser"       : _mx_compare(_op.less, _rename),
+    "broadcast_lesser_equal" : _mx_compare(_op.less_equal, _rename),
+    "elemwise_add"           : _rename(_op.add),
+    "elemwise_sub"           : _rename(_op.subtract),
+    "elemwise_mul"           : _rename(_op.multiply),
+    "elemwise_div"           : _rename(_op.divide),
+    "_maximum"               : _rename(_op.maximum),
+    "_minimum"               : _rename(_op.minimum),
+    "flatten"                : _rename(_op.nn.batch_flatten),
+    "Flatten"                : _rename(_op.nn.batch_flatten),
+    "__add_scalar__"         : _binop_scalar(_op.add),
+    "_plus_scalar"           : _binop_scalar(_op.add),
+    "__sub_scalar__"         : _binop_scalar(_op.subtract),
+    "_minus_scalar"          : _binop_scalar(_op.subtract),
+    "__mul_scalar__"         : _binop_scalar(_op.multiply),
+    "_mul_scalar"            : _binop_scalar(_op.multiply),
+    "__div_scalar__"         : _binop_scalar(_op.divide),
+    "_div_scalar"            : _binop_scalar(_op.divide),
+    "__pow_scalar__"         : _binop_scalar(_op.power),
+    "_power_scalar"          : _binop_scalar(_op.power),
+    "__rsub_scalar__"        : _rbinop_scalar(_op.subtract),
+    "_rminus_scalar"         : _rbinop_scalar(_op.subtract),
+    "__rdiv_scalar__"        : _rbinop_scalar(_op.divide),
+    "_rdiv_scalar"           : _rbinop_scalar(_op.divide),
+    "__rpow_scalar__"        : _rbinop_scalar(_op.power),
+    "_equal_scalar"          : _mx_compare(_op.equal, _binop_scalar),
+    "_not_equal_scalar"      : _mx_compare(_op.not_equal, _binop_scalar),
+    "_greater_scalar"        : _mx_compare(_op.greater, _binop_scalar),
+    "_greater_equal_scalar"  : _mx_compare(_op.greater_equal, _binop_scalar),
+    "_lesser_scalar"         : _mx_compare(_op.less, _binop_scalar),
+    "_lesser_equal_scalar"   : _mx_compare(_op.less_equal, _binop_scalar),
+    "_maximum_scalar"        : _binop_scalar(_op.maximum),
+    "_minimum_scalar"        : _binop_scalar(_op.minimum),
     # reduction ops
     "max"           : _reduce(_op.max),
     "min"           : _reduce(_op.min),
@@ -418,6 +457,7 @@ _convert_map = {
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,
     "concat"        : _mx_concat,
+    "batch_dot"     : _mx_batch_dot,
     "LeakyReLU"     : _mx_leaky_relu,
     "_arange"       : _mx_arange,
     "SoftmaxOutput" : _mx_softmax_output,
@@ -432,7 +472,6 @@ _convert_map = {
     # "broadcast_to",
     # "gather_nd",
     # "Crop"          : _crop_like,
-
 }
 
 # set identity list

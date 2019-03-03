@@ -7,7 +7,7 @@
 #define TVM_PASS_IR_UTIL_H_
 
 #include <tvm/ir.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <tvm/runtime/device_api.h>
 #include <vector>
 

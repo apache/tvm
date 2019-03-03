@@ -25,6 +25,17 @@
  *    // The filled value is valid until the next call to Match.
  *    return (max(x, y) + z).Eval();
  *  }
+ *
+ *  tvm::Var tx, ty;
+ *  arith::PVar<Integer> c;
+ *  arith::PVar<Var> v;
+ *  // We can match integer and Var, both of which are
+ *  // special case container of Expr
+ *  CHECK((v * c).Match(tx * 3));
+ *  CHECK_EQ(c.Eval()->value, 3);
+ *  // cannot match c to ty
+ *  CHECK(!(v * c).Match(tx * ty));
+ *
  * \endcode
  *
  * \note The pattern matcher is not threadsafe,
@@ -109,6 +120,22 @@ class PEqualChecker<Expr> {
   }
 };
 
+template<>
+class PEqualChecker<Integer> {
+ public:
+  bool operator()(const Integer& lhs, const Integer& rhs) const {
+    return lhs->value == rhs->value;
+  }
+};
+
+template<>
+class PEqualChecker<Var> {
+ public:
+  bool operator()(const Var& lhs, const Var& rhs) const {
+    return lhs.same_as(rhs);
+  }
+};
+
 /*!
  * \brief Pattern variable container.
  *
@@ -123,7 +150,7 @@ template<typename T>
 class PVar : public Pattern<PVar<T> > {
  public:
   // Store PVars by reference in the expression.
-  using Nested = const PVar&;
+  using Nested = const PVar<T>&;
 
   void InitMatch_() const {
     filled_ = false;
@@ -139,12 +166,23 @@ class PVar : public Pattern<PVar<T> > {
     }
   }
 
+  template<typename NodeRefType,
+           typename = typename std::enable_if<
+             std::is_base_of<NodeRefType, T>::value>::type>
+  bool Match_(const NodeRefType& value) const {
+    if (const auto* ptr = value.template as<typename T::ContainerType>()) {
+      return Match_(GetRef<T>(ptr));
+    } else {
+      return false;
+    }
+  }
+
   T Eval() const {
     CHECK(filled_);
     return value_;
   }
 
- private:
+ protected:
   /*! \brief The matched value */
   mutable T value_;
   /*! \brief whether the variable has been filled */
@@ -171,6 +209,7 @@ class PConst : public Pattern<PConst<T> > {
   T Eval() const {
     return value_;
   }
+
  private:
   const T value_;
 };

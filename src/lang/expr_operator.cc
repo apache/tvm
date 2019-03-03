@@ -1,27 +1,15 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file ir_operator.cc
+ * \file expr_operator.cc
  */
 #include <tvm/base.h>
 #include <tvm/ir.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <cmath>
+// Centralized header for constant folders.
+#include "../arithmetic/const_fold.h"
 
 namespace tvm {
-
-/*!
- * \brief Check whether type is used to represent index.
- *
- * Index types are frequently used in shape computation
- * and need to be aggressively constant-folded.
- *
- * \param type The type to represent index.
- * \return the checked result.
- */
-inline bool IsIndexType(const Type& type) {
-  return type.is_int() && type.lanes() == 1 &&
-      (type.bits() == 32 || type.bits() == 64);
-}
 
 // simple cast that only checks if type matches and cast
 inline Expr SimpleCast(const Type& t, Expr value) {
@@ -135,45 +123,14 @@ Expr reinterpret(const Type& t, Expr value) {
   return ir::Call::make(t, ir::Call::reinterpret, { value }, ir::Call::PureIntrinsic);
 }
 
-#define TVM_INDEX_CONST_PROPAGATION(BODY)                               \
-  using ir::IntImm;                                                     \
-  using ir::UIntImm;                                                    \
-  const IntImm* pa = a.as<IntImm>();                                    \
-  const IntImm* pb = b.as<IntImm>();                                    \
-  const Type& ta = a.type();                                            \
-  const Type& tb = b.type();                                            \
-  if (IsIndexType(ta) && IsIndexType(tb)) {                             \
-    BODY;                                                               \
-  }                                                                     \
-  BinaryOpMatchTypes(a, b);
-
-#define TVM_ARITH_CONST_PROPAGATION(BODY)                               \
-  using ir::IntImm;                                                     \
-  using ir::UIntImm;                                                    \
-  using ir::FloatImm;                                                   \
-  BinaryOpMatchTypes(a, b);                                             \
-  const IntImm* pa = a.as<IntImm>();                                    \
-  const IntImm* pb = b.as<IntImm>();                                    \
-  const FloatImm* fa = a.as<FloatImm>();                                \
-  const FloatImm* fb = b.as<FloatImm>();                                \
-  BODY;
-
-
 Expr operator+(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      const Type& ta = a.type();
-      const Type& tb = b.type();
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      if (pa && pb) return IntImm::make(rtype, pa->value + pb->value);
-      if (pa && pa->value == 0) return SimpleCast(rtype, b);
-      if (pb && pb->value == 0) return SimpleCast(rtype, a);
-      if (fa && fb) return FloatImm::make(rtype, fa->value + fb->value);
-      if (fa && fa->value == 0) return SimpleCast(rtype, b);
-      if (fb && fb->value == 0) return SimpleCast(rtype, a);
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::Add>(a, b);
+  if (ret.defined()) return ret;
   return ir::Add::make(a, b);
 }
 
+// negation
 Expr operator-(Expr a) {
   using ir::IntImm;
   using ir::FloatImm;
@@ -185,114 +142,44 @@ Expr operator-(Expr a) {
 }
 
 Expr operator-(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      const Type& ta = a.type();
-      const Type& tb = b.type();
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      if (pa && pb) return IntImm::make(rtype, pa->value - pb->value);
-      if (pb && pb->value == 0) return SimpleCast(rtype, a);
-      if (fa && fb) return FloatImm::make(rtype, fa->value - fb->value);
-      if (fb && fb->value == 0) return SimpleCast(rtype, a);
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::Sub>(a, b);
+  if (ret.defined()) return ret;
   return ir::Sub::make(a, b);
 }
 
 Expr operator*(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      const Type& ta = a.type();
-      const Type& tb = b.type();
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      if (pa && pb) return IntImm::make(rtype, pa->value * pb->value);
-      if (pa) {
-        if (pa->value == 1) return SimpleCast(rtype, b);
-        if (pa->value == 0) return SimpleCast(rtype, a);
-      }
-      if (pb) {
-        if (pb->value == 1) return SimpleCast(rtype, a);
-        if (pb->value == 0) return SimpleCast(rtype, b);
-      }
-      if (fa && fb) return FloatImm::make(rtype, fa->value * fb->value);
-      if (fa) {
-        if (fa->value == 1) return SimpleCast(rtype, b);
-        if (fa->value == 0) return SimpleCast(rtype, a);
-      }
-      if (fb) {
-        if (fb->value == 1) return SimpleCast(rtype, a);
-        if (fb->value == 0) return SimpleCast(rtype, b);
-      }
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::Mul>(a, b);
+  if (ret.defined()) return ret;
   return ir::Mul::make(a, b);
 }
 
 Expr operator/(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      const Type& ta = a.type();
-      const Type& tb = b.type();
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      // due to division and mod can have different modes
-      // only constant fold positive number where rule is fixed.
-      if (pa && pb && pa->value >= 0 && pb->value > 0) {
-        return IntImm::make(rtype, pa->value / pb->value);
-      }
-      if (pa) {
-        if (pa->value == 0) return SimpleCast(rtype, a);
-      }
-      if (pb) {
-        if (pb->value == 1) return SimpleCast(rtype, a);
-        CHECK_NE(pb->value, 0) << "Divide by zero";
-      }
-      if (fa && fb && fb->value != 0) {
-        return FloatImm::make(rtype, fa->value / fb->value);
-      }
-      if (fa && fa->value == 0) {
-        return SimpleCast(rtype, a);
-      }
-      if (fb) {
-        if (fb->value == 1) return SimpleCast(rtype, a);
-        CHECK_NE(fb->value, 0) << "Divide by zero";
-      }
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::Div>(a, b);
+  if (ret.defined()) return ret;
   return ir::Div::make(a, b);
 }
 
 Expr operator%(Expr a, Expr b) {
-  TVM_INDEX_CONST_PROPAGATION({
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      // due to division and mod can have different modes
-      // only constant fold positive number where rule is fixed.
-      if (pa && pb && pa->value >= 0 && pb->value > 0) {
-        return IntImm::make(rtype, pa->value % pb->value);
-      }
-      if (pa) {
-        if (pa->value == 0) return SimpleCast(rtype, a);
-      }
-      if (pb) {
-        if (pb->value == 1) return make_zero(rtype);
-        CHECK_NE(pb->value, 0) << "Divide by zero";
-      }
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::Mod>(a, b);
+  if (ret.defined()) return ret;
   return ir::Mod::make(a, b);
 }
 
 Expr min(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      const Type& ta = a.type();
-      const Type& tb = b.type();
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      if (pa && pb) return IntImm::make(rtype, std::min(pa->value, pb->value));
-      if (fa && fb) return FloatImm::make(rtype, std::min(fa->value, fb->value));
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::Min>(a, b);
+  if (ret.defined()) return ret;
   return ir::Min::make(a, b);
 }
 
 Expr max(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      const Type& ta = a.type();
-      const Type& tb = b.type();
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      if (pa && pb) return IntImm::make(rtype, std::max(pa->value, pb->value));
-      if (fa && fb) return FloatImm::make(rtype, std::max(fa->value, fb->value));
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::Max>(a, b);
+  if (ret.defined()) return ret;
   return ir::Max::make(a, b);
 }
 
@@ -328,129 +215,116 @@ Expr likely(Expr cond) {
 }
 
 Expr operator>(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value > pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value > fb->value);
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::GT>(a, b);
+  if (ret.defined()) return ret;
   return ir::GT::make(a, b);
 }
 
 Expr operator>=(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value >= pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value >= fb->value);
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::GE>(a, b);
+  if (ret.defined()) return ret;
   return ir::GE::make(a, b);
 }
 
 Expr operator<(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value < pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value < fb->value);
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::LT>(a, b);
+  if (ret.defined()) return ret;
   return ir::LT::make(a, b);
 }
 
 Expr operator<=(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value <= pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value <= fb->value);
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::LE>(a, b);
+  if (ret.defined()) return ret;
   return ir::LE::make(a, b);
 }
 
 Expr operator==(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value == pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value == fb->value);
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::EQ>(a, b);
+  if (ret.defined()) return ret;
   return ir::EQ::make(a, b);
 }
 
 Expr operator!=(Expr a, Expr b) {
-  TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value != pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value != fb->value);
-    });
+  BinaryOpMatchTypes(a, b);
+  Expr ret = arith::TryConstFold<ir::NE>(a, b);
+  if (ret.defined()) return ret;
   return ir::NE::make(a, b);
 }
 
 Expr operator&&(Expr a, Expr b) {
-  using ir::UIntImm;
-  if (a.type().is_bool() && b.type().is_bool()) {
-    const UIntImm* pa = a.as<UIntImm>();
-    const UIntImm* pb = b.as<UIntImm>();
-    if (pa && pa->value) return b;
-    if (pa && !pa->value) return a;
-    if (pb && pb->value) return a;
-    if (pb && !pb->value) return b;
-  }
+  CHECK(a.type().is_bool());
+  CHECK(b.type().is_bool());
+  Expr ret = arith::TryConstFold<ir::And>(a, b);
+  if (ret.defined()) return ret;
   return ir::And::make(a, b);
 }
 
 Expr operator||(Expr a, Expr b) {
-  using ir::UIntImm;
-  if (a.type().is_bool() && b.type().is_bool()) {
-    const UIntImm* pa = a.as<UIntImm>();
-    const UIntImm* pb = b.as<UIntImm>();
-    if (pa && pa->value) return a;
-    if (pa && !pa->value) return b;
-    if (pb && pb->value) return b;
-    if (pb && !pb->value) return a;
-  }
+  CHECK(a.type().is_bool());
+  CHECK(b.type().is_bool());
+  Expr ret = arith::TryConstFold<ir::Or>(a, b);
+  if (ret.defined()) return ret;
   return ir::Or::make(a, b);
 }
 
 Expr operator!(Expr a) {
-  using ir::UIntImm;
-  const UIntImm* pa = a.as<UIntImm>();
-  if (pa) {
-    return UIntImm::make(UInt(1), !(pa->value));
-  }
+  CHECK(a.type().is_bool());
+  Expr ret = arith::TryConstFold<ir::Not>(a);
+  if (ret.defined()) return ret;
   return ir::Not::make(a);
 }
 
 Expr operator>>(Expr a, Expr b) {
+  BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
+      const Type& rtype = a.type();
       if (pa && pb) return IntImm::make(rtype, (pa->value >> pb->value));
       if (pb) {
-        if (pb->value == 0) return SimpleCast(rtype, a);
+        if (pb->value == 0) return a;
       }
     });
   return ir::Call::make(a.type(), ir::Call::shift_right, { a, b }, ir::Call::PureIntrinsic);
 }
 
 Expr operator<<(Expr a, Expr b) {
+  BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
+      const Type& rtype = a.type();
       if (pa && pb) return IntImm::make(rtype, (pa->value << pb->value));
       if (pb) {
-        if (pb->value == 0) return SimpleCast(rtype, a);
+        if (pb->value == 0) return a;
       }
     });
   return ir::Call::make(a.type(), ir::Call::shift_left, { a, b }, ir::Call::PureIntrinsic);
 }
 
 Expr operator&(Expr a, Expr b) {
+  BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
+      const Type& rtype = a.type();
       if (pa && pb) return IntImm::make(rtype, (pa->value & pb->value));
     });
   return ir::Call::make(a.type(), ir::Call::bitwise_and, { a, b }, ir::Call::PureIntrinsic);
 }
 
 Expr operator|(Expr a, Expr b) {
+  BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
+      const Type& rtype = a.type();
       if (pa && pb) return IntImm::make(rtype, (pa->value | pb->value));
     });
   return ir::Call::make(a.type(), ir::Call::bitwise_or, { a, b }, ir::Call::PureIntrinsic);
 }
 
 Expr operator^(Expr a, Expr b) {
+  BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
-      Type rtype = ta.bits() >= tb.bits() ? ta : tb;
+      const Type& rtype = a.type();
       if (pa && pb) return IntImm::make(rtype, (pa->value ^ pb->value));
     });
   return ir::Call::make(a.type(), ir::Call::bitwise_xor, { a, b }, ir::Call::PureIntrinsic);

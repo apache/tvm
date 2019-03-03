@@ -936,10 +936,8 @@ class VectorAllocRewriter : public IRMutator {
         tvec[0].lanes() != op->type.lanes()) {
       int factor = tvec[0].lanes() / op->type.lanes();
       Array<Expr> extents = op->extents;
-      arith::ModularEntry me = EvalModular(
-          extents[extents.size() - 1],
-          std::unordered_map<const Variable*, arith::ModularEntry>());
-      if (me.base % factor == 0 && me.coeff % factor == 0) {
+      arith::ModularSet me = analyzer_.modular_set(extents[extents.size() - 1]);
+      if (me->base % factor == 0 && me->coeff % factor == 0) {
         extents.Set(extents.size() - 1,
                     extents[extents.size() - 1] / make_const(extents[0].type(), factor));
         return Allocate::make(
@@ -959,6 +957,8 @@ class VectorAllocRewriter : public IRMutator {
 
   // Internal access map
   std::unordered_map<const Variable*, std::vector<Type> > acc_map_;
+  // internal analyzer
+  arith::Analyzer analyzer_;
 };
 
 

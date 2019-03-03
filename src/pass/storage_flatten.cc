@@ -8,7 +8,7 @@
 #include <tvm/expr.h>
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
 #include <tvm/target_info.h>

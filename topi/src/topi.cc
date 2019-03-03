@@ -27,6 +27,7 @@
 #include <topi/nn/upsampling.h>
 #include <topi/nn/l2_normalize.h>
 #include <topi/nn/local_response_norm.h>
+#include <topi/nn/batch_matmul.h>
 
 #include <topi/vision/reorg.h>
 #include <topi/image/resize.h>
@@ -111,6 +112,8 @@ TOPI_REGISTER_BCAST_OP("topi.maximum", topi::maximum);
 TOPI_REGISTER_BCAST_OP("topi.minimum", topi::minimum);
 TOPI_REGISTER_BCAST_OP("topi.power", topi::power);
 TOPI_REGISTER_BCAST_OP("topi.left_shift", topi::left_shift);
+TOPI_REGISTER_BCAST_OP("topi.logical_and", topi::logical_and);
+TOPI_REGISTER_BCAST_OP("topi.logical_or", topi::logical_or);
 TOPI_REGISTER_BCAST_OP("topi.right_shift", topi::right_shift);
 TOPI_REGISTER_BCAST_OP("topi.greater", topi::greater);
 TOPI_REGISTER_BCAST_OP("topi.less", topi::less);
@@ -351,6 +354,12 @@ TVM_REGISTER_GLOBAL("topi.nn.dense")
   *rv = nn::dense(args[0], args[1], args[2]);
   });
 
+/* Ops from nn/batch_matmul.h */
+TVM_REGISTER_GLOBAL("topi.nn.batch_matmul")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::batch_matmul(args[0], args[1]);
+  });
+
 /* Ops from nn/dilate.h */
 TVM_REGISTER_GLOBAL("topi.nn.dilate")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -588,6 +597,9 @@ TVM_REGISTER_GENERIC_FUNC(schedule_dense)
 .set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_dense))
 .register_func({ "rocm" }, WrapSchedule(topi::rocm::schedule_dense));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_batch_matmul)
+.set_default(WrapSchedule(topi::generic::default_schedule));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_pool)
 .set_default(WrapSchedule(topi::generic::default_schedule))

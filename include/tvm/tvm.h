@@ -8,7 +8,7 @@
 
 #include "base.h"
 #include "expr.h"
-#include "ir_operator.h"
+#include "expr_operator.h"
 #include "tensor.h"
 #include "operation.h"
 #include "packed_func_ext.h"

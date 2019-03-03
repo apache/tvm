@@ -4,7 +4,7 @@
  * \brief Implementation of operator pad
  */
 #include <tvm/data_layout.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <topi/nn.h>

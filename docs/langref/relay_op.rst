@@ -152,6 +152,7 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.device_copy
    tvm.relay.annotation.on_device
    tvm.relay.reverse_reshape
+   tvm.relay.nn.batch_matmul
 
 
 Level 1 Definitions
@@ -264,3 +265,4 @@ Level 10 Definitions
 .. autofunction:: tvm.relay.device_copy
 .. autofunction:: tvm.relay.annotation.on_device
 .. autofunction:: tvm.relay.reverse_reshape
+.. autofunction:: tvm.relay.nn.batch_matmul
