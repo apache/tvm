@@ -5,9 +5,8 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/ir_operator.h>
 #include <tvm/api_registry.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 
 namespace tvm {
 namespace ir {
