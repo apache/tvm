@@ -289,16 +289,6 @@ def test_forward_minimum():
         tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
         tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
-def test_forward_slice_axis():
-    data = mx.sym.var('data')
-    mx_sym = mx.sym.slice_axis(data, axis=1, begin=-5, end=None)
-    verify_mxnet_frontend_impl(mx_sym, (1, 10, 6), (1, 5, 6))
-
-def test_forward_l2_normalize():
-    data = mx.sym.var('data')
-    mx_sym = mx.sym.L2Normalization(data, mode="channel")
-    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
-
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -325,5 +315,3 @@ if __name__ == '__main__':
     test_forward_slice()
     test_forward_maximum()
     test_forward_minimum()
-    test_forward_slice_axis()
-    test_forward_l2_normalize()
