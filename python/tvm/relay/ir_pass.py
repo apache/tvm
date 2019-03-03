@@ -564,3 +564,23 @@ def get_total_mac_number(expr):
       The number of MACs (multiply-accumulate) of a model
     """
     return _ir_pass.GetTotalMacNumber(expr)
+
+
+def eliminate_common_subexpr(expr, fskip=None):
+    """
+    Eliminate common subexpressions.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    fskip: function
+        The callback function that decides whether an expression should be skipped.
+
+    Returns
+    -------
+    expr : tvm.relay.Expr
+      The output expression.
+    """
+    return _ir_pass.eliminate_common_subexpr(expr, fskip)
