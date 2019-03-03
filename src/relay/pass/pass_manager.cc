@@ -27,7 +27,7 @@ class ModulePassNode : public PassNode {
    * implement the algorithm in the `pass_func` and let it run on a module. It
    * will then remove the dead code including the unused functions in the module.
    */
-  ModulePassFunc pass_func;
+  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func;
 
   ModulePassNode() = default;
 
@@ -55,8 +55,9 @@ class ModulePassNode : public PassNode {
    */
   void SetContext(const PassContext& pass_ctx) final;
 
-  TVM_DLL static ModulePass make(std::string name, int opt_level,
-                                 ModulePassFunc pass_func);
+  TVM_DLL static ModulePass make(
+      std::string name, int opt_level,
+      runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func);
 
   static constexpr const char* _type_key = "relay.ModulePass";
   TVM_DECLARE_NODE_TYPE_INFO(ModulePassNode, PassNode);
@@ -88,7 +89,7 @@ class FunctionPassNode : public PassNode {
    * `pass_func` and let it run on a given module. The same `pass_func` will
    * then be applied on each function in the module.
    */
-  FunctionPassFunc pass_func;
+  runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func;
 
   FunctionPassNode() = default;
 
@@ -116,8 +117,9 @@ class FunctionPassNode : public PassNode {
    */
   void SetContext(const PassContext& pass_ctx) final;
 
-  TVM_DLL static FunctionPass make(std::string name, int opt_level,
-                                   FunctionPassFunc pass_func);
+  TVM_DLL static FunctionPass make(
+      std::string name, int opt_level,
+      runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func);
 
   static constexpr const char* _type_key = "relay.FunctionPass";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionPassNode, PassNode);
@@ -234,8 +236,9 @@ PassContext PassContextNode::make() {
   return PassContext(ctx);
 }
 
-ModulePass ModulePassNode::make(std::string name, int opt_level,
-                                ModulePassFunc pass_func) {
+ModulePass ModulePassNode::make(
+    std::string name, int opt_level,
+    runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func) {
   auto n = make_node<ModulePassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
@@ -266,8 +269,9 @@ void ModulePassNode::SetContext(const PassContext& pass_ctx) {
   pass_ctx_ = pass_ctx;
 }
 
-FunctionPass FunctionPassNode::make(std::string name, int opt_level,
-                                    FunctionPassFunc pass_func) {
+FunctionPass FunctionPassNode::make(
+    std::string name, int opt_level,
+    runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func) {
   auto n = make_node<FunctionPassNode>();
   n->name = std::move(name);
   n->opt_level = std::move(opt_level);
@@ -368,13 +372,16 @@ void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
   pass_ctx_ = pass_ctx;
 }
 
-Pass CreateModulePass(const std::string& name, int opt_level,
-                      const ModulePassFunc& pass_func) {
+Pass CreateModulePass(
+    const std::string& name, int opt_level,
+    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func) {
   return ModulePassNode::make(name, opt_level, pass_func);
 }
 
-Pass CreateFunctionPass(const std::string& name, int opt_level,
-                        const FunctionPassFunc& pass_func) {
+Pass CreateFunctionPass(
+    const std::string& name, int opt_level,
+    const runtime::TypedPackedFunc<Function(Function, PassContext)>&
+        pass_func) {
   return FunctionPassNode::make(name, opt_level, pass_func);
 }
 

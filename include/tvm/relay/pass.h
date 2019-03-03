@@ -140,15 +140,6 @@ class Pass : public NodeRef {
   using ContainerType = PassNode;
 };
 
-// Define pass function at different granularity. It runs on a certain Relay
-// node type and yields a new node with the same type. Each pass function
-// sketches an optimization, i.e. how we want to mutate an AST, and it is used
-// as a packed function that will be invoked when called by the functor of each
-// pass.
-using ModulePassFunc = runtime::TypedPackedFunc<Module(Module, PassContext)>;
-using FunctionPassFunc =
-    runtime::TypedPackedFunc<Function(Function, PassContext)>;
-
 /*
  * \brief Create a module pass.
  *
@@ -158,8 +149,9 @@ using FunctionPassFunc =
  *
  * \return The created module pass.
  */
-Pass CreateModulePass(const std::string& name, int opt_level,
-                      const ModulePassFunc& pass_func);
+Pass CreateModulePass(
+    const std::string& name, int opt_level,
+    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func);
 
 /*
  * \brief Create a function pass.
@@ -170,8 +162,9 @@ Pass CreateModulePass(const std::string& name, int opt_level,
  *
  * \return The created function pass.
  */
-Pass CreateFunctionPass(const std::string& name, int opt_level,
-                        const FunctionPassFunc& pass_func);
+Pass CreateFunctionPass(
+    const std::string& name, int opt_level,
+    const runtime::TypedPackedFunc<Function(Function, PassContext)>& pass_func);
 /*
  * \brief Create a sequential pass.
  *
