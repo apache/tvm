@@ -227,7 +227,6 @@ def test_forward_slice():
     mx_sym = mx.sym.slice(data, begin=(-1, 1), end=(-3, 4), step=(-1, 2))
     verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 2))
 
-<<<<<<< HEAD
 def test_forward_maximum():
     a = mx.sym.var('a')
     b = mx.sym.var('b')

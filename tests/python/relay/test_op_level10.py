@@ -146,7 +146,6 @@ def test_reverse_reshape():
     verify_reverse_reshape((2, 3, 4), (-1, 0), (6, 4))
     verify_reverse_reshape((2, 3, 4), (0, -3), (2, 12))
 
-<<<<<<< HEAD
 def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
     x = relay.var("x", relay.TensorType(x_shape, dtype))
     y = relay.var("y", relay.TensorType(y_shape, dtype))
