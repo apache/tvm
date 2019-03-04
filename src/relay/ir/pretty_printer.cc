@@ -255,68 +255,82 @@ class PrettyPrinter :
     }
 
     Doc VisitType_(const TensorTypeNode* node) final {  // NOLINT(*)
-    // scalar type
-    if (node->shape.size() == 0) {
-      return PrintDType(node->dtype);
+      // scalar type
+      if (node->shape.size() == 0) {
+        return PrintDType(node->dtype);
+      }
+      Doc doc = Nil();
+      doc << "Tensor[(";
+      std::vector<Doc> shapes;
+      for (NodeRef shape : node->shape) {
+        shapes.push_back(PrintAttr(shape));
+      }
+      doc << PrintVec(shapes);
+      // conform to python tuple format (1,)
+      if (node->shape.size() == 1) {
+        doc << ",";
+      }
+      return doc << "), " << PrintDType(node->dtype) << "]";
     }
-    Doc doc = Nil();
-    doc << "Tensor[(";
-    std::vector<Doc> shapes;
-    for (NodeRef shape : node->shape) {
-      shapes.push_back(PrintAttr(shape));
+
+    Doc VisitType_(const TupleTypeNode* node) final {
+      std::vector<Doc> fields;
+      for (NodeRef field : node->fields) {
+        fields.push_back(Print(field));
+      }
+      Doc doc = Nil();
+      doc << "(" << PrintVec(fields);
+      // conform to python tuple format (1,)
+      if (node->fields.size() == 1) {
+        doc << ",";
+      }
+      return doc << ")";
     }
-    doc << PrintVec(shapes);
-    // conform to python tuple format (1,)
-    if (node->shape.size() == 1) {
-      doc << ",";
+
+    //------------------------------------
+    // Overload of Attr printing functions
+    //------------------------------------
+
+    Doc PrintAttr(const NodeRef& value) {  // NOLINT(*)
+      if (value.defined()) {
+        return VisitAttr(value);
+      } else {
+        return Text("None");
+      }
     }
-    return doc << "), " << PrintDType(node->dtype) << "]";
-  }
 
-  //------------------------------------
-  // Overload of Attr printing functions
-  //------------------------------------
-
-  Doc PrintAttr(const NodeRef& value) {  // NOLINT(*)
-    if (value.defined()) {
-      return VisitAttr(value);
-    } else {
-      return Text("None");
+    Doc VisitAttr_(const ArrayNode* op) final {  // NOLINT(*)
+      Doc doc = Nil();
+      doc << "[";
+      std::vector<Doc> arr_vals;
+      for (NodePtr<Node> val : op->data) {
+        arr_vals.push_back(PrintAttr(NodeRef(val)));
+      }
+      doc << PrintVec(arr_vals);
+      doc << "]";
+      return doc;
     }
-  }
 
-  Doc VisitAttr_(const ArrayNode* op) final {  // NOLINT(*)
-    Doc doc = Nil();
-    doc << "[";
-    std::vector<Doc> arr_vals;
-    for (NodePtr<Node> val : op->data) {
-      arr_vals.push_back(PrintAttr(NodeRef(val)));
+    Doc VisitAttrDefault_(const Node* op) final { // NOLINT(*)
+      // os << meta_.GetMetaNode(GetRef<NodeRef>(op));
+      assert(false);
     }
-    doc << PrintVec(arr_vals);
-    doc << "]";
-    return doc;
-  }
 
-  Doc VisitAttrDefault_(const Node* op) final { // NOLINT(*)
-    // os << meta_.GetMetaNode(GetRef<NodeRef>(op));
-    assert(false);
-  }
+    Doc VisitAttr_(const ir::IntImm* op) final {  // NOLINT(*)
+      return PrintConstScalar(op->type, &(op->value));
+    }
 
-  Doc VisitAttr_(const ir::IntImm* op) final {  // NOLINT(*)
-    return PrintConstScalar(op->type, &(op->value));
-  }
+    Doc VisitAttr_(const ir::UIntImm* op) final {  // NOLINT(*)
+      return PrintConstScalar(op->type, &(op->value));
+    }
 
-  Doc VisitAttr_(const ir::UIntImm* op) final {  // NOLINT(*)
-    return PrintConstScalar(op->type, &(op->value));
-  }
+    Doc VisitAttr_(const ir::FloatImm* op) final {  // NOLINT(*)
+      return PrintConstScalar(op->type, &(op->value));
+    }
 
-  Doc VisitAttr_(const ir::FloatImm* op) final {  // NOLINT(*)
-    return PrintConstScalar(op->type, &(op->value));
-  }
-
-  Doc VisitAttr_(const ir::StringImm* op) final {  // NOLINT(*)
-    return PrintString(op->value);
-  }
+    Doc VisitAttr_(const ir::StringImm* op) final {  // NOLINT(*)
+      return PrintString(op->value);
+    }
 
   private:
     /*! \brief Stack of docs to implement scoped GNFing. */

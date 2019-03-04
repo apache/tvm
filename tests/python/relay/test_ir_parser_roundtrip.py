@@ -35,11 +35,19 @@ def test_roundtrip_pp(e):
 
 def test_gnf():
     assert gnf_print(relay.const(1)) == "v0.0.1\n1\n"
-    assert gnf_print(relay.Tuple([relay.const(1), relay.const(1)])) == "v0.0.1\n%0 = 1\n%1 = 1\n(%0, %1)\n"
+    assert gnf_print(relay.Tuple([relay.const(1), relay.const(1)])) == "v0.0.1\n(1, 1)\n"
     one = relay.const(1)
-    assert gnf_print(relay.Tuple([one, one])) == "v0.0.1\n%0 = 1\n(%0, %0)\n"
+    assert gnf_print(relay.Tuple([one, one])) == "v0.0.1\n(1, 1)\n"
         
-    assert gnf_print(relay.If(relay.const(True), relay.TupleGetItem(relay.Tuple([one, one]), 0), relay.TupleGetItem(relay.Tuple([one, one, relay.const(1)]), 0))) == "v0.0.1\n%0 = True\nif (%0) {\n  %1 = 1\n  %2 = (%1, %1)\n  %2.0\n} else {\n  %1 = 1\n  %2 = 1\n  %3 = (%1, %1, %2)\n  %3.0\n}\n"
+    # assert gnf_print(relay.If(relay.const(True), relay.TupleGetItem(relay.Tuple([one, one]), 0), relay.TupleGetItem(relay.Tuple([one, one, relay.const(1)]), 0))) == "v0.0.1\n%0 = True\nif (%0) {\n  %1 = 1\n  %2 = (%1, %1)\n  %2.0\n} else {\n  %1 = 1\n  %2 = 1\n  %3 = (%1, %1, %2)\n  %3.0\n}\n"
+
+def test_tensor_type():
+    assert gnf_print(relay.TensorType([5, 5])) == "v0.0.1\nTensor[(5, 5), float32]\n"
+
+def test_tuple_type():
+    assert gnf_print(relay.TupleType([])) == "v0.0.1\n()\n"
+    assert gnf_print(relay.TupleType([relay.scalar_type("int32")])) == "v0.0.1\n(int32,)\n"
+    assert gnf_print(relay.TupleType([relay.scalar_type("int32"),relay.scalar_type("int32")])) == "v0.0.1\n(int32, int32)\n"
 
 if __name__ == "__main__":
     # for _ in range(10):
@@ -76,8 +84,5 @@ if __name__ == "__main__":
     print(gnf_print(relay.fromtext(SEMVER+"fn(%x, %y) { %x + %y }")))
     print(relay.Call(relay.fromtext(SEMVER+"fn(%x) { %x }"), [relay.const(1)], attrs=tvm.make.node("DictAttrs", n="foo")).astext())
     # print(anf_print(relay.Call(relay.fromtext(SEMVER+"fn(%x) { %x }"), [relay.const(1)], attrs=tvm.make.node("DictAttrs", n="foo"))))
-    print(relay.TensorType([5, 5]).astext())
-    print(anf_print(relay.TensorType([5, 5])))
-    print(gnf_print(relay.TensorType([5, 5])))
     # print(relay.fromtext(SEMVER+"add(n=5)").astext())
     # print(anf_print(relay.fromtext(SEMVER+"fn (n=5) { () }")))
