@@ -136,8 +136,7 @@ def verify_stack(shapes, axis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(out_tensor)
-#            print(tvm.lower(s, [tensor_l, axis, out_tensor], simple_mode=True))
+            s = topi.generic.schedule_broadcast(out_tensor)
 
         foo = tvm.build(s, tensor_l + [out_tensor], device, name="stack")
         data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
@@ -409,7 +408,7 @@ def test_squeeze():
 
 
 def test_concatenate():
-    verify_concatenate([(2,), (2,), (2,)], 0)
+    verify_concatenate([(2,), (2,), (2,)], -1)
     verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
     verify_concatenate([(1, 2, 4), (1, 2, 3), (1, 2, 7), (1, 2, 8), (1, 2, 1)], -1)
     verify_concatenate([(5, 6, 7, 3),
@@ -420,8 +419,11 @@ def test_concatenate():
 
 
 def test_stack():
+    verify_stack([(2,), (2,), (2,)], -1)
+    verify_stack([(2,), (2,), (2,)], 1)
     verify_stack([(2,), (2,), (2,)], 0)
-    verify_stack([(2, 3, 4), (2, 2, 4), (2, 2, 4)], 1)
+    verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
+    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
 
 
 def test_split():
@@ -511,6 +513,7 @@ def test_layout_transform():
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
+    test_stack()
     test_tranpose()
     test_expand_dims()
     test_reshape()
@@ -521,5 +524,4 @@ if __name__ == "__main__":
     test_take()
     test_gather_nd()
     test_arange()
-    test_stack()
     test_layout_transform()

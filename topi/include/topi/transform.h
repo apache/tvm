@@ -338,15 +338,14 @@ inline Tensor stack(const Array<Tensor>& inputs,
                     std::string name = "tensor",
                     std::string tag = kInjective) {
   int ndim = static_cast<int>(inputs[0]->shape.size());
-  std::cout << ndim <<std::endl;
-  CHECK(-ndim <= axis && axis < ndim)
+  CHECK(-ndim - 1 <= axis && axis <= ndim)
     << "stack only accepts `axis` in [-ndim, ndim)"
     << ", but got axis = " << axis
     << ", and ndim = " << ndim;
   if (axis < 0) {
-    axis += ndim;
+    axis += ndim + 1;
   }
-  CHECK_LT(axis, inputs[0]->shape.size()) <<
+  CHECK_LT(axis, inputs[0]->shape.size() + 1) <<
     "axis out of bounds";
 
   const int stack_size = static_cast<int>(inputs.size());
