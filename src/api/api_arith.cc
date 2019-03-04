@@ -109,7 +109,10 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
         });
       } else if (name == "enter_constraint_context") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            auto ctx = std::make_shared<ConstraintContext>(self.get(), args[0]);
+            // can't use make_shared due to noexcept(false) decl in destructor,
+            // see https://stackoverflow.com/a/43907314
+            auto ctx =
+                std::shared_ptr<ConstraintContext>(new ConstraintContext(self.get(), args[0]));
             auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable {
               ctx.reset();
             };
