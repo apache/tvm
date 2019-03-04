@@ -14,6 +14,9 @@ from nnvm.compiler import graph_util
 from nnvm.compiler.graph_attr import TCODE_TO_DTYPE, DTYPE_TO_TCODE
 from .config import ctx_list
 
+from nnvm.to_relay import to_relay
+from tvm import relay
+
 def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
     """Runs dtype and shape inference passes on a graph and returns the resulting graph
     along with the inferred information.
@@ -440,6 +443,23 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
             # nnvm_res contains the output and gradients (if they are needed)
             debug_stage = "running"
             nnvm_res = main_function(**np_inputs)
+
+            try:
+                logging.debug("checking to_relay conversion")
+                inputs = np_inputs_without_head_grads.copy()
+                func, inputs = to_relay(main_graph, shape, dtype, params=inputs)
+                with relay.build_config(opt_level=3):
+                    graph, lib, params = relay.build(func, target=target)
+                m = graph_runtime.create(graph, lib, ctx)
+                m.set_input(**inputs)
+                m.set_input(**params)
+                m.run()
+                for i in range(out_len):
+                    relay_out = m.get_output(i).asnumpy()
+                    tvm.testing.assert_allclose(nnvm_res[i], relay_out, atol=atol, rtol=rtol)
+            except NotImplementedError as e:
+                # the NNVM operator is not supported yet
+                logging.warning(e)
 
             if backward_graph is not None:
                 grad_var_names = [x.attr('name') for x in grad_input_vars]
