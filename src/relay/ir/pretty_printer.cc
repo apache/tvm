@@ -14,7 +14,8 @@ namespace relay {
 
 class PrettyPrinter :
     public ExprFunctor<Doc(const Expr&)>,
-    public TypeFunctor<Doc(const Type&)> {
+    public TypeFunctor<Doc(const Type&)>,
+    public AttrFunctor<Doc(const NodeRef&)> {
   public:
     explicit PrettyPrinter(const std::unordered_map<Expr, Doc, NodeHash, NodeEqual>& memo_, const std::unordered_map<Type, Doc, NodeHash, NodeEqual>& memo_type_, const std::unordered_map<std::string, int>& name_alloc_map_, size_t temp_var_counter_, bool GNF_) : memo_(memo_), memo_type_(memo_type_), name_alloc_map_(name_alloc_map_), temp_var_counter_(temp_var_counter_), GNF_(GNF_) {}
 
@@ -243,7 +244,7 @@ class PrettyPrinter :
     }
 
     //------------------------------------
-    // Overload of Expr printing functions
+    // Overload of Type printing functions
     //------------------------------------
     Doc PrintType(const Type& type) {
       auto it = memo_type_.find(type);
@@ -253,64 +254,23 @@ class PrettyPrinter :
       return printed_type;
     }
 
-  private:
-    /*! \brief Stack of docs to implement scoped GNFing. */
-    std::vector<Doc> doc_stack_{Nil()};
-    /*! \brief Map from Expr to Doc */
-    std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
-    /*! \brief Map from Type to Doc */
-    std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
-    std::unordered_map<std::string, int> name_alloc_map_;
-    size_t temp_var_counter_;
-    bool GNF_;
-    class AttrPrinter;
-    friend class AttrPrinter;
-};
-
-/*!
- * \brief Attribute printer which prints the attributes in the call.
- */
-class PrettyPrinter::AttrPrinter :
-  public AttrVisitor,
-  public AttrFunctor<Doc(const NodeRef&)> {
- public:
-  AttrPrinter(Doc& doc_) : doc_(doc_) {}
-
-  template<typename T>
-  Doc PrintKV(const char* key, const T& value) {
+    Doc VisitType_(const TensorTypeNode* node) final {  // NOLINT(*)
+    // scalar type
+    if (node->shape.size() == 0) {
+      return PrintDType(node->dtype);
+    }
     Doc doc = Nil();
-    return doc << ", " << key << "=" << value;
-  }
-
-  void Visit(const char* key, double* value) final {
-    doc_ << PrintKV(key, value[0]);
-  }
-  void Visit(const char* key, int64_t* value) final {
-    doc_ << PrintKV(key, value[0]);
-  }
-  void Visit(const char* key, uint64_t* value) final {
-    doc_ << PrintKV(key, value[0]);
-  }
-  void Visit(const char* key, int* value) final {
-    doc_ << PrintKV(key, value[0]);
-  }
-  void Visit(const char* key, bool* value) final {
-    doc_ << PrintKV(key, PrintBool(value[0]));
-  }
-  void Visit(const char* key, std::string* value) final {
-    doc_ << PrintKV(key, PrintString(value[0]));
-  }
-  void Visit(const char* key, void** value) final {
-    LOG(FATAL) << "do not allow void as argument";
-  }
-  void Visit(const char* key, DataType* value) final {
-    doc_ << PrintKV(key, PrintString(runtime::TVMType2String(Type2TVMType(value[0]))));
-  }
-  void Visit(const char* key, NodeRef* value) final {
-    doc_ << PrintKV(key, PrintAttr(value[0]));
-  }
-  void Visit(const char* key, runtime::NDArray* value) final {
-    LOG(FATAL) << "do not allow NDarray as argument";
+    doc << "Tensor[(";
+    std::vector<Doc> shapes;
+    for (NodeRef shape : node->shape) {
+      shapes.push_back(PrintAttr(shape));
+    }
+    doc << PrintVec(shapes);
+    // conform to python tuple format (1,)
+    if (node->shape.size() == 1) {
+      doc << ",";
+    }
+    return doc << "), " << PrintDType(node->dtype) << "]";
   }
 
   //------------------------------------
@@ -354,25 +314,78 @@ class PrettyPrinter::AttrPrinter :
     return PrintConstScalar(op->type, &(op->value));
   }
 
-  Doc PrintString(const std::string& value) { // NOLINT(*)
-    // TODO(M.K.): add escape.
-    Doc doc = Nil();
-    return doc << "\"" << value << "\"";
-  }
-
   Doc VisitAttr_(const ir::StringImm* op) final {  // NOLINT(*)
     return PrintString(op->value);
   }
 
   private:
+    /*! \brief Stack of docs to implement scoped GNFing. */
+    std::vector<Doc> doc_stack_{Nil()};
+    /*! \brief Map from Expr to Doc */
+    std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
+    /*! \brief Map from Type to Doc */
+    std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
+    std::unordered_map<std::string, int> name_alloc_map_;
+    size_t temp_var_counter_;
+    bool GNF_;
+    class AttrPrinter;
+    friend class AttrPrinter;
+};
+
+/*!
+ * \brief Attribute printer which prints the attributes in the call.
+ */
+class PrettyPrinter::AttrPrinter : public AttrVisitor {
+ public:
+  AttrPrinter(Doc& doc_, PrettyPrinter* parent_) : doc_(doc_), parent_(parent_) {}
+
+  template<typename T>
+  Doc PrintKV(const char* key, const T& value) {
+    Doc doc = Nil();
+    return doc << ", " << key << "=" << value;
+  }
+
+  void Visit(const char* key, double* value) final {
+    doc_ << PrintKV(key, value[0]);
+  }
+  void Visit(const char* key, int64_t* value) final {
+    doc_ << PrintKV(key, value[0]);
+  }
+  void Visit(const char* key, uint64_t* value) final {
+    doc_ << PrintKV(key, value[0]);
+  }
+  void Visit(const char* key, int* value) final {
+    doc_ << PrintKV(key, value[0]);
+  }
+  void Visit(const char* key, bool* value) final {
+    doc_ << PrintKV(key, PrintBool(value[0]));
+  }
+  void Visit(const char* key, std::string* value) final {
+    doc_ << PrintKV(key, PrintString(value[0]));
+  }
+  void Visit(const char* key, void** value) final {
+    LOG(FATAL) << "do not allow void as argument";
+  }
+  void Visit(const char* key, DataType* value) final {
+    doc_ << PrintKV(key, PrintString(runtime::TVMType2String(Type2TVMType(value[0]))));
+  }
+  void Visit(const char* key, NodeRef* value) final {
+    doc_ << PrintKV(key, parent_->PrintAttr(value[0]));
+  }
+  void Visit(const char* key, runtime::NDArray* value) final {
+    LOG(FATAL) << "do not allow NDarray as argument";
+  }
+
+  private:
     Doc& doc_;
+    PrettyPrinter* parent_;
 };
 
 Doc PrettyPrinter::PrintAttrs(const Attrs& attrs) {  // NOLINT(*)
   // TODO: meta
   if (!attrs.defined()) return Nil();
   Doc doc = Nil();
-  AttrPrinter printer(doc);
+  AttrPrinter printer(doc, this);
   const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
   return doc;
 }

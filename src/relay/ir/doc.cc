@@ -124,5 +124,15 @@ Doc PrintBool(bool value) {
   }
 }
 
+Doc PrintDType(DataType dtype) {
+  return Text(runtime::TVMType2String(Type2TVMType(dtype)));
+}
+
+Doc PrintString(const std::string& value) { // NOLINT(*)
+  // TODO(M.K.): add escape.
+  Doc doc = Nil();
+  return doc << "\"" << value << "\"";
+}
+
 } // relay
 } // tvm

@@ -72,6 +72,8 @@ std::string Layout(const Doc& doc);
 Doc PrintVec(const std::vector<Doc>& arr, const Doc& sep = Text(", "));
 // Print constant bool value.
 Doc PrintBool(bool value);
+Doc PrintDType(DataType dtype);
+Doc PrintString(const std::string& value);
 /*!
  * \brief special method to print out const scalar
  * \param dtype The data type
