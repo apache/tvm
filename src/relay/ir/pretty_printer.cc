@@ -275,7 +275,7 @@ class PrettyPrinter :
 
     Doc VisitType_(const TupleTypeNode* node) final {
       std::vector<Doc> fields;
-      for (NodeRef field : node->fields) {
+      for (Type field : node->fields) {
         fields.push_back(Print(field));
       }
       Doc doc = Nil();
@@ -285,6 +285,15 @@ class PrettyPrinter :
         doc << ",";
       }
       return doc << ")";
+    }
+
+    Doc VisitType_(const FuncTypeNode* node) final {
+      Doc doc = Nil();
+      std::vector<Doc> arg_types;
+      for (Type arg_type : node->arg_types) {
+        arg_types.push_back(Print(arg_type));
+      }
+      return doc << "fn (" << PrintVec(arg_types) << ") -> " << Print(node->ret_type);
     }
 
     //------------------------------------

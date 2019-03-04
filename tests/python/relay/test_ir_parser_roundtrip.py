@@ -49,6 +49,9 @@ def test_tuple_type():
     assert gnf_print(relay.TupleType([relay.scalar_type("int32")])) == "v0.0.1\n(int32,)\n"
     assert gnf_print(relay.TupleType([relay.scalar_type("int32"),relay.scalar_type("int32")])) == "v0.0.1\n(int32, int32)\n"
 
+def test_func_type():
+    assert gnf_print(relay.FuncType([relay.scalar_type("int32"), relay.scalar_type("int32")], relay.scalar_type("int32"))) == "v0.0.1\nfn (int32, int32) -> int32\n"
+
 if __name__ == "__main__":
     # for _ in range(10):
     #     print(anf_print(exprs.example()))
