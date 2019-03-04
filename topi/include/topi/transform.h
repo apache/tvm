@@ -364,7 +364,7 @@ inline Tensor stack(const Array<Tensor>& inputs,
           idx.push_back(indices[i]);
       auto ind = indices[axis];
       auto ret = inputs[0](idx);
-      for (int i = 0; i < static_cast<size_t>(inputs.size() - 1); ++i) {
+      for (int i = 0; i < static_cast<int>(inputs.size() - 1); ++i) {
         ret = tvm::if_then_else(ind == i + 1,
                                 inputs[i + 1](idx),
                                 ret);
