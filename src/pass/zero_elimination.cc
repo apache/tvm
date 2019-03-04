@@ -317,17 +317,19 @@ class InlineTensorsMutator : public IRMutator {
 
   Expr Mutate_(const Call* op, const Expr& e) {
     if (op->call_type == Call::CallType::Halide) {
-      const ComputeOpNode* op_comp = op->func.as<ComputeOpNode>();
-      if (inlineable_.empty() || inlineable_.count({op_comp, op->value_index})) {
-        // Inline only compute nodes that are not reductions (unless inline reductions is allowed)
-        if (op_comp && (inline_reductions_ || !op_comp->body[0].as<Reduce>())) {
-          // Inline this call and then try to perform further inlining
-          return Mutate(InlineThisCall(e));
+      if (const ComputeOpNode* op_comp = op->func.as<ComputeOpNode>()) {
+        // Inline only if the array of inlineable tensors is empty or contains this tensor
+        if (inlineable_.empty() || inlineable_.count({op_comp, op->value_index})) {
+          // Inline only compute nodes that are not reductions (unless inline reductions is allowed)
+          if (inline_reductions_ || !op_comp->body[0].as<Reduce>()) {
+            // Inline this call and then try to perform further inlining
+            return Mutate(InlineThisCall(e));
+          }
         }
       }
     }
 
-    // If we cannot inline this call, we should try to doinlining in its arguments
+    // If we cannot inline this call, we should try to do inlining in its arguments
     return IRMutator::Mutate_(op, e);
   }
 
@@ -565,13 +567,16 @@ struct FactorOutAtomicFormulasResult {
   }
 };
 
+// The implementation of FactorOutAtomicFormulas
 class FactorOutAtomicFormulasFunctor
   : public ExprFunctor<FactorOutAtomicFormulasResult(const Expr&, const Expr&)> {
  public:
   result_type Atomic_(const Expr& e) {
+    // For atomic expressions the result is the expr itself with True as the residual
     return {{e}, make_const(e.type(), 1)};
   }
 
+  // This is basically the list of expression kinds that are considered atomic
   result_type VisitExpr_(const Variable*, const Expr& e) final { return Atomic_(e); }
   result_type VisitExpr_(const Call*, const Expr& e) final { return Atomic_(e); }
   result_type VisitExpr_(const IntImm*, const Expr& e) final { return Atomic_(e); }
@@ -587,6 +592,7 @@ class FactorOutAtomicFormulasFunctor
     auto res_a = VisitExpr(op->a, op->a);
     auto res_b = VisitExpr(op->b, op->b);
 
+    // For the And case we return the union of the sets of atomic formulas
     std::vector<Expr> res;
     res.reserve(res_a.atomic_formulas.size() + res_b.atomic_formulas.size());
     std::set_union(res_a.atomic_formulas.begin(), res_a.atomic_formulas.end(),
@@ -594,6 +600,7 @@ class FactorOutAtomicFormulasFunctor
                    std::back_inserter(res),
                    ExprLess());
 
+    // And the residuals are combined with &&
     return {res, res_a.rest && res_b.rest};
   }
 
@@ -601,6 +608,7 @@ class FactorOutAtomicFormulasFunctor
     auto res_a = VisitExpr(op->a, op->a);
     auto res_b = VisitExpr(op->b, op->b);
 
+    // For multiplication we do the same thing as for And
     std::vector<Expr> res;
     res.reserve(res_a.atomic_formulas.size() + res_b.atomic_formulas.size());
     std::set_union(res_a.atomic_formulas.begin(), res_a.atomic_formulas.end(),
@@ -615,12 +623,16 @@ class FactorOutAtomicFormulasFunctor
     auto res_a = VisitExpr(op->a, op->a);
     auto res_b = VisitExpr(op->b, op->b);
 
+    // For the Or case we intersect the sets of atomic formulas
     std::vector<Expr> res;
     res.reserve(std::min(res_a.atomic_formulas.size(), res_b.atomic_formulas.size()));
     std::set_intersection(res_a.atomic_formulas.begin(), res_a.atomic_formulas.end(),
                           res_b.atomic_formulas.begin(), res_b.atomic_formulas.end(),
                           std::back_inserter(res),
                           ExprLess());
+
+    // Computing the residual is more complex: we have to compute the sets of atomic formulas
+    // which are left behind, and then combine them with the residuals into the new residual.
 
     std::vector<Expr> new_cond_a;
     new_cond_a.reserve(res_a.atomic_formulas.size() - res.size());
@@ -645,7 +657,9 @@ class FactorOutAtomicFormulasFunctor
   }
 };
 
-// Transform the given formula into an array of atomic formulas and a non-atomic residual.
+// Transform the given formula into a conjunction of atomic formulas (represented as an array)
+// and a non-atomic residual. Atomic formulas are consts, calls, variables and comparisons (a <= b,
+// etc), i.e. formulas which are not logical operators (||, &&, !) on the top level.
 FactorOutAtomicFormulasResult FactorOutAtomicFormulas(const Expr& e) {
   return FactorOutAtomicFormulasFunctor().VisitExpr(e, e);
 }
@@ -776,16 +790,18 @@ class EliminateDivModMutator : public IRMutator {
   virtual Expr Mutate_(const Div* op, const Expr& e) {
     const IntImm* imm = op->b.as<IntImm>();
     if (imm && imm->value > 0) {
-      auto it = expr_to_vars_.find({op->a.get(), imm->value});
+      // Try to find the already existing variables for this expression
+      auto it = expr_to_vars_.find({op->a, imm->value});
       if (it != expr_to_vars_.end()) {
         return it->second.first;
       }
 
+      // Otherwise recursively mutate the left hand side, and create new variables
       Expr mutated_a = Mutate(op->a);
       if (auto var_pair_opt = AddNewVarPair(op->a, mutated_a, imm->value)) {
         return var_pair_opt.value().first;
       } else {
-        return mutated_a / Mutate(op->b);
+        return mutated_a / op->b;
       }
     }
 
@@ -795,16 +811,18 @@ class EliminateDivModMutator : public IRMutator {
   virtual Expr Mutate_(const Mod* op, const Expr& e) {
     const IntImm* imm = op->b.as<IntImm>();
     if (imm && imm->value > 0) {
-      auto it = expr_to_vars_.find({op->a.get(), imm->value});
+      // Try to find the already existing variables for this expression
+      auto it = expr_to_vars_.find({op->a, imm->value});
       if (it != expr_to_vars_.end()) {
         return it->second.second;
       }
 
+      // Otherwise recursively mutate the left hand side, and create new variables
       Expr mutated_a = Mutate(op->a);
       if (auto var_pair_opt = AddNewVarPair(op->a, mutated_a, imm->value)) {
         return var_pair_opt.value().second;
       } else {
-        return mutated_a % Mutate(op->b);
+        return mutated_a % op->b;
       }
     }
 
@@ -815,23 +833,35 @@ class EliminateDivModMutator : public IRMutator {
   dmlc::optional<std::pair<Var, Var>> AddNewVarPair(const Expr& e, const Expr& mut, int64_t val) {
     using tresult = dmlc::optional<std::pair<Var, Var>>;
 
+    // Try to find the variables using the mutated expressions
+    if (!e.same_as(mut)) {
+      auto it = expr_to_vars_.find({mut, val});
+      if (it != expr_to_vars_.end()) {
+        return tresult(it->second);
+      }
+    }
+
     Expr val_e = make_const(e.type(), val);
     idx_ += 1;
 
+    // Convert `ranges` to IntSets
     std::unordered_map<const Variable*, IntSet> var_intsets;
     for (const auto& p : ranges) {
       var_intsets[p.first.get()] = IntSet::range(p.second);
     }
 
+    // Infer ranges for the expressions we want to replace with variables
     Range div_range = EvalSet(mut / val_e, var_intsets).cover_range(Range());
     Range mod_range = EvalSet(mut % val_e, var_intsets).cover_range(Range());
 
+    // We don't want to add unbounded variables
     if (!div_range.get() || !mod_range.get()) {
       LOG(WARNING) << "EliminateDivMod: won't eliminate div or mod of expr " << e
                    << "  because its bounds cannot be inferred";
       return tresult();
     }
 
+    // Create new variables for the expressions
     auto div = Var("div" + std::to_string(idx_), e.type());
     auto mod = Var("mod" + std::to_string(idx_), e.type());
 
@@ -844,26 +874,49 @@ class EliminateDivModMutator : public IRMutator {
     ranges.Set(div, div_range);
     ranges.Set(mod, mod_range);
 
+    // This additional condition works as a definition for the new variables
     conditions.push_back(mut == div*val_e + mod);
 
     if (!CanProve(mod_range->extent <= val_e)) {
+      // Since we use the C/C++ definition of mod, there may be multiple values of `mod`
+      // satisfying the added condition if the expr `e` may change its sign, so we
+      // have to add another condition.
       LOG(WARNING) << "EliminateDivMod: cannot fully eliminate div or mod of expr " << e
                    << "  (probably it may change its sign)";
-      // We cannot prove that mod is unique, so add additional condition
       conditions.push_back(Select::make(e >= 0, mod >= 0, mod <= 0));
     }
 
     auto p = std::make_pair(div, mod);
-    expr_to_vars_[{e.get(), val}] = p;
+    expr_to_vars_[{e, val}] = p;
+    if (!e.same_as(mut)) {
+      expr_to_vars_[{mut, val}] = p;
+    }
     return tresult(p);
   }
 
+  // A custom comparison function for pairs of exprs and numbers. Compares exprs deeply.
+  struct Compare_ {
+    bool operator()(const std::pair<Expr, int64_t>& p1, const std::pair<Expr, int64_t>& p2) {
+      if (p1.second < p2.second) {
+        return true;
+      } else if (p1.second == p2.second) {
+        return Compare(p1.first, p2.first) < 0;
+      } else {
+        return false;
+      }
+    }
+  };
+
+  // A counter for naming new variables
   int idx_{0};
-  std::map<std::pair<const HalideIR::Internal::IRNode*, int64_t>, std::pair<Var, Var>>
+  // A map from pairs of exprs and numbers (e, n) to pairs of new vars (div, mod)
+  // such that `div = e / n` and `mod = e % n`
+  std::map<std::pair<Expr, int64_t>, std::pair<Var, Var>, Compare_>
     expr_to_vars_;
 };
 
-// replace every subexpr of the form e/const and e % const with a new variable
+// Replace every subexpr of the form e/const and e % const with a new variable.
+// Syntactically equal expressions will be mapped to the same variable.
 EliminateDivModResult EliminateDivMod(const Expr& expr, Map<Var, Range> ranges) {
   EliminateDivModResult res;
   EliminateDivModMutator mutator(ranges);

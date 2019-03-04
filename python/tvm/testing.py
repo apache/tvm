@@ -197,7 +197,7 @@ class PerformanceEstimate:
             self.memory <= other.memory
 
 
-def estimate_performance(s, param_values=None, processed_ops=None):
+def estimate_performance(s, param_values=None, _processed_ops=None):
     """Statically estimate performance of statements, expressions and tensors. Note that the
     estimate is very rough, it mustn't be used to predict future performance, its only purpose is
     to detect possible performance regressions.
@@ -209,11 +209,25 @@ def estimate_performance(s, param_values=None, processed_ops=None):
         of any of the above.
 
     param_values : Dict[tvm.expr.Var, int], optional
-        Values for parameters (free variables).
+        Values for parameters (free variables), see the example.
+
+    _processed_ops, optional
+        A dict mapping already processed operations to the corresponding estimations.
+        This parameter is used internally.
 
     Returns
     -------
     estimate : PerformanceEstimate
+
+    Example
+    -------
+    .. code-block:: python
+
+        m = tvm.var('m')
+        X = tvm.placeholder((10, m), name='X')
+        W = tvm.placeholder((m + 5, m), name='W')
+        A = topi.nn.dense(X, W)
+        tvm.testing.estimate_performance(A, param_values={m: 5})
     """
     from tvm import stmt
     from tvm import expr
@@ -221,17 +235,17 @@ def estimate_performance(s, param_values=None, processed_ops=None):
     if param_values is None:
         param_values = {}
 
-    if processed_ops is None:
-        processed_ops = {}
-        res = estimate_performance(s, param_values=param_values, processed_ops=processed_ops)
-        for op_est in processed_ops.values():
+    if _processed_ops is None:
+        _processed_ops = {}
+        res = estimate_performance(s, param_values=param_values, _processed_ops=_processed_ops)
+        for op_est in _processed_ops.values():
             res += op_est
         return res
 
-    def est(expression, param_values=param_values, processed_ops=processed_ops):
+    def est(expression, param_values=param_values, _processed_ops=_processed_ops):
         return estimate_performance(expression,
                                     param_values=param_values,
-                                    processed_ops=processed_ops)
+                                    _processed_ops=_processed_ops)
 
     def _eval(expression, param_values=param_values):
         return tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(expression, param_values)).value
@@ -250,7 +264,7 @@ def estimate_performance(s, param_values=None, processed_ops=None):
         for item in s:
             res += est(item)
         return res
-    elif s in processed_ops:
+    elif s in _processed_ops:
         return PerformanceEstimate()
     elif isinstance(s, stmt.Allocate):
         mem = _prod([_eval(e) for e in s.extents])
@@ -286,7 +300,7 @@ def estimate_performance(s, param_values=None, processed_ops=None):
         for a in s.args:
             res += est(a)
         if s.call_type == expr.Call.Halide:
-            # The estimate is added to processed_ops, we don't need the result here
+            # The estimate is added to _processed_ops, we don't need the result here
             est(s.func)
         elif s.name == "tvm_if_then_else":
             pass
@@ -324,7 +338,7 @@ def estimate_performance(s, param_values=None, processed_ops=None):
                 res += est(b)
         res.iterations = max(1, res.iterations)
         res = res.times(iterations) + PerformanceEstimate(memory=iterations*len(s.body))
-        processed_ops[s] = res
+        _processed_ops[s] = res
         return PerformanceEstimate()
 
     raise ValueError("Don't know how to estimate performance of {} of type {}"

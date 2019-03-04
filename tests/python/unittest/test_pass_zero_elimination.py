@@ -380,8 +380,7 @@ def test_simplify_domain():
 
     k = tvm.reduce_axis((0, 10), name="k")
     l = tvm.reduce_axis((0, 10), name="l")
-    # TODO: This is not fully optimized because we don't have a solver
-    _check(tvm.all((l + k)%3 <= 1, (l + k)/3 <= 2), [l, k], 144)
+    _check(tvm.all((l + k)%3 <= 1, (l + k)/3 <= 2), [l, k], 48)
 
 def test_extract_as_tensor_maybe():
     def _check(shape, fcompute, volume=None, vranges={}):
