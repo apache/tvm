@@ -1,5 +1,6 @@
 """
 .. _tutorial-relay-quick-start:
+
 Quick Start Tutorial for Compiling Deep Learning Models
 ======================================================e
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Truman Tian <https://github.com/SiNZeRo>`_
