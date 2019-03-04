@@ -27,16 +27,11 @@ _reg.register_schedule("split", schedule_injective)
 _reg.register_schedule("take", schedule_injective)
 _reg.register_schedule("transpose", schedule_injective)
 _reg.register_schedule("where", schedule_broadcast)
+_reg.register_schedule("stack", schedule_injective)
+_reg.register_schedule("concatenate", schedule_injective)
 _reg.register_schedule("_contrib_reverse_reshape", schedule_injective)
 
 # layout_transform
 _reg.register_schedule("layout_transform", schedule_injective)
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 
-# concatenate
-@_reg.register_compute("concatenate")
-def concatenate_compute(attrs, inputs, output_type, target):
-    return [topi.concatenate(inputs, axis=attrs.axis)]
-
-_reg.register_schedule("concatenate", schedule_injective)
-_reg.register_pattern("concatenate", OpPattern.INJECTIVE)
