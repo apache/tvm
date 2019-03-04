@@ -164,10 +164,10 @@ class ModularSetAnalyzer {
    */
   ModularSet operator()(const Expr& expr);
   /*!
-   * \brief Update constant int bound information of var.
+   * \brief Update modular set information of var.
    *
    * \param var The variable of interest.
-   * \param info The bound information.
+   * \param info The modular set information.
    * \param override Whether do we allow override of existing information.
    */
   void Update(const Var& var,

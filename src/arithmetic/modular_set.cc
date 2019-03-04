@@ -263,17 +263,26 @@ class ModularSetAnalyzer::Impl :
     }
   }
   /*!
-   * \brief Create interect of two sets.
+   * \brief Create intersection of two sets.
    * \param a The left operand.
    * \param b the right operand.
    */
-  static Entry Intersect(Entry a, Entry b) {
-    // simple rule for now: pick higher constraints.
-    // TODO(team-team): Use extended euclidean algorithm.
-    if (a.coeff == 0) return a;
-    if (b.coeff == 0) return b;
-    if (a.coeff >= b.coeff) return a;
-    return b;
+  static Entry Intersect(Entry x, Entry y) {
+    int64_t n, m;
+    int64_t a = x.coeff, b = x.base, c = y.coeff, d = y.base;
+    int64_t gcd = ExtendedEuclidean(a, c, &n, &m);
+    int64_t v = d - b;
+    if (v % gcd == 0) {
+      n = v / gcd * n;
+      m = v / gcd * (-m);
+
+      Entry ret;
+      ret.coeff = a / gcd * c;
+      ret.base = BaseSimplify(n * a + b, ret.coeff);
+      return ret;
+    } else {
+      return Nothing();
+    }
   }
   /*!
    * \brief Simplify base so that it is in [0, coeff) when coeff != 0.
@@ -306,6 +315,26 @@ class ModularSetAnalyzer::Impl :
     }
     return b;
   }
+
+  /*!
+   * \brief Use Extended Euclidean algorithm to solve ax + by = 1
+   * \param a The first operand.
+   * \param b The second operand.
+   * \param x The solution of x.
+   * \param y The solution of y.
+   * \return The GCD of a and b.
+   */
+  static int64_t ExtendedEuclidean(int64_t a, int64_t b, int64_t *x, int64_t *y) {
+    if (b == 0) {
+      *x = 1;
+      *y = 0;
+      return a;
+    }
+    int64_t q = ExtendedEuclidean(b, a % b, y, x);
+    *y -= a / b * (*x);
+    return q;
+  }
+
   /*!
    * \brief return everything dtype can represent.
    * \return Bound that represent everything dtype can represent.
@@ -313,6 +342,16 @@ class ModularSetAnalyzer::Impl :
   static Entry Everything() {
     Entry ret;
     ret.coeff = 1; ret.base = 0;
+    return ret;
+  }
+
+  /*!
+   * \brief return an empty set
+   * \return An empty modular set.
+   */
+  static Entry Nothing() {
+    Entry ret;
+    ret.coeff = 0; ret.base = 1;
     return ret;
   }
 };
