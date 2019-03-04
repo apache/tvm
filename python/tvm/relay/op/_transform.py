@@ -1,7 +1,6 @@
 """Backend compiler related feature registration"""
 # pylint: disable=invalid-name,unused-argument
 from __future__ import absolute_import
-import topi
 from . import op as _reg
 from ._reduce import _schedule_reduce
 from .op import schedule_injective, OpPattern
@@ -34,4 +33,3 @@ _reg.register_schedule("_contrib_reverse_reshape", schedule_injective)
 # layout_transform
 _reg.register_schedule("layout_transform", schedule_injective)
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
-
