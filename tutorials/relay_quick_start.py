@@ -1,7 +1,8 @@
 """
 .. _tutorial-relay-quick-start:
+
 Quick Start Tutorial for Compiling Deep Learning Models
-======================================================e
+======================================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Truman Tian <https://github.com/SiNZeRo>`_
 
 This example shows how to build a neural network with Relay python frontend and
