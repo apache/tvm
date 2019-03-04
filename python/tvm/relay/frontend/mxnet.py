@@ -194,6 +194,34 @@ def _mx_slice(inputs, attrs):
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
+def _mx_slice_axis(inputs, attrs):
+    assert len(inputs) == 1
+    shape = ir_pass.infer_type(inputs[0]).checked_type.shape
+    axis = attrs.get_int("axis")
+    ax_beg = attrs.get_int("begin")
+    ax_end = attrs.get_str("end")
+    if ax_end == "None":
+        ax_end = int(shape[axis])
+    else:
+        ax_end = int(ax_end)
+    if ax_beg < 0:
+        ax_beg += int(shape[axis])
+    if ax_end < 0:
+        ax_end += int(shape[axis])
+    assert ax_beg >= 0 and ax_beg < int(shape[axis])
+    assert ax_end > ax_beg and ax_end <= int(shape[axis])
+    begin = []
+    end = []
+    for i, dim in enumerate(shape):
+        if i != axis:
+            begin.append(0)
+            end.append(dim)
+        else:
+            begin.append(ax_beg)
+            end.append(ax_end)
+    return _op.strided_slice(inputs[0], begin, end)
+
+
 def _mx_split(inputs, attrs):
     axis = attrs.get_int("axis", 1)
     new_attrs = {}
@@ -423,6 +451,7 @@ _convert_map = {
     "BatchNorm_v1"  : _mx_batch_norm,
     "LRN"           : _mx_lrn,
     "slice"         : _mx_slice,
+    "slice_axis"    : _mx_slice_axis,
     "SliceChannel"  : _mx_split,
     "split"         : _mx_split,
     "expand_dims"   : _mx_expand_dims,
