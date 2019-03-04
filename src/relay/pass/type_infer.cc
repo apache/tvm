@@ -53,7 +53,7 @@ bool TupleGetItemRel(const Array<Type>& types,
   const auto* param = attrs.as<TupleGetItemAttrs>();
   CHECK(param != nullptr);
   CHECK_GE(param->index, 0);
-  CHECK_LT(param->index,  data->fields.size());
+  CHECK_LT(param->index, data->fields.size());
   reporter->Assign(types[1], data->fields[param->index]);
   return true;
 }
