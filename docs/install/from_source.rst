@@ -162,7 +162,7 @@ Python dependencies
 
    .. code:: bash
 
-       pip install --user numpy decorator
+       pip install --user numpy decorator attrs
 
    * If you want to use RPC Tracker
 
