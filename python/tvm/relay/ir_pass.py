@@ -530,9 +530,11 @@ def to_graph_normal_form(expr):
     return _ir_pass.to_graph_normal_form(expr)
 
 
-def gradient(expr, mod=None):
+def gradient(expr, mod=None, mode='higher_order'):
     """
-    Transform a function to return original result paired with gradient of input.
+    Transform the input function,
+    returning a function that calculate the original result,
+    paired with gradient of the input.
 
     Parameters
     ----------
@@ -541,12 +543,23 @@ def gradient(expr, mod=None):
 
     mod : Optional[tvm.relay.Module]
 
+    mode : Optional[String]
+        The mode of the automatic differentiation algorithm.
+        'first_order' only work on first order code, but will not produce reference nor closure.
+        'higher_order' work on all code using reference and closure.
+
     Returns
     -------
     expr : tvm.relay.Expr
-      The output expression.
+      The transformed expression.
     """
-    return _ir_pass.first_order_gradient(expr, mod)
+    if mode == 'first_order':
+        return _ir_pass.first_order_gradient(expr, mod)
+    elif mode == 'higher_order':
+        return _ir_pass.gradient(expr, mod)
+    else:
+        raise Exception('unknown mode')
+
 
 
 def get_total_mac_number(expr):

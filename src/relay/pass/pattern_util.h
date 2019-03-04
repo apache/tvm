@@ -299,12 +299,12 @@ inline Expr Divide(Expr lhs, Expr rhs) {
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
-inline Expr ZeroLike(Expr e) {
+inline Expr ZerosLike(Expr e) {
   static const Op& op = Op::Get("zeros_like");
   return CallNode::make(op, {e});
 }
 
-inline Expr OneLike(Expr e) {
+inline Expr OnesLike(Expr e) {
   static const Op& op = Op::Get("ones_like");
   return CallNode::make(op, {e});
 }
