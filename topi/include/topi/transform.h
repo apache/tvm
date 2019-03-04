@@ -353,7 +353,7 @@ inline Tensor stack(const Array<Tensor>& inputs,
   for (size_t i = 0; i < static_cast<size_t>(axis); ++i)
     out_shape.push_back(inputs[0]->shape[i]);
   out_shape.push_back(stack_size);
-  for (size_t i = static_cast<size_t>(axis); i < ndim; ++i)
+  for (size_t i = static_cast<size_t>(axis); i < static_cast<size_t>(ndim); ++i)
     out_shape.push_back(inputs[0]->shape[i]);
 
   return compute(
@@ -364,7 +364,7 @@ inline Tensor stack(const Array<Tensor>& inputs,
           idx.push_back(indices[i]);
       auto ind = indices[axis];
       auto ret = inputs[0](idx);
-      for (int i = 0; i < inputs.size() - 1; ++i) {
+      for (int i = 0; i < static_cast<size_t>(inputs.size() - 1); ++i) {
         ret = tvm::if_then_else(ind == i + 1,
                                 inputs[i + 1](idx),
                                 ret);
