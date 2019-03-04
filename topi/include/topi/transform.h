@@ -792,36 +792,36 @@ inline Tensor tile(const Tensor& x,
   Array<Expr> reps_shape;
   Array<Expr> new_shape;
   if (ndim == rdim) {
-    for (size_t i = 0; i < ndim; ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(ndim); ++i) {
       data_shape.push_back(x->shape[i]);
       reps_shape.push_back(reps[i]);
     }
   } else if (ndim > rdim) {
-    for (size_t i = 0; i < ndim; ++i)
+    for (size_t i = 0; i < static_cast<size_t>(ndim); ++i)
       data_shape.push_back(x->shape[i]);
-    for (size_t i = 0; i < ndim - rdim; ++i)
+    for (size_t i = 0; i < static_cast<size_t>(ndim - rdim); ++i)
       reps_shape.push_back(1);
-    for (size_t i = 0; i < rdim; ++i)
+    for (size_t i = 0; i < static_cast<size_t>(rdim); ++i)
       reps_shape.push_back(reps[i]);
   } else {
-    for (size_t i = 0; i < rdim - ndim; ++i)
+    for (size_t i = 0; i < static_cast<size_t>(rdim - ndim); ++i)
       data_shape.push_back(1);
-    for (size_t i = 0; i < ndim; ++i)
+    for (size_t i = 0; i < static_cast<size_t>(ndim); ++i)
       data_shape.push_back(x->shape[i]);
-    for (size_t i = 0; i < rdim; ++i)
+    for (size_t i = 0; i < static_cast<size_t>(rdim); ++i)
       reps_shape.push_back(reps[i]);
   }
-  for (size_t i = 0; i < tdim; ++i)
+  for (size_t i = 0; i < static_cast<size_t>(tdim); ++i)
     new_shape.push_back(data_shape[i] * reps_shape[i]);
 
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       Array<Expr> idx;
       if (ndim >= rdim) {
-        for (size_t i = 0; i < ndim; ++i)
+        for (size_t i = 0; i < static_cast<size_t>(ndim); ++i)
           idx.push_back(indices[i] % x->shape[i]);
       } else {
-        for (size_t i = 0; i < ndim; ++i)
+        for (size_t i = 0; i < static_cast<size_t>(ndim); ++i)
           idx.push_back(indices[rdim - ndim + i] % x->shape[i]);
       }
       return x(idx);
