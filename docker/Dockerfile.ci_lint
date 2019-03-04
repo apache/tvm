@@ -6,4 +6,4 @@ RUN apt-get update && apt-get install -y sudo wget
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh
 RUN apt-get install -y doxygen graphviz
-RUN pip3 install cpplint pylint==2.2.2 mypy
+RUN pip3 install cpplint pylint==1.9.4 mypy
