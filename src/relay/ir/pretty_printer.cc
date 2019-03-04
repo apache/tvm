@@ -61,6 +61,8 @@ class PrettyPrinter :
         return PrintExpr(Downcast<Expr>(node), gnf);
       } else if (node.as_derived<TypeNode>()) {
         return PrintType(Downcast<Type>(node));
+      // } else if (node.as_derived<ModuleNode>()) {
+      //   return PrintMod(Downcast<Module>(node));
       } else { assert(false); }
     }
 
@@ -220,6 +222,20 @@ class PrettyPrinter :
         doc << PrintBody(fn->body);
         return doc;
     }
+
+    /* Doc PrintMod(const Module& mod) {
+      Doc doc = Nil();
+      int counter = 0;
+      for (const auto& kv : mod->functions) {
+        std::ostringstream os;
+        if (counter++ != 0) {
+          doc << "\n";
+        }
+        os << "def @" << kv.first->name_hint;
+        doc << PrintFunc(os.str(), kv.second);
+        return doc << "\n";
+      }
+    } */
 
     Doc VisitExpr_(const FunctionNode* op) final {
       return PrintFunc(Text("fn "), op);
