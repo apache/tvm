@@ -115,6 +115,15 @@ struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
   }
 };  // struct ArangeAttrs
 
+/*! \brief Attributes used in stack operators */
+struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
+  Integer axis;
+  TVM_DECLARE_ATTRS(StackAttrs, "relay.attrs.StackAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0)
+        .describe("The axis in the result array along which the input arrays are stacked.");
+  }
+};  // struct StackAttrs
+
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
   // use axis to make the name numpy compatible.
