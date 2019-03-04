@@ -206,6 +206,15 @@ bool ConcatenateRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> ConcatenateCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  const ConcatenateAttrs *param = attrs.as<ConcatenateAttrs>();
+  CHECK(param != nullptr);
+  return { topi::concatenate(inputs, param->axis) };
+}
+
 Array<Array<Layout>> ConcatenateLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
@@ -269,6 +278,8 @@ RELAY_REGISTER_OP("concatenate")
 .set_support_level(1)
 .add_type_rel("Concatenate", ConcatenateRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout);
+.set_attr<FTVMCompute>("FTVMCompute", ConcatenateCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 /* relay.transpose */
 TVM_REGISTER_NODE_TYPE(TransposeAttrs);

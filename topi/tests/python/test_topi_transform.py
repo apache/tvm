@@ -124,6 +124,32 @@ def verify_concatenate(shapes, axis):
     for device in get_all_backend():
         check_device(device)
 
+def verify_stack(shapes, axis):
+    tensor_l = []
+    for i, shape in enumerate(shapes):
+        tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
+    out_tensor = topi.stack(tensor_l, axis)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(out_tensor)
+#            print(tvm.lower(s, [tensor_l, axis, out_tensor], simple_mode=True))
+
+        foo = tvm.build(s, tensor_l + [out_tensor], device, name="stack")
+        data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
+        out_npy = np.stack(data_npys, axis=axis)
+        data_nds = [tvm.nd.array(data_npy, ctx) for data_npy in data_npys]
+        out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=out_tensor.dtype)
+        foo(*(data_nds + [out_nd]))
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
 
 def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -393,6 +419,11 @@ def test_concatenate():
                         (2, 6, 7, 3)], 0)
 
 
+def test_stack():
+    verify_stack([(2,), (2,), (2,)], 0)
+    verify_stack([(2, 3, 4), (2, 2, 4), (2, 2, 4)], 1)
+
+
 def test_split():
     verify_split((2, 12, 3), 3, 1)
     verify_split((2, 12, 3), [2, 4], 1)
@@ -490,4 +521,5 @@ if __name__ == "__main__":
     test_take()
     test_gather_nd()
     test_arange()
+    test_stack()
     test_layout_transform()
