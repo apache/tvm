@@ -1,6 +1,5 @@
 /* cma.h
  *
- *
  * The MIT License (MIT)
  *
  * COPYRIGHT (C) 2017 Institute of Electronics and Computer Science (EDI), Latvia.
@@ -25,23 +24,23 @@
  * THE SOFTWARE.
  */
 
-#ifndef CMA_H_
-#define CMA_H_
+#ifndef VTA_DE10_NANO_KERNEL_MODULE_CMA_H_
+#define VTA_DE10_NANO_KERNEL_MODULE_CMA_H_
 
 
 /* Should be defined in Settings.mak file */
 #ifndef CMA_IOCTL_MAGIC
-#define CMA_IOCTL_MAGIC	0xf2
+#define CMA_IOCTL_MAGIC  0xf2
 #endif
 
 
-#define CMA_ALLOC_CACHED 					_IOC(_IOC_WRITE|_IOC_READ,	CMA_IOCTL_MAGIC,1,  4)
-#define CMA_ALLOC_NONCACHED 				_IOC(_IOC_WRITE|_IOC_READ,	CMA_IOCTL_MAGIC,2,  4)
-#define CMA_FREE							_IOC(_IOC_WRITE,			CMA_IOCTL_MAGIC,3,  4)
-#define CMA_GET_PHY_ADDR	 				_IOC(_IOC_WRITE|_IOC_READ,	CMA_IOCTL_MAGIC,4,  4)
-#define CMA_GET_SIZE		 				_IOC(_IOC_WRITE|_IOC_READ,	CMA_IOCTL_MAGIC,5,  4)
+#define CMA_ALLOC_CACHED           _IOC(_IOC_WRITE|_IOC_READ, CMA_IOCTL_MAGIC, 1, 4)
+#define CMA_ALLOC_NONCACHED         _IOC(_IOC_WRITE|_IOC_READ, CMA_IOCTL_MAGIC, 2, 4)
+#define CMA_FREE              _IOC(_IOC_WRITE,     CMA_IOCTL_MAGIC, 3, 4)
+#define CMA_GET_PHY_ADDR           _IOC(_IOC_WRITE|_IOC_READ, CMA_IOCTL_MAGIC, 4, 4)
+#define CMA_GET_SIZE             _IOC(_IOC_WRITE|_IOC_READ, CMA_IOCTL_MAGIC, 5, 4)
 
-#define CMA_IOCTL_MAXNR						5
+#define CMA_IOCTL_MAXNR                 5
 
 
-#endif
+#endif  // VTA_DE10_NANO_KERNEL_MODULE_CMA_H_

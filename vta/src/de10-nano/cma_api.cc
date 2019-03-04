@@ -116,8 +116,8 @@ int cma_free(void *mem) {
   unsigned data, v_addr;
 
   /* save user space pointer value */
-  data   = *((unsigned int*)(&mem)); // (unsigned)mem;
-  v_addr = *((unsigned int*)(&mem)); // (unsigned)mem;
+  data   = *((unsigned int*)(&mem));  // (unsigned)mem;
+  v_addr = *((unsigned int*)(&mem));  // (unsigned)mem;
 
   if ( ioctl(cma_fd, CMA_GET_SIZE, &data) == -1 ) {
     __DEBUG("cma_free - ioctl command unsuccsessful - 0\n");
@@ -142,7 +142,7 @@ unsigned cma_get_phy_addr(void *mem) {
   unsigned data;
 
   /* save user space pointer value */
-  data = *((unsigned int*)(&mem)); // (unsigned)mem;
+  data = *((unsigned int*)(&mem));  // (unsigned)mem;
 
   /* get physical address */
   if ( ioctl(cma_fd, CMA_GET_PHY_ADDR, &data) == -1 ) {
