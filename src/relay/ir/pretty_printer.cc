@@ -61,8 +61,8 @@ class PrettyPrinter :
         return PrintExpr(Downcast<Expr>(node), gnf);
       } else if (node.as_derived<TypeNode>()) {
         return PrintType(Downcast<Type>(node));
-      // } else if (node.as_derived<ModuleNode>()) {
-      //   return PrintMod(Downcast<Module>(node));
+      } else if (node.as_derived<ModuleNode>()) {
+        return PrintMod(Downcast<Module>(node));
       } else { assert(false); }
     }
 
@@ -130,15 +130,22 @@ class PrettyPrinter :
       if (it != memo_.end()) return it->second;
       Doc printed_expr = VisitExpr(expr);
       // we choose to inline some nodes
-      if (GNF_ && gnf && !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>() && !expr.as<OpNode>()) {
+      if (GNF_ && gnf && !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>() && !expr.as<OpNode>() && !expr.as<VarNode>()) {
         Doc temp_var = AllocTemp();
         memo_[expr] = temp_var;
         doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
         return temp_var;
       } else {
         memo_[expr] = printed_expr;
+        if (expr.as<VarNode>()) {
+          doc_stack_.back() << "free_var " << printed_expr << "\n";
+        }
         return printed_expr;
       }
+    }
+
+    Doc VisitExpr_(const VarNode* op) final {
+      return AllocVar(GetRef<Var>(op));
     }
 
     Doc VisitExpr_(const ConstantNode* op) final {
@@ -188,21 +195,19 @@ class PrettyPrinter :
 
     Doc VisitExpr_(const LetNode* op) final {
       Doc doc = Nil();
-      // TODO: this should call a var printer, which needs to differentiate
-      //    between free and bound vars
       // TODO: this should have a type annotation
       // TODO: lets in value position need to be scoped
 
       // we use ANF mode for the first level of the value position so the final
       // expression isn't hoisted or added to the doc stream
-      doc << "let %" << op->var->name_hint() << " = " << Print(op->value, false) << ";" << "\n";
+      doc << "let " << AllocVar(op->var) << " = " << Print(op->value, false) << ";" << "\n";
       // we use a nested scope here so GNF hoisting doesn't escape too far
       // and so consecutive lets don't get hoisted
       doc << PrintNestedScope(op->body);
       return doc;
     }
 
-    Doc PrintFunc(const Doc& prefix, const FunctionNode* fn) {
+    Doc PrintFunc(const Doc& prefix, const Function& fn) {
         // TODO(tqchen, M.K.) support generic function
         // Possibly through meta-data
         CHECK_EQ(fn->type_params.size(), 0U)
@@ -223,7 +228,7 @@ class PrettyPrinter :
         return doc;
     }
 
-    /* Doc PrintMod(const Module& mod) {
+    Doc PrintMod(const Module& mod) {
       Doc doc = Nil();
       int counter = 0;
       for (const auto& kv : mod->functions) {
@@ -232,13 +237,14 @@ class PrettyPrinter :
           doc << "\n";
         }
         os << "def @" << kv.first->name_hint;
-        doc << PrintFunc(os.str(), kv.second);
-        return doc << "\n";
+        doc << PrintFunc(Text(os.str()), kv.second);
+        doc << "\n";
       }
-    } */
+      return doc;
+    }
 
     Doc VisitExpr_(const FunctionNode* op) final {
-      return PrintFunc(Text("fn "), op);
+      return PrintFunc(Text("fn "), GetRef<Function>(op));
     }
 
     Doc VisitExpr_(const GlobalVarNode* op) final {
