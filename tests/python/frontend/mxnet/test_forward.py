@@ -257,8 +257,6 @@ def test_forward_arange():
     verify(20, 1, -1)
     verify(20, 1, -1.5)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 def _mx_symbol(F, op_name, inputs):
     op = getattr(F, op_name)
     return op(*inputs)

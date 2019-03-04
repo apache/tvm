@@ -471,32 +471,6 @@ def strided_slice(data, begin, end, strides=None):
     return _make.strided_slice(data, list(begin), list(end), list(strides))
 
 
-def slice_axis(data, axis, begin, end=None):
-    """Slice input array along specific axis.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The source array to be sliced.
-
-    axis : int
-        Axis to be sliced.
-
-    begin: int
-        The index to begin with in the slicing.
-
-    end: int, optional
-        The index indicating end of the slice.
-
-    Returns
-    -------
-    ret : relay.Expr
-        The computed result.
-    """
-    end = end or 0
-    return _make._contrib_slice_axis(data, axis, begin, end)
-
-
 def slice_like(data, shape_like, axes=None):
     """Slice the first input with respect to the second input.
 

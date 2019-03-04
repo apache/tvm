@@ -177,27 +177,6 @@ def test_batch_matmul():
     verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
     verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
 
-def test_contrib_slice_axis():
-    def verify(dshape, axis, begin, end):
-        x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.slice_axis(x, axis=axis, begin=begin, end=end)
-        func = relay.Function([x], z)
-        func = relay.ir_pass.infer_type(func)
-        text = func.astext()
-        assert "begin" in text
-        assert "end" in text
-        x_data = np.random.uniform(size=dshape).astype("float32")
-        ref_res = topi.testing.slice_axis_python(
-            x_data, axis, begin, end)
-        for target, ctx in ctx_list():
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(x_data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
-
-    verify((1, 2, 3, 4), 3, 0, 2)
-    verify((100, 50), -1, 1, -1)
-    verify((20,), -1, -9, -3)
-    verify((20, 30, 40), 1, 5, 0)
 
 if __name__ == "__main__":
     test_collapse_sum_like()
@@ -205,4 +184,3 @@ if __name__ == "__main__":
     test_slice_like()
     test_reverse_reshape()
     test_batch_matmul()
-    test_contrib_slice_axis()
