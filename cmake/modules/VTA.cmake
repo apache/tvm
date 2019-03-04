@@ -43,6 +43,12 @@ elseif(PYTHON)
     find_library(__cma_lib NAMES cma PATH /usr/lib)
     target_link_libraries(vta ${__cma_lib})
   endif()
+
+  # DE10-Nano rules
+  if(${VTA_TARGET} STREQUAL "de10-nano")
+    target_include_directories(vta PUBLIC
+      "/usr/local/intelFPGA_lite/18.0/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
+  endif()
 else()
   message(STATUS "Cannot found python in env, VTA build is skipped..")
 endif()

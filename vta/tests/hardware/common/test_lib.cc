@@ -1,13 +1,13 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file test_lib.cpp
+ * \file test_lib.cc
  * \brief Test library for the VTA design simulation and driver tests.
  */
 
 #include "test_lib.h"
 
 #ifdef NO_SIM
-#ifdef VTA_TARGET_PYNQ
+#if defined(VTA_TARGET_PYNQ) || defined(VTA_TARGET_DE10_NANO)
 
 uint64_t vta(
   uint32_t insn_count,
@@ -31,7 +31,12 @@ uint64_t vta(
   snprintf(str_block_out_size, sizeof(str_block_out_size), "%d", VTA_BLOCK_OUT);
   snprintf(str_block_in_size, sizeof(str_block_in_size), "%d", VTA_BLOCK_IN);
   snprintf(str_block_bit_width, sizeof(str_block_bit_width), "%d", VTA_WGT_WIDTH);
+#if defined(VTA_TARGET_PYNQ)
   snprintf(bitstream, sizeof(bitstream), "%s", "vta.bit");
+#elif defined(VTA_TARGET_DE10_NANO)
+  snprintf(bitstream, sizeof(bitstream), "%s", "vta.rbf");
+#endif
+
 
 #if VTA_DEBUG == 1
   printf("INFO - Programming FPGA: %s!\n", bitstream);
@@ -59,6 +64,7 @@ uint64_t vta(
 
   clock_gettime(CLOCK_REALTIME, &start);
 
+#if defined(VTA_TARGET_PYNQ)
   // FETCH @ 0x10 : Data signal of insn_count_V
   VTAWriteMappedReg(vta_fetch_handle, 0x10, insn_count);
   // FETCH @ 0x18 : Data signal of insns_V
@@ -85,6 +91,34 @@ uint64_t vta(
     flag = VTAReadMappedReg(vta_compute_handle, 0x18);
     if (flag & VTA_DONE) break;
   }
+#elif defined(VTA_TARGET_DE10_NANO)
+  // FETCH @ 0x10 : Data signal of insn_count_V
+  VTAWriteMappedReg(vta_fetch_handle, 0x10, insn_count);
+  // FETCH @ 0x20 : Data signal of insns_V
+  if (insns) VTAWriteMappedReg(vta_fetch_handle, 0x20, insn_phy);
+  // LOAD @ 0x10 : Data signal of inputs_V
+  if (inputs) VTAWriteMappedReg(vta_load_handle, 0x10, input_phy);
+  // LOAD @ 0x20 : Data signal of weight_V
+  if (weights) VTAWriteMappedReg(vta_load_handle, 0x20, weight_phy);
+  // COMPUTE @ 0x20 : Data signal of uops_V
+  if (uops) VTAWriteMappedReg(vta_compute_handle, 0x20, uop_phy);
+  // COMPUTE @ 0x30 : Data signal of biases_V
+  if (biases) VTAWriteMappedReg(vta_compute_handle, 0x30, bias_phy);
+  // STORE @ 0x10 : Data signal of outputs_V
+  if (outputs) VTAWriteMappedReg(vta_store_handle, 0x10, output_phy);
+
+  // VTA start
+  VTAWriteMappedReg(vta_fetch_handle, 0x0, 0x1);
+  VTAWriteMappedReg(vta_load_handle, 0x0, 0x81);
+  VTAWriteMappedReg(vta_compute_handle, 0x0, 0x81);
+  VTAWriteMappedReg(vta_store_handle, 0x0, 0x81);
+
+  int flag = 0, t = 0;
+  for (t = 0; t < 10000000; ++t) {
+    flag = VTAReadMappedReg(vta_compute_handle, 0x10);
+    if (flag & VTA_DONE) break;
+  }
+#endif
 
   if (t == 10000000) {
     printf("\tWARNING: VTA TIMEOUT!!!!\n");
@@ -530,8 +564,8 @@ VTAUop * getMapALUUops(int vector_size, bool uop_compression) {
 
 void printParameters() {
   // Some debugging code
-  printf("Size of VTAInsn: %d\n", sizeof(VTAGenericInsn));
-  printf("Size of VTAUop: %d\n", sizeof(VTAUop));
+  printf("Size of VTAInsn: %d\n", (int)sizeof(VTAGenericInsn));
+  printf("Size of VTAUop: %d\n", (int)sizeof(VTAUop));
   printf("VTA_UOP_BUFF_DEPTH: %d\n", VTA_UOP_BUFF_DEPTH);
   printf("VTA_LOG_UOP_BUFF_DEPTH: %d\n", VTA_LOG_UOP_BUFF_DEPTH);
   printf("VTA_WGT_BUFF_DEPTH: %d\n", VTA_WGT_BUFF_DEPTH);
@@ -732,7 +766,7 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
   assert(!(opcode == VTA_ALU_OPCODE_SHR && !use_imm));
   printf("=====================================================================================\n");
   printf("INFO - ALU test of %s: batch=%d, vector_size=%d, uop_compression=%d\n",
-    getOpcodeString(opcode, use_imm), batch, vector_size, uop_compression);
+         getOpcodeString(opcode, use_imm), batch, vector_size, (int)uop_compression);
 
   // Instruction count
   int ins_size = 3 * batch / VTA_BATCH + 2;
@@ -899,12 +933,12 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
 #else
   // Invoke the VTA
   vta(ins_size,
-      (volatile insn_T *) insn_buf,
-      (volatile uop_T *) uop_buf,
-      (volatile inp_vec_T *) NULL,
-      (volatile wgt_vec_T *) NULL,
-      (volatile acc_vec_T *) bias_buf,
-      (volatile out_vec_T *) output_buf);
+      (insn_T *) insn_buf,
+      (uop_T *) uop_buf,
+      (inp_vec_T *) NULL,
+      (wgt_vec_T *) NULL,
+      (acc_vec_T *) bias_buf,
+      (out_vec_T *) output_buf);
 #endif
 
   // Unpack output buffer
@@ -961,7 +995,7 @@ int blocked_gemm_test(int batch, int channels, int block, bool uop_compression,
 
   printf("=====================================================================================\n");
   printf("INFO - Blocked GEMM test: batch=%d, channels=%d, block=%d, uop_comp=%d, vt=%d\n",
-         batch, channels, block, uop_compression, virtual_threads);
+         batch, channels, block, (int)uop_compression, virtual_threads);
 
   // Input/output channels
   int in_feat = channels;
@@ -1172,12 +1206,12 @@ int blocked_gemm_test(int batch, int channels, int block, bool uop_compression,
 #else
   // Invoke the VTA
   vta(ins_size,
-      (volatile insn_T *) insn_buf,
-      (volatile uop_T *) uop_buf,
-      (volatile inp_vec_T *) input_buf,
-      (volatile wgt_vec_T *) weight_buf,
-      (volatile acc_vec_T *) bias_buf,
-      (volatile out_vec_T *) output_buf);
+      (insn_T *) insn_buf,
+      (uop_T *) uop_buf,
+      (inp_vec_T *) input_buf,
+      (wgt_vec_T *) weight_buf,
+      (acc_vec_T *) bias_buf,
+      (out_vec_T *) output_buf);
 #endif
 
   // Unpack output data
@@ -1235,7 +1269,7 @@ int gemm_test(int batch, int in_channels, int out_channels, bool uop_compression
 
   printf("=====================================================================================\n");
   printf("INFO - Blocked GEMM test: batch=%d, in_channels=%d, out_channels=%d, uop_comp=%d\n",
-         batch, in_channels, out_channels, uop_compression);
+         batch, in_channels, out_channels, (int)uop_compression);
 
   // Derive number of elements that need to be loaded/stored
   int ins_size = 7;
@@ -1401,12 +1435,12 @@ int gemm_test(int batch, int in_channels, int out_channels, bool uop_compression
 #else
   // Invoke the VTA
   vta(ins_size,
-      (volatile insn_T *) insn_buf,
-      (volatile uop_T *) uop_buf,
-      (volatile inp_vec_T *) input_buf,
-      (volatile wgt_vec_T *) weight_buf,
-      (volatile acc_vec_T *) bias_buf,
-      (volatile out_vec_T *) output_buf);
+      (insn_T *) insn_buf,
+      (uop_T *) uop_buf,
+      (inp_vec_T *) input_buf,
+      (wgt_vec_T *) weight_buf,
+      (acc_vec_T *) bias_buf,
+      (out_vec_T *) output_buf);
 #endif
 
   // Unpack output data

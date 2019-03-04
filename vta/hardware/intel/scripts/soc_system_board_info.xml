@@ -1,0 +1,19 @@
+<BoardInfo pov="hps_0_arm_a9_0">
+<!--
+This file is intended to be used when building device trees 
+for the Altera Cyclone5 SOC Development Kits. 
+This board info file and hps_clock_info.xml are required input
+to sopc2dts to create a device tree suitable for the 3.9 version
+of the Linux kernel.  One typically executes sopc2dts as follows:
+
+	sopc2dts -i soc_system.sopcinfo -b soc_system_board_info.xml
+		-b hps_clock_info.xml -b hps_common_board_info.xml -o soc_system.dts 
+
+-->
+
+<DTAppend name="model" type="string" parentlabel="" val="Terasic DE10 NANO"/>
+<DTAppend name="compatible" parentlabel="" >
+	<val type="string">altr,socfpga-cyclone5</val>
+	<val type="string">altr,socfpga</val>
+</DTAppend>
+</BoardInfo>

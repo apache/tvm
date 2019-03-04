@@ -10,9 +10,11 @@
 #include <string.h>
 #include <time.h>
 #include <vta/driver.h>
-#ifdef VTA_TARGET_PYNQ
-#  include "../../../src/pynq/pynq_driver.h"
-#endif  // VTA_TARGET_PYNQ
+#ifdef VTA_TARGET_DE10_NANO
+#include "../../../src/de10-nano/de10-nano_driver.h"
+#else
+#include "../../../src/pynq/pynq_driver.h"
+#endif
 #include "../common/test_lib.h"
 
 int main(void) {

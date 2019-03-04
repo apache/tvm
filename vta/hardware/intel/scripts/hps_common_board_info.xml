@@ -1,0 +1,243 @@
+<BoardInfo>
+
+<!--
+Starting in the 3.11 kernel, the ethernet driver looks for alias
+in the device tree for a bus_id used to talk the phy.  Having
+these aliases allows seamless support of multiple emacs
+-->
+<alias name="ethernet0" value="/sopc@0/ethernet@0xff702000"/>
+<DTAppend name="enable-method" type="string" parentpath="/cpus" val="altr,socfpga-smp" />
+
+<DTAppend name="next-level-cache" type="phandle" parentlabel="hps_0_arm_a9_0" val="hps_0_L2"/>
+<DTAppend name="next-level-cache" type="phandle" parentlabel="hps_0_arm_a9_1" val="hps_0_L2"/>
+
+<DTAppend name="cache-unified" type="bool" parentlabel="hps_0_L2" val="true"/>
+<DTAppend name="arm,tag-latency" parentlabel="hps_0_L2">
+	<val type="number">1</val>
+	<val type="number">1</val>
+	<val type="number">1</val>
+</DTAppend>
+<DTAppend name="arm,data-latency" parentlabel="hps_0_L2">
+	<val type="number">2</val>
+	<val type="number">1</val>
+	<val type="number">1</val>
+</DTAppend>
+
+<DTAppend name="status" type="string" parentlabel="hps_0_wd_timer1" val="disabled" />
+<DTAppend name="reset-names" type="string" parentlabel="hps_0_gmac0" val="stmmaceth"/>
+<DTAppend name="resets" parentlabel="hps_0_gmac0">
+	<val type="phandle">hps_0_rstmgr</val>
+	<val type="number">32</val>
+</DTAppend>
+<DTAppend name="phy-mode" type="string" parentlabel="hps_0_gmac1" val="rgmii"/>
+<DTAppend name="snps,phy-addr" type="hex" parentlabel="hps_0_gmac1" val="0xffffffff"/>
+<DTAppend name="phy-addr" type="hex" parentlabel="hps_0_gmac1" val="0xffffffff"/>
+<DTAppend name="txc-skew-ps" type="number" parentlabel="hps_0_gmac1" val="3000"/>
+<DTAppend name="rxc-skew-ps" type="number" parentlabel="hps_0_gmac1" val="3000"/>
+<DTAppend name="txen-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="rxdv-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="rxd0-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="rxd1-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="rxd2-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="rxd3-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="txd0-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="txd1-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="txd2-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="txd3-skew-ps" type="number" parentlabel="hps_0_gmac1" val="0"/>
+<DTAppend name="max-frame-size" type="number" parentlabel="hps_0_gmac1" val="3800"/>
+<DTAppend name="altr,sysmgr-syscon" parentlabel="hps_0_gmac1">
+	<val type="phandle">hps_0_sysmgr</val>
+	<val type="hex">0x60</val>
+	<val type="number">2</val>
+</DTAppend>
+<DTAppend name="reset-names" type="string" parentlabel="hps_0_gmac1" val="stmmaceth"/>
+<DTAppend name="resets" parentlabel="hps_0_gmac1">
+	<val type="phandle">hps_0_rstmgr</val>
+	<val type="number">33</val>
+</DTAppend>
+<DTAppend name="reset-names" type="string" parentlabel="hps_0_gmac1" val="stmmaceth"/>
+
+<DTAppend name="#reset-cells" type="number" parentlabel="hps_0_rstmgr" val="1"/>
+
+
+<DTAppend name="speed-mode" type="number" parentlabel="hps_0_i2c0" val="0"/>
+<DTAppend name="clock-frequency" type="number" parentlabel="hps_0_i2c0" val="100000"/>
+<!-- adjust the falling times to decrease the i2c frequency to 50Khz
+     because the LCD module does not work at the standard 100Khz
+-->
+<DTAppend name="i2c-sda-falling-time-ns" type="number" parentlabel="hps_0_i2c0" val="5000"/>
+<DTAppend name="i2c-scl-falling-time-ns" type="number" parentlabel="hps_0_i2c0" val="5000"/>
+
+<I2CBus master="hps_0_i2c0">
+	<I2CChip addr="0x53" label="axl345" name="adi,axl345"></I2CChip>
+</I2CBus>
+
+<DTAppend name="sdmmc_clk_divided" type="node" parentlabel="hps_0_clkmgr" newlabel="sdmmc_clk_divided"/>
+<DTAppend name="#clock-cells" type="number" parentlabel="sdmmc_clk_divided" val="0"/>
+<DTAppend name="compatible" type="string" parentlabel="sdmmc_clk_divided" val="altr,socfpga-gate-clk"/>
+<DTAppend name="clocks" type="phandle" parentlabel="sdmmc_clk_divided" val="sdmmc_clk"/>
+<DTAppend name="clk-gate" parentlabel="sdmmc_clk_divided">
+<val type="hex">0xa0</val>
+<val type="hex">8</val>
+</DTAppend>
+<DTAppend name="fixed-divider" type="number" parentlabel="sdmmc_clk_divided" val="4"/>
+<DTAppend name="clocks" parentlabel="hps_0_sdmmc">
+<val type="phandle">l4_mp_clk</val>
+<val type="phandle">sdmmc_clk_divided</val>
+</DTAppend>
+<DTAppend name="clk-phase" parentlabel="sdmmc_clk">
+<val type="number">0</val>
+<val type="number">135</val>
+</DTAppend>
+
+<DTAppend name="#address-cells" type="number" parentlabel="hps_0_sdmmc" val="1"/>
+<DTAppend name="#size-cells" type="number" parentlabel="hps_0_sdmmc" val="0"/>
+<DTAppend name="broken-cd" type="bool" parentlabel="hps_0_sdmmc" val="true"/>
+<DTAppend name="cap-mmc-highspeed" type="bool" parentlabel="hps_0_sdmmc" val="true"/>
+<DTAppend name="cap-sd-highspeed" type="bool" parentlabel="hps_0_sdmmc" val="true"/>
+<DTAppend name="bus-width" type="number" parentlabel="hps_0_sdmmc" val="4"/>
+<DTAppend name="device-width" parentlabel="hps_0_sdmmc" action="remove"/>
+<DTAppend name="bank-width" parentlabel="hps_0_sdmmc" action="remove"/>
+<DTAppend name="compatible" type="string" parentlabel="hps_0_sdmmc" val="altr,socfpga-dw-mshc"/>
+<DTAppend name="altr,dw-mshc-ciu-div" type="number" parentlabel="hps_0_sdmmc" val="3"/>
+<DTAppend name="altr,dw-mshc-sdr-timing"  parentlabel="hps_0_sdmmc" >
+<val type="number">0</val>
+<val type="number">3</val>
+</DTAppend>
+<DTAppend name="supports-highspeed"  parentlabel="hps_0_sdmmc" />
+<DTAppend name="slot@0" type="node" parentlabel="hps_0_sdmmc" newlabel="slot_0"/>
+<DTAppend name="reg" type="number" parentlabel="slot_0" val="0"/>
+<DTAppend name="bus-width" type="number" parentlabel="slot_0" val="4"/>
+
+<DTAppend name="reg" type="number" parentlabel="slot_0" val="0"/>
+<DTAppend name="bus-width" type="number" parentlabel="slot_0" val="4"/>
+<DTAppend name="cd" parentlabel="hps_0_sdmmc" >
+<val type="phandle">hps_0_gpio1_porta</val>
+<val type="number">18</val>
+<val type="number">0</val>
+</DTAppend>
+<DTAppend name="cd-gpios" parentlabel="hps_0_sdmmc" >
+<val type="phandle">hps_0_gpio1_porta</val>
+<val type="number">18</val>
+<val type="number">0</val>
+</DTAppend>
+
+<DTAppend name="vmmc-supply" type="phandle" parentlabel="hps_0_sdmmc" val="regulator_3_3v"/>
+<DTAppend name="vqmmc-supply" type="phandle" parentlabel="hps_0_sdmmc" val="regulator_3_3v"/>
+
+
+<DTAppend name="vcc3p3-regulator" type="node" parentlabel="sopc0" newlabel="regulator_3_3v" />
+<DTAppend name="compatible" type="string" parentlabel="regulator_3_3v" val="regulator-fixed" />
+<DTAppend name="regulator-name" type="string" parentlabel="regulator_3_3v" val="3.3V" />
+<DTAppend name="regulator-min-microvolt" type="number" parentlabel="regulator_3_3v" val="3300000" />
+<DTAppend name="regulator-max-microvolt" type="number" parentlabel="regulator_3_3v" val="3300000" />
+
+
+<DTAppend name="spidev@0" type="node" parentlabel="hps_0_spim1" newlabel="spidev1"/>
+<DTAppend name="compatible" type="string" parentlabel="spidev1" val="rohm,dh2228fv"/>
+<DTAppend name="reg" type="number" parentlabel="spidev1" val="0"/>
+<DTAppend name="spi-max-frequency" type="number" parentlabel="spidev1" val="100000000"/>
+<DTAppend name="enable-dma" type="number" parentlabel="spidev1" val="1"/>
+
+<DTAppend name="leds" type="node" parentlabel="sopc0" newlabel="soc_leds"/>
+<DTAppend name="compatible" type="string" parentlabel="soc_leds" val="gpio-leds"/>
+
+<DTAppend name="hps0" type="node" parentlabel="soc_leds" newlabel="led_hps0"/>
+
+<DTAppend name="fpga0" type="node" parentlabel="soc_leds" newlabel="led_fpga0"/>
+<DTAppend name="fpga1" type="node" parentlabel="soc_leds" newlabel="led_fpga1"/>
+<DTAppend name="fpga2" type="node" parentlabel="soc_leds" newlabel="led_fpga2"/>
+<DTAppend name="fpga3" type="node" parentlabel="soc_leds" newlabel="led_fpga3"/>
+<DTAppend name="fpga4" type="node" parentlabel="soc_leds" newlabel="led_fpga4"/>
+<DTAppend name="fpga5" type="node" parentlabel="soc_leds" newlabel="led_fpga5"/>
+<DTAppend name="fpga6" type="node" parentlabel="soc_leds" newlabel="led_fpga6"/>
+
+<!-- these two can be removed when 14.1 or newer is used to generate the sopinfo -->
+<DTAppend name="snps,nr-gpios" type="number" parentlabel="hps_0_gpio0_porta" val="29"/>
+<DTAppend name="snps,nr-gpios" type="number" parentlabel="hps_0_gpio1_porta" val="29"/>
+
+<DTAppend name="label" type="string" parentlabel="led_hps0" val="hps_led0"/>
+<DTAppend name="gpios" parentlabel="led_hps0" >
+<val type="phandle">hps_0_gpio1_porta</val>
+<val type="number">24</val>
+<val type="number">0</val>
+</DTAppend>
+
+<DTAppend name="pmu0" type="node" parentlabel="sopc0" newlabel="pmu"/>
+<DTAppend name="#address-cells" type="number" parentlabel="pmu" val="1"/>
+<DTAppend name="#size-cells" type="number" parentlabel="pmu" val="1"/>
+<DTAppend name="compatible" type="string" parentlabel="pmu" val="arm,cortex-a9-pmu"/>
+<DTAppend name="interrupt-parent" type="phandle" parentlabel="pmu" val="hps_0_arm_gic_0"/>
+<DTAppend name="interrupts" parentlabel="pmu">
+<val type="number">0</val>
+<val type="number">176</val>
+<val type="number">4</val>
+<val type="number">0</val>
+<val type="number">177</val>
+<val type="number">4</val>
+</DTAppend>
+<DTAppend name="ranges" type="bool" parentlabel="pmu" val="true"/>
+
+<DTAppend name="cti0@ff118000" type="node" parentlabel="pmu" newlabel="cti0"/>
+<DTAppend name="compatible" type="string" parentlabel="cti0" val="arm,coresight-cti"/>
+<DTAppend name="reg" parentlabel="cti0">
+<val type="hex">0xff118000</val>
+<val type="hex">0x1000</val>
+</DTAppend>
+
+<DTAppend name="cti0@ff119000" type="node" parentlabel="pmu" newlabel="cti1"/>
+<DTAppend name="compatible" type="string" parentlabel="cti1" val="arm,coresight-cti"/>
+<DTAppend name="reg" parentlabel="cti1">
+<val type="hex">0xff119000</val>
+<val type="hex">0x1000</val>
+</DTAppend>
+
+<DTAppend name="fpgabridge@0" type="node" parentlabel="sopc0" newlabel="fpgabridge0"/>
+<DTAppend name="compatible" type="string" parentlabel="fpgabridge0" val="altr,socfpga-hps2fpga-bridge"/>
+<DTAppend name="label" type="string" parentlabel="fpgabridge0" val="hps2fpga"/>
+<DTAppend name="reset-names" type="string" parentlabel="fpgabridge0" val="hps2fpga"/>
+<DTAppend name="clocks" type="phandle" parentlabel="fpgabridge0" val="l4_main_clk"/>
+<DTAppend name="resets" parentlabel="fpgabridge0">
+	<val type="phandle">hps_0_rstmgr</val>
+	<val type="number">96</val>
+</DTAppend>
+
+
+<DTAppend name="fpgabridge@1" type="node" parentlabel="sopc0" newlabel="fpgabridge1"/>
+<DTAppend name="compatible" type="string" parentlabel="fpgabridge1" val="altr,socfpga-lwhps2fpga-bridge"/>
+<DTAppend name="label" type="string" parentlabel="fpgabridge1" val="lwhps2fpga"/>
+<DTAppend name="reset-names" type="string" parentlabel="fpgabridge1" val="lwhps2fpga"/>
+<DTAppend name="clocks" type="phandle" parentlabel="fpgabridge1" val="l4_main_clk"/>
+<DTAppend name="resets" parentlabel="fpgabridge1">
+	<val type="phandle">hps_0_rstmgr</val>
+	<val type="number">97</val>
+</DTAppend>
+
+<DTAppend name="fpgabridge@2" type="node" parentlabel="sopc0" newlabel="fpgabridge2"/>
+<DTAppend name="compatible" type="string" parentlabel="fpgabridge2" val="altr,socfpga-fpga2hps-bridge"/>
+<DTAppend name="label" type="string" parentlabel="fpgabridge2" val="fpga2hps"/>
+<DTAppend name="reset-names" type="string" parentlabel="fpgabridge2" val="fpga2hps"/>
+<DTAppend name="clocks" type="phandle" parentlabel="fpgabridge2" val="l4_main_clk"/>
+<DTAppend name="resets" parentlabel="fpgabridge2">
+	<val type="phandle">hps_0_rstmgr</val>
+	<val type="number">98</val>
+</DTAppend>
+
+<DTAppend name="fpgabridge@3" type="node" parentlabel="sopc0" newlabel="fpgabridge3"/>
+<DTAppend name="compatible" type="string" parentlabel="fpgabridge3" val="altr,socfpga-fpga2sdram-bridge"/>
+<DTAppend name="label" type="string" parentlabel="fpgabridge3" val="fpga2sdram"/>
+<DTAppend name="read-ports-mask" type="hex" parentlabel="fpgabridge3" val="0xf"/>
+<DTAppend name="write-ports-mask" type="hex" parentlabel="fpgabridge3" val="0xf"/>
+<DTAppend name="cmd-ports-mask" type="hex" parentlabel="fpgabridge3" val="0x1"/>
+
+<DTAppend name="usbphy@0" type="node" parentlabel="sopc0" newlabel="usbphy0" />
+<DTAppend name="#phy-cells" type="number" val="0" parentlabel="usbphy0" />
+<DTAppend name="compatible" type="string" val="usb-nop-xceiv" parentlabel="usbphy0" />
+<DTAppend name="status" type="string" val="okay" parentlabel="usbphy0" />
+
+<DTAppend name="phys" type="phandle" parentlabel="hps_0_usb1" val="usbphy0" />
+
+<Chosen>
+        <Bootargs val="console=ttyS0,115200"></Bootargs>
+</Chosen>
+</BoardInfo>
