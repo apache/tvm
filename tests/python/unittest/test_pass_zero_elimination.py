@@ -180,6 +180,15 @@ def test_lift_nonzeroness_condition():
     _check_symeq(tvm.min(tvm.expr.Cast('int32', k < n)*l, tvm.expr.Select(k >= n, 0, 1)),
                  tvm.expr.Select(k < n, tvm.min(l, 1), 0))
 
+    expr1 = tvm.if_then_else(k < n,
+                             tvm.expr.Select(tvm.expr.EQ(k, l), A[k],  0.0),
+                             tvm.expr.Select(l < n, A[l], 0.0))
+    expr2 = tvm.expr.Select(tvm.any(tvm.all(k < n, tvm.expr.EQ(k, l)),
+                                    tvm.all(k >= n, l < n)),
+                            tvm.if_then_else(k < n, A[k], A[l]),
+                            0.0)
+    check_symeq(LiftNonzeronessCondition(expr1), expr2)
+
 def test_inline_tail_call():
     A = tvm.compute((10, 10), lambda i, j: i + j*j)
     B = tvm.compute((5, 6), lambda k, l: A[k + l, k + 1])

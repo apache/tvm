@@ -360,17 +360,20 @@ struct NonzeronessConditionResult {
   }
 };
 
+// The implementation of NonzeronessCondition
 class NonzeronessConditionFunctor
   : public ExprFunctor<NonzeronessConditionResult(const Expr&, const Expr&)> {
  public:
   NonzeronessConditionResult NonzeronessCondition(const Expr& e) {
     if (e.type().is_bool()) {
+      // Boolean expressions are non-zero whenever they are true themselves
       return {e, const_true()};
     } else {
       return VisitExpr(e, e);
     }
   }
 
+  // Most of the cases are implemented using helpers below
   result_type VisitExpr_(const Variable*, const Expr& e) final { return Default_(e); }
   result_type VisitExpr_(const IntImm* op, const Expr& e) final { return Const_(op, e); }
   result_type VisitExpr_(const UIntImm* op, const Expr& e) final { return Const_(op, e); }
@@ -385,32 +388,62 @@ class NonzeronessConditionFunctor
   result_type VisitExpr_(const Max* op, const Expr& e) final { return BinOpAddLike_(op, e); }
 
   result_type VisitExpr_(const Cast* op, const Expr& e) final {
-    if (op->value.type().is_bool()) {
-      return {op->value, make_const(e.type(), 1)};
-    } else {
-      auto nz_a = NonzeronessCondition(op->value);
+    auto nz_a = NonzeronessCondition(op->value);
 
-      if (nz_a.value.same_as(op->value)) {
-        return {nz_a.cond, e};
-      } else {
-        return {nz_a.cond, Cast::make(op->type, nz_a.value)};
-      }
+    if (nz_a.value.same_as(op->value)) {
+      return {nz_a.cond, e};
+    } else {
+      return {nz_a.cond, Cast::make(op->type, nz_a.value)};
     }
   }
 
   result_type VisitExpr_(const Select* op, const Expr& e) final {
-    return SelectLike_(e, op->condition, op->true_value, op->false_value, Select::make);
+    Expr cond = op->condition, true_val = op->true_value, false_val = op->false_value;
+    auto nz_a = NonzeronessCondition(true_val);
+    auto nz_b = NonzeronessCondition(false_val);
+
+    // If the false part is zero, we can get rid of the select
+    if (is_const_value(nz_b.value, 0)) {
+      Expr new_cond = SuperSimplify(nz_a.cond && cond);
+      return {new_cond, nz_a.value};
+    }
+
+    // If the true part is zero, we can also get rid of the select
+    if (is_const_value(nz_a.value, 0)) {
+      Expr new_cond = SuperSimplify(nz_b.cond && !cond);
+      return {new_cond, nz_b.value};
+    }
+
+    // Otherwise we retain the select and combine the conditions into this
+    Expr new_cond = SuperSimplify((cond && nz_a.cond) || (!cond && nz_b.cond));
+    if (nz_a.value.same_as(true_val) && nz_b.value.same_as(false_val)) {
+      return {new_cond, e};
+    } else {
+      return {new_cond, Select::make(cond, nz_a.value, nz_b.value)};
+    }
   }
 
   result_type VisitExpr_(const Call* op, const Expr& e) final {
     if (op->name == intrinsic::tvm_if_then_else) {
-      return SelectLike_(e, op->args[0], op->args[1], op->args[2], if_then_else);
+      Expr cond = op->args[0], true_val = op->args[1], false_val = op->args[2];
+      auto nz_a = NonzeronessCondition(true_val);
+      auto nz_b = NonzeronessCondition(false_val);
+
+      // We don't have as much freedom here as in the select case
+      // since the `if` must be preserved in any case
+      Expr new_cond = SuperSimplify((cond && nz_a.cond) || (!cond && nz_b.cond));
+      if (nz_a.value.same_as(true_val) && nz_b.value.same_as(false_val)) {
+        return {new_cond, e};
+      } else {
+        return {new_cond, if_then_else(cond, nz_a.value, nz_b.value)};
+      }
     } else {
       return Default_(e);
     }
   }
 
   NonzeronessConditionResult Default_(const Expr& e) {
+    // This is always correct, so it's the default
     return {const_true(), e};
   }
 
@@ -423,43 +456,27 @@ class NonzeronessConditionFunctor
     }
   }
 
-  template <class make_select_type>
-  NonzeronessConditionResult SelectLike_(const Expr& e, const Expr& cond, const Expr& true_val,
-                                         const Expr& false_val, make_select_type make_select) {
-    auto nz_a = NonzeronessCondition(true_val);
-    auto nz_b = NonzeronessCondition(false_val);
-
-    if (is_const_value(nz_b.value, 0)) {
-      Expr new_cond = SuperSimplify(nz_a.cond && cond);
-      return {new_cond, nz_a.value};
-    }
-
-    if (is_const_value(nz_a.value, 0)) {
-      Expr new_cond = SuperSimplify(nz_b.cond && !cond);
-      return {new_cond, nz_b.value};
-    }
-
-    Expr new_cond = SuperSimplify((cond && nz_a.cond) || (!cond &&  nz_b.cond));
-    if (nz_a.value.same_as(true_val) && nz_b.value.same_as(false_val)) {
-      return {new_cond, e};
-    } else {
-      return {new_cond, make_select(cond, nz_a.value, nz_b.value)};
-    }
-  }
-
   template <class TNode>
   NonzeronessConditionResult BinOpAddLike_(const TNode* op, const Expr& e) {
     auto nz_a = NonzeronessCondition(op->a);
     auto nz_b = NonzeronessCondition(op->b);
 
+    // For addition and similar ops the result may be nonzero if either of the arguments is
+    // nonzero, so we combine the conditions with Or.
+
     if (Equal(nz_a.cond, nz_b.cond)) {
+      // If the conditions are the same, we don't need Or
       if (nz_a.value.same_as(op->a) && nz_b.value.same_as(op->b)) {
         return {nz_a.cond, e};
       } else {
         return {nz_a.cond, TNode::make(nz_a.value, nz_b.value)};
       }
     } else {
+      // Otherwise use Or
       Expr new_cond = SuperSimplify(nz_a.cond || nz_b.cond);
+      // A little optimization: if the combined condition is the same as one of the inner
+      // conditions, we don't need to guard the inner value with a select, otherwise
+      // we create a select in the `to_expr` call.
       Expr new_a = Equal(nz_a.cond, new_cond) ? nz_a.value : nz_a.to_expr();
       Expr new_b = Equal(nz_b.cond, new_cond) ? nz_b.value : nz_b.to_expr();
       Expr new_expr = TNode::make(new_a, new_b);
@@ -471,6 +488,9 @@ class NonzeronessConditionFunctor
   NonzeronessConditionResult BinOpMulLike_(const TNode* op, const Expr& e) {
     auto nz_a = NonzeronessCondition(op->a);
     auto nz_b = NonzeronessCondition(op->b);
+
+    // For multiplication and similar ops the result may be nonzero if
+    // both the arguments are nonzero, so we combine with And.
 
     Expr new_cond = SuperSimplify(nz_a.cond && nz_b.cond);
 
@@ -485,6 +505,8 @@ class NonzeronessConditionFunctor
   NonzeronessConditionResult BinOpDivLike_(const TNode* op, const Expr& e) {
     auto nz_a = NonzeronessCondition(op->a);
 
+    // For Div we simply use the condition of the numerator.
+
     if (nz_a.value.same_as(op->a)) {
       return {nz_a.cond, e};
     } else {
@@ -493,6 +515,8 @@ class NonzeronessConditionFunctor
   }
 };
 
+// Transform expr into a pair (condition, new_expr) such that the old expr is equivalent to
+// `select(condition, new_expr, 0)`. The pair is represented as a struct for clarity.
 NonzeronessConditionResult NonzeronessCondition(const Expr& expr) {
   return NonzeronessConditionFunctor().NonzeronessCondition(expr);
 }
@@ -624,6 +648,110 @@ class FactorOutAtomicFormulasFunctor
 // Transform the given formula into an array of atomic formulas and a non-atomic residual.
 FactorOutAtomicFormulasResult FactorOutAtomicFormulas(const Expr& e) {
   return FactorOutAtomicFormulasFunctor().VisitExpr(e, e);
+}
+
+
+class RemoveRedundantInequalitiesMutator : public IRMutator {
+ public:
+  explicit RemoveRedundantInequalitiesMutator(Array<Expr> known) {
+    for (const Expr& cond : known) {
+      known_.push_back(SuperSimplify(cond));
+    }
+  }
+
+  virtual Expr Mutate_(const Select* op, const Expr& e) {
+    bool has_side_effect = HasSideEffect(e);
+    Expr new_cond = SuperSimplify(Mutate(op->condition));
+    if (is_one(new_cond) && !has_side_effect) {
+      return Mutate(op->true_value);
+    } else if (is_zero(new_cond) && !has_side_effect) {
+      return Mutate(op->false_value);
+    } else {
+      Array<Expr> new_known = known_;
+      for (const Expr& atomic : FactorOutAtomicFormulas(new_cond).atomic_formulas) {
+        new_known.push_back(atomic);
+      }
+      RemoveRedundantInequalitiesMutator new_mutator(new_known);
+      // Note that we mutate only the true value with the new mutator
+      // TODO(sgrechanik-h): Update known conditions for the false value as well
+      return Select::make(new_cond, new_mutator.Mutate(op->true_value), Mutate(op->false_value));
+    }
+  }
+
+  virtual Expr Mutate_(const Call* op, const Expr& e) {
+    if (op->name == intrinsic::tvm_if_then_else) {
+      Expr new_cond = SuperSimplify(Mutate(op->args[0]));
+      if (is_one(new_cond)) {
+        return Mutate(op->args[1]);
+      } else if (is_zero(new_cond)) {
+        return Mutate(op->args[2]);
+      } else {
+        Array<Expr> new_known = known_;
+        for (const Expr& atomic : FactorOutAtomicFormulas(new_cond).atomic_formulas) {
+          new_known.push_back(atomic);
+        }
+        RemoveRedundantInequalitiesMutator new_mutator(new_known);
+        // Note that we mutate only the true value with the new mutator
+        // TODO(sgrechanik-h): Update known conditions for the false value as well
+        return if_then_else(new_cond, new_mutator.Mutate(op->args[1]), Mutate(op->args[2]));
+      }
+    } else {
+      return IRMutator::Mutate_(op, e);
+    }
+  }
+
+  virtual Expr Mutate_(const Reduce* op, const Expr& e) {
+    Array<Expr> known_with_axes = known_;
+    for (const Expr& axis_cond : IterVarsToInequalities(op->axis)) {
+      known_with_axes.push_back(axis_cond);
+    }
+    RemoveRedundantInequalitiesMutator mutator_with_axes(known_with_axes);
+
+    Expr new_cond = mutator_with_axes.Mutate(op->condition);
+
+    Array<Expr> new_known = known_with_axes;
+    for (const Expr& atomic : FactorOutAtomicFormulas(new_cond).atomic_formulas) {
+      new_known.push_back(atomic);
+    }
+    RemoveRedundantInequalitiesMutator new_mutator(new_known);
+
+    Array<Expr> new_source;
+    for (const Expr& src : op->source) {
+      new_source.push_back(new_mutator.Mutate(src));
+    }
+
+    return Reduce::make(op->combiner, new_source, op->axis, new_cond, op->value_index);
+  }
+
+  virtual Expr Mutate_(const EQ* op, const Expr& e) { return MutateAtomic_(e); }
+  virtual Expr Mutate_(const NE* op, const Expr& e) { return MutateAtomic_(e); }
+  virtual Expr Mutate_(const LT* op, const Expr& e) { return MutateAtomic_(e); }
+  virtual Expr Mutate_(const LE* op, const Expr& e) { return MutateAtomic_(e); }
+  virtual Expr Mutate_(const GT* op, const Expr& e) { return MutateAtomic_(e); }
+  virtual Expr Mutate_(const GE* op, const Expr& e) { return MutateAtomic_(e); }
+
+  virtual Expr Mutate_(const And* op, const Expr& e) {
+    return Mutate(op->a) && Mutate(op->b);
+  }
+
+ private:
+  Expr MutateAtomic_(const Expr& e) {
+    Expr simplified = SuperSimplify(e);
+    for (const Expr& other : known_) {
+      if (Equal(simplified, other)) {
+        return const_true();
+      }
+    }
+    return simplified;
+  }
+
+  Array<Expr> known_;
+};
+
+// Propagate information from conditions and remove redundant inequalities
+// TODO(sgrechanik-h): This should be merged into standard simplifiers
+Expr RemoveRedundantInequalities(const Expr& expr, const Array<Expr>& known) {
+  return RemoveRedundantInequalitiesMutator(known).Mutate(expr);
 }
 
 
@@ -1246,7 +1374,9 @@ Expr ExtractAsTensorMaybe(const Expr& e, const Expr& cond,
   // TODO(sgrechanik-h): We don't use divmod elimination here because of some performance problems
   auto res = SimplifyDomain(cond, outer_axis, vranges, false);
 
-  Expr new_expr = SuperSimplify(Substitute(e, res.old_to_new), vranges);
+  Expr new_expr = SuperSimplify(Substitute(e, res.old_to_new), Merge(vranges, res.ranges));
+  // This is mostly done to simplify if_then_else which is not known by the Halide simplifier
+  new_expr = RemoveRedundantInequalities(new_expr, res.conditions);
 
   // Keep only those variables of the new axis which are used in the new_expr
   {
@@ -1259,9 +1389,6 @@ Expr ExtractAsTensorMaybe(const Expr& e, const Expr& cond,
 
     res.axis = std::move(used_res_axis);
   }
-
-  // Use the new axis to simplify the new expr, removing redundant inequalities
-  new_expr = SuperSimplify(new_expr, res.ranges);
 
   // If the expression does not use vars then it is probably better to keep it inlined
   if (res.axis.empty()) {
@@ -1297,109 +1424,6 @@ Expr ExtractAsTensorMaybe(const Expr& e, const Expr& cond,
                     Call::CallType::Halide, tensor->op, tensor->value_index);
 }
 
-
-class RemoveRedundantInequalitiesMutator : public IRMutator {
- public:
-  explicit RemoveRedundantInequalitiesMutator(Array<Expr> known) {
-    for (const Expr& cond : known) {
-      known_.push_back(SuperSimplify(cond));
-    }
-  }
-
-  virtual Expr Mutate_(const Select* op, const Expr& e) {
-    bool has_side_effect = HasSideEffect(e);
-    Expr new_cond = SuperSimplify(Mutate(op->condition));
-    if (is_one(new_cond) && !has_side_effect) {
-      return Mutate(op->true_value);
-    } else if (is_zero(new_cond) && !has_side_effect) {
-      return Mutate(op->false_value);
-    } else {
-      Array<Expr> new_known = known_;
-      for (const Expr& atomic : FactorOutAtomicFormulas(new_cond).atomic_formulas) {
-        new_known.push_back(atomic);
-      }
-      RemoveRedundantInequalitiesMutator new_mutator(new_known);
-      // Note that we mutate only the true value with the new mutator
-      // TODO(sgrechanik-h): Update known conditions for the false value as well
-      return Select::make(new_cond, new_mutator.Mutate(op->true_value), Mutate(op->false_value));
-    }
-  }
-
-  virtual Expr Mutate_(const Call* op, const Expr& e) {
-    if (op->name == intrinsic::tvm_if_then_else) {
-      Expr new_cond = SuperSimplify(Mutate(op->args[0]));
-      if (is_one(new_cond)) {
-        return Mutate(op->args[1]);
-      } else if (is_zero(new_cond)) {
-        return Mutate(op->args[2]);
-      } else {
-        Array<Expr> new_known = known_;
-        for (const Expr& atomic : FactorOutAtomicFormulas(new_cond).atomic_formulas) {
-          new_known.push_back(atomic);
-        }
-        RemoveRedundantInequalitiesMutator new_mutator(new_known);
-        // Note that we mutate only the true value with the new mutator
-        // TODO(sgrechanik-h): Update known conditions for the false value as well
-        return if_then_else(new_cond, new_mutator.Mutate(op->args[1]), Mutate(op->args[2]));
-      }
-    } else {
-      return IRMutator::Mutate_(op, e);
-    }
-  }
-
-  virtual Expr Mutate_(const Reduce* op, const Expr& e) {
-    Array<Expr> known_with_axes = known_;
-    for (const Expr& axis_cond : IterVarsToInequalities(op->axis)) {
-      known_with_axes.push_back(axis_cond);
-    }
-    RemoveRedundantInequalitiesMutator mutator_with_axes(known_with_axes);
-
-    Expr new_cond = mutator_with_axes.Mutate(op->condition);
-
-    Array<Expr> new_known = known_with_axes;
-    for (const Expr& atomic : FactorOutAtomicFormulas(new_cond).atomic_formulas) {
-      new_known.push_back(atomic);
-    }
-    RemoveRedundantInequalitiesMutator new_mutator(new_known);
-
-    Array<Expr> new_source;
-    for (const Expr& src : op->source) {
-      new_source.push_back(new_mutator.Mutate(src));
-    }
-
-    return Reduce::make(op->combiner, new_source, op->axis, new_cond, op->value_index);
-  }
-
-  virtual Expr Mutate_(const EQ* op, const Expr& e) { return MutateAtomic_(e); }
-  virtual Expr Mutate_(const NE* op, const Expr& e) { return MutateAtomic_(e); }
-  virtual Expr Mutate_(const LT* op, const Expr& e) { return MutateAtomic_(e); }
-  virtual Expr Mutate_(const LE* op, const Expr& e) { return MutateAtomic_(e); }
-  virtual Expr Mutate_(const GT* op, const Expr& e) { return MutateAtomic_(e); }
-  virtual Expr Mutate_(const GE* op, const Expr& e) { return MutateAtomic_(e); }
-
-  virtual Expr Mutate_(const And* op, const Expr& e) {
-    return Mutate(op->a) && Mutate(op->b);
-  }
-
- private:
-  Expr MutateAtomic_(const Expr& e) {
-    Expr simplified = SuperSimplify(e);
-    for (const Expr& other : known_) {
-      if (Equal(simplified, other)) {
-        return const_true();
-      }
-    }
-    return simplified;
-  }
-
-  Array<Expr> known_;
-};
-
-// Propagate information from conditions and remove redundant inequalities
-// TODO(sgrechanik-h): This should be merged into standard simplifiers
-Expr RemoveRedundantInequalities(const Expr& expr, const Array<Expr>& known) {
-  return RemoveRedundantInequalitiesMutator(known).Mutate(expr);
-}
 
 // Extract from cond an implication of cond not containing vars
 std::pair<Expr, Expr> ImplicationNotContainingVars(
