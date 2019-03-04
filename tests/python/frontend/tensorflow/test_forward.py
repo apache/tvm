@@ -682,6 +682,49 @@ def test_forward_pad():
     _test_pad((2, 3), [[1,1], [2,2]], mode="CONSTANT")
     _test_pad((2, 3), [[1,1], [2,2]], mode="CONSTANT", constant_values=1.0)
 
+#######################################################################
+# Logical operators
+# --------------------
+def test_logical_and():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in1')
+        in2 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in2')
+        out = tf.logical_and(in1, in2, name='out')
+        in_data1 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        in_data2 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
+
+def test_logical_or():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in1')
+        in2 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in2')
+        out = tf.logical_or(in1, in2, name='out')
+        in_data1 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        in_data2 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
+
+def test_logical_xor():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in1')
+        in2 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in2')
+        out = tf.logical_xor(in1, in2, name='out')
+        in_data1 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        in_data2 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
+
+def test_logical_not():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in1')
+        out = tf.logical_not(in1, name='out')
+        in_data1 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        compare_tf_with_tvm(in_data1, 'in1:0', 'out:0')
+
+def test_forward_logical():
+    test_logical_and()
+    test_logical_or()
+    test_logical_xor()
+    test_logical_not()
+
 
 #######################################################################
 # Inception V3
@@ -1109,5 +1152,4 @@ if __name__ == '__main__':
 
     # Relational ops
     test_forward_rel_ops()
-
-
+    test_forward_logical()
