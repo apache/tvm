@@ -166,7 +166,7 @@ def _mx_dropout(inputs, attrs):
     return _op.nn.dropout(inputs[0], rate=rate)
 
 
-def _mx_BlockGrad(inputs, attrs):
+def _mx_BlockGrad(inputs, attrs): #pylint: disable=unused-argument
     return inputs
 
 
