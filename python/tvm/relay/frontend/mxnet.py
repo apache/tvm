@@ -200,6 +200,9 @@ def _mx_slice_axis(inputs, attrs):
     axis = attrs.get_int("axis")
     ax_beg = attrs.get_int("begin")
     ax_end = attrs.get_str("end")
+    if axis < 0:
+        axis += len(shape)
+    assert axis >= 0 and axis < len(shape)
     if ax_end == "None":
         ax_end = int(shape[axis])
     else:
