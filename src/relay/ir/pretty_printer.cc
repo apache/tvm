@@ -121,19 +121,20 @@ class PrettyPrinter :
       Doc doc = Nil();
       Doc body = Nil();
       doc << "{";
-      doc << Indent(indent, body << "\n" << PrintNestedScope(node)) << "\n";
+      doc << Indent(indent, body << "\n" << PrintScope(node)) << "\n";
       doc << "}";
       return doc;
     }
 
     // create a new scope by creating a new printer object. This allows temp var
     // numbers to be reused and prevents hoisted vars from escaping too far
-    Doc PrintNestedScope(const NodeRef& node) {
+    Doc PrintScope(const NodeRef& node) {
       if (GNF_) {
         // print in a new scope
         doc_stack_.push_back(Nil());
+        // must print first so doc_stack_.back() reference doesn't become stale
         Doc doc = Print(node, false);
-        doc_stack_.back() << doc;
+        doc = doc_stack_.back() << doc;
         doc_stack_.pop_back();
         return doc;
       } else {
@@ -142,8 +143,8 @@ class PrettyPrinter :
     }
 
     Doc PrintFinal(const NodeRef& node) {
-      // must print first so doc_stack_.back() reference doesn't become stale
-      Doc doc = Print(node, false);
+      Doc doc = Nil();
+      doc << PrintScope(node);
       if (!meta_.empty()) {
         if (show_meta_data_) {
           std::string meta_json = meta_.GetMetaSection();
@@ -153,7 +154,7 @@ class PrettyPrinter :
           doc << "// meta data omitted. you can use show_meta_data=True to include meta data\n";
         }
       };
-      return doc_stack_.back() << doc;
+      return doc;
     }
 
     Doc PrintAttrs(const Attrs& attrs);
@@ -318,7 +319,7 @@ class PrettyPrinter :
       doc << ";" << "\n";
       // we use a nested scope here so GNF hoisting doesn't escape too far
       // and so consecutive lets don't get hoisted
-      doc << PrintNestedScope(op->body);
+      doc << PrintScope(op->body);
       return doc;
     }
 
@@ -496,7 +497,7 @@ class PrettyPrinter :
     /*! \brief Whether to print meta data. */
     bool show_meta_data_;
     /*! \brief Stack of docs to implement scoped GNFing. */
-    std::vector<Doc> doc_stack_{Nil()};
+    std::vector<Doc> doc_stack_{};
     /*! \brief Map from Expr to Doc */
     std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
     /*! \brief Map from Type to Doc */
@@ -575,7 +576,7 @@ std::string RelayGNFPrint(const NodeRef& node) {
 }
 
 std::string RelayANFPrint(const NodeRef& node) {
-  return "v0.0.1\n" + Layout(PrettyPrinter(false, false).Print(node)) + "\n";
+  return "v0.0.1\n" + Layout(PrettyPrinter(false, false).PrintFinal(node)) + "\n";
 }
 
 std::string RelayPrettyPrint(const NodeRef& node, bool gnf, bool show_meta_data) {
