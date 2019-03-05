@@ -111,3 +111,6 @@ if __name__ == "__main__":
     print(env.astext())
     print(gnf_print(env))
     print(anf_print(env))
+    print(gnf_print(relay.fromtext(SEMVER+"let %x = { let %y = 2; %y }; %x")))
+    print(gnf_print(relay.fromtext(SEMVER+"let %x = { let %y = 2; ((%y + %y, %y * %y), 1) }; %x")))
+    print(anf_print(relay.fromtext(SEMVER+"let %x = { let %y = 2; ((%y + %y, %y * %y), 1) }; %x")))

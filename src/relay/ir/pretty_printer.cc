@@ -197,12 +197,15 @@ class PrettyPrinter :
 
     Doc VisitExpr_(const LetNode* op) final {
       Doc doc = Nil();
-      // TODO: this should have a type annotation
-      // TODO: lets in value position need to be scoped
-
-      // we use ANF mode for the first level of the value position so the final
-      // expression isn't hoisted or added to the doc stream
-      doc << "let " << AllocVar(op->var) << " = " << Print(op->value, false) << ";" << "\n";
+      doc << "let " << AllocVar(op->var) << " = ";
+      if (op->value.as<LetNode>()) {
+        doc << PrintBody(op->value);
+      } else {
+        // we use ANF mode for the first level of the value position so the
+        // final expression isn't hoisted or added to the doc stream
+        doc << Print(op->value, false);
+      }
+      doc << ";" << "\n";
       // we use a nested scope here so GNF hoisting doesn't escape too far
       // and so consecutive lets don't get hoisted
       doc << PrintNestedScope(op->body);
