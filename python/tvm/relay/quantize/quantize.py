@@ -208,19 +208,22 @@ def calibrate(graph, dataset=None):
             nbit = cfg.get_nbit_by_kind(kind)
 
             valid_bit = nbit - attrs.sign
+            valid_range = 2**valid_bit
+
+            def _make_const(val):
+                return _expr.const(val, 'float32')
 
             if kind == QAnnotateKind.WEIGHT:
                 var = expr.args[0]
                 assert isinstance(var, _expr.Constant)
                 scale = power2_scale(var.data)
+                const_params[ndom_scale] = _make_const(scale / valid_range)
             else:
-                scale = cfg.global_scale
+                print("make?")
+                #const_params[ndom_scale] = _make_const(scale / valid_range)
+                pass
+                #scale = cfg.global_scale
 
-            def _make_const(val):
-                return _expr.const(val, 'float32')
-
-            valid_range = 2**valid_bit
-            #const_params[ndom_scale] = _make_const(scale / valid_range)
             const_params[nclip_min] = _make_const(- (valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))
 

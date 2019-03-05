@@ -37,8 +37,8 @@ def get_val_data(args,
     return val_data, batch_fn
 
 
-#def evaluate(args, graph, lib, params, ctx):
-def evaluate(args, graph, intrp, params):
+def evaluate(args, graph, lib, params, ctx, free_vars):
+#def evaluate(args, graph, intrp, params):
     """Evaluate on the validation set."""
     import tvm
     from tvm.contrib import graph_runtime
@@ -47,12 +47,16 @@ def evaluate(args, graph, intrp, params):
     batch_size = args.batch_size
     val_data, batch_fn = get_val_data(args, args.rec_val, batch_size)
     # create runtime module
-    #m = graph_runtime.create(graph, lib, ctx)
-    #scales = {}
-    for i in range(0, 60):
-        print(i)
-        params['dom_scale'+str(i)] = np.array(8.0)
-    #m.set_input(**params)
+    m = graph_runtime.create(graph, lib, ctx)
+    scales = {}
+    print(len(free_vars))
+    for free_var in free_vars:
+        print(free_var.name_hint)
+        params[str(free_var.name_hint)] = np.array(8.0/128)
+        #scales[str(free_var.name_hint)] = np.array(8.0/128)
+
+    m.set_input(**params)
+    #m.set_input(**scales)
     oshape = (batch_size, args.num_classes)
     out_arr = tvm.nd.empty(oshape, "float32")
     # setup evaluaiton metric
@@ -64,9 +68,10 @@ def evaluate(args, graph, intrp, params):
     # Execute
     for i, batch in enumerate(val_data):
         data, label = batch_fn(batch, [mx.cpu(0)])
-        #m.run(data=data[0].asnumpy(), **scales)
-        #m.get_output(0, out_arr)
-        out_arr = intrp.evaluate(graph)(data, **params)
+        m.run(data=data[0].asnumpy())
+        m.run(data=data[0].asnumpy(), **scales)
+        m.get_output(0, out_arr)
+        #out_arr = intrp.evaluate(graph)(data)
         acc_top1.update(label, [mx.nd.array(out_arr.asnumpy())])
         acc_top5.update(label, [mx.nd.array(out_arr.asnumpy())])
 
@@ -121,6 +126,7 @@ def build_model(args, gluon_model):
         print('after annotate')
         print(qgraph.astext(show_meta_data=False))
         qgraph = qtz.calibrate(qgraph)
+        free_vars = []
         free_vars = list(relay.ir_pass.free_vars(qgraph))
         qgraph = relay.Function(list(qgraph.params) + free_vars,
                                 qgraph.body, qgraph.ret_type,
@@ -134,21 +140,21 @@ def build_model(args, gluon_model):
             print(qgraph.astext(show_meta_data=False))
 
     with relay.build_config(opt_level=3):
-        #graph, lib, params = relay.build(qgraph, target)
+        graph, lib, params = relay.build(qgraph, target)
         ctx = tvm.nd.context(target, 0)
-        intrp = relay.build_module.create_executor('graph', qgraph, ctx, target)
-    #return graph, lib, params, ctx
-    return qgraph, intrp, params
+        #intrp = relay.build_module.create_executor('graph', qgraph, ctx, target)
+    return graph, lib, params, ctx, free_vars
+    #return qgraph, intrp, params
 
 
 def main(args):
     gluon_model = vision.get_model(args.model, pretrained=True)
-    #graph, lib, params, ctx = build_model(args, gluon_model)
-    graph, intrp, params = build_model(args, gluon_model)
+    graph, lib, params, ctx, free_vars = build_model(args, gluon_model)
+    #graph, intrp, params = build_model(args, gluon_model)
     logging.info("Finish building model %s...", args.model)
     # raise ValueError
-    #evaluate(args, graph, lib, params, ctx)
-    evaluate(args, graph, intrp, params)
+    evaluate(args, graph, lib, params, ctx, free_vars)
+    #evaluate(args, graph, intrp, params)
 
 
 if __name__ == "__main__":
