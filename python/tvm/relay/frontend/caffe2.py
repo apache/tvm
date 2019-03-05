@@ -133,24 +133,14 @@ class Elemwise(Caffe2OpConverter):
     """
     name = ''
     @classmethod
-    def _math_name_picker(cls, suffix):
-
-        def _impl(attr):
-            if attr.get('broadcast', 0):
-                return 'broadcast_' + suffix
-            return 'elemwise_' + suffix
-
-        return _impl
-
-    @classmethod
     def _impl(cls, inputs, args, params):
         assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(
             len(inputs))
-        op_name = cls._math_name_picker(cls.name)(args)
-        axis = int(args.get('axis', 0))
+        op_name = cls.name
         conv_ops = ["conv2d", "conv2d_transpose"]
-        if op_name == 'broadcast_add' and inputs[0].attr('op_name') in conv_ops:
+        if args.get('broadcast', 0) and any(x in str(inputs[0]) for x in conv_ops):
             # TODO(zhreshold): remove hard coded infershape
+            axis = int(args.get('axis', 0))
             inputs[1] = _op.expand_dims(inputs[1], axis=axis, num_newaxis=2)
         return get_relay_op(op_name)(*inputs)
 
@@ -214,7 +204,7 @@ class Conv(Caffe2OpConverter):
                 'order': ('data_layout', ("NCHW"), lambda x: x if isinstance(x, str) else x.decode('UTF-8')),
             },
             excludes=[],
-            ignores=[],
+            ignores=_caffe2_internal_args,
             custom_check=dimension_constraint())(inputs[:2], args, params)
         use_bias = len(inputs) == 3
         if use_bias:
@@ -256,7 +246,7 @@ class NormalizePlanarYUV(Caffe2OpConverter):
         mean = _op.expand_dims(inputs[1], axis=2, num_newaxis=2)
         std = _op.expand_dims(inputs[2], axis=2, num_newaxis=2)
 
-        return _op.broadcast_divide(_op.subtract(inputs[0], mean), std)
+        return _op.divide(_op.subtract(inputs[0], mean), std)
 
 
 class ResizeNearest(Caffe2OpConverter):
