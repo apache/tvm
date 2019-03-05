@@ -210,7 +210,7 @@ def test_roi_align():
 def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
     cls_prob = tvm.placeholder(np_cls_prob.shape)
     bbox_pred = tvm.placeholder(np_bbox_pred.shape)
-    im_info = tvm.placeholder(np_im_info.shape, dtype='int32')
+    im_info = tvm.placeholder(np_im_info.shape)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -252,7 +252,7 @@ def test_proposal():
         [[1.0, 0.5, 0.7], [1.5,  0.9, 1.6], [1.4, 1.5, 0.8]],
         [[1.0, 0.5, 0.6], [1.5,  0.9, 2.0], [1.8, 1.0, 0.9]],
     ]], dtype='float32')
-    np_im_info = np.array([[48, 48, 1]], dtype='int32')
+    np_im_info = np.array([[48., 48., 1.]], dtype='float32')
     np_out = np.array([
         [0., 0., 2.8451548,28.38012, 18.154846],
         [0., 0., 15.354933, 41.96971, 41.245064],

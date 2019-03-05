@@ -109,6 +109,44 @@ struct YoloReorgAttrs : public tvm::AttrsNode<YoloReorgAttrs> {
   }
 };
 
+/*! \brief Attributes used in proposal operators */
+struct ProposalAttrs : public tvm::AttrsNode<ProposalAttrs> {
+  Array<IndexExpr> scales;
+  Array<IndexExpr> ratios;
+  int feature_stride;
+  double threshold;
+  int rpn_pre_nms_top_n;
+  int rpn_post_nms_top_n;
+  int rpn_min_size;
+  bool iou_loss;
+
+  TVM_DECLARE_ATTRS(ProposalAttrs, "relay.attrs.ProposalAttrs") {
+    TVM_ATTR_FIELD(scales)
+        .set_default(Array<IndexExpr>({4.0f, 8.0f, 16.0f, 32.0f}))
+        .describe("Used to generate anchor windows by enumerating scales");
+    TVM_ATTR_FIELD(ratios)
+        .set_default(Array<IndexExpr>({0.5f, 1.0f, 2.0f}))
+        .describe("Used to generate anchor windows by enumerating ratios");
+    TVM_ATTR_FIELD(feature_stride)
+        .set_default(16)
+        .describe(
+            "The size of the receptive field each unit in the convolution layer of the rpn,"
+            "for example the product of all stride's prior to this layer.");
+    TVM_ATTR_FIELD(threshold)
+        .set_default(0.7)
+        .describe(
+            "IoU threshold of non-maximum suppresion (suppress boxes with IoU >= this threshold)");
+    TVM_ATTR_FIELD(rpn_pre_nms_top_n)
+        .set_default(6000)
+        .describe("Number of top scoring boxes to apply NMS. -1 to use all boxes");
+    TVM_ATTR_FIELD(rpn_post_nms_top_n)
+        .set_default(300)
+        .describe("Number of top scoring boxes to keep after applying NMS to RPN proposals");
+    TVM_ATTR_FIELD(rpn_min_size).set_default(16).describe("Minimum height or width in proposal");
+    TVM_ATTR_FIELD(iou_loss).set_default(false).describe("Usage of IoU Loss");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_VISION_H_
