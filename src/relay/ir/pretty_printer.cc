@@ -129,17 +129,13 @@ class PrettyPrinter :
     // create a new scope by creating a new printer object. This allows temp var
     // numbers to be reused and prevents hoisted vars from escaping too far
     Doc PrintScope(const NodeRef& node) {
-      if (GNF_) {
-        // print in a new scope
-        doc_stack_.push_back(Nil());
-        // must print first so doc_stack_.back() reference doesn't become stale
-        Doc doc = Print(node, false);
-        doc = doc_stack_.back() << doc;
-        doc_stack_.pop_back();
-        return doc;
-      } else {
-        return Print(node);
-      }
+      // print in a new scope
+      doc_stack_.push_back(Nil());
+      // must print first so doc_stack_.back() reference doesn't become stale
+      Doc doc = Print(node, false);
+      doc = doc_stack_.back() << doc;
+      doc_stack_.pop_back();
+      return doc;
     }
 
     Doc PrintFinal(const NodeRef& node) {
@@ -149,9 +145,9 @@ class PrettyPrinter :
         if (show_meta_data_) {
           std::string meta_json = meta_.GetMetaSection();
           // append meta data in the end.
-          doc << "/* meta data */" << "\n" << meta_json << "\n";
+          doc << "\n" << "/* meta data */" << "\n" << meta_json;
         } else {
-          doc << "// meta data omitted. you can use show_meta_data=True to include meta data\n";
+          doc << "\n" << "// meta data omitted. you can use show_meta_data=True to include meta data";
         }
       };
       return doc;
@@ -247,7 +243,10 @@ class PrettyPrinter :
         doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
         return temp_var;
       } else if (expr.as<VarNode>()) {
+        // This is our first time visiting the var and we hit the VarNode case
+        // in the visitor. Thus the variable is free.
         doc_stack_.back() << "free_var " << printed_expr << "\n";
+        // Memoization is done in AllocVar.
         return memo_[expr];
       } else {
         memo_[expr] = printed_expr;
