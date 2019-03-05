@@ -138,7 +138,7 @@ struct ProposalAttrs : public tvm::AttrsNode<ProposalAttrs> {
             "IoU threshold of non-maximum suppresion (suppress boxes with IoU >= this threshold)");
     TVM_ATTR_FIELD(rpn_pre_nms_top_n)
         .set_default(6000)
-        .describe("Number of top scoring boxes to apply NMS. -1 to use all boxes")
+        .describe("Number of top scoring boxes to apply NMS. -1 to use all boxes");
     TVM_ATTR_FIELD(rpn_post_nms_top_n)
         .set_default(300)
         .describe("Number of top scoring boxes to keep after applying NMS to RPN proposals");

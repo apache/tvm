@@ -412,7 +412,7 @@ _convert_map = {
     "_contrib_MultiBoxDetection" : _mx_multibox_detection,
     "_contrib_ROIAlign" : _mx_roi_align,
     "_contrib_Proposal" : _mx_proposal,
-    "_contrib_MultiProposal" : mx_proposal,
+    "_contrib_MultiProposal" : _mx_proposal,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
