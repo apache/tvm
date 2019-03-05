@@ -112,7 +112,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
         (out, _) = proc.communicate()
     except FileNotFoundError:
         raise RuntimeError("Can not find the LLVM linker for Windows (lld-link.exe)."
-                           "Make sure it's installed and the installation directory is in the %PATH% environment "
+                           "Make sure it's installed"
+                           " and the installation directory is in the %PATH% environment "
                            "variable. Prebuilt binaries can be found at: https://llvm.org/"
                            "For building the linker on your own see: https://lld.llvm.org/#build")
     if proc.returncode != 0:
