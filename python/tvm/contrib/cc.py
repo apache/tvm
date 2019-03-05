@@ -85,7 +85,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
             cl_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (out, _) = proc.communicate()
     except FileNotFoundError:
-        raise RuntimeError("can not found cl.exe,"
+        raise RuntimeError("Can not find cl.exe,"
                            "please run this in Vistual Studio Command Prompt.")
     if proc.returncode != 0:
         msg = "Compilation error:\n"
@@ -111,8 +111,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,\
             link_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (out, _) = proc.communicate()
     except FileNotFoundError:
-        raise RuntimeError("can not found link.exe,"
-                           "please run this in Vistual Studio Command Prompt.")
+        raise RuntimeError("Can not find the LLVM linker for Windows (lld-link.exe)."
+                           "Make sure it's installed and the installation directory is in the %PATH% environment "
+                           "variable. Prebuilt binaries can be found at: https://llvm.org/"
+                           "For building the linker on your own see: https://lld.llvm.org/#build")
     if proc.returncode != 0:
         msg = "Compilation error:\n"
         msg += py_str(out)
