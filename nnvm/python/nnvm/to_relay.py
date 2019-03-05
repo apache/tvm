@@ -301,9 +301,9 @@ def _collapse_sum(children, attrs, odtype='float32'):
     return op.collapse_sum_like(children[0], children[1])
 
 
-def _not_implemented(op):
+def _not_implemented(new_op):
     def _impl(children, attrs, odtype='float32'):
-        raise NotImplementedError(str(op) + " is not implemented.")
+        raise NotImplementedError(str(new_op) + " is not implemented.")
     return _impl
 
 
