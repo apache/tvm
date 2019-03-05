@@ -12,16 +12,109 @@
 namespace tvm {
 namespace relay {
 
+/*!
+ * \brief Meta data context for TextPrinter.
+ *
+ * This is an important part to enable bi-directional serializability.
+ * We use tvm's Node system to build the current IR.
+ * It can be hard to design a text format for all the possible nodes
+ * as the set of nodes can grow when we do more extensions.
+ *
+ * Instead of trying to design readable text format for every node,
+ * we support a meta data section in the text format.
+ * We allow the text format to refer to a node in the meta data section.
+ *
+ * The meta data section is a json serialized string of an Map<string, Array<NodeRef>>.
+ * Each element in the meta data section can be referenced by the text format.
+ * Each meta data node is printed in the following format.
+ *
+ * meta[type-key-of-node>][<index-in-meta-section>]
+ *
+ * Specifically, consider the following IR(constructed by python).
+ *
+ * \code
+ *
+ * n = tvm.var("n")
+ * x = tvm.relay.var("x", shape=(n, 1))
+ * f = tvm.relay.Function([x], x)
+ * print(f.astext())
+ *
+ * \endcode
+ *
+ * The corresponding text format is shown in the following code block.
+ *
+ * \code
+ *
+ * fn (%x: Tensor[(meta[Variable][0],), float32]) {
+ *   %x
+ * }
+ * # Meta data section is a json-serialized string
+ * # of the following array.
+ * # [tvm.var("n")]
+ *
+ * \endcode
+ *
+ * Note that we store tvm.var("n") in the meta data section.
+ * Since it is stored in the index-0 in the meta data section,
+ * we print it as meta[Variable][0].
+ *
+ * The text parser can recover this object by loading from the corresponding
+ * location in the meta data section.
+ *
+ * This is is a design trade-off.
+ * It allows us to embedded any meta data in the text format,
+ * while still being able to tweak the text part of the printed IR easily.
+ */
+class TextMetaDataContext {
+ public:
+  /*!
+   * \brief Get text representation of meta node.
+   * \param node The node to be converted to meta node.
+   * \return A string representation of the meta node.
+   */
+  Doc GetMetaNode(const NodeRef& node) {
+    auto it = meta_repr_.find(node);
+    if (it != meta_repr_.end()) {
+      return it->second;
+    }
+    Array<NodeRef>& mvector =
+        meta_data_[node->type_key()];
+    int64_t index = static_cast<int64_t>(mvector.size());
+    mvector.push_back(node);
+    Doc doc = Nil();
+    doc << "meta[" << node->type_key() << "][" << index << "]";
+    meta_repr_[node] = doc;
+    return meta_repr_[node];
+  }
+  /*!
+   * \brief Get the metadata section in json format.
+   * \return the meta datastring.
+   */
+  std::string GetMetaSection() const {
+    if (meta_data_.size() == 0) return std::string();
+    return SaveJSON(Map<std::string, NodeRef>(
+        meta_data_.begin(), meta_data_.end()));
+  }
+
+  /*! \return whether the meta data context is empty. */
+  bool empty() const {
+    return meta_data_.empty();
+  }
+
+ private:
+  /*! \brief additional metadata stored in TVM json format */
+  std::unordered_map<std::string, Array<NodeRef> > meta_data_;
+  /*! \brief map from meta data into its string representation */
+  std::unordered_map<NodeRef, Doc, NodeHash, NodeEqual> meta_repr_;
+};
+
 class PrettyPrinter :
     public ExprFunctor<Doc(const Expr&)>,
     public TypeFunctor<Doc(const Type&)>,
     public AttrFunctor<Doc(const NodeRef&)> {
   public:
-    explicit PrettyPrinter(const std::unordered_map<Expr, Doc, NodeHash, NodeEqual>& memo_, const std::unordered_map<Type, Doc, NodeHash, NodeEqual>& memo_type_, const std::unordered_map<std::string, int>& name_alloc_map_, size_t temp_var_counter_, bool GNF_) : memo_(memo_), memo_type_(memo_type_), name_alloc_map_(name_alloc_map_), temp_var_counter_(temp_var_counter_), GNF_(GNF_) {}
-
     explicit PrettyPrinter() : temp_var_counter_(0), GNF_(true) {}
-
-    explicit PrettyPrinter(bool GNF_) : temp_var_counter_(0), GNF_(GNF_) {}
+    explicit PrettyPrinter(bool GNF, bool show_meta_data) : show_meta_data_(show_meta_data), temp_var_counter_(0), GNF_(GNF) {}
 
     // indent a new body
     Doc PrintBody(const NodeRef& node, int indent = 2) {
@@ -39,7 +132,8 @@ class PrettyPrinter :
       if (GNF_) {
         // print in a new scope
         doc_stack_.push_back(Nil());
-        Doc doc = PrintFinal(node);
+        Doc doc = Print(node, false);
+        doc_stack_.back() << doc;
         doc_stack_.pop_back();
         return doc;
       } else {
@@ -50,17 +144,26 @@ class PrettyPrinter :
     Doc PrintFinal(const NodeRef& node) {
       // must print first so doc_stack_.back() reference doesn't become stale
       Doc doc = Print(node, false);
+      if (!meta_.empty()) {
+        if (show_meta_data_) {
+          std::string meta_json = meta_.GetMetaSection();
+          // append meta data in the end.
+          doc << "/* meta data */" << "\n" << meta_json << "\n";
+        } else {
+          doc << "// meta data omitted. you can use show_meta_data=True to include meta data\n";
+        }
+      };
       return doc_stack_.back() << doc;
     }
 
     Doc PrintAttrs(const Attrs& attrs);
 
     // note: gnf flag is only one level deep
-    Doc Print(const NodeRef& node, bool gnf = true) {
+    Doc Print(const NodeRef& node, bool gnf = true, bool meta = false) {
       if (node.as_derived<ExprNode>()) {
-        return PrintExpr(Downcast<Expr>(node), gnf);
+        return PrintExpr(Downcast<Expr>(node), gnf, meta);
       } else if (node.as_derived<TypeNode>()) {
-        return PrintType(Downcast<Type>(node));
+        return PrintType(Downcast<Type>(node), meta);
       } else if (node.as_derived<ModuleNode>()) {
         return PrintMod(Downcast<Module>(node));
       } else { assert(false); }
@@ -123,14 +226,21 @@ class PrettyPrinter :
     //------------------------------------
     // Overload of Expr printing functions
     //------------------------------------
-    Doc PrintExpr(const Expr& expr, bool gnf = true) {
+    Doc PrintExpr(const Expr& expr, bool gnf, bool meta) {
       // Exploit memoization to print GNF.
       // The first time we visit an expression, we need to allocate a temp var
       // for it. Every subsequent time we can just use its assigned variable.
       // This works since hashing uses pointer equality.
       auto it = memo_.find(expr);
       if (it != memo_.end()) return it->second;
-      Doc printed_expr = VisitExpr(expr);
+      Doc printed_expr;
+      if (meta) {
+        printed_expr = meta_.GetMetaNode(GetRef<NodeRef>(expr.get()));
+        std::cerr << Layout(printed_expr) << "\n";
+        assert(false);
+      } else {
+        printed_expr = VisitExpr(expr);
+      }
       // we choose to inline some nodes
       if (GNF_ && gnf && !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>() && !expr.as<OpNode>() && !expr.as<VarNode>()) {
         Doc temp_var = AllocTemp();
@@ -168,8 +278,8 @@ class PrettyPrinter :
           return PrintConstScalar(dtype, static_cast<const uint8_t*>(op->data->data));
         }
       }
-      // TODO: handle tensors
-      assert(false);
+      // default fall-back, record it as meta node.
+      return Print(GetRef<NodeRef>(op), true, true);
     }
 
     Doc VisitExpr_(const TupleNode* op) final {
@@ -214,7 +324,7 @@ class PrettyPrinter :
 
     Doc PrintFunc(const Doc& prefix, const Function& fn) {
         // TODO(tqchen, M.K.) support generic function
-        // Possibly through meta-data
+        // Possibly through meta data
         CHECK_EQ(fn->type_params.size(), 0U)
         << "generic fn not yet supported";
         Doc doc = Nil();
@@ -272,12 +382,22 @@ class PrettyPrinter :
     //------------------------------------
     // Overload of Type printing functions
     //------------------------------------
-    Doc PrintType(const Type& type) {
+    Doc PrintType(const Type& type, bool meta) {
       auto it = memo_type_.find(type);
       if (it != memo_type_.end()) return it->second;
-      Doc printed_type = VisitType(type);
+      Doc printed_type;
+      if (meta) {
+        printed_type = meta_.GetMetaNode(GetRef<NodeRef>(type.get()));
+      } else {
+        printed_type = VisitType(type);
+      }
       memo_type_[type] = printed_type;
       return printed_type;
+    }
+
+    Doc VisitTypeDefault_(const Node* node) final {  // NOLINT(*)
+      // by default always print as meta data
+      return Print(GetRef<NodeRef>(node), true, true);
     }
 
     Doc VisitType_(const TensorTypeNode* node) final {  // NOLINT(*)
@@ -326,12 +446,22 @@ class PrettyPrinter :
     // Overload of Attr printing functions
     //------------------------------------
 
-    Doc PrintAttr(const NodeRef& value) {  // NOLINT(*)
+    Doc PrintAttr(const NodeRef& value, bool meta = false) {  // NOLINT(*)
       if (value.defined()) {
-        return VisitAttr(value);
+        Doc printed_attr;
+        if (meta) {
+          printed_attr = meta_.GetMetaNode(value);
+        } else {
+          printed_attr = VisitAttr(value);
+        }
+        return printed_attr;
       } else {
         return Text("None");
       }
+    }
+
+    Doc VisitAttrDefault_(const Node* op) final { // NOLINT(*)
+      return PrintAttr(GetRef<NodeRef>(op), true);
     }
 
     Doc VisitAttr_(const ArrayNode* op) final {  // NOLINT(*)
@@ -344,11 +474,6 @@ class PrettyPrinter :
       doc << PrintVec(arr_vals);
       doc << "]";
       return doc;
-    }
-
-    Doc VisitAttrDefault_(const Node* op) final { // NOLINT(*)
-      // os << meta_.GetMetaNode(GetRef<NodeRef>(op));
-      assert(false);
     }
 
     Doc VisitAttr_(const ir::IntImm* op) final {  // NOLINT(*)
@@ -368,6 +493,8 @@ class PrettyPrinter :
     }
 
   private:
+    /*! \brief Whether to print meta data. */
+    bool show_meta_data_;
     /*! \brief Stack of docs to implement scoped GNFing. */
     std::vector<Doc> doc_stack_{Nil()};
     /*! \brief Map from Expr to Doc */
@@ -375,6 +502,8 @@ class PrettyPrinter :
     /*! \brief Map from Type to Doc */
     std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
     std::unordered_map<std::string, int> name_alloc_map_;
+    /*! \brief meta data context */
+    TextMetaDataContext meta_;
     size_t temp_var_counter_;
     bool GNF_;
     class AttrPrinter;
@@ -440,11 +569,19 @@ Doc PrettyPrinter::PrintAttrs(const Attrs& attrs) {  // NOLINT(*)
 }
 
 std::string RelayGNFPrint(const NodeRef& node) {
-  return "v0.0.1\n" + Layout(PrettyPrinter().PrintFinal(node)) + "\n";
+  Doc doc = Nil();
+  doc << "v0.0.1" << "\n" << PrettyPrinter(true, false).PrintFinal(node) << "\n";
+  return Layout(doc);
 }
 
 std::string RelayANFPrint(const NodeRef& node) {
-  return "v0.0.1\n" + Layout(PrettyPrinter(false).Print(node)) + "\n";
+  return "v0.0.1\n" + Layout(PrettyPrinter(false, false).Print(node)) + "\n";
+}
+
+std::string RelayPrettyPrint(const NodeRef& node, bool gnf, bool show_meta_data) {
+  Doc doc = Nil();
+  doc << "v0.0.1" << "\n" << PrettyPrinter(gnf, show_meta_data).PrintFinal(node) << "\n";
+  return Layout(doc);
 }
 
 TVM_REGISTER_API("relay._expr.gnf_print")
@@ -452,6 +589,9 @@ TVM_REGISTER_API("relay._expr.gnf_print")
 
 TVM_REGISTER_API("relay._expr.anf_print")
 .set_body_typed<std::string(const NodeRef&)>(RelayANFPrint);
+
+TVM_REGISTER_API("relay._expr.pretty_print")
+.set_body_typed<std::string(const NodeRef&, bool, bool)>(RelayPrettyPrint);
 
 } // relay
 } // tvm
