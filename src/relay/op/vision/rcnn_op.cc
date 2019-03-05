@@ -63,5 +63,72 @@ RELAY_REGISTER_OP("vision.roi_align")
 .set_support_level(5)
 .add_type_rel("ROIAlign", ROIAlignRel);
 
+TVM_REGISTER_NODE_TYPE(ProposalAttrs);
+
+bool ProposalRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  auto proposal_attrs = attrs.as<ProposalAttrs>();
+  CHECK_EQ(types.size(), 4);
+  const auto* cls_prob = types[0].as<TensorTypeNode>();
+  const auto* bbox_pred = types[1].as<TensorTypeNode>();
+  const auto* im_info = types[2].as<TensorTypeNode>();
+
+  if (!cls_prob || !bbox_pred || !im_info) {
+    return false;
+  }
+
+  CHECK_EQ(cls_prob->shape.size(), 4U)
+      << "The dimension of class probability should be 4, but received " << cls_prob->shape.size();
+  CHECK_EQ(bbox_pred->shape.size(), 4U)
+      << "The dimension of box prediction should be 4, but received " << bbox_pred->shape.size();
+  CHECK_EQ(im_info->shape.size(), 2U)
+      << "The dimension of image info should be 2, but received " << im_info->shape.size();
+  CHECK(reporter->AssertEQ(im_info->shape[1], 3));
+
+  auto batch = cls_prob->shape[0];
+
+  std::vector<IndexExpr> oshape(
+      {batch * proposal_attrs->rpn_post_nms_top_n, 5});
+  reporter->Assign(types[3], TensorTypeNode::make(oshape, cls_prob->dtype));
+  return true;
+}
+
+Expr MakeProposal(Expr cls_prob, Expr bbox_pred, Expr im_info, Array<IndexExpr> scales,
+                  Array<IndexExpr> ratios, int feature_stride, double threshold,
+                  int rpn_pre_nms_top_n, int rpn_post_nms_top_n, int rpn_min_size,
+                  bool iou_loss) {
+  auto attrs = make_node<ProposalAttrs>();
+  attrs->scales = scales;
+  attrs->ratios = ratios;
+  attrs->feature_stride = feature_stride;
+  attrs->threshold = threshold;
+  attrs->rpn_pre_nms_top_n = rpn_pre_nms_top_n;
+  attrs->rpn_post_nms_top_n = rpn_post_nms_top_n;
+  attrs->rpn_min_size = rpn_min_size;
+  attrs->iou_loss = iou_loss;
+  static const Op& op = Op::Get("vision.proposal");
+  return CallNode::make(op, {cls_prob, bbox_pred, im_info}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.vision._make.proposal")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 11>(MakeProposal, args, rv);
+  });
+
+RELAY_REGISTER_OP("vision.proposal")
+    .describe(R"code(Generate region proposals via RPN.
+
+ - **cls_prob**: 4-D with shape [batch, 2 * num_anchors, height, width].
+ - **bbox_pred**: 4-D with shape [batch, 4 * num_anchors, height, width].
+ - **im_info**: 2-D with shape [batch, 3].
+ - **out**: 2-D with shape [batch * rpn_post_nms_top_n, 5].
+ )code" TVM_ADD_FILELINE)
+.set_num_inputs(3)
+.add_argument("cls_prob", "Tensor", "Score of how likely proposal is object")
+.add_argument("bbox_pred", "Tensor", "BBox predicted deltas from anchors for proposals")
+.add_argument("im_info", "Tensor", "Image size and scale")
+.set_support_level(5)
+.add_type_rel("Proposal", ProposalRel);
+
 }  // namespace relay
 }  // namespace tvm
