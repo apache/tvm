@@ -99,6 +99,7 @@ def register_annotate_function(op_name, frewrite=None, level=10):
 
     return _register(frewrite) if frewrite is not None else _register
 
+COUNTER = 0
 
 @register_func("relay.quantize.attach_simulated_quantize")
 def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
@@ -112,9 +113,11 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     kind: QAnnotateKind
         the kind of annotation field.
     """
-    dom_scale = _expr.var("dom_scale")
+    global COUNTER
+    dom_scale = _expr.var("dom_scale" + str(COUNTER))
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
+    COUNTER += 1
     return _quantize.simulated_quantize(
         data, dom_scale, clip_min, clip_max, kind, sign, rounding)
 
