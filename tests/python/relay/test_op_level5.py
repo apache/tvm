@@ -309,8 +309,8 @@ def test_roi_align():
 def test_proposal():
     def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
         cls_prob = relay.var("cls_prob", relay.ty.TensorType(np_cls_prob.shape, "float32"))
-	bbox_pred = relay.var("bbox_pred", relay.ty.TensorType(np_bbox_pred.shape, "float32"))
-	im_info = relay.var("im_info", relay.ty.TensorType(np_im_info.shape, "float32"))
+        bbox_pred = relay.var("bbox_pred", relay.ty.TensorType(np_bbox_pred.shape, "float32"))
+        im_info = relay.var("im_info", relay.ty.TensorType(np_im_info.shape, "float32"))
         z = relay.vision.proposal(cls_prob, bbox_pred, im_info, **attrs)
         zz = relay.ir_pass.infer_type(z)
 
@@ -319,6 +319,9 @@ def test_proposal():
         func = relay.Function([cls_prob, bbox_pred, im_info], z)
         func = relay.ir_pass.infer_type(func)
         for target in ['cuda']:
+            if not tvm.module.enabled(target):
+                print("Skip test because %s is not enabled." % target)
+                continue
             ctx = tvm.context(target, 0)
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
