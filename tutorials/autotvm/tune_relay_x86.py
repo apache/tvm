@@ -28,8 +28,9 @@ import numpy as np
 import tvm
 from tvm import autotvm
 from tvm import relay
-from tvm.relay import testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
+from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
+from tvm.autotvm.graph_tuner.utils import relay_get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
@@ -81,6 +82,7 @@ batch_size = 1
 dtype = "float32"
 model_name = "resnet-18"
 log_file = "%s.log" % model_name
+graph_opt_sch_file = "%s_graph_opt.log" % model_name
 
 # Set number of threads used for tuning based on the number of
 # physical CPU cores on your machine.
@@ -157,6 +159,19 @@ def tune_kernels(tasks,
                            autotvm.callback.progress_bar(n_trial, prefix=prefix),
                            autotvm.callback.log_to_file(log_filename)])
 
+# Use graph tuner to achieve graph level optimal schedules
+# Set use_DP=False if it takes too long to finish.
+def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
+    target_op = "conv2d"
+    data_layout = "NCHWc"
+    graph_wkl_list = relay_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
+    Tuner = DPTuner if use_DP else PBQPTuner
+    executor = Tuner(graph, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
+                     ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx, log_file=log_file)
+    executor.benchmark_layout_transform(target)
+    executor.run()
+    executor.write_opt_sch2record_file(opt_sch_file)
+
 
 ########################################################################
 # Finally, we launch tuning jobs and evaluate the end-to-end performance.
@@ -171,9 +186,10 @@ def tune_and_evaluate(tuning_opt):
     # run tuning tasks
     print("Tuning...")
     tune_kernels(tasks, **tuning_opt)
+    tune_graph(net, data_shape, log_file, graph_opt_sch_file)
 
     # compile kernels with history best records
-    with autotvm.apply_history_best(log_file):
+    with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build_module.build(
