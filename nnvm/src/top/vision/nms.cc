@@ -19,12 +19,13 @@ using compiler::FTVMCompute;
 using tvm::Tensor;
 using tvm::Array;
 
-DMLC_REGISTER_PARAMETER(NMSParam);
+DMLC_REGISTER_PARAMETER(NonMaximumSuppressionParam);
 
 bool NMSShape(const NodeAttrs& attrs,
               std::vector<TShape> *in_attrs,
               std::vector<TShape> *out_attrs) {
-  const NMSParam& param = nnvm::get<NMSParam>(attrs.parsed);
+  const NonMaximumSuppressionParam& param =
+    nnvm::get<NonMaximumSuppressionParam>(attrs.parsed);
   CHECK_EQ(in_attrs->size(), 2U) << "Inputs: [data, valid_count]";
   TShape dshape = in_attrs->at(0);
   TShape vshape = in_attrs->at(1);
@@ -69,10 +70,10 @@ NNVM_REGISTER_OP(non_max_suppression)
 )doc" NNVM_ADD_FILELINE)
 .set_num_inputs(2)
 .set_num_outputs(1)
-.set_attr_parser(ParamParser<NMSParam>)
+.set_attr_parser(ParamParser<NonMaximumSuppressionParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict",
-                        ParamGetAttrDict<NMSParam>)
-.add_arguments(NMSParam::__FIELDS__())
+                        ParamGetAttrDict<NonMaximumSuppressionParam>)
+.add_arguments(NonMaximumSuppressionParam::__FIELDS__())
 .add_argument("data", "Tensor", "Input data.")
 .add_argument("valid_count", "Tensor", "Number of valid anchor boxes.")
 .set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {

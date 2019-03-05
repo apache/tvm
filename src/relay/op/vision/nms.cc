@@ -56,7 +56,7 @@ input data.
 .add_type_rel("GetValidCount", GetValidCountRel);
 
 
-TVM_REGISTER_NODE_TYPE(NMSAttrs);
+TVM_REGISTER_NODE_TYPE(NonMaximumSuppressionAttrs);
 
 bool NMSRel(const Array<Type>& types,
             int num_inputs,
@@ -65,7 +65,8 @@ bool NMSRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* valid_count = types[1].as<TensorTypeNode>();
-  const NMSAttrs* param = attrs.as<NMSAttrs>();
+  const NonMaximumSuppressionAttrs* param =
+    attrs.as<NonMaximumSuppressionAttrs>();
   const auto& dshape = data->shape;
   const auto& vshape = valid_count->shape;
   CHECK_EQ(dshape.size(), 3) << "Input data should be 3-D.";
@@ -91,7 +92,7 @@ Expr MakeNMS(Expr data,
              int id_index,
              bool return_indices,
              bool invalid_to_bottom) {
-  auto attrs = make_node<NMSAttrs>();
+  auto attrs = make_node<NonMaximumSuppressionAttrs>();
   attrs->max_output_size = max_output_size;
   attrs->iou_threshold = iou_threshold;
   attrs->force_suppress = force_suppress;

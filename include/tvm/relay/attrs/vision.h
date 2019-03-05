@@ -59,7 +59,7 @@ struct MultiBoxTransformLocAttrs
 };
 
 /*! \brief Attributes used in get_valid_counts operator */
-struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs>{
+struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
   double score_threshold;
 
   TVM_DECLARE_ATTRS(GetValidCountsAttrs, "relay.attrs.GetValidCountsAttrs") {
@@ -69,7 +69,7 @@ struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs>{
 };
 
 /*! \brief Attributes used in non_maximum_suppression operator */
-struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
+struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionAttrs> {
   int max_output_size;
   double iou_threshold;
   bool force_suppress;
@@ -78,7 +78,7 @@ struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
   bool return_indices;
   bool invalid_to_bottom;
 
-  TVM_DECLARE_ATTRS(NMSAttrs, "relay.attrs.NMSAttrs") {
+  TVM_DECLARE_ATTRS(NonMaximumSuppressionAttrs, "relay.attrs.NonMaximumSuppressionAttrs") {
     TVM_ATTR_FIELD(max_output_size).set_default(-1)
       .describe("Max number of output valid boxes for each instance."
                 "By default all valid boxes are returned.");
