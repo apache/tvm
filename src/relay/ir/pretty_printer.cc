@@ -114,7 +114,9 @@ class PrettyPrinter :
         memo_[var] = val + Text("-malformed-ir");
       }
       memo_[var] = val;
-      // TODO: should also return type annotation
+      if (var->type_annotation.defined()) {
+        val << ": " << Print(var->type_annotation);
+      }
       return val;
     }
 
@@ -220,10 +222,9 @@ class PrettyPrinter :
         }
         doc << PrintVec(params) << PrintAttrs(fn->attrs);
         doc << ") ";
-        /* if (fn->ret_type.defined()) {
-          doc << " -> ";
-          this->PrintType(fn->ret_type, stream_);
-        } */
+        if (fn->ret_type.defined()) {
+          doc << "-> " << Print(fn->ret_type) << " ";
+        }
         doc << PrintBody(fn->body);
         return doc;
     }
