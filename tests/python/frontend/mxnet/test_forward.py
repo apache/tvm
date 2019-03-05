@@ -352,6 +352,7 @@ def test_forward_slice_axis():
     verify((3, 4), 0, 1, None)
     verify((3, 4), 1, 0, 2)
     verify((3, 4), 1, -3, -1)
+    verify((3, 4), -1, -3, -1)
 
 
 if __name__ == '__main__':
