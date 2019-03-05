@@ -201,7 +201,12 @@ class PrettyPrinter :
       return Text(prefix);
     }
 
-    Doc PrintVar(const Var& var) {
+    /*!
+     * \brief Allocate name to a variable.
+     * \param var The input variable.
+     * \return The corresponding name.
+     */
+    Doc AllocVar(const Var& var) {
       std::string name = var->name_hint();
       // always make sure first name is alpha
       if (name.length() != 0 && !std::isalpha(name[0])) {
@@ -213,20 +218,10 @@ class PrettyPrinter :
         val << Text("-malformed-ir");
       }
       memo_[var] = val;
-      return val;
-    }
-
-    /*!
-     * \brief Allocate name to a variable.
-     * \param var The input variable.
-     * \return The corresponding name.
-     */
-    Doc AllocVar(const Var& var) {
-      Doc doc = PrintVar(var);
       if (var->type_annotation.defined()) {
-        doc << ": " << Print(var->type_annotation);
+        val << ": " << Print(var->type_annotation);
       }
-      return doc;
+      return val;
     }
 
     //------------------------------------
@@ -251,11 +246,11 @@ class PrettyPrinter :
         memo_[expr] = temp_var;
         doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
         return temp_var;
+      } else if (expr.as<VarNode>()) {
+        doc_stack_.back() << "free_var " << printed_expr << "\n";
+        return memo_[expr];
       } else {
         memo_[expr] = printed_expr;
-        if (expr.as<VarNode>()) {
-          doc_stack_.back() << "free_var " << printed_expr << "\n";
-        }
         return printed_expr;
       }
     }
@@ -263,7 +258,7 @@ class PrettyPrinter :
     // Should only be triggered when op is a free variable being visited for the
     // first time.
     Doc VisitExpr_(const VarNode* op) final {
-      return PrintVar(GetRef<Var>(op));
+      return AllocVar(GetRef<Var>(op));
     }
 
     Doc VisitExpr_(const ConstantNode* op) final {
