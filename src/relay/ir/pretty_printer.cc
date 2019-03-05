@@ -65,7 +65,7 @@ namespace relay {
  * It allows us to embedded any meta data in the text format,
  * while still being able to tweak the text part of the printed IR easily.
  */
-class TextMetaDataContext {
+class TextMetaDataContextFoo {
  public:
   /*!
    * \brief Get text representation of meta node.
@@ -201,12 +201,7 @@ class PrettyPrinter :
       return Text(prefix);
     }
 
-    /*!
-     * \brief Allocate name to a variable.
-     * \param var The input variable.
-     * \return The corresponding name.
-     */
-    Doc AllocVar(const Var& var) {
+    Doc PrintVar(const Var& var) {
       std::string name = var->name_hint();
       // always make sure first name is alpha
       if (name.length() != 0 && !std::isalpha(name[0])) {
@@ -215,13 +210,23 @@ class PrettyPrinter :
       Doc val = GetUniqueName("%" + name);
       // still print if ir is malformed, but show the error.
       if (memo_.count(var)) {
-        memo_[var] = val + Text("-malformed-ir");
+        val << Text("-malformed-ir");
       }
       memo_[var] = val;
-      if (var->type_annotation.defined()) {
-        val << ": " << Print(var->type_annotation);
-      }
       return val;
+    }
+
+    /*!
+     * \brief Allocate name to a variable.
+     * \param var The input variable.
+     * \return The corresponding name.
+     */
+    Doc AllocVar(const Var& var) {
+      Doc doc = PrintVar(var);
+      if (var->type_annotation.defined()) {
+        doc << ": " << Print(var->type_annotation);
+      }
+      return doc;
     }
 
     //------------------------------------
@@ -237,8 +242,6 @@ class PrettyPrinter :
       Doc printed_expr;
       if (meta) {
         printed_expr = meta_.GetMetaNode(GetRef<NodeRef>(expr.get()));
-        std::cerr << Layout(printed_expr) << "\n";
-        assert(false);
       } else {
         printed_expr = VisitExpr(expr);
       }
@@ -257,8 +260,10 @@ class PrettyPrinter :
       }
     }
 
+    // Should only be triggered when op is a free variable being visited for the
+    // first time.
     Doc VisitExpr_(const VarNode* op) final {
-      return AllocVar(GetRef<Var>(op));
+      return PrintVar(GetRef<Var>(op));
     }
 
     Doc VisitExpr_(const ConstantNode* op) final {
@@ -504,7 +509,7 @@ class PrettyPrinter :
     std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
     std::unordered_map<std::string, int> name_alloc_map_;
     /*! \brief meta data context */
-    TextMetaDataContext meta_;
+    TextMetaDataContextFoo meta_;
     size_t temp_var_counter_;
     bool GNF_;
     class AttrPrinter;
