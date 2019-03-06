@@ -71,7 +71,7 @@ Doc Indent(int indent, const Doc& doc);
 // convert doc to a string
 std::string Layout(const Doc& doc);
 // render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
-Doc PrintVec(const std::vector<Doc>& arr, const Doc& sep = Text(", "));
+Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep = Text(", "));
 // Print constant bool value.
 Doc PrintBool(bool value);
 Doc PrintDType(DataType dtype);
