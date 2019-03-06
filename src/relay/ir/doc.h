@@ -7,8 +7,8 @@
 #ifndef TVM_RELAY_IR_DOC_H_
 #define TVM_RELAY_IR_DOC_H_
 
-#include <string>
 #include <tvm/relay/expr.h>
+#include <string>
 #include <vector>
 
 namespace tvm {
