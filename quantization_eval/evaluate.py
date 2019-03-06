@@ -123,8 +123,8 @@ def build_model(args, gluon_model):
                      debug_enabled_ops=None):
         print(qtz.current_qconfig())
         qgraph = qtz.annotate(qgraph)
-        #print('after annotate')
-        #print(qgraph.astext(show_meta_data=False))
+        print('after annotate')
+        print(qgraph.astext(show_meta_data=False))
         qgraph = qtz.calibrate(qgraph)
         free_vars = []
         free_vars = list(relay.ir_pass.free_vars(qgraph))
