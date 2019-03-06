@@ -104,13 +104,13 @@ def build_model(args, gluon_model):
         return graph, lib, params, ctx
 
     # constant folding and scale folding.
-    print('original')
-    print(net.astext(show_meta_data=False))
+    #print('original')
+    #print(net.astext(show_meta_data=False))
     with relay.build_config(opt_level=3):
         qgraph = relay.optimize(net, target, params)
         # qgraph = relay.optimize(qgraph)
-    print('after optimize')
-    print(qgraph.astext(show_meta_data=False))
+    #print('after optimize')
+    #print(qgraph.astext(show_meta_data=False))
 
     with qtz.qconfig(skip_k_conv=0,
                      nbit_input=args.nbit_input,
@@ -123,8 +123,8 @@ def build_model(args, gluon_model):
                      debug_enabled_ops=None):
         print(qtz.current_qconfig())
         qgraph = qtz.annotate(qgraph)
-        print('after annotate')
-        print(qgraph.astext(show_meta_data=False))
+        #print('after annotate')
+        #print(qgraph.astext(show_meta_data=False))
         qgraph = qtz.calibrate(qgraph)
         free_vars = []
         free_vars = list(relay.ir_pass.free_vars(qgraph))
