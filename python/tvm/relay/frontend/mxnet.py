@@ -253,6 +253,11 @@ def _mx_concat(inputs, attrs):
     return _op.concatenate(tuple(inputs), axis=axis)
 
 
+def _mx_stack(inputs, attrs):
+    axis = attrs.get_int("axis", 0)
+    return _op.stack(tuple(inputs), axis=axis)
+
+
 def _mx_expand_dims(inputs, attrs):
     axis = attrs.get_int("axis")
     return _op.expand_dims(inputs[0], axis=axis)
@@ -474,6 +479,7 @@ _convert_map = {
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,
     "concat"        : _mx_concat,
+    "stack"         : _mx_stack,
     "batch_dot"     : _mx_batch_dot,
     "LeakyReLU"     : _mx_leaky_relu,
     "_arange"       : _mx_arange,

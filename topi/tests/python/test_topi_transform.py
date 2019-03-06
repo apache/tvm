@@ -124,6 +124,31 @@ def verify_concatenate(shapes, axis):
     for device in get_all_backend():
         check_device(device)
 
+def verify_stack(shapes, axis):
+    tensor_l = []
+    for i, shape in enumerate(shapes):
+        tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
+    out_tensor = topi.stack(tensor_l, axis)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_broadcast(out_tensor)
+
+        foo = tvm.build(s, tensor_l + [out_tensor], device, name="stack")
+        data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
+        out_npy = np.stack(data_npys, axis=axis)
+        data_nds = [tvm.nd.array(data_npy, ctx) for data_npy in data_npys]
+        out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=out_tensor.dtype)
+        foo(*(data_nds + [out_nd]))
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
 
 def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -383,7 +408,7 @@ def test_squeeze():
 
 
 def test_concatenate():
-    verify_concatenate([(2,), (2,), (2,)], 0)
+    verify_concatenate([(2,), (2,), (2,)], -1)
     verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
     verify_concatenate([(1, 2, 4), (1, 2, 3), (1, 2, 7), (1, 2, 8), (1, 2, 1)], -1)
     verify_concatenate([(5, 6, 7, 3),
@@ -391,6 +416,14 @@ def test_concatenate():
                         (12, 6, 7, 3),
                         (8, 6, 7, 3),
                         (2, 6, 7, 3)], 0)
+
+
+def test_stack():
+    verify_stack([(2,), (2,), (2,)], -1)
+    verify_stack([(2,), (2,), (2,)], 1)
+    verify_stack([(2,), (2,), (2,)], 0)
+    verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
+    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
 
 
 def test_split():
@@ -480,6 +513,7 @@ def test_layout_transform():
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
+    test_stack()
     test_tranpose()
     test_expand_dims()
     test_reshape()

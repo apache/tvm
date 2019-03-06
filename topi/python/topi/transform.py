@@ -191,6 +191,25 @@ def concatenate(a_tuple, axis=0):
     return cpp.concatenate(a_tuple, axis)
 
 
+def stack(a, axis):
+    """Repeats the whole array multiple times.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be stacked.
+
+    axis : int, optional
+        The axis in the result array along which the input arrays are stacked.
+
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.stack(a, axis)
+
+
 def split(ary, indices_or_sections, axis=0):
     """Split an array into multiple sub-arrays.
 

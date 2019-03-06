@@ -206,6 +206,15 @@ bool ConcatenateRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> ConcatenateCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  const ConcatenateAttrs *param = attrs.as<ConcatenateAttrs>();
+  CHECK(param != nullptr);
+  return { topi::concatenate(inputs, param->axis) };
+}
+
 Array<Array<Layout>> ConcatenateLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
@@ -268,7 +277,96 @@ RELAY_REGISTER_OP("concatenate")
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(1)
 .add_type_rel("Concatenate", ConcatenateRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout);
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout)
+.set_attr<FTVMCompute>("FTVMCompute", ConcatenateCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
+TVM_REGISTER_NODE_TYPE(StackAttrs);
+
+bool StackRel(const Array<Type>& types,
+              int num_inputs,
+              const Attrs& attrs,
+              const TypeReporter& reporter) {
+  // types: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* tensor_tuple = types[0].as<TupleTypeNode>();
+  if (tensor_tuple == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "cast: expect input type to be TupleType but get "
+        << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<StackAttrs>();
+  const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
+  // Sanity check: ndim and dtype.
+  const int ndim = static_cast<int>(first->shape.size());
+  const DataType dtype = first->dtype;
+  for (const Type& ele : tensor_tuple->fields) {
+    const auto& e = Downcast<TensorType>(ele);
+    int e_ndim = static_cast<int>(e->shape.size());
+    const DataType& e_dtype = e->dtype;
+    CHECK_EQ(e_ndim, ndim) << "relay.stack requires all tensors have the same ndim";
+    CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
+  }
+  // Sanity check: axis
+  int axis = param->axis;
+  CHECK(-ndim <= axis && axis < ndim)
+    << "stack only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
+  axis = axis < 0 ? ndim + axis + 1 : axis;
+  // Calculate shape
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(ndim + 1);
+  const int stack_dim = static_cast<int>(tensor_tuple->fields.size());
+  for (int i = 0; i < axis; ++i) {
+    oshape.emplace_back(first->shape[i]);
+  }
+  oshape.emplace_back(stack_dim);
+  for (int i = axis; i < ndim; ++i) {
+    oshape.emplace_back(first->shape[i]);
+  }
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, dtype));
+  return true;
+}
+
+Array<Tensor> StackCompute(const Attrs& attrs,
+                           const Array<Tensor>& inputs,
+                           const Type& out_type,
+                           const Target& target) {
+  const StackAttrs *param = attrs.as<StackAttrs>();
+  CHECK(param != nullptr);
+  return { topi::stack(inputs, param->axis) };
+}
+
+Expr MakeStack(Expr data,
+               int axis) {
+  auto attrs = make_node<StackAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("stack");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.stack")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeStack, args, rv);
+});
+
+RELAY_REGISTER_OP("stack")
+.describe(R"code(Stack the input tensors along the given axis.
+
+- **data** : A list of tensors.
+
+- **axis** : The axis along which the tensors are stacked.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.StackAttrs")
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input list of tensors.")
+.set_support_level(1)
+.add_type_rel("Stack", StackRel)
+.set_attr<FTVMCompute>("FTVMCompute", StackCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 /* relay.transpose */
 TVM_REGISTER_NODE_TYPE(TransposeAttrs);

@@ -324,6 +324,56 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
 }
 
 /*!
+* \brief Join a sequence of tensors along a new axis.
+*
+* \param inputs The input tensors
+* \param axis The axis along which the tensors will be stacked
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the stack operation
+*/
+inline Tensor stack(const Array<Tensor>& inputs,
+                    int axis = 0,
+                    std::string name = "tensor",
+                    std::string tag = kInjective) {
+  int ndim = static_cast<int>(inputs[0]->shape.size());
+  CHECK(-ndim - 1 <= axis && axis <= ndim)
+    << "stack only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
+  if (axis < 0) {
+    axis += ndim + 1;
+  }
+  CHECK_LT(axis, inputs[0]->shape.size() + 1) <<
+    "axis out of bounds";
+
+  const int stack_size = static_cast<int>(inputs.size());
+  Array<Expr> out_shape;
+  for (size_t i = 0; i < static_cast<size_t>(axis); ++i)
+    out_shape.push_back(inputs[0]->shape[i]);
+  out_shape.push_back(stack_size);
+  for (size_t i = static_cast<size_t>(axis); i < static_cast<size_t>(ndim); ++i)
+    out_shape.push_back(inputs[0]->shape[i]);
+
+  return compute(
+    out_shape, [&](const Array<Var>& indices) {
+      Array<Expr> idx;
+      for (size_t i = 0; i < indices.size(); ++i)
+        if (i != static_cast<size_t>(axis))
+          idx.push_back(indices[i]);
+      auto ind = indices[axis];
+      auto ret = inputs[0](idx);
+      for (int i = 0; i < static_cast<int>(inputs.size() - 1); ++i) {
+        ret = tvm::if_then_else(ind == i + 1,
+                                inputs[i + 1](idx),
+                                ret);
+      }
+      return ret;
+    }, name, tag);
+}
+
+/*!
 * \brief Split a tensor into multiple sub-tensors
 *
 * \param x The input tensor
