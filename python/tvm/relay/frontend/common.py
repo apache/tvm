@@ -241,7 +241,7 @@ def get_relay_op(op_name):
             op = None
     else:
         # try search op in various modules
-        for candidate in (_op, _op.nn, _op.image):
+        for candidate in (_op, _op.nn, _op.image, _op.vision):
             op = getattr(candidate, op_name, None)
             if op is not None:
                 break
