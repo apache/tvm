@@ -113,8 +113,24 @@ class PrettyPrinter :
     public TypeFunctor<Doc(const Type&)>,
     public AttrFunctor<Doc(const NodeRef&)> {
   public:
-    explicit PrettyPrinter() : temp_var_counter_(0), GNF_(true) {}
-    explicit PrettyPrinter(bool GNF, bool show_meta_data) : show_meta_data_(show_meta_data), temp_var_counter_(0), GNF_(GNF) {}
+    explicit PrettyPrinter(bool GNF, bool show_meta_data, runtime::TypedPackedFunc<std::string(Expr)> annotate) : GNF_(GNF), show_meta_data_(show_meta_data), annotate_(annotate) {}
+
+    /*!
+     * \brief Print additional info about expr in comment.
+     * \param expr The expression.
+     */
+    Doc PrintOptionalInfo(const Expr& expr) {
+      Doc doc = Nil();
+      // additional information in comment.
+      if (annotate_ != nullptr) {
+        return doc << " # " << annotate_(expr);
+      } else if (expr->checked_type_.defined()) {
+        doc << " # ty=";
+        return doc << Print(expr->checked_type());
+      } else {
+        return Nil();
+      }
+    }
 
     // indent a new body
     Doc PrintBody(const NodeRef& node, int indent = 2) {
@@ -240,7 +256,11 @@ class PrettyPrinter :
       if (GNF_ && gnf && !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>() && !expr.as<OpNode>() && !expr.as<VarNode>()) {
         Doc temp_var = AllocTemp();
         memo_[expr] = temp_var;
-        doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
+        doc_stack_.back() << temp_var << " = " << printed_expr;
+        if (expr.as<CallNode>()) {
+          doc_stack_.back() << PrintOptionalInfo(expr);
+        }
+        doc_stack_.back() << "\n";
         return temp_var;
       } else if (expr.as<VarNode>()) {
         // This is our first time visiting the var and we hit the VarNode case
@@ -279,7 +299,9 @@ class PrettyPrinter :
         }
       }
       // default fall-back, record it as meta node.
-      return Print(GetRef<NodeRef>(op), true, true);
+      Doc doc = Nil();
+      return doc << Print(GetRef<NodeRef>(op), true, true)
+                 << PrintOptionalInfo(GetRef<Expr>(op));
     }
 
     Doc VisitExpr_(const TupleNode* op) final {
@@ -493,19 +515,24 @@ class PrettyPrinter :
     }
 
   private:
+    /*! \brief Whether to use GNF. */
+    bool GNF_;
     /*! \brief Whether to print meta data. */
     bool show_meta_data_;
+    /*! \brief additional comment function */
+    runtime::TypedPackedFunc<std::string(Expr)> annotate_;
     /*! \brief Stack of docs to implement scoped GNFing. */
     std::vector<Doc> doc_stack_{};
     /*! \brief Map from Expr to Doc */
     std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
     /*! \brief Map from Type to Doc */
     std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
+    /*! \brief name allocation map */
     std::unordered_map<std::string, int> name_alloc_map_;
     /*! \brief meta data context */
     TextMetaDataContext meta_;
-    size_t temp_var_counter_;
-    bool GNF_;
+    /*! \brief counter of temporary variable */
+    size_t temp_var_counter_{0};
     class AttrPrinter;
     friend class AttrPrinter;
 };
@@ -560,7 +587,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
 };
 
 Doc PrettyPrinter::PrintAttrs(const Attrs& attrs) {  // NOLINT(*)
-  // TODO: meta?
+  // TODO: fallback meta?
   if (!attrs.defined()) return Nil();
   Doc doc = Nil();
   AttrPrinter printer(doc, this);
@@ -568,28 +595,14 @@ Doc PrettyPrinter::PrintAttrs(const Attrs& attrs) {  // NOLINT(*)
   return doc;
 }
 
-std::string RelayPrettyPrint(const NodeRef& node, bool gnf, bool show_meta_data) {
+std::string RelayPrint(const NodeRef& node, bool show_meta_data, runtime::TypedPackedFunc<std::string(Expr)> annotate, bool gnf) {
   Doc doc = Nil();
-  doc << "v0.0.1" << "\n" << PrettyPrinter(gnf, show_meta_data).PrintFinal(node) << "\n";
+  doc << "v0.0.1" << "\n" << PrettyPrinter(gnf, show_meta_data, annotate).PrintFinal(node) << "\n";
   return Layout(doc);
 }
 
-std::string RelayGNFPrint(const NodeRef& node) {
-  return RelayPrettyPrint(node, true, true);
-}
-
-std::string RelayANFPrint(const NodeRef& node) {
-  return RelayPrettyPrint(node, false, true);
-}
-
-TVM_REGISTER_API("relay._expr.gnf_print")
-.set_body_typed<std::string(const NodeRef&)>(RelayGNFPrint);
-
-TVM_REGISTER_API("relay._expr.anf_print")
-.set_body_typed<std::string(const NodeRef&)>(RelayANFPrint);
-
-TVM_REGISTER_API("relay._expr.pretty_print")
-.set_body_typed<std::string(const NodeRef&, bool, bool)>(RelayPrettyPrint);
+TVM_REGISTER_API("relay._expr.RelayPrint")
+.set_body_typed<std::string(const NodeRef&, bool, runtime::TypedPackedFunc<std::string(Expr)>, bool)>(RelayPrint);
 
 } // relay
 } // tvm

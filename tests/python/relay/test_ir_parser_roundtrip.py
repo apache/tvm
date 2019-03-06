@@ -1,11 +1,16 @@
 import tvm
 from tvm import relay
 from tvm.relay.ir_pass import alpha_equal
-from tvm.relay._expr import anf_print, gnf_print
 import numpy as np
 
 from hypothesis import given, reject, settings
 from hypothesis.strategies import text, lists, integers, composite, recursive, deferred
+
+def gnf_print(expr):
+    return expr.astext(gnf=True)
+
+def anf_print(expr):
+    return expr.astext(gnf=False)
 
 exprs = deferred(lambda: constants()
                     #    | projections(exprs)
