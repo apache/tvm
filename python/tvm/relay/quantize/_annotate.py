@@ -20,8 +20,17 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     assert len(inputs) == 4
     assert attrs.sign
     assert attrs.rounding == "round"
+    print("call")
+    if attrs.kind != QAnnotateKind.WEIGHT:
+        print("PASSTHROUGH", inputs, out_type, target, attrs.kind, attrs.sign, attrs.rounding, attrs.passthrough)
 
     data, scale, clip_min, clip_max = inputs
+
+    if attrs.passthrough:
+        assert attrs.kind != QAnnotateKind.WEIGHT
+        print("nah passthrough")
+        rdata = topi.identity(data)
+        return [rdata]
 
     # simulate rounding error
     scaled_data = topi.divide(data, scale)
@@ -100,6 +109,7 @@ def register_annotate_function(op_name, frewrite=None, level=10):
     return _register(frewrite) if frewrite is not None else _register
 
 COUNTER = 0
+PASSTHROUGH_BOUND = 0
 
 @register_func("relay.quantize.attach_simulated_quantize")
 def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
@@ -117,9 +127,13 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     dom_scale = _expr.var("dom_scale" + str(COUNTER))
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
-    COUNTER += 1
+    passthrough = 0
+    if kind != QAnnotateKind.WEIGHT:
+        passthrough = COUNTER > PASSTHROUGH_BOUND
+        COUNTER += 1
+        print(passthrough)
     return _quantize.simulated_quantize(
-        data, dom_scale, clip_min, clip_max, kind, sign, rounding)
+        data, dom_scale, clip_min, clip_max, kind, sign, rounding, passthrough)
 
 
 @register_annotate_function("nn.contrib_conv2d_NCHWc")

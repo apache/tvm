@@ -5,6 +5,7 @@ import mxnet as mx
 from mxnet import gluon
 from mxnet.gluon.model_zoo import vision
 import numpy as np
+from tvm.relay.quantize import _annotate
 
 # Two functions for reading data from record file or raw images
 def get_val_data(args,
@@ -37,27 +38,31 @@ def get_val_data(args,
     return val_data, batch_fn
 
 
-def evaluate(args, graph, lib, params, ctx, free_vars):
+def evaluate(args, val_data, batch_fn, graph, lib, params, ctx, free_vars, config):
 #def evaluate(args, graph, intrp, params):
     """Evaluate on the validation set."""
     import tvm
     from tvm.contrib import graph_runtime
 
-    # tetup dataset.
-    batch_size = args.batch_size
-    val_data, batch_fn = get_val_data(args, args.rec_val, batch_size)
     # create runtime module
     m = graph_runtime.create(graph, lib, ctx)
     scales = {}
     print(len(free_vars))
-    for free_var in free_vars:
+
+    for i in range(0, len(free_vars)):
+        free_var = free_vars[i]
         print(free_var.name_hint)
-        params[str(free_var.name_hint)] = np.array(8.0/128)
+        if i >= len(config):
+            params[str(free_var.name_hint)] = np.array(np.nan)
+        else:
+            params[str(free_var.name_hint)] = np.array(config[i]/128)
         #scales[str(free_var.name_hint)] = np.array(8.0/128)
+
+    early_stopping = 512
 
     m.set_input(**params)
     #m.set_input(**scales)
-    oshape = (batch_size, args.num_classes)
+    oshape = (args.batch_size, args.num_classes)
     out_arr = tvm.nd.empty(oshape, "float32")
     # setup evaluaiton metric
     acc_top1 = mx.metric.Accuracy()
@@ -74,12 +79,15 @@ def evaluate(args, graph, lib, params, ctx, free_vars):
         #out_arr = intrp.evaluate(graph)(data)
         acc_top1.update(label, [mx.nd.array(out_arr.asnumpy())])
         acc_top5.update(label, [mx.nd.array(out_arr.asnumpy())])
+        _, top1 = acc_top1.get()
+        _, top5 = acc_top5.get()
+
 
         if args.log_interval and not (i + 1) % args.log_interval:
-            _, top1 = acc_top1.get()
-            _, top5 = acc_top5.get()
             nsamples = (i + 1) * batch_size
             logging.info('[%d samples] validation: acc-top1=%f acc-top5=%f', nsamples, top1, top5)
+        if (i+1)*args.batch_size >= early_stopping:
+            return top1
     logging.info('[final] validation: acc-top1=%f acc-top5=%f', top1, top5)
     with open('record.csv', "a") as f:
         f.write('{0}, {1}, {2}, {3}, {4}\n'.format(
@@ -146,14 +154,33 @@ def build_model(args, gluon_model):
     return graph, lib, params, ctx, free_vars
     #return qgraph, intrp, params
 
+config_opts = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0]
 
 def main(args):
+    # setup dataset.
+    batch_size = args.batch_size
+    val_data, batch_fn = get_val_data(args, args.rec_val, batch_size)
+
+
     gluon_model = vision.get_model(args.model, pretrained=True)
-    graph, lib, params, ctx, free_vars = build_model(args, gluon_model)
-    #graph, intrp, params = build_model(args, gluon_model)
-    logging.info("Finish building model %s...", args.model)
     # raise ValueError
-    evaluate(args, graph, lib, params, ctx, free_vars)
+    config = []
+    for i in range(0, 80):
+        top1s = []
+        _annotate.COUNTER = 0
+        _annotate.PASSTHROUGH_BOUND = i
+        graph, lib, params, ctx, free_vars = build_model(args, gluon_model)
+        logging.info("Finish building model %s...", args.model)
+        for config_opt in config_opts:
+            tmp_config = config + [config_opt]
+            #graph, intrp, params = build_model(args, gluon_model)
+            top1 = evaluate(args, val_data, batch_fn, graph, lib, params, ctx, free_vars, tmp_config)
+            print("passthrough bound", i, top1)
+            top1s.append(top1)
+        best_opt = config_opts[np.argmax(top1s)]
+        print("best opt was", best_opt, "@", np.max(top1s))
+        config.append(best_opt) 
+    print("all opts:", config)
     #evaluate(args, graph, intrp, params)
 
 

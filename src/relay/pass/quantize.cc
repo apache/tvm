@@ -28,6 +28,7 @@ struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
   int kind;
   bool sign;
   std::string rounding;
+  int passthrough;
 
   TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "relay.attrs.SimulatedQuantizeAttrs") {
     TVM_ATTR_FIELD(kind)
@@ -36,6 +37,8 @@ struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
         .describe("whether to use signed data type.");
     TVM_ATTR_FIELD(rounding).set_default("round")
         .describe("rounding mode. Can be 'floor', 'ceil', 'round'");
+    TVM_ATTR_FIELD(passthrough).set_default(false)
+        .describe("whether to passthrough full precision value");
   }
 };
 
@@ -72,13 +75,14 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 
 TVM_REGISTER_API("relay._quantize.simulated_quantize")
-.set_body_typed<Expr(Expr, Expr, Expr, Expr, int, bool, std::string)>(
+.set_body_typed<Expr(Expr, Expr, Expr, Expr, int, bool, std::string, bool)>(
   [](Expr data, Expr dom_scale, Expr clip_min, Expr clip_max,
-     int kind, bool sign, std::string rounding) {
+     int kind, bool sign, std::string rounding, int passthrough) {
     auto attrs = make_node<SimulatedQuantizeAttrs>();
     attrs->kind = kind;
     attrs->sign = sign;
     attrs->rounding = rounding;
+    attrs->passthrough = passthrough;
     static const Op& op = Op::Get("relay.op.annotation.simulated_quantize");
     return CallNode::make(op, {data, dom_scale, clip_min, clip_max}, Attrs(attrs), {});
   });
