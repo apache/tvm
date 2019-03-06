@@ -90,7 +90,7 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  * It allows us to embedded any meta-data in the text format,
  * while still being able to tweak the text part of the printed IR easily.
  */
-class TextMetaDataContext {
+class TextMetaDataContextFoo {
  public:
   /*!
    * \brief Get text representation of meta node.
@@ -800,7 +800,7 @@ class TextPrinter :
   /*! \brief additional comment function */
   runtime::TypedPackedFunc<std::string(Expr)> annotate_;
   /*! \brief meta data context */
-  TextMetaDataContext meta_;
+  TextMetaDataContextFoo meta_;
   /*! \brief Check whether scope is still valid */
   std::vector<bool> scope_valid_;
   /*! \brief The current indentation value */

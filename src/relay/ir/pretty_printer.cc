@@ -13,7 +13,7 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief Meta data context for TextPrinter.
+ * \brief Meta data context for PrettyPrinter.
  *
  * This is an important part to enable bi-directional serializability.
  * We use tvm's Node system to build the current IR.
@@ -65,7 +65,7 @@ namespace relay {
  * It allows us to embedded any meta data in the text format,
  * while still being able to tweak the text part of the printed IR easily.
  */
-class TextMetaDataContextFoo {
+class TextMetaDataContext {
  public:
   /*!
    * \brief Get text representation of meta node.
@@ -503,7 +503,7 @@ class PrettyPrinter :
     std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
     std::unordered_map<std::string, int> name_alloc_map_;
     /*! \brief meta data context */
-    TextMetaDataContextFoo meta_;
+    TextMetaDataContext meta_;
     size_t temp_var_counter_;
     bool GNF_;
     class AttrPrinter;
@@ -560,7 +560,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
 };
 
 Doc PrettyPrinter::PrintAttrs(const Attrs& attrs) {  // NOLINT(*)
-  // TODO: meta
+  // TODO: meta?
   if (!attrs.defined()) return Nil();
   Doc doc = Nil();
   AttrPrinter printer(doc, this);
@@ -568,20 +568,18 @@ Doc PrettyPrinter::PrintAttrs(const Attrs& attrs) {  // NOLINT(*)
   return doc;
 }
 
-std::string RelayGNFPrint(const NodeRef& node) {
-  Doc doc = Nil();
-  doc << "v0.0.1" << "\n" << PrettyPrinter(true, false).PrintFinal(node) << "\n";
-  return Layout(doc);
-}
-
-std::string RelayANFPrint(const NodeRef& node) {
-  return "v0.0.1\n" + Layout(PrettyPrinter(false, false).PrintFinal(node)) + "\n";
-}
-
 std::string RelayPrettyPrint(const NodeRef& node, bool gnf, bool show_meta_data) {
   Doc doc = Nil();
   doc << "v0.0.1" << "\n" << PrettyPrinter(gnf, show_meta_data).PrintFinal(node) << "\n";
   return Layout(doc);
+}
+
+std::string RelayGNFPrint(const NodeRef& node) {
+  return RelayPrettyPrint(node, true, true);
+}
+
+std::string RelayANFPrint(const NodeRef& node) {
+  return RelayPrettyPrint(node, false, true);
 }
 
 TVM_REGISTER_API("relay._expr.gnf_print")
