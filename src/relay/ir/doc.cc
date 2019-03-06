@@ -4,6 +4,7 @@
  * \brief Doc ADT used for pretty printing.
  * Based on Section 1 of https://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf.
  */
+#include <vector>
 #include "doc.h"
 
 namespace tvm {
@@ -134,5 +135,5 @@ Doc PrintString(const std::string& value) { // NOLINT(*)
   return doc << "\"" << value << "\"";
 }
 
-} // relay
-} // tvm
+}  // namespace relay
+}  // namespace tvm

@@ -4,10 +4,12 @@
  * \brief Doc ADT used for pretty printing.
  * Based on Section 1 of https://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf.
  */
-#ifndef TVM_RELAY_DOC_H_
-#define TVM_RELAY_DOC_H_
+#ifndef TVM_RELAY_IR_DOC_H_
+#define TVM_RELAY_IR_DOC_H_
 
+#include <string>
 #include <tvm/relay/expr.h>
+#include <vector>
 
 namespace tvm {
 namespace relay {
@@ -96,4 +98,4 @@ Doc PrintConstScalar(DataType dtype, const T* data) {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_DOC_H_
+#endif  // TVM_RELAY_IR_DOC_H_
