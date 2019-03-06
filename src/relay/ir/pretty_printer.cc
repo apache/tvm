@@ -249,6 +249,13 @@ class PrettyPrinter :
       Doc printed_expr;
       if (meta) {
         printed_expr = meta_.GetMetaNode(GetRef<NodeRef>(expr.get()));
+      } else if (GNF_ && gnf && expr.as<LetNode>()) {
+        // wrap GNFed let in brackets
+        printed_expr = Nil();
+        Doc body = Nil();
+        printed_expr << "{";
+        printed_expr << Indent(2, body << "\n" << VisitExpr(expr)) << "\n";
+        printed_expr << "}";
       } else {
         printed_expr = VisitExpr(expr);
       }
@@ -270,6 +277,9 @@ class PrettyPrinter :
         return memo_[expr];
       } else {
         memo_[expr] = printed_expr;
+        if (GNF_ && expr.as<CallNode>()) {
+          printed_expr << PrintOptionalInfo(expr);
+        }
         return printed_expr;
       }
     }
