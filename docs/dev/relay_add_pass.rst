@@ -2,24 +2,27 @@
 
 Adding a Compiler Pass to Relay
 ===============================
+
 Compiler passes can be used to collect data about Relay programs or transform
 them in various ways. The base class used to traverse programs is
 ``ExprFunctor``. Depending on what you want to do, there are subclasses
 ``ExprVisitor`` and ``ExprMutator`` that collect information or mutate the
 AST, respectively.
 
-At a high level, there are two key components to writing a pass:
+At a high level, there are three key components to writing a pass:
 
-- Creating one or more classes that traverse the program
-- Registering an API endpoint that performs the pass
+- Creating one or more C++ classes that traverse the program
+- Registering an API endpoint with the ``TVM_REGISTER_API`` macro that performs the pass
+- Wrapping the Python API hook in a neater interface
 
 In order to better understand the process of writing a pass, we will look at
-the constant folding pass (found in ``src/relay/pass/fold_constant.cc``) as
-a guide, because it is a relatively simple pass that incorporates both types
-of traversals.
+the constant folding pass (found in ``src/relay/pass/fold_constant.cc`` and
+in ``python/tvm/relay/ir_pass.py``) as a guide, because it is a relatively
+simple pass that incorporates both types of traversals.
 
 Background
 ----------
+
 Constant folding involves evaluating expressions in the program that only
 involve constant values, then replacing those expressions with the result
 of evaluating them. The goal of this pass is to frontload all of the
@@ -28,6 +31,7 @@ an ``ExprVisitor``, then an example of an ``ExprMutator``.
 
 Writing an Expression Visitor
 -----------------------------
+
 The constant folding pass makes use of a ``ConstantChecker``, which extends
 ``ExprVisitor``. The public interface to this class is a ``Check`` method
 that returns whether the given expression is considered constant.
@@ -67,6 +71,7 @@ methods for the node types that could possibly change the result to true
 
 Writing an Expression Mutator
 -----------------------------
+
 The second component of the constant folding pass is the ``ConstantFolder``,
 which extends ``ExprMutator`` and internally uses ``ConstantChecker``. The
 ``ConstantFolder`` class is used to implement the ``FoldConstant`` function,
@@ -105,6 +110,13 @@ evaluate the call only if all of the arguments are constant (using the
 ``ConstantChecker``). Evaluating the call produces a value, so we use a
 helper method ``ValueToExpr`` to allow us to place the evaluated expression
 back into the AST.
+
+Wrapping the API in Python
+-----------------------------
+
+TODO: The content of this section should be almost identical to the
+corresponding section in ``docs/dev/relay_add_op.rst``. Can we just link to
+there?
 
 Summary
 -------
