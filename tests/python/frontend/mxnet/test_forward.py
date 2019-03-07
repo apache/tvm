@@ -336,7 +336,6 @@ def test_forward_scalar_ops():
                 op_res = intrp.evaluate(new_sym)(a_np)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
 
-
 def test_forward_slice_axis():
     def verify(shape, axis, begin, end):
         data_np = np.random.uniform(size=shape).astype("float32")
@@ -353,6 +352,27 @@ def test_forward_slice_axis():
     verify((3, 4), 1, 0, 2)
     verify((3, 4), 1, -3, -1)
     verify((3, 4), -1, -3, -1)
+
+def test_forward_slice_like():
+    def verify(x_shape, y_shape, axes):
+        x_np = np.random.uniform(size=x_shape).astype("float32")
+        y_np = np.random.uniform(size=y_shape).astype("float32")
+        if axes is None:
+            ref_res = mx.nd.slice_like(mx.nd.array(x_np), mx.nd.array(y_np))
+            mx_sym = mx.sym.slice_like(mx.sym.var("x"), mx.sym.var("y"))
+        else:
+            ref_res = mx.nd.slice_like(mx.nd.array(x_np), mx.nd.array(y_np), axes=axes)
+            mx_sym = mx.sym.slice_like(mx.sym.var("x"), mx.sym.var("y"), axes=axes)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": x_shape, "y": y_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x_np, y_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((3, 4), (2, 3), None)
+    verify((3, 4), (2, 3), (0, 1))
+    verify((3, 4), (2, 3), (0))
+    verify((3, 4), (2, 3), (-1))
 
 
 if __name__ == '__main__':
@@ -382,3 +402,4 @@ if __name__ == '__main__':
     test_forward_elemwise_ops()
     test_forward_scalar_ops()
     test_forward_slice_axis()
+    test_forward_slice_like()
