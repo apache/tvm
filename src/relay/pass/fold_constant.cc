@@ -35,20 +35,21 @@ using FInterpreter = runtime::TypedPackedFunc<Value(Expr)>;
 
 class ConstantChecker : private ExprVisitor {
  public:
-  // Check whether an expression is constant. The results are memorized.
+  // Check whether an expression is constant. The results are memoized.
   bool Check(const Expr& expr) {
-    if (expr.as<ConstantNode>()) {
-      return true;
-    }
     const auto it = memo_.find(expr);
     if (it != memo_.end())
       return it->second;
     VisitExpr(expr);
-    return memo_[expr];  // return memorized result or the default value false
+    return memo_[expr];  // return memoized result or the default value false
   }
 
  private:
   std::unordered_map<Expr, bool, NodeHash, NodeEqual> memo_;
+
+  void VisitExpr_(const ConstantNode* n) final {
+    memo_[GetRef<Constant>(n)] = true;
+  }
 
   void VisitExpr_(const TupleNode* n) final {
     bool result = true;
