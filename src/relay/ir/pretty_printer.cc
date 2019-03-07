@@ -421,6 +421,21 @@ class PrettyPrinter :
     return doc << "(" << PrintVec(args) << PrintAttrs(op->attrs, GetRef<Expr>(op)) << ")";
   }
 
+  Doc VisitExpr_(const RefCreateNode* op) final {
+    Doc doc = Nil();
+    return doc << "ref(" << Print(op->value) << ")";
+  }
+
+  Doc VisitExpr_(const RefReadNode* op) final {
+    Doc doc = Nil();
+    return doc << Print(op->ref) << "^";
+  }
+
+  Doc VisitExpr_(const RefWriteNode* op) final {
+    Doc doc = Nil();
+    return doc << "(" << Print(op->ref) << " := " << Print(op->value) << ")";
+  }
+
   //------------------------------------
   // Overload of Type printing functions
   //------------------------------------
@@ -482,6 +497,11 @@ class PrettyPrinter :
       arg_types.push_back(Print(arg_type));
     }
     return doc << "fn (" << PrintVec(arg_types) << ") -> " << Print(node->ret_type);
+  }
+
+  Doc VisitType_(const RefTypeNode* node) final {
+    Doc doc = Nil();
+    return doc << "ref(" << Print(node->value) << ")";
   }
 
   //------------------------------------
