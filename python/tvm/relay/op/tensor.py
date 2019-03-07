@@ -713,3 +713,19 @@ def device_copy(data, src_dev, dst_dev):
         raise ValueError("dst_dev is expected to be the type of TVMContext or "
                          "str, but received %s" % (type(dst_dev)))
     return _make.device_copy(data, src_dev, dst_dev)
+
+
+def shape_of(data):
+    """Get shape of a tensor.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The shape tensor.
+    """
+    return _make.shape_of(data)
