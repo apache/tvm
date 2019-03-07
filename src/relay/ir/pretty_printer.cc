@@ -449,7 +449,8 @@ class PrettyPrinter :
     std::vector<Doc> clauses;
     for (const auto& clause : op->clauses) {
       Doc clause_doc = Nil();
-      clauses.push_back(clause_doc << Print(clause->lhs, false) << " -> " << Print(clause->rhs, false));
+      clauses.push_back(clause_doc << Print(clause->lhs, false) << " -> "
+                                   << Print(clause->rhs, false));
     }
     doc << Indent(2, body << "\n" << PrintVec(clauses, Line())) << "\n";
     doc << "}";
