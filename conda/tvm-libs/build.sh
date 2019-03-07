@@ -13,7 +13,7 @@ fi
 if [ -z "$cuda" ] || [ "$cuda" == "False" ]; then
     CUDA_OPT=""
 else
-    CUDA_OPT="-DUSE_CUDA=ON"
+    CUDA_OPT="-DUSE_CUDA=ON -DUSE_CUBLAS=ON"
 fi
 
 if [ "$target_platform" == "osx-64" ]; then
