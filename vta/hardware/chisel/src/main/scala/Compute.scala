@@ -20,8 +20,8 @@ class ComputeIO(implicit p: Parameters) extends CoreBundle()(p) {
   val out_mem = Flipped(new AvalonSlaveIO(dataBits = 128, addrBits = 17))
 }
 
-class DepQueue[T <: Data](gen: T, entries: Int) extends Queue (gen, entries) {}
-class OutQueue[T <: Data](gen: T, entries: Int) extends Queue (gen, entries) {}
+class OutputQueue[T <: Data](gen: T, entries: Int) extends Queue (gen, entries) {}
+class InstructionQueue[T <: Data](gen: T, entries: Int) extends Queue (gen, entries) {}
 
 class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val io = IO(new ComputeIO)
@@ -32,7 +32,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val started = !reset.toBool
 
   val acc_mem = Mem(1 << 8, UInt(512.W))
-  val uop_mem = Mem(1 << 10, UInt(32.W))
+  val uop_mem = Mem(1 << 8, UInt(32.W))
 
   val insn            = Reg(UInt(128.W))
   val insn_valid      = (insn =/= 0.U) && started
@@ -347,7 +347,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val alu_opcode_add_en = (alu_opcode === alu_opcode_add.U)
   val out_mem_address = Reg(UInt(32.W))
   val out_mem_writedata = Reg(UInt(128.W))
-  val out_mem_fifo = Module(new OutQueue(UInt((32 + 128).W), 32))
+  val out_mem_fifo = Module(new OutputQueue(UInt((32 + 128).W), 32))
   val out_mem_enq_bits = Mux(alu_opcode_minmax_en, Cat(short_cmp_res.init.reverse),
                          Mux(alu_opcode_add_en, Cat(short_add_res.init.reverse), Cat(short_shr_res.init.reverse)))
   out_mem_write := opcode_alu_en && busy && (out_cntr_val <= out_cntr_max_val)
