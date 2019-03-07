@@ -5,6 +5,8 @@
  * Supports ANF, GNF, and metadata.
  */
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/module.h>
+#include <tvm/relay/pattern_functor.h>
 #include "doc.h"
 #include "type_functor.h"
 #include "../../lang/attr_functor.h"
@@ -110,6 +112,7 @@ class TextMetaDataContext {
 
 class PrettyPrinter :
     public ExprFunctor<Doc(const Expr&)>,
+    public PatternFunctor<Doc(const Pattern&)>,
     public TypeFunctor<Doc(const Type&)>,
     public AttrFunctor<Doc(const NodeRef&)> {
  public:
@@ -137,6 +140,7 @@ class PrettyPrinter :
   }
 
   // indent a new body
+  // TODO(jmp): indent should be an instance variable of the printer
   Doc PrintBody(const NodeRef& node, int indent = 2) {
     Doc doc = Nil();
     Doc body = Nil();
@@ -434,6 +438,40 @@ class PrettyPrinter :
   Doc VisitExpr_(const RefWriteNode* op) final {
     Doc doc = Nil();
     return doc << "(" << Print(op->ref) << " := " << Print(op->value) << ")";
+  }
+
+  Doc VisitExpr_(const MatchNode* op) final {
+    // TODO(jmp): Lots of code duplication here because PrintBody and PrintScope don't accept Docs.
+    Doc doc = Nil();
+    Doc body = Nil();
+    doc << "match " << Print(op->data) << " ";
+    doc << "{";
+    std::vector<Doc> clauses;
+    for (const auto& clause : op->clauses) {
+      Doc clause_doc = Nil();
+      clauses.push_back(clause_doc << Print(clause->lhs, false) << " -> " << Print(clause->rhs, false));
+    }
+    doc << Indent(2, body << "\n" << PrintVec(clauses, Line())) << "\n";
+    doc << "}";
+    return doc;
+  }
+
+  Doc VisitPattern_(const PatternConstructorNode* p) final {
+    Doc doc = Nil();
+    doc << p->constructor->name_hint << "(";
+    std::vector<Doc> pats;
+    for (const auto& pat : p->patterns) {
+      pats.push_back(Print(pat));
+    }
+    return doc << PrintVec(pats) << ")";
+  }
+
+  Doc VisitPattern_(const PatternVarNode* pv) final {
+    return AllocVar(pv->var);
+  }
+
+  Doc VisitExpr_(const ConstructorNode* n) final {
+    return Text(n->name_hint);
   }
 
   //------------------------------------
