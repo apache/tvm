@@ -110,6 +110,10 @@ void* OpenCLWorkspace::AllocDataSpace(
 }
 
 void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
+  // We have to make sure that the memory object is not in the command queue
+  // for some OpenCL platforms.
+  OPENCL_CALL(clFinish(this->GetQueue(ctx)));
+
   cl_mem mptr = static_cast<cl_mem>(ptr);
   OPENCL_CALL(clReleaseMemObject(mptr));
 }
