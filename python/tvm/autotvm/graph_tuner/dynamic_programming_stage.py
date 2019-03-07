@@ -137,7 +137,8 @@ class DPStage(object):
                 for j in range(num_input_states):
                     input_sch_idx = j // dep_multiplier
                     layout_transform_time = \
-                        self._global_layout_time_matrix_dict[(input_idx, self._idx)][input_sch_idx][i]
+                        self._global_layout_time_matrix_dict\
+                            [(input_idx, self._idx)][input_sch_idx][i]
 
                     if input_node_time_counted:
                         total_time = current_sch_time + layout_transform_time
@@ -213,8 +214,8 @@ class DPStage(object):
                 src_sch_idx = (i % (src_multiplier *
                                     aligned_shape[src_major_axis])) // src_multiplier
                 layout_transform_time = \
-                    self._global_layout_time_matrix_dict[(src_node_idx,
-                                                          target_node_idx)][src_sch_idx][target_sch_idx]
+                    self._global_layout_time_matrix_dict\
+                        [(src_node_idx, target_node_idx)][src_sch_idx][target_sch_idx]
 
                 if node_time_counted[j]:
                     new_state += layout_transform_time
