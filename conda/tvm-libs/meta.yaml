@@ -8,7 +8,7 @@ source:
   path: ../..
 
 build:
-  number: 3
+  number: 0
   string: cuda{{ cuda_version }}_{{ PKG_BUILDNUM }}  # [cuda]
 
 requirements:
