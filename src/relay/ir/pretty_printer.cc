@@ -184,7 +184,10 @@ class PrettyPrinter :
       return PrintType(Downcast<Type>(node), meta);
     } else if (node.as_derived<ModuleNode>()) {
       return PrintMod(Downcast<Module>(node));
-    } else { assert(false); }
+    } else { 
+      Doc doc = Nil();
+      return doc << node;
+    }
   }
 
   Doc TempVar(int n) {
