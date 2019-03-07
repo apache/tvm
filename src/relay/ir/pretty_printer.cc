@@ -673,7 +673,7 @@ Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {  // NOLINT(*
     return doc << ", " << meta_.GetMetaNode(attrs);
   } else {
     AttrPrinter printer(doc, this);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&printer);
     return doc;
   }
 }
