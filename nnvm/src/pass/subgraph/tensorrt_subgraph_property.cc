@@ -173,6 +173,8 @@ class TensorRTSubgraphProperty: public SubgraphProperty {
         this->GetAttr<std::unordered_set<std::string>>("op_names"));
   }
 
+  virtual ~TensorRTSubgraphProperty() {}
+
  private:
   nnvm::Symbol RemoveFlattenOpNodes(nnvm::Symbol sym) const {
     std::stack<nnvm::Node*> node_stack;

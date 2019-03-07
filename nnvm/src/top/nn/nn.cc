@@ -194,11 +194,12 @@ inline bool BatchNormInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool BatchNormCorrectLayout(const NodeAttrs& attrs,
+inline bool BatchNormCorrectLayout(const NodeAttrs& attrs_const,
                                    std::vector<TShape>* ishapes,
                                    std::vector<Layout> *in_layouts,
                                    const std::vector<Layout> *last_in_layouts,
                                    std::vector<Layout> *out_layouts) {
+  NodeAttrs& attrs = const_cast<NodeAttrs&>(attrs_const);
   const BatchNormParam& param = nnvm::get<BatchNormParam>(attrs.parsed);
   CHECK_EQ(in_layouts->size(), 5U);
   CHECK_EQ(last_in_layouts->size(), 5U);
@@ -593,11 +594,12 @@ inline bool PadInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool PadCorrectLayout(const NodeAttrs& attrs,
+inline bool PadCorrectLayout(const NodeAttrs& attrs_const,
                              std::vector<TShape>* ishapes,
                              std::vector<Layout>* ilayouts,
                              const std::vector<Layout>* last_ilayouts,
                              std::vector<Layout>* olayouts) {
+  NodeAttrs& attrs = const_cast<NodeAttrs&>(attrs_const);
   const PadParam& param = nnvm::get<PadParam>(attrs.parsed);
   const auto& last_layout = last_ilayouts->at(0);
   Layout layout = ilayouts->at(0);

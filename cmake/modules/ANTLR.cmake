@@ -3,7 +3,7 @@ if(USE_ANTLR)
         /usr/local/lib/antlr-*-complete.jar
         /usr/local/Cellar/*antlr-*-complete.jar)
 
-  if(DEFINED ANTLR4)
+if(ANTLR4)
     # Get the first element of the list of antlr jars.
     # Sort and reverse the list so the item selected is the highest
     #   version in lib or else in Cellar if no lib installation exists.

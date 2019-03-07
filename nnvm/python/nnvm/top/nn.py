@@ -61,10 +61,9 @@ reg.register_pattern("log_softmax", OpPattern.OPAQUE)
 @reg.register_compute("dense")
 def compute_dense(attrs, inputs, _):
     """Compute definition of dense"""
-    with tvm.target.create(attrs.get_string("target")):
-        if attrs.get_bool("use_bias"):
-            return topi.nn.dense(inputs[0], inputs[1], bias=inputs[2])
-        return topi.nn.dense(inputs[0], inputs[1])
+    if attrs.get_bool("use_bias"):
+        return topi.nn.dense(inputs[0], inputs[1], bias=inputs[2])
+    return topi.nn.dense(inputs[0], inputs[1])
 
 @reg.register_schedule("dense")
 def schedule_dense(_, outs, target):
@@ -313,22 +312,22 @@ reg.register_pattern("conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_alter_op_layout("max_pool2d")
 def alter_pooling_layout_max_pool2d(attrs, inputs, tinfos):
-    with tvm.target.create(attrs.get_string("target")):
+    with tvm.target.create(attrs["target"]):
         return topi.nn.max_pool2d_alter_layout(attrs, inputs, tinfos)
 
 @reg.register_alter_op_layout("avg_pool2d")
 def alter_pooling_layout_avg_pool2d(attrs, inputs, tinfos):
-    with tvm.target.create(attrs.get_string("target")):
+    with tvm.target.create(attrs["target"]):
         return topi.nn.avg_pool2d_alter_layout(attrs, inputs, tinfos)
 
 @reg.register_alter_op_layout("global_max_pool2d")
 def alter_pooling_layout_global_max_pool2d(attrs, inputs, tinfos):
-    with tvm.target.create(attrs.get_string("target")):
+    with tvm.target.create(attrs["target"]):
         return topi.nn.global_max_pool2d_alter_layout(attrs, inputs, tinfos)
 
 @reg.register_alter_op_layout("global_avg_pool2d")
 def alter_pooling_layout_global_avg_pool2d(attrs, inputs, tinfos):
-    with tvm.target.create(attrs.get_string("target")):
+    with tvm.target.create(attrs["target"]):
         return topi.nn.global_avg_pool2d_alter_layout(attrs, inputs, tinfos)
 
 # max_pool2d
