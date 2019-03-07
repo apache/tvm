@@ -187,7 +187,7 @@ RELAY_REGISTER_UNARY_OP("logical_not")
 
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
-.set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::logical_not));
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::logical_not));
 
 }  // namespace relay
 }  // namespace tvm
