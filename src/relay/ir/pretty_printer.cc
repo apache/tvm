@@ -174,7 +174,7 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc PrintAttrs(const Attrs& attrs);
+  Doc PrintAttrs(const Attrs& attrs, const Expr& op);
 
   // note: gnf flag is only one level deep
   Doc Print(const NodeRef& node, bool gnf = true, bool meta = false) {
@@ -375,7 +375,7 @@ class PrettyPrinter :
       for (Var param : fn->params) {
         params.push_back(AllocVar(param));
       }
-      doc << PrintVec(params) << PrintAttrs(fn->attrs);
+      doc << PrintVec(params) << PrintAttrs(fn->attrs, fn);
       doc << ") ";
       if (fn->ret_type.defined()) {
         doc << "-> " << Print(fn->ret_type) << " ";
@@ -418,7 +418,7 @@ class PrettyPrinter :
     for (Expr arg : op->args) {
       args.push_back(Print(arg));
     }
-    return doc << "(" << PrintVec(args) << PrintAttrs(op->attrs) << ")";
+    return doc << "(" << PrintVec(args) << PrintAttrs(op->attrs, GetRef<Expr>(op)) << ")";
   }
 
   //------------------------------------
@@ -606,13 +606,18 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
   PrettyPrinter* parent_;
 };
 
-Doc PrettyPrinter::PrintAttrs(const Attrs& attrs) {  // NOLINT(*)
-  // TODO(jmp): fallback meta?
+Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {  // NOLINT(*)
   if (!attrs.defined()) return Nil();
   Doc doc = Nil();
-  AttrPrinter printer(doc, this);
-  const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
-  return doc;
+  const auto* op_node = op.as<OpNode>();
+  if (op_node && (attrs->type_index() != op_node->attrs_type_index)) {
+    // fallback
+    return doc << ", " << meta_.GetMetaNode(attrs);
+  } else {
+    AttrPrinter printer(doc, this);
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
+    return doc;
+  }
 }
 
 std::string RelayPrint(const NodeRef& node,
