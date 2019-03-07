@@ -1,4 +1,4 @@
-# pylint: disable=too-many-arguments,too-many-locals,too-many-statements,too-many-instance-attributes,too-many-branches,too-many-nested-blocks
+# pylint: disable=too-many-arguments,too-many-locals,too-many-statements,too-many-instance-attributes,too-many-branches,too-many-nested-blocks,invalid-name,unused-argument,unused-variable,no-member
 """Base class for graph tuner."""
 import logging
 import json
@@ -28,7 +28,7 @@ def layout_transform(*args):
     cfg = get_config()
     cfg.add_flop(-1)
     data = args[0]
-    out = topi.cpp.nn.layout_transform(*args)
+    out = topi.nn.layout_transform(*args)
     sch = topi.generic.schedule_injective([out])
     return sch, [data, out]
 
@@ -315,8 +315,9 @@ class BaseGraphTuner(object):
                                 to_sch_idx, args):
         """Create dictionary containing matrix format of layout transformation
         between nodes."""
-        args = serialize_args(args)
-        in_shape, out_shape = args[0][1], args[3]
+        sargs = serialize_args(args)
+        in_shape = [val if isinstance(val, int) else val.value for val in sargs[0][1]]
+        out_shape = [val if isinstance(val, int) else val.value for val in sargs[3]]
         ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
         idx_pair_key = (from_node_idx, to_node_idx)
 
@@ -432,8 +433,9 @@ class BaseGraphTuner(object):
         def _fetch_args_callback(from_node_idx, to_node_idx, from_sch_idx,
                                  to_sch_idx, args):
             """Callback function to fetch layout transform args"""
-            serialized_args = serialize_args(args)
-            in_shape, out_shape = serialized_args[0][1], serialized_args[3]
+            sargs = serialize_args(args)
+            in_shape = [val if isinstance(val, int) else val.value for val in sargs[0][1]]
+            out_shape = [val if isinstance(val, int) else val.value for val in sargs[3]]
             if in_shape != out_shape:
                 args_list.append(args)
 
@@ -468,8 +470,8 @@ class BaseGraphTuner(object):
                     flops *= i
                 inferred_time = flops * avg_time
                 record_input = MeasureInput(target=target, task=None, config=None)
-                record_output =  MeasureResult(costs=(inferred_time,), error_no=0,
-                                               all_cost=-1, timestamp=-1)
+                record_output = MeasureResult(costs=(inferred_time,), error_no=0,
+                                              all_cost=-1, timestamp=-1)
                 self._layout_transform_dict[ltf_workload] = (record_input, record_output)
                 continue
 

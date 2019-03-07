@@ -11,7 +11,7 @@ from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, \
     relay_get_conv2d_NCHWc_AVX_workload, has_multiple_inputs, get_direct_ancestor, \
     get_in_nodes, get_out_nodes, shape2layout, get_wkl_map, get_real_node, \
     infer_conv2d_layout_shape_avx, expr2graph
-from topi.nn.conv2d import conv2d_NCHWc
+from topi.nn.conv2d import conv2d
 
 
 def create_workload(dshape, kshape, strides,
@@ -20,7 +20,7 @@ def create_workload(dshape, kshape, strides,
     data = tvm.placeholder(dshape, dtype=dtype)
     kernel = tvm.placeholder(kshape, dtype=dtype)
     return autotvm.task.args_to_workload([data, kernel, strides, padding, dilation, layout,
-                                          out_dtype], conv2d_NCHWc)
+                                          out_dtype], conv2d)
 
 
 def test_get_conv2d_workload():
@@ -39,7 +39,7 @@ def test_get_conv2d_workload():
         data_plc = tvm.placeholder(data[1], name="data")
         kernel_plc = tvm.placeholder(kernel[1], name="kernel")
         workload = autotvm.task.args_to_workload([data_plc, kernel_plc, strides, padding,
-                                                 dilation, layout, dtype], conv2d_NCHWc)
+                                                 dilation, layout, dtype], conv2d)
         expected_wkl_list.append(workload)
 
     wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape})

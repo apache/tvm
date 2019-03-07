@@ -10,8 +10,8 @@ from nnvm.compiler import graph_attr
 import tvm
 
 from tvm import autotvm
-from topi.nn.conv2d import conv2d_NCHWc
-from topi.nn.depthwise_conv2d import depthwise_conv2d_NCHWc
+from topi.nn.conv2d import conv2d
+from topi.nn.depthwise_conv2d import depthwise_conv2d_nchw
 
 
 def _parse_int(input_str):
@@ -118,7 +118,7 @@ def nnvm_get_conv2d_NCHWc_AVX_workload(**kwargs):
     dilation = [_parse_int(i) for i in (attrs["dilation"])[1:-1].split(',')] \
         if "dilation" in attrs else (1, 1)
     out_dtype = str(attrs["out_dtype "]) if "out_dtype" in attrs else "float32"
-    op_func = depthwise_conv2d_NCHWc if is_depthwise else conv2d_NCHWc
+    op_func = depthwise_conv2d_nchw if is_depthwise else conv2d
     workload = autotvm.task.args_to_workload([data, kernel, strides, padding, dilation,
                                               layout, out_dtype], op_func)
     return workload
