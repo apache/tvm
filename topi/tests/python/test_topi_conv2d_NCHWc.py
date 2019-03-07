@@ -105,7 +105,7 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
                              name="relu_%d_%d_%d_%d_%d_%d_%d_%d" %
                                   (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
             func(a, w, c)
-        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-3)
 
     # test llvm only for now since conv2d_NCHWc implement is missing in other backend.
     for device in ["llvm"]:
