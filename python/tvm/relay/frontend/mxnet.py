@@ -194,6 +194,13 @@ def _mx_slice(inputs, attrs):
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
+def _mx_slice_like(inputs, attrs):
+    assert len(inputs) == 2
+    new_attrs = {}
+    new_attrs["axes"] = attrs.get_int_tuple("axes", None)
+    return _op.slice_like(*inputs, **new_attrs)
+
+
 def _mx_slice_axis(inputs, attrs):
     assert len(inputs) == 1
     shape = ir_pass.infer_type(inputs[0]).checked_type.shape
@@ -383,7 +390,6 @@ _identity_list = [
     "exp",
     "negative",
     "reshape_like",
-    "slice_like",
     "zeros_like",
     "ones_like",
     "where",
@@ -473,6 +479,7 @@ _convert_map = {
     "BatchNorm_v1"  : _mx_batch_norm,
     "LRN"           : _mx_lrn,
     "slice"         : _mx_slice,
+    "slice_like"    : _mx_slice_like,
     "slice_axis"    : _mx_slice_axis,
     "SliceChannel"  : _mx_split,
     "split"         : _mx_split,
