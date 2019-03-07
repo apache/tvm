@@ -271,6 +271,11 @@ TVM_REGISTER_GLOBAL("topi.stack")
   *rv = stack(args[0], args[1]);
 });
 
+TVM_REGISTER_GLOBAL("topi.shape")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = shape(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.split")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   if (args[1].type_code() == kDLInt || args[1].type_code() == kDLUInt) {

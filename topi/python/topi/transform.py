@@ -393,3 +393,19 @@ def layout_transform(array, src_layout, dst_layout):
         the destination layout.
     """
     return cpp.layout_transform(array, src_layout, dst_layout)
+
+
+def shape(array):
+    """Get the shape of input array
+
+    Parameters
+    ----------
+    array : tvm.Tensor
+        The source tenosr.
+
+    Returns
+    -------
+    result : tvm.Tensor
+        The resulting tensor.
+    """
+    return cpp.shape(array)
