@@ -198,7 +198,7 @@ bool ShapeOfRel(const Array<Type>& types,
                 int num_inputs,
                 const Attrs& attrs,
                 const TypeReporter& reporter) {
-  CHECK(num_inputs == 1);
+  CHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
   CHECK(tt != nullptr);
   const auto* param = attrs.as<ShapeOfAttrs>();
@@ -212,18 +212,18 @@ Array<Tensor> ShapeOfCompute(const Attrs& attrs,
                              const Array<Tensor>& inputs,
                              const Type& out_type,
                              const Target& target) {
-    CHECK(inputs.size() == 1);
-    const auto* param = attrs.as<ShapeOfAttrs>();
-    CHECK(param != nullptr);
-    return {topi::shape(inputs[0], param->dtype)};
+  CHECK_EQ(inputs.size(), 1);
+  const auto* param = attrs.as<ShapeOfAttrs>();
+  CHECK(param != nullptr);
+  return {topi::shape(inputs[0], param->dtype)};
 }
 
 TVM_REGISTER_API("relay.op._make.shape_of")
 .set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
-    auto attrs = make_node<ShapeOfAttrs>();
-    attrs->dtype = dtype;
-    static const Op& op = Op::Get("shape_of");
-    return CallNode::make(op, {data}, Attrs(attrs), {});
+  auto attrs = make_node<ShapeOfAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("shape_of");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("shape_of")
