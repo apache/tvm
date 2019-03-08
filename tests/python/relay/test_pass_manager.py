@@ -109,19 +109,19 @@ def test_module_pass():
     opt_level = 0
     opt_tester = OptTester(mod)
     pass_ctx = None
-    pass_info = ir_pass.PassInfo(pass_name, opt_level)
 
     def transform(expr, ctx):
         return opt_tester.transform(mod, ctx)
 
     def test_pass_registration():
-        mod_pass = ir_pass.create_module_pass(pass_info, transform)
+        mod_pass = ir_pass.create_module_pass(pass_name, opt_level, transform)
         assert isinstance(mod_pass, ir_pass.ModulePass)
-        assert mod_pass.pass_info.name == pass_name
-        assert mod_pass.pass_info.opt_level == opt_level
+        pass_info = mod_pass.get_pass_info()
+        assert pass_info.name == pass_name
+        assert pass_info.opt_level == opt_level
 
     def test_pass_run():
-        module_pass = ir_pass.ModulePass(pass_info, transform)
+        module_pass = ir_pass.ModulePass(pass_name, opt_level, transform)
         assert pass_name in module_pass.astext()
 
         updated_mod = module_pass(mod)
@@ -174,7 +174,6 @@ def test_function_pass():
     opt_level = 1
     opt_tester = OptTester(mod)
     pass_ctx = None
-    pass_info = ir_pass.PassInfo(pass_name, opt_level)
 
     def transform(expr, ctx):
         return opt_tester.transform(expr, ctx)
@@ -184,14 +183,15 @@ def test_function_pass():
         return ref_log
 
     def test_pass_registration():
-        function_pass = ir_pass.create_function_pass(pass_info,
+        function_pass = ir_pass.create_function_pass(pass_name, opt_level,
                                                      transform)
         assert isinstance(function_pass, ir_pass.FunctionPass)
-        assert function_pass.pass_info.name == pass_name
-        assert function_pass.pass_info.opt_level == opt_level
+        pass_info = function_pass.get_pass_info()
+        assert pass_info.name == pass_name
+        assert pass_info.opt_level == opt_level
 
     def test_pass_run():
-        function_pass = ir_pass.FunctionPass(pass_info, transform)
+        function_pass = ir_pass.FunctionPass(pass_name, opt_level, transform)
         assert pass_name in function_pass.astext()
 
         updated_mod = function_pass(mod)
@@ -261,37 +261,34 @@ def test_sequential_pass():
         return opt_tester.transform(expr, ctx)
 
     module_pass_func = transform
-    module_pass = ir_pass.ModulePass(
-        ir_pass.PassInfo("module_pass", 1), module_pass_func)
+    module_pass = ir_pass.ModulePass("module_pass", 1, module_pass_func)
 
     # Register a function pass.
     function_pass_func = transform
-    function_pass = ir_pass.FunctionPass(ir_pass.PassInfo("function_pass", 2),
+    function_pass = ir_pass.FunctionPass("function_pass", 2,
                                          function_pass_func)
 
     def test_pass_registration():
         passes = [module_pass, function_pass]
         pass_name = "sequential_pass"
         opt_level = 2
-        pass_info = ir_pass.PassInfo(pass_name, opt_level)
-        sequential_pass = ir_pass.create_sequential_pass(pass_info,
+        sequential_pass = ir_pass.create_sequential_pass(pass_name, opt_level,
                                                          passes)
         assert isinstance(sequential_pass, ir_pass.SequentialPass)
-        assert sequential_pass.pass_info.name == pass_name
-        assert sequential_pass.pass_info.opt_level == opt_level
+        pass_info = sequential_pass.get_pass_info()
+        assert pass_info.name == pass_name
+        assert pass_info.opt_level == opt_level
 
     def test_no_pass():
         passes = []
-        sequential_pass = ir_pass.SequentialPass(
-            ir_pass.PassInfo("sequential_pass", 1), passes)
+        sequential_pass = ir_pass.SequentialPass("sequential_pass", 1, passes)
         ret_mod = sequential_pass(mod)
         mod_func = ret_mod[v_sub]
         check_func(sub, mod_func)
 
     def test_only_module_pass():
         passes = [module_pass]
-        sequential_pass = ir_pass.SequentialPass(
-            ir_pass.PassInfo("sequential_pass", 1), passes)
+        sequential_pass = ir_pass.SequentialPass("sequential_pass", 1, passes)
         ret_mod = sequential_pass(mod)
         # Check the subtract function.
         sub_var, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
@@ -305,8 +302,7 @@ def test_sequential_pass():
     def test_only_function_pass():
         # Check the subtract function.
         passes = [function_pass]
-        sequential_pass = ir_pass.SequentialPass(
-            ir_pass.PassInfo("sequential_pass", 2), passes)
+        sequential_pass = ir_pass.SequentialPass("sequential_pass", 2, passes)
         ret_mod = sequential_pass(mod)
         _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
@@ -320,8 +316,7 @@ def test_sequential_pass():
         # function pass.
         mod = relay.Module({v_sub: sub, v_log: log})
         passes = [module_pass, function_pass]
-        sequential_pass = ir_pass.SequentialPass(
-            ir_pass.PassInfo("sequential_pass", 2), passes)
+        sequential_pass = ir_pass.SequentialPass("sequential_pass", 2, passes)
         ret_mod = sequential_pass(mod)
 
         # Check the abs function is added.

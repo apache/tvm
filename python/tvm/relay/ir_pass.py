@@ -9,6 +9,7 @@ This file contains:
    for users to implement and use passes more conveniently.
 """
 import types
+from abc import abstractmethod
 
 from . import _ir_pass
 from . import _make
@@ -24,13 +25,20 @@ class PassInfo(RelayNode):
     container of information needed by running an optimization or analysis.
     This class can be extended by adding new members when more meta data is
     needed.
+
+    Parameters
+    ----------
+    name : str
+        The pass name.
+
+    opt_level : int
+        The optimization level of this pass.
+
+    required : List[str]
+        The list of passes that are required by a certain pass.
     """
 
     def __init__(self, name, opt_level, required=None):
-        required = required if required else []
-        if not isinstance(required, (list, tuple)):
-            raise TypeError("required must be the list or tuple type that " +
-                            "contains a host of dependent pass namees.")
         self.__init_handle_by_constructor__(_ir_pass.PassInfo, name, opt_level,
                                             required)
 
@@ -51,35 +59,29 @@ class PassContext(RelayNode):
 class Pass(RelayNode):
     """The base class of all passes. This class is designed as a pure virtual
     class that will be implemented by the subclasses.
-
-    Parameters
-    ----------
-    name : str
-        The pass name.
-
-    opt_level : int
-        The optimization level of this pass.
     """
 
+    @abstractmethod
     def set_pass_context(self, pass_ctx):
         """Setup the pass context for analysis and optimizations. This context
-        could be shared by different passes for sequential passes.
+        could be shared by different passes for sequential passes. It is an
+        abstract method that will be implemented by each subclass.
 
         Parameters
         ----------
         pass_ctx : PassContext
             The context that is used to help perform a certain pass or a series
             of passes.
-
-        Returns
-        -------
-        pass : Pass
-            The updated pass.
         """
-        if not isinstance(pass_ctx, PassContext):
-            raise TypeError("pass_ctx is expected to be the PassContext type")
-        _ir_pass.SetContext(self, pass_ctx)
+        raise NotImplementedError("Pure virtual function is not implemented.")
 
+    @abstractmethod
+    def get_pass_info(self):
+        """Get the pass meta. It is an abstract method that will be implemented
+        by each subclass."""
+        raise NotImplementedError("Pure virtual function is not implemented.")
+
+    @abstractmethod
     def __call__(self, mod):
         """Execute the pass. It is an abstract function that will be
         implemented by subclasses.
@@ -103,16 +105,39 @@ class ModulePass(Pass):
 
     Parameters
     ----------
-    pass_info : PassInfo
-        The meta data required by a module class.
+    name : str
+        The module pass name.
+
+    opt_level : int
+        The optimization level of this module pass.
+
+    required : List[str]
+        The list of passes that are required by a module pass.
 
     pass_func : Callable[(tvm.relay.Module, PassContext) -> tvm.relay.Module]
         The callback function that sketches a certain optimization.
     """
 
-    def __init__(self, pass_info, pass_func):
+    def __init__(self, name, opt_level, pass_func, required=None):
         self.__init_handle_by_constructor__(_ir_pass.CreateModulePass,
-                                            pass_info, pass_func)
+                                            name, opt_level, required,
+                                            pass_func)
+
+    def set_pass_context(self, pass_ctx):
+        """Setup the pass context for analysis and optimizations.
+
+        Parameters
+        ----------
+        pass_ctx : PassContext
+            The context that is used to help perform a certain module pass.
+        """
+        if not isinstance(pass_ctx, PassContext):
+            raise TypeError("pass_ctx is expected to be the PassContext type")
+        _ir_pass.SetContext(self, pass_ctx)
+
+    def get_pass_info(self):
+        """Get the meta data for module pass."""
+        return _ir_pass.GetPassInfo(self)
 
     def __call__(self, mod):
         """Execute a module pass.
@@ -136,17 +161,40 @@ class FunctionPass(Pass):
 
     Parameters
     ----------
-    pass_info : PassInfo
-        The meta data required by a function class.
+    name : str
+        The function pass name.
+
+    opt_level : int
+        The optimization level of this function pass.
+
+    required : List[str]
+        The list of passes that are required by a function pass.
 
     pass_func : Callable[(tvm.relay.Function, PassContext) ->
                 tvm.relay.Function]
         The callback function that sketches a certain optimization.
     """
 
-    def __init__(self, pass_info, pass_func):
+    def __init__(self, name, opt_level, pass_func, required=None):
         self.__init_handle_by_constructor__(_ir_pass.CreateFunctionPass,
-                                            pass_info, pass_func)
+                                            name, opt_level, required,
+                                            pass_func)
+
+    def set_pass_context(self, pass_ctx):
+        """Setup the pass context for analysis and optimizations.
+
+        Parameters
+        ----------
+        pass_ctx : PassContext
+            The context that is used to help perform the function pass.
+        """
+        if not isinstance(pass_ctx, PassContext):
+            raise TypeError("pass_ctx is expected to be the PassContext type")
+        _ir_pass.SetContext(self, pass_ctx)
+
+    def get_pass_info(self):
+        """Get the meta data for function pass."""
+        return _ir_pass.GetPassInfo(self)
 
     def __call__(self, mod):
         """Execute a function pass.
@@ -170,22 +218,45 @@ class SequentialPass(Pass):
 
     Parameters
     ----------
-    pass_info : PassInfo
-        The meta data required by a sequential class.
+    name : str
+        The sequential pass name.
+
+    opt_level : int
+        The optimization level of this sequential pass.
 
     passes : List[Pass]
         The pass candidates to be executed.
+
+    required : List[str]
+        The list of passes that are required by a sequential pass.
 
     disabled : Optional[List[str]]
         The list of passes that are disabled.
     """
 
-    def __init__(self, pass_info, passes, disabled=None):
+    def __init__(self, name, opt_level, passes, required=None, disabled=None):
         disabled = disabled if disabled else []
         if not isinstance(disabled, (list, tuple)):
             raise TypeError("disabled must be a list or tuple of pass names")
         self.__init_handle_by_constructor__(_ir_pass.CreateSequentialPass,
-                                            pass_info, passes, disabled)
+                                            name, opt_level, passes, required,
+                                            disabled)
+    def set_pass_context(self, pass_ctx):
+        """Setup the pass context for analysis and optimizations. This context
+        could be shared by different passes for sequential passes.
+
+        Parameters
+        ----------
+        pass_ctx : PassContext
+            The context that is used to help perform a series of passes.
+        """
+        if not isinstance(pass_ctx, PassContext):
+            raise TypeError("pass_ctx is expected to be the PassContext type")
+        _ir_pass.SetContext(self, pass_ctx)
+
+    def get_pass_info(self):
+        """Get the meta data for sequential pass."""
+        return _ir_pass.GetPassInfo(self)
 
     def __call__(self, mod):
         """Execute a sequence of passes.
@@ -203,17 +274,23 @@ class SequentialPass(Pass):
         return _ir_pass.RunSequentialPass(self, mod)
 
 
-def create_module_pass(pass_info, pass_func):
+def create_module_pass(pass_name, opt_level, pass_func, required=None):
     """Create a module pass using a defined optimization function from Python.
 
     Parameters
     ----------
-    pass_info : PassInfo
-        The meta data required by a module class.
+    pass_name : str
+        The name of the module pass.
+
+    opt_level : int
+        The optimization level of this module pass.
 
     pass_func : Optional[Callable[(Module/Function, PassContext) ->
                 Module/Function]]
         The implemented optimization pass.
+
+    required : List[str]
+        The list of passes that the module pass is dependent on.
 
     Returns
     -------
@@ -223,21 +300,31 @@ def create_module_pass(pass_info, pass_func):
     if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
         raise TypeError("pass_func must be a callable for Module pass")
 
-    return _ir_pass.CreateModulePass(pass_info, pass_func)
+    required = required if required else []
+    if not isinstance(required, (list, tuple)):
+        raise TypeError("Required is expected to be the type of list/tuple.")
+
+    return _ir_pass.CreateModulePass(pass_name, opt_level, required, pass_func)
 
 
-def create_function_pass(pass_info, pass_func):
+def create_function_pass(pass_name, opt_level, pass_func, required=None):
     """Create a function pass using a defined optimization function from
     Python.
 
     Parameters
     ----------
-    pass_info : PassInfo
-        The meta data required by a function class.
+    pass_name : str
+        The name of the function pass.
+
+    opt_level : int
+        The optimization level of this function pass.
 
     pass_func : Optional[Callable[(Module/Function, PassContext) ->
                 Module/Function]]
         The implemented optimization pass.
+
+    required : List[str]
+        The list of passes that the function pass is dependent on.
 
     Returns
     -------
@@ -247,20 +334,31 @@ def create_function_pass(pass_info, pass_func):
     if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
         raise TypeError("pass_func must be a callable for Module pass")
 
-    return _ir_pass.CreateFunctionPass(pass_info, pass_func)
+    required = required if required else []
+    if not isinstance(required, (list, tuple)):
+        raise TypeError("Required is expected to be the type of list/tuple.")
+
+    return _ir_pass.CreateFunctionPass(pass_name, opt_level, required, pass_func)
 
 
-def create_sequential_pass(pass_info, sequential_passes, disabled=None):
+def create_sequential_pass(pass_name, opt_level, sequential_passes,
+                           required=None, disabled=None):
     """Create a sequential pass using a defined optimization function from
     Python.
 
     Parameters
     ----------
-    pass_info : PassInfo
-        The meta data required by a sequential class.
+    pass_name : str
+        The name of the sequential pass.
+
+    opt_level : int
+        The optimization level of this sequential pass.
 
     sequential_passes : Optional[List[Pass]]
         A sequence of passes candidate for optimization.
+
+    required : List[str]
+        The list of passes that the sequential pass is dependent on.
 
     disabled : Optional[List[str]]
         A list of disabled passes.
@@ -277,8 +375,12 @@ def create_sequential_pass(pass_info, sequential_passes, disabled=None):
     if not isinstance(disabled, (list, tuple)):
         raise TypeError("disabled must be a list or tuple of pass names")
 
-    return _ir_pass.CreateSequentialPass(pass_info, sequential_passes,
-                                         disabled)
+    required = required if required else []
+    if not isinstance(required, (list, tuple)):
+        raise TypeError("Required is expected to be the type of list/tuple.")
+
+    return _ir_pass.CreateSequentialPass(pass_name, opt_level,
+                                         sequential_passes, required, disabled)
 
 
 def post_order_visit(expr, fvisit):

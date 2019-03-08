@@ -406,6 +406,8 @@ void SequentialPassNode::ResolveDependency(const Module& mod) {
   // 1. Consider the required passes for each pass.
   // 2. Only resolve the enabled passes.
   // 3. Build a dependency graph. Probably we need to update the pass list.
+  LOG(FATAL) << "Pass dependency has not been resolved yet."
+             << "\n";
 }
 
 std::vector<std::string> SequentialPassNode::DisabledPasses() const {
@@ -423,21 +425,30 @@ void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
 }
 
 Pass CreateModulePass(
-    const PassInfo& pass_info,
+    const std::string& name,
+    int opt_level,
+    const tvm::Array<tvm::Expr>& required,
     const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func) {
+  PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
   return ModulePassNode::make(pass_info, pass_func);
 }
 
 Pass CreateFunctionPass(
-    const PassInfo& pass_info,
+    const std::string& name,
+    int opt_level,
+    const tvm::Array<tvm::Expr>& required,
     const runtime::TypedPackedFunc<Function(Function, PassContext)>&
         pass_func) {
+  PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
   return FunctionPassNode::make(pass_info, pass_func);
 }
 
-Pass CreateSequentialPass(const PassInfo& pass_info,
+Pass CreateSequentialPass(const std::string& name,
+                          int opt_level,
                           const tvm::Array<Pass>& passes,
+                          const tvm::Array<tvm::Expr>& required,
                           const tvm::Array<tvm::Expr>& disabled) {
+  PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
   return SequentialPassNode::make(pass_info, passes, disabled);
 }
 
@@ -451,13 +462,35 @@ TVM_REGISTER_API("relay._ir_pass.PassInfo")
   *ret = PassInfoNode::make(name, opt_level, required);
 });
 
+TVM_REGISTER_API("relay._ir_pass.GetPassInfo")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  Pass pass = args[0];
+  *ret = pass->GetPassInfo();
+});
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<PassInfoNode>([](const PassInfoNode* node,
+                                tvm::IRPrinter* p) {
+  p->stream << "The meta data of the pass: ";
+  p->stream << "pass name: " << node->name;
+  p->stream << "opt_level: " << node->opt_level;
+  p->stream << "required passes: [" << "\n";
+  for (const auto& it : node->required) {
+    const auto* str = it.as<tvm::ir::StringImm>();
+    p->stream << str->value << ", ";
+  }
+  p->stream << "]\n";
+});
+
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  PassInfo pass_info = args[0];
-  PackedFunc pass_func = args[1];
-  *ret = CreateModulePass(pass_info, pass_func);
+  std::string name = args[0];
+  int opt_level = args[1];
+  tvm::Array<tvm::Expr> required = args[2];
+  PackedFunc pass_func = args[3];
+  *ret = CreateModulePass(name, opt_level, required, pass_func);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunModulePass")
@@ -484,9 +517,11 @@ TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  PassInfo pass_info = args[0];
-  PackedFunc pass_func = args[1];
-  *ret = CreateFunctionPass(pass_info, pass_func);
+  std::string name = args[0];
+  int opt_level = args[1];
+  tvm::Array<tvm::Expr> required = args[2];
+  PackedFunc pass_func = args[3];
+  *ret = CreateFunctionPass(name, opt_level, required, pass_func);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunFunctionPass")
@@ -512,9 +547,12 @@ TVM_REGISTER_NODE_TYPE(SequentialPassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  PassInfo pass_info = args[0];
-  tvm::Array<Pass> passes = args[1];
-  tvm::Array<tvm::Expr> disabled = args[2];
+  std::string name = args[0];
+  int opt_level = args[1];
+  tvm::Array<Pass> passes = args[2];
+  tvm::Array<tvm::Expr> required = args[3];
+  tvm::Array<tvm::Expr> disabled = args[4];
+  PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
   *ret = SequentialPassNode::make(pass_info, passes, disabled);
 });
 
@@ -562,6 +600,8 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PassContextNode>([](const PassContextNode* node,
                                 tvm::IRPrinter* p) {
     p->stream << "TODO(zhiics): printing context";
+    LOG(FATAL) << "PassContext printer has not been implemented yet."
+               << "\n";
 });
 
 }  // namespace pass
