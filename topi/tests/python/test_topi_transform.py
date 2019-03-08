@@ -566,11 +566,12 @@ def test_layout_transform():
 
 def test_shape():
     in_shape = (8, 7, 13)
+    dtype = "int32"
     A = tvm.placeholder(shape=in_shape, dtype="float32", name="A")
-    B = topi.shape(A)
+    B = topi.shape(A, dtype)
 
     input = np.random.uniform(size=in_shape).astype(A.dtype)
-    output = np.asarray(in_shape).astype("int32")
+    output = np.asarray(in_shape).astype(dtype)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -578,7 +579,7 @@ def test_shape():
             print("Skip because %s is not enabled" % device)
             return
         tvm_input = tvm.nd.array(input, ctx)
-        tvm_output = tvm.nd.empty(output.shape, ctx=ctx, dtype="int32")
+        tvm_output = tvm.nd.empty(output.shape, ctx=ctx, dtype=dtype)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)

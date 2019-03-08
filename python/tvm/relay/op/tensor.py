@@ -715,7 +715,7 @@ def device_copy(data, src_dev, dst_dev):
     return _make.device_copy(data, src_dev, dst_dev)
 
 
-def shape_of(data):
+def shape_of(data, dtype="int32"):
     """Get shape of a tensor.
 
     Parameters
@@ -723,9 +723,12 @@ def shape_of(data):
     data : tvm.relay.Expr
         The input tensor.
 
+    dtype : str, optional
+        The target data type.
+
     Returns
     -------
     result : tvm.relay.Expr
         The shape tensor.
     """
-    return _make.shape_of(data)
+    return _make.shape_of(data, dtype)

@@ -192,17 +192,19 @@ RELAY_REGISTER_UNARY_OP("logical_not")
 
 
 // shape_of
+TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
+
 bool ShapeOfRel(const Array<Type>& types,
-                  int num_inputs,
-                  const Attrs& attrs,
-                  const TypeReporter& reporter) {
+                int num_inputs,
+                const Attrs& attrs,
+                const TypeReporter& reporter) {
   CHECK(num_inputs == 1);
   auto tt = types[0].as<TensorTypeNode>();
   CHECK(tt != nullptr);
-  tvm::Type odtype = ::tvm::Int(32);
+  const auto* param = attrs.as<ShapeOfAttrs>();
+  CHECK(param != nullptr);
   auto vector_out = tvm::Integer(tt->shape.size());
-  auto otype = TensorTypeNode::make({ vector_out }, odtype);
-  reporter->Assign(types[1], otype);
+  reporter->Assign(types[1], TensorTypeNode::make({ vector_out }, param->dtype));
   return true;
 }
 
@@ -211,27 +213,33 @@ Array<Tensor> ShapeOfCompute(const Attrs& attrs,
                              const Type& out_type,
                              const Target& target) {
     CHECK(inputs.size() == 1);
-    return {topi::shape(inputs[0])};
+    const auto* param = attrs.as<ShapeOfAttrs>();
+    CHECK(param != nullptr);
+    return {topi::shape(inputs[0], param->dtype)};
 }
 
 TVM_REGISTER_API("relay.op._make.shape_of")
-    .set_body_typed<Expr(Expr)>([](Expr data) {
-        static const Op& op = Op::Get("shape_of");
-        return CallNode::make(op, {data}, Attrs(), {});
-      });
+.set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
+    auto attrs = make_node<ShapeOfAttrs>();
+    attrs->dtype = dtype;
+    static const Op& op = Op::Get("shape_of");
+    return CallNode::make(op, {data}, Attrs(attrs), {});
+});
 
 RELAY_REGISTER_OP("shape_of")
-  .describe(R"code(Returns a tensor representing the shape of a tensor..
-  )code" TVM_ADD_FILELINE)
-  .set_num_inputs(1)
-  .add_argument("data", "Tensor", "The input tensor.")
-  .add_type_rel("ShapeOf", ShapeOfRel)
-  .set_attr<TOpIsStateful>("TOpIsStateful", false)
-  .set_attr<TOpPattern>("TOpPattern", kInjective)
-  .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                                 ElemwiseArbitraryLayout)
-  .set_support_level(10)
-  .set_attr<FTVMCompute>("FTVMCompute", ShapeOfCompute);
+.describe(R"code(Returns a tensor representing the shape of a tensor.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ShapeOfAttrs")
+.add_argument("data", "Tensor", "The input tensor.")
+.add_type_rel("ShapeOf", ShapeOfRel)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_support_level(10)
+.set_attr<FTVMCompute>("FTVMCompute", ShapeOfCompute);
 
 }  // namespace relay
 }  // namespace tvm

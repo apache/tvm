@@ -97,28 +97,27 @@ def test_fold_concat():
 
 def test_fold_shape_of():
     c_shape = (8, 9, 10)
-    def before():
+    def before(dtype):
         x = relay.var("x", shape=c_shape, dtype="float32")
         y = relay.var("y", shape=c_shape, dtype="float32")
-        z = relay.shape_of(x + y)
+        z = relay.shape_of(x + y, dtype)
         return relay.Function([x, y], z)
 
-    def expected():
+    def expected(dtype):
         x = relay.var("x", shape=c_shape, dtype="float32")
         y = relay.var("y", shape=c_shape, dtype="float32")
-        z = relay.const(np.array(c_shape).astype("int32"))
+        z = relay.const(np.array(c_shape).astype(dtype), dtype=dtype)
         return relay.ir_pass.infer_type(relay.Function([x, y], z))
 
-    zbefore = before()
-    zz = relay.ir_pass.fold_constant(zbefore)
-    assert relay.ir_pass.graph_equal(zz, zbefore)
+    for dtype in ["int32", "float32"]:
+        zbefore = before(dtype)
+        zz = relay.ir_pass.fold_constant(zbefore)
+        assert relay.ir_pass.graph_equal(zz, zbefore)
 
-    zz = relay.ir_pass.infer_type(zbefore)
-    zz = relay.ir_pass.fold_constant(zz)
-    print(zz.astext())
-    zexpected = expected()
-    print(zexpected.astext())
-    assert relay.ir_pass.graph_equal(zz, zexpected)
+        zz = relay.ir_pass.infer_type(zbefore)
+        zz = relay.ir_pass.fold_constant(zz)
+        zexpected = expected(dtype)
+        assert relay.ir_pass.graph_equal(zz, zexpected)
 
 
 if __name__ == "__main__":

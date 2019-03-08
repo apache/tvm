@@ -1089,19 +1089,19 @@ inline Tensor layout_transform(const Tensor& src,
  * \return Tensor of input shape.
  */
 inline Tensor shape(const Tensor& src,
+                    Type dtype,
                     const std::string name = "shape",
                     const std::string tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
   Array<Expr> out_shape{ndim};
-  return compute(
-      out_shape, [&](const Array<Var>& indices) {
-                   auto idx = indices[0];
-                   Expr ret = 0;
-                   for (int i = 0; i < ndim; ++i) {
-                     ret = tvm::if_then_else(idx == i, src->shape[i], ret);
-                   }
-                   return ret;
-                 }, name, tag);
+  return compute(out_shape, [&](const Array<Var>& indices) {
+    auto idx = indices[0];
+    Expr ret = 0;
+    for (int i = 0; i < ndim; ++i) {
+      ret = tvm::if_then_else(idx == i, src->shape[i], ret);
+    }
+    return tvm::cast(dtype, ret);
+  }, name, tag);
 }
 
 }  // namespace topi

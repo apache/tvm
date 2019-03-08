@@ -395,7 +395,7 @@ def layout_transform(array, src_layout, dst_layout):
     return cpp.layout_transform(array, src_layout, dst_layout)
 
 
-def shape(array):
+def shape(array, dtype="int32"):
     """Get the shape of input array
 
     Parameters
@@ -403,9 +403,12 @@ def shape(array):
     array : tvm.Tensor
         The source tenosr.
 
+    dtype : str, optional
+        The target data type.
+
     Returns
     -------
     result : tvm.Tensor
         The resulting tensor.
     """
-    return cpp.shape(array)
+    return cpp.shape(array, dtype)

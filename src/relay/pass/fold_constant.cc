@@ -6,6 +6,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/interpreter.h>
+#include <tvm/relay/attrs/transform.h>
 
 namespace tvm {
 namespace relay {
@@ -84,7 +85,7 @@ class ConstantFolder : public ExprMutator {
     if (op_stateful.get(GetRef<Op>(op), false)) return res;
     // Try to evaluate shape_of op
     if (call->op.same_as(Op::Get("shape_of"))) {
-      return EvaluateShapeOf(res, origin_args);
+      return EvaluateShapeOf(res, origin_args, call->attrs);
     }
     bool all_const_args = true;
     for (Expr arg : call->args) {
@@ -138,8 +139,10 @@ class ConstantFolder : public ExprMutator {
     return ValueToExpr(executor_(expr));
   }
   // Evaluate shape_of op
-  Expr EvaluateShapeOf(Expr expr, Array<Expr> args) {
+  Expr EvaluateShapeOf(Expr expr, Array<Expr> args, Attrs attrs) {
     Expr input = args[0];
+    const auto* param = attrs.as<ShapeOfAttrs>();
+    CHECK(param != nullptr);
     tvm::Array<IndexExpr> ishape;
     if (const ConstantNode* op = input.as<ConstantNode>()) {
       ishape = op->tensor_type()->shape;
@@ -148,11 +151,12 @@ class ConstantFolder : public ExprMutator {
     } else {
       return expr;
     }
+    // Get the constant shape
     DLContext ctx;
     ctx.device_type = kDLCPU;
     ctx.device_id = 0;
     auto val = runtime::NDArray::Empty(
-      {(int64_t)ishape.size()}, Type2TVMType(tvm::Int(32)), ctx);
+        {(int64_t)ishape.size()}, Type2TVMType(Int(32)), ctx);
     int32_t* dims = static_cast<int32_t*>(val->data);
     using ::tvm::ir::IntImm;
     for (size_t i = 0; i < ishape.size(); ++i) {
@@ -162,7 +166,13 @@ class ConstantFolder : public ExprMutator {
         return expr;
       }
     }
-    return ValueToExpr(TensorValueNode::make(val));
+    Expr shape = ValueToExpr(TensorValueNode::make(val));
+    // Cast the constant into correct dtype
+    auto cast_attrs = make_node<CastAttrs>();
+    cast_attrs->dtype = param->dtype;
+    static const Op& cast_op = Op::Get("cast");
+    Expr ret = CallNode::make(cast_op, {shape}, Attrs(cast_attrs), {});
+    return ConstEvaluate(ret);
   }
 };
 
