@@ -434,7 +434,6 @@ _identity_list = [
     "exp",
     "negative",
     "reshape_like",
-    "slice_like",
     "zeros_like",
     "ones_like",
     "where",
