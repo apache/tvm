@@ -1039,9 +1039,9 @@ RELAY_REGISTER_OP("arange")
 TVM_REGISTER_NODE_TYPE(RepeatAttrs);
 
 bool RepeatRel(const Array<Type>& types,
-                   int num_inputs,
-                   const Attrs& attrs,
-                   const TypeReporter& reporter) {
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
   // `types` contains: [data, result]
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -1131,37 +1131,37 @@ bool TileRel(const Array<Type>& types,
     return false;
   }
   const auto* param = attrs.as<TileAttrs>();
-  const int ndim = static_cast<int>(data->shape.size());
+  const size_t ndim = static_cast<size_t>(data->shape.size());
   const Array<Integer>& reps = param->reps;
   // check dimension match
   CHECK(!reps.defined())
     << "repetition array is not defined. data.ndim = " << ndim;
-  const int rndim = static_cast<int>(reps.size());
-  int tndim = (ndim > rndim) ? ndim : rndim;
+  const size_t rndim = static_cast<size_t>(reps.size());
+  size_t tndim = (ndim > rndim) ? ndim : rndim;
   // re-construct data shape or reps shape
   std::vector<IndexExpr> data_shape;
   std::vector<IndexExpr> reps_shape;
   data_shape.reserve(tndim);
   reps_shape.reserve(tndim);
   if (ndim == rndim) {
-    for (int i = 0; i < tndim; ++i) {
+    for (size_t i = 0; i < tndim; ++i) {
         data_shape.emplace_back(data->shape[i]);
         reps_shape.emplace_back(reps[i]);
     }
   } else if (ndim > rndim) {
-    for (int i = 0; i < ndim; ++i)
+    for (size_t i = 0; i < ndim; ++i)
         data_shape.emplace_back(data->shape[i]);
-    for (int i = 0; i < (ndim - rndim); ++i)
+    for (size_t i = 0; i < (ndim - rndim); ++i)
         reps_shape.emplace_back(1);
-    for (int i = 0; i < rndim; ++i)
+    for (size_t i = 0; i < rndim; ++i)
         reps_shape.emplace_back(reps[i]);
   } else {
-    for (int i = 0; i < rndim; ++i)
+    for (size_t i = 0; i < rndim; ++i)
         reps_shape.emplace_back(reps[i]);
   }
   std::vector<IndexExpr> oshape;
   oshape.reserve(tndim);
-  for (int i = 0; i < tndim; ++i) {
+  for (size_t i = 0; i < tndim; ++i) {
     oshape.emplace_back(data_shape[i] * reps_shape[i]);
   }
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
