@@ -84,13 +84,13 @@ RELAY_REGISTER_BINARY_OP("mod")
 
 RELAY_REGISTER_BINARY_OP("logical_and")
 .describe("Elementwise logical AND with broadcasting")
-.set_support_level(1)
+.set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::logical_and));
 
 
 RELAY_REGISTER_BINARY_OP("logical_or")
 .describe("Elementwise logical OR with broadcasting")
-.set_support_level(1)
+.set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::logical_or));
 
 
