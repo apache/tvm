@@ -139,6 +139,50 @@ before producing the call node:
         tup = Tuple(list(args))
         return _make.concat(tup)
 
+Gradient Operators
+------------------
+
+Gradient operators are important for writing differentiable programs in
+Relay. Without them, we couldn't train our models! Adding a gradient operator
+is slightly different from adding a normal operator, in that you only need to
+touch Python code. A collection of gradient operators can be found in
+``python/tvm/relay/op/_tensor_grad.py``. A good example is the gradient for
+``multiply``:
+
+.. code:: python
+
+    @register_gradient("multiply")
+    def multiply_grad(orig, grad):
+        """Returns [grad * y, grad * x]"""
+        x, y = orig.args
+        return [collapse_sum_like(grad * y, x),
+                collapse_sum_like(grad * x, y)]
+
+The inputs here are the original operator and a gradient to accumulate into.
+What we return is a list, where the 0th index is the derivative of the
+multiply operator with respect to the first input, and the 1st index is the
+derivative with respect to the second input. In general, the gradient will
+return a list with as many elements as there are inputs to the base operator.
+
+Before we further analyze this definition, first we should recall the partial
+derivatives for multiplication. Given a function f(x, y) = x * y, we have
+that df/dx = y and df/dy = x. The definition above looks similar to the math
+definitions, but there are some subtle differences, which we describe below.
+
+We're not just interested in how to compute the gradient of this function.
+We're interested in composing this gradient with other gradients, so we can
+accumulate the gradient across an entire program. This is where the ``grad *
+y`` and ``grad * x`` terms come from. We know that df/dx = y, but the way we
+compose this derivative with the gradient thus far is by multiplying it.
+
+Additionally, since the shape of ``grad`` might not match the shape of either
+of the inputs, we use ``collapse_sum_like`` to take the contents of the
+``grad * <var>`` terms and make the shape match the input we're
+differentiating with respect to.
+
+TODO: Why do we only have ``collapse_sum_like`` on some of the gradient
+operators in ``relay/op/_tensor_grad.py``?
+
 Summary
 -------
 
