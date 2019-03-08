@@ -1,27 +1,32 @@
 import os
 import copy
-import nnvm
 import tvm
+import tvm.relay.testing
 
-from nnvm import symbol as sym
 from tvm import autotvm
+from tvm import relay
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
-from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
+from tvm.autotvm.graph_tuner.utils import relay_get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
 from test_autotvm_graph_tuner_utils import create_workload
 
 
 def _create_data(target, dshape, dtype, layout):
-    data = sym.Variable("data")
-    conv0 = sym.conv2d(data, channels=16, kernel_size=(3, 3), padding=(1, 1))
-    conv1 = sym.conv2d(conv0, channels=32, kernel_size=(1, 1))
-    conv2 = sym.conv2d(conv1, channels=32, kernel_size=(3, 3), padding=(1, 1))
-    out = sym.elemwise_add(conv1, conv2)
-    tasks = autotvm.task.extract_from_graph(out, target=target,
-                                            shape={'data': dshape}, dtype=dtype,
-                                            symbols=(sym.conv2d,))
-    g = nnvm.graph.create(out)
+    data = relay.var("data", shape=dshape, dtype=dtype)
+    w0 = relay.var("w0_weight")
+    conv0 = relay.nn.conv2d(data, w0, channels=16, kernel_size=(3, 3), padding=(1, 1))
+    w1 = relay.var("w1_weight")
+    conv1 = relay.nn.conv2d(conv0, w1, channels=32, kernel_size=(1, 1))
+    w2 = relay.var("w2_weight")
+    conv2 = relay.nn.conv2d(conv1, w2, channels=32, kernel_size=(3, 3), padding=(1, 1))
+    out = relay.add(conv1, conv2)
+    net = relay.Function(relay.ir_pass.free_vars(out), out)
+    net, params = relay.testing.create_workload(net)
+    tasks = autotvm.task.extract_from_program(net,
+                                              target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d,))
     wkl_list = [
         create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1), (1, 1),layout, layout, dtype, dtype),
         create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0), (1, 1),layout, layout, dtype, dtype),
@@ -89,7 +94,7 @@ def _create_data(target, dshape, dtype, layout):
     ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
     ltf_keys.append(ltf_wkl)
 
-    return g, records, ltf_records, ltf_keys, tasks
+    return net, records, ltf_records, ltf_keys, tasks
 
 
 def test_graph_tuner_layout_transform():
@@ -102,7 +107,7 @@ def test_graph_tuner_layout_transform():
     data_layout = "NCHWc"
 
     g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
-    graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
+    graph_wkl_list = relay_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
     executor = DPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
                        ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx, log_file=log_file)
     executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
@@ -156,7 +161,7 @@ def test_DPTuner_run():
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
-    graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
+    graph_wkl_list = relay_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
     executor = DPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
                        ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx, log_file=log_file)
     executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
@@ -211,7 +216,7 @@ def test_PBQPTuner_run():
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
-    graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
+    graph_wkl_list = relay_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
     executor = PBQPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
                          ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx)
     executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)

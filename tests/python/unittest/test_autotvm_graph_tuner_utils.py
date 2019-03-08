@@ -1,15 +1,13 @@
 import json
-import nnvm
 import tvm
+import topi
 
-from nnvm import testing
-from nnvm import symbol as sym
 from tvm import autotvm, relay
 from tvm.relay.testing import resnet
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, \
     relay_get_conv2d_NCHWc_AVX_workload, has_multiple_inputs, get_direct_ancestor, \
-    get_in_nodes, get_out_nodes, shape2layout, get_wkl_map, get_real_node, \
+    get_in_nodes, get_out_nodes, shape2layout, get_wkl_map, \
     infer_conv2d_layout_shape_avx, expr2graph
 from topi.nn.conv2d import conv2d
 
@@ -25,14 +23,12 @@ def create_workload(dshape, kshape, strides,
 
 def test_get_conv2d_workload():
     dshape = (1, 3, 224, 224)
-    dtype = "float32"
     target = "llvm"
-    net = testing.resnet.get_symbol(1000, num_layers=18)
-    expr, _ = resnet.get_workload(num_layers=18, batch_size=1)
-    g = nnvm.graph.create(net)
-    tasks = autotvm.task.extract_from_graph(net, target=target,
-                                            shape={'data': dshape}, dtype=dtype,
-                                            symbols=(sym.conv2d,))
+    expr, params = resnet.get_workload(num_layers=18, batch_size=1)
+    tasks = autotvm.task.extract_from_program(expr,
+                                              target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d,))
     expected_wkl_list = []
     for task in tasks:
         data, kernel, strides, padding, dilation, layout, dtype = task.args
@@ -41,14 +37,6 @@ def test_get_conv2d_workload():
         workload = autotvm.task.args_to_workload([data_plc, kernel_plc, strides, padding,
                                                  dilation, layout, dtype], conv2d)
         expected_wkl_list.append(workload)
-
-    wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape})
-    if len(wkl_list) != len(expected_wkl_list):
-        raise RuntimeError("Get workload from nnvm graph failed: list length mismatch: expecting %d but got %d." %
-                           (len(expected_wkl_list), len(wkl_list)))
-    for wkl in wkl_list:
-        if wkl not in expected_wkl_list:
-            raise RuntimeError("Get workload from nnvm graph failed: %s falsely appear in resnet18." % (str(wkl)))
 
     wkl_list = relay_get_conv2d_NCHWc_AVX_workload(expr, {"data": dshape})
     if len(wkl_list) != len(expected_wkl_list):
@@ -71,36 +59,25 @@ def test_get_wkl_map():
         create_workload((1, 32, 256, 256), (16, 32, 3, 3), (1, 1), (2, 2), (1, 1), "NCHW", "NCHW", dtype, dtype)
     ]
 
-    data = sym.Variable("data")
-    conv0 = sym.conv2d(data, channels=64, kernel_size=(1, 1))
-    conv1 = sym.conv2d(conv0, channels=32, kernel_size=(3, 3), padding=(1, 1))
-    out = sym.conv2d(conv1, channels=16, kernel_size=(3, 3), padding=(2, 2))
+    data = relay.var("data")
+    w0 = relay.var("w0")
+    conv0 = relay.nn.conv2d(data, w0, channels=64, kernel_size=(1, 1))
+    w1 = relay.var("w1")
+    conv1 = relay.nn.conv2d(conv0, w1, channels=32, kernel_size=(3, 3), padding=(1, 1))
+    w2 = relay.var("w2")
+    out = relay.nn.conv2d(conv1, w2, channels=16, kernel_size=(3, 3), padding=(2, 2))
+    net = relay.Function(relay.ir_pass.free_vars(out), out)
+    node_list = []
+    node_dict = {}
+    expr2graph(net, node_dict, node_list)
 
-    g = nnvm.graph.create(out)
     dshape = (1, 3, 256, 256)
-    graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
-    node_map = get_wkl_map(json.loads(g.json())["nodes"], wkl_list, "conv2d", graph_wkl_list)
-    expected_out = {3: 2, 6: 3, 9: 5}
+    graph_wkl_list = relay_get_conv2d_NCHWc_AVX_workload(net, {"data": dshape}, unique_wkl=False)
+    node_map = get_wkl_map(node_list, wkl_list, "conv2d", graph_wkl_list)
+    expected_out = {4: 2, 5: 3, 6: 5}
     diff_set = set(node_map) ^ set(expected_out)
     if len(diff_set) != 0:
         raise RuntimeError("Output mismatch: expecting %s but got %s." % (expected_out, node_map))
-
-
-def test_get_real_node():
-    data = sym.Variable("data")
-    out1 = data * 2
-    out2 = out1 + 4
-    out3 = sym.elemwise_add(out2, data + 2)
-    out = sym.elemwise_add(out3, data - 0.5)
-    g = nnvm.graph.create(out)
-    input_names = ["data"]
-    op_name = "__mul_scalar__"
-    in_node_dict = get_in_nodes(g, op_name, input_names)
-    g_dict = json.loads(g.json())
-    real_node = get_real_node(in_node_dict, g_dict["nodes"], 4, op_name)
-    expected_out = 1
-    if real_node != expected_out:
-        raise RuntimeError("Output mismatch: expecting %d but got %d." % (expected_out, real_node))
 
 
 def verify_shape2layout(shape, layout_template, expected_layout):
@@ -152,13 +129,15 @@ def verify_has_multiple_inputs(node_list, node_idx, input_names, expected_result
 
 
 def test_has_multiple_inputs():
-    data = sym.Variable("data")
-    out1 = data * 3
-    out2 = sym.dense(data, units=10)
-    out = sym.elemwise_add(out1, out2)
-    g = nnvm.graph.create(out)
-    g_dict = json.loads(g.json())
-    node_list = g_dict["nodes"]
+    data = relay.var("data")
+    out1 = data * relay.expr.const(3)
+    w0 = relay.var("w0")
+    out2 = relay.nn.dense(data, w0, units=10)
+    out = relay.add(out1, out2)
+    net = relay.Function(relay.ir_pass.free_vars(out), out)
+    node_list = []
+    node_dict = {}
+    expr2graph(net, node_dict, node_list)
     input_names = ["data"]
     verify_has_multiple_inputs(node_list, 2, input_names, False)
     verify_has_multiple_inputs(node_list, 4, input_names, False)
@@ -184,31 +163,36 @@ def test_expr2graph():
 
 
 def test_get_direct_ancestor():
-    data = sym.Variable("data")
-    out1 = sym.dense(data, units=10)
-    out2 = sym.elemwise_add(out1, data * 5)
-    out3 = out2 + 2.5
-    out = sym.dense(out3, units=20)
-    g = nnvm.graph.create(out)
-    g_dict = json.loads(g.json())
-    node_list = g_dict["nodes"]
+    data = relay.var("data")
+    w0 = relay.var("w0")
+    out1 = relay.nn.dense(data, w0, units=10)
+    out2 = relay.add(out1, data * relay.expr.const(5))
+    out3 = out2 + relay.expr.const(2.5)
+    w1 = relay.var("w1")
+    out = relay.nn.dense(out3, w1, units=20)
+    net = relay.Function(relay.ir_pass.free_vars(out), out)
+    node_list = []
+    node_dict = {}
+    expr2graph(net, node_dict, node_list)
     visited_dict = {}
     input_names = ["data"]
-    out = get_direct_ancestor(node_list, visited_dict, "dense", 5, input_names)
+    out = get_direct_ancestor(node_list, visited_dict, "dense", 6, input_names)
     if len(out) != 2 or out != [3, 0]:
         raise RuntimeError("Output mismatch: expecting [3, 0] but got %s." % str(out))
 
 
 def test_get_in_nodes():
-    data = sym.Variable("data")
-    out1 = sym.dense(data, units=10)
-    out2 = sym.elemwise_add(out1, data)
-    out3 = out2 + 2.5
-    out = sym.dense(out3, units=20)
-    g = nnvm.graph.create(out)
+    data = relay.var("data")
+    w0 = relay.var("w0")
+    out1 = relay.nn.dense(data, w0, units=10)
+    out2 = relay.add(out1, data)
+    out3 = out2 + relay.expr.const(2.5)
+    w1 = relay.var("w1")
+    out = relay.nn.dense(out3, w1, units=20)
+    net = relay.Function(relay.ir_pass.free_vars(out), out)
     input_names = ["data"]
-    out = get_in_nodes(g, "dense", input_names)
-    expected_out = {8: [4], 4: [3, 0], 3: [0]}
+    out = get_in_nodes(net, "dense", input_names)
+    expected_out = {7: [4], 4: [3, 0], 3: [0]}
     diff_set = set(out) ^ set(expected_out)
     if len(diff_set) != 0:
         raise RuntimeError("Output mismatch: expecting %s but got %s." % (str(expected_out), str(out)))
@@ -227,7 +211,6 @@ def test_get_out_nodes():
 if __name__ == "__main__":
     test_get_conv2d_workload()
     test_get_wkl_map()
-    test_get_real_node()
     test_shape2layout()
     test_infer_layout_shape_avx()
     test_has_multiple_inputs()

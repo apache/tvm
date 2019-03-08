@@ -15,7 +15,7 @@ from tvm.autotvm.task import get_config
 from tvm.autotvm.task.topi_integration import deserialize_args, serialize_args
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
-from tvm.relay.expr import Call, Var
+from tvm.relay.expr import Call, Var, Constant
 
 from .utils import is_input_node, shape2layout, get_in_nodes, get_out_nodes, \
     has_multiple_inputs, get_wkl_map, bind_inputs, expr2graph
@@ -176,6 +176,8 @@ class BaseGraphTuner(object):
                     for i, input_idx in enumerate(node_entry["inputs"]):
                         input_node = self._node_list[input_idx[0]]
                         input_node["oshape"] = node.type_args[i].shape
+                elif isinstance(node, Constant):
+                    pass
                 else:
                     raise RuntimeError("Not supported relay node type in graph tuning: %s"
                                        % str(type(node)))
@@ -298,8 +300,10 @@ class BaseGraphTuner(object):
                 for m, sch_c in enumerate(sch_current):
                     for n, sch_t in enumerate(sch_target):
                         if has_multiple_inputs(self._node_list, key, input_names):
+                            first_input_idx = self._node_list[key]["inputs"][0][0]
+                            first_input_oshape = self._node_list[first_input_idx]["oshape"]
                             in_shape, out_shape, is_valid = self._infer_layout_shape_func(
-                                wkl_c, sch_c, sch_t, self._node_list[key]["oshape"])
+                                wkl_c, sch_c, sch_t, first_input_oshape)
                         else:
                             in_shape, out_shape, is_valid = self._infer_layout_shape_func(
                                 wkl_t, sch_c, sch_t)
@@ -318,7 +322,7 @@ class BaseGraphTuner(object):
         sargs = serialize_args(args)
         in_shape = [val if isinstance(val, int) else val.value for val in sargs[0][1]]
         out_shape = [val if isinstance(val, int) else val.value for val in sargs[3]]
-        ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
+        ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(sargs)
         idx_pair_key = (from_node_idx, to_node_idx)
 
         if in_shape == out_shape:

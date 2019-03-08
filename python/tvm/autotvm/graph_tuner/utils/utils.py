@@ -128,38 +128,6 @@ def get_wkl_map(node_list, workload_list, target_op,
     return node_map
 
 
-def get_real_node(in_node_dict, node_list, idx, target_op):
-    """Get the index of first ancestor node with target_op as operator name.
-
-    Parameters
-    ----------
-    in_node_dict : dict of int to list of int
-        Dictionary maps node index to closest input ancestors.
-        It can be created with get_in_nodes.
-
-    node_list : list of dict of str to object
-        List of all nodes in a graph.
-
-    idx : int
-        Input node index.
-
-    target_op : str, optional
-        Target operator name.
-
-    Returns
-    -------
-    out : int
-        Output node index.
-    """
-    if node_list[idx]["op"] == target_op or not in_node_dict[idx]:
-        return idx
-    anc_node_idx = in_node_dict[idx][0]
-    anc_node = node_list[anc_node_idx]
-    while anc_node["op"] != target_op:
-        anc_node_idx = in_node_dict[anc_node_idx][0]
-        anc_node = node_list[anc_node_idx]
-    return anc_node_idx
-
 def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
     """Bind input variables of a relay function expression
     to new shapes and/or dtypes.

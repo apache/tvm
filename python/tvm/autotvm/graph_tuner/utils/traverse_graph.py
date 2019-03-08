@@ -4,7 +4,7 @@ import json
 import nnvm
 
 from tvm import relay
-from tvm.relay.expr import Call, Function, TupleGetItem, Var
+from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant
 
 from .._base import RULE_OUT_NODE_NAMES
 from .utils import has_multiple_inputs, is_input_node
@@ -48,6 +48,8 @@ def expr2graph(expr, node_dict, node_list):
             return
         elif isinstance(node, (relay.op.op.Op, TupleGetItem)):
             return
+        elif isinstance(node, (relay.op.op.Op, Constant)):
+            pass
         else:
             raise RuntimeError("Not supported relay node type in graph tuning: %s"
                                % str(type(node)))
