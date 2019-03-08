@@ -22,6 +22,9 @@ class ModulePass;
  */
 class ModulePassNode : public PassNode {
  public:
+  /* \brief The pass meta data.*/
+  PassInfo pass_info;
+
   /*! \brief The pass function sketches the real optimization. For example,
    * we may need to perform dead code elimination on the module level. We could
    * implement the algorithm in the `pass_func` and let it run on a module. It
@@ -32,8 +35,7 @@ class ModulePassNode : public PassNode {
   ModulePassNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name", &name);
-    v->Visit("opt_level", &opt_level);
+    v->Visit("pass_info", &pass_info);
   }
 
   /*!
@@ -49,6 +51,11 @@ class ModulePassNode : public PassNode {
   std::vector<std::string> Required() const final;
 
   /*!
+   * \brief Get the pass information/meta data.
+   */
+  PassInfo GetPassInfo() const { return pass_info; }
+
+  /*!
    * \brief Set the context information for a module pass.
    *
    * \param pass_ctx The context information for a module pass.
@@ -56,7 +63,7 @@ class ModulePassNode : public PassNode {
   void SetContext(const PassContext& pass_ctx) final;
 
   TVM_DLL static ModulePass make(
-      std::string name, int opt_level,
+      PassInfo pass_info,
       runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func);
 
   static constexpr const char* _type_key = "relay.ModulePass";
@@ -84,6 +91,9 @@ class FunctionPass;
  */
 class FunctionPassNode : public PassNode {
  public:
+  /* \brief The pass meta data.*/
+  PassInfo pass_info;
+
   /*! \brief The packed pass function sketches the real optimization. For
    * instance, we can implement a pass that works on a Relay function as a
    * `pass_func` and let it run on a given module. The same `pass_func` will
@@ -94,8 +104,7 @@ class FunctionPassNode : public PassNode {
   FunctionPassNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name", &name);
-    v->Visit("opt_level", &opt_level);
+    v->Visit("pass_info", &pass_info);
   }
 
   /*!
@@ -111,6 +120,11 @@ class FunctionPassNode : public PassNode {
   std::vector<std::string> Required() const final;
 
   /*!
+   * \brief Get the pass information/meta data.
+   */
+  PassInfo GetPassInfo() const { return pass_info; }
+
+  /*!
    * \brief Set the context information for a function-level pass.
    *
    * \param pass_ctx The context information for a function-level pass.
@@ -118,7 +132,7 @@ class FunctionPassNode : public PassNode {
   void SetContext(const PassContext& pass_ctx) final;
 
   TVM_DLL static FunctionPass make(
-      std::string name, int opt_level,
+      PassInfo pass_info,
       runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func);
 
   static constexpr const char* _type_key = "relay.FunctionPass";
@@ -154,6 +168,9 @@ class SequentialPass;
  */
 class SequentialPassNode : public PassNode {
  public:
+  /* \brief The pass meta data.*/
+  PassInfo pass_info;
+
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
   /*!
@@ -163,11 +180,15 @@ class SequentialPassNode : public PassNode {
   tvm::Array<tvm::Expr> disabled;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name", &name);
-    v->Visit("opt_level", &opt_level);
+    v->Visit("pass_info", &pass_info);
     v->Visit("passes", &passes);
     v->Visit("disabled", &disabled);
   }
+
+  /*!
+   * \brief Get the pass information/meta data.
+   */
+  PassInfo GetPassInfo() const { return pass_info; }
 
   /*!
    * \brief Add a pass to the pass list.
@@ -178,7 +199,7 @@ class SequentialPassNode : public PassNode {
     passes.push_back(pass);
   }
 
-  TVM_DLL static SequentialPass make(std::string name, int opt_level,
+  TVM_DLL static SequentialPass make(PassInfo pass_info,
                                      tvm::Array<Pass> passes,
                                      tvm::Array<tvm::Expr> disabled);
 
@@ -231,17 +252,25 @@ class SequentialPassNode : public PassNode {
 
 RELAY_DEFINE_NODE_REF(SequentialPass, SequentialPassNode, Pass);
 
+PassInfo PassInfoNode::make(std::string name, int opt_level,
+                            tvm::Array<tvm::Expr> required) {
+  auto pass_info = make_node<PassInfoNode>();
+  pass_info->name = std::move(name);
+  pass_info->opt_level = std::move(opt_level);
+  pass_info->required = std::move(required);
+  return PassInfo(pass_info);
+}
+
 PassContext PassContextNode::make() {
   auto ctx = make_node<PassContextNode>();
   return PassContext(ctx);
 }
 
 ModulePass ModulePassNode::make(
-    std::string name, int opt_level,
+    PassInfo pass_info,
     runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func) {
   auto n = make_node<ModulePassNode>();
-  n->name = std::move(name);
-  n->opt_level = std::move(opt_level);
+  n->pass_info = std::move(pass_info);
   n->pass_func = std::move(pass_func);
   return ModulePass(n);
 }
@@ -251,8 +280,9 @@ ModulePass ModulePassNode::make(
 //              2. Probably use CoW for all places that use module instead of
 //              returning the updated one.
 Module ModulePassNode::operator()(const Module& mod) const {
-  LOG(INFO) << "Executing module pass : " << this->name
-            << " with opt level: " << opt_level << "\n";
+  PassInfo pass_info = GetPassInfo();
+  LOG(INFO) << "Executing module pass : " << pass_info.operator->()->name
+            << " with opt level: " << pass_info.operator->()->opt_level << "\n";
   CHECK(mod.defined());
   auto updated_mod = pass_func(mod, pass_ctx_);
   CHECK(updated_mod.defined());
@@ -260,8 +290,15 @@ Module ModulePassNode::operator()(const Module& mod) const {
 }
 
 std::vector<std::string> ModulePassNode::Required() const {
-  // TODO(zhiics) Return required passes based on the current pass info.
   std::vector<std::string> required;
+  PassInfo pass_info = GetPassInfo();
+  CHECK(pass_info.defined())
+      << "Cannot get the required passes from undefined PassInfo object."
+      << "\n";
+  for (const auto& it : pass_info.operator->()->required) {
+    const auto* str = it.as<tvm::ir::StringImm>();
+    required.push_back(str->value);
+  }
   return required;
 }
 
@@ -270,11 +307,10 @@ void ModulePassNode::SetContext(const PassContext& pass_ctx) {
 }
 
 FunctionPass FunctionPassNode::make(
-    std::string name, int opt_level,
+    PassInfo pass_info,
     runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func) {
   auto n = make_node<FunctionPassNode>();
-  n->name = std::move(name);
-  n->opt_level = std::move(opt_level);
+  n->pass_info = std::move(pass_info);
   n->pass_func = std::move(pass_func);
   return FunctionPass(n);
 }
@@ -282,8 +318,9 @@ FunctionPass FunctionPassNode::make(
 // Perform Module -> Module optimizations at the Function level.
 // TODO(zhiics) Check and handle the required passes.
 Module FunctionPassNode::operator()(const Module& mod) const {
-  LOG(INFO) << "Executing function pass : " << this->name
-            << " with opt level: " << this->opt_level << "\n";
+  PassInfo pass_info = GetPassInfo();
+  LOG(INFO) << "Executing function pass : " << pass_info.operator->()->name
+            << " with opt level: " << pass_info.operator->()->opt_level << "\n";
   CHECK(mod.defined());
   std::vector<std::pair<GlobalVar, Function>> updated_funcs;
   ModuleNode* mod_node = mod.operator->();
@@ -316,17 +353,23 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
 }
 
 std::vector<std::string> FunctionPassNode::Required() const {
-  // TODO(zhiics) Return required passes based on the current pass info.
   std::vector<std::string> required;
+  PassInfo pass_info = GetPassInfo();
+  CHECK(pass_info.defined())
+      << "Cannot get the required passes from undefined PassInfo object."
+      << "\n";
+  for (const auto& it : pass_info.operator->()->required) {
+    const auto* str = it.as<tvm::ir::StringImm>();
+    required.push_back(str->value);
+  }
   return required;
 }
 
-SequentialPass SequentialPassNode::make(std::string name, int opt_level,
+SequentialPass SequentialPassNode::make(PassInfo pass_info,
                                         tvm::Array<Pass> passes,
                                         tvm::Array<tvm::Expr> disabled) {
   auto n = make_node<SequentialPassNode>();
-  n->name = std::move(name);
-  n->opt_level = std::move(opt_level);
+  n->pass_info = std::move(pass_info);
   n->passes = std::move(passes);
   n->disabled = std::move(disabled);
   return SequentialPass(n);
@@ -346,8 +389,15 @@ Module SequentialPassNode::operator()(const Module& module) const {
 }
 
 std::vector<std::string> SequentialPassNode::Required() const {
-  // TODO(zhiics) Return required passes based on the current pass info.
   std::vector<std::string> required;
+  PassInfo pass_info = GetPassInfo();
+  CHECK(pass_info.defined())
+      << "Cannot get the required passes from undefined PassInfo object."
+      << "\n";
+  for (const auto& it : pass_info.operator->()->required) {
+    const auto* str = it.as<tvm::ir::StringImm>();
+    required.push_back(str->value);
+  }
   return required;
 }
 
@@ -373,32 +423,41 @@ void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
 }
 
 Pass CreateModulePass(
-    const std::string& name, int opt_level,
+    const PassInfo& pass_info,
     const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func) {
-  return ModulePassNode::make(name, opt_level, pass_func);
+  return ModulePassNode::make(pass_info, pass_func);
 }
 
 Pass CreateFunctionPass(
-    const std::string& name, int opt_level,
+    const PassInfo& pass_info,
     const runtime::TypedPackedFunc<Function(Function, PassContext)>&
         pass_func) {
-  return FunctionPassNode::make(name, opt_level, pass_func);
+  return FunctionPassNode::make(pass_info, pass_func);
 }
 
-Pass CreateSequentialPass(const std::string& name, int opt_level,
+Pass CreateSequentialPass(const PassInfo& pass_info,
                           const tvm::Array<Pass>& passes,
                           const tvm::Array<tvm::Expr>& disabled) {
-  return SequentialPassNode::make(name, opt_level, passes, disabled);
+  return SequentialPassNode::make(pass_info, passes, disabled);
 }
+
+TVM_REGISTER_NODE_TYPE(PassInfoNode);
+
+TVM_REGISTER_API("relay._ir_pass.PassInfo")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::string name = args[0];
+  int opt_level = args[1];
+  tvm::Array<tvm::Expr> required = args[2];
+  *ret = PassInfoNode::make(name, opt_level, required);
+});
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string pass_name = args[0];
-  int opt_level = args[1];
-  PackedFunc pass_func = args[2];
-  *ret = CreateModulePass(pass_name, opt_level, pass_func);
+  PassInfo pass_info = args[0];
+  PackedFunc pass_func = args[1];
+  *ret = CreateModulePass(pass_info, pass_func);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunModulePass")
@@ -416,18 +475,18 @@ TVM_REGISTER_API("relay._ir_pass.RunModulePass")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ModulePassNode>([](const ModulePassNode* node,
                                  tvm::IRPrinter* p) {
-  p->stream << "Run Module pass: " << node->name
-            << " at the optimization level " << node->opt_level;
+  const PassInfoNode* pn = node->GetPassInfo().operator->();
+  p->stream << "Run Module pass: " << pn->name
+            << " at the optimization level " << pn->opt_level;
 });
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string pass_name = args[0];
-  int opt_level = args[1];
-  PackedFunc pass_func = args[2];
-  *ret = CreateFunctionPass(pass_name, opt_level, pass_func);
+  PassInfo pass_info = args[0];
+  PackedFunc pass_func = args[1];
+  *ret = CreateFunctionPass(pass_info, pass_func);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunFunctionPass")
@@ -444,19 +503,19 @@ TVM_REGISTER_API("relay._ir_pass.RunFunctionPass")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
                                    tvm::IRPrinter* p) {
-  p->stream << "Run Function pass: " << node->name
-            << " at the optimization level " << node->opt_level;
+  const PassInfoNode* pn = node->GetPassInfo().operator->();
+  p->stream << "Run Function pass: " << pn->name
+            << " at the optimization level " << pn->opt_level;
 });
 
 TVM_REGISTER_NODE_TYPE(SequentialPassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string pass_name = args[0];
-  int opt_level = args[1];
-  tvm::Array<Pass> passes = args[2];
-  tvm::Array<tvm::Expr> disabled = args[3];
-  *ret = SequentialPassNode::make(pass_name, opt_level, passes, disabled);
+  PassInfo pass_info = args[0];
+  tvm::Array<Pass> passes = args[1];
+  tvm::Array<tvm::Expr> disabled = args[2];
+  *ret = SequentialPassNode::make(pass_info, passes, disabled);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunSequentialPass")
@@ -473,11 +532,14 @@ TVM_REGISTER_API("relay._ir_pass.RunSequentialPass")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<SequentialPassNode>([](const SequentialPassNode* node,
                                      tvm::IRPrinter* p) {
-  p->stream << "Run SequentialPass pass: " << node->name
-            << " at the optimization level. " << node->opt_level;
+  const PassInfoNode* seq_pn = node->GetPassInfo().operator->();
+  p->stream << "Run SequentialPass pass: " << seq_pn->name
+            << " at the optimization level. " << seq_pn->opt_level;
   p->stream << "The passes will be executed are: [";
   for (const auto& it : node->passes) {
-    p->stream << it.operator->()->name << " ";
+    const PassNode* pn = it.operator->();
+    const PassInfoNode* pass_info_node = pn->GetPassInfo().operator->();
+    p->stream << pass_info_node->name << " ";
   }
   p->stream << "]";
 });

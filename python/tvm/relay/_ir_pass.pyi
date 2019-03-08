@@ -8,40 +8,45 @@ class PassContext(NodeBase):
     def __init__(self):
         ...
 
-
-class Pass(NodeBase):
+class PassInfo(NodeBase):
     name = ...  # type: str
     opt_level = ... # type: int
+    required = ... # type: list
+
+    def __init__(self, name, opt_level, required)
+        # type: (str, int, list) -> None
+
+
+class Pass(NodeBase):
+    def __init__(self):
+        ...
 
 
 class ModulePass(Pass):
-    name = ...  # type: str
-    opt_level = ... # type: int
+    pass_info = ...  # type: list
     pass_func = ...  # type: Callable
 
-    def __init__(self, name, opt_level, pass_func):
-        # type: (str, int, Callable) -> None
+    def __init__(self, pass_info, pass_func):
+        # type: (list, Callable) -> None
         ...
 
 
 class FunctionPass(Pass):
-    name = ...  # type: str
-    opt_level = ... # type: int
+    pass_info = ...  # type: list
     pass_func = ...  # type: Callable
 
-    def __init__(self, name, opt_level, pass_func):
-        # type: (str, int, Callable) -> None
+    def __init__(self, pass_info, pass_func):
+        # type: (list, Callable) -> None
         ...
 
 
 class SequentialPass(Pass):
-    name = ...  # type: str
-    opt_level = ... # type: int
+    pass_info = ...  # type: list
     passes = ...  # type: list
     disabled = ... # type: list
 
-    def __init__(self, name, opt_level, passes, disabled):
-        # type: (str, int, list, list) -> None
+    def __init__(self, pass_info, passes, disabled):
+        # type: (str, list, list, list) -> None
         ...
 
 

@@ -95,6 +95,7 @@ save_param_dict = param_dict.save_param_dict
 load_param_dict = param_dict.load_param_dict
 
 # Pass manager
+PassInfo = ir_pass.PassInfo
 PassContext = ir_pass.PassContext
 Pass = ir_pass.Pass
 ModulePass = ir_pass.ModulePass

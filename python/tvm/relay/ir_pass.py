@@ -19,6 +19,23 @@ from .module import Module
 
 
 @register_relay_node
+class PassInfo(RelayNode):
+    """The class that contains the meta data required by a pass. It is the
+    container of information needed by running an optimization or analysis.
+    This class can be extended by adding new members when more meta data is
+    needed.
+    """
+
+    def __init__(self, name, opt_level, required=None):
+        required = required if required else []
+        if not isinstance(required, (list, tuple)):
+            raise TypeError("required must be the list or tuple type that " +
+                            "contains a host of dependent pass namees.")
+        self.__init_handle_by_constructor__(_ir_pass.PassInfo, name, opt_level,
+                                            required)
+
+
+@register_relay_node
 class PassContext(RelayNode):
     """The basis where a Relay optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
@@ -86,19 +103,16 @@ class ModulePass(Pass):
 
     Parameters
     ----------
-    name : str
-        The pass name.
-
-    opt_level : int
-        The optimization level of this pass.
+    pass_info : PassInfo
+        The meta data required by a module class.
 
     pass_func : Callable[(tvm.relay.Module, PassContext) -> tvm.relay.Module]
         The callback function that sketches a certain optimization.
     """
 
-    def __init__(self, name, opt_level, pass_func):
-        self.__init_handle_by_constructor__(_ir_pass.CreateModulePass, name,
-                                            opt_level, pass_func)
+    def __init__(self, pass_info, pass_func):
+        self.__init_handle_by_constructor__(_ir_pass.CreateModulePass,
+                                            pass_info, pass_func)
 
     def __call__(self, mod):
         """Execute a module pass.
@@ -122,20 +136,17 @@ class FunctionPass(Pass):
 
     Parameters
     ----------
-    name : str
-        The pass name.
-
-    opt_level : int
-        The optimization level of this pass.
+    pass_info : PassInfo
+        The meta data required by a function class.
 
     pass_func : Callable[(tvm.relay.Function, PassContext) ->
                 tvm.relay.Function]
         The callback function that sketches a certain optimization.
     """
 
-    def __init__(self, name, opt_level, pass_func):
-        self.__init_handle_by_constructor__(_ir_pass.CreateFunctionPass, name,
-                                            opt_level, pass_func)
+    def __init__(self, pass_info, pass_func):
+        self.__init_handle_by_constructor__(_ir_pass.CreateFunctionPass,
+                                            pass_info, pass_func)
 
     def __call__(self, mod):
         """Execute a function pass.
@@ -159,11 +170,8 @@ class SequentialPass(Pass):
 
     Parameters
     ----------
-    name : str
-        The pass name.
-
-    opt_level : int
-        The optimization level of this pass.
+    pass_info : PassInfo
+        The meta data required by a sequential class.
 
     passes : List[Pass]
         The pass candidates to be executed.
@@ -172,12 +180,12 @@ class SequentialPass(Pass):
         The list of passes that are disabled.
     """
 
-    def __init__(self, name, opt_level, passes, disabled=None):
+    def __init__(self, pass_info, passes, disabled=None):
         disabled = disabled if disabled else []
         if not isinstance(disabled, (list, tuple)):
             raise TypeError("disabled must be a list or tuple of pass names")
         self.__init_handle_by_constructor__(_ir_pass.CreateSequentialPass,
-                                            name, opt_level, passes, disabled)
+                                            pass_info, passes, disabled)
 
     def __call__(self, mod):
         """Execute a sequence of passes.
@@ -195,16 +203,13 @@ class SequentialPass(Pass):
         return _ir_pass.RunSequentialPass(self, mod)
 
 
-def create_module_pass(pass_name, opt_level, pass_func):
+def create_module_pass(pass_info, pass_func):
     """Create a module pass using a defined optimization function from Python.
 
     Parameters
     ----------
-    pass_name : str
-        The name of the pass.
-
-    opt_level : int
-        The optimization level of this pass.
+    pass_info : PassInfo
+        The meta data required by a module class.
 
     pass_func : Optional[Callable[(Module/Function, PassContext) ->
                 Module/Function]]
@@ -218,20 +223,17 @@ def create_module_pass(pass_name, opt_level, pass_func):
     if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
         raise TypeError("pass_func must be a callable for Module pass")
 
-    return _ir_pass.CreateModulePass(pass_name, opt_level, pass_func)
+    return _ir_pass.CreateModulePass(pass_info, pass_func)
 
 
-def create_function_pass(pass_name, opt_level, pass_func):
+def create_function_pass(pass_info, pass_func):
     """Create a function pass using a defined optimization function from
     Python.
 
     Parameters
     ----------
-    pass_name : str
-        The name of the pass.
-
-    opt_level : int
-        The optimization level of this pass.
+    pass_info : PassInfo
+        The meta data required by a function class.
 
     pass_func : Optional[Callable[(Module/Function, PassContext) ->
                 Module/Function]]
@@ -245,21 +247,17 @@ def create_function_pass(pass_name, opt_level, pass_func):
     if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
         raise TypeError("pass_func must be a callable for Module pass")
 
-    return _ir_pass.CreateFunctionPass(pass_name, opt_level, pass_func)
+    return _ir_pass.CreateFunctionPass(pass_info, pass_func)
 
 
-def create_sequential_pass(pass_name, opt_level, sequential_passes,
-                           disabled=None):
+def create_sequential_pass(pass_info, sequential_passes, disabled=None):
     """Create a sequential pass using a defined optimization function from
     Python.
 
     Parameters
     ----------
-    pass_name : str
-        The name of the pass.
-
-    opt_level : int
-        The optimization level of this pass.
+    pass_info : PassInfo
+        The meta data required by a sequential class.
 
     sequential_passes : Optional[List[Pass]]
         A sequence of passes candidate for optimization.
@@ -279,8 +277,8 @@ def create_sequential_pass(pass_name, opt_level, sequential_passes,
     if not isinstance(disabled, (list, tuple)):
         raise TypeError("disabled must be a list or tuple of pass names")
 
-    return _ir_pass.CreateSequentialPass(pass_name, opt_level,
-                                         sequential_passes, disabled)
+    return _ir_pass.CreateSequentialPass(pass_info, sequential_passes,
+                                         disabled)
 
 
 def post_order_visit(expr, fvisit):
