@@ -359,8 +359,8 @@ def tile(data, reps):
 
     .. note::
         Each dim size of reps must be a positive integer. If reps has length d,
-        the result will have dimension of max(d, data.ndim); If data.ndim < d, 
-        data is promoted to be d-dimensional by prepending new axes. 
+        the result will have dimension of max(d, data.ndim); If data.ndim < d,
+        data is promoted to be d-dimensional by prepending new axes.
         If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
 
     Returns
