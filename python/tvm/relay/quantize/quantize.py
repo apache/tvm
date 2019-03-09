@@ -241,8 +241,8 @@ def calibrate(graph, dataset=None, profile_mode=False):
             const_params[nclip_max] = _make_const((valid_range - 1))
     _ir_pass.post_order_visit(graph, visit_func)
     if profile_mode:
-        for i in range(len(profile_data)):
-            profile_data[i] = (profile_data[i][0], _expr.bind(profile_data[i][1], const_params))
+        for i, data  in enumerate(profile_data):
+            profile_data[i] = (data[0], _expr.bind(data[1], const_params))
     return _expr.bind(graph, const_params), profile_data
 
 
