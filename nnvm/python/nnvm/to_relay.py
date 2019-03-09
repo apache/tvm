@@ -241,7 +241,7 @@ def _split(children, attrs, odtype='float32'):
 
     axis = attrs.get_int('axis', 0)
 
-    return op.split(children[0], indices_or_sections, axis).astuple()
+    return op.split(children[0], indices_or_sections, axis)
 
 def _squeeze(children, attrs, odtype='float32'):
     axis = attrs.get_int_tuple('axis', None)
