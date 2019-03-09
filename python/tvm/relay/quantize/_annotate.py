@@ -192,6 +192,9 @@ def add_rewrite(ref_call, new_args, ctx):
         else:
             # quantize rhs to INPUT field if it is not Constant
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+    if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
+        # quantize rhs to INPUT field if both lhs and rhs are ACTIVATION
+        rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
