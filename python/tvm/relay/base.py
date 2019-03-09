@@ -38,7 +38,7 @@ def register_relay_attr_node(type_key=None):
 
 class RelayNode(NodeBase):
     """Base class of all Relay nodes."""
-    def astext(self, show_meta_data=True, annotate=None, gnf=True):
+    def astext(self, show_meta_data=True, annotate=None, gnf=True, visit_default=False):
         """Get the text format of the expression.
 
         Parameters
@@ -65,7 +65,7 @@ class RelayNode(NodeBase):
         text : str
             The text format of the expression.
         """
-        return _expr.RelayPrint(self, show_meta_data, annotate, gnf)
+        return _expr.RelayPrint(self, show_meta_data, annotate, gnf, visit_default)
 
     def set_span(self, span):
         _base.set_span(self, span)

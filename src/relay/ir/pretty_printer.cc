@@ -118,9 +118,12 @@ class PrettyPrinter :
  public:
   explicit PrettyPrinter(bool GNF,
                          bool show_meta_data,
-                         runtime::TypedPackedFunc<std::string(Expr)> annotate) : GNF_(GNF),
-                           show_meta_data_(show_meta_data),
-                           annotate_(annotate) {}
+                         runtime::TypedPackedFunc<std::string(Expr)> annotate,
+                         bool visit_default) :
+                         GNF_(GNF),
+                         show_meta_data_(show_meta_data),
+                         annotate_(annotate),
+                         visit_default_(visit_default) {}
 
   /*!
     * \brief Print additional info about expr in comment.
@@ -208,7 +211,8 @@ class PrettyPrinter :
     * \param prefix The prefix of the name
     * \return The returned name.
     */
-  Doc GetUniqueName(std::string prefix) {
+  Doc GetUniqueName(const std::string& prefix) {
+    std::string unique_prefix = prefix;
     auto it = name_alloc_map_.find(prefix);
     if (it != name_alloc_map_.end()) {
       while (true) {
@@ -216,13 +220,13 @@ class PrettyPrinter :
         os << prefix << (++it->second);
         std::string name = os.str();
         if (name_alloc_map_.count(name) == 0) {
-          prefix = name;
+          unique_prefix = name;
           break;
         }
       }
     }
-    name_alloc_map_[prefix] = 0;
-    return Text(prefix);
+    name_alloc_map_[unique_prefix] = 0;
+    return Text(unique_prefix);
   }
 
   /*!
@@ -277,7 +281,7 @@ class PrettyPrinter :
         !expr.as<OpNode>() && !expr.as<VarNode>()) {
       Doc temp_var = AllocTemp();
       memo_[expr] = temp_var;
-      doc_stack_.back() << temp_var << " = " << printed_expr;
+      doc_stack_.back() << temp_var << " = " << printed_expr << ";";
       if (expr.as<CallNode>()) {
         doc_stack_.back() << PrintOptionalInfo(expr);
       }
@@ -334,7 +338,12 @@ class PrettyPrinter :
       fields.push_back(Print(field));
     }
     Doc doc = Nil();
-    return doc << "(" << PrintVec(fields) << ")";
+    doc << "(" << PrintVec(fields);
+    // conform to python tuple format (1,)
+    if (op->fields.size() == 1) {
+      doc << ",";
+    }
+    return doc << ")";
   }
 
   Doc VisitExpr_(const TupleGetItemNode* op) final {
@@ -600,6 +609,8 @@ class PrettyPrinter :
   bool show_meta_data_;
   /*! \brief additional comment function */
   runtime::TypedPackedFunc<std::string(Expr)> annotate_;
+  /*! \brief Whether to visit default attributes. */
+  bool visit_default_;
   /*! \brief Stack of docs to implement scoped GNFing. */
   std::vector<Doc> doc_stack_{};
   /*! \brief Map from Expr to Doc */
@@ -674,7 +685,11 @@ Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {  // NOLINT(*
     return doc << ", " << meta_.GetMetaNode(attrs);
   } else {
     AttrPrinter printer(doc, this);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&printer);
+    if (visit_default_) {
+      const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&printer);
+    } else {
+      const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
+    }
     return doc;
   }
 }
@@ -682,9 +697,10 @@ Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {  // NOLINT(*
 std::string RelayPrint(const NodeRef& node,
                        bool show_meta_data,
                        runtime::TypedPackedFunc<std::string(Expr)> annotate,
-                       bool gnf) {
+                       bool gnf,
+                       bool visit_default) {
   Doc doc = Nil();
-  doc << "v0.0.1" << "\n" << PrettyPrinter(gnf, show_meta_data, annotate).PrintFinal(node) << "\n";
+  doc << "v0.0.1" << "\n" << PrettyPrinter(gnf, show_meta_data, annotate, visit_default).PrintFinal(node);
   return Layout(doc);
 }
 
@@ -692,6 +708,7 @@ TVM_REGISTER_API("relay._expr.RelayPrint")
 .set_body_typed<std::string(const NodeRef&,
                             bool,
                             runtime::TypedPackedFunc<std::string(Expr)>,
+                            bool,
                             bool)>(RelayPrint);
 
 }  // namespace relay
