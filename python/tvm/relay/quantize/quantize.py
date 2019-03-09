@@ -182,7 +182,6 @@ def annotate(graph):
     ret: Function
         The graph after annotation
     """
-    global PASSTHROUGH_BOUND
     _set_conv_counter(0)  # reset counter
     _set_scale_counter(0) # reset scale counter
     return _quantize.annotate(graph)
