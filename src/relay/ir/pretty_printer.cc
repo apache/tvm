@@ -700,7 +700,8 @@ std::string RelayPrint(const NodeRef& node,
                        bool gnf,
                        bool visit_default) {
   Doc doc = Nil();
-  doc << "v0.0.1" << "\n" << PrettyPrinter(gnf, show_meta_data, annotate, visit_default).PrintFinal(node);
+  doc << "v0.0.1" << "\n"
+      << PrettyPrinter(gnf, show_meta_data, annotate, visit_default).PrintFinal(node);
   return Layout(doc);
 }
 
