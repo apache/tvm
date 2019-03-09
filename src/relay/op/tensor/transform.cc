@@ -1131,12 +1131,12 @@ bool TileRel(const Array<Type>& types,
     return false;
   }
   const auto* param = attrs.as<TileAttrs>();
-  const size_t ndim = static_cast<size_t>(data->shape.size());
+  const size_t ndim = data->shape.size();
   const Array<Integer>& reps = param->reps;
   // check dimension match
   CHECK(!reps.defined())
     << "repetition array is not defined. data.ndim = " << ndim;
-  const size_t rndim = static_cast<size_t>(reps.size());
+  const size_t rndim = reps.size();
   size_t tndim = (ndim > rndim) ? ndim : rndim;
   // re-construct data shape or reps shape
   std::vector<IndexExpr> data_shape;

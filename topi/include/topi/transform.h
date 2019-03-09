@@ -785,43 +785,43 @@ inline Tensor tile(const Tensor& x,
                    Array<Integer> reps,
                    std::string name = "tensor",
                    std::string tag = kBroadcast) {
-  int ndim = static_cast<int>(x->shape.size());
-  int rdim = static_cast<int>(reps.size());
-  int tdim = (ndim > rdim) ? ndim : rdim;
+  size_t ndim = x->shape.size();
+  size_t rdim = reps.size();
+  size_t tdim = (ndim > rdim) ? ndim : rdim;
   Array<Expr> data_shape;
   Array<Expr> reps_shape;
   Array<Expr> new_shape;
   if (ndim == rdim) {
-    for (size_t i = 0; i < static_cast<size_t>(ndim); ++i) {
+    for (size_t i = 0; i < ndim; ++i) {
       data_shape.push_back(x->shape[i]);
       reps_shape.push_back(reps[i]);
     }
   } else if (ndim > rdim) {
-    for (size_t i = 0; i < static_cast<size_t>(ndim); ++i)
+    for (size_t i = 0; i < ndim; ++i)
       data_shape.push_back(x->shape[i]);
-    for (size_t i = 0; i < static_cast<size_t>(ndim - rdim); ++i)
+    for (size_t i = 0; i < (ndim - rdim); ++i)
       reps_shape.push_back(1);
-    for (size_t i = 0; i < static_cast<size_t>(rdim); ++i)
+    for (size_t i = 0; i < rdim; ++i)
       reps_shape.push_back(reps[i]);
   } else {
-    for (size_t i = 0; i < static_cast<size_t>(rdim - ndim); ++i)
+    for (size_t i = 0; i < (rdim - ndim); ++i)
       data_shape.push_back(1);
-    for (size_t i = 0; i < static_cast<size_t>(ndim); ++i)
+    for (size_t i = 0; i < ndim; ++i)
       data_shape.push_back(x->shape[i]);
-    for (size_t i = 0; i < static_cast<size_t>(rdim); ++i)
+    for (size_t i = 0; i < rdim; ++i)
       reps_shape.push_back(reps[i]);
   }
-  for (size_t i = 0; i < static_cast<size_t>(tdim); ++i)
+  for (size_t i = 0; i < tdim; ++i)
     new_shape.push_back(data_shape[i] * reps_shape[i]);
 
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       Array<Expr> idx;
       if (ndim >= rdim) {
-        for (size_t i = 0; i < static_cast<size_t>(ndim); ++i)
+        for (size_t i = 0; i < ndim; ++i)
           idx.push_back(indices[i] % x->shape[i]);
       } else {
-        for (size_t i = 0; i < static_cast<size_t>(ndim); ++i)
+        for (size_t i = 0; i < ndim; ++i)
           idx.push_back(indices[rdim - ndim + i] % x->shape[i]);
       }
       return x(idx);
