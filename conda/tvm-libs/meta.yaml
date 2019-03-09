@@ -8,21 +8,17 @@ source:
   path: ../..
 
 build:
-  number: 1
+  number: 0
   string: cuda{{ cuda_version }}_{{ PKG_BUILDNUM }}  # [cuda]
 
 requirements:
   build:
-    - {{ compiler('cxx') }}  # [linux]
-    - llvmdev ==6.0.0  # [osx]
-  host:
     # The OS X build will require some manual setup or it will break
-    # See https://conda.io/docs/user-guide/tasks/build-packages/compiler-tools.html#macos-sdk
-    # It is also ass-backward because of llvm brokeness when mixed with the
-    # conda OS X compiler
-    - {{ compiler('cxx') }}  # [osx]
+    # See https://docs.conda.io/projects/conda-build/en/latest/source/resources/compiler-tools.html#macos-sdk
+    - {{ compiler('cxx') }}
+  host:
     - cmake
-    - llvmdev ==6.0.0  # [linux]
+    - llvmdev ==6.0.0
     - zlib  # [linux]
   run:
     - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
