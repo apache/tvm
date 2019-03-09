@@ -47,9 +47,6 @@ class ModulePassNode : public PassNode {
    */
   Module operator()(const Module& mod) const final;
 
-  /*! \brief Collect the required passes for this module pass. */
-  std::vector<std::string> Required() const final;
-
   /*!
    * \brief Get the pass information/meta data.
    */
@@ -115,9 +112,6 @@ class FunctionPassNode : public PassNode {
    * \return Return the updated module.
    */
   Module operator()(const Module& mod) const final;
-
-  /*! \brief Collect the required passes for this module pass. */
-  std::vector<std::string> Required() const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -217,8 +211,6 @@ class SequentialPassNode : public PassNode {
    */
   void ResolveDependency(const Module& mod);
 
-  std::vector<std::string> Required() const final;
-
   TVM_DLL std::vector<std::string> DisabledPasses() const;
 
   /*!
@@ -289,19 +281,6 @@ Module ModulePassNode::operator()(const Module& mod) const {
   return updated_mod;
 }
 
-std::vector<std::string> ModulePassNode::Required() const {
-  std::vector<std::string> required;
-  PassInfo pass_info = GetPassInfo();
-  CHECK(pass_info.defined())
-      << "Cannot get the required passes from undefined PassInfo object."
-      << "\n";
-  for (const auto& it : pass_info.operator->()->required) {
-    const auto* str = it.as<tvm::ir::StringImm>();
-    required.push_back(str->value);
-  }
-  return required;
-}
-
 void ModulePassNode::SetContext(const PassContext& pass_ctx) {
   pass_ctx_ = pass_ctx;
 }
@@ -352,19 +331,6 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
   return pval && pval->value != 0;
 }
 
-std::vector<std::string> FunctionPassNode::Required() const {
-  std::vector<std::string> required;
-  PassInfo pass_info = GetPassInfo();
-  CHECK(pass_info.defined())
-      << "Cannot get the required passes from undefined PassInfo object."
-      << "\n";
-  for (const auto& it : pass_info.operator->()->required) {
-    const auto* str = it.as<tvm::ir::StringImm>();
-    required.push_back(str->value);
-  }
-  return required;
-}
-
 SequentialPass SequentialPassNode::make(PassInfo pass_info,
                                         tvm::Array<Pass> passes,
                                         tvm::Array<tvm::Expr> disabled) {
@@ -386,19 +352,6 @@ Module SequentialPassNode::operator()(const Module& module) const {
     mod = (*pn)(mod);
   }
   return mod;
-}
-
-std::vector<std::string> SequentialPassNode::Required() const {
-  std::vector<std::string> required;
-  PassInfo pass_info = GetPassInfo();
-  CHECK(pass_info.defined())
-      << "Cannot get the required passes from undefined PassInfo object."
-      << "\n";
-  for (const auto& it : pass_info.operator->()->required) {
-    const auto* str = it.as<tvm::ir::StringImm>();
-    required.push_back(str->value);
-  }
-  return required;
 }
 
 void SequentialPassNode::ResolveDependency(const Module& mod) {

@@ -145,11 +145,6 @@ class PassNode : public RelayNode {
   virtual void SetContext(const PassContext& pass_ctx) = 0;
 
   /*!
-   * \brief Get the required passes for this pass as a vector of std::string.
-   */
-  virtual std::vector<std::string> Required() const = 0;
-
-  /*!
    * \brief Execute the optimization pass using a functor.
    *
    * \param mod The module that an optimization pass runs on.
