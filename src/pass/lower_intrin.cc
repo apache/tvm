@@ -50,7 +50,23 @@ class IntrinInjecter : public IRMutator {
     // on ARM.
     if (const Broadcast* bcast = e.as<Broadcast>()) {
       if (const Cast* cast = bcast->value.as<Cast>()) {
-        if (cast->type.bits() == cast->value.type().bits() * 2) {
+        auto should_swap = [&]() {
+          // Maintain behaviour (int8 -> int16, fp16 -> fp32).
+          if (cast->type.bits() == cast->value.type().bits() * 2) {
+            return true;
+          }
+          // Check both operands are integer-like.
+          if (!cast->type.is_uint() && !cast->type.is_int()) {
+            return false;
+          }
+          if (!cast->value.type().is_uint() && !cast->value.type().is_int()) {
+            return false;
+          }
+          // If both are integer-like, swap if we have a widening cast.
+          return cast->type.bits() > cast->value.type().bits();
+        };
+
+        if (should_swap()) {
           Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
           return Cast::make(bcast->type, new_bcast);
         }
