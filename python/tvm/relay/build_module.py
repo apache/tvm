@@ -9,7 +9,7 @@ from ..build_module import build as _tvm_build_module
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import ir_pass
-from . import expr
+from . import expr as _expr
 from .backend import interpreter as _interpreter
 from .backend import graph_runtime_codegen as _graph_gen
 
@@ -22,6 +22,7 @@ OPT_PASS_LEVEL = {
     "FoldScaleAxis": 3,
     "AlterOpLayout": 3,
     "CanonicalizeOps": 3,
+    "EliminateCommonSubexpr": 3,
 }
 
 
@@ -126,8 +127,8 @@ def _bind_params_by_name(func, params):
         arg = name_dict[k]
         if arg is None:
             raise ValueError("Multiple args in the function have name %s" % k)
-        bind_dict[arg] = expr.const(v)
-    return expr.bind(func, bind_dict)
+        bind_dict[arg] = _expr.const(v)
+    return _expr.bind(func, bind_dict)
 
 
 def optimize(func, target=None, params=None):
@@ -161,6 +162,16 @@ def optimize(func, target=None, params=None):
     if cfg.pass_enabled("SimplifyInference"):
         func = ir_pass.infer_type(func)
         func = ir_pass.simplify_inference(func)
+
+    if cfg.pass_enabled("EliminateCommonSubexpr"):
+        def fskip(expr):
+            if isinstance(expr, _expr.Call) and expr.op.name == 'cast' and \
+               expr.attrs.dtype == 'int32':
+                return True
+            return False
+
+        func = ir_pass.infer_type(func)
+        func = ir_pass.eliminate_common_subexpr(func, fskip)
 
     if cfg.pass_enabled("CombineParallelConv2D"):
         func = ir_pass.infer_type(func)

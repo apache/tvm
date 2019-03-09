@@ -124,7 +124,7 @@ TVM_REGISTER_API("relay._quantize.annotate")
       }
       return e;
     };
-  return ForwardRewrite(expr, "FQAnnotateRewrite", nullptr, nullptr);
+  return ForwardRewrite(expr, "FQAnnotateRewrite", nullptr, fmulti_ref);
 });
 
 
@@ -329,9 +329,11 @@ float ChooseDomScale(const std::vector<const QRealizeIntExprNode*>& nptrs) {
 
 
 /* \brief Unify the dom scale of arguments */
-Array<Expr> UnifyDTypeScale(const Array<Expr>& args,
+Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
+                            const Array<Expr>& args,
                             DataType* dtype_ptr,
                             Expr* scale_ptr) {
+  static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
   const QConfig& cfg = QConfig::Current();
 
   std::vector<const QRealizeIntExprNode*> nptrs;
@@ -344,10 +346,19 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& args,
   }
 
   // unify the data type
+  CHECK_EQ(ref_args.size(), args.size());
   DataType dtype = cfg->dtype_activation;
   for (size_t i = 0; i < ret.size(); ++i) {
+    auto ref_arg = ref_args[i].as<CallNode>();
     if (nptrs[i]->dtype != dtype) {
       ret.Set(i, Cast(ret[i], dtype));
+    } else if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
+               ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
+      auto new_arg = Cast(ret[i], cfg->dtype_input);
+      if (cfg->use_stop_fusion) {
+        new_arg = StopFusion(new_arg);
+      }
+      ret.Set(i, Cast(new_arg, dtype));
     }
   }
 
@@ -371,7 +382,7 @@ Expr AddRealize(const Call& ref_call,
   if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
     DataType dtype;
     Expr dom_scale;
-    Array<Expr> ret_args = UnifyDTypeScale(new_args, &dtype, &dom_scale);
+    Array<Expr> ret_args = UnifyDTypeScale(ref_call->args, new_args, &dtype, &dom_scale);
     Expr ret = ForwardOp(ref_call, ret_args);
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   }
@@ -387,15 +398,19 @@ Expr ConcatenateRealize(const Call& ref_call,
                         const Array<Expr>& new_args,
                         const NodeRef& ctx) {
   CHECK_EQ(new_args.size(), 1);
+  CHECK_EQ(ref_call->args.size(), 1);
 
   const auto* tuple = new_args[0].as<TupleNode>();
+  const auto* ref_tuple = ref_call->args[0].as<TupleNode>();
   CHECK(tuple);
+  CHECK(ref_tuple);
   const Array<Expr>& arr = tuple->fields;
+  const Array<Expr>& ref_arr = ref_tuple->fields;
 
   if (arr[0].as<QRealizeIntExprNode>()) {
     DataType dtype;
     Expr dom_scale;
-    Array<Expr> ret_args = UnifyDTypeScale(arr, &dtype, &dom_scale);
+    Array<Expr> ret_args = UnifyDTypeScale(ref_arr, arr, &dtype, &dom_scale);
     Expr ret = ForwardOp(ref_call, {TupleNode::make(ret_args)});
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   } else {
@@ -530,7 +545,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "skip_k_conv==" << op->skip_k_conv << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
   p->stream << "store_lowbit_output==" << op->store_lowbit_output << ", ";
-  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops;
+  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops << ", ";
+  p->stream << "use_stop_fusion==" << op->use_stop_fusion;
   p->stream << ")";
 });
 
