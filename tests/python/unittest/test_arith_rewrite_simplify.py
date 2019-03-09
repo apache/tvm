@@ -72,7 +72,10 @@ def test_select_simplify():
               tvm.expr.Select(x > 0, y + 1, z))
     ck.verify(tvm.expr.Select(x > 0, y, 1) - tvm.expr.Select(x > 0, 1, z),
               tvm.expr.Select(x > 0, y + (-1), 1 - z))
-
+    ck.verify(tvm.expr.Select(x > 0, y, z) - y,
+              tvm.expr.Select(x > 0, 0, z - y))
+    ck.verify(tvm.expr.Select(x > 0, y, z) - z,
+              tvm.expr.Select(x > 0, y - z, 0))
 
 
 def test_add_index_simplify():

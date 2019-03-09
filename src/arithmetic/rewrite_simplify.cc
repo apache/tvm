@@ -63,7 +63,6 @@ class RewriteSimplifier::Impl : public IRMutator {
   // Run simplification in post order
   Expr PostOrderSimplify(Expr expr, int max_iter = 2) {
     for (int i = 0; i < max_iter; ++i) {
-      recur_counter_ = 0;
       Expr new_expr = this->Mutate(expr);
       if (new_expr.same_as(expr)) return expr;
       expr = new_expr;
@@ -80,12 +79,12 @@ class RewriteSimplifier::Impl : public IRMutator {
  private:
   // reference to the main analyzer
   Analyzer* parent_;
-  // counter to record recursive rewrite times.
-  int recur_counter_{0};
+  // counter to record recursive rewrite depth.
+  int recur_depth_{0};
   // internal variable map
   std::unordered_map<Var, Expr, ExprHash, ExprEqual> var_map_;
   // maximum number of recursion allowed during a single pass.
-  static const constexpr int kMaxRecurCount = 10;
+  static const constexpr int kMaxRecurDepth = 5;
   // Whether x >= val
   bool CanProveGreaterEqual(const Expr& x, int64_t val) {
     return parent_->CanProveGreaterEqual(x, val);
@@ -100,13 +99,16 @@ class RewriteSimplifier::Impl : public IRMutator {
     return false;
   }
   // Recursive rewrite x
-  // we limit maximum number of recursive rewrite allowed to
+  // we limit maximum depth of recursive rewrite allowed to
   // avoid infinite loop
-  Expr RecursiveRewrite(Expr x) {
-    if (recur_counter_ >= kMaxRecurCount) return x;
-    ++recur_counter_;
-    return Mutate(x);
+  Expr RecursiveRewrite(const Expr& x) {
+    if (recur_depth_ >= kMaxRecurDepth) return x;
+    ++recur_depth_;
+    Expr res = Mutate(x);
+    --recur_depth_;
+    return res;
   }
+
   template<typename TA>
   PConstWithTypeLike<TA> ZeroWithTypeLike(const Pattern<TA>& pattern) {
     return PConstWithTypeLike<TA>(pattern.derived(), 0);
@@ -152,6 +154,8 @@ Mutate_(const Add* op, const Expr& self) {
     TVM_TRY_REWRITE(max(x - z, y) + z, max(x, y + z));
     TVM_TRY_REWRITE(max(x, y) + min(x, y), x + y);
     TVM_TRY_REWRITE(min(x, y) + max(x, y), x + y);
+    TVM_TRY_REWRITE(max(x, y) + min(y, x), x + y);
+    TVM_TRY_REWRITE(min(x, y) + max(y, x), x + y);
 
     TVM_TRY_REWRITE_IF(min(x, y + c1) + c2, min(x + c2, y),
                        c1.Eval()->value == -c2.Eval()->value);
