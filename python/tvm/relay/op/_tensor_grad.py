@@ -91,5 +91,6 @@ def ones_like_grad(orig, grad):
 
 @register_gradient("collapse_sum_like")
 def collapse_sum_like_grad(orig, grad):
+    """Returns [broadcast_to_like(grad, x), 0]"""
     x, y = orig.args
     return [broadcast_to_like(grad, x), zeros_like(y)]
