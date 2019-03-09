@@ -55,6 +55,7 @@ class QConfig(NodeBase):
         "dtype_activation": "int32",
         "global_scale": 8.0,
         "skip_k_conv": 1,
+        "passthrough_bound": 1e9,
         "round_for_shift": True,
         "store_lowbit_output": True,
         "debug_enabled_ops": None,
@@ -152,6 +153,27 @@ def _set_conv_counter(n):
     global CONV_COUNTER
     CONV_COUNTER = n
 
+SCALE_COUNTER = None
+
+
+def _get_scale_counter():
+    """Get the global counter for scale setting."""
+    return SCALE_COUNTER
+
+
+def _set_scale_counter(n):
+    """Set the value of the global scale setting counter."""
+    global SCALE_COUNTER
+    SCALE_COUNTER = n
+
+
+PASSTHROUGH_BOUND = None
+
+
+def _get_passthrough_bound():
+    """Get the value of the scale passthrough bound."""
+    return PASSTHROUGH_BOUND
+
 
 def annotate(graph):
     """Given a float32 graph, annotate will rewrite the graph
@@ -168,11 +190,13 @@ def annotate(graph):
     ret: Function
         The graph after annotation
     """
+    global PASSTHROUGH_BOUND
     _set_conv_counter(0)  # reset counter
+    _set_scale_counter(0) # reset scale counter
     return _quantize.annotate(graph)
 
 
-def calibrate(graph, dataset=None):
+def calibrate(graph, dataset=None, profile_mode=False):
     """The calibrate procedure will try to calculate the content of
     dom_scale, nbit, clip_min, clip_max for every `simulated_quantize`
     operator.
@@ -198,6 +222,7 @@ def calibrate(graph, dataset=None):
     cfg = current_qconfig()
     const_params = {}
     quantize_op = _op.get("relay.op.annotation.simulated_quantize")
+    profile_data = []
 
     def visit_func(expr):
         """Internal visit function"""
@@ -219,16 +244,15 @@ def calibrate(graph, dataset=None):
                 scale = power2_scale(var.data)
                 const_params[ndom_scale] = _make_const(scale / valid_range)
             else:
-                print("make?")
-                #const_params[ndom_scale] = _make_const(scale / valid_range)
-                pass
-                #scale = cfg.global_scale
-
+                if profile_mode:
+                    profile_data.append((ndom_scale.name_hint, expr.args[0]))
             const_params[nclip_min] = _make_const(- (valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))
-
     _ir_pass.post_order_visit(graph, visit_func)
-    return _expr.bind(graph, const_params)
+    if profile_mode:
+        for i in range(len(profile_data)):
+            profile_data[i] = (profile_data[i][0], _expr.bind(profile_data[i][1], const_params))
+    return _expr.bind(graph, const_params), profile_data
 
 
 def realize(graph):

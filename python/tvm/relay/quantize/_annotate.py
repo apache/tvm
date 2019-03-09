@@ -6,7 +6,7 @@ import warnings
 import topi
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig
-from .quantize import _conv_counter, _set_conv_counter
+from .quantize import _conv_counter, _set_conv_counter, _get_scale_counter, _set_scale_counter, _get_passthrough_bound
 from .. import expr as _expr
 from .. import op as _op
 from ..op import op as _reg
@@ -20,15 +20,12 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     assert len(inputs) == 4
     assert attrs.sign
     assert attrs.rounding == "round"
-    print("call")
-    if attrs.kind != QAnnotateKind.WEIGHT:
-        print("PASSTHROUGH", inputs, out_type, target, attrs.kind, attrs.sign, attrs.rounding, attrs.passthrough)
 
     data, scale, clip_min, clip_max = inputs
 
     if attrs.passthrough:
+        # if original value should be passed through
         assert attrs.kind != QAnnotateKind.WEIGHT
-        print("nah passthrough")
         rdata = topi.identity(data)
         return [rdata]
 
@@ -108,8 +105,6 @@ def register_annotate_function(op_name, frewrite=None, level=10):
 
     return _register(frewrite) if frewrite is not None else _register
 
-COUNTER = 0
-PASSTHROUGH_BOUND = 0
 
 @register_func("relay.quantize.attach_simulated_quantize")
 def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
@@ -123,15 +118,15 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     kind: QAnnotateKind
         the kind of annotation field.
     """
-    global COUNTER
-    dom_scale = _expr.var("dom_scale" + str(COUNTER))
+    counter = _get_scale_counter()
+    dom_scale = _expr.var("dom_scale" + str(counter))
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
     passthrough = 0
+    passthrough_bound = current_qconfig().passthrough_bound
     if kind != QAnnotateKind.WEIGHT:
-        passthrough = COUNTER > PASSTHROUGH_BOUND
-        COUNTER += 1
-        print(passthrough)
+        passthrough = counter > passthrough_bound
+        _set_scale_counter(counter + 1)
     return _quantize.simulated_quantize(
         data, dom_scale, clip_min, clip_max, kind, sign, rounding, passthrough)
 
