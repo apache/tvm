@@ -153,7 +153,7 @@ def _set_conv_counter(n):
     global CONV_COUNTER
     CONV_COUNTER = n
 
-SCALE_COUNTER = None
+SCALE_COUNTER = 0
 
 
 def _get_scale_counter():
