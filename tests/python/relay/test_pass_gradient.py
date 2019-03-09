@@ -190,6 +190,24 @@ def test_ref():
     np.testing.assert_allclose(forward.asnumpy(), 2 * x_nd.asnumpy())
     np.testing.assert_allclose(grad_x.asnumpy(), 2 * np.ones_like(grad_x.asnumpy()))
 
+def test_second_order():
+    shape = (10, 10)
+    dtype = 'float32'
+    t = relay.TensorType(shape, dtype)
+    x = relay.var("x", t)
+    func = relay.Function([x], x * x)
+    back_func = relay.ir_pass.infer_type(gradient(func))
+    y = relay.var("y", t)
+    back_func_adjusted = relay.Function([y], relay.TupleGetItem(relay.TupleGetItem(back_func(y), 1), 0))
+    back_func_adjusted = relay.ir_pass.infer_type(back_func_adjusted)
+    back_back_func = relay.ir_pass.infer_type(gradient(back_func_adjusted))
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
+    x_nd = rand(dtype, *shape)
+    ex = create_executor()
+    forward, (grad_x,) = ex.evaluate(back_back_func)(x_nd)
+    np.testing.assert_allclose(forward.asnumpy(), 2 * x_nd.asnumpy())
+    np.testing.assert_allclose(grad_x.asnumpy(), 2 * np.ones_like(grad_x.asnumpy()))
+
 if __name__ == "__main__":
     test_id()
     test_add()
@@ -200,3 +218,4 @@ if __name__ == "__main__":
     test_tuple()
     test_pow()
     test_ref()
+    test_second_order()
