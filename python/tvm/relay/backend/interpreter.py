@@ -95,7 +95,7 @@ class RefValue(Value):
 
 def _arg_to_ast(arg):
     if isinstance(arg, TensorValue):
-        return Constant(arg.data.copyto(_nd.cpu(0)))
+        return Constant(arg.data.copyto(nd.cpu(0)))
     elif isinstance(arg, np.ndarray):
         return Constant(nd.array(arg))
     elif isinstance(arg, Constant):
