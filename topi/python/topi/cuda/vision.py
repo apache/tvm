@@ -134,6 +134,10 @@ def schedule_multibox_detection(outs):
 def schedule_roi_align(outs):
     return schedule_pool(outs, 'NCHW')
 
+@generic.schedule_roi_pool.register(["cuda", "gpu"])
+def schedule_roi_pool(outs):
+    return schedule_pool(outs, 'NCHW')
+
 @generic.schedule_proposal.register(["cuda", "gpu"])
 def schedule_proposal(outs):
     """Schedule for proposal operator.
