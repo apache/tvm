@@ -6,7 +6,7 @@ import warnings
 import topi
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig
-from .quantize import _conv_counter, _set_conv_counter, _get_scale_counter, _set_scale_counter, _get_passthrough_bound
+from .quantize import _conv_counter, _set_conv_counter, _get_scale_counter, _set_scale_counter
 from .. import expr as _expr
 from .. import op as _op
 from ..op import op as _reg

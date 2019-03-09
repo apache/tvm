@@ -167,14 +167,6 @@ def _set_scale_counter(n):
     SCALE_COUNTER = n
 
 
-PASSTHROUGH_BOUND = None
-
-
-def _get_passthrough_bound():
-    """Get the value of the scale passthrough bound."""
-    return PASSTHROUGH_BOUND
-
-
 def annotate(graph):
     """Given a float32 graph, annotate will rewrite the graph
     and return back a graph which simulates the error brought by
