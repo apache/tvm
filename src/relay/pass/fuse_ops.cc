@@ -6,10 +6,11 @@
  * \brief This is a backend-aware optimization pass.
  *   Fuse necessary ops into a single one.
  */
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
+#include "./pattern_util.h"
 #include "../../common/arena.h"
 
 
@@ -161,6 +162,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
       current->extern_ref = true;
     }
   }
+
   void AddNode(const tvm::Node* key) {
     auto it = graph_.node_map.find(key);
     CHECK(it != graph_.node_map.end())
@@ -173,7 +175,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   }
 
   // Post order tree
-  void VisitExpr_(const FunctionNode* op) {
+  void VisitExpr_(const FunctionNode* op) final {
     for (auto param : op->params) {
       this->Update(param, nullptr, kOpaque);
     }
@@ -181,7 +183,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const ConstantNode* op) {
+  void VisitExpr_(const ConstantNode* op) final {
     this->AddNode(op);
     Node* node = graph_.node_map.at(op);
     DataType dtype = TVMType2Type(op->data->dtype);
@@ -201,17 +203,29 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     }
   }
 
-  void VisitExpr_(const CallNode* call) {
+  void VisitExpr_(const CallNode* call) final {
     CHECK(graph_.node_map.count(call));
     Node* node = graph_.node_map.at(call);
     static auto fpattern =
         Op::GetAttr<TOpPattern>("TOpPattern");
-    // setup pattern.
+    // Now we set the pattern of this call.
+    //
+    // If we see a call mentioning an operator we should mark it with its
+    // annotated pattern.
+    //
+    // If the pattern is not annotated we will default to opaque.
+    //
+    // Finally if the operator position is not a call node we will
+    // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
     if (const OpNode* opnode = call->op.as<OpNode>()) {
       op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
+    } else {
+      this->Update(call->op, node, kOpaque);
     }
+
     node->pattern = op_pattern;
+    this->Update(call->op, nullptr, kOpaque);
     const auto* rtype = call->checked_type().as<TensorTypeNode>();
     // pass the message back to all the children it references.
     for (size_t i = 0; i < call->args.size(); ++i) {
@@ -231,7 +245,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     this->AddNode(call);
   }
 
-  void VisitExpr_(const TupleNode* op) {
+  void VisitExpr_(const TupleNode* op) final {
     CHECK(graph_.node_map.count(op));
     Node* tuple_node = graph_.node_map.at(op);
     tuple_node->pattern = kInjective;
@@ -246,7 +260,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     this->AddNode(op);
   }
 
-  void VisitExpr_(const TupleGetItemNode* op) {
+  void VisitExpr_(const TupleGetItemNode* op) final {
     CHECK(graph_.node_map.count(op));
     Node* node = graph_.node_map.at(op);
     this->Update(op->tuple, node, kOpaque);
@@ -254,11 +268,11 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     this->AddNode(op);
   }
 
-  void VisitExpr_(const VarNode* op) {
+  void VisitExpr_(const VarNode* op) final {
     this->AddNode(op);
   }
 
-  void VisitExpr_(const LetNode* op) {
+  void VisitExpr_(const LetNode* op) final {
     // do not fuse through let.
     this->Update(op->var, nullptr, kOpaque);
     this->Update(op->value, nullptr, kOpaque);
@@ -267,11 +281,39 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     this->AddNode(op);
   }
 
-  void VisitExpr_(const IfNode* op) {
+  void VisitExpr_(const IfNode* op) final {
     // do not fuse through if.
     this->Update(op->cond, nullptr, kOpaque);
     this->Update(op->true_branch, nullptr, kOpaque);
     this->Update(op->false_branch, nullptr, kOpaque);
+    ExprVisitor::VisitExpr_(op);
+    this->AddNode(op);
+  }
+
+  void VisitExpr_(const RefCreateNode* op) final {
+    this->Update(op->value, nullptr, kOpaque);
+    ExprVisitor::VisitExpr_(op);
+    this->AddNode(op);
+  }
+
+  void VisitExpr_(const RefReadNode* op) final {
+    this->Update(op->ref, nullptr, kOpaque);
+    ExprVisitor::VisitExpr_(op);
+    this->AddNode(op);
+  }
+
+  void VisitExpr_(const RefWriteNode* op) final {
+    this->Update(op->ref, nullptr, kOpaque);
+    this->Update(op->value, nullptr, kOpaque);
+    ExprVisitor::VisitExpr_(op);
+    this->AddNode(op);
+  }
+
+  void VisitExpr_(const MatchNode* op) final {
+    this->Update(op->data, nullptr, kOpaque);
+    for (const Clause& c : op->clauses) {
+      this->Update(c->rhs, nullptr, kOpaque);
+    }
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);
   }
@@ -711,10 +753,14 @@ class FuseMutator : private ExprMutator {
   }
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
+    static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
     if (call->op.as<OpNode>()) {
       // If it is a primitive op call
       // then we must have a group assignment for it already.
       CHECK(gmap_.count(call));
+      if (call->op.same_as(stop_fusion)) {
+        return ExprMutator::VisitExpr(call->args[0]);
+      }
       auto* ret_group = gmap_.at(call)->FindRoot();
       Array<Expr> new_args = GetNewArguments(call->args, ret_group);
 
@@ -728,7 +774,7 @@ class FuseMutator : private ExprMutator {
       } else {
         // This is an intermediate node of a fused function
         // simply return the new call.
-        return new_call;
+        return std::move(new_call);
       }
     } else {
       return ExprMutator::VisitExpr_(call);
@@ -738,7 +784,6 @@ class FuseMutator : private ExprMutator {
   Expr VisitExpr_(const TupleNode* tuple) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
     Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
-    Tuple new_tuple = TupleNode::make(new_fields);
     if (ret_group == gmap_.at(tuple)) {
       // This tuple is the root of its group. Check if all fields come from other groups.
       bool isolated = new_fields.size() == ginfo_[ret_group].params.size();
@@ -750,10 +795,18 @@ class FuseMutator : private ExprMutator {
         return ExprMutator::VisitExpr_(tuple);
       }
       // This tuple has been fused with other ops before it
-      return MakeNewFunction(ret_group, tuple->checked_type(), new_tuple);
+      for (size_t i = 0; i < new_fields.size(); i++) {
+        // Copy function arguments to tuple field of the output because currently graph memory
+        // planer doesn't support inplace operations
+        if (new_fields[i].as<VarNode>()) {
+          auto copy = Copy(new_fields[i]);
+          new_fields.Set(i, copy);
+        }
+      }
+      return MakeNewFunction(ret_group, tuple->checked_type(), TupleNode::make(new_fields));
     }
     // This tuple is an intermediate node in the group
-    return new_tuple;
+    return TupleNode::make(new_fields);
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {

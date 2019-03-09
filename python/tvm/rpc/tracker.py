@@ -86,7 +86,7 @@ class Scheduler(object):
         value: object
             The resource to remove
         """
-        pass
+
 
     def summary(self):
         """Get summary information of the scheduler."""

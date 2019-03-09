@@ -63,9 +63,13 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   Array<Integer> newshape;
+  bool reverse;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape)
         .describe("The new shape. Should be compatible with the original shape.");
+    TVM_ATTR_FIELD(reverse)
+        .describe("Infer the special values from right to left if true")
+        .set_default(false);
   }
 };  // struct ReshapeAttrs
 
@@ -91,6 +95,34 @@ struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
       .set_default(NullValue<DataType>());
   }
 };  // struct InitOpAttrs
+
+/*! \brief Attributes used in arange operators */
+struct ArangeAttrs : public tvm::AttrsNode<ArangeAttrs> {
+  tvm::Expr start;
+  tvm::Expr stop;
+  tvm::Expr step;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(ArangeAttrs, "relay.attrs.ArangeAttrs") {
+    TVM_ATTR_FIELD(start).set_default(make_const(Float(32), 0))
+        .describe("Start of interval. The interval includes this value.");
+    TVM_ATTR_FIELD(stop)
+        .describe("Stop of interval. The interval does not include this value.");
+    TVM_ATTR_FIELD(step).set_default(make_const(Float(32), 1))
+        .describe("Spacing between values.");
+    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
+        .describe("Target data type.");
+  }
+};  // struct ArangeAttrs
+
+/*! \brief Attributes used in stack operators */
+struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
+  Integer axis;
+  TVM_DECLARE_ATTRS(StackAttrs, "relay.attrs.StackAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0)
+        .describe("The axis in the result array along which the input arrays are stacked.");
+  }
+};  // struct StackAttrs
 
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
@@ -139,7 +171,6 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   }
 };
 
-
 struct SliceLikeAttrs : public tvm::AttrsNode<SliceLikeAttrs> {
   Array<Integer> axes;
 
@@ -151,16 +182,16 @@ struct SliceLikeAttrs : public tvm::AttrsNode<SliceLikeAttrs> {
   }
 };
 
-// Clip
+/*! \brief Attributes for Clip operator */
 struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
   double a_min;
   double a_max;
 
   TVM_DECLARE_ATTRS(ClipAttrs, "relay.attrs.ClipAttrs") {
-  TVM_ATTR_FIELD(a_min)
-    .describe("The minimum clip value.");
-  TVM_ATTR_FIELD(a_max)
-    .describe("The maximum clip value.");
+    TVM_ATTR_FIELD(a_min)
+      .describe("The minimum clip value.");
+    TVM_ATTR_FIELD(a_max)
+      .describe("The maximum clip value.");
   }
 };
 

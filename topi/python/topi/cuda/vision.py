@@ -61,24 +61,6 @@ def schedule_reorg(outs):
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.cuda.schedule_injective(cpp_target, outs)
 
-@generic.schedule_region.register(["cuda", "gpu"])
-def schedule_region(outs):
-    """Schedule for region operator.
-    Parameters
-    ----------
-    outs: Array of Tensor
-        The computation graph description of region
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for region.
-    """
-    target = tvm.target.current_target(allow_none=False)
-    cpp_target = cpp.TEST_create_target(target.target_name)
-    return cpp.cuda.schedule_region(cpp_target, outs)
-
 @generic.schedule_nms.register(["cuda", "gpu"])
 def schedule_nms(outs):
     """Schedule for non-maximum suppression
@@ -151,3 +133,32 @@ def schedule_multibox_detection(outs):
 @generic.schedule_roi_align.register(["cuda", "gpu"])
 def schedule_roi_align(outs):
     return schedule_pool(outs, 'NCHW')
+
+@generic.schedule_proposal.register(["cuda", "gpu"])
+def schedule_proposal(outs):
+    """Schedule for proposal operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of proposal
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+    from .injective import _schedule_injective
+    def traverse(op):
+        if op.tag in ['bbox_score', 'sorted_bbox']:
+            _schedule_injective(op, s)
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                traverse(tensor.op)
+        scheduled_ops.append(op)
+    traverse(outs[0].op)
+    return s

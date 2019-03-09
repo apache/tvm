@@ -531,6 +531,11 @@ class IntSetEvaluator :
     CHECK(eval_vec_);
     return Eval(op->value);
   }
+  IntSet VisitExpr_(const Select* op, const Expr& e) final {
+    IntSet true_set = this->Eval(op->true_value);
+    IntSet false_set = this->Eval(op->false_value);
+    return Union({false_set, true_set});
+  }
   IntSet VisitExprDefault_(const Node* op, const Expr& e) final {
     LOG(WARNING) << "cannot evaluate set type " << e->type_key();
     return IntSet::everything();
@@ -573,12 +578,15 @@ IntSet EvalSet(Expr e,
 IntSet EvalSet(Range r,
                const std::unordered_map<const Variable*, IntSet>& dom_map) {
   IntSetEvaluator m(dom_map);
-  IntSet min_set = m.Eval(r->min);
-  IntSet ext_set = m.Eval(r->extent).cover_interval();
-  const Interval& ei = ext_set.as<IntervalSet>()->i;
-  if (!ei.has_upper_bound()) return IntSet::everything();
-  ext_set = IntervalSet::make(make_zero(ei.max.type()), ComputeExpr<Sub>(ei.max, 1));
-  return Combine<Add>(min_set, ext_set);
+  IntSet min_set = m.Eval(r->min).cover_interval();
+  // Simplifying first can give tighter bounds if r->min and r->extent share variables
+  Expr sum = ComputeExpr<Sub>(ComputeExpr<Add>(r->min, r->extent), 1);
+  IntSet max_set = m.Eval(Simplify(sum)).cover_interval();
+  const Interval& ni = min_set.as<IntervalSet>()->i;
+  const Interval& xi = max_set.as<IntervalSet>()->i;
+  if (!ni.has_lower_bound()) return IntSet::everything();
+  if (!xi.has_upper_bound()) return IntSet::everything();
+  return IntervalSet::make(ni.min, xi.max);
 }
 
 IntSet EvalSet(IntSet s,

@@ -21,7 +21,7 @@ instructions to generate protobuf from checkpoint.
 
 ### Add Shapes:
 While freezing of protobuf add additional option ```add_shapes=True``` to embed output shapes of each node into graph.
-You may use ```nnvm.testing.tf.AddShapesToGraphDef``` from nnvm for the same.
+You may use ```tvm.relay.testing.tf.AddShapesToGraphDef``` from nnvm for the same.
 Please refer to [tensorflow tutorial](https://github.com/dmlc/tvm/blob/master/tutorials/nnvm/from_tensorflow.py).
 
 ### Explicit Shape:

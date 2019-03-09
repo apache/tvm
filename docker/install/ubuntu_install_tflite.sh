@@ -1,5 +1,11 @@
+#!/bin/bash
+
+set -e
+set -u
+set -o pipefail
+
 # Download, build and install flatbuffers
-git clone --recursive https://github.com/google/flatbuffers.git
+git clone --depth=1 --recursive https://github.com/google/flatbuffers.git
 cd flatbuffers
 cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 make install -j8
@@ -13,7 +19,7 @@ pip2 install flatbuffers
 # Setup tflite from schema
 mkdir tflite
 cd tflite
-wget https://raw.githubusercontent.com/tensorflow/tensorflow/r1.12/tensorflow/contrib/lite/schema/schema.fbs
+wget -q https://raw.githubusercontent.com/tensorflow/tensorflow/r1.12/tensorflow/contrib/lite/schema/schema.fbs
 flatc --python schema.fbs
 
 cat <<EOM >setup.py

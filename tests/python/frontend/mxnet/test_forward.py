@@ -1,4 +1,5 @@
 import numpy as np
+import operator
 
 import tvm
 from tvm.contrib import graph_runtime
@@ -190,6 +191,189 @@ def test_forward_argmin():
     mx_sym = mx.sym.argmin(data, axis=0)
     verify_mxnet_frontend_impl(mx_sym, (5, 4), (4,))
 
+def test_forward_slice():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.slice(data, begin=(0, 1), end=(2, 4))
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 3))
+    mx_sym = mx.sym.slice(data, begin=(-1, 1), end=(-3, 4), step=(-1, 2))
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 2))
+
+def test_forward_where():
+    cond = mx.sym.var('cond')
+    x = mx.sym.var('x')
+    y = mx.sym.var('y')
+    dshape = (2, 2)
+    dtype = 'float32'
+    mx_sym = mx.sym.where(cond, x, y)
+    np_cond = np.array([[0, 1], [-1, 0]]).astype(dtype)
+    np_x = np.random.uniform(size=dshape).astype(dtype)
+    np_y = np.random.uniform(size=dshape).astype(dtype)
+    mx_cond = mx.nd.array(np_cond)
+    mx_x = mx.nd.array(np_x)
+    mx_y = mx.nd.array(np_y)
+    shapes = {'cond': dshape, 'x': dshape, 'y': dshape}
+    mod = mx.mod.Module(mx_sym, label_names=None, data_names=['cond', 'x', 'y'])
+    mod.bind(data_shapes=shapes.items(), for_training=False)
+    mod.init_params()
+    args, auxs = mod.get_params()
+    mx_out = mx.nd.where(mx_cond, mx_x, mx_y).asnumpy()
+
+    new_sym, _ = relay.frontend.from_mxnet(mx_sym, shapes, args, auxs)
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(new_sym)(np_cond, np_x, np_y)
+            tvm.testing.assert_allclose(op_res.asnumpy(), mx_out)
+
+
+def test_forward_arange():
+    def _mx_symbol(F, start, stop, step):
+        if start is None and step is None:
+            sym = F.arange(stop)
+        elif start is None:
+            sym = F.arange(stop, step=step)
+        elif step is None:
+            sym = F.arange(start, stop)
+        else:
+            sym = F.arange(start, stop, step)
+        return sym
+
+    def verify(start, stop, step):
+        ref_res = _mx_symbol(mx.nd, start, stop, step).asnumpy()
+        mx_sym = _mx_symbol(mx.sym, start, stop, step)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)()
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+    verify(0, 20, None)
+    verify(0, 20, 2)
+    verify(1, 20, None)
+    verify(1, 20, 2)
+    verify(1, 20, 1.5)
+    verify(1, 20.5, None)
+    verify(1, 20, 3)
+    verify(20, 1, -1)
+    verify(20, 1, -1.5)
+
+def _mx_symbol(F, op_name, inputs):
+    op = getattr(F, op_name)
+    return op(*inputs)
+
+def test_forward_broadcast_ops():
+    for op in ["broadcast_add", "broadcast_sub", "broadcast_mul",
+               "broadcast_div", "broadcast_mod", "broadcast_maximum",
+               "broadcast_minimum", "broadcast_equal", "broadcast_not_equal",
+               "broadcast_greater", "broadcast_greater_equal",
+               "broadcast_lesser", "broadcast_lesser_equal"]:
+        a_shape = (3, 4, 5)
+        b_shape = (4, 5)
+        if op == "broadcast_mod":
+            dtype = 'int32'
+            a_np = np.random.randint(1, 100, size=a_shape).astype(dtype)
+            b_np = np.random.randint(1, 100, size=b_shape).astype(dtype)
+        else:
+            dtype = 'float32'
+            a_np = np.random.uniform(size=a_shape).astype(dtype)
+            b_np = np.random.uniform(size=b_shape).astype(dtype)
+        mx_sym = _mx_symbol(mx.sym, op, [mx.sym.var('a'), mx.sym.var('b')])
+        ref_res = _mx_symbol(mx.nd, op, [mx.nd.array(a_np), mx.nd.array(b_np)])
+        shapes = {'a': a_shape, 'b': b_shape}
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(a_np, b_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+def test_forward_elemwise_ops():
+    for op in ["elemwise_add", "elemwise_sub", "elemwise_mul",
+               "elemwise_div", "maximum", "minimum"]:
+        shape = (3, 4, 5)
+        dtype = 'float32'
+        a_np = np.random.uniform(size=shape).astype(dtype)
+        b_np = np.random.uniform(size=shape).astype(dtype)
+        mx_sym = _mx_symbol(mx.sym, op, [mx.sym.var('a'), mx.sym.var('b')])
+        ref_res = _mx_symbol(mx.nd, op, [mx.nd.array(a_np), mx.nd.array(b_np)])
+        shapes = {'a': shape, 'b': shape}
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(a_np, b_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+def test_forward_scalar_ops():
+    for op in [operator.add, operator.sub, operator.mul, operator.truediv,
+               operator.pow, operator.lt, operator.le, operator.eq,
+               operator.ne, operator.gt, operator.ge]:
+        dtype='float32'
+        a_shape = (3, 4, 5)
+        a_np = np.random.uniform(size=a_shape).astype(dtype)
+        b_scalar = 2.3
+        mx_sym = op(mx.sym.var('a'), b_scalar)
+        ref_res = op(mx.nd.array(a_np), b_scalar)
+        shapes = {'a': a_shape}
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(a_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    for op in ["maximum", "minimum"]:
+        dtype='float32'
+        a_shape = (3, 4, 5)
+        a_np = np.random.uniform(size=a_shape).astype(dtype)
+        b_scalar = 2.3
+        mx_sym = _mx_symbol(mx.sym, op, [mx.sym.var('a'), b_scalar])
+        ref_res = _mx_symbol(mx.nd, op, [mx.nd.array(a_np), b_scalar])
+        shapes = {'a': a_shape}
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(a_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+def test_forward_slice_axis():
+    def verify(shape, axis, begin, end):
+        data_np = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.slice_axis(mx.nd.array(data_np), axis, begin, end)
+        mx_sym = mx.sym.slice_axis(mx.sym.var("data"), axis, begin, end)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"data": shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((3, 4), 0, 1, 2)
+    verify((3, 4), 0, 1, None)
+    verify((3, 4), 1, 0, 2)
+    verify((3, 4), 1, -3, -1)
+    verify((3, 4), -1, -3, -1)
+
+def test_forward_slice_like():
+    def verify(x_shape, y_shape, axes):
+        x_np = np.random.uniform(size=x_shape).astype("float32")
+        y_np = np.random.uniform(size=y_shape).astype("float32")
+        if axes is None:
+            ref_res = mx.nd.slice_like(mx.nd.array(x_np), mx.nd.array(y_np))
+            mx_sym = mx.sym.slice_like(mx.sym.var("x"), mx.sym.var("y"))
+        else:
+            ref_res = mx.nd.slice_like(mx.nd.array(x_np), mx.nd.array(y_np), axes=axes)
+            mx_sym = mx.sym.slice_like(mx.sym.var("x"), mx.sym.var("y"), axes=axes)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": x_shape, "y": y_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x_np, y_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((3, 4), (2, 3), None)
+    verify((3, 4), (2, 3), (0, 1))
+    verify((3, 4), (2, 3), (0))
+    verify((3, 4), (2, 3), (-1))
+
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -212,3 +396,10 @@ if __name__ == '__main__':
     test_forward_zeros_like()
     test_forward_argmax()
     test_forward_argmin()
+    test_forward_where()
+    test_forward_arange()
+    test_forward_broadcast_ops()
+    test_forward_elemwise_ops()
+    test_forward_scalar_ops()
+    test_forward_slice_axis()
+    test_forward_slice_like()

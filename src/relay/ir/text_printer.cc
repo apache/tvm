@@ -5,6 +5,7 @@
  */
 #include <tvm/relay/module.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <sstream>
 #include "type_functor.h"
 #include "../../lang/attr_functor.h"
@@ -23,6 +24,12 @@ struct TextValue {
   TextValue() {}
   // constructor
   explicit TextValue(std::string name) : name(name) {}
+  TextValue operator+(const TextValue& rhs) const {
+    return TextValue(name + rhs.name);
+  }
+  TextValue operator+(const std::string& str) const {
+    return TextValue(name + str);
+  }
 };
 
 // operator overloading
@@ -42,11 +49,11 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  * we support a meta-data section in the text format.
  * We allow the text format to refer to a node in the meta-data section.
  *
- * The meta-data section is a json serialized string of an Array<NodeRef>.
+ * The meta-data section is a json serialized string of an Map<string, Array<NodeRef>>.
  * Each element in the meta-data section can be referenced by the text format.
  * Each meta data node is printed in the following format.
  *
- * meta.<type-key-of-node>(<index-in-meta-section>)
+ * meta[type-key-of-node>][<index-in-meta-section>]
  *
  * Specifically, consider the following IR(constructed by python).
  *
@@ -63,7 +70,7 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  *
  * \code
  *
- * fn (%x: Tensor[(meta.Variable(id=0),), float32]) {
+ * fn (%x: Tensor[(meta[Variable][0],), float32]) {
  *   %x
  * }
  * # Meta data section is a json-serialized string
@@ -74,7 +81,7 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  *
  * Note that we store tvm.var("n") in the meta data section.
  * Since it is stored in the index-0 in the meta-data section,
- * we print it as meta.Variable(0).
+ * we print it as meta[Variable][0].
  *
  * The text parser can recover this object by loading from the corresponding
  * location in the meta data section.
@@ -91,18 +98,18 @@ class TextMetaDataContext {
    * \return A string representation of the meta node.
    */
   std::string GetMetaNode(const NodeRef& node) {
-    std::ostringstream os;
-    auto it = meta_index_.find(node);
-    int64_t index;
-    if (it != meta_index_.end()) {
-      index = it->second;
-    } else {
-      index = static_cast<int64_t>(meta_data_.size());
-      meta_data_.push_back(node);
-      meta_index_[node] = index;
+    auto it = meta_repr_.find(node);
+    if (it != meta_repr_.end()) {
+      return it->second;
     }
-    os << "meta." << node->type_key() << "(id=" << index << ")";
-    return os.str();
+    Array<NodeRef>& mvector =
+        meta_data_[node->type_key()];
+    int64_t index = static_cast<int64_t>(mvector.size());
+    mvector.push_back(node);
+    std::ostringstream os;
+    os << "meta[" << node->type_key() << "][" << index << "]";
+    meta_repr_[node] = os.str();
+    return meta_repr_[node];
   }
   /*!
    * \brief Get the metadata section in json format.
@@ -110,7 +117,8 @@ class TextMetaDataContext {
    */
   std::string GetMetaSection() const {
     if (meta_data_.size() == 0) return std::string();
-    return SaveJSON(Array<NodeRef>(meta_data_));
+    return SaveJSON(Map<std::string, NodeRef>(
+        meta_data_.begin(), meta_data_.end()));
   }
 
   /*! \return whether the meta data context is empty. */
@@ -120,13 +128,14 @@ class TextMetaDataContext {
 
  private:
   /*! \brief additional metadata stored in TVM json format */
-  std::vector<NodeRef> meta_data_;
-  /*! \brief map from meta data into its index */
-  std::unordered_map<NodeRef, int64_t, NodeHash, NodeEqual> meta_index_;
+  std::unordered_map<std::string, Array<NodeRef> > meta_data_;
+  /*! \brief map from meta data into its string representation */
+  std::unordered_map<NodeRef, std::string, NodeHash, NodeEqual> meta_repr_;
 };
 
 class TextPrinter :
     public ExprFunctor<TextValue(const Expr&)>,
+    public PatternFunctor<TextValue(const Pattern&)>,
     public TypeFunctor<void (const Type&, std::ostream& os)>,  // NOLINT(*)
     public AttrFunctor<void (const NodeRef&, std::ostream& os)> { // NOLINT(*)
  public:
@@ -211,6 +220,9 @@ class TextPrinter :
     TextValue val = this->VisitExpr(expr);
     memo_[expr] = val;
     return val;
+  }
+  TextValue GetValue(const Pattern& p) {
+    return this->VisitPattern(p);
   }
   //------------------------------------
   // Overload of Expr printing functions
@@ -362,6 +374,64 @@ class TextPrinter :
     return id;
   }
 
+  TextValue VisitExpr_(const RefCreateNode* op) final {
+    TextValue value = GetValue(op->value);
+    TextValue id = this->AllocTempVar();
+    this->PrintIndent();
+    stream_ << id << " = " << "RefCreate(" << op->value << ")";
+    this->PrintEndInst("\n");
+    return id;
+  }
+
+  TextValue VisitExpr_(const RefReadNode* op) final {
+    TextValue ref = GetValue(op->ref);
+    TextValue id = this->AllocTempVar();
+    this->PrintIndent();
+    stream_ << id << " = " << "RefRead(" << ref << ")";
+    this->PrintEndInst("\n");
+    return id;
+  }
+
+  TextValue VisitExpr_(const RefWriteNode* op) final {
+    TextValue ref = GetValue(op->ref);
+    TextValue value = GetValue(op->value);
+    TextValue id = this->AllocTempVar();
+    this->PrintIndent();
+    stream_ << id << " = " << "RefWrite(" << ref << ", " << value << ")";
+    this->PrintEndInst("\n");
+    return id;
+  }
+
+  TextValue VisitExpr_(const MatchNode* op) final {
+    TextValue data = GetValue(op->data);
+    this->PrintIndent();
+    TextValue id = this->AllocTempVar();
+    stream_ << id << " = " << "Match " << data << " with";
+    this->PrintEndInst("\n");
+    for (const auto& c : op->clauses) {
+      this->PrintIndent();
+      stream_ << GetValue(c->lhs) << " to " << GetValue(c->rhs);
+      this->PrintEndInst("\n");
+    }
+    return id;
+  }
+
+  TextValue VisitPattern_(const PatternConstructorNode* p) final {
+    TextValue ret(p->constructor->name_hint + "(");
+    for (const Pattern& pat : p->patterns) {
+      ret = ret + " " + GetValue(pat);
+    }
+    return ret + ")";
+  }
+
+  TextValue VisitPattern_(const PatternVarNode* pv) final {
+    return GetValue(pv->var);
+  }
+
+  TextValue VisitExpr_(const ConstructorNode* n) final {
+    return TextValue(n->name_hint);
+  }
+
   /*!
    * \brief Print the type to os
    * \param type The type to be printed.
@@ -402,6 +472,22 @@ class TextPrinter :
       }
     }
     os << "]";
+  }
+
+  void VisitType_(const RefTypeNode* node, std::ostream& os) final {
+    VisitTypeDefault_(node, os);
+  }
+
+  void VisitType_(const TypeCallNode* node, std::ostream& os) final {
+    os << node->func << "(" << node->args << ")";
+  }
+
+  void VisitType_(const GlobalTypeVarNode* node, std::ostream& os) final {
+    VisitTypeDefault_(node, os);
+  }
+
+  void VisitType_(const TypeDataNode* node, std::ostream& os) final {
+    VisitTypeDefault_(node, os);
   }
 
   void VisitTypeDefault_(const Node* node, std::ostream& os) final {  // NOLINT(*)

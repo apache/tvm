@@ -52,6 +52,12 @@ C++
 
 Python
 ^^^^^^
+Necessary dependencies:
+
+.. code:: bash
+
+  pip install --user nose Cython
+
 If you want to run all tests:
 
 .. code:: bash

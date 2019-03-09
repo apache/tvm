@@ -54,7 +54,7 @@ class RelayNode(NodeBase):
         Note
         ----
         The metadata section is necessary to fully parse the text format.
-        However, it can contain dumps that are big (e.g constant weights)a,
+        However, it can contain dumps that are big (e.g constant weights),
         so it can be helpful to skip printing the meta data section.
 
         Returns
@@ -66,6 +66,9 @@ class RelayNode(NodeBase):
 
     def set_span(self, span):
         _base.set_span(self, span)
+
+    def __str__(self):
+        return self.astext(show_meta_data=False)
 
 
 @register_relay_node

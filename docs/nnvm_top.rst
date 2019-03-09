@@ -35,6 +35,9 @@ This level enables fully connected multi-layer perceptron.
    nnvm.symbol.exp
    nnvm.symbol.log
    nnvm.symbol.sqrt
+   nnvm.symbol.logical_and
+   nnvm.symbol.logical_or
+   nnvm.symbol.logical_not
    nnvm.symbol.elemwise_add
    nnvm.symbol.elemwise_sub
    nnvm.symbol.elemwise_mul
@@ -172,6 +175,9 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.exp
 .. autofunction:: nnvm.symbol.log
 .. autofunction:: nnvm.symbol.sqrt
+.. autofunction:: nnvm.symbol.logical_and
+.. autofunction:: nnvm.symbol.logical_or
+.. autofunction:: nnvm.symbol.logical_not
 .. autofunction:: nnvm.symbol.elemwise_add
 .. autofunction:: nnvm.symbol.elemwise_sub
 .. autofunction:: nnvm.symbol.elemwise_mul

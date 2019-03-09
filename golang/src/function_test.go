@@ -204,7 +204,7 @@ func TestFunctionClosureArg(t *testing.T) {
             return
         }
         if ret1.AsInt64() != ret.AsInt64() {
-            err = fmt.Errorf("Invoke with int64 didn't match with Value\n")
+            err = fmt.Errorf("Invoke with int64 didn't match with Value")
             return
         }
         retVal = ret

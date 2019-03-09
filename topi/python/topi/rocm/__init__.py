@@ -4,5 +4,4 @@ from __future__ import absolute_import as _abs
 
 from .conv2d import *
 from .dense import *
-from .vision import *
 from .nn import *

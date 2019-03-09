@@ -157,6 +157,52 @@ Expr ExprMutator::VisitExpr_(const TupleGetItemNode* g) {
   }
 }
 
+Expr ExprMutator::VisitExpr_(const RefCreateNode* op) {
+  Expr value = this->Mutate(op->value);
+  if (value.same_as(op->value)) {
+    return GetRef<Expr>(op);
+  } else {
+    return RefCreateNode::make(value);
+  }
+}
+
+Expr ExprMutator::VisitExpr_(const RefReadNode* op) {
+  Expr ref = this->Mutate(op->ref);
+  if (ref.same_as(op->ref)) {
+    return GetRef<Expr>(op);
+  } else {
+    return RefReadNode::make(ref);
+  }
+}
+
+Expr ExprMutator::VisitExpr_(const RefWriteNode* op) {
+  Expr ref = this->Mutate(op->ref);
+  Expr value = this->Mutate(op->value);
+  if (ref.same_as(op->ref) && value.same_as(op->value)) {
+    return GetRef<Expr>(op);
+  } else {
+    return RefWriteNode::make(ref, value);
+  }
+}
+
+Expr ExprMutator::VisitExpr_(const ConstructorNode* c) {
+  return GetRef<Expr>(c);
+}
+
+Expr ExprMutator::VisitExpr_(const MatchNode* m) {
+  std::vector<Clause> clauses;
+  for (const Clause& p : m->clauses) {
+    clauses.push_back(VisitClause(p));
+  }
+  return MatchNode::make(VisitExpr(m->data), clauses);
+}
+
+Clause ExprMutator::VisitClause(const Clause& c) {
+  return ClauseNode::make(VisitPattern(c->lhs), VisitExpr(c->rhs));
+}
+
+Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }
+
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
 void ExprVisitor::VisitExpr(const Expr& expr) {
@@ -226,13 +272,47 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitExpr(op->tuple);
 }
 
-void ExprVisitor::VisitType(const Type& t) { return; }
+void ExprVisitor::ExprVisitor::VisitExpr_(const RefCreateNode* op) {
+  this->VisitExpr(op->value);
+}
 
+void ExprVisitor::ExprVisitor::VisitExpr_(const RefReadNode* op) {
+  this->VisitExpr(op->ref);
+}
+
+void ExprVisitor::ExprVisitor::VisitExpr_(const RefWriteNode* op) {
+  this->VisitExpr(op->ref);
+  this->VisitExpr(op->value);
+}
+
+void ExprVisitor::VisitExpr_(const ConstructorNode* op) {
+  for (const Type& t : op->inputs) {
+    this->VisitType(t);
+  }
+  this->VisitType(op->belong_to);
+}
+
+void ExprVisitor::VisitExpr_(const MatchNode* op) {
+  this->VisitExpr(op->data);
+  for (const Clause& c : op->clauses) {
+    this->VisitClause(c);
+  }
+}
+
+void ExprVisitor::VisitClause(const Clause& op) {
+  this->VisitPattern(op->lhs);
+  this->VisitExpr(op->rhs);
+}
+
+void ExprVisitor::VisitPattern(const Pattern& p) { return; }
+
+void ExprVisitor::VisitType(const Type& t) { return; }
 
 // visitor to implement apply
 class ExprApplyVisit : public ExprVisitor {
  public:
   explicit ExprApplyVisit(std::function<void(const Expr&)> f) : f_(f) {}
+
   void VisitExpr(const Expr& e) final {
     if (visited_.count(e.get()) != 0) return;
     visited_.insert(e.get());
@@ -256,7 +336,6 @@ TVM_REGISTER_API("relay._ir_pass.post_order_visit")
         f(n);
       });
   });
-
 
 // Implement bind.
 class ExprBinder : public ExprMutator {
@@ -285,7 +364,7 @@ class ExprBinder : public ExprMutator {
     if (it != args_map_.end()) {
       return (*it).second;
     } else {
-      return id;
+      return std::move(id);
     }
   }
 

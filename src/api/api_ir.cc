@@ -5,9 +5,8 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/ir_operator.h>
 #include <tvm/api_registry.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 
 namespace tvm {
 namespace ir {
@@ -20,6 +19,31 @@ TVM_REGISTER_API("_Var")
 TVM_REGISTER_API("make.abs")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = tvm::abs(args[0]);
+  });
+
+TVM_REGISTER_API("make.floor")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::floor(args[0]);
+  });
+
+TVM_REGISTER_API("make.ceil")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::ceil(args[0]);
+  });
+
+TVM_REGISTER_API("make.round")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::round(args[0]);
+  });
+
+TVM_REGISTER_API("make.trunc")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::trunc(args[0]);
+  });
+
+TVM_REGISTER_API("make._cast")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::cast(args[0], args[1]);
   });
 
 TVM_REGISTER_API("make._range_by_min_extent")

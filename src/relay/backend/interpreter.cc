@@ -6,6 +6,7 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/attrs/debug.h>
@@ -74,6 +75,43 @@ TVM_REGISTER_API("relay._make.TensorValue")
     runtime::NDArray data = args[0];
     *ret = TensorValueNode::make(data);
   });
+
+RefValue RefValueNode::make(Value value) {
+  NodePtr<RefValueNode> n = make_node<RefValueNode>();
+  n->value = value;
+  return RefValue(n);
+}
+
+TVM_REGISTER_API("relay._make.RefValue")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = RefValueNode::make(args[0]);
+  });
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<RefValueNode>([](const RefValueNode* node,
+                               tvm::IRPrinter* p) {
+                              p->stream << "RefValueNode(" << node->value << ")";
+                            });
+
+ConstructorValue ConstructorValueNode::make(Constructor constructor,
+                                            tvm::Array<Value> fields) {
+  NodePtr<ConstructorValueNode> n = make_node<ConstructorValueNode>();
+  n->constructor = constructor;
+  n->fields = fields;
+  return ConstructorValue(n);
+}
+
+TVM_REGISTER_API("relay._make.ConstructorValue")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = ConstructorValueNode::make(args[0], args[1]);
+  });
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<ConstructorValueNode>([](const ConstructorValueNode* node,
+                                       tvm::IRPrinter* p) {
+  p->stream << "ConstructorValueNode(" << node->constructor
+            << node->fields << ")";
+});
 
 /*!
  * \brief A stack frame in the Relay interpreter.
@@ -145,7 +183,7 @@ class InterpreterStateNode : public Node {
     v->Visit("stack", &stack);
   }
 
-  TVM_DLL static InterpreterState make(Expr current_expr, Stack stack);
+  static InterpreterState make(Expr current_expr, Stack stack);
 
   static constexpr const char* _type_key = "relay.InterpreterState";
   TVM_DECLARE_NODE_TYPE_INFO(InterpreterStateNode, Node);
@@ -168,7 +206,8 @@ InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
 //
 // Conversion to ANF is recommended before running the interpretation.
 class Interpreter :
-      public ExprFunctor<Value(const Expr& n)> {
+      public ExprFunctor<Value(const Expr& n)>,
+             PatternFunctor<bool(const Pattern& p, const Value& v)> {
  public:
   Interpreter(Module mod,
               DLContext context,
@@ -192,7 +231,7 @@ class Interpreter :
   }
 
   Value Eval(const Expr& expr) {
-    return (*this)(expr);
+    return VisitExpr(expr);
   }
 
   Value VisitExpr(const Expr& expr) final {
@@ -379,10 +418,13 @@ class Interpreter :
     //
     // We have some functions cotaining chunks of operators
     // which will be loaded into operator map.
-    if (auto op_node = call->op.as<OpNode>()) {
+    if (const auto* op_node = call->op.as<OpNode>()) {
       LOG(FATAL) << "found " << op_node->name
                  << "; operators should be removed by future passes; try "
                     "fusing and lowering";
+    }
+    if (auto con = call->op.as<ConstructorNode>()) {
+      return ConstructorValueNode::make(GetRef<Constructor>(con), args);
     }
     // Now we just evaluate and expect to find a closure.
     Value fn_val = Eval(call->op);
@@ -432,6 +474,69 @@ class Interpreter :
     }
   }
 
+  Value VisitExpr_(const RefWriteNode* op) final {
+    Value r = Eval(op->ref);
+    if (const RefValueNode* rv = r.as<RefValueNode>()) {
+      rv->value = Eval(op->value);
+      return TupleValueNode::make({});
+    } else {
+      LOG(FATAL) << "type error, type system should have caught this";
+      return Value();
+    }
+  }
+
+  Value VisitExpr_(const RefCreateNode* op) final {
+    return RefValueNode::make(Eval(op->value));
+  }
+
+  Value VisitExpr_(const RefReadNode* op) final {
+    Value r = Eval(op->ref);
+    if (const RefValueNode* rv = r.as<RefValueNode>()) {
+      return rv->value;
+    } else {
+      LOG(FATAL) << "type error, type system should have caught this";
+      return Value();
+    }
+  }
+
+  Value VisitExpr_(const MatchNode* op) final {
+    Value v = Eval(op->data);
+    for (const Clause& c : op->clauses) {
+      if (VisitPattern(c->lhs, v)) {
+        return VisitExpr(c->rhs);
+      }
+    }
+    LOG(FATAL) << "did not find any match";
+    return Value();
+  }
+
+  bool VisitPattern_(const PatternConstructorNode* op, const Value& v) final {
+    const ConstructorValueNode* cvn = v.as<ConstructorValueNode>();
+    CHECK(cvn) << "need to be a constructor for match";
+    CHECK_NE(op->constructor->tag, -1);
+    CHECK_NE(cvn->constructor->tag, -1);
+    if (op->constructor->tag == cvn->constructor->tag) {
+      // todo(M.K.): should use ptr equality but it is broken
+      CHECK(op->patterns.size() == cvn->fields.size());
+      for (size_t i = 0; i < op->patterns.size(); ++i) {
+        if (!VisitPattern(op->patterns[i], cvn->fields[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  bool VisitPattern_(const PatternWildcardNode* op, const Value& v) final {
+    return true;
+  }
+
+  bool VisitPattern_(const PatternVarNode* op, const Value& v) final {
+    extend(op->var, v);
+    return true;
+  }
+
   InterpreterState get_state(Expr e = Expr()) const {
     InterpreterStateNode::Stack stack;
     for (auto fr : this->stack_.frames) {
@@ -443,14 +548,14 @@ class Interpreter :
   }
 
  private:
-  // module
+  // Module
   Module mod_;
   // For simplicity we only run the interpreter on a single context.
   // Context to run the interpreter on.
   DLContext context_;
   // Target parameter being used by the interpreter.
   Target target_;
-  // value stack.
+  // Value stack.
   Stack stack_;
   // Backend compile engine.
   CompileEngine engine_;
@@ -473,5 +578,10 @@ TVM_REGISTER_API("relay.backend.CreateInterpreter")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = CreateInterpreter(args[0], args[1], args[2]);
   });
+
+TVM_REGISTER_NODE_TYPE(ClosureNode);
+TVM_REGISTER_NODE_TYPE(TupleValueNode);
+TVM_REGISTER_NODE_TYPE(TensorValueNode);
+
 }  // namespace relay
 }  // namespace tvm

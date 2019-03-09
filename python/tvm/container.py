@@ -90,7 +90,7 @@ class Range(NodeBase):
     You do not need to create Range explicitly.
     Python list and tuple will be converted automatically to Range in api functions.
     """
-    pass
+
 
 @register_node
 class LoweredFunc(NodeBase):

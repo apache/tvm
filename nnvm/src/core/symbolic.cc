@@ -601,8 +601,8 @@ Symbol Symbol::CreateFunctor(const Op* op,
   if (fnum_vis_output.count(n->op())) {
     nout = fnum_vis_output[n->op()](n->attrs);
   }
-  for (uint32_t i = 0; i < nout; ++i) {
-    s.outputs.emplace_back(NodeEntry{n, i, 0});
+  for (size_t i = 0; i < nout; i++) {
+    s.outputs.emplace_back(n, i, 0);
   }
   return s;
 }
@@ -618,7 +618,7 @@ Symbol Symbol::CreateFunctor(const NodeAttrs& attrs) {
     nout = fnum_vis_output[n->op()](n->attrs);
   }
   for (uint32_t i = 0; i < nout; ++i) {
-    s.outputs.emplace_back(NodeEntry{n, i, 0});
+    s.outputs.emplace_back(n, i, 0);
   }
   return s;
 }
@@ -633,7 +633,7 @@ Symbol Symbol::CreateGroup(const std::vector<Symbol> &symbols) {
 
 Symbol Symbol::CreateVariable(const std::string& name) {
   Symbol s;
-  s.outputs.emplace_back(NodeEntry{CreateVariableNode(name), 0, 0});
+  s.outputs.emplace_back(CreateVariableNode(name), 0, 0);
   return s;
 }
 

@@ -189,6 +189,19 @@ def _reshape(inputs, attrs):
     new_attrs['shape'] = _required_attr(attrs, 'shape')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _slice(inputs, attrs):
+    begin = attrs.get('begin', None)
+    end = attrs.get('end', None)
+    stride = attrs.get('step', None)
+    if begin is None or end is None:
+        raise RuntimeError('begin and end are required params')
+    if 'None' in begin or 'None' in end:
+        raise RuntimeError('None in begin or end not supported yet...')
+    new_attrs = {'begin': begin, 'end': end}
+    if stride is not None:
+        new_attrs['stride'] = stride
+    return _get_nnvm_op('strided_slice')(inputs[0], **new_attrs)
+
 def _split(inputs, attrs):
     op_name, new_attrs = 'split', {}
     axis = attrs.get('axis', 1)
@@ -273,6 +286,12 @@ def _lrn(inputs, attrs):
     new_attrs['size'] = _required_attr(attrs, 'nsize')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _minimum(inputs, attrs):
+    return _get_nnvm_op('broadcast_min')(*inputs, **attrs)
+
+def _maximum(inputs, attrs):
+    return _get_nnvm_op('broadcast_max')(*inputs, **attrs)
+
 def _ones(_, attrs):
     op_name = 'ones'
     return _get_nnvm_op(op_name)(**attrs)
@@ -305,7 +324,7 @@ _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   'flatten', 'log', 'log_softmax', 'max', 'min', 'negative',
                   'ones_like', 'relu', 'sigmoid', 'slice_like', 'softmax',
                   'sum', 'tanh', 'transpose', 'zeros_like', 'gather_nd',
-                  'reshape_like']
+                  'reshape_like', 'where']
 
 _convert_map = {
     '_copy'         : _rename('copy'),
@@ -317,6 +336,8 @@ _convert_map = {
     '_rminus_scalar': _rename('__rsub_scalar__'),
     '_contrib_MultiBoxPrior' : _rename('multibox_prior'),
     '_contrib_MultiBoxDetection' : _contrib_multibox_detection,
+    '_minimum'      : _minimum,
+    '_maximum'      : _maximum,
     '_ones'         : _ones,
     '_zeros'        : _zeros,
     'argmax'        : _argmax,
@@ -337,6 +358,7 @@ _convert_map = {
     'Pooling'       : _pooling,
     'Pooling_v1'    : _pooling,
     'Reshape'       : _reshape,
+    'slice'         : _slice,
     'SliceChannel'  : _split,
     'split'         : _split,
     'Softmax'       : _rename('softmax'),
@@ -424,7 +446,7 @@ def _topo_sort(symbol):
         if childs is None:
             dep_cnts[name] = 0
         else:
-            dep_cnts[name] = len(set([c.attr('name') for c in childs]))
+            dep_cnts[name] = len({c.attr('name') for c in childs})
             for child in childs:
                 child_name = child.attr('name')
                 if child_name not in deps:

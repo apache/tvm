@@ -22,9 +22,10 @@ def _rename(new_op):
 
 
 def _reshape(inputs, attrs):
-    if attrs.get_bool("reverse", False):
-        raise RuntimeError("reshape do not support option reverse")
     shape = attrs.get_int_tuple("shape")
+    reverse = attrs.get_bool("reverse", False)
+    if reverse:
+        return _op.reverse_reshape(inputs[0], newshape=shape)
     return _op.reshape(inputs[0], newshape=shape)
 
 
@@ -40,7 +41,7 @@ def _init_op(new_op):
 
 def _softmax_op(new_op):
     """softmax/log_softmax"""
-    def _impl(inputs, attrs):
+    def _impl(inputs, attrs, _dtype='float32'):
         assert len(inputs) == 1
         axis = attrs.get_int("axis", -1)
         return new_op(inputs[0], axis=axis)
@@ -49,13 +50,14 @@ def _softmax_op(new_op):
 
 def _reduce(new_op):
     """Reduction ops like sum/min/max"""
-    def _impl(inputs, attrs):
+    def _impl(inputs, attrs, _dtype='float32'):
         assert len(inputs) == 1
         axis = attrs.get_int_tuple("axis", [])
         keepdims = attrs.get_bool("keepdims", False)
+        exclude = attrs.get_bool("exclude", False)
         # use None for reduce over all axis.
         axis = None if len(axis) == 0 else axis
-        return new_op(inputs[0], axis=axis, keepdims=keepdims)
+        return new_op(inputs[0], axis=axis, keepdims=keepdims, exclude=exclude)
     return _impl
 
 
@@ -96,7 +98,7 @@ def _upsampling(inputs, attrs):
     return _op.nn.upsampling(inputs[0], scale=scale)
 
 
-def _elemwise_sum(inputs, _):
+def _elemwise_sum(inputs, _, _dtype='float32'):
     assert len(inputs) > 0
     res = inputs[0]
     for x in inputs[1:]:
@@ -105,20 +107,28 @@ def _elemwise_sum(inputs, _):
 
 
 def _binop_scalar(new_op):
-    def _impl(inputs, attrs):
+    def _impl(inputs, attrs, odtype='float32'):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
         # Note: binary scalar only works for float op for now
-        scalar = _expr.const(scalar, dtype="float32")
+        scalar = _expr.const(scalar, dtype=odtype)
         return new_op(inputs[0], scalar)
     return _impl
 
 
 def _rbinop_scalar(new_op):
-    def _impl(inputs, attrs):
+    def _impl(inputs, attrs, odtype='float32'):
         assert len(inputs) == 1
         scalar = attrs.get_float("scalar")
         # Note: binary scalar only works for float op for now
-        scalar = _expr.const(scalar, dtype="float32")
+        scalar = _expr.const(scalar, dtype=odtype)
         return new_op(scalar, inputs[0])
+    return _impl
+
+
+def _compare(new_op):
+    """Compare ops like greater/less"""
+    def _impl(inputs, _, odtype='float32'):
+        assert len(inputs) == 2
+        return new_op(inputs[0], inputs[1]).astype(odtype)
     return _impl

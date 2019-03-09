@@ -5,8 +5,9 @@
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <tvm/ir.h>
+#include <tvm/data_layout.h>
 #include <topi/transform.h>
 #include <topi/elemwise.h>
 #include <topi/broadcast.h>
@@ -16,7 +17,6 @@
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
 #include "../../pass/alter_op_layout.h"
-#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -206,6 +206,15 @@ bool ConcatenateRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> ConcatenateCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  const ConcatenateAttrs *param = attrs.as<ConcatenateAttrs>();
+  CHECK(param != nullptr);
+  return { topi::concatenate(inputs, param->axis) };
+}
+
 Array<Array<Layout>> ConcatenateLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
@@ -218,7 +227,7 @@ Array<Array<Layout>> ConcatenateLayout(
 
   Layout ret;
   if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
-    Layout::LayoutDim concate_dim = old_in_layouts[0][axis];
+    const auto& concate_dim = old_in_layouts[0][axis];
     for (size_t i = 0; i < new_in_layouts.size(); ++i) {
       if (new_in_layouts[i].ndim() > axis &&
           new_in_layouts[i][axis] == concate_dim) {
@@ -234,7 +243,7 @@ Array<Array<Layout>> ConcatenateLayout(
       }
     }
 
-    if (ret.ndim() <= axis || Layout::IsSubdim(ret[axis])) {
+    if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
       return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
     }
   }
@@ -268,7 +277,96 @@ RELAY_REGISTER_OP("concatenate")
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(1)
 .add_type_rel("Concatenate", ConcatenateRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout);
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout)
+.set_attr<FTVMCompute>("FTVMCompute", ConcatenateCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
+TVM_REGISTER_NODE_TYPE(StackAttrs);
+
+bool StackRel(const Array<Type>& types,
+              int num_inputs,
+              const Attrs& attrs,
+              const TypeReporter& reporter) {
+  // types: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* tensor_tuple = types[0].as<TupleTypeNode>();
+  if (tensor_tuple == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "cast: expect input type to be TupleType but get "
+        << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<StackAttrs>();
+  const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
+  // Sanity check: ndim and dtype.
+  const int ndim = static_cast<int>(first->shape.size());
+  const DataType dtype = first->dtype;
+  for (const Type& ele : tensor_tuple->fields) {
+    const auto& e = Downcast<TensorType>(ele);
+    int e_ndim = static_cast<int>(e->shape.size());
+    const DataType& e_dtype = e->dtype;
+    CHECK_EQ(e_ndim, ndim) << "relay.stack requires all tensors have the same ndim";
+    CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
+  }
+  // Sanity check: axis
+  int axis = param->axis;
+  CHECK(-ndim <= axis && axis < ndim)
+    << "stack only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
+  axis = axis < 0 ? ndim + axis + 1 : axis;
+  // Calculate shape
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(ndim + 1);
+  const int stack_dim = static_cast<int>(tensor_tuple->fields.size());
+  for (int i = 0; i < axis; ++i) {
+    oshape.emplace_back(first->shape[i]);
+  }
+  oshape.emplace_back(stack_dim);
+  for (int i = axis; i < ndim; ++i) {
+    oshape.emplace_back(first->shape[i]);
+  }
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, dtype));
+  return true;
+}
+
+Array<Tensor> StackCompute(const Attrs& attrs,
+                           const Array<Tensor>& inputs,
+                           const Type& out_type,
+                           const Target& target) {
+  const StackAttrs *param = attrs.as<StackAttrs>();
+  CHECK(param != nullptr);
+  return { topi::stack(inputs, param->axis) };
+}
+
+Expr MakeStack(Expr data,
+               int axis) {
+  auto attrs = make_node<StackAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("stack");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.stack")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeStack, args, rv);
+});
+
+RELAY_REGISTER_OP("stack")
+.describe(R"code(Stack the input tensors along the given axis.
+
+- **data** : A list of tensors.
+
+- **axis** : The axis along which the tensors are stacked.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.StackAttrs")
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input list of tensors.")
+.set_support_level(1)
+.add_type_rel("Stack", StackRel)
+.set_attr<FTVMCompute>("FTVMCompute", StackCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 /* relay.transpose */
 TVM_REGISTER_NODE_TYPE(TransposeAttrs);
@@ -382,20 +480,29 @@ bool ReshapeRel(const Array<Type>& types,
   }
 
   const auto* param = attrs.as<ReshapeAttrs>();
+  Array<IndexExpr> data_shape;
+  Array<Integer> newshape;
+  if (param->reverse) {
+    data_shape.assign(data->shape.rbegin(), data->shape.rend());
+    newshape.assign(param->newshape.rbegin(), param->newshape.rend());
+  } else {
+    data_shape = data->shape;
+    newshape = param->newshape;
+  }
   Array<IndexExpr> oshape;
   size_t src_idx = 0;
   int infer_idx = -1;
 
-  for (size_t i = 0; i < param->newshape.size(); ++i) {
-    int svalue = param->newshape[i]->value;
+  for (size_t i = 0; i < newshape.size(); ++i) {
+    int svalue = newshape[i]->value;
     // special flag handling for shape inference.
     if (svalue > 0) {
-      oshape.push_back(param->newshape[i]);
+      oshape.push_back(newshape[i]);
       ++src_idx;
     } else if (svalue == 0) {
       // keep same
-      CHECK_LT(src_idx, data->shape.size());
-      oshape.push_back(data->shape[src_idx++]);
+      CHECK_LT(src_idx, data_shape.size());
+      oshape.push_back(data_shape[src_idx++]);
     } else if (svalue == -1) {
       // inference based on rest
       CHECK_LT(infer_idx, 0)
@@ -405,42 +512,51 @@ bool ReshapeRel(const Array<Type>& types,
       ++src_idx;
     } else if (svalue == -2) {
       // copy all remaining dims from source
-      while (src_idx < data->shape.size()) {
-        oshape.push_back(data->shape[src_idx++]);
+      while (src_idx < data_shape.size()) {
+        oshape.push_back(data_shape[src_idx++]);
       }
     } else if (svalue == -3) {
       // merge two dims from source
-      CHECK_LT(src_idx + 1, data->shape.size());
-      IndexExpr d1 = data->shape[src_idx++];
-      IndexExpr d2 = data->shape[src_idx++];
+      CHECK_LT(src_idx + 1, data_shape.size());
+      IndexExpr d1 = data_shape[src_idx++];
+      IndexExpr d2 = data_shape[src_idx++];
       oshape.push_back(d1 * d2);
     } else if (svalue == -4) {
       // split the source dim s into two dims
       // read the left dim and then the right dim (either can be -1)
-      CHECK_LT(i + 2, param->newshape.size());
-      CHECK_LT(src_idx, data->shape.size());
-      IndexExpr d0 = data->shape[src_idx++];
-      Integer d1 = param->newshape[++i];
-      Integer d2 = param->newshape[++i];
+      CHECK_LT(i + 2, newshape.size());
+      CHECK_LT(src_idx, data_shape.size());
+      IndexExpr d0 = data_shape[src_idx++];
+      Integer d1 = newshape[++i];
+      Integer d2 = newshape[++i];
       if (d1->value == -1) {
         CHECK(d2->value != -1)
             << "Split dims cannot both be -1.";
         oshape.push_back(d0 / d2);
         oshape.push_back(d2);
       } else {
-        CHECK_EQ(d2->value, -1);
         oshape.push_back(d1);
-        oshape.push_back(d0 / d1);
+        if (d2->value == -1) {
+          oshape.push_back(d0 / d1);
+        } else {
+          oshape.push_back(d2);
+        }
       }
     }
   }
 
   if (infer_idx >= 0) {
     IndexExpr new_size = arith::ComputeReduce<tvm::ir::Mul>(oshape, 1);
-    IndexExpr old_size = arith::ComputeReduce<tvm::ir::Mul>(data->shape, 1);
+    IndexExpr old_size = arith::ComputeReduce<tvm::ir::Mul>(data_shape, 1);
     oshape.Set(infer_idx, old_size / new_size);
   }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+
+  if (param->reverse) {
+    reporter->Assign(types[1], TensorTypeNode::make(
+        Array<IndexExpr>(oshape.rbegin(), oshape.rend()), data->dtype));
+  } else {
+    reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  }
   return true;
 }
 
@@ -457,6 +573,7 @@ Expr MakeReshape(Expr data,
                  Array<Integer> newshape) {
   auto attrs = make_node<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
+  attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -860,6 +977,63 @@ and type as the input array.
 .add_type_rel("FullLike", FullLikeRel)
 .set_attr<FTVMCompute>("FTVMCompute", FullLikeCompute)
 .set_attr<TOpPattern>("TOpPattern", kElemWise);
+
+// arange operator
+TVM_REGISTER_NODE_TYPE(ArangeAttrs);
+
+bool ArangeRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 1);
+  const ArangeAttrs* param = attrs.as<ArangeAttrs>();
+  IndexExpr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
+      tvm::cast(tvm::Float(32), param->stop - param->start) / param->step));
+  if (const tvm::ir::IntImm* val = num_elem.as<tvm::ir::IntImm>()) {
+    CHECK_GT(val->value, 0)
+        << "Invalid arange attributes (start, stop, step): " << param->start
+        << ", " << param->stop << ", " << param->step;
+  }
+  reporter->Assign(types[0], TensorTypeNode::make({num_elem}, param->dtype));
+  return true;
+}
+
+Array<Tensor> ArangeCompute(const Attrs& attrs,
+                            const Array<Tensor>& inputs,
+                            const Type& out_type,
+                            const Target& target) {
+  const ArangeAttrs* param = attrs.as<ArangeAttrs>();
+  return { topi::arange(param->start, param->stop, param->step, param->dtype) };
+}
+
+Expr MakeArange(tvm::Expr start,
+                tvm::Expr stop,
+                tvm::Expr step,
+                DataType dtype) {
+  auto attrs = make_node<ArangeAttrs>();
+  attrs->start = std::move(start);
+  attrs->stop = std::move(stop);
+  attrs->step = std::move(step);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("arange");
+  return CallNode::make(op, {}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.arange")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 4>(MakeArange, args, rv);
+});
+
+RELAY_REGISTER_OP("arange")
+.describe(R"code(Returns evenly spaced values within a given interval.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.ArangeAttrs")
+.set_num_inputs(0)
+.set_support_level(3)
+.add_type_rel("Arange", ArangeRel)
+.set_attr<FTVMCompute>("FTVMCompute", ArangeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // where operator
 bool WhereRel(const Array<Type>& types,
@@ -1601,52 +1775,15 @@ RELAY_REGISTER_OP("slice_like")
 .set_attr<FTVMCompute>("FTVMCompute", SliceLikeCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
-
 // relay.layout_transform
 Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
                                      const Array<Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
-  const LayoutTransformAttrs *param = attrs.as<LayoutTransformAttrs>();
+  const auto* param = attrs.as<LayoutTransformAttrs>();
   CHECK(param != nullptr);
-
-  Layout src_layout(param->src_layout);
-  Layout dst_layout(param->dst_layout);
-
-  if (src_layout.Equals(dst_layout)) {
-    return Array<Tensor>{ inputs[0] };
-  }
-
-  CHECK(src_layout.defined() && dst_layout.defined())
-    << "cannot convert from/to undefined layout";
-  CHECK(src_layout.Convertible(dst_layout))
-    << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
-
-  const auto& out_shape = ConvertLayout(inputs[0]->shape, src_layout, dst_layout);
-  return Array<Tensor> {
-      topi::layout_transform(inputs[0], out_shape, [&](const Array<tvm::Var>& dst_indices) {
-        std::vector<tvm::Expr> dst_to_src_indices;
-        for (size_t i = 0; i < src_layout.ndim(); ++i) {
-          Layout::LayoutDim src_axis = src_layout[i];
-          int dst_major_pos = dst_layout.Indexof(Layout::ToSuperdim(src_axis));
-          int dst_minor_pos = dst_layout.Indexof(Layout::ToSubdim(src_axis));
-          int32_t src_factor = static_cast<int32_t>(src_layout.Subsizeof(src_axis));
-          int32_t dst_factor = static_cast<int32_t>(dst_layout.Subsizeof(src_axis));
-
-          tvm::Expr src_index(dst_indices[dst_major_pos]);
-          if (dst_minor_pos >= 0) {
-            CHECK_GT(dst_factor, 0);
-            src_index = src_index * dst_factor + dst_indices[dst_minor_pos];
-          }
-          if (Layout::IsSuperdim(src_axis) && src_factor > 0) {
-            src_index = src_index / src_factor;
-          } else if (Layout::IsSubdim(src_axis) && src_factor > 0) {
-            src_index = src_index % src_factor;
-          }
-          dst_to_src_indices.push_back(src_index);
-        }
-        return Array<tvm::Expr>(dst_to_src_indices);
-      })
+  return Array<Tensor>{
+    topi::layout_transform(inputs[0], param->src_layout, param->dst_layout)
   };
 }
 
@@ -1663,10 +1800,12 @@ bool LayoutTransformRel(const Array<Type>& types,
 
   CHECK(src_layout.defined() && dst_layout.defined())
     << "cannot convert from/to undefined layout";
-  CHECK(src_layout.Convertible(dst_layout))
+
+  auto layout_converter = BijectiveLayoutNode::make(src_layout, dst_layout);
+  CHECK(layout_converter.defined())
     << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
 
-  const auto& out_shape = ConvertLayout(data->shape, src_layout, dst_layout);
+  const auto& out_shape = layout_converter.ForwardShape(data->shape);
   reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));
   return true;
 }
@@ -1699,6 +1838,44 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 .add_type_rel("layout_transform", LayoutTransformRel)
 .set_support_level(5)
 .set_attr<FTVMCompute>("FTVMCompute", LayoutTransformCompute);
+
+
+/* relay._contrib_reverse_reshape */
+Expr MakeReverseReshape(Expr data,
+                        Array<Integer> newshape) {
+  auto attrs = make_node<ReshapeAttrs>();
+  attrs->newshape = std::move(newshape);
+  attrs->reverse = true;
+  static const Op& op = Op::Get("_contrib_reverse_reshape");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make._contrib_reverse_reshape")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeReverseReshape, args, rv);
+});
+
+RELAY_REGISTER_OP("_contrib_reverse_reshape")
+.describe(R"code(Reshapes the input array where the special values are inferred from
+right to left.
+
+Example::
+
+The special values have the same semantics as reshape. The difference is that
+special values are inferred from right to left. It can be explained in the
+example below::
+
+- data.shape = (10,5,4), newshape = (-1,0), reshape results in (40,5)
+- data.shape = (10,5,4), newshape = (-1,0), reverse_reshape results in (40,5)
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ReshapeAttrs")
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(10)
+.add_type_rel("Reshape", ReshapeRel)
+.set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm

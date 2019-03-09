@@ -7,7 +7,6 @@ from tvm import relay
 from tvm.relay.testing import ctx_list
 import topi.testing
 
-
 def test_resize_infer_type():
     n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
@@ -273,9 +272,147 @@ def test_multibox_transform_loc():
     test_threshold()
 
 
+def test_roi_align():
+    def verify_roi_align(data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio):
+        data = relay.var("data", relay.ty.TensorType(data_shape, "float32"))
+        rois = relay.var("rois", relay.ty.TensorType(rois_shape, "float32"))
+        z = relay.vision.roi_align(data, rois, pooled_size=(pooled_size, pooled_size),
+                                   spatial_scale=spatial_scale, sample_ratio=sample_ratio,
+                                   layout="NCHW")
+        zz = relay.ir_pass.infer_type(z)
+
+        batch, channel, in_size, _ = data_shape
+        num_roi = rois_shape[0]
+        assert zz.checked_type == relay.ty.TensorType(
+                (num_roi, channel, pooled_size, pooled_size), "float32")
+
+        func = relay.Function([data, rois], z)
+        func = relay.ir_pass.infer_type(func)
+        np_data = np.random.uniform(size=data_shape).astype("float32")
+        np_rois = np.random.uniform(size=rois_shape).astype('float32') * in_size
+        np_rois[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi)
+        ref_res = topi.testing.roi_align_nchw_python(np_data, np_rois, pooled_size=pooled_size,
+                                                     spatial_scale=spatial_scale,
+                                                     sample_ratio=sample_ratio)
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(np_data, np_rois)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4)
+            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+            op_res2 = intrp2.evaluate(func)(np_data, np_rois)
+            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-4)
+
+    verify_roi_align((1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0, sample_ratio=-1)
+    verify_roi_align((4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2)
+
+
+def test_proposal():
+    def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
+        cls_prob = relay.var("cls_prob", relay.ty.TensorType(np_cls_prob.shape, "float32"))
+        bbox_pred = relay.var("bbox_pred", relay.ty.TensorType(np_bbox_pred.shape, "float32"))
+        im_info = relay.var("im_info", relay.ty.TensorType(np_im_info.shape, "float32"))
+        z = relay.vision.proposal(cls_prob, bbox_pred, im_info, **attrs)
+        zz = relay.ir_pass.infer_type(z)
+
+        assert zz.checked_type == relay.ty.TensorType(np_out.shape, "float32")
+
+        func = relay.Function([cls_prob, bbox_pred, im_info], z)
+        func = relay.ir_pass.infer_type(func)
+        for target in ['cuda']:
+            if not tvm.module.enabled(target):
+                print("Skip test because %s is not enabled." % target)
+                continue
+            ctx = tvm.context(target, 0)
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), np_out, rtol=1e-4)
+            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+            op_res2 = intrp2.evaluate(func)(np_cls_prob, np_bbox_pred, np_im_info)
+            tvm.testing.assert_allclose(op_res2.asnumpy(), np_out, rtol=1e-4)
+
+    attrs = {
+        'scales': (0.5,),
+        'ratios': (0.5,),
+        'feature_stride': 16,
+        'iou_loss': False,
+        'rpn_min_size': 16,
+        'threshold': 0.7,
+        'rpn_pre_nms_top_n': 200,
+        'rpn_post_nms_top_n': 4,
+    }
+
+    np_cls_prob = np.array([[
+        [[0.3, 0.6, 0.2], [0.4, 0.7, 0.5], [0.1, 0.4, 0.3]],
+        [[0.7, 0.5, 0.3], [0.6, 0.4, 0.8], [0.9, 0.2, 0.5]]
+    ]], dtype='float32')
+    np_bbox_pred = np.array([[
+        [[0.5, 1.0, 0.6], [0.8,  1.2, 2.0], [0.9, 1.0, 0.8]],
+        [[0.5, 1.0, 0.7], [0.8,  1.2, 1.6], [2.1, 1.5, 0.7]],
+        [[1.0, 0.5, 0.7], [1.5,  0.9, 1.6], [1.4, 1.5, 0.8]],
+        [[1.0, 0.5, 0.6], [1.5,  0.9, 2.0], [1.8, 1.0, 0.9]],
+    ]], dtype='float32')
+    np_im_info = np.array([[48., 48., 1.]], dtype='float32')
+    np_out = np.array([
+        [0., 0., 2.8451548,28.38012, 18.154846],
+        [0., 0., 15.354933, 41.96971, 41.245064],
+        [0., 18.019852, 1.0538368, 51.98015, 25.946163],
+        [0., 27.320923, -1.266357, 55., 24.666357]
+    ], dtype='float32')
+
+
+    verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs)
+
+    np_out = np.array([
+        [ 0., -5.25, -2.5, 21.75, 19.],
+        [ 0., 11.25, -2., 37.25, 18.5],
+        [ 0., 26.849998, -2.3000002, 53.45, 18.6],
+        [ 0., -4.95, 13.799999, 22.25, 35.5]
+    ], dtype='float32')
+    attrs['iou_loss'] = True
+    verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs)
+
+
+def test_yolo_reorg_infer_shape():
+    def verify_yolo_reorg(shape, stride, out_shape):
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        z = relay.vision.yolo_reorg(x, stride=stride)
+        zz = relay.ir_pass.infer_type(z)
+        assert "stride=" in z.astext()
+        assert zz.checked_type == relay.ty.TensorType(out_shape, "float32")
+
+    n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    verify_yolo_reorg((n, c, 20, 20), 10, (n, c*10*10, 2, 2))
+    verify_yolo_reorg((n, c, h, w), 2, (n, c*2*2, h/2, w/2))
+
+def test_yolo_reorg():
+    def verify_yolo_reorg(shape, stride):
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        ref_res = topi.testing.reorg_python(x_data, stride)
+
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        z = relay.vision.yolo_reorg(x, stride=stride)
+        zz = relay.ir_pass.infer_type(z)
+        assert "stride=" in z.astext()
+        assert zz.checked_type == relay.ty.TensorType(ref_res.shape, "float32")
+
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_yolo_reorg((1, 100, 20, 20), 10)
+    verify_yolo_reorg((1, 4, 6, 6), 2)
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
     test_multibox_prior()
     test_multibox_transform_loc()
     test_nms()
+    test_roi_align()
+    test_proposal()
+    test_yolo_reorg_infer_shape()
+    test_yolo_reorg()

@@ -7,6 +7,7 @@
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include "../ir/type_functor.h"
 
 namespace tvm {
@@ -29,7 +30,7 @@ class TypeVarTVisitor : public TypeVisitor {
   TypeVarTVisitor(
       InsertionSet<TypeVar>* type_vars,
       InsertionSet<TypeVar>* bound_type_vars)
-      : type_vars_(type_vars), bound_type_vars_(bound_type_vars) { }
+    : type_vars_(type_vars), bound_type_vars_(bound_type_vars) { }
 
   void VisitType_(const TypeVarNode* tp) final {
     TypeVar var = GetRef<TypeVar>(tp);
@@ -51,6 +52,8 @@ class TypeVarTVisitor : public TypeVisitor {
 
 class TypeVarEVisitor : private ExprVisitor {
  public:
+  explicit TypeVarEVisitor(const Module& mod) : mod_(mod) {}
+
   Array<TypeVar> CollectFree() {
     Array<TypeVar> ret;
     for (const auto& v : type_vars_.data) {
@@ -115,6 +118,16 @@ class TypeVarEVisitor : private ExprVisitor {
     ExprVisitor::VisitExpr_(f);
   }
 
+  void VisitExpr_(const ConstructorNode* cn) final {
+    // for constructors, type vars will be bound in the module
+    auto data = mod_->LookupDef(cn->belong_to);
+    for (const auto& tv : data->type_vars) {
+      type_vars_.Insert(tv);
+      bound_type_vars_.Insert(tv);
+    }
+    ExprVisitor::VisitExpr_(cn);
+  }
+
   void VisitType(const Type& t) final {
     TypeVarTVisitor(&type_vars_, &bound_type_vars_)
         .VisitType(t);
@@ -123,9 +136,10 @@ class TypeVarEVisitor : private ExprVisitor {
  private:
   InsertionSet<TypeVar> type_vars_;
   InsertionSet<TypeVar> bound_type_vars_;
+  const Module& mod_;
 };
 
-class VarVisitor : protected ExprVisitor {
+class VarVisitor : protected ExprVisitor, protected PatternVisitor {
  public:
   Array<Var> Free(const Expr& expr) {
     this->VisitExpr(expr);
@@ -178,33 +192,41 @@ class VarVisitor : protected ExprVisitor {
     VisitExpr(op->body);
   }
 
+  void VisitPattern(const Pattern& p) final {
+    PatternVisitor::VisitPattern(p);
+  }
+
+  void VisitPattern_(const PatternVarNode* op) final {
+    MarkBounded(op->var);
+  }
+
  private:
   InsertionSet<Var> vars_;
   InsertionSet<Var> bound_vars_;
 };
 
-tvm::Array<TypeVar> FreeTypeVars(const Expr& expr) {
-  return TypeVarEVisitor().Free(expr);
+tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const Module& mod) {
+  return TypeVarEVisitor(mod).Free(expr);
 }
 
-tvm::Array<TypeVar> FreeTypeVars(const Type& type) {
-  return TypeVarEVisitor().Free(type);
+tvm::Array<TypeVar> FreeTypeVars(const Type& type, const Module& mod) {
+  return TypeVarEVisitor(mod).Free(type);
 }
 
-tvm::Array<TypeVar> BoundTypeVars(const Expr& expr) {
-  return TypeVarEVisitor().Bound(expr);
+tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const Module& mod) {
+  return TypeVarEVisitor(mod).Bound(expr);
 }
 
-tvm::Array<TypeVar> BoundTypeVars(const Type& type) {
-  return TypeVarEVisitor().Bound(type);
+tvm::Array<TypeVar> BoundTypeVars(const Type& type, const Module& mod) {
+  return TypeVarEVisitor(mod).Bound(type);
 }
 
-tvm::Array<TypeVar> AllTypeVars(const Expr& expr) {
-  return TypeVarEVisitor().All(expr);
+tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod) {
+  return TypeVarEVisitor(mod).All(expr);
 }
 
-tvm::Array<TypeVar> AllTypeVars(const Type& type) {
-  return TypeVarEVisitor().All(type);
+tvm::Array<TypeVar> AllTypeVars(const Type& type, const Module& mod) {
+  return TypeVarEVisitor(mod).All(type);
 }
 
 tvm::Array<Var> FreeVars(const Expr& expr) {
@@ -237,30 +259,33 @@ TVM_REGISTER_API("relay._ir_pass.all_vars")
 TVM_REGISTER_API("relay._ir_pass.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     NodeRef x = args[0];
+    Module mod = args[1];
     if (x.as_derived<TypeNode>()) {
-      *ret = FreeTypeVars(Downcast<Type>(x));
+      *ret = FreeTypeVars(Downcast<Type>(x), mod);
     } else {
-      *ret = FreeTypeVars(Downcast<Expr>(x));
+      *ret = FreeTypeVars(Downcast<Expr>(x), mod);
     }
   });
 
 TVM_REGISTER_API("relay._ir_pass.bound_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
+      Module mod = args[1];
       if (x.as_derived<TypeNode>()) {
-        *ret = BoundTypeVars(Downcast<Type>(x));
+        *ret = BoundTypeVars(Downcast<Type>(x), mod);
       } else {
-        *ret = BoundTypeVars(Downcast<Expr>(x));
+        *ret = BoundTypeVars(Downcast<Expr>(x), mod);
       }
     });
 
 TVM_REGISTER_API("relay._ir_pass.all_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
+      Module mod = args[1];
       if (x.as_derived<TypeNode>()) {
-        *ret = AllTypeVars(Downcast<Type>(x));
+        *ret = AllTypeVars(Downcast<Type>(x), mod);
       } else {
-        *ret = AllTypeVars(Downcast<Expr>(x));
+        *ret = AllTypeVars(Downcast<Expr>(x), mod);
       }
     });
 

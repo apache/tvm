@@ -6,7 +6,7 @@ PKG_CFLAGS = -std=c++11 -O2 -fPIC\
 	-I${TVM_ROOT}/3rdparty/dlpack/include\
 	-I${TVM_ROOT}/3rdparty/HalideIR/src
 
-PKG_LDFLAGS =-L${TVM_ROOT}/lib
+PKG_LDFLAGS =-L${TVM_ROOT}/build
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S), Darwin)

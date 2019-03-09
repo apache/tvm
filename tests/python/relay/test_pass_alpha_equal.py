@@ -171,6 +171,29 @@ def test_type_relation_alpha_equal():
 
     assert bigger != diff_num_inputs
 
+def test_type_call_alpha_equal():
+    h1 = relay.GlobalTypeVar("h1")
+    h2 = relay.GlobalTypeVar("h2")
+    t1 = relay.TensorType((1, 2), "float32")
+    t2 = relay.TensorType((1, 2, 3), "float32")
+    t3 = relay.TensorType((1, 2, 3, 4), "float32")
+    t4 = relay.TensorType((), "float32")
+
+    tc = relay.TypeCall(h1, [t1, t2, t3])
+    same = relay.TypeCall(h1, [t1, t2, t3])
+
+    different_func = relay.TypeCall(h2, [t1, t2, t3])
+    different_arg = relay.TypeCall(h1, [t1, t2, t4])
+    fewer_args = relay.TypeCall(h1, [t1, t2])
+    more_args = relay.TypeCall(h1, [t1, t2, t3, t4])
+    different_order_args = relay.TypeCall(h1, [t3, t2, t1])
+
+    assert tc == same
+    assert tc != different_func
+    assert tc != fewer_args
+    assert tc != more_args
+    assert tc != different_order_args
+
 
 def test_constant_alpha_equal():
     x = relay.const(1)
@@ -453,6 +476,79 @@ def test_if_alpha_equal():
     assert not alpha_equal(if_sample, different_false)
 
 
+def test_constructor_alpha_equal():
+    # smoke test: it should be pointer equality
+    mod = relay.Module()
+    p = relay.prelude.Prelude(mod)
+
+    assert alpha_equal(p.nil, p.nil)
+    assert alpha_equal(p.cons, p.cons)
+    assert not alpha_equal(p.nil, p.cons)
+
+
+def test_match_alpha_equal():
+    mod = relay.Module()
+    p = relay.prelude.Prelude(mod)
+
+    x = relay.Var('x')
+    y = relay.Var('y')
+    nil_case = relay.Clause(relay.PatternConstructor(p.nil), p.nil())
+    cons_case = relay.Clause(relay.PatternConstructor(p.cons,
+                                                      [relay.PatternVar(x),
+                                                       relay.PatternVar(y)]),
+                       p.cons(x, y))
+
+    z = relay.Var('z')
+    a = relay.Var('a')
+    equivalent_cons = relay.Clause(relay.PatternConstructor(p.cons,
+                                                            [relay.PatternVar(z),
+                                                             relay.PatternVar(a)]),
+                                   p.cons(z, a))
+
+    data = p.cons(p.z(), p.cons(p.z(), p.nil()))
+
+    match = relay.Match(data, [nil_case, cons_case])
+    equivalent = relay.Match(data, [nil_case, equivalent_cons])
+    empty = relay.Match(data, [])
+    no_cons = relay.Match(data, [nil_case])
+    no_nil = relay.Match(data, [cons_case])
+    different_data = relay.Match(p.nil(), [nil_case, cons_case])
+    different_order = relay.Match(data, [cons_case, nil_case])
+    different_nil = relay.Match(data, [
+        relay.Clause(relay.PatternConstructor(p.nil), p.cons(p.nil(), p.nil())),
+        cons_case
+    ])
+    different_cons = relay.Match(data, [
+        nil_case,
+        relay.Clause(relay.PatternConstructor(p.cons,
+                                              [relay.PatternWildcard(),
+                                               relay.PatternWildcard()]),
+                     p.nil())
+    ])
+    another_case = relay.Match(data, [
+        nil_case,
+        cons_case,
+        relay.Clause(relay.PatternWildcard(), p.nil())
+    ])
+    wrong_constructors = relay.Match(data, [
+        relay.Clause(relay.PatternConstructor(p.z), p.nil()),
+        relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(x)]),
+                     p.cons(x, p.nil()))
+    ])
+
+    assert alpha_equal(match, match)
+    assert alpha_equal(match, equivalent)
+    assert not alpha_equal(match, no_cons)
+    assert not alpha_equal(match, no_nil)
+    assert not alpha_equal(match, empty)
+    assert not alpha_equal(match, different_data)
+    assert not alpha_equal(match, different_order)
+    assert not alpha_equal(match, different_nil)
+    assert not alpha_equal(match, different_cons)
+    assert not alpha_equal(match, another_case)
+    assert not alpha_equal(match, wrong_constructors)
+
+
 def test_op_alpha_equal():
     # only checks names
     op1 = relay.op.get("add")
@@ -491,6 +587,7 @@ if __name__ == "__main__":
     test_func_type_alpha_equal()
     test_tuple_type_alpha_equal()
     test_type_relation_alpha_equal()
+    test_type_call_alpha_equal()
     test_constant_alpha_equal()
     test_global_var_alpha_equal()
     test_tuple_alpha_equal()
@@ -499,6 +596,8 @@ if __name__ == "__main__":
     test_call_alpha_equal()
     test_let_alpha_equal()
     test_if_alpha_equal()
+    test_constructor_alpha_equal()
+    test_match_alpha_equal()
     test_op_alpha_equal()
     test_var_alpha_equal()
     test_graph_equal()

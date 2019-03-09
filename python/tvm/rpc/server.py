@@ -331,6 +331,15 @@ class Server(object):
             if silent:
                 cmd += ["--silent"]
 
+            # prexec_fn is not thread safe and may result in deadlock.
+            # python 3.2 introduced the start_new_session parameter as
+            # an alternative to the common use case of
+            # prexec_fn=os.setsid.  Once the minimum version of python
+            # supported by TVM reaches python 3.2 this code can be
+            # rewritten in favour of start_new_session.  In the
+            # interim, stop the pylint diagnostic.
+            #
+            # pylint: disable=subprocess-popen-preexec-fn
             self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:

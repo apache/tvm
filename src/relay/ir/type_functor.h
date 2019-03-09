@@ -8,6 +8,7 @@
 
 #include <tvm/node/ir_functor.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/adt.h>
 #include <string>
 #include <vector>
 
@@ -68,6 +69,10 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const TypeRelationNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TupleTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const IncompleteTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const RefTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const GlobalTypeVarNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TypeCallNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TypeDataNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
 
   virtual R VisitTypeDefault_(const Node* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->type_key();
@@ -86,6 +91,10 @@ class TypeFunctor<R(const Type& n, Args...)> {
     RELAY_TYPE_FUNCTOR_DISPATCH(TypeRelationNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(IncompleteTypeNode);
+    RELAY_TYPE_FUNCTOR_DISPATCH(RefTypeNode);
+    RELAY_TYPE_FUNCTOR_DISPATCH(GlobalTypeVarNode);
+    RELAY_TYPE_FUNCTOR_DISPATCH(TypeCallNode);
+    RELAY_TYPE_FUNCTOR_DISPATCH(TypeDataNode);
     return vtable;
   }
 };
@@ -101,6 +110,10 @@ class TypeVisitor : public TypeFunctor<void(const Type& n)> {
   void VisitType_(const FuncTypeNode* op) override;
   void VisitType_(const TupleTypeNode* op) override;
   void VisitType_(const TypeRelationNode* op) override;
+  void VisitType_(const RefTypeNode* op) override;
+  void VisitType_(const GlobalTypeVarNode* op) override;
+  void VisitType_(const TypeCallNode* op) override;
+  void VisitType_(const TypeDataNode* op) override;
 };
 
 // Mutator that transform a type to another one.
@@ -112,6 +125,10 @@ class TypeMutator : public TypeFunctor<Type(const Type& n)> {
   Type VisitType_(const FuncTypeNode* op) override;
   Type VisitType_(const TupleTypeNode* op) override;
   Type VisitType_(const TypeRelationNode* type_rel) override;
+  Type VisitType_(const RefTypeNode* op) override;
+  Type VisitType_(const GlobalTypeVarNode* op) override;
+  Type VisitType_(const TypeCallNode* op) override;
+  Type VisitType_(const TypeDataNode* op) override;
 
  private:
   Array<Type> MutateArray(Array<Type> arr);

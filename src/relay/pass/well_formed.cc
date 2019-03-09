@@ -5,6 +5,7 @@
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <unordered_set>
 
 namespace tvm {
@@ -12,7 +13,7 @@ namespace relay {
 
 
 //! brief make sure each Var is bind at most once.
-class WellFormedChecker : private ExprVisitor {
+class WellFormedChecker : private ExprVisitor, PatternVisitor {
   bool well_formed = true;
 
   std::unordered_set<Var, NodeHash, NodeEqual> s;
@@ -37,6 +38,14 @@ class WellFormedChecker : private ExprVisitor {
       Check(param);
     }
     CheckWellFormed(f->body);
+  }
+
+  void VisitPattern(const Pattern& p) final {
+    PatternVisitor::VisitPattern(p);
+  }
+
+  void VisitVar(const Var& v) final {
+    Check(v);
   }
 
  public:

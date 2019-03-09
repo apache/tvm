@@ -47,35 +47,34 @@ def _convert_activation(insym, keras_layer, _):
         beta = keras_layer.beta if hasattr(keras_layer, "beta") else 0
         return _sym.__add_scalar__(_sym.__mul_scalar__(insym, \
             scalar=alpha), scalar=beta)
-    elif act_type == 'softmax':
+    if act_type == 'softmax':
         return _sym.softmax(insym, axis=1)
-    elif act_type == 'sigmoid':
+    if act_type == 'sigmoid':
         return _sym.sigmoid(insym)
-    elif act_type == 'tanh':
+    if act_type == 'tanh':
         return _sym.tanh(insym)
-    elif act_type == 'relu':
+    if act_type == 'relu':
         return _sym.relu(insym)
-    elif act_type == 'softplus':
+    if act_type == 'softplus':
         return _sym.log(_sym.__add_scalar__(_sym.exp(insym), scalar=1))
-    elif act_type == 'elu':
+    if act_type == 'elu':
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
         return _get_elu(insym, alpha)
-    elif act_type == 'selu':
+    if act_type == 'selu':
         # Alpha, Gamma values, obtained from  https://arxiv.org/abs/1706.02515
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") \
             else 1.6732632423543772848170429916717
         gamma = keras_layer.gamma if hasattr(keras_layer, "gamma") \
             else 1.0507009873554804934193349852946
         return gamma * _get_elu(insym, alpha)
-    elif act_type == 'relu6':
+    if act_type == 'relu6':
         return _sym.clip(insym, a_min=0, a_max=6)
-    elif act_type == 'softsign':
+    if act_type == 'softsign':
         return insym / (1 + (_sym.relu(insym) + _sym.relu(_sym.negative(insym))))
-    elif act_type == 'hard_sigmoid':
+    if act_type == 'hard_sigmoid':
         transformX = (0.2 * insym) + 0.5
         return _sym.clip(transformX, a_min=0, a_max=1)
-    else:
-        raise TypeError("Unsupported activation type : {}".format(act_type))
+    raise TypeError("Unsupported activation type : {}".format(act_type))
 
 
 def _convert_advanced_activation(insym, keras_layer, symtab):
@@ -84,12 +83,12 @@ def _convert_advanced_activation(insym, keras_layer, symtab):
         if keras_layer.max_value:
             return _sym.clip(insym, a_min=0, a_max=keras_layer.max_value)
         return _sym.relu(insym)
-    elif act_type == 'LeakyReLU':
+    if act_type == 'LeakyReLU':
         return _sym.leaky_relu(insym, alpha=keras_layer.alpha)
-    elif act_type == 'ELU':
+    if act_type == 'ELU':
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
         return _get_elu(insym, alpha)
-    elif act_type == 'PReLU':
+    if act_type == 'PReLU':
         assert hasattr(keras_layer, "alpha"), \
             "alpha required for PReLU."
         _check_data_format(keras_layer)
@@ -97,12 +96,11 @@ def _convert_advanced_activation(insym, keras_layer, symtab):
         return -symtab.new_const(keras_layer.get_weights()[0] \
                                  .transpose(np.roll(range(size), 1))) \
                                  * _sym.relu(-insym) + _sym.relu(insym)
-    elif act_type == 'ThresholdedReLU':
+    if act_type == 'ThresholdedReLU':
         theta = keras_layer.theta if hasattr(keras_layer, "theta") else 1.0
         theta_tensor = _sym.full_like(insym[0], fill_value=float(theta))
         return _sym.elemwise_mul(insym[0], _sym.greater(insym[0], theta_tensor, out_type="float32"))
-    else:
-        raise TypeError("Unsupported advanced activation type : {}".format(act_type))
+    raise TypeError("Unsupported advanced activation type : {}".format(act_type))
 
 
 def _convert_merge(insym, keras_layer, _):
@@ -280,31 +278,29 @@ def _convert_pooling(insym, keras_layer, symtab):
     # global pool in keras = global pool + flatten in nnvm
     if pool_type == 'GlobalMaxPooling2D':
         return _convert_flatten(_sym.global_max_pool2d(insym), keras_layer, symtab)
-    elif pool_type == 'GlobalAveragePooling2D':
+    if pool_type == 'GlobalAveragePooling2D':
         return _convert_flatten(_sym.global_avg_pool2d(insym), keras_layer, symtab)
+    pool_h, pool_w = keras_layer.pool_size
+    stride_h, stride_w = keras_layer.strides
+    params = {'pool_size': [pool_h, pool_w],
+              'strides': [stride_h, stride_w],
+              'padding': [0, 0]}
+    if keras_layer.padding == 'valid':
+        pass
+    elif keras_layer.padding == 'same':
+        in_h = keras_layer.input_shape[1]
+        in_w = keras_layer.input_shape[2]
+        pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
+        pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
+        params['padding'] = [pad_t, pad_l, pad_b, pad_r]
     else:
-        pool_h, pool_w = keras_layer.pool_size
-        stride_h, stride_w = keras_layer.strides
-        params = {'pool_size': [pool_h, pool_w],
-                  'strides': [stride_h, stride_w],
-                  'padding': [0, 0]}
-        if keras_layer.padding == 'valid':
-            pass
-        elif keras_layer.padding == 'same':
-            in_h = keras_layer.input_shape[1]
-            in_w = keras_layer.input_shape[2]
-            pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
-            pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
-            params['padding'] = [pad_t, pad_l, pad_b, pad_r]
-        else:
-            raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
-        if pool_type == 'MaxPooling2D':
-            return _sym.max_pool2d(insym, **params)
-        elif pool_type == 'AveragePooling2D':
-            # TODO: in keras, padded zeros are not calculated
-            return _sym.avg_pool2d(insym, **params)
-        else:
-            raise TypeError("Unsupported pooling type : {}".format(keras_layer))
+        raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
+    if pool_type == 'MaxPooling2D':
+        return _sym.max_pool2d(insym, **params)
+    if pool_type == 'AveragePooling2D':
+        # TODO: in keras, padded zeros are not calculated
+        return _sym.avg_pool2d(insym, **params)
+    raise TypeError("Unsupported pooling type : {}".format(keras_layer))
 
 
 def _convert_upsample(insym, keras_layer, _):

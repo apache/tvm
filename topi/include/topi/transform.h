@@ -16,6 +16,7 @@
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
+#include "tvm/data_layout.h"
 
 namespace topi {
 using namespace tvm;
@@ -188,7 +189,7 @@ inline Tensor reshape(const Tensor& x,
   auto x_shape = x->shape;
   return compute(
     newshape, [&](const Array<Var>& indices) {
-      return x(UnavelIndex(RavelIndex(indices, newshape), x_shape));
+      return x(UnravelIndex(RavelIndex(indices, newshape), x_shape));
     }, name, tag);
 }
 
@@ -315,6 +316,56 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
         }
 
         ret = tvm::if_then_else(ind >= 0,
+                                inputs[i + 1](idx),
+                                ret);
+      }
+      return ret;
+    }, name, tag);
+}
+
+/*!
+* \brief Join a sequence of tensors along a new axis.
+*
+* \param inputs The input tensors
+* \param axis The axis along which the tensors will be stacked
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the stack operation
+*/
+inline Tensor stack(const Array<Tensor>& inputs,
+                    int axis = 0,
+                    std::string name = "tensor",
+                    std::string tag = kInjective) {
+  int ndim = static_cast<int>(inputs[0]->shape.size());
+  CHECK(-ndim - 1 <= axis && axis <= ndim)
+    << "stack only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
+  if (axis < 0) {
+    axis += ndim + 1;
+  }
+  CHECK_LT(axis, inputs[0]->shape.size() + 1) <<
+    "axis out of bounds";
+
+  const int stack_size = static_cast<int>(inputs.size());
+  Array<Expr> out_shape;
+  for (size_t i = 0; i < static_cast<size_t>(axis); ++i)
+    out_shape.push_back(inputs[0]->shape[i]);
+  out_shape.push_back(stack_size);
+  for (size_t i = static_cast<size_t>(axis); i < static_cast<size_t>(ndim); ++i)
+    out_shape.push_back(inputs[0]->shape[i]);
+
+  return compute(
+    out_shape, [&](const Array<Var>& indices) {
+      Array<Expr> idx;
+      for (size_t i = 0; i < indices.size(); ++i)
+        if (i != static_cast<size_t>(axis))
+          idx.push_back(indices[i]);
+      auto ind = indices[axis];
+      auto ret = inputs[0](idx);
+      for (int i = 0; i < static_cast<int>(inputs.size() - 1); ++i) {
+        ret = tvm::if_then_else(ind == i + 1,
                                 inputs[i + 1](idx),
                                 ret);
       }
@@ -566,7 +617,7 @@ inline Tensor take(const Tensor& a,
           for (size_t j = 0; j < indices->shape.size(); ++j) {
             indices_position.push_back(out_index[j]);
           }
-          return a(UnavelIndex(indices(indices_position), a_shape));
+          return a(UnravelIndex(indices(indices_position), a_shape));
         }, name, tag);
 }
 
@@ -868,6 +919,57 @@ inline Tensor tensordot(const Tensor& A,
   return compute(output_shape, func, name, tag);
 }
 
+inline Tensor arange(const Expr start,
+                     const Expr stop,
+                     const Expr step,
+                     Type dtype,
+                     std::string name = "tensor",
+                     std::string tag = kInjective) {
+  Expr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
+      tvm::cast(tvm::Float(32), stop - start) / step));
+  Array<Expr> shape;
+  return compute({num_elem}, [&](const Array<Var>& indices) {
+    return tvm::cast(dtype, start + step * indices[0]);
+  }, name, tag);
+}
+
+/*!
+ * \brief Transform the layout according to \p src_layout and \p dst_layout
+ * \param src the source input.
+ * \param src_layout the source layout.
+ * \param dst_layout the destination layout.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return A tensor with shape in \p dst_layout
+ */
+inline Tensor layout_transform(const Tensor& src,
+                               const std::string& src_layout,
+                               const std::string& dst_layout,
+                               const std::string name = "layout_transform",
+                               const std::string tag = kInjective) {
+  Layout src_layout_struct = LayoutNode::make(src_layout);
+  Layout dst_layout_struct = LayoutNode::make(dst_layout);
+
+  if (src_layout_struct.Equals(dst_layout_struct)) {
+    return src;
+  }
+
+  CHECK(src_layout_struct.defined() && dst_layout_struct.defined())
+    << "cannot convert from/to undefined layout";
+
+  auto layout_converter = BijectiveLayoutNode::make(src_layout_struct, dst_layout_struct);
+  CHECK(layout_converter.defined())
+    << "cannot convert from " << src_layout << " to " << dst_layout;
+
+  Array<Expr> dst_shape = layout_converter.ForwardShape(src->shape);
+
+  return compute(
+    dst_shape, [&](const Array<Var>& dst_indices) {
+      Array<Expr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+      Array<Expr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
+      return src(src_indices);
+  }, name, tag);
+}
 
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

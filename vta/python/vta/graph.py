@@ -169,7 +169,7 @@ def clean_cast(graph):
         op_name = node.attr("op_name")
         if op_name == "cast":
             return _clean_cast(node.get_children(), target_type)
-        elif op_name == "relu":
+        if op_name == "relu":
             data, has_clip = _clean_cast(
                 node.get_children(), target_type)
             data = nnvm.sym.relu(data)

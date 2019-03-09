@@ -10,7 +10,7 @@
 
 #include "base.h"
 #include "expr.h"
-#include "ir_operator.h"
+#include "expr_operator.h"
 #include "tvm/node/container.h"
 
 namespace tvm {

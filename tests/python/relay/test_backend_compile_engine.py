@@ -43,6 +43,18 @@ def test_compile_placeholder_bypass():
     with relay.build_config(opt_level=0):
        graph, lib, params = relay.build(func, 'llvm')
 
+
+def test_compile_injective_with_tuple():
+    x = relay.var("x", shape=(2, 3))
+    y = relay.var("y", shape=(2, 3))
+    x_transpose = relay.transpose(x)
+    output = relay.Tuple([x_transpose, y])
+    func = relay.Function([x, y], output)
+    relay.build(func, 'llvm')
+
+
 if __name__ == "__main__":
     test_compile_engine()
     test_compile_placeholder_bypass()
+    test_compile_injective_with_tuple()
+

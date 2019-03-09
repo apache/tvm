@@ -76,8 +76,8 @@ TVM_REGISTER_GLOBAL("nnvm.compiler._register_alter_op_layout")
     if (ret.type_code() == TVMTypeCode::kNull) {
       return false;
     }
-    CHECK_EQ(ret.type_code(), tvm::runtime::extension_class_info<Symbol>::code)
-      << " expected " << "Symbol (code = " << tvm::runtime::extension_class_info<Symbol>::code
+    CHECK_EQ(ret.type_code(), tvm::runtime::extension_type_info<Symbol>::code)
+      << " expected " << "Symbol (code = " << tvm::runtime::extension_type_info<Symbol>::code
       << ") but get code = " << ret.type_code();
     *ret_symbol = *(static_cast<Symbol*>(ret.value().v_handle));
     return true;

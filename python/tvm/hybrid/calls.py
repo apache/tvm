@@ -4,10 +4,12 @@ semantic support."""
 from .. import api as _api
 from .. import expr as _expr
 from .. import make as _make
+from .. import target as _tgt
 from ..container import Array
 from .. import ir_pass
 from ..stmt import For
 from .util import _internal_assert
+from ..intrin import call_pure_intrin
 
 #pylint: disable=redefined-builtin
 
@@ -44,8 +46,8 @@ def bind(func_id, args):
     _internal_assert(args.__len__() == 2, "A loop bind should only have 2 arguments!")
     _internal_assert(isinstance(args[0], str), \
                      "A loop bind's first argument should be a string!")
-    iter_var = _api.thread_axis(args[0])
     low, ext = _api.const(0, "int32"), args[1]
+    iter_var = _api.thread_axis((low, ext), args[0])
     for_type = None
     return iter_var, low, ext, for_type
 
@@ -104,3 +106,40 @@ def len(func_id, args):
     except: #pylint: disable=bare-except
         _internal_assert(args[0].shape.__len__() == 1, "Only one-dimension array can get len")
         return _api.convert(args[0].shape[0])
+
+
+def _cast(func_id, args):
+    _internal_assert(args.__len__() == 1 and isinstance(args[0], _expr.Expr), \
+                     "Only one expression can be cast")
+    return _make.Cast(func_id, args[0])
+
+float16 = float32 = float64 = _cast #pylint: disable=invalid-name
+int8 = int16 = int32 = int64 = _cast #pylint: disable=invalid-name
+uint8 = uint16 = uint32 = uint64 = _cast #pylint: disable=invalid-name
+
+
+def ceil_div(func_id, args):
+    _internal_assert(func_id == "ceil_div", "This function cannot be directly invoked!")
+    _internal_assert(args.__len__() == 2, "2 arguments expected for division!")
+    _internal_assert(isinstance(args[0], _expr.Expr), "Only expressions can div")
+    _internal_assert(isinstance(args[1], _expr.Expr), "Only expressions can div")
+    a, b = args[0], args[1]
+    return (a + b - 1) // b
+
+
+def likely(func_id, args):
+    _internal_assert(args.__len__() == 1, \
+                     "Only one expression can be likely")
+    _internal_assert(func_id == "likely", "This function cannot be directly invoked!")
+    return call_pure_intrin(args[0].dtype, 'likely', *args)
+
+
+def max_num_threads(func_id, args):
+    _internal_assert(func_id == "max_num_threads", "This function cannot be directly invoked!")
+    _internal_assert(args.__len__() <= 1, "At most one argument accepted!")
+    if args.__len__() == 0:
+        res = _tgt.current_target().max_num_threads
+    else:
+        _internal_assert(isinstance(args[0], _expr.UIntImm), "In tvm bool should be uint")
+        res = _tgt.current_target(args[0].value).max_num_threads
+    return _api.convert(res)

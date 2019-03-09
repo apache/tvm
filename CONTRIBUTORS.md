@@ -19,12 +19,13 @@ We do encourage everyone to work anything they are interested in.
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Masahiro Masuda](https://github.com/masahi): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
+- [Jared Roesch](https://github.com/jroesch): @jroesch - relay
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Eddie Yan](https://github.com/eqy): @eqy - runtime, autotvm, rpc, topi
-- [Lianmin Zheng](https://github.com/merrymercy): @merrymercy - autotvm, topi
+- [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, topi, relay
 
 ## Reviewers
 
@@ -32,6 +33,7 @@ We do encourage everyone to work anything they are interested in.
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Zhi Chen](https://github.com/zhiics): @zhiics
+- [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
@@ -51,14 +53,15 @@ We do encourage everyone to work anything they are interested in.
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
+- [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Jian Weng](https://github.com/were): @were
+- [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
 - [Eddie Yan](https://github.com/eqy): @eqy
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
-- [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/dmlc/tvm/graphs/contributors)

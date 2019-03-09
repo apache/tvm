@@ -38,12 +38,12 @@
 #define TVM_DLL __declspec(dllimport)
 #endif
 #else
-#define TVM_DLL
+#define TVM_DLL __attribute__((visibility("default")))
 #endif
 #endif
 
 // TVM version
-#define TVM_VERSION "0.5.dev"
+#define TVM_VERSION "0.6.dev"
 
 
 // TVM Runtime is DLPack compatible.

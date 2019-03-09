@@ -124,6 +124,31 @@ def verify_concatenate(shapes, axis):
     for device in get_all_backend():
         check_device(device)
 
+def verify_stack(shapes, axis):
+    tensor_l = []
+    for i, shape in enumerate(shapes):
+        tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
+    out_tensor = topi.stack(tensor_l, axis)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_broadcast(out_tensor)
+
+        foo = tvm.build(s, tensor_l + [out_tensor], device, name="stack")
+        data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
+        out_npy = np.stack(data_npys, axis=axis)
+        data_nds = [tvm.nd.array(data_npy, ctx) for data_npy in data_npys]
+        out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=out_tensor.dtype)
+        foo(*(data_nds + [out_nd]))
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
 
 def verify_split(src_shape, indices_or_sections, axis):
     A = tvm.placeholder(shape=src_shape, name="A")
@@ -304,6 +329,36 @@ def verify_gather_nd(src_shape, indices_src, indices_dtype):
     for device in get_all_backend():
         check_device(device)
 
+def verify_arange(start, stop, step):
+    if start is None and step is None:
+        A = topi.arange(stop)
+        a_np = np.arange(stop)
+    elif start is None:
+        A = topi.arange(stop, step=step)
+        a_np = np.arange(stop, step=step)
+    elif step is None:
+        A = topi.arange(start, stop)
+        a_np = np.arange(start, stop)
+    else:
+        A = topi.arange(start, stop, step)
+        a_np = np.arange(start, stop, step)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(A)
+        f = tvm.build(s, [A], device, name="arange")
+        a_nd = tvm.nd.empty(a_np.shape, dtype='float32', ctx=ctx)
+        f(a_nd)
+        tvm.testing.assert_allclose(a_nd.asnumpy(), a_np)
+
+    for device in get_all_backend():
+        check_device(device)
+
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
@@ -353,7 +408,7 @@ def test_squeeze():
 
 
 def test_concatenate():
-    verify_concatenate([(2,), (2,), (2,)], 0)
+    verify_concatenate([(2,), (2,), (2,)], -1)
     verify_concatenate([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1)
     verify_concatenate([(1, 2, 4), (1, 2, 3), (1, 2, 7), (1, 2, 8), (1, 2, 1)], -1)
     verify_concatenate([(5, 6, 7, 3),
@@ -361,6 +416,14 @@ def test_concatenate():
                         (12, 6, 7, 3),
                         (8, 6, 7, 3),
                         (2, 6, 7, 3)], 0)
+
+
+def test_stack():
+    verify_stack([(2,), (2,), (2,)], -1)
+    verify_stack([(2,), (2,), (2,)], 1)
+    verify_stack([(2,), (2,), (2,)], 0)
+    verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
+    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
 
 
 def test_split():
@@ -407,9 +470,50 @@ def test_gather_nd():
         verify_gather_nd((2, 3, 4, 5), [[1, 0], [2, 1], [3, 2], [4, 2]],
                          indices_dtype)
 
+def test_arange():
+    verify_arange(None, 20, None)
+    verify_arange(None, 20, 2)
+    verify_arange(1, 20, None)
+    verify_arange(1, 20, 2)
+    verify_arange(1, 20, 1.5)
+    verify_arange(1, 20.5, None)
+    verify_arange(1, 20, 3)
+    verify_arange(20, 1, -1)
+    verify_arange(20, 1, -1.5)
+
+
+def test_layout_transform():
+    in_shape = (1, 32, 8, 8)
+    A = tvm.placeholder(shape=in_shape, dtype="float32", name="A")
+    B = topi.layout_transform(A, "NCHW", "NCHW16c")
+
+    input = np.random.uniform(size=in_shape).astype(A.dtype)
+    output = np.transpose(input, axes=(0, 2, 3, 1))
+    output = np.reshape(output, newshape=(1, 8, 8, 2, 16))
+    output = np.transpose(output, axes=(0, 3, 1, 2, 4))
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        tvm_input = tvm.nd.array(input, ctx)
+        tvm_output = tvm.nd.empty(output.shape, ctx=ctx, dtype=B.dtype)
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(B)
+        f = tvm.build(s, [A, B], device, name="layout_transform")
+        f(tvm_input, tvm_output)
+        tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
+
+    for backend in get_all_backend():
+        check_device(backend)
+
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
+    test_stack()
     test_tranpose()
     test_expand_dims()
     test_reshape()
@@ -419,3 +523,5 @@ if __name__ == "__main__":
     test_expand_like()
     test_take()
     test_gather_nd()
+    test_arange()
+    test_layout_transform()

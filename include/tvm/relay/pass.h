@@ -27,7 +27,7 @@ namespace relay {
  *
  * \return A type checked expression with its checked_type field populated.
  */
-Expr InferType(const Expr& expr, const Module& mod);
+TVM_DLL Expr InferType(const Expr& expr, const Module& mod);
 
 /*!
  * \brief Infer the type of a function as if it is mapped to var in the mod.
@@ -39,8 +39,8 @@ Expr InferType(const Expr& expr, const Module& mod);
  * \return A type checked Function with its checked_type field populated.
  * \note this function mutates mod and is not thread-safe.
  */
-Function InferType(const Function& f, const Module& mod,
-                   const GlobalVar& var);
+TVM_DLL Function InferType(const Function& f, const Module& mod,
+                           const GlobalVar& var);
 
 /*!
  * \brief Check that types are well kinded by applying "kinding rules".
@@ -56,9 +56,9 @@ Function InferType(const Function& f, const Module& mod,
  * \param t The type to check.
  * \param mod The global module.
  *
- * \return true if the rules are satisified otherwise false
+ * \return The kind of the passed type.
  */
-bool KindCheck(const Type& t, const Module& mod);
+TVM_DLL Kind KindCheck(const Type& t, const Module& mod);
 
 /*! \brief Compare two expressions for structural equivalence.
  *
@@ -75,7 +75,7 @@ bool KindCheck(const Type& t, const Module& mod);
  *
  *   \return true if equal, otherwise false
  */
-bool AlphaEqual(const Expr& e1, const Expr& e2);
+TVM_DLL bool AlphaEqual(const Expr& e1, const Expr& e2);
 
 /*! \brief Compare two types for structural equivalence.
  *
@@ -93,7 +93,7 @@ bool AlphaEqual(const Expr& e1, const Expr& e2);
  *
  * \return true if equal, otherwise false
  */
-bool AlphaEqual(const Type& t1, const Type& t2);
+TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
 
 /*! \brief Check that each Var is only bound once.
  *
@@ -106,7 +106,7 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  *
   * \return true iff all Var in expr is bound at most once.
  */
-bool WellFormed(const Expr& expr);
+TVM_DLL bool WellFormed(const Expr& expr);
 
 /*! \brief Get all bound variables from expression expr.
  *
@@ -117,7 +117,7 @@ bool WellFormed(const Expr& expr);
  *
  * \return List of bound vars, in the PostDFS order in the expression.
  */
-tvm::Array<Var> BoundVars(const Expr& expr);
+TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
 
 /*! \brief Get free type parameters from expression expr.
  *
@@ -128,7 +128,7 @@ tvm::Array<Var> BoundVars(const Expr& expr);
  *
  * \return List of free vars, in the PostDFS order in the expression.
  */
-tvm::Array<Var> FreeVars(const Expr& expr);
+TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
 
 /*! \brief Get all variables from expression expr.
  *
@@ -136,7 +136,7 @@ tvm::Array<Var> FreeVars(const Expr& expr);
  *
  * \return List of all vars, in the PostDFS order in the expression.
  */
-tvm::Array<Var> AllVars(const Expr& expr);
+TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
 
 /*! \brief Get free TypeVars from expression expr.
  *
@@ -144,10 +144,11 @@ tvm::Array<Var> AllVars(const Expr& expr);
  * type in the context.
  *
  * \param expr the expression.
+ * \param mod the module.
  *
  * \return List of free vars, in the PostDFS order visited by expr.
  */
-tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
+TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const Module& mod);
 
 /*! \brief Get free TypeVars from type t.
  *
@@ -155,10 +156,11 @@ tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
  * type in the context.
  *
  * \param t the type.
+ * \param mod the module.
  *
  * \return List of free type vars, in the PostDFS order visited by type.
  */
-tvm::Array<TypeVar> FreeTypeVars(const Type& t);
+TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t, const Module& mod);
 
 /*! \brief Get all bound type variables from expression expr.
  *
@@ -166,10 +168,11 @@ tvm::Array<TypeVar> FreeTypeVars(const Type& t);
  * They only have meaning inside that expr, and can only be used in it.
  *
  * \param expr the expression.
+ * \param mod the module.
  *
  * \return List of bound type vars, in the PostDFS order in the expression.
  */
-tvm::Array<TypeVar> BoundTypeVars(const Expr& expr);
+TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const Module& mod);
 
 /*! \brief Get all bound type variables from type t.
  *
@@ -177,26 +180,29 @@ tvm::Array<TypeVar> BoundTypeVars(const Expr& expr);
  * They only have meaning inside that type, and can only be used in it.
  *
  * \param t the type
+ * \param mod the module.
  *
  * \return List of bound type vars, in the PostDFS order visited by type.
  */
-tvm::Array<TypeVar> BoundTypeVars(const Type& t);
+TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Type& t, const Module& mod);
 
 /*! \brief Get all type variables in expression expr.
  *
  * \param expr the expression.
+ * \param mod the module.
  *
  * \return List of type vars, in the PostDFS order in the expression.
  */
-tvm::Array<TypeVar> AllTypeVars(const Expr& expr);
+TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod);
 
 /*! \brief Get all type variables in type t.
  *
  * \param t the type.
+ * \param mod the module.
  *
  * \return List of type vars, in the PostDFS order visited by type.
  */
-tvm::Array<TypeVar> AllTypeVars(const Type& t);
+TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -211,14 +217,14 @@ tvm::Array<TypeVar> AllTypeVars(const Type& t);
  *
  * \return the optimized expression.
  */
-Expr DeadCodeElimination(const Expr& e);
+TVM_DLL Expr DeadCodeElimination(const Expr& e);
 
 /*!
  * \brief Fold constant expressions.
  * \param expr the expression to be optimized.
  * \return The optimized expression.
  */
-Expr FoldConstant(const Expr& expr);
+TVM_DLL Expr FoldConstant(const Expr& expr);
 
 /*!
  * \brief Fuse operations into expr into seperate functions.
@@ -226,7 +232,7 @@ Expr FoldConstant(const Expr& expr);
  * \param fuse_opt_level Optimization level.
  * \return The optimized expression.
  */
-Expr FuseOps(const Expr& expr, int fuse_opt_level);
+TVM_DLL Expr FuseOps(const Expr& expr, int fuse_opt_level);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order.
@@ -238,7 +244,7 @@ Expr FuseOps(const Expr& expr, int fuse_opt_level);
  *                           an Expr consumed by multiple callers.
  * \return The rewritten expression.
  */
-Expr ForwardRewrite(const Expr& expr,
+TVM_DLL Expr ForwardRewrite(const Expr& expr,
                     const std::string& rewrite_map_attr_name,
                     std::function<NodeRef(const Call&)> fcontext = nullptr,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
@@ -252,7 +258,7 @@ Expr ForwardRewrite(const Expr& expr,
  *                           an Expr consumed by multiple callers.
  * \return The rewritten expression.
  */
-Expr ForwardRewrite(const Expr& expr,
+TVM_DLL Expr ForwardRewrite(const Expr& expr,
                     const FForwardRewrite& rewrite_func,
                     std::function<NodeRef(const Call&)> fcontext = nullptr,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
@@ -264,14 +270,14 @@ Expr ForwardRewrite(const Expr& expr,
  *                        operators without annotation.
  * \return The updated program.
  */
-Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
+TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
 
 /*!
  * \brief Collect the device mapping information of each expression.
  * \param expr The expression.
  * \return The device mapping.
  */
-Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
+TVM_DLL Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {
@@ -314,7 +320,18 @@ struct StructuralHash {
  *
  * \return expression in A-Normal Form
  */
-Expr ToANF(const Expr& e, const Module& mod);
+Expr ToANormalForm(const Expr& e, const Module& mod);
+
+/*! \brief Remove let binding and directly share via pointer instead.
+ *
+ * It will remove all let binding,
+ * and turn all of the variable bound by let into direct pointer reference.
+ *
+ * \param e the expression.
+ *
+ * \return the expression in graph normal form.
+ */
+Expr ToGraphNormalForm(const Expr& e);
 
 }  // namespace relay
 }  // namespace tvm

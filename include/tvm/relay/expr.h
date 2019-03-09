@@ -34,12 +34,7 @@ class ExprNode : public RelayNode {
   /*!
    * \return The checked_type
    */
-  const Type& checked_type() const {
-    CHECK(checked_type_.defined()) << "internal error: the type checker has "
-                                      "not populated the checked_type "
-                                      "field for this node";
-    return this->checked_type_;
-  }
+  const Type& checked_type() const;
   /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.
@@ -235,8 +230,8 @@ class FunctionNode : public ExprNode {
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
-    v->Visit("span", &span);
     v->Visit("attrs", &attrs);
+    v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -428,11 +423,77 @@ class TupleGetItemNode : public ExprNode {
 
   TVM_DLL static TupleGetItem make(Expr tuple, int index);
 
-  static constexpr const char * _type_key = "relay.TupleGetItem";
+  static constexpr const char* _type_key = "relay.TupleGetItem";
   TVM_DECLARE_NODE_TYPE_INFO(TupleGetItemNode, ExprNode);
 };
 
 RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
+
+/*! \brief Create a new Reference out of initial value. */
+class RefCreate;
+class RefCreateNode : public ExprNode {
+ public:
+  /*! \brief The initial value of the Reference. */
+  Expr value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  TVM_DLL static RefCreate make(Expr value);
+
+  static constexpr const char* _type_key = "relay.RefCreate";
+  TVM_DECLARE_NODE_TYPE_INFO(RefCreateNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(RefCreate, RefCreateNode, Expr);
+
+/*! \brief Get value out of Reference. */
+class RefRead;
+class RefReadNode : public ExprNode {
+ public:
+  /*! \brief The Reference Expression. */
+  Expr ref;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("ref", &ref);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  TVM_DLL static RefRead make(Expr ref);
+
+  static constexpr const char* _type_key = "relay.RefRead";
+  TVM_DECLARE_NODE_TYPE_INFO(RefReadNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(RefRead, RefReadNode, Expr);
+
+/*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
+class RefWrite;
+class RefWriteNode : public ExprNode {
+ public:
+  /*! \brief The Reference Expression. */
+  Expr ref;
+  /*! \brief The value to write into. */
+  Expr value;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("ref", &ref);
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  TVM_DLL static RefWrite make(Expr ref, Expr value);
+
+  static constexpr const char* _type_key = "relay.RefWrite";
+  TVM_DECLARE_NODE_TYPE_INFO(RefWriteNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(RefWrite, RefWriteNode, Expr);
 
 /*!
  * \brief Base class of the temporary expression.
@@ -461,6 +522,14 @@ class TempExprNode : public ExprNode {
 RELAY_DEFINE_NODE_REF(TempExpr, TempExprNode, Expr);
 
 // implementataions
+inline const Type& ExprNode::checked_type() const {
+  CHECK(checked_type_.defined()) << "internal error: the type checker has "
+    "not populated the checked_type "
+    "field for "
+                                 << GetRef<Expr>(this);
+  return this->checked_type_;
+}
+
 template<typename TTypeNode>
 inline const TTypeNode* ExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,

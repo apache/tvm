@@ -307,7 +307,7 @@ func (tvmval *Value) setValue(val interface{}) (retVal int32, err error) {
         case func (args ...*Value) (interface{}, error):
             fhandle, apierr := ConvertFunction(val)
             if apierr != nil {
-                err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);
+                err = fmt.Errorf("Given value Type not defined for Value: %v : %T", val, val);
                 return
             }
             tvmval.setVFHandle(*fhandle)
@@ -320,7 +320,7 @@ func (tvmval *Value) setValue(val interface{}) (retVal int32, err error) {
             fromval := val.(Value)
             tvmval.moveFrom(&fromval)
         default:
-            err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);
+            err = fmt.Errorf("Given value Type not defined for Value: %v : %T", val, val);
     }
     retVal = tvmval.dtype
     return

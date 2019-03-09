@@ -30,6 +30,18 @@ using NodePtr = std::shared_ptr<Node>;
 
 /*! \brief an entry that represents output data from a node */
 struct NodeEntry {
+  NodeEntry(NodePtr node, uint32_t index, uint32_t version):
+    node(std::move(node)),
+    index(index),
+    version(version)
+  {}
+
+  NodeEntry():
+    node(),
+    index(),
+    version()
+  {}
+
   /*! \brief the source node of this data */
   NodePtr node;
   /*! \brief index of output from the source. */
@@ -113,6 +125,11 @@ struct NodeAttrs {
  */
 class NNVM_DLL Node {
  public:
+  Node() = default;
+  Node(const Op* op, const std::string& name) {
+    this->attrs.op = op;
+    this->attrs.name = name;
+  }
   /*! \brief The attributes in the node. */
   NodeAttrs attrs;
   /*! \brief inputs to this node */
@@ -142,7 +159,10 @@ class NNVM_DLL Node {
    * \brief create a new empty shared_ptr of Node.
    * \return a created empty node.
    */
-  static NodePtr Create();
+  template<class ...Args>
+  static NodePtr Create(Args&&... args) {
+    return std::make_shared<Node>(std::forward<Args>(args)...);
+  }
 };
 
 /*!
@@ -167,13 +187,14 @@ inline NodeEntry MakeNode(
     p->attrs.op->attr_parser(&(p->attrs));
   }
   p->inputs = std::move(inputs);
-  return NodeEntry{p, 0, 0};
+  return NodeEntry(p, 0, 0);
 }
 
 // implementation of functions.
 inline const Op* Node::op() const {
   return this->attrs.op;
 }
+
 inline bool Node::is_variable() const {
   return this->op() == nullptr;
 }

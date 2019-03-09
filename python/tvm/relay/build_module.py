@@ -21,6 +21,7 @@ OPT_PASS_LEVEL = {
     "CombineParallelConv2D": 3,
     "FoldScaleAxis": 3,
     "AlterOpLayout": 3,
+    "CanonicalizeOps": 3,
 }
 
 
@@ -129,7 +130,7 @@ def _bind_params_by_name(func, params):
     return expr.bind(func, bind_dict)
 
 
-def optimize(func, target, params=None):
+def optimize(func, target=None, params=None):
     """Perform target invariant optimizations.
 
     Parameters
@@ -177,13 +178,15 @@ def optimize(func, target, params=None):
         func = ir_pass.forward_fold_scale_axis(func)
         func = ir_pass.fold_constant(func)
 
+    if cfg.pass_enabled("CanonicalizeOps"):
+        func = ir_pass.infer_type(func)
+        func = ir_pass.canonicalize_ops(func)
+
     # FIXME(zhiics) Skip AlterOpLayout pass for heterogeneous compilation for
     # now. We probably need to pass target to this pass as well. Fix it in
     # a followup PR.
     if cfg.pass_enabled("AlterOpLayout"):
         if isinstance(target, _target.Target):
-            func = ir_pass.infer_type(func)
-            func = ir_pass.canonicalize_ops(func)
             func = ir_pass.infer_type(func)
             with target:
                 func = ir_pass.alter_op_layout(func)
@@ -400,7 +403,7 @@ class GraphExecutor(_interpreter.Executor):
         graph_json, mod, params = build(func, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
         if params:
-            gmodule.set_input(*params)
+            gmodule.set_input(**params)
 
         def _graph_wrapper(*args, **kwargs):
             args = self._convert_args(func, args, kwargs)
@@ -444,7 +447,6 @@ def create_executor(kind="debug",
         target = _target.create(target)
     if kind == "debug":
         return _interpreter.Interpreter(mod, ctx, target)
-    elif kind == "graph":
+    if kind == "graph":
         return GraphExecutor(mod, ctx, target)
-    else:
-        raise RuntimeError("unknown mode {0}".format(mode))
+    raise RuntimeError("unknown mode {0}".format(mode))

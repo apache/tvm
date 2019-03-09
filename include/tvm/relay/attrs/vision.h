@@ -74,6 +74,79 @@ struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
   }
 };
 
+/*! \brief Attributes used in roi_align operators */
+struct ROIAlignAttrs : public tvm::AttrsNode<ROIAlignAttrs> {
+  Array<IndexExpr> pooled_size;
+  double spatial_scale;
+  int sample_ratio;
+  std::string layout;
+  TVM_DECLARE_ATTRS(ROIAlignAttrs, "relay.attrs.ROIAlignAttrs") {
+    TVM_ATTR_FIELD(pooled_size).describe("Output size of roi align.");
+    TVM_ATTR_FIELD(spatial_scale)
+        .describe(
+            "Ratio of input feature map height (or w) to raw image height (or w). "
+            "Equals the reciprocal of total stride in convolutional layers, which should be "
+            "in range (0.0, 1.0]");
+    TVM_ATTR_FIELD(sample_ratio)
+        .set_default(-1)
+        .describe("Optional sampling ratio of ROI align, using adaptive size by default.");
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively. Convolution is applied on the 'H' and"
+        "'W' dimensions.");
+  }
+};
+
+/*! \brief Attributes used in yolo reorg operators */
+struct YoloReorgAttrs : public tvm::AttrsNode<YoloReorgAttrs> {
+  Integer stride;
+
+  TVM_DECLARE_ATTRS(YoloReorgAttrs, "relay.attrs.YoloReorgAttrs") {
+    TVM_ATTR_FIELD(stride)
+      .set_default(1)
+      .describe("Stride value for yolo reorg");
+  }
+};
+
+/*! \brief Attributes used in proposal operators */
+struct ProposalAttrs : public tvm::AttrsNode<ProposalAttrs> {
+  Array<IndexExpr> scales;
+  Array<IndexExpr> ratios;
+  int feature_stride;
+  double threshold;
+  int rpn_pre_nms_top_n;
+  int rpn_post_nms_top_n;
+  int rpn_min_size;
+  bool iou_loss;
+
+  TVM_DECLARE_ATTRS(ProposalAttrs, "relay.attrs.ProposalAttrs") {
+    TVM_ATTR_FIELD(scales)
+        .set_default(Array<IndexExpr>({4.0f, 8.0f, 16.0f, 32.0f}))
+        .describe("Used to generate anchor windows by enumerating scales");
+    TVM_ATTR_FIELD(ratios)
+        .set_default(Array<IndexExpr>({0.5f, 1.0f, 2.0f}))
+        .describe("Used to generate anchor windows by enumerating ratios");
+    TVM_ATTR_FIELD(feature_stride)
+        .set_default(16)
+        .describe(
+            "The size of the receptive field each unit in the convolution layer of the rpn,"
+            "for example the product of all stride's prior to this layer.");
+    TVM_ATTR_FIELD(threshold)
+        .set_default(0.7)
+        .describe(
+            "IoU threshold of non-maximum suppresion (suppress boxes with IoU >= this threshold)");
+    TVM_ATTR_FIELD(rpn_pre_nms_top_n)
+        .set_default(6000)
+        .describe("Number of top scoring boxes to apply NMS. -1 to use all boxes");
+    TVM_ATTR_FIELD(rpn_post_nms_top_n)
+        .set_default(300)
+        .describe("Number of top scoring boxes to keep after applying NMS to RPN proposals");
+    TVM_ATTR_FIELD(rpn_min_size).set_default(16).describe("Minimum height or width in proposal");
+    TVM_ATTR_FIELD(iou_loss).set_default(false).describe("Usage of IoU Loss");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_VISION_H_

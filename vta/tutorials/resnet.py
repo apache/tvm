@@ -147,8 +147,7 @@ if not os.path.exists(data_dir):
 
 # Download files
 for file in [categ_fn, graph_fn, params_fn]:
-    if not os.path.isfile(file):
-        download(os.path.join(url, file), os.path.join(data_dir, file))
+    download(os.path.join(url, file), os.path.join(data_dir, file))
 
 # Read in ImageNet Categories
 synset = eval(open(os.path.join(data_dir, categ_fn)).read())

@@ -94,7 +94,7 @@ bx, tx = s[C].split(C.op.axis[0], factor=64)
 # compute grid. These are GPU specific constructs that allows us
 # to generate code that runs on GPU.
 #
-if tgt == "cuda":
+if tgt == "cuda" or tgt.startswith('opencl'):
   s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
   s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
 
@@ -149,7 +149,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 #
 # The following code fetches the device module and prints the content code.
 #
-if tgt == "cuda":
+if tgt == "cuda" or tgt.startswith('opencl'):
     dev_module = fadd.imported_modules[0]
     print("-----GPU code-----")
     print(dev_module.get_source())
@@ -193,6 +193,8 @@ temp = util.tempdir()
 fadd.save(temp.relpath("myadd.o"))
 if tgt == "cuda":
     fadd.imported_modules[0].save(temp.relpath("myadd.ptx"))
+if tgt.startswith('opencl'):
+    fadd.imported_modules[0].save(temp.relpath("myadd.cl"))
 cc.create_shared(temp.relpath("myadd.so"), [temp.relpath("myadd.o")])
 print(temp.listdir())
 
@@ -200,29 +202,34 @@ print(temp.listdir())
 # .. note:: Module Storage Format
 #
 #   The CPU(host) module is directly saved as a shared library(so).
-#   There can be multiple customed format on the device code.
+#   There can be multiple customized format on the device code.
 #   In our example, device code is stored in ptx, as well as a meta
-#   data json file. They can be loaded and linked seperatedly via import.
+#   data json file. They can be loaded and linked separately via import.
 #
 
 ######################################################################
 # Load Compiled Module
 # --------------------
 # We can load the compiled module from the file system and run the code.
-# The following code load the host and device module seperatedly and
+# The following code load the host and device module separately and
 # re-link them together. We can verify that the newly loaded function works.
 #
 fadd1 = tvm.module.load(temp.relpath("myadd.so"))
 if tgt == "cuda":
     fadd1_dev = tvm.module.load(temp.relpath("myadd.ptx"))
     fadd1.import_module(fadd1_dev)
+
+if tgt.startswith('opencl'):
+    fadd1_dev = tvm.module.load(temp.relpath("myadd.cl"))
+    fadd1.import_module(fadd1_dev)
+
 fadd1(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 ######################################################################
 # Pack Everything into One Library
 # --------------------------------
-# In the above example, we store the device and host code seperatedly.
+# In the above example, we store the device and host code separately.
 # TVM also supports export everything as one shared library.
 # Under the hood, we pack the device modules into binary blobs and link
 # them together with the host code.
@@ -254,8 +261,8 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # The following codeblocks generate opencl code, creates array on opencl
 # device, and verifies the correctness of the code.
 #
-if tgt == "opencl":
-    fadd_cl = tvm.build(s, [A, B, C], "opencl", name="myadd")
+if tgt.startswith('opencl'):
+    fadd_cl = tvm.build(s, [A, B, C], tgt, name="myadd")
     print("------opencl code------")
     print(fadd_cl.imported_modules[0].get_source())
     ctx = tvm.cl(0)
