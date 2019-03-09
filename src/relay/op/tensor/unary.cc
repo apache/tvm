@@ -178,5 +178,16 @@ RELAY_REGISTER_UNARY_OP("negative")
 .set_support_level(3)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::negative));
 
+
+RELAY_REGISTER_UNARY_OP("logical_not")
+.describe(R"code(Returns the logical inverse of input array, computed element-wise.
+
+.. math::
+   ~(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::logical_not));
+
 }  // namespace relay
 }  // namespace tvm

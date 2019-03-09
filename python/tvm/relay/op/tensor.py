@@ -191,6 +191,22 @@ def negative(data):
     return _make.negative(data)
 
 
+def logical_not(data):
+    """Compute element-wise logical not of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.logical_not(data)
+
+
 def add(lhs, rhs):
     """Addition with numpy-style broadcasting.
 
@@ -305,6 +321,42 @@ def mod(lhs, rhs):
         The computed result.
     """
     return _make.mod(lhs, rhs)
+
+
+def logical_and(lhs, rhs):
+    """logical AND with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.logical_and(lhs, rhs)
+
+
+def logical_or(lhs, rhs):
+    """logical OR with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.logical_or(lhs, rhs)
 
 
 def equal(lhs, rhs):
