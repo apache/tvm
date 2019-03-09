@@ -849,6 +849,11 @@ def _softmax():
                        transforms={'axis': ('axis', 1)})([inputs[0]], attr)
     return _impl
 
+def _logical(name):
+    def _impl(inputs, attr, params):
+        return AttrCvt(op_name=name)(inputs, attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -909,6 +914,9 @@ _convert_map = {
     'Transpose'                         : _transpose(),
     'Tanh'                              : AttrCvt('tanh'),
     'Mean'                              : _mean(),
+    'LogicalAnd'                        : _logical('logical_and'),
+    'LogicalOr'                         : _logical('logical_or'),
+    'LogicalNot'                        : _logical('logical_not'),
     'Less'                              : _broadcast('less'),
     'Greater'                           : _broadcast('greater'),
     'LessEqual'                         : _broadcast('less_equal'),
