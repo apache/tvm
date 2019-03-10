@@ -23,7 +23,9 @@ namespace arith {
  * \return nullptr if constant fold fails, otherwise return folded result.
  */
 template<typename Op>
-inline Expr TryConstFold(Expr a, Expr b);
+inline Expr TryConstFold(Expr a, Expr b) {
+  return Expr();
+}
 
 /*!
  * \brief Try to run unary compute with constant folding.
