@@ -96,6 +96,7 @@ class Analyzer:
         self._const_int_bound_update = _mod("const_int_bound_update")
         self._bind = _mod("bind")
         self._modular_set = _mod("modular_set")
+        self._rewrite_simplify = _mod("rewrite_simplify")
         self._enter_constraint_context = _mod("enter_constraint_context")
 
     def const_int_bound(self, expr):
@@ -127,6 +128,21 @@ class Analyzer:
             The result.
         """
         return self._modular_set(expr)
+
+    def rewrite_simplify(self, expr):
+        """Simplify expression via rewriting rules.
+
+        Parameters
+        ----------
+        expr : tvm.Expr
+            The expression.
+
+        Returns
+        -------
+        result : Expr
+            The result.
+        """
+        return self._rewrite_simplify(expr)
 
     def bind(self, var, expr):
         """Bind a variable to the expression.
