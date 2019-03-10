@@ -37,8 +37,9 @@ macro(find_llvm use_llvm)
     execute_process(COMMAND ${LLVM_CONFIG} --cxxflags
       OUTPUT_VARIABLE __llvm_cxxflags)
     execute_process(COMMAND ${LLVM_CONFIG} --version
-      COMMAND cut -b 1,3
-      OUTPUT_VARIABLE TVM_LLVM_VERSION)
+      OUTPUT_VARIABLE __llvm_version)
+    # llvm version
+    string(REGEX REPLACE "^([^.]+)\.([^.])+\.[^.]+.*$" "\\1\\2" TVM_LLVM_VERSION ${__llvm_version})
     # definitions
     string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_]*" LLVM_DEFINITIONS ${__llvm_cxxflags})
     # include dir
