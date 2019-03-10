@@ -248,7 +248,7 @@ PassInfo PassInfoNode::make(std::string name, int opt_level,
                             tvm::Array<tvm::Expr> required) {
   auto pass_info = make_node<PassInfoNode>();
   pass_info->name = std::move(name);
-  pass_info->opt_level = std::move(opt_level);
+  pass_info->opt_level = opt_level;
   pass_info->required = std::move(required);
   return PassInfo(pass_info);
 }
@@ -446,12 +446,12 @@ TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
   *ret = CreateModulePass(name, opt_level, required, pass_func);
 });
 
-TVM_REGISTER_API("relay._ir_pass.RunModulePass")
+TVM_REGISTER_API("relay._ir_pass.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  ModulePass pass = args[0];
+  Pass pass = args[0];
   Module mod = args[1];
   CHECK(pass.defined())
-      << "Running a pass on undefined ModulePass is not allowed."
+      << "Running an undefined pass is not allowed."
       << "\n";
 
   const auto* pn = pass.operator->();
@@ -477,17 +477,6 @@ TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
   *ret = CreateFunctionPass(name, opt_level, required, pass_func);
 });
 
-TVM_REGISTER_API("relay._ir_pass.RunFunctionPass")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  FunctionPass pass = args[0];
-  Module mod = args[1];
-  CHECK(pass.defined())
-      << "Running a pass on undefined ModulePass is not allowed."
-      << "\n";
-  const auto* pn = pass.operator->();
-  *ret = (*pn)(mod);
-});
-
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
                                    tvm::IRPrinter* p) {
@@ -507,17 +496,6 @@ TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
   tvm::Array<tvm::Expr> disabled = args[4];
   PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
   *ret = SequentialPassNode::make(pass_info, passes, disabled);
-});
-
-TVM_REGISTER_API("relay._ir_pass.RunSequentialPass")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  SequentialPass pass = args[0];
-  Module mod = args[1];
-  CHECK(pass.defined())
-      << "Running passes on undefined SequentialPass is not allowed."
-      << "\n";
-  const auto* pn = pass.operator->();
-  *ret = (*pn)(mod);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)

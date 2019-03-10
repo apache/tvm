@@ -9,7 +9,6 @@ This file contains:
    for users to implement and use passes more conveniently.
 """
 import types
-from abc import abstractmethod
 
 from . import _ir_pass
 from . import _make
@@ -57,15 +56,14 @@ class PassContext(RelayNode):
 
 @register_relay_node
 class Pass(RelayNode):
-    """The base class of all passes. This class is designed as a pure virtual
-    class that will be implemented by the subclasses.
+    """The base class of all passes. All methods here are just simple wrappers
+    that are implemented in the backend. They are defined for users to
+    conveniently interact with the base class.
     """
 
-    @abstractmethod
     def set_pass_context(self, pass_ctx):
         """Setup the pass context for analysis and optimizations. This context
-        could be shared by different passes for sequential passes. It is an
-        abstract method that will be implemented by each subclass.
+        could be shared by different passes for sequential passes.
 
         Parameters
         ----------
@@ -73,18 +71,17 @@ class Pass(RelayNode):
             The context that is used to help perform a certain pass or a series
             of passes.
         """
-        raise NotImplementedError("Pure virtual function is not implemented.")
+        if not isinstance(pass_ctx, PassContext):
+            raise TypeError("pass_ctx is expected to be the PassContext type")
+        _ir_pass.SetContext(self, pass_ctx)
 
-    @abstractmethod
     def get_pass_info(self):
-        """Get the pass meta. It is an abstract method that will be implemented
-        by each subclass."""
-        raise NotImplementedError("Pure virtual function is not implemented.")
+        """Get the pass meta."""
+        return _ir_pass.GetPassInfo(self)
 
-    @abstractmethod
     def __call__(self, mod):
-        """Execute the pass. It is an abstract function that will be
-        implemented by subclasses.
+        """Execute the pass. Note that for sequential pass, the dependency among
+        different passes will be resolved in the backend.
 
         Parameters
         ----------
@@ -96,7 +93,7 @@ class Pass(RelayNode):
         mod : tvm.relay.Module
             The updated module after applying this pass.
         """
-        raise NotImplementedError("Pure virtual function is not implemented.")
+        return _ir_pass.RunPass(self, mod)
 
 
 @register_relay_node
@@ -123,37 +120,6 @@ class ModulePass(Pass):
                                             name, opt_level, required,
                                             pass_func)
 
-    def set_pass_context(self, pass_ctx):
-        """Setup the pass context for analysis and optimizations.
-
-        Parameters
-        ----------
-        pass_ctx : PassContext
-            The context that is used to help perform a certain module pass.
-        """
-        if not isinstance(pass_ctx, PassContext):
-            raise TypeError("pass_ctx is expected to be the PassContext type")
-        _ir_pass.SetContext(self, pass_ctx)
-
-    def get_pass_info(self):
-        """Get the meta data for module pass."""
-        return _ir_pass.GetPassInfo(self)
-
-    def __call__(self, mod):
-        """Execute a module pass.
-
-        Parameters
-        ----------
-        mod : tvm.relay.Module
-            The module that the module pass is executed on.
-
-        Returns
-        -------
-        ret : tvm.relay.Module
-            The updated module.
-        """
-        return _ir_pass.RunModulePass(self, mod)
-
 
 @register_relay_node
 class FunctionPass(Pass):
@@ -179,37 +145,6 @@ class FunctionPass(Pass):
         self.__init_handle_by_constructor__(_ir_pass.CreateFunctionPass,
                                             name, opt_level, required,
                                             pass_func)
-
-    def set_pass_context(self, pass_ctx):
-        """Setup the pass context for analysis and optimizations.
-
-        Parameters
-        ----------
-        pass_ctx : PassContext
-            The context that is used to help perform the function pass.
-        """
-        if not isinstance(pass_ctx, PassContext):
-            raise TypeError("pass_ctx is expected to be the PassContext type")
-        _ir_pass.SetContext(self, pass_ctx)
-
-    def get_pass_info(self):
-        """Get the meta data for function pass."""
-        return _ir_pass.GetPassInfo(self)
-
-    def __call__(self, mod):
-        """Execute a function pass.
-
-        Parameters
-        ----------
-        mod : tvm.relay.Module
-            The module that the function pass is executed on.
-
-        Returns
-        -------
-        ret : tvm.relay.Module
-            The updated module.
-        """
-        return _ir_pass.RunFunctionPass(self, mod)
 
 
 @register_relay_node
@@ -241,37 +176,6 @@ class SequentialPass(Pass):
         self.__init_handle_by_constructor__(_ir_pass.CreateSequentialPass,
                                             name, opt_level, passes, required,
                                             disabled)
-    def set_pass_context(self, pass_ctx):
-        """Setup the pass context for analysis and optimizations. This context
-        could be shared by different passes for sequential passes.
-
-        Parameters
-        ----------
-        pass_ctx : PassContext
-            The context that is used to help perform a series of passes.
-        """
-        if not isinstance(pass_ctx, PassContext):
-            raise TypeError("pass_ctx is expected to be the PassContext type")
-        _ir_pass.SetContext(self, pass_ctx)
-
-    def get_pass_info(self):
-        """Get the meta data for sequential pass."""
-        return _ir_pass.GetPassInfo(self)
-
-    def __call__(self, mod):
-        """Execute a sequence of passes.
-
-        Parameters
-        ----------
-        mod : tvm.relay.Module
-            The module that the function pass is executed on.
-
-        Returns
-        -------
-        ret : tvm.relay.Module
-            The updated module.
-        """
-        return _ir_pass.RunSequentialPass(self, mod)
 
 
 def create_module_pass(pass_name, opt_level, pass_func, required=None):
