@@ -117,6 +117,7 @@ TEST(Pattern, Integer) {
     // special case container of Expr
     CHECK((v * c).Match(tx * 3));
     CHECK_EQ(c.Eval()->value, 3);
+    CHECK((v * 3).Match(tx * 3));
   }
   // cannot match c to ty
   CHECK(!(v * c).Match(tx * ty));

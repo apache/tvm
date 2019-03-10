@@ -193,6 +193,39 @@ class ModularSetAnalyzer {
 };
 
 /*!
+ * \brief Rewrite-rule based simplifier.
+ */
+class RewriteSimplifier {
+ public:
+  /*!
+   * \brief analyze the expr
+   * \param expr The expression of interest.
+   * \return the result of the analysis.
+   */
+  Expr operator()(const Expr& expr);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_expr
+   * \param override Whether do we allow override of existing information.
+   */
+  void Update(const Var& var,
+              const Expr& new_expr,
+              bool override = false);
+
+ private:
+  friend class Analyzer;
+  friend class ConstraintContext;
+  explicit RewriteSimplifier(Analyzer* parent);
+  ~RewriteSimplifier();
+  class Impl;
+  /*! \brief Internal impl */
+  Impl* impl_;
+};
+
+/*!
  * \brief A RAII constraint context.
  *
  * \code
@@ -242,6 +275,8 @@ class Analyzer {
   ConstIntBoundAnalyzer const_int_bound;
   /*! \brief sub-analyzer: modular set */
   ModularSetAnalyzer modular_set;
+  /*! \brief sub-analyzer rewrite simplfy */
+  RewriteSimplifier rewrite_simplify;
   /*! \brief constructor */
   Analyzer();
   /*!
