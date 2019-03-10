@@ -25,8 +25,19 @@ tvm.relay.op
 
 .. autofunction:: tvm.relay.op.debug
 
+.. automodule:: tvm.relay.op.reduce
+    :members:
 
-.. toctree::
-   :maxdepth: 2
+.. automodule:: tvm.relay.op.tensor
+    :members:
 
-   langref/relay_op
+.. automodule:: tvm.relay.op.transform
+    :members:
+
+.. automodule:: tvm.relay.op.nn
+    :members:
+
+.. automodule:: tvm.relay.op.vision.multibox
+    :members:
+
+.. autofunction:: tvm.relay.vision.nms
