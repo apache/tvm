@@ -12,5 +12,8 @@ tvm.relay.base
 .. autoclass:: tvm.relay.base.Span
     :members:
 
+.. autoclass:: tvm.relay.base.SourceName
+    :members:
+
 .. autoclass:: tvm.relay.base.Id
     :members:

@@ -39,15 +39,21 @@ tvm.relay.expr
 .. autoclass:: tvm.relay.expr.TupleGetItem
     :members:
 
+.. autoclass:: tvm.relay.expr.RefCreate
+    :members:
+
+.. autoclass:: tvm.relay.expr.RefRead
+    :members:
+
+.. autoclass:: tvm.relay.expr.RefWrite
+    :members:
+
+.. autoclass:: tvm.relay.expr.TupleGetItem
+    :members:
+
 .. autoclass:: tvm.relay.expr.TempExpr
     :members:
 
-.. autoclass:: tvm.relay.expr.ExprFunctor
-    :members:
-
-.. autoclass:: tvm.relay.expr.ExprMutator
-    :members:
-
 .. autoclass:: tvm.relay.expr.TupleWrapper
-    :members
+    :members:
 

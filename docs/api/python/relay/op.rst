@@ -3,23 +3,30 @@ tvm.relay.op
 .. automodule:: tvm.relay.op
     :members:
 
-.. automodule:: tvm.relay.op.op
-    :members:
+.. autofunction:: tvm.relay.op.Op
 
-.. automodule:: tvm.relay.op.reduce
-    :members:
+.. autofunction:: tvm.relay.op.OpPattern
 
-.. automodule:: tvm.relay.op.tensor
-    :members:
+.. autofunction:: tvm.relay.op.get
 
-.. automodule:: tvm.relay.op.transform
-    :members:
+.. autofunction:: tvm.relay.op.register
 
-.. automodule:: tvm.relay.op.nn.nn
-    :members:
+.. autofunction:: tvm.relay.op.register_schedule
 
-.. automodule:: tvm.relay.op.vision.multibox
-    :members:
+.. autofunction:: tvm.relay.op.register_pattern
 
-.. automodule:: tvm.relay.op.vision.nms
-    :members:
+.. autofunction:: tvm.relay.op.register_compute
+
+.. autofunction:: tvm.relay.op.register_gradient
+
+.. autofunction:: tvm.relay.op.register_alter_op_layout
+
+.. autofunction:: tvm.relay.op.schedule_injective
+
+.. autofunction:: tvm.relay.op.debug
+
+
+.. toctree::
+   :maxdepth: 2
+
+   langref/relay_op
