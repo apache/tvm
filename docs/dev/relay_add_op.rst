@@ -185,9 +185,6 @@ of the inputs, we use ``collapse_sum_like`` to take the contents of the
 differentiating with respect to. We only need to do this for operators with
 broadcasting behaviors.
 
-TODO: Why do we only have ``collapse_sum_like`` on some of the gradient
-operators in ``relay/op/_tensor_grad.py``?
-
 Summary
 -------
 
