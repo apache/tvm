@@ -190,7 +190,7 @@ def test_ref():
     np.testing.assert_allclose(forward.asnumpy(), 2 * x_nd.asnumpy())
     np.testing.assert_allclose(grad_x.asnumpy(), 2 * np.ones_like(grad_x.asnumpy()))
 
-def test_second_order():
+def test_square_second_order():
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
@@ -218,4 +218,4 @@ if __name__ == "__main__":
     test_tuple()
     test_pow()
     test_ref()
-    test_second_order()
+    test_square_second_order()
