@@ -73,6 +73,8 @@ List of operators
    topi.logical_not
    topi.arange
    topi.stack
+   topi.repeat
+   topi.tile
    topi.layout_transform
    topi.image.resize
 
@@ -132,6 +134,8 @@ topi
 .. autofunction:: topi.less
 .. autofunction:: topi.arange
 .. autofunction:: topi.stack
+.. autofunction:: topi.repeat
+.. autofunction:: topi.tile
 .. autofunction:: topi.layout_transform
 
 topi.nn

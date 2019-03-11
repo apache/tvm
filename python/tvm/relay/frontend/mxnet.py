@@ -166,6 +166,10 @@ def _mx_dropout(inputs, attrs):
     return _op.nn.dropout(inputs[0], rate=rate)
 
 
+def _mx_BlockGrad(inputs, attrs): #pylint: disable=unused-argument
+    return inputs
+
+
 def _mx_batch_norm(inputs, attrs):
     if attrs.get_bool("output_mean_var", False):
         raise RuntimeError("batch_norm do not support output_mean_var")
@@ -357,6 +361,21 @@ def _mx_arange(inputs, attrs):
     return _op.arange(**new_attrs)
 
 
+def _mx_repeat(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["repeats"] = attrs.get_int("repeats")
+    new_attrs["axis"] = attrs.get_int("axis", 0)
+    return _op.repeat(inputs[0], **new_attrs)
+
+
+def _mx_tile(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["reps"] = attrs.get_int_tuple("reps")
+    return _op.tile(inputs[0], **new_attrs)
+
+
 def _mx_roi_align(inputs, attrs):
     new_attrs = {}
     new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
@@ -490,6 +509,9 @@ _convert_map = {
     "batch_dot"     : _mx_batch_dot,
     "LeakyReLU"     : _mx_leaky_relu,
     "_arange"       : _mx_arange,
+    "repeat"        : _mx_repeat,
+    "tile"          : _mx_tile,
+    "BlockGrad"     : _mx_BlockGrad,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     # vision

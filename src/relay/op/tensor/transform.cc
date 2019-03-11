@@ -1035,6 +1035,175 @@ RELAY_REGISTER_OP("arange")
 .set_attr<FTVMCompute>("FTVMCompute", ArangeCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// repeat operator
+TVM_REGISTER_NODE_TYPE(RepeatAttrs);
+
+bool RepeatRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "repeat: expect input type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<RepeatAttrs>();
+  const int ndim = static_cast<int>(data->shape.size());
+  const int repeats = param->repeats;
+  const int axis = param->axis;
+  CHECK(repeats >= 1)
+    << "repeat only accepts `repeats >= 1`"
+    << ", but got repeats = " << repeats;
+  CHECK(-ndim - 1 <= axis && axis <= ndim)
+    << "repeat only accepts `axis` in [-data.ndim - 1, data.ndim]"
+    << ", but got axis = " << axis
+    << ", and data.ndim = " << ndim;
+  const int pivot = axis < 0 ? ndim + axis : axis;
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(ndim + repeats);
+  for (int i = 0; i < pivot; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+  oshape.emplace_back(data->shape[pivot] * repeats);
+  for (int i = pivot + 1; i < ndim; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+Array<Tensor> RepeatCompute(const Attrs& attrs,
+                            const Array<Tensor>& inputs,
+                            const Type& out_type,
+                            const Target& target) {
+  const RepeatAttrs *param = attrs.as<RepeatAttrs>();
+  CHECK(param != nullptr);
+  return { topi::repeat(inputs[0], param->repeats, param->axis) };
+}
+
+Expr MakeRepeat(Expr data,
+                    int repeats,
+                    int axis) {
+  auto attrs = make_node<RepeatAttrs>();
+  attrs->repeats = repeats;
+  attrs->axis = axis;
+  static const Op& op = Op::Get("repeat");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.repeat")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakeRepeat, args, rv);
+});
+
+RELAY_REGISTER_OP("repeat")
+.describe(R"code(Repeat elements of an array `repeats` times along axis `axis`
+
+- **data**: The input data to the operator.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.Repeat")
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(1)
+.add_type_rel("Repeat", RepeatRel)
+.set_attr<FTVMCompute>("FTVMCompute", RepeatCompute)
+.set_attr<TOpPattern>("TOpPattern", kBroadcast);
+
+// tile operator
+TVM_REGISTER_NODE_TYPE(TileAttrs);
+
+bool TileRel(const Array<Type>& types,
+             int num_inputs,
+             const Attrs& attrs,
+             const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "tile: expect input type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<TileAttrs>();
+  const size_t ndim = data->shape.size();
+  const Array<Integer>& reps = param->reps;
+  // check dimension match
+  CHECK(!reps.defined())
+    << "repetition array is not defined. data.ndim = " << ndim;
+  const size_t rndim = reps.size();
+  size_t tndim = (ndim > rndim) ? ndim : rndim;
+  // re-construct data shape or reps shape
+  std::vector<IndexExpr> data_shape;
+  std::vector<IndexExpr> reps_shape;
+  data_shape.reserve(tndim);
+  reps_shape.reserve(tndim);
+  if (ndim == rndim) {
+    for (size_t i = 0; i < tndim; ++i) {
+        data_shape.emplace_back(data->shape[i]);
+        reps_shape.emplace_back(reps[i]);
+    }
+  } else if (ndim > rndim) {
+    for (size_t i = 0; i < ndim; ++i)
+        data_shape.emplace_back(data->shape[i]);
+    for (size_t i = 0; i < (ndim - rndim); ++i)
+        reps_shape.emplace_back(1);
+    for (size_t i = 0; i < rndim; ++i)
+        reps_shape.emplace_back(reps[i]);
+  } else {
+    for (size_t i = 0; i < rndim; ++i)
+        reps_shape.emplace_back(reps[i]);
+  }
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(tndim);
+  for (size_t i = 0; i < tndim; ++i) {
+    oshape.emplace_back(data_shape[i] * reps_shape[i]);
+  }
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+Array<Tensor> TileCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  const TileAttrs *param = attrs.as<TileAttrs>();
+  CHECK(param != nullptr);
+  return { topi::tile(inputs[0], param->reps) };
+}
+
+Expr MakeTile(Expr data,
+              Array<Integer> reps) {
+  auto attrs = make_node<TileAttrs>();
+  attrs->reps = reps;
+  static const Op& op = Op::Get("tile");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.tile")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeTile, args, rv);
+});
+
+RELAY_REGISTER_OP("tile")
+.describe(R"code(Repeat the whole array multiple times.
+
+- **data**: The input data to the operator.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.Tile")
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(1)
+.add_type_rel("Tile", TileRel)
+.set_attr<FTVMCompute>("FTVMCompute", TileCompute)
+.set_attr<TOpPattern>("TOpPattern", kBroadcast);
+
 // where operator
 bool WhereRel(const Array<Type>& types,
               int num_inputs,
