@@ -8,11 +8,62 @@ import topi.testing
 
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
-from topi.vision import ssd, nms
+from topi.vision import ssd, non_max_suppression, get_valid_counts
 
 
-def test_nms():
+def verify_get_valid_counts(dshape, score_threshold):
+    dtype = "float32"
+    batch_size, num_anchor, elem_length = dshape
+    np_data = np.random.uniform(size=dshape).astype(dtype)
+    np_out1 = np.zeros(shape=(batch_size,))
+    np_out2 = np.zeros(shape=dshape).astype(dtype)
+    for i in range(batch_size):
+        np_out1[i] = 0
+        inter_idx = 0
+        for j in range(num_anchor):
+            score = np_data[i, j, 1]
+            if score > score_threshold:
+                for k in range(elem_length):
+                    np_out2[i, inter_idx, k] = np_data[i, j, k]
+                np_out1[i] += 1
+                inter_idx += 1
+            if j >= np_out1[i]:
+                for k in range(elem_length):
+                    np_out2[i, j, k] = -1.0
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            data = tvm.placeholder(dshape, name="data", dtype=dtype)
+            outs = get_valid_counts(data, score_threshold)
+            s = topi.generic.schedule_multibox_prior(outs)
+
+        tvm_input_data = tvm.nd.array(np_data, ctx)
+        tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), ctx)
+        tvm_out2 = tvm.nd.array(np.zeros(np_out2.shape, dtype=dtype), ctx)
+        f = tvm.build(s, [data, outs[0], outs[1]], device)
+        f(tvm_input_data, tvm_out1, tvm_out2)
+        tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
+
+    for device in ['llvm']:
+        check_device(device)
+
+
+def test_get_valid_counts():
+    verify_get_valid_counts((1, 2500, 6), 0)
+    verify_get_valid_counts((1, 2500, 6), -1)
+    verify_get_valid_counts((3, 1000, 6), 0.55)
+    verify_get_valid_counts((16, 500, 6), 0.95)
+
+
+def test_non_max_suppression():
     dshape = (1, 5, 6)
+    indices_dshape = (1, 5)
     data = tvm.placeholder(dshape, name="data")
     valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
     nms_threshold = 0.7
@@ -24,8 +75,9 @@ def test_nms():
                          [1, 0.5, 100, 60, 70, 110]]]).astype(data.dtype)
     np_valid_count = np.array([4]).astype(valid_count.dtype)
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [0, 0.4, 4, 21, 19, 40], [-1, 0.9, 35, 61, 52, 79],
+                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
+    np_indices_result = np.array([[3, 0, -1, -1, -1]])
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -35,17 +87,26 @@ def test_nms():
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             if device == 'llvm':
-                out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+                out = non_max_suppression(data, valid_count, -1, nms_threshold, force_suppress, nms_topk, return_indices=False)
+                indices_out = non_max_suppression(data, valid_count, -1, nms_threshold, force_suppress, nms_topk)
             else:
-                out = topi.cuda.nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+                out = topi.cuda.non_max_suppression(data, valid_count, -1, nms_threshold, force_suppress, nms_topk, return_indices=False)
+                indices_out = topi.cuda.non_max_suppression(data, valid_count, -1, nms_threshold, force_suppress, nms_topk)
             s = topi.generic.schedule_nms(out)
+            indices_s = topi.generic.schedule_nms(indices_out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
+
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
         f = tvm.build(s, [data, valid_count, out], device)
         f(tvm_data, tvm_valid_count, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
+
+        tvm_indices_out = tvm.nd.array(np.zeros(indices_dshape, dtype="int32"), ctx)
+        f = tvm.build(indices_s, [data, valid_count, indices_out], device)
+        f(tvm_data, tvm_valid_count, tvm_indices_out)
+        tvm.testing.assert_allclose(tvm_indices_out.asnumpy(), np_indices_result, rtol=1e-4)
 
     for device in ['llvm']:
         check_device(device)
@@ -274,7 +335,8 @@ def test_proposal():
 
 
 if __name__ == "__main__":
-    test_nms()
+    test_get_valid_counts()
+    test_non_max_suppression()
     test_multibox_prior()
     test_multibox_detection()
     test_roi_align()

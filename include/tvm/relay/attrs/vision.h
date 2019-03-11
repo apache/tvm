@@ -58,19 +58,42 @@ struct MultiBoxTransformLocAttrs
   }
 };
 
-/*! \brief Attributes used in non_maximum_suppression operators */
-struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
-  double overlap_threshold;
-  bool force_suppress;
-  int topk;
+/*! \brief Attributes used in get_valid_counts operator */
+struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
+  double score_threshold;
 
-  TVM_DECLARE_ATTRS(NMSAttrs, "relay.attrs.NMSAttrs") {
-      TVM_ATTR_FIELD(overlap_threshold).set_default(0.5)
-        .describe("Non-maximum suppression threshold.");
-      TVM_ATTR_FIELD(force_suppress).set_default(false)
-        .describe("Suppress all detections regardless of class_id.");
-      TVM_ATTR_FIELD(topk).set_default(-1)
-        .describe("Keep maximum top k detections before nms, -1 for no limit.");
+  TVM_DECLARE_ATTRS(GetValidCountsAttrs, "relay.attrs.GetValidCountsAttrs") {
+    TVM_ATTR_FIELD(score_threshold).set_default(0.0)
+      .describe("Lower limit of score for valid bounding boxes.");
+  }
+};
+
+/*! \brief Attributes used in non_maximum_suppression operator */
+struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionAttrs> {
+  int max_output_size;
+  double iou_threshold;
+  bool force_suppress;
+  int top_k;
+  int id_index;
+  bool return_indices;
+  bool invalid_to_bottom;
+
+  TVM_DECLARE_ATTRS(NonMaximumSuppressionAttrs, "relay.attrs.NonMaximumSuppressionAttrs") {
+    TVM_ATTR_FIELD(max_output_size).set_default(-1)
+      .describe("Max number of output valid boxes for each instance."
+                "By default all valid boxes are returned.");
+    TVM_ATTR_FIELD(iou_threshold).set_default(0.5)
+      .describe("Non-maximum suppression threshold.");
+    TVM_ATTR_FIELD(force_suppress).set_default(false)
+      .describe("Suppress all detections regardless of class_id.");
+    TVM_ATTR_FIELD(top_k).set_default(-1)
+      .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    TVM_ATTR_FIELD(id_index).set_default(0)
+      .describe("Axis index of id.");
+    TVM_ATTR_FIELD(return_indices).set_default(true)
+      .describe("Whether to return box indices in input data.");
+    TVM_ATTR_FIELD(invalid_to_bottom).set_default(false)
+      .describe("Whether to move all invalid bounding boxes to the bottom.");
   }
 };
 

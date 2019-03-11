@@ -135,56 +135,107 @@ def test_multibox_prior():
     verify_multibox_prior(x, dshape, ref_res, clip=False, check_type_only=True)
 
 
-def test_nms():
-    def verify_nms(x0_data, x1_data, dshape, ref_res, valid_count,
-                   overlap_threshold=0.5, force_suppress=False, topk=-1,
+def test_get_valid_counts():
+    def verify_get_valid_counts(dshape, score_threshold):
+        dtype = "float32"
+        batch_size, num_anchor, elem_length = dshape
+        np_data = np.random.uniform(size=dshape).astype(dtype)
+        np_out1 = np.zeros(shape=(batch_size,))
+        np_out2 = np.zeros(shape=dshape).astype(dtype)
+        for i in range(batch_size):
+            np_out1[i] = 0
+            inter_idx = 0
+            for j in range(num_anchor):
+                score = np_data[i, j, 1]
+                if score >= score_threshold:
+                    for k in range(elem_length):
+                        np_out2[i, inter_idx, k] = np_data[i, j, k]
+                    np_out1[i] += 1
+                    inter_idx += 1
+                if j >= np_out1[i]:
+                    for k in range(elem_length):
+                        np_out2[i, j, k] = -1
+
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        z = relay.vision.get_valid_counts(x, score_threshold)
+        assert "score_threshold" in z.astext()
+        func = relay.Function([x], z.astuple())
+        func = relay.ir_pass.infer_type(func)
+        ctx_list = [("llvm", tvm.cpu(0))]
+        for target, ctx in ctx_list:
+            intrp = relay.create_executor("debug", ctx=ctx, target=target)
+            out = intrp.evaluate(func)(np_data)
+            tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3)
+            tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3)
+
+    verify_get_valid_counts((1, 2500, 6), 0)
+    verify_get_valid_counts((1, 2500, 6), -1)
+    verify_get_valid_counts((3, 1000, 6), 0.55)
+    verify_get_valid_counts((16, 500, 6), 0.95)
+
+
+def test_non_max_suppression():
+    def verify_nms(x0_data, x1_data, dshape, ref_res, ref_indices_res,
+                   iou_threshold=0.5, force_suppress=False, top_k=-1,
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int"))
-        z = relay.vision.nms(x0, x1, overlap_threshold, force_suppress, topk)
-        assert "overlap_threshold" in z.astext()
+        z = relay.vision.non_max_suppression(x0, x1, -1, iou_threshold, force_suppress, top_k, return_indices=False)
+        z_indices = relay.vision.non_max_suppression(x0, x1, -1, iou_threshold, force_suppress, top_k)
+        assert "iou_threshold" in z.astext()
+        assert "iou_threshold" in z_indices.astext()
         zz = relay.ir_pass.infer_type(z)
+        zz_indices = relay.ir_pass.infer_type(z_indices)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
+        assert zz_indices.checked_type == relay.ty.TensorType((dshape[0], dshape[1]), "int32")
 
         if check_type_only:
             return
 
         func = relay.Function([x0, x1], z)
         func = relay.ir_pass.infer_type(func)
+        func_indices = relay.Function([x0, x1], z_indices)
+        func_indices = relay.ir_pass.infer_type(func_indices)
         ctx_list = [("llvm", tvm.cpu(0))]
         for target, ctx in ctx_list:
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(x0_data, x1_data)
+            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_indices_res1.asnumpy(), ref_indices_res, rtol=1e-5)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res2 = intrp2.evaluate(func)(x0_data, x1_data)
+            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+            tvm.testing.assert_allclose(op_indices_res2.asnumpy(), ref_indices_res, rtol=1e-5)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
                          [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [0, 0.4, 4, 21, 19, 40], [-1, 0.9, 35, 61, 52, 79],
+                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
+    np_indices_result = np.array([[3, 0, -1, -1, -1]])
     num_anchors = 5
 
     dshape = (tvm.var("n"), num_anchors, 6)
-    verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
-               force_suppress=True, topk=2, check_type_only=True)
+    verify_nms(np_data, np_valid_count, dshape, np_result, np_indices_result,
+               force_suppress=True, top_k=2, check_type_only=True)
     dshape = (1, num_anchors, 6)
-    verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
-               force_suppress=True, topk=2, check_type_only=False)
+    verify_nms(np_data, np_valid_count, dshape, np_result, np_indices_result,
+               force_suppress=True, top_k=2, check_type_only=False)
 
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [1, 0.7, 30, 60, 50, 80], [-1, 0.9, 35, 61, 52, 79],
+                           [1, 0.7, 30, 60, 50, 80], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
+    np_indices_result = np.array([[3, 0, 1, -1, -1]])
     dshape = (tvm.var("n"), num_anchors, 6)
-    verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
-               check_type_only=True)
+    verify_nms(np_data, np_valid_count, dshape, np_result,
+               np_indices_result, check_type_only=True)
     dshape = (1, num_anchors, 6)
-    verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
-               topk=3)
+    verify_nms(np_data, np_valid_count, dshape, np_result,
+               np_indices_result, top_k=3)
 
 
 def test_multibox_transform_loc():
@@ -226,7 +277,7 @@ def test_multibox_transform_loc():
 
         assert ret.checked_type == ref_type
 
-        nms = relay.vision.nms(mtl[0], mtl[1])
+        nms = relay.vision.non_max_suppression(mtl[0], mtl[1], return_indices=False)
         func = relay.Function([cls_prob, loc_pred, anchors], nms)
         func = relay.ir_pass.infer_type(func)
         ctx_list = [("llvm", tvm.cpu(0))]
@@ -411,8 +462,9 @@ if __name__ == "__main__":
     test_resize()
     test_multibox_prior()
     test_multibox_transform_loc()
-    test_nms()
+    test_get_valid_counts()
     test_roi_align()
     test_proposal()
     test_yolo_reorg_infer_shape()
     test_yolo_reorg()
+    test_non_max_suppression()

@@ -162,3 +162,20 @@ def schedule_proposal(outs):
         scheduled_ops.append(op)
     traverse(outs[0].op)
     return s
+
+@generic.schedule_get_valid_counts.register(["cuda", "gpu"])
+def schedule_get_valid_counts(outs):
+    """Schedule for get_valid_counts operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of get_valid_counts
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs)

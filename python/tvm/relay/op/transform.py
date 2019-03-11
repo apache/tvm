@@ -525,7 +525,7 @@ def strided_slice(data, begin, end, strides=None):
         The indices to begin with in the slicing.
 
     end: list of int
-        Indicies indicating end of the slice.
+        Indices indicating end of the slice.
 
     strides: list of int, optional
         Specifies the stride values, it can be negative in that case,

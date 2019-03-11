@@ -1516,6 +1516,16 @@ RELAY_REGISTER_OP("broadcast_to_like")
 .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 
+// Adapter function to make int array.
+Array<Integer> GetIntArray(Array<IndexExpr> arr) {
+  for (size_t i = 0; i < arr.size(); ++i) {
+    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
+      << "Expect an int array";
+  }
+  return Array<Integer>(arr.node_);
+}
+
+
 // strided_slice
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 bool StridedSliceRel(const Array<Type>& types,
@@ -1868,15 +1878,6 @@ Expr MakeSliceLike(Expr data,
   attrs->axes = std::move(axes);
   static const Op& op = Op::Get("slice_like");
   return CallNode::make(op, {data, shape_like}, Attrs(attrs), {});
-}
-
-// Adapter function to make int array.
-Array<Integer> GetIntArray(Array<IndexExpr> arr) {
-  for (size_t i = 0; i < arr.size(); ++i) {
-    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
-        << "Expect an int array";
-  }
-  return Array<Integer>(arr.node_);
 }
 
 Array<Tensor> SliceLikeCompute(const Attrs& attrs,

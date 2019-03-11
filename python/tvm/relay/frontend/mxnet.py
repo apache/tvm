@@ -328,13 +328,14 @@ def _mx_multibox_detection(inputs, attrs):
                                                                   0.2, 0.2))
 
     new_attrs1 = {}
-    new_attrs1["overlap_threshold"] = attrs.get_float("nms_threshold", 0.5)
+    new_attrs1["return_indices"] = False
+    new_attrs1["iou_threshold"] = attrs.get_float("nms_threshold", 0.5)
     new_attrs1["force_suppress"] = attrs.get_bool("force_suppress", False)
-    new_attrs1["topk"] = attrs.get_int("nms_topk", -1)
+    new_attrs1["top_k"] = attrs.get_int("nms_topk", -1)
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
                                             inputs[2], **new_attrs0)
-    return _op.vision.nms(ret[0], ret[1], **new_attrs1)
+    return _op.vision.non_max_suppression(ret[0], ret[1], **new_attrs1)
 
 
 def _mx_batch_dot(inputs, attrs):
@@ -397,6 +398,49 @@ def _mx_proposal(inputs, attrs):
     new_attrs["iou_loss"] = attrs.get_bool("iou_loss", False)
     assert not attrs.get_bool("output_score", False), "proposal doesn't support output score"
     return _op.vision.proposal(inputs[0], inputs[1], inputs[2], **new_attrs)
+
+
+def _mx_box_nms(inputs, attrs):
+    force_suppress = attrs.get_bool("force_suppress", False)
+    iou_thresh = attrs.get_float('overlap_thresh', 0.5)
+    top_k = attrs.get_int('topk', -1)
+    valid_thresh = attrs.get_float('valid_thresh', 0)
+    coord_start = attrs.get_int('coord_start', 2)
+    score_index = attrs.get_int('score_index', 1)
+    id_index = attrs.get_int('id_index', -1)
+    in_format = attrs.get_str('in_format', 'corner')
+    out_format = attrs.get_str('out_format', 'corner')
+    if coord_start != 2:
+        raise RuntimeError('coord_start %s is not supported.' % coord_start)
+    if score_index != 1:
+        raise RuntimeError('score_index %s is not supported.' % score_index)
+    if id_index != -1 and int(id_index) != 0:
+        raise RuntimeError('id_index %s is not supported.' % id_index)
+    if in_format != 'corner':
+        raise RuntimeError('in_format %s is not supported.' % in_format)
+    if out_format != 'corner':
+        raise RuntimeError('out_format %s is not supported.' % out_format)
+
+    ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
+    nms_out = _op.vision.non_max_suppression(ret[1],
+                                             ret[0],
+                                             iou_threshold=iou_thresh,
+                                             force_suppress=force_suppress,
+                                             top_k=top_k,
+                                             id_index=id_index,
+                                             return_indices=False,
+                                             invalid_to_bottom=True)
+    return nms_out
+
+
+def _mx_l2_normalize(inputs, attrs):
+    new_attrs = {}
+    mode = attrs.get_str('mode', 'instance')
+    if mode != 'channel':
+        raise RuntimeError('mode %s is not supported.' % mode)
+    new_attrs['eps'] = attrs.get_float('eps', 1e-10)
+    new_attrs['axis'] = [1]
+    return _op.nn.l2_normalize(inputs[0], **new_attrs)
 
 
 # Note: due to attribute conversion constraint
@@ -497,6 +541,7 @@ _convert_map = {
     "BatchNorm"     : _mx_batch_norm,
     "BatchNorm_v1"  : _mx_batch_norm,
     "LRN"           : _mx_lrn,
+    "L2Normalization"  : _mx_l2_normalize,
     "slice"         : _mx_slice,
     "slice_like"    : _mx_slice_like,
     "slice_axis"    : _mx_slice_axis,
@@ -520,6 +565,7 @@ _convert_map = {
     "_contrib_ROIAlign" : _mx_roi_align,
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
+    "_contrib_box_nms" : _mx_box_nms,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
@@ -662,6 +708,8 @@ def from_mxnet(symbol,
             params[k] = _nd.array(v.data().asnumpy())
         data = mx.sym.Variable("data")
         sym = symbol(data)
+        if isinstance(sym, (list, tuple)):
+            sym = mx.sym.Group(sym)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
         sym = _from_mxnet_impl(sym, shape, dtype)
     elif isinstance(symbol, mx.gluon.Block):

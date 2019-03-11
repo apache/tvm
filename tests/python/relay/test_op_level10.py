@@ -2,6 +2,7 @@
 """
 import numpy as np
 import tvm
+import topi.testing
 from tvm import relay
 from tvm.relay.testing import ctx_list
 import topi

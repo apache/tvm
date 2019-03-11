@@ -315,4 +315,3 @@ if __name__ == '__main__':
     test_forward_slice()
     test_forward_maximum()
     test_forward_minimum()
-

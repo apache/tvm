@@ -1,75 +1,76 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable
 """SSD multibox operators"""
 from __future__ import absolute_import as _abs
-import math
 import tvm
 
-from tvm import api
+from tvm import hybrid
+from tvm.intrin import exp, sqrt
 
 import topi
 
-from ..nms import nms
+from ..nms import non_max_suppression
 
-def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
-    """Low level IR routing for multibox_prior operator.
+@hybrid.script
+def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
+    """Hybrid routing for multibox_prior operator.
 
     Parameters
     ----------
-    data : Buffer
-        Input data buffer.
+    data : tvm.Tensor or numpy NDArray
+        4-D tensor with shape [batch, channel, height, width]]
 
-    out : Buffer
-        Output buffer.
+    sizes : tvm ConsExpr
+        Sizes for anchor boxes.
 
-    sizes : tuple of float
-        Tuple of sizes for anchor boxes.
+    ratios : tvm ConsExpr
+        Ratios for anchor boxes.
 
-    ratios : tuple of float
-        Tuple of ratios for anchor boxes.
-
-    steps : Tuple of float
+    steps : tvm ConsExpr
         Priorbox step across y and x, -1 for auto calculation.
 
-    offsets : tuple of int
+    offsets : tvm ConsExpr
         Priorbox center offsets, y and x respectively.
 
     Returns
     -------
-    stmt : Stmt
-        The result IR statement.
+    output : tvm.Tensor or numpy NDArray
+        3-D tensor with shape [1, h_in * w_in * (num_sizes + num_ratios - 1), 4]
     """
-    ib = tvm.ir_builder.create()
-    p_out = ib.buffer_ptr(out)
     in_height = data.shape[2]
     in_width = data.shape[3]
     num_sizes = len(sizes)
     num_ratios = len(ratios)
-    size_ratio_concat = sizes + ratios
-    steps_h = steps[0] if steps[0] > 0 else 1.0 / in_height
-    steps_w = steps[1] if steps[1] > 0 else 1.0 / in_width
+    num_boxes = in_height * in_width * (num_sizes + num_ratios - 1)
+    output = output_tensor((1, num_boxes, 4), "float32")
+    steps_h = steps[0] * 1.0 if steps[0] > 0 else 1.0 / in_height
+    steps_w = steps[1] * 1.0 if steps[1] > 0 else 1.0 / in_width
     offset_h = offsets[0]
     offset_w = offsets[1]
 
-    with ib.for_range(0, in_height, for_type="parallel", name="i") as i:
-        center_h = (i + offset_h) * steps_h
-        with ib.for_range(0, in_width, name="j") as j:
-            center_w = (j + offset_w) * steps_w
-            for k in range(num_sizes + num_ratios - 1):
-                w = tvm.if_then_else(k < num_sizes,
-                                     size_ratio_concat[k] * in_height / in_width / 2.0,
-                                     size_ratio_concat[0] * in_height / in_width *
-                                     math.sqrt(size_ratio_concat[k + 1]) / 2.0)
-                h = tvm.if_then_else(
-                    k < num_sizes, size_ratio_concat[k] / 2.0,
-                    size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0)
-                count = (i * in_width * (num_sizes + num_ratios - 1) +
-                         j * (num_sizes + num_ratios - 1) + k) * 4
-                p_out[count] = center_w - w
-                p_out[count + 1] = center_h - h
-                p_out[count + 2] = center_w + w
-                p_out[count + 3] = center_h + h
+    # Need to define var out of const_range + if
+    w = 0.0
+    h = 0.0
 
-    return ib.get()
+    for i in parallel(in_height):
+        center_h = (i + offset_h) * steps_h
+        for j in range(in_width):
+            center_w = (j + offset_w) * steps_w
+            for k in const_range(num_sizes + num_ratios - 1):
+                if k < num_sizes:
+                    w = sizes[k] * in_height / in_width / 2.0
+                    h = sizes[k] / 2.0
+                else:
+                    w = sizes[0] * in_height / in_width \
+                        * sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
+                    h = sizes[0] / sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
+                count = i * in_width * (num_sizes + num_ratios - 1) \
+                        + j * (num_sizes + num_ratios - 1) + k
+                output[0, count, 0] = center_w - w
+                output[0, count, 1] = center_h - h
+                output[0, count, 2] = center_w + w
+                output[0, count, 3] = center_h + h
+
+    return output
 
 
 @tvm.target.generic_func
@@ -101,115 +102,120 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
     out : tvm.Tensor
         3-D tensor with shape [1, h_in * w_in * (num_sizes + num_ratios - 1), 4]
     """
-    num_sizes = len(sizes)
-    num_ratios = len(ratios)
-    oshape = (1, data.shape[2] * data.shape[3] * (num_sizes + num_ratios - 1), 4)
-    out = tvm.extern(oshape, [data], lambda ins, outs:
-                     multibox_prior_ir(ins[0], outs[0], sizes, ratios, steps, offsets),
-                     tag="multibox_prior")
+    out = hybrid_multibox_prior(data, tvm.convert(sizes), tvm.convert(ratios),
+                                tvm.convert(steps), tvm.convert(offsets))
     if clip:
         out = topi.clip(out, 0, 1)
     return out
 
 
-def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, threshold, variances):
-    """Low level IR routing for transform location in multibox_detection operator.
+@hybrid.script
+def _hybridy_transform_loc(box, pred_loc, variance, clip):
+    """Transform prior anchor box to output box through location predictions.
+    """
+    al = box[0]
+    at = box[1]
+    ar = box[2]
+    ab = box[3]
+
+    px = pred_loc[0]
+    py = pred_loc[1]
+    pw = pred_loc[2]
+    ph = pred_loc[3]
+
+    vx = variance[0]
+    vy = variance[1]
+    vw = variance[2]
+    vh = variance[3]
+
+    output = output_tensor((4,), pred_loc.dtype)
+
+    aw = ar - al
+    ah = ab - at
+    ax = (al + ar) / 2.0
+    ay = (at + ab) / 2.0
+    ox = px * vx * aw + ax
+    oy = py * vy * ah + ay
+    ow = exp(pw * vw) * aw / 2.0
+    oh = exp(ph * vh) * ah / 2.0
+    output[0] = max(0.0, min(1.0, ox - ow)) if clip else ox - ow
+    output[1] = max(0.0, min(1.0, oy - oh)) if clip else oy - oh
+    output[2] = max(0.0, min(1.0, ox + ow)) if clip else ox + ow
+    output[3] = max(0.0, min(1.0, oy + oh)) if clip else oy + oh
+    return output
+
+@hybrid.script
+def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
+                                  clip, threshold, variances):
+    """Hybrid routing for transform location in multibox_detection operator.
 
     Parameters
     ----------
-    cls_prob : Buffer
-        Buffer of class probabilities.
+    cls_prob : tvm.Tensor or numpy NDArray
+        3-D tensor of class probabilities.
 
-    loc_pred : Buffer
-        Buffer of location regression predictions.
+    loc_pred : tvm.Tensor or numpy NDArray
+        2-D tensor of location regression predictions.
 
-    anchor : Buffer
-        Buffer of prior anchor boxes.
+    anchor : tvm.Tensor or numpy NDArray
+        3-D tensor of prior anchor boxes.
 
-    valid_count : Buffer
-        Buffer of number of valid output boxes.
-
-    out : Buffer
-        Output buffer.
-
-    clip : boolean
+    clip : tvm.const
         Whether to clip out-of-boundary boxes.
 
-    threshold : float
+    threshold : tvm.const
         Threshold to be a positive prediction.
 
-    variances : tuple of float
+    variances : tvm.ndarray
         Variances to be decoded from box regression output.
 
     Returns
     -------
-    stmt : Stmt
-        The result IR statement.
-    """
-    def transform_loc(loc, loc_base_idx, anchor, anchor_base_idx, clip, vx, vy, vw, vh):
-        """Transform prior anchor box to output box through location predictions.
-        """
-        al = anchor[anchor_base_idx]
-        at = anchor[anchor_base_idx + 1]
-        ar = anchor[anchor_base_idx + 2]
-        ab = anchor[anchor_base_idx + 3]
-        aw = ar - al
-        ah = ab - at
-        ax = (al + ar) / 2.0
-        ay = (at + ab) / 2.0
-        px = loc[loc_base_idx]
-        py = loc[loc_base_idx + 1]
-        pw = loc[loc_base_idx + 2]
-        ph = loc[loc_base_idx + 3]
-        ox = px * vx * aw + ax
-        oy = py * vy * ah + ay
-        ow = tvm.exp(pw * vw) * aw / 2.0
-        oh = tvm.exp(ph * vh) * ah / 2.0
-        return tvm.if_then_else(clip, tvm.max(0, tvm.min(1, ox - ow)), ox - ow), \
-               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, oy - oh)), oy - oh), \
-               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, ox + ow)), ox + ow), \
-               tvm.if_then_else(clip, tvm.max(0, tvm.min(1, oy + oh)), oy + oh)
+    out_loc : tvm.Tensor or numpy NDArray
+        3-D tensor of transformed location.
 
+    valid_count : tvm.Tensor or numpy NDArray
+        1_d tensor of valid counts for boxes.
+    """
     batch_size = cls_prob.shape[0]
     num_classes = cls_prob.shape[1]
     num_anchors = cls_prob.shape[2]
+    box_coord = allocate((4,), loc_pred.dtype)
+    pred_coord = allocate((4,), loc_pred.dtype)
+    out_loc = output_tensor((batch_size, num_anchors, 6),
+                            loc_pred.dtype)
+    valid_count = output_tensor((batch_size,), "int32")
 
-    ib = tvm.ir_builder.create()
-    p_cls_prob = ib.buffer_ptr(cls_prob)
-    p_loc_pred = ib.buffer_ptr(loc_pred)
-    p_anchor = ib.buffer_ptr(anchor)
-    p_valid_count = ib.buffer_ptr(valid_count)
-    p_out = ib.buffer_ptr(out)
-    with ib.for_range(0, batch_size, for_type="parallel", name="n") as n:
-        p_valid_count[n] = 0
-        with ib.for_range(0, num_anchors, name="i") as i:
+    for i in parallel(batch_size):
+        valid_count[i] = 0
+        for j in range(num_anchors):
             # Find the predicted class id and probability
-            score = ib.allocate('float32', (1,), name="score", scope="local")
-            cls_id = ib.allocate('int32', (1,), name="id", scope="local")
-            score[0] = -1.0
-            cls_id[0] = 0
-            with ib.for_range(0, num_classes, name="j") as j:
-                with ib.if_scope(j > 0):
-                    temp = p_cls_prob[n * num_anchors * num_classes + j * num_anchors + i]
-                    cls_id[0] = tvm.if_then_else(temp > score[0], j, cls_id[0])
-                    score[0] = tvm.max(temp, score[0])
-            with ib.if_scope(tvm.all(cls_id[0] > 0, score[0] < threshold)):
-                cls_id[0] = 0
+            score = -1.0
+            cls_id = 0
+            for k in range(num_classes):
+                if k > 0:
+                    temp = cls_prob[i, k, j]
+                    cls_id = k if temp > score else cls_id
+                    score = max(temp, score)
+            if cls_id > 0 and score < threshold:
+                cls_id = 0
             # [id, prob, xmin, ymin, xmax, ymax]
             # Remove background, restore original id
-            with ib.if_scope(cls_id[0] > 0):
-                out_base_idx = n * num_anchors * 6 + p_valid_count[n] * 6
-                p_out[out_base_idx] = cls_id[0] - 1.0
-                p_out[out_base_idx + 1] = score[0]
-                offset = i * 4
-                p_out[out_base_idx + 2], p_out[out_base_idx + 3], p_out[out_base_idx + 4], \
-                p_out[out_base_idx + 5] = transform_loc(p_loc_pred, n * num_anchors * 4 + offset,
-                                                        p_anchor, offset, clip, variances[0],
-                                                        variances[1], variances[2], variances[3])
-                p_valid_count[n] += 1
+            if cls_id > 0:
+                out_loc[i, valid_count[i], 0] = cls_id - 1.0
+                out_loc[i, valid_count[i], 1] = score
+                for l in range(4):
+                    box_coord[l] = anchor[0, j, l]
+                    pred_coord[l] = loc_pred[i, j * 4 + l]
+                out_coord = _hybridy_transform_loc(box_coord, pred_coord,
+                                                   variances, clip)
+                out_loc[i, valid_count[i], 2] = out_coord[0]
+                out_loc[i, valid_count[i], 3] = out_coord[1]
+                out_loc[i, valid_count[i], 4] = out_coord[2]
+                out_loc[i, valid_count[i], 5] = out_coord[3]
+                valid_count[i] += 1
 
-    return ib.get()
-
+    return out_loc, valid_count
 
 @tvm.target.generic_func
 def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01,
@@ -240,24 +246,10 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
     -------
     ret : tuple of tvm.Tensor
     """
-    batch_size = cls_prob.shape[0]
-    num_anchors = anchor.shape[1]
-    oshape = (batch_size, num_anchors, 6)
-    # Define data alignment for intermediate buffer
-    valid_count_dtype = "int32"
-    valid_count_buf = api.decl_buffer((batch_size,), valid_count_dtype,
-                                      "valid_count_buf", data_alignment=4)
-    out_buf = api.decl_buffer(oshape, cls_prob.dtype, "out_buf", data_alignment=8)
-    valid_count, out = \
-        tvm.extern([(batch_size,), oshape],
-                   [cls_prob, loc_pred, anchor],
-                   lambda ins, outs: transform_loc_ir(
-                       ins[0], ins[1], ins[2], outs[0], outs[1], clip, threshold, variances),
-                   dtype=[valid_count_dtype, cls_prob.dtype],
-                   out_buffers=[valid_count_buf, out_buf],
-                   tag="multibox_transform_loc")
-    return [out, valid_count]
-
+    return hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
+                                         tvm.const(clip, "bool"),
+                                         tvm.const(threshold, "float32"),
+                                         tvm.convert(variances))
 
 @tvm.target.generic_func
 def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
@@ -300,5 +292,7 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     """
     inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
                                        clip, threshold, variances)
-    out = nms(inter_out[0], inter_out[1], nms_threshold, force_suppress, nms_topk)
+    out = non_max_suppression(inter_out[0], inter_out[1], -1,
+                              nms_threshold, force_suppress, nms_topk,
+                              return_indices=False)
     return out

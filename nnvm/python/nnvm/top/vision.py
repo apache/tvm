@@ -61,20 +61,25 @@ def compute_multibox_transform_loc(attrs, inputs, _):
 reg.register_pattern("multibox_detection", OpPattern.OPAQUE)
 
 # non-maximum suppression
-@reg.register_schedule("nms")
+@reg.register_schedule("non_max_suppression")
 def schedule_nms(_, outs, target):
-    """Schedule definition of nms"""
+    """Schedule definition of non_max_suppression"""
     with tvm.target.create(target):
         return topi.generic.schedule_nms(outs)
 
-@reg.register_compute("nms")
+@reg.register_compute("non_max_suppression")
 def compute_nms(attrs, inputs, _):
-    """Compute definition of nms"""
-    nms_threshold = attrs.get_float('nms_threshold')
+    """Compute definition of non_max_suppression"""
+    return_indices = attrs.get_bool('return_indices')
+    max_output_size = attrs.get_int('max_output_size')
+    iou_threshold = attrs.get_float('iou_threshold')
     force_suppress = attrs.get_bool('force_suppress')
-    nms_topk = attrs.get_int('nms_topk')
+    top_k = attrs.get_int('top_k')
+    id_index = attrs.get_int('id_index')
+    invalid_to_bottom = attrs.get_bool('invalid_to_bottom')
 
-    return topi.vision.nms(inputs[0], inputs[1], nms_threshold,
-                           force_suppress, nms_topk)
+    return topi.vision.non_max_suppression(inputs[0], inputs[1], max_output_size,
+                                           iou_threshold, force_suppress, top_k,
+                                           id_index, return_indices, invalid_to_bottom)
 
-reg.register_pattern("nms", OpPattern.OPAQUE)
+reg.register_pattern("non_max_suppression", OpPattern.OPAQUE)

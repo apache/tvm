@@ -20,3 +20,4 @@ from .l2_normalize_python import l2_normalize_python
 from .gather_nd_python import gather_nd_python
 from .strided_slice_python import strided_slice_python
 from .batch_matmul import batch_matmul
+from .slice_axis_python import slice_axis_python

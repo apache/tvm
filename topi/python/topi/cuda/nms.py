@@ -1,10 +1,10 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
 """Non-maximum suppression operator"""
 import math
 import tvm
 
 from tvm import api
-from topi.vision import nms
+from topi.vision import non_max_suppression
 from ..util import get_const_tuple
 
 def sort_ir(data, index, output):
@@ -181,13 +181,14 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     return body
 
 
-@nms.register(["cuda", "gpu"])
-def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1):
+@non_max_suppression.register(["cuda", "gpu"])
+def nms_gpu(data, valid_count, return_indices, iou_threshold=0.5, force_suppress=False,
+            topk=-1, id_index=0, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
     ----------
-    data: tvm.Tensor
+    data : tvm.Tensor
         3-D tensor with shape [batch_size, num_anchors, 6].
         The last dimension should be in format of
         [class_id, score, box_left, box_top, box_right, box_bottom].
@@ -195,14 +196,23 @@ def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
 
-    nms_threshold : float
+    return_indices : boolean
+        Whether to return box indices in input data.
+
+    iou_threshold : optional, float
         Non-maximum suppression threshold.
 
-    force_suppress : boolean
+    force_suppress : optional, boolean
         Whether to suppress all detections regardless of class_id.
 
-    nms_topk : int
+    topk : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
+
+    id_index : optional, int
+        index of the class categories, -1 to disable.
+
+    invalid_to_bottom : optional, boolean
+        Whether to move all valid bounding boxes to the top.
 
     Returns
     -------
@@ -216,14 +226,13 @@ def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk
         # An example to use nms
         dshape = (1, 5, 6)
         data = tvm.placeholder(dshape, name="data")
-        valid_count = tvm.placeholder(
-            (dshape[0],), dtype="int32", name="valid_count")
-        nms_threshold = 0.7
+        valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
+        iou_threshold = 0.7
         force_suppress = True
-        nms_topk = -1
-        out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
-        np_data = np.random.uniform(size=dshape).astype("float32")
-        np_valid_count = np.array([4]).astype("int32")
+        topk = -1
+        out = nms(data, valid_count, iou_threshold, force_suppress, topk)
+        np_data = np.random.uniform(dshape)
+        np_valid_count = np.array([4])
         s = topi.generic.schedule_nms(out)
         f = tvm.build(s, [data, valid_count, out], "llvm")
         ctx = tvm.cpu()
@@ -263,8 +272,8 @@ def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk
         tvm.extern(data.shape,
                    [data, sort_tensor, valid_count],
                    lambda ins, outs: nms_ir(
-                       ins[0], ins[1], ins[2], outs[0], nms_threshold,
-                       force_suppress, nms_topk),
+                       ins[0], ins[1], ins[2], outs[0], iou_threshold,
+                       force_suppress, topk),
                    dtype="float32",
                    in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
                    tag="nms")
