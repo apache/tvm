@@ -443,17 +443,30 @@ struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocPa
   }
 };
 
-struct NMSParam : public dmlc::Parameter<NMSParam> {
-  float nms_threshold;
+struct NonMaximumSuppressionParam : public dmlc::Parameter<NonMaximumSuppressionParam> {
+  bool return_indices;
+  float iou_threshold;
   bool force_suppress;
-  int nms_topk;
-  DMLC_DECLARE_PARAMETER(NMSParam) {
-    DMLC_DECLARE_FIELD(nms_threshold).set_default(0.5)
+  int top_k;
+  int id_index;
+  int max_output_size;
+  bool invalid_to_bottom;
+  DMLC_DECLARE_PARAMETER(NonMaximumSuppressionParam) {
+    DMLC_DECLARE_FIELD(max_output_size).set_default(-1)
+      .describe("Max number of output valid boxes for each instance."
+                "By default all valid boxes are returned.");
+    DMLC_DECLARE_FIELD(iou_threshold).set_default(0.5)
       .describe("Non-maximum suppression threshold.");
     DMLC_DECLARE_FIELD(force_suppress).set_default(false)
-    .describe("Suppress all detections regardless of class_id.");
-    DMLC_DECLARE_FIELD(nms_topk).set_default(-1)
-    .describe("Keep maximum top k detections before nms, -1 for no limit.");
+      .describe("Suppress all detections regardless of class_id.");
+    DMLC_DECLARE_FIELD(top_k).set_default(-1)
+      .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    DMLC_DECLARE_FIELD(id_index).set_default(0)
+      .describe("Axis index of id.");
+    DMLC_DECLARE_FIELD(return_indices).set_default(true)
+      .describe("Whether to return box indices in input data.");
+    DMLC_DECLARE_FIELD(invalid_to_bottom).set_default(false)
+      .describe("Whether to move all invalid bounding boxes to the bottom.");
   }
 };
 

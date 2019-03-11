@@ -30,7 +30,12 @@ inline Tensor l2_normalize(const Tensor& data,
                            const Array<Integer>& axis,
                            std::string name = "tensor",
                            std::string tag = "l2_normalize") {
-  CHECK_EQ(data->shape.size(), 4) << "L2 normalization requires 4-D input";
+  for (size_t i = 0; i < axis.size(); ++i) {
+    int ax = topi::detail::GetConstInt(axis[i]);
+    CHECK_LT(ax, data->shape.size()) <<
+             "Axis " << ax << " exceeds input data dim " <<
+             data->shape.size();
+  }
   auto input_shape = data->shape;
   Tensor dot_value = topi::power(data, static_cast<float>(2.0));
   Tensor sum_value = topi::sum(dot_value, axis, true);

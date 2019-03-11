@@ -61,7 +61,7 @@ model_url = "https://github.com/zhreshold/mxnet-ssd/releases/download/v0.6/" \
 image_url = "https://cloud.githubusercontent.com/assets/3307514/20012567/" \
             "cbb60336-a27d-11e6-93ff-cbc3f09f5c9e.jpg"
 inference_symbol_folder = \
-"c1904e900848df4548ce5dfb18c719c7-a28c4856c827fe766aa3da0e35bad41d44f0fb26"
+    "c1904e900848df4548ce5dfb18c719c7-a28c4856c827fe766aa3da0e35bad41d44f0fb26"
 inference_symbol_url = "https://gist.github.com/kevinthesun/c1904e900848df4548ce5dfb18c719c7/" \
                        "archive/a28c4856c827fe766aa3da0e35bad41d44f0fb26.zip"
 

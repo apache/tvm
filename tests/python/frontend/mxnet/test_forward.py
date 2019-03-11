@@ -374,6 +374,11 @@ def test_forward_slice_like():
     verify((3, 4), (2, 3), (0))
     verify((3, 4), (2, 3), (-1))
 
+def test_forward_l2_normalize():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.L2Normalization(data, mode="channel")
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
+
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -401,5 +406,6 @@ if __name__ == '__main__':
     test_forward_broadcast_ops()
     test_forward_elemwise_ops()
     test_forward_scalar_ops()
-    test_forward_slice_axis()
     test_forward_slice_like()
+    test_forward_slice_axis()
+    test_forward_l2_normalize()

@@ -54,24 +54,46 @@ reg.register_pattern("vision.multibox_transform_loc", OpPattern.OPAQUE)
 reg.register_pattern("vision.multibox_detection", OpPattern.OPAQUE)
 
 
+# Get counts of valid boxes
+@reg.register_schedule("vision.get_valid_counts")
+def schedule_get_valid_counts(_, outs, target):
+    """Schedule definition of get_valid_counts"""
+    with target:
+        return topi.generic.schedule_get_valid_counts(outs)
+
+
+@reg.register_compute("vision.get_valid_counts")
+def compute_get_valid_counts(attrs, inputs, _, target):
+    """Compute definition of get_valid_counts"""
+    score_threshold = get_const_float(attrs.score_threshold)
+    return topi.vision.get_valid_counts(inputs[0], score_threshold)
+
+reg.register_pattern("vision.get_valid_counts", OpPattern.OPAQUE)
+
+
 # non-maximum suppression
-@reg.register_schedule("vision.nms")
+@reg.register_schedule("vision.non_max_suppression")
 def schedule_nms(_, outs, target):
     """Schedule definition of nms"""
     with target:
         return topi.generic.schedule_nms(outs)
 
 
-@reg.register_compute("vision.nms")
+@reg.register_compute("vision.non_max_suppression")
 def compute_nms(attrs, inputs, _, target):
     """Compute definition of nms"""
-    overlap_threshold = get_const_float(attrs.overlap_threshold)
+    return_indices = bool(get_const_int(attrs.return_indices))
+    max_output_size = get_const_int(attrs.max_output_size)
+    iou_threshold = get_const_float(attrs.iou_threshold)
     force_suppress = bool(get_const_int(attrs.force_suppress))
-    topk = get_const_int(attrs.topk)
+    top_k = get_const_int(attrs.top_k)
+    id_index = get_const_int(attrs.id_index)
+    invalid_to_bottom = bool(get_const_int(attrs.invalid_to_bottom))
     return [
-        topi.vision.nms(inputs[0], inputs[1], overlap_threshold,
-                        force_suppress, topk)
+        topi.vision.non_max_suppression(inputs[0], inputs[1], max_output_size,
+                                        iou_threshold, force_suppress, top_k,
+                                        id_index, return_indices, invalid_to_bottom)
     ]
 
 
-reg.register_pattern("vision.nms", OpPattern.OPAQUE)
+reg.register_pattern("vision.non_max_suppression", OpPattern.OPAQUE)
