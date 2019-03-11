@@ -5,6 +5,8 @@ tvm.relay.build_module
 
 .. autofunction:: tvm.relay.build_module.build
 
+.. autofunction:: tvm.relay.build_module.build_config
+
 .. autofunction:: tvm.relay.build_module.optimize
 
 .. autofunction:: tvm.relay.build_module.create_executor
