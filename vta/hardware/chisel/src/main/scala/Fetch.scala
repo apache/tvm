@@ -28,52 +28,49 @@ class Fetch(implicit val p: Parameters) extends Module with CoreParams {
   val insns_queue = Module(new InstructionQueue(UInt(128.W), 4))
 
   // output registers
-  val insn = Reg(UInt(128.W))
+  val insn = Wire(UInt(128.W))
   val opcode = insn(insn_mem_0_1, insn_mem_0_0)
   val memory_type = insn(insn_mem_5_1, insn_mem_5_0)
 
   // status registers
-  val state = RegInit(0.U(3.W))
+  val state = Reg(UInt(2.W))
   val s_IDLE :: s_BUSY :: s_DONE :: Nil = Enum(3)
   val idle = state === s_IDLE
   val busy = state === s_BUSY
   val done = state === s_DONE
 
   // counters
-  val insn_cntr_max = insn_count
   val insn_cntr_en = insn_count > 0.U
   val insn_cntr_wait = !insns_queue.io.enq.ready || io.insns.waitrequest
   val insn_cntr_val = Reg(UInt(16.W))
-  val insn_cntr_wrap = (insn_cntr_val === insn_cntr_max) && busy
+  val insn_cntr_wrap = (insn_cntr_val === insn_count) && busy
 
   // update operating status
   when (busy && insn_cntr_wrap && !insns_queue.io.deq.valid) { state := s_DONE }
 
   // update counter
-  when (insn_cntr_en && !insn_cntr_wait) {
-    when (insn_cntr_val < insn_count) {
-      insn_cntr_val := insn_cntr_val + 1.U;
-    } .otherwise {
-      insn_cntr_val := insn_cntr_val
-    }
-  } .otherwise {
-    insn_cntr_val := insn_cntr_val
+  when (insn_cntr_en && !insn_cntr_wait && (insn_cntr_val < insn_count)) {
+    insn_cntr_val := insn_cntr_val + 1.U;
   }
 
   // fetch insn_count
   io.insn_count.readdata <> DontCare
   io.insn_count.waitrequest := 0.U
-  when (io.insn_count.write && !busy) {
-    insn_count := io.insn_count.writedata
-    state := s_BUSY
-  } .otherwise {
-    insn_count := insn_count
+  when (done) {
+    insn_count := 0.U
   }
-  when (io.insn_count.write && busy) { io.insn_count.waitrequest := 1.U }
-  when (done) { insn_count := 0.U }
+  when (io.insn_count.write) {
+    when (busy) {
+      io.insn_count.waitrequest := 1.U
+    } .otherwise {
+      insn_count := io.insn_count.writedata
+      insn_cntr_val := 0.U
+      state := s_BUSY
+    }
+  }
 
   // fetch instructions
-  val insns_read = insn_cntr_en && busy
+  val insns_read = insn_cntr_en && busy && insns_queue.io.enq.ready && (insn_cntr_val < insn_count)
   io.insns.address := insn_cntr_val << 4.U
   io.insns.read := insns_read
   io.insns.write := 0.U
@@ -98,13 +95,13 @@ class Fetch(implicit val p: Parameters) extends Module with CoreParams {
   // (implements blocking write to streams)
   when (busy) {
   when (opcode === opcode_store.U) {
-    io.store_queue.valid := 1.U
+    io.store_queue.valid := insns_queue.io.deq.valid
     insns_queue.io.deq.ready := io.store_queue.ready
   } .elsewhen (opcode === opcode_store.U && (memory_type === mem_id_inp.U || memory_type === mem_id_wgt.U)) {
-    io.load_queue.valid := 1.U
+    io.load_queue.valid := insns_queue.io.deq.valid
     insns_queue.io.deq.ready := io.load_queue.ready
   } .otherwise {
-    io.gemm_queue.valid := 1.U
+    io.gemm_queue.valid := insns_queue.io.deq.valid
     insns_queue.io.deq.ready := io.gemm_queue.ready
   }
   }

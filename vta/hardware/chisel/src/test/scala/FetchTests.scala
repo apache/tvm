@@ -23,6 +23,8 @@ class FetchTests(c: Fetch)(implicit val p: freechips.rocketchip.config.Parameter
   val insns = IndexedSeq(insn0, insn1, insn2, insn3, insn4, insn5, insn6, insn7, insn8)
   val categories = IndexedSeq(1, 1, 1, 2, 1, 1, 1, 2, 1)
 
+  def test_fetch(){
+
   // reset
   poke(c.io.insn_count.write, 0.U)
   poke(c.io.insn_count.writedata, 0.U)
@@ -42,7 +44,7 @@ class FetchTests(c: Fetch)(implicit val p: freechips.rocketchip.config.Parameter
 
   // try enqueue instructions more than fifo size
   for (i <- 0 to (fifo_size + 1)) {
-    expect(c.io.insns.read, 1.U)
+    expect(c.io.insns.read, (i < fifo_size).B)
     expect(c.io.insns.address, (i.min(fifo_size) << 4).U)
     poke(c.io.insns.readdata, insns(i))
     step(1)
@@ -84,6 +86,7 @@ class FetchTests(c: Fetch)(implicit val p: freechips.rocketchip.config.Parameter
     step(1)
     poke(c.io.insns.waitrequest, 1.U)
     step(1)
+    expect(c.io.insns.read, (i < (insn_count_val - 1)).B)
     expect(c.io.load_queue.valid, (categories(i) == 0).B)
     expect(c.io.gemm_queue.valid, (categories(i) == 1).B)
     expect(c.io.store_queue.valid, (categories(i) == 2).B)
@@ -98,6 +101,9 @@ class FetchTests(c: Fetch)(implicit val p: freechips.rocketchip.config.Parameter
       poke(c.io.store_queue.ready, 1.U)
     }
     step(1)
+    expect(c.io.load_queue.valid, 0.U)
+    expect(c.io.gemm_queue.valid, 0.U)
+    expect(c.io.store_queue.valid, 0.U)
     poke(c.io.load_queue.ready, 0.U)
     poke(c.io.gemm_queue.ready, 0.U)
     poke(c.io.store_queue.ready, 0.U)
@@ -108,6 +114,10 @@ class FetchTests(c: Fetch)(implicit val p: freechips.rocketchip.config.Parameter
   step(1)
   step(1)
 
+  }
+
+  test_fetch()
+  test_fetch()
 }
 
 class FetchTester extends ChiselFlatSpec {
