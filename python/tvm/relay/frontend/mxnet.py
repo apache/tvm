@@ -303,6 +303,42 @@ def _mx_make_power(power):
     return _impl
 
 
+def _mx_make_exponent(base):
+    # exp(b, x) = e^b * e^x
+    def _impl(inputs, _):  # Note: no attrs
+        assert len(inputs) == 1
+        scalar = _op.exp(_expr.const(base, dtype="float32"))
+        return _op.multiply(inputs[0], scalar)
+    return _impl
+
+
+def _mx_make_logarithm(base):
+    # log(b, x) = log(x) / log(b)
+    def _impl(inputs, _):  # Note: no attrs
+        assert len(inputs) == 1
+        scalar = _op.log(_expr.const(base, dtype="float32"))
+        return _op.divide(inputs[0], scalar)
+    return _impl
+
+
+def _mx_expm1():
+    # expm1 x = exp(x) + 1
+    def _impl(inputs, _):  # Note: no attrs
+        assert len(inputs) == 1
+        one = _expr.const(1, dtype="float32")
+        return _op.log(_op.add(inputs[0], one))
+    return _impl
+
+
+def _mx_log1p():
+    # log1p x = log(x + 1)
+    def _impl(inputs, _):  # Note: no attrs
+        assert len(inputs) == 1
+        one = _expr.const(1, dtype="float32")
+        return _op.log(_op.add(inputs[0], one))
+    return _impl
+
+
 def _mx_lrn(inputs, attrs):
     new_attrs = {}
     new_attrs["alpha"] = attrs.get_float("alpha", 0.0001)
@@ -396,7 +432,6 @@ _identity_list = [
     "exp",
     "sigmoid",
     "tanh",
-    "exp",
     "negative",
     "reshape_like",
     "zeros_like",
@@ -404,6 +439,7 @@ _identity_list = [
     "where",
 ]
 
+# pylint: disable=C0321
 _convert_map = {
     "_copy"                  : _rename(_op.copy),
     "relu"                   : _rename(_op.nn.relu),
@@ -450,6 +486,10 @@ _convert_map = {
     "_mul_scalar"            : _binop_scalar(_op.multiply),
     "__div_scalar__"         : _binop_scalar(_op.divide),
     "_div_scalar"            : _binop_scalar(_op.divide),
+    "log2"                   : _mx_make_logarithm(2),
+    "log10"                  : _mx_make_logarithm(10),
+    "log1p"                  : _mx_log1p,
+    "expm1"                  : _mx_expm1,
     "_equal_scalar"          : _mx_compare(_op.equal, _binop_scalar),
     "_not_equal_scalar"      : _mx_compare(_op.not_equal, _binop_scalar),
     "_greater_scalar"        : _mx_compare(_op.greater, _binop_scalar),
@@ -522,7 +562,7 @@ _convert_map = {
     # "gather_nd",
     # "Crop"          : _crop_like,
 }
-
+# pylint: enable=C0321
 # set identity list
 _convert_map.update({k : _rename(k) for k in _identity_list})
 
