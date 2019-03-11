@@ -14,7 +14,9 @@ include $(config)
 APP_ABI ?= armeabi-v7a arm64-v8a x86 x86_64 mips
 APP_STL := c++_static
 
-APP_CPPFLAGS += -DDMLC_LOG_STACK_TRACE=0 -DTVM4J_ANDROID=1 -std=c++11 -Oz -frtti
+# We assume a little endian machine by default,
+# change -DDMLC_CMAKE_LITTLE_ENDIAN to 0 if you are using a big endian machine
+APP_CPPFLAGS += -DDMLC_LOG_STACK_TRACE=0 -DDMLC_CMAKE_LITTLE_ENDIAN=1 -DTVM4J_ANDROID=1 -std=c++11 -Oz -frtti
 ifeq ($(USE_OPENCL), 1)
     APP_CPPFLAGS += -DTVM_OPENCL_RUNTIME=1
 endif
