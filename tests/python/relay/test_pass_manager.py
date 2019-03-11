@@ -110,7 +110,7 @@ def test_module_pass():
     opt_tester = OptTester(mod)
     pass_ctx = None
 
-    @ir_pass.module_pass(opt_level, pass_name)
+    @ir_pass.module_pass(opt_level=opt_level, name=pass_name)
     def transform(expr, ctx):
         return opt_tester.transform(expr, ctx)
 
@@ -120,6 +120,15 @@ def test_module_pass():
         pass_info = mod_pass.info
         assert pass_info.name == pass_name
         assert pass_info.opt_level == opt_level
+
+    def test_pass_registration_no_decorator():
+        def direct_transform(expr, ctx):
+            return opt_tester.transform(expr, ctx)
+        mod_pass = ir_pass.module_pass(direct_transform, opt_level=3)
+        assert isinstance(mod_pass, ir_pass.ModulePass)
+        pass_info = mod_pass.info
+        assert pass_info.name == "direct_transform"
+        assert pass_info.opt_level == 3
 
     def test_pass_run():
         module_pass = transform
@@ -159,6 +168,7 @@ def test_module_pass():
             tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
 
     test_pass_registration()
+    test_pass_registration_no_decorator
     test_pass_run()
 
 
@@ -176,7 +186,7 @@ def test_function_pass():
     opt_tester = OptTester(mod)
     pass_ctx = None
 
-    @ir_pass.function_pass(opt_level, name=pass_name)
+    @ir_pass.function_pass(opt_level=opt_level, name=pass_name)
     def transform(expr, ctx):
         return opt_tester.transform(expr, ctx)
 
@@ -190,6 +200,15 @@ def test_function_pass():
         pass_info = function_pass.info
         assert pass_info.name == pass_name
         assert pass_info.opt_level == opt_level
+
+    def test_pass_registration_no_decorator():
+        def direct_transform(expr, ctx):
+            return opt_tester.transform(expr, ctx)
+        mod_pass = ir_pass.function_pass(direct_transform, opt_level=0)
+        assert isinstance(mod_pass, ir_pass.FunctionPass)
+        pass_info = mod_pass.info
+        assert pass_info.name == "direct_transform"
+        assert pass_info.opt_level == 0
 
     def test_pass_run():
         function_pass = transform
@@ -219,6 +238,7 @@ def test_function_pass():
             tvm.testing.assert_allclose(res2.asnumpy(), ref_res, rtol=1e-5)
 
     test_pass_registration()
+    test_pass_registration_no_decorator()
     test_pass_run()
 
 
@@ -275,8 +295,8 @@ def test_sequential_pass():
         passes = [module_pass, function_pass]
         opt_level = 2
         pass_name = "sequential_pass"
-        sequential_pass = ir_pass.sequential_pass(opt_level=opt_level,
-                                                  passes=passes)
+        sequential_pass = ir_pass.sequential_pass(passes=passes,
+                                                  opt_level=opt_level)
         assert isinstance(sequential_pass, ir_pass.SequentialPass)
         pass_info = sequential_pass.info
         assert pass_info.name == pass_name

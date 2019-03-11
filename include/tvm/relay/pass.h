@@ -98,11 +98,11 @@ class PassInfo;
  */
 class PassInfoNode : public RelayNode {
  public:
-  /*! \brief The name of an optimization/analysis pass. */
-  std::string name;
-
   /*! \brief The minimal optimization level that this pass will be enabled. */
   int opt_level;
+
+  /*! \brief The name of an optimization/analysis pass. */
+  std::string name;
 
   /*! \brief The passes that are required to perform the current pass. */
   tvm::Array<tvm::Expr> required;
@@ -110,12 +110,12 @@ class PassInfoNode : public RelayNode {
   PassInfoNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name", &name);
     v->Visit("opt_level", &opt_level);
+    v->Visit("name", &name);
     v->Visit("required", &required);
   }
 
-  TVM_DLL static PassInfo make(std::string name, int opt_level,
+  TVM_DLL static PassInfo make(int opt_level, std::string name,
                                tvm::Array<tvm::Expr> required);
 
   static constexpr const char* _type_key = "relay.PassInfo";
@@ -134,7 +134,7 @@ class Pass;
 class PassNode : public RelayNode {
  public:
   /*
-   * \brief Get the pass information/meta data.  */
+   * \brief Get the pass information/meta data. */
   virtual PassInfo Info() const = 0;
 
   /*!
@@ -174,48 +174,48 @@ class Pass : public NodeRef {
 /*
  * \brief Create a module pass.
  *
- * \param name The name of the module pass.
- * \param opt_level The optimization level of the module pass.
- * \param required The list of the passes that the module pass is dependent on.
  * \param pass_func The packed function that contains the optimization.
+ * \param opt_level The optimization level of the module pass.
+ * \param name The name of the module pass.
+ * \param required The list of the passes that the module pass is dependent on.
  *
  * \return The created module pass.
  */
 Pass CreateModulePass(
-    const std::string& name,
+    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func,
     int opt_level,
-    const tvm::Array<tvm::Expr>& required,
-    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func);
+    const std::string& name,
+    const tvm::Array<tvm::Expr>& required);
 
 /*
  * \brief Create a function pass.
  *
- * \param name The name of the function pass.
- * \param opt_level The optimization level of the function pass.
- * \param required The list of the passes that the function pass is dependent on.
  * \param pass_func The packed function that contains the optimization.
+ * \param opt_level The optimization level of the function pass.
+ * \param name The name of the function pass.
+ * \param required The list of the passes that the function pass is dependent on.
  *
  * \return The created function pass.
  */
 Pass CreateFunctionPass(
-    const std::string& name,
+    const runtime::TypedPackedFunc<Function(Function, PassContext)>& pass_func,
     int opt_level,
-    const tvm::Array<tvm::Expr>& required,
-    const runtime::TypedPackedFunc<Function(Function, PassContext)>& pass_func);
+    const std::string& name,
+    const tvm::Array<tvm::Expr>& required);
 /*
  * \brief Create a sequential pass.
  *
- * \param name The name of the sequential pass.
- * \param opt_level The optimization level of the sequential pass.
- * \param required The list of the passes that the sequential pass is dependent on.
  * \param passes The optimization passes will be performed.
+ * \param opt_level The optimization level of the sequential pass.
+ * \param name The name of the sequential pass.
+ * \param required The list of the passes that the sequential pass is dependent on.
  * \param disabled The disabled passes.
  *
  * \return The created sequential pass.
  */
-Pass CreateSequentialPass(const std::string& name,
+Pass CreateSequentialPass(const tvm::Array<Pass>& passes,
                           int opt_level,
-                          const tvm::Array<Pass>& passes,
+                          const std::string& name,
                           const tvm::Array<tvm::Expr>& required,
                           const tvm::Array<tvm::Expr>& disabled);
 

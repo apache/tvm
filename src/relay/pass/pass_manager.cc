@@ -60,8 +60,8 @@ class ModulePassNode : public PassNode {
   void SetContext(const PassContext& pass_ctx) final;
 
   TVM_DLL static ModulePass make(
-      PassInfo pass_info,
-      runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func);
+      runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func,
+      PassInfo pass_info);
 
   static constexpr const char* _type_key = "relay.ModulePass";
   TVM_DECLARE_NODE_TYPE_INFO(ModulePassNode, PassNode);
@@ -126,8 +126,8 @@ class FunctionPassNode : public PassNode {
   void SetContext(const PassContext& pass_ctx) final;
 
   TVM_DLL static FunctionPass make(
-      PassInfo pass_info,
-      runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func);
+      runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func,
+      PassInfo pass_info);
 
   static constexpr const char* _type_key = "relay.FunctionPass";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionPassNode, PassNode);
@@ -193,8 +193,8 @@ class SequentialPassNode : public PassNode {
     passes.push_back(pass);
   }
 
-  TVM_DLL static SequentialPass make(PassInfo pass_info,
-                                     tvm::Array<Pass> passes,
+  TVM_DLL static SequentialPass make(tvm::Array<Pass> passes,
+                                     PassInfo pass_info,
                                      tvm::Array<tvm::Expr> disabled);
 
   /*!
@@ -244,11 +244,11 @@ class SequentialPassNode : public PassNode {
 
 RELAY_DEFINE_NODE_REF(SequentialPass, SequentialPassNode, Pass);
 
-PassInfo PassInfoNode::make(std::string name, int opt_level,
+PassInfo PassInfoNode::make(int opt_level, std::string name,
                             tvm::Array<tvm::Expr> required) {
   auto pass_info = make_node<PassInfoNode>();
-  pass_info->name = std::move(name);
   pass_info->opt_level = opt_level;
+  pass_info->name = std::move(name);
   pass_info->required = std::move(required);
   return PassInfo(pass_info);
 }
@@ -259,11 +259,11 @@ PassContext PassContextNode::make() {
 }
 
 ModulePass ModulePassNode::make(
-    PassInfo pass_info,
-    runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func) {
+    runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func,
+    PassInfo pass_info) {
   auto n = make_node<ModulePassNode>();
-  n->pass_info = std::move(pass_info);
   n->pass_func = std::move(pass_func);
+  n->pass_info = std::move(pass_info);
   return ModulePass(n);
 }
 
@@ -286,11 +286,11 @@ void ModulePassNode::SetContext(const PassContext& pass_ctx) {
 }
 
 FunctionPass FunctionPassNode::make(
-    PassInfo pass_info,
-    runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func) {
+    runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func,
+    PassInfo pass_info) {
   auto n = make_node<FunctionPassNode>();
-  n->pass_info = std::move(pass_info);
   n->pass_func = std::move(pass_func);
+  n->pass_info = std::move(pass_info);
   return FunctionPass(n);
 }
 
@@ -331,12 +331,12 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
   return pval && pval->value != 0;
 }
 
-SequentialPass SequentialPassNode::make(PassInfo pass_info,
-                                        tvm::Array<Pass> passes,
+SequentialPass SequentialPassNode::make(tvm::Array<Pass> passes,
+                                        PassInfo pass_info,
                                         tvm::Array<tvm::Expr> disabled) {
   auto n = make_node<SequentialPassNode>();
-  n->pass_info = std::move(pass_info);
   n->passes = std::move(passes);
+  n->pass_info = std::move(pass_info);
   n->disabled = std::move(disabled);
   return SequentialPass(n);
 }
@@ -378,41 +378,40 @@ void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
 }
 
 Pass CreateModulePass(
-    const std::string& name,
+    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func,
     int opt_level,
-    const tvm::Array<tvm::Expr>& required,
-    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func) {
-  PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
-  return ModulePassNode::make(pass_info, pass_func);
+    const std::string& name,
+    const tvm::Array<tvm::Expr>& required) {
+  PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
+  return ModulePassNode::make(pass_func, pass_info);
 }
 
 Pass CreateFunctionPass(
-    const std::string& name,
+    const runtime::TypedPackedFunc<Function(Function, PassContext)>& pass_func,
     int opt_level,
-    const tvm::Array<tvm::Expr>& required,
-    const runtime::TypedPackedFunc<Function(Function, PassContext)>&
-        pass_func) {
-  PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
-  return FunctionPassNode::make(pass_info, pass_func);
+    const std::string& name,
+    const tvm::Array<tvm::Expr>& required) {
+  PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
+  return FunctionPassNode::make(pass_func, pass_info);
 }
 
-Pass CreateSequentialPass(const std::string& name,
+Pass CreateSequentialPass(const tvm::Array<Pass>& passes,
                           int opt_level,
-                          const tvm::Array<Pass>& passes,
+                          const std::string& name,
                           const tvm::Array<tvm::Expr>& required,
                           const tvm::Array<tvm::Expr>& disabled) {
-  PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
-  return SequentialPassNode::make(pass_info, passes, disabled);
+  PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
+  return SequentialPassNode::make(passes, pass_info, disabled);
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_API("relay._ir_pass.PassInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string name = args[0];
-  int opt_level = args[1];
+  int opt_level = args[0];
+  std::string name = args[1];
   tvm::Array<tvm::Expr> required = args[2];
-  *ret = PassInfoNode::make(name, opt_level, required);
+  *ret = PassInfoNode::make(opt_level, name, required);
 });
 
 TVM_REGISTER_API("relay._ir_pass.Info")
@@ -439,11 +438,11 @@ TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string name = args[0];
+  PackedFunc pass_func = args[0];
   int opt_level = args[1];
-  tvm::Array<tvm::Expr> required = args[2];
-  PackedFunc pass_func = args[3];
-  *ret = CreateModulePass(name, opt_level, required, pass_func);
+  std::string name = args[2];
+  tvm::Array<tvm::Expr> required = args[3];
+  *ret = CreateModulePass(pass_func, opt_level, name, required);
 });
 
 TVM_REGISTER_API("relay._ir_pass.RunPass")
@@ -470,11 +469,11 @@ TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string name = args[0];
+  PackedFunc pass_func = args[0];
   int opt_level = args[1];
-  tvm::Array<tvm::Expr> required = args[2];
-  PackedFunc pass_func = args[3];
-  *ret = CreateFunctionPass(name, opt_level, required, pass_func);
+  std::string name = args[2];
+  tvm::Array<tvm::Expr> required = args[3];
+  *ret = CreateFunctionPass(pass_func, opt_level, name, required);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -489,13 +488,13 @@ TVM_REGISTER_NODE_TYPE(SequentialPassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string name = args[0];
+  tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
-  tvm::Array<Pass> passes = args[2];
+  std::string name = args[2];
   tvm::Array<tvm::Expr> required = args[3];
   tvm::Array<tvm::Expr> disabled = args[4];
-  PassInfo pass_info = PassInfoNode::make(name, opt_level, required);
-  *ret = SequentialPassNode::make(pass_info, passes, disabled);
+  PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
+  *ret = SequentialPassNode::make(passes, pass_info, disabled);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
