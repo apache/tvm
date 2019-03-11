@@ -459,6 +459,7 @@ _convert_map = {
     "_maximum_scalar"        : _binop_scalar(_op.maximum),
     "_minimum_scalar"        : _binop_scalar(_op.minimum),
     # reduction ops
+    "mean"          : _reduce(_op.mean),
     "max"           : _reduce(_op.max),
     "min"           : _reduce(_op.min),
     "sum"           : _reduce(_op.sum),
