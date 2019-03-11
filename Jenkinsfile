@@ -13,7 +13,7 @@ tvm_multilib = "build/libtvm.so, " +
 // command to start a docker container
 docker_run = 'docker/bash.sh'
 // timeout in minutes
-max_time = 60
+max_time = 120
 
 // initialize source codes
 def init_git() {
@@ -102,7 +102,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('tvmai/ci-gpu', 'build', '-j2')
+        make('tvmai/ci-gpu', 'build', '-j4')
         pack_lib('gpu', tvm_multilib)
         // compiler test
         sh """
@@ -116,7 +116,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER clang-6.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('tvmai/ci-gpu', 'build2', '-j2')
+        make('tvmai/ci-gpu', 'build2', '-j4')
       }
     }
   },
@@ -136,7 +136,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('tvmai/ci-cpu', 'build', '-j2')
+        make('tvmai/ci-cpu', 'build', '-j4')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_cpp_unittest.sh"
@@ -163,7 +163,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('tvmai/ci-i386', 'build', '-j2')
+        make('tvmai/ci-i386', 'build', '-j4')
         pack_lib('i386', tvm_multilib)
       }
     }
