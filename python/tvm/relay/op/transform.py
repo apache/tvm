@@ -316,6 +316,75 @@ def stack(data, axis):
     return _make.stack(data, axis)
 
 
+def repeat(data, repeats, axis):
+    """Repeats elements of an array.
+    By default, repeat flattens the input array into 1-D and then repeats the elements.
+
+    repeats : int
+        The number of repetitions for each element.
+
+    axis: int
+        The axis along which to repeat values. The negative numbers are interpreted
+        counting from the backward. By default, use the flattened input array, and
+        return a flat output array.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1, 2], [3, 4]]
+        relay.repeat(x, repeats=2) = [1., 1., 2., 2., 3., 3., 4., 4.]
+
+        relay.repeat(x, repeats=2, axis=1) = [[1., 1., 2., 2.],
+                                              [3., 3., 4., 4.]]
+    """
+    return _make.repeat(data, repeats, axis)
+
+
+def tile(data, reps):
+    """Repeats the whole array multiple times.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    reps : tuple of int
+        The number of times repeating the tensor data.
+
+    .. note::
+        Each dim size of reps must be a positive integer. If reps has length d,
+        the result will have dimension of max(d, data.ndim); If data.ndim < d,
+        data is promoted to be d-dimensional by prepending new axes.
+        If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1, 2], [3, 4]]
+        relay.tile(x, reps=(2,3)) = [[1., 2., 1., 2., 1., 2.],
+                                     [3., 4., 3., 4., 3., 4.],
+                                     [1., 2., 1., 2., 1., 2.],
+                                     [3., 4., 3., 4., 3., 4.]]
+
+        relay.tile(x, reps=(2,)) = [[1., 2., 1., 2.],
+                                    [3., 4., 3., 4.]]
+    """
+
+    return _make.tile(data, reps)
+
+
 def where(condition, x, y):
     """Selecting elements from either x or y depending on the value of the
     condition.

@@ -305,6 +305,16 @@ TVM_REGISTER_GLOBAL("topi.arange")
   *rv = arange(args[0], args[1], args[2], args[3]);
 });
 
+TVM_REGISTER_GLOBAL("topi.repeat")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = repeat(args[0], args[1], args[2]);
+});
+
+TVM_REGISTER_GLOBAL("topi.tile")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = tile(args[0], args[1]);
+});
+
 TVM_REGISTER_GLOBAL("topi.gather_nd")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = gather_nd(args[0], args[1]);
