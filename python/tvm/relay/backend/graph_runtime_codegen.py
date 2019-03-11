@@ -348,12 +348,37 @@ class GraphRuntimeCodegen(ExprFunctor):
             attrs["device_index"] = ["list_int", device_types]
         attrs["dltype"] = ["list_str", dltypes]
 
+        # Metadata definitions
+        graph_inputs = {}
+        graph_outputs = {}
+        for node_id in arg_nodes:
+            node_name = nodes[node_id]['name']
+            if node_name not in self.params:
+                graph_inputs[node_name] = {}
+                graph_inputs[node_name]['id'] = node_id
+                graph_inputs[node_name]['dtype'] = dltypes[node_id]
+                graph_inputs[node_name]['shape'] = shapes[node_id]
+        for node_id in heads:
+            node_name = nodes[node_id[0]]['name']
+            graph_outputs[node_name] = {}
+            graph_outputs[node_name]['id'] = node_id[0]
+            graph_outputs[node_name]['dtype'] = dltypes[node_id[0]]
+            graph_outputs[node_name]['shape'] = shapes[node_id[0]]
+
+        metadata = {}
+        metadata['signatures'] = {}
+        metadata['signatures']['default'] = {}
+        metadata['signatures']['default']['inputs'] = graph_inputs
+        metadata['signatures']['default']['outputs'] = graph_outputs
+
+        # Keep  'metadata' always at end
         json_dict = {
             "nodes": nodes,
             "arg_nodes": arg_nodes,
             "heads": heads,
             "attrs": attrs,
-            "node_row_ptr":  node_row_ptr
+            "node_row_ptr":  node_row_ptr,
+            "metadata": metadata
         }
 
         return json.dumps(json_dict, indent=2)
