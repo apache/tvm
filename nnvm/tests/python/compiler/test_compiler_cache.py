@@ -3,6 +3,8 @@ import tvm
 from tvm.contrib import graph_runtime
 import nnvm.symbol as sym
 import nnvm.compiler
+import nnvm.compiler.build_module as build_module
+from nnvm.compiler.build_module import AnnotationType 
 
 def test_compile_cache():
     x = sym.Variable("x")
@@ -26,7 +28,8 @@ def test_compile_cache():
     graph, lib, _ = nnvm.compiler.build(z, "llvm", shape_dict)
     inputs = [tvm.placeholder((10,)), tvm.placeholder((10,))]
     new_graph = nnvm.graph.create(z)
-    new_graph = nnvm.compiler.build_module._annotate_graph(new_graph, {1: "llvm"})
+    new_graph = build_module._annotate_graph(new_graph, {1: "llvm"},
+                                             AnnotationType.HOMO_TARGET)
 
     gkey = nnvm.compiler.graph_key(new_graph, inputs, "llvm")
     gkey2 = nnvm.compiler.graph_key(new_graph, inputs + inputs, "llvm")

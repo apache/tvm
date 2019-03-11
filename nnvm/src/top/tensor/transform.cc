@@ -1180,7 +1180,6 @@ inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(in_attrs->size(), 2U);
   CHECK_EQ(out_attrs->size(), 1U);
   const SliceLikeParam& param = nnvm::get<SliceLikeParam>(attrs.parsed);
-  CHECK_EQ(param.axis.ndim(), param.offset.ndim());
   const TShape& src_shape = in_attrs->at(0);
   const TShape& target_shape = in_attrs->at(1);
   Tuple<dim_t> end_idx;
@@ -1195,18 +1194,22 @@ inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
       }
     }
   } else {
+    const bool has_offset = param.offset.ndim() != 0;
+    if (has_offset) {
+      CHECK_EQ(param.axis.ndim(), param.offset.ndim());
+    }
     for (uint32_t i = 0; i < param.axis.ndim(); ++i) {
       int axis = param.axis[i];
       if (axis < 0) {
-        axis = src_shape.ndim() + i;
+        axis += src_shape.ndim();
       }
       CHECK_LT(axis, target_shape.ndim())
         << "Axis " << axis << " exceeds dimension "
         << target_shape.ndim()<< " of target_shape.";
       end_idx[axis] = target_shape[axis];
-      CHECK_LE(end_idx[axis] + param.offset[i], src_shape[axis])
+      CHECK_LE(end_idx[axis] + (has_offset? param.offset[i] : 0), src_shape[axis])
         << "End index of axis " << axis << " + offset" << " exceeds input shape: "
-        << end_idx[axis] << " + " << param.offset[i] << " vs " << src_shape[axis];
+        << end_idx[axis] << " + " << (has_offset? param.offset[i] : 0) << " vs " << src_shape[axis];
     }
   }
   TShape out_shape = TShape(std::move(end_idx));
@@ -1261,13 +1264,15 @@ NNVM_REGISTER_OP(slice_like)
         }
       }
     } else {
+      const bool has_offset = param.offset.ndim() != 0;
       for (uint32_t i = 0; i < param.axis.ndim(); ++i) {
         int axis = param.axis[i];
         if (axis < 0) {
           axis = static_cast<int>(src_shape.size()) + axis;
         }
-        begin_idx.Set(static_cast<size_t>(axis), param.offset[i]);
-        end_idx.Set(static_cast<size_t>(axis), target_shape[axis] + param.offset[i]);
+        begin_idx.Set(static_cast<size_t>(axis), has_offset? param.offset[i] : 0);
+        end_idx.Set(static_cast<size_t>(axis),
+            target_shape[axis] + (has_offset? param.offset[i] : 0));
         CHECK_LE(topi::GetConstInt(end_idx[axis]),
                  topi::GetConstInt(src_shape[axis]))
           << "End index of axis " << axis << " exceeds input shape: "

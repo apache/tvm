@@ -1,6 +1,6 @@
 /*!
  * Copyright (c) 2018 by Contributors
- * \file place_copy_op.cc
+ * \file insert_copy_op.cc
  * \brief Place corss device data copy nodes on entries where two nodes are
  * assigned to different devices.
  */
@@ -17,7 +17,6 @@
 #include <vector>
 
 namespace nnvm {
-namespace pass {
 
 nnvm::Graph InsertDataCopy(nnvm::Graph g) {
   const nnvm::Op* copy_op = nnvm::Op::Get("device_copy_op");
@@ -59,11 +58,9 @@ nnvm::Graph InsertDataCopy(nnvm::Graph g) {
 }
 
 NNVM_REGISTER_PASS(InsertDataCopy)
-    .describe(
-        "Insert cross device data copy nodes to transfer data between "
-        "opertors that are executed on different devices.")
-    .set_body(InsertDataCopy)
-    .set_change_graph(true);
+.describe("Insert cross device data copy nodes to transfer data between "
+"opertors that are executed on different devices.")
+.set_body(InsertDataCopy)
+.set_change_graph(true);
 
-}  // namespace pass
 }  // namespace nnvm

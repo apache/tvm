@@ -42,7 +42,9 @@ inline bool DenseInferShape(const nnvm::NodeAttrs& attrs,
   }
   CHECK_EQ(out_shape->size(), 1U);
   const TShape& dshape = (*in_shape)[DenseParam::kData];
-  CHECK(!shape_is_none(dshape));
+  if (shape_is_none(dshape)) {
+    return false;
+  }
   if ((*in_shape)[DenseParam::kData].ndim() != 0) {
     NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, TShape({dshape[0], param.units}));
   }
@@ -51,6 +53,16 @@ inline bool DenseInferShape(const nnvm::NodeAttrs& attrs,
                                   static_cast<int64_t>(dshape.ProdShape(1, dshape.ndim()))}));
   if (param.use_bias) {
     NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, DenseParam::kBias, TShape({param.units}));
+  }
+  for (const auto& shape : *in_shape) {
+    if (shape_is_none(shape)) {
+      return false;
+    }
+  }
+  for (const auto& shape : *out_shape) {
+    if (shape_is_none(shape)) {
+      return false;
+    }
   }
   return true;
 }

@@ -61,9 +61,10 @@ reg.register_pattern("log_softmax", OpPattern.OPAQUE)
 @reg.register_compute("dense")
 def compute_dense(attrs, inputs, _):
     """Compute definition of dense"""
-    if attrs.get_bool("use_bias"):
-        return topi.nn.dense(inputs[0], inputs[1], bias=inputs[2])
-    return topi.nn.dense(inputs[0], inputs[1])
+    with tvm.target.create(attrs.get_str("target")):
+        if attrs.get_bool("use_bias"):
+            return topi.nn.dense(inputs[0], inputs[1], bias=inputs[2])
+        return topi.nn.dense(inputs[0], inputs[1])
 
 @reg.register_schedule("dense")
 def schedule_dense(_, outs, target):
@@ -95,37 +96,42 @@ def compute_conv2d(attrs, inputs, _):
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
-    if groups == 1 and layout == 'NCHW4c' and inputs[0].dtype == 'int8':
-        # pylint: disable=assignment-from-no-return
-        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding,
-                             dilation, layout, out_dtype=out_dtype)
-        # pylint: enable=assignment-from-no-return
-    elif groups == 1:
-        out = topi.nn.conv2d(
-            inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype=out_dtype)
-    elif layout == "NCHW" and \
-         groups == get_const_int(inputs[0].shape[1]) and \
-         groups == channels:
-        out = topi.nn.depthwise_conv2d_nchw(
-            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
-    elif layout in ["NCHW", "NCHW4c"]:
-        out = topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups,
-                                        out_dtype=out_dtype)
-    elif layout == "NHWC" and \
-         kernel_layout == "HWOI" and \
-         groups == get_const_int(inputs[0].shape[3]) and \
-         groups == channels:
-        out = topi.nn.depthwise_conv2d_nhwc(
-            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
-    else:
-        raise ValueError("not support arbitrary group number for now")
+    with tvm.target.create(attrs.get_str("target")):
+        if groups == 1 and layout == 'NCHW4c' and inputs[0].dtype == 'int8':
+            # pylint: disable=assignment-from-no-return
+            out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding,
+                                 dilation, layout, out_dtype=out_dtype)
+            # pylint: enable=assignment-from-no-return
+        elif groups == 1:
+            out = topi.nn.conv2d(
+                inputs[0], inputs[1], strides, padding, dilation, layout,
+                out_dtype=out_dtype)
+        elif layout == "NCHW" and \
+             groups == get_const_int(inputs[0].shape[1]) and \
+             groups == channels:
+            out = topi.nn.depthwise_conv2d_nchw(
+                inputs[0], inputs[1], strides, padding, dilation,
+                out_dtype=out_dtype)
+        elif layout in ["NCHW", "NCHW4c"]:
+            out = topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides,
+                                            padding, dilation, groups,
+                                            out_dtype=out_dtype)
+        elif layout == "NHWC" and \
+             kernel_layout == "HWOI" and \
+             groups == get_const_int(inputs[0].shape[3]) and \
+             groups == channels:
+            out = topi.nn.depthwise_conv2d_nhwc(
+                inputs[0], inputs[1], strides, padding, dilation,
+                out_dtype=out_dtype)
+        else:
+            raise ValueError("not support arbitrary group number for now")
 
-    if attrs.get_bool("use_bias"):
-        bias = inputs[2]
-        expand_axis = 1 if layout == "NCHW" else 0
-        bias = topi.expand_dims(bias, axis=expand_axis, num_newaxis=2)
-        out = topi.add(out, bias)
-    return out
+        if attrs.get_bool("use_bias"):
+            bias = inputs[2]
+            expand_axis = 1 if layout == "NCHW" else 0
+            bias = topi.expand_dims(bias, axis=expand_axis, num_newaxis=2)
+            out = topi.add(out, bias)
+        return out
 
 @reg.register_schedule("conv2d")
 def schedule_conv2d(attrs, outs, target):
@@ -171,7 +177,8 @@ def alter_conv2d_layout(attrs, inputs, tinfos):
         return raw_reshape(*args, **kwargs)
     sym.reshape = _reshape
 
-    return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, sym)
+    with tvm.target.create(attrs.get_str("target")):
+        return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, sym)
 
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -194,21 +201,24 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
         _, in_channel_chunk, _, _, in_channel_block = get_const_tuple(inputs[0].shape)
         in_channel = in_channel_chunk * in_channel_block
     assert dilation == (1, 1), "not support dilate now"
-    if groups == 1:
-        # pylint: disable=assignment-from-no-return
-        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding, dilation,
-                                   layout, out_layout, out_dtype)
-    elif groups == in_channel and groups == out_channel:
-        out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
-                                             dilation, layout, out_layout, out_dtype)
-        # pylint: enable=assignment-from-no-return
-    else:
-        raise ValueError("not support arbitrary group number > 1 for now")
-    if attrs.get_bool("use_bias"):
-        bias = inputs[2]
-        bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
-        out = topi.add(out, bias)
-    return out
+
+    with tvm.target.create(attrs.get_str("target")):
+        if groups == 1:
+            # pylint: disable=assignment-from-no-return
+            out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
+                                       dilation, layout, out_layout, out_dtype)
+        elif groups == in_channel and groups == out_channel:
+            out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides,
+                                                 padding, dilation, layout,
+                                                 out_layout, out_dtype)
+            # pylint: enable=assignment-from-no-return
+        else:
+            raise ValueError("not support arbitrary group number > 1 for now")
+        if attrs.get_bool("use_bias"):
+            bias = inputs[2]
+            bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
+            out = topi.add(out, bias)
+        return out
 
 @reg.register_schedule("_contrib_conv2d_NCHWc")
 def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
@@ -228,7 +238,7 @@ reg.register_pattern("_contrib_conv2d_NCHWc", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_compute("_contrib_conv2d_winograd_weight_transform")
 def compute_contrib_conv2d_winograd_weight_transform(attrs, inputs, _):
-    with tvm.target.create(attrs.get_string("target")):
+    with tvm.target.create(attrs.get_str("target")):
         return topi.nn.conv2d_winograd_weight_transform(
             inputs[0], attrs.get_int('tile_size'))
 
@@ -254,16 +264,17 @@ def compute_contrib_conv2d_winograd_without_weight_transform(attrs, inputs, _):
     assert dilation == (1, 1), "Do not support dilate now"
     assert groups == 1, "Do not supoort arbitrary group number"
 
-    # pylint: disable=assignment-from-no-return
-    out = topi.nn.conv2d_winograd_without_weight_transform(
-        inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype,
-        tile_size)
+    with tvm.target.create(attrs.get_str("target")):
+        # pylint: disable=assignment-from-no-return
+        out = topi.nn.conv2d_winograd_without_weight_transform(
+            inputs[0], inputs[1], strides, padding, dilation, layout,
+            out_dtype, tile_size)
 
-    if attrs.get_bool("use_bias"):
-        bias = inputs[2]
-        bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
-        out = topi.add(out, bias)
-    return out
+        if attrs.get_bool("use_bias"):
+            bias = inputs[2]
+            bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
+            out = topi.add(out, bias)
+        return out
 
 @reg.register_schedule("_contrib_conv2d_winograd_without_weight_transform")
 def schedule_contrib_conv2d_winograd_without_weight_transform(attrs, outs, target):
@@ -290,7 +301,7 @@ def compute_conv2d_transpose(attrs, inputs, _):
     assert dilation == (1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 for now"
 
-    with tvm.target.create(attrs.get_string("target")):
+    with tvm.target.create(attrs.get_str("target")):
         out = topi.nn.conv2d_transpose_nchw(inputs[0], inputs[1], strides,
                                             padding, out_dtype)
         if attrs.get_bool("use_bias"):
@@ -388,7 +399,7 @@ def compute_lrn(attrs, inputs, _):
     alpha = attrs.get_float("alpha")
     beta = attrs.get_float("beta")
     bias = attrs.get_float("bias")
-    with tvm.target.create(attrs.get_string("target")):
+    with tvm.target.create(attrs.get_str("target")):
         return topi.nn.lrn(inputs[0], size, axis, alpha, beta, bias)
 
 @reg.register_schedule("lrn")
@@ -404,7 +415,7 @@ def compute_l2_normalize(attrs, inputs, _):
     """Compute definition of l2 normalize"""
     eps = attrs.get_float("eps")
     axis = attrs.get_int_tuple("axis")
-    with tvm.target.create(attrs.get_string("target")):
+    with tvm.target.create(attrs.get_str("target")):
         return topi.nn.l2_normalize(inputs[0], eps, axis)
 
 @reg.register_schedule("l2_normalize")

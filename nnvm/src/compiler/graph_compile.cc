@@ -287,28 +287,28 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   ret.attrs["dtype"] = std::make_shared<any>(std::move(new_dtype_vec));
   ret.attrs["dltype"] = std::make_shared<any>(std::move(new_dltype_vec));
 
-  tvm::runtime::Module module;
-  if (tar_func_map.size() >= 1) {
-    // Setup device assignment for heterogeneous execution.
-    if (tar_func_map.size() > 1) {
-      DeviceVector device_vec(new_idx.num_node_entries(), 0);
-      for (size_t i = 0; i < new_idx.num_nodes(); i++) {
-        device_vec[new_idx.entry_id(i, 0)] = new_idx[i].source->attrs.device_type;
-      }
-      for (uint32_t nid = 0; nid < new_idx.num_nodes(); nid++) {
-        const auto& inode = new_idx[nid];
-        for (const auto& e : inode.inputs) {
-          device_vec[new_idx.entry_id(e)] =
-              new_idx[e.node_id].source->attrs.device_type;
-        }
-      }
-      ret.attrs["device_index"] = std::make_shared<any>(std::move(device_vec));
+  // Setup device assignment for heterogeneous execution.
+  if (tar_func_map.size() > 1) {
+    DeviceVector device_vec(new_idx.num_node_entries(), 0);
+    for (size_t i = 0; i < new_idx.num_nodes(); i++) {
+      device_vec[new_idx.entry_id(i, 0)] = new_idx[i].source->attrs.device_type;
     }
-    // Setup module.
-    static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_module");
-    module = fbuild(tvm::Map<std::string, Array<tvm::LoweredFunc>>(
-          tar_func_map.begin(), tar_func_map.end()), target_host);
+    for (uint32_t nid = 0; nid < new_idx.num_nodes(); nid++) {
+      const auto& inode = new_idx[nid];
+      for (const auto& e : inode.inputs) {
+        device_vec[new_idx.entry_id(e)] =
+            new_idx[e.node_id].source->attrs.device_type;
+      }
+    }
+    ret.attrs["device_index"] = std::make_shared<any>(std::move(device_vec));
   }
+  // Setup module.
+  static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_target");
+  tvm::runtime::Module module =
+      fbuild(tvm::Map<std::string, Array<tvm::LoweredFunc>>(
+                 tar_func_map.begin(), tar_func_map.end()),
+             "", target_host);
+
   ret.attrs["module"] = std::make_shared<any>(std::move(module));
   ret = nnvm::ApplyPass(ret, "PlanMemory");
   ret = DecorateMemoryPlan(ret, assign_flag);

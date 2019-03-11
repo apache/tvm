@@ -9,6 +9,7 @@
 #include <nnvm/graph.h>
 #include <nnvm/pass.h>
 #include <nnvm/pass_functions.h>
+#include <dlpack/dlpack.h>
 
 #include <algorithm>
 #include <queue>
@@ -21,7 +22,7 @@ using StringVector = std::vector<std::string>;
 using IntVector = std::vector<int>;
 
 enum class AnnotationType : int {
-  kTarget = 1,        // Only set target to the node attribute.
+  kHomoTarget = 1,        // Only set target to the node attribute.
   kDeivceTarget = 2,  // Annotate both device type and target info to a node.
   kCopyInsertion = 3  // Annotate device type and target. Insert copy node.
 };
@@ -34,8 +35,17 @@ enum class AnnotationType : int {
 nnvm::Graph AnnotateTarget(nnvm::Graph&& g, const StringVector& targets,
                            const IntVector& device_types) {
   DFSVisit(g.outputs, [&](const nnvm::NodePtr& node) {
-    node->attrs.device_type = device_types[0];
-    node->attrs.dict["target"] = targets[0];
+    if (device_types.size() == 1) {
+        node->attrs.device_type = device_types[0];
+        node->attrs.dict["target"] = targets[0];
+    } else {
+        const auto& it = std::find(device_types.begin(), device_types.end(),
+                                   static_cast<int>(kDLCPU));
+        CHECK(it != device_types.end()) << "No cpu target is found";
+        node->attrs.device_type = static_cast<int>(kDLCPU);;
+        node->attrs.dict["target"] =
+            targets[std::distance(device_types.begin(), it)];
+    }
   });
   return g;
 }
@@ -76,6 +86,14 @@ nnvm::Graph AnnotateGraph(nnvm::Graph g) {
   AnnotationType annotation_type =
       static_cast<AnnotationType>(g.MoveCopyAttr<int>("annotation_type"));
 
+  const auto& targets = g.GetAttr<StringVector>("target");
+  const auto& device_types = g.GetAttr<IntVector>("device_type");
+
+  if (annotation_type == AnnotationType::kHomoTarget) {
+    g = AnnotateTarget(std::move(g), targets, device_types);
+    return g;
+  }
+
   const StringVector& op_names = g.HasAttr("op_name")
                                      ? g.MoveCopyAttr<StringVector>("op_name")
                                      : StringVector();
@@ -84,26 +102,21 @@ nnvm::Graph AnnotateGraph(nnvm::Graph g) {
                                     : IntVector();
   CHECK_EQ(op_names.size(), op_devices.size())
       << "The number of op names doesn't match the number of assigned device.";
-  const auto& targets = g.GetAttr<StringVector>("target");
-  const auto& device_types = g.GetAttr<IntVector>("device_type");
 
   int fallback_device = 0;
   nnvm::ManualAnnotatorPtr annotate = nullptr;
-  if (!op_names.empty()) {
-    CHECK(g.HasAttr("fallback"))
-        << "The fallback device is not attached to the graph.";
-    fallback_device = g.MoveCopyAttr<int>("fallback");
-    std::unordered_map<std::string, int> op_name_dev_map;
-    for (size_t i = 0; i < op_names.size(); i++) {
-      op_name_dev_map.emplace(std::make_pair(op_names[i], op_devices[i]));
-    }
-    annotate = std::make_shared<nnvm::ManualAnnotator>(op_name_dev_map,
-                                                       fallback_device);
-  }
+  CHECK(g.HasAttr("fallback"))
+      << "The fallback device is not attached to the graph.";
+  fallback_device = g.MoveCopyAttr<int>("fallback");
 
-  if (annotation_type == AnnotationType::kTarget) {
-    g = AnnotateTarget(std::move(g), targets, device_types);
-  } else if (annotation_type == AnnotationType::kDeivceTarget) {
+  std::unordered_map<std::string, int> op_name_dev_map;
+  for (size_t i = 0; i < op_names.size(); i++) {
+    op_name_dev_map.emplace(std::make_pair(op_names[i], op_devices[i]));
+  }
+  annotate = std::make_shared<nnvm::ManualAnnotator>(op_name_dev_map,
+                                                     fallback_device);
+
+  if (annotation_type == AnnotationType::kDeivceTarget) {
     g = AnnotateDeviceTarget(std::move(g), targets, device_types, annotate);
   } else if (annotation_type == AnnotationType::kCopyInsertion) {
     g = AnnotateDeviceTarget(std::move(g), targets, device_types, annotate);

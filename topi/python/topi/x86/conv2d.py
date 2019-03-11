@@ -328,6 +328,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     new_attrs[layout_name] = 'NCHW%dc' % ic_bn
     new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
 
+    # Remove attached compilation target because conv2d_NCHWc needs to create
+    # a conv2d_nchwc op and target is not one of conv2d's parameters.
+    if "target" in new_attrs:
+        del new_attrs["target"]
+
     new_data = tvm.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
                                dtype=data.dtype)
     if is_depthwise:

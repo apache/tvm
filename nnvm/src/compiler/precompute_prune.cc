@@ -26,6 +26,7 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
   std::unordered_set<std::string> unique_name;
   // number of edges that are not variable
   int non_var_edge = 0;
+  std::unordered_map<Node*, std::vector<NodeEntry> > version_hist;
 
   auto replace_pruned_entry = [&] (const NodeEntry& e) {
     if (!entry_var.count(e)) {
@@ -34,8 +35,9 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       }
       nnvm::NodePtr var = nnvm::Node::Create();
       var->attrs.name = e.node->attrs.name;
-      if (e.version) {
-          var->attrs.name += "_" + std::to_string(e.version);
+      if (e.version && version_hist.count(e.node.get()) == 0) {
+        var->attrs.name += "_" + std::to_string(e.version);
+        version_hist[e.node.get()] = std::vector<NodeEntry>{};
       }
       if (e.node->num_outputs() != 1) {
         var->attrs.name += "_output" + std::to_string(e.index);
@@ -74,6 +76,11 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       }
     }
   });
+
+  // nothing being pruned.
+  if (non_var_edge == 0 && version_hist.size() == 0) {
+    return src;
+  }
 
   for (auto& e : src.outputs) {
     if (pruned.count(e.node.get())) {

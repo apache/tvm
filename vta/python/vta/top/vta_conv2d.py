@@ -188,12 +188,26 @@ def packed_conv2d(data,
         name="res", tag="packed_conv2d")
     return res
 
+
 @tvm.register_func("nnvm.compiler.build_target", override=True)
 def _build(funcs, target, target_host):
+    if isinstance(funcs, (dict, tvm.container.Map)):
+        new_funcs = {}
+        for key, val in funcs.items():
+            tvm_t = tvm.target.create(key)
+            print(tvm_t.device_name)
+            if tvm_t.device_name == "vta":
+                new_funcs["ext_dev"] = val
+            elif tvm_t.device_name == "rasp" or tvm_t.device_name == "vtacpu":
+                new_funcs[target_host] = val
+            else:
+                new_funcs[key] = val
+        return tvm.build(new_funcs, target=target, target_host=target_host)
+
     tvm_t = tvm.target.create(target)
     if tvm_t.device_name == "vta":
         return tvm.build(funcs, target="ext_dev", target_host=target_host)
-    elif tvm_t.device_name == "rasp" or tvm_t.device_name == "vtacpu":
+    if tvm_t.device_name == "rasp" or tvm_t.device_name == "vtacpu":
         return tvm.build(funcs, target=target_host)
     return tvm.build(funcs, target=target)
 
