@@ -294,6 +294,15 @@ def _mx_leaky_relu(inputs, attrs):
     raise RuntimeError("act_type: {} is not supported".format(act_type))
 
 
+def _mx_make_power(power):
+    def _impl(inputs, _):  # Note: no attrs
+        assert len(inputs) == 1
+        scalar = _expr.const(power, dtype=None)
+        # Note: int maps to "int32", float maps to "float32"
+        return _op.power(inputs[0], scalar)
+    return _impl
+
+
 def _mx_lrn(inputs, attrs):
     new_attrs = {}
     new_attrs["alpha"] = attrs.get_float("alpha", 0.0001)
@@ -419,6 +428,20 @@ _convert_map = {
     "_minimum"               : _rename(_op.minimum),
     "flatten"                : _rename(_op.nn.batch_flatten),
     "Flatten"                : _rename(_op.nn.batch_flatten),
+    # scalar power
+    "square"                 : _mx_make_power(   2),
+    "sqrt"                   : _mx_make_power( 1/2),
+    "rsqrt"                  : _mx_make_power(-1/2),
+    "cbrt"                   : _mx_make_power( 1/3),
+    "rcbrt"                  : _mx_make_power(-1/3),
+    "__pow_scalar__"         : _binop_scalar(_op.power),
+    "_power_scalar"          : _binop_scalar(_op.power),
+    "__rsub_scalar__"        : _rbinop_scalar(_op.subtract),
+    "_rminus_scalar"         : _rbinop_scalar(_op.subtract),
+    "__rdiv_scalar__"        : _rbinop_scalar(_op.divide),
+    "_rdiv_scalar"           : _rbinop_scalar(_op.divide),
+    "__rpow_scalar__"        : _rbinop_scalar(_op.power),
+    # scalar op
     "__add_scalar__"         : _binop_scalar(_op.add),
     "_plus_scalar"           : _binop_scalar(_op.add),
     "__sub_scalar__"         : _binop_scalar(_op.subtract),
@@ -427,13 +450,6 @@ _convert_map = {
     "_mul_scalar"            : _binop_scalar(_op.multiply),
     "__div_scalar__"         : _binop_scalar(_op.divide),
     "_div_scalar"            : _binop_scalar(_op.divide),
-    "__pow_scalar__"         : _binop_scalar(_op.power),
-    "_power_scalar"          : _binop_scalar(_op.power),
-    "__rsub_scalar__"        : _rbinop_scalar(_op.subtract),
-    "_rminus_scalar"         : _rbinop_scalar(_op.subtract),
-    "__rdiv_scalar__"        : _rbinop_scalar(_op.divide),
-    "_rdiv_scalar"           : _rbinop_scalar(_op.divide),
-    "__rpow_scalar__"        : _rbinop_scalar(_op.power),
     "_equal_scalar"          : _mx_compare(_op.equal, _binop_scalar),
     "_not_equal_scalar"      : _mx_compare(_op.not_equal, _binop_scalar),
     "_greater_scalar"        : _mx_compare(_op.greater, _binop_scalar),
