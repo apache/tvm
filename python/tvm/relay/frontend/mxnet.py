@@ -433,10 +433,10 @@ def _mx_roi_align(inputs, attrs):
 def _mx_upsampling(inputs, attrs):
     scale_height = attrs.get_float("scale_height", None)
     scale_width = attrs.get_float("scale_width", None)
-    if scale_height == None:
+    if scale_height is None:
         height = attrs.get_int("height", 1)
         scale_height = float(height) // inputs[0].shape[2]
-    if scale_width == None:
+    if scale_width is None:
         width = attrs.get_int("width", 1)
         scale_width = float(width) // inputs[0].shape[3]
     assert scale_height == scale_width
