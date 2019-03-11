@@ -7,16 +7,21 @@ from tvm.contrib import util
 
 
 class TFParser(object):
-    """A Wrapper to handle tensorflow models parsing
-       TensorFlow is needed
-    ```
-    parser = TfParser(model_dir)
-    graph = parser.parse()
-    ```
+    """
+    A Wrapper to handle tensorflow models parsing, TensorFlow is needed
+
     Parameters
     ----------
     model_dir : tensorflow frozen pb file or a directory that contains saved
     model or checkpoints.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        parser = TfParser(model_dir)
+        graph = parser.parse()
+        # graph is related graphdef of the model
     """
 
     def __init__(self, model_dir):
@@ -115,13 +120,16 @@ class TFParser(object):
         """TODO: Load checkpoint model."""
         raise RuntimeError("InputConfiguration: Loading tf checkpoint model is "
                            "not supported yet.")
-        # pylint: disable=unreachable
-        return 0
 
     def parse(self):
-        """Parse tensorflow models: checkpoints, saved models, and single pb
-        file.
         """
+        Parse tensorflow models: checkpoints, saved models, and single frozen pb file.
+
+        Returns
+        -------
+        GraphDef of the passed model
+        """
+
         graph = None
 
         if os.path.isdir(self._model_dir):
