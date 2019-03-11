@@ -29,7 +29,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         check_device(device)
 
 
-def verify_tranpose(in_shape, axes):
+def verify_transpose(in_shape, axes):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.transpose(A, axes)
     def check_device(device):
@@ -595,7 +595,7 @@ if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
     test_stack()
-    test_tranpose()
+    test_transpose()
     test_expand_dims()
     test_reshape()
     test_squeeze()

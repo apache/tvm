@@ -490,6 +490,61 @@ def test_arange():
     verify_arange(20, 1, -1)
     verify_arange(20, 1, -1.5)
 
+def test_tile():
+    def verify_tile(dshape, reps):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.tile(x, reps=reps)
+
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
+        ref_res = np.tile(x_data, reps=reps)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_tile((2, 3, 4), (0, 2, 1))
+    verify_tile((2, 3, 4), (0, 2))
+    verify_tile((2, 3), (0, 2, 1))
+
+def test_repeat():
+    def verify_repeat(dshape, repeats, axis):
+        x = relay.Var("x", relay.TensorType(dshape, "float32"))
+        func = relay.Function([x], relay.repeat(x, repeats, axis))
+        data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = np.repeat(data, repeats, axis)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_repeat((3,), 2, 0)
+    verify_repeat((3, 10), 2, -1)
+    verify_repeat((3, 2, 4), 3, 1)
+
+def test_stack():
+    def verify_stack(dshapes, axis):
+        dshapes = np.array(dshapes, dtype="int32")
+        x = relay.var("input_shapes", relay.TensorType(dshapes.shape, "int32"))
+        z = relay.stack(x, axis=axis)
+
+        func = relay.Function([x], z)
+        x_data = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
+        ref_res = np.stack(x_data, axis=axis)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_stack([[2,], [2,], [2,]], -1)
+    verify_stack([(2,), (2,), (2,)], 1)
+    verify_stack([(2,), (2,), (2,)], 0)
+    verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
+    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
+
+
 
 def test_reverse():
     def verify_reverse(dshape, axis):
@@ -535,3 +590,6 @@ if __name__ == "__main__":
     test_split_infer_type()
     test_arange()
     test_reverse()
+    test_stack()
+    test_repeat()
+    test_tile()
