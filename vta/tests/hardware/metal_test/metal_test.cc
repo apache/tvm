@@ -25,6 +25,8 @@ int main(void) {
   int status = 0;
 
   // Run ALU test (vector-scalar operators)
+  status |= alu_test(VTA_ALU_OPCODE_MIN, true, 16, 128, true);
+  status |= alu_test(VTA_ALU_OPCODE_MIN, true, 16, 128, false);
   status |= alu_test(VTA_ALU_OPCODE_MAX, true, 16, 128, true);
   status |= alu_test(VTA_ALU_OPCODE_MAX, true, 16, 128, false);
   status |= alu_test(VTA_ALU_OPCODE_ADD, true, 16, 128, true);
@@ -33,6 +35,8 @@ int main(void) {
   status |= alu_test(VTA_ALU_OPCODE_SHR, true, 16, 128, false);
 
   // Run ALU test (vector-vector operators)
+  status |= alu_test(VTA_ALU_OPCODE_MIN, false, 16, 128, true);
+  status |= alu_test(VTA_ALU_OPCODE_MIN, false, 16, 128, false);
   status |= alu_test(VTA_ALU_OPCODE_MAX, false, 16, 128, true);
   status |= alu_test(VTA_ALU_OPCODE_MAX, false, 16, 128, false);
   status |= alu_test(VTA_ALU_OPCODE_ADD, false, 16, 128, true);

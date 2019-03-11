@@ -85,40 +85,28 @@ uint64_t vta(
   VTAWriteMappedReg(vta_load_handle, 0x0, 0x81);
   VTAWriteMappedReg(vta_compute_handle, 0x0, 0x81);
   VTAWriteMappedReg(vta_store_handle, 0x0, 0x81);
-
+#elif defined(VTA_TARGET_DE10_NANO)
+  // FETCH @ 0x18 : Data signal of insns_V
+  if (insns) VTAWriteMappedReg(vta_fetch_handle, 0x18, insn_phy+0x80000000);
+  // LOAD @ 0x10 : Data signal of inputs_V
+  if (inputs) VTAWriteMappedReg(vta_load_handle, 0x10, input_phy);
+  // LOAD @ 0x18 : Data signal of weight_V
+  if (weights) VTAWriteMappedReg(vta_load_handle, 0x18, weight_phy);
+  // COMPUTE @ 0x20 : Data signal of uops_V
+  if (uops) VTAWriteMappedReg(vta_compute_handle, 0x20, uop_phy+0x80000000);
+  // COMPUTE @ 0x28 : Data signal of biases_V
+  if (biases) VTAWriteMappedReg(vta_compute_handle, 0x28, bias_phy+0x80000000);
+  // STORE @ 0x10 : Data signal of outputs_V
+  if (outputs) VTAWriteMappedReg(vta_store_handle, 0x10, output_phy+0x80000000);
+  // FETCH @ 0x10 : Data signal of insn_count_V
+  VTAWriteMappedReg(vta_fetch_handle, 0x10, insn_count);
+#endif  
+  
   int flag = 0, t = 0;
   for (t = 0; t < 10000000; ++t) {
     flag = VTAReadMappedReg(vta_compute_handle, 0x18);
     if (flag & VTA_DONE) break;
   }
-#elif defined(VTA_TARGET_DE10_NANO)
-  // FETCH @ 0x10 : Data signal of insn_count_V
-  VTAWriteMappedReg(vta_fetch_handle, 0x10, insn_count);
-  // FETCH @ 0x20 : Data signal of insns_V
-  if (insns) VTAWriteMappedReg(vta_fetch_handle, 0x20, insn_phy);
-  // LOAD @ 0x10 : Data signal of inputs_V
-  if (inputs) VTAWriteMappedReg(vta_load_handle, 0x10, input_phy);
-  // LOAD @ 0x20 : Data signal of weight_V
-  if (weights) VTAWriteMappedReg(vta_load_handle, 0x20, weight_phy);
-  // COMPUTE @ 0x20 : Data signal of uops_V
-  if (uops) VTAWriteMappedReg(vta_compute_handle, 0x20, uop_phy);
-  // COMPUTE @ 0x30 : Data signal of biases_V
-  if (biases) VTAWriteMappedReg(vta_compute_handle, 0x30, bias_phy);
-  // STORE @ 0x10 : Data signal of outputs_V
-  if (outputs) VTAWriteMappedReg(vta_store_handle, 0x10, output_phy);
-
-  // VTA start
-  VTAWriteMappedReg(vta_fetch_handle, 0x0, 0x1);
-  VTAWriteMappedReg(vta_load_handle, 0x0, 0x81);
-  VTAWriteMappedReg(vta_compute_handle, 0x0, 0x81);
-  VTAWriteMappedReg(vta_store_handle, 0x0, 0x81);
-
-  int flag = 0, t = 0;
-  for (t = 0; t < 10000000; ++t) {
-    flag = VTAReadMappedReg(vta_compute_handle, 0x10);
-    if (flag & VTA_DONE) break;
-  }
-#endif
 
   if (t == 10000000) {
     printf("\tWARNING: VTA TIMEOUT!!!!\n");

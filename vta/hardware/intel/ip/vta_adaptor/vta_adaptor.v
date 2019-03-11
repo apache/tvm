@@ -1,23 +1,6 @@
 module vta_adaptor (
  input                clock_clk
 ,input                reset_reset
-,input                fetch_insn_count_avs_address
-,output               fetch_insn_count_avs_waitrequest
-,input                fetch_insn_count_avs_write
-,input        [31:0]  fetch_insn_count_avs_writedata
-,output  reg  [31:0]  fetch_insn_count_data
-,output  reg  [31:0]  fetch_insn_count_2_data
-,input                fetch_call_avs_address
-,output               fetch_call_avs_waitrequest
-,input                fetch_call_avs_write
-,input        [7:0]   fetch_call_avs_writedata
-,output               fetch_call_valid
-,input                fetch_call_stall
-,input                fetch_insns_avs_address
-,output               fetch_insns_avs_waitrequest
-,input                fetch_insns_avs_write
-,input        [31:0]  fetch_insns_avs_writedata
-,output       [31:0]  fetch_insns_data
 //=================================================
 // configure ACP
 //=================================================
@@ -39,6 +22,16 @@ module vta_adaptor (
 ,output wire          uops_waitrequest
 ,input                uops_read
 ,output      [127:0]  uops_readdata
+// insns_cfg slave 
+,input                insns_cfg_address
+,output  reg          insns_cfg_waitrequest
+,input                insns_cfg_write
+,input        [31:0]  insns_cfg_writedata
+// insns slave
+,input        [31:0]  insns_address
+,output wire          insns_waitrequest
+,input                insns_read
+,output      [127:0]  insns_readdata
 // biases_cfg slave 
 ,input                biases_cfg_address
 ,output  reg          biases_cfg_waitrequest
@@ -78,10 +71,16 @@ reg   [2:0]    arprot = 3'b100;
 
 reg   [7:0]    cfg_state;
 
+reg   [31:0]   insns_base_address = 0;
 reg   [31:0]   uops_base_address = 0;
 reg   [31:0]   biases_base_address = 0;
 reg   [31:0]   outputs_base_address = 0;
 
+// ins_master
+wire  [31:0]  ins_master_address    ;
+wire          ins_master_waitrequest;
+wire          ins_master_read       ;
+wire [127:0]  ins_master_readdata   ;
 // uop_master
 wire  [31:0]  uop_master_address    ;
 wire          uop_master_waitrequest;
@@ -101,12 +100,10 @@ wire [127:0]  out_master_writedata  ;
 MemArbiter arbiter (
   .clock(clock_clk),
   .reset(reset_reset),
-  .io_ins_cache_waitreques  (),
-  .io_ins_cache_address     (),
-  .io_ins_cache_read        (),
-  .io_ins_cache_readdata    (),
-  .io_ins_cache_write       (),
-  .io_ins_cache_writedata   (),
+  .io_ins_cache_waitrequest (ins_master_waitrequest),
+  .io_ins_cache_address     (ins_master_address),
+  .io_ins_cache_read        (ins_master_read),
+  .io_ins_cache_readdata    (ins_master_readdata),
   .io_inp_cache_waitrequest (),
   .io_inp_cache_address     (),
   .io_inp_cache_read        (),
@@ -131,20 +128,18 @@ MemArbiter arbiter (
   .io_out_cache_waitrequest (out_master_waitrequest),
   .io_out_cache_write       (out_master_write),
   .io_out_cache_writedata   (out_master_writedata),
-  .io_axi_master_address    (axi_master_address    ),
+  .io_axi_master_address    (axi_master_address),
   .io_axi_master_waitrequest(axi_master_waitrequest),
-  .io_axi_master_read       (axi_master_read       ),
-  .io_axi_master_readdata   (axi_master_readdata   ),
-  .io_axi_master_write      (axi_master_write      ),
-  .io_axi_master_writedata  (axi_master_writedata  )
+  .io_axi_master_read       (axi_master_read),
+  .io_axi_master_readdata   (axi_master_readdata),
+  .io_axi_master_write      (axi_master_write),
+  .io_axi_master_writedata  (axi_master_writedata)
 );
                      
-assign fetch_insn_count_avs_waitrequest = 1'b0;
-assign fetch_call_avs_waitrequest = 1'b0;
-assign fetch_insns_avs_waitrequest = 1'b0;
-
-assign fetch_call_valid = fetch_call_avs_writedata[0];
-assign fetch_insns_data[31:0] = fetch_insns_avs_writedata[31:0];
+assign ins_master_address[31:0] = insns_address[31:0] + insns_base_address[31:0];
+assign insns_waitrequest = ins_master_waitrequest;
+assign ins_master_read = insns_read;
+assign insns_readdata[127:0] = ins_master_readdata[127:0];
 
 assign uop_master_address[31:0] = uops_address[31:0] + uops_base_address[31:0];
 assign uops_waitrequest = uop_master_waitrequest;
@@ -161,19 +156,7 @@ assign outputs_waitrequest = out_master_waitrequest;
 assign out_master_write = outputs_write;
 assign out_master_writedata[127:0] = outputs_writedata[127:0];
 
-always @(posedge clock_clk or posedge reset_reset)
-begin
-  if (reset_reset) begin
-    fetch_insn_count_data[31:0] <= 0;
-   fetch_insn_count_2_data[31:0] <= 0;
-  end
-  else if (fetch_insn_count_avs_write)
-  begin
-    fetch_insn_count_data[31:0] <= fetch_insn_count_avs_writedata[31:0];
-   fetch_insn_count_2_data[31:0] <= fetch_insn_count_avs_writedata[31:0];
-  end
-end
-  
+
 ///////////////////////////////
 // state controller
 ///////////////////////////////
@@ -203,19 +186,23 @@ end
 
 always @(posedge clock_clk or posedge reset_reset) begin
   if (reset_reset) begin
+    insns_base_address <= 0;
     uops_base_address <= 0;
     biases_base_address <= 0;
     outputs_base_address <= 0;
   end
   else begin
+     if (insns_cfg_write) begin
+       insns_base_address <= insns_cfg_writedata;
+     end
      if (uops_cfg_write) begin
-     uops_base_address <= uops_cfg_writedata;
+       uops_base_address <= uops_cfg_writedata;
      end
      if (biases_cfg_write) begin
-     biases_base_address <= biases_cfg_writedata;
+       biases_base_address <= biases_cfg_writedata;
      end
      if (outputs_cfg_write) begin
-     outputs_base_address <= outputs_cfg_writedata;
+       outputs_base_address <= outputs_cfg_writedata;
      end
   end
 end
