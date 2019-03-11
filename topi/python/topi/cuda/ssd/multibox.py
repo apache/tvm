@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, too-many-function-args
 """SSD multibox operators"""
 from __future__ import absolute_import as _abs
-import math
 import tvm
+import math
 
 from tvm import api
 from tvm.intrin import if_then_else
