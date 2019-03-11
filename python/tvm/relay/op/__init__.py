@@ -1,9 +1,8 @@
 #pylint: disable=wildcard-import, redefined-builtin
 """Relay core operators."""
 # operator defs
-from .op import get, register, register_schedule, register_compute, register_alter_op_layout, \
-    Op
-from .op import debug
+from .op import get, register, register_schedule, register_compute, register_gradient, \
+    register_pattern, register_alter_op_layout, schedule_injective, Op, OpPattern, debug
 
 # Operators
 from .reduce import *

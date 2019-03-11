@@ -3,9 +3,6 @@ tvm.relay.backend
 
 .. automodule:: tvm.relay.backend
 
-Interpreter
------------
-
 .. automodule:: tvm.relay.backend.interpreter
     :members:
 
