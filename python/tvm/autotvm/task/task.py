@@ -338,7 +338,7 @@ def compute_flop(sch):
                             expr.Max, expr.Min,
                             expr.EQ, expr.NE, expr.LT, expr.LE, expr.GT, expr.GE,
                             expr.And, expr.Or, expr.Not)):
-            base = 1 if "float" in exp.a.dtype else 0
+            base = 1
 
             if isinstance(exp, expr.Not):  # unary
                 return base + _count_flop(exp.a)
@@ -348,6 +348,10 @@ def compute_flop(sch):
             return _count_flop(exp.condition) + max(_count_flop(exp.true_value),
                                                     _count_flop(exp.false_value))
         if isinstance(exp, expr.Call):
+            if exp.call_type == expr.Call.Halide:
+                # Ignore flops from indexing expressions.
+                return 0
+
             return sum([_count_flop(x) for x in exp.args])
 
         raise FlopCalculationError("Found unsupported operator in the compute expr")
