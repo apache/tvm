@@ -322,16 +322,16 @@ def _mx_make_logarithm(base):
 
 
 def _mx_expm1():
-    # expm1 x = exp(x) + 1
+    # exp_minus_1 x = exp(x) - 1
     def _impl(inputs, _):  # Note: no attrs
         assert len(inputs) == 1
         one = _expr.const(1, dtype="float32")
-        return _op.log(_op.add(inputs[0], one))
+        return _op.log(_op.subtract(inputs[0], one))
     return _impl
 
 
 def _mx_log1p():
-    # log1p x = log(x + 1)
+    # 1_plus_log x = log(x + 1)
     def _impl(inputs, _):  # Note: no attrs
         assert len(inputs) == 1
         one = _expr.const(1, dtype="float32")
@@ -439,7 +439,6 @@ _identity_list = [
     "where",
 ]
 
-# pylint: disable=C0321
 _convert_map = {
     "_copy"                  : _rename(_op.copy),
     "relu"                   : _rename(_op.nn.relu),
@@ -465,10 +464,10 @@ _convert_map = {
     "flatten"                : _rename(_op.nn.batch_flatten),
     "Flatten"                : _rename(_op.nn.batch_flatten),
     # scalar power
-    "square"                 : _mx_make_power(   2),
-    "sqrt"                   : _mx_make_power( 1/2),
+    "square"                 : _mx_make_power(2),
+    "sqrt"                   : _mx_make_power(1/2),
     "rsqrt"                  : _mx_make_power(-1/2),
-    "cbrt"                   : _mx_make_power( 1/3),
+    "cbrt"                   : _mx_make_power(1/3),
     "rcbrt"                  : _mx_make_power(-1/3),
     "__pow_scalar__"         : _binop_scalar(_op.power),
     "_power_scalar"          : _binop_scalar(_op.power),
@@ -562,7 +561,7 @@ _convert_map = {
     # "gather_nd",
     # "Crop"          : _crop_like,
 }
-# pylint: enable=C0321
+
 # set identity list
 _convert_map.update({k : _rename(k) for k in _identity_list})
 
