@@ -1,6 +1,5 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, unused-argument
 """Convert an NNVM graph to Relay."""
-import json
 import numpy
 
 from tvm import relay, nd
@@ -441,12 +440,10 @@ def to_relay(graph, shape_dict, dtype_dict, params):
     graph = graph.apply(["InferShape", "InferType"])
     shape = graph.json_attr("shape")
     dtype = [graph_attr.TCODE_TO_DTYPE[di] for di in graph.json_attr("dtype")]
-    heads = [x[0] for x in json.loads(graph.json())['heads']]
 
     gidx = graph.index
     relay_map = {}
     fn_params = []
-    output_ids = []
 
     for nid, node in enumerate(gidx.nodes):
         children = []
@@ -468,9 +465,6 @@ def to_relay(graph, shape_dict, dtype_dict, params):
             fn_params.append(v)
             relay_map[nid] = v
         else:
-            if nid in heads:
-                output_ids.append(nid)
-
             if op_name in NNVM_OP_2_RELAY_OP:
                 str_attrs = StrAttrsDict(attrs)
                 call = NNVM_OP_2_RELAY_OP[op_name](children, str_attrs, odtype)
@@ -479,7 +473,14 @@ def to_relay(graph, shape_dict, dtype_dict, params):
                 raise Exception(
                     "nnvm.to_relay: unsupported operator: {0}".format(op_name))
 
-    outputs = [relay_map[nid] for nid in output_ids]
+    outputs = []
+    for nid, idx, _ in gidx.output_entries:
+        output = relay_map[nid]
+        if isinstance(output, expr.TupleWrapper):
+            outputs.append(output[idx])
+        else:
+            outputs.append(output)
+
     if len(outputs) == 1:
         body = outputs[0]
     else:
