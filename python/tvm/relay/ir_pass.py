@@ -75,9 +75,10 @@ class Pass(RelayNode):
             raise TypeError("pass_ctx is expected to be the PassContext type")
         _ir_pass.SetContext(self, pass_ctx)
 
-    def get_pass_info(self):
+    @property
+    def info(self):
         """Get the pass meta."""
-        return _ir_pass.GetPassInfo(self)
+        return _ir_pass.Info(self)
 
     def __call__(self, mod):
         """Execute the pass. Note that for sequential pass, the dependency among
@@ -149,7 +150,7 @@ class FunctionPass(Pass):
 
 @register_relay_node
 class SequentialPass(Pass):
-    """A pass that works on each tvm.relay.Function in a module.
+    """A pass that works on a sequence of pass objects.
 
     Parameters
     ----------
@@ -178,88 +179,164 @@ class SequentialPass(Pass):
                                             disabled)
 
 
-def create_module_pass(pass_name, opt_level, pass_func, required=None):
-    """Create a module pass using a defined optimization function from Python.
+def module_pass(opt_level, name=None, required=None):
+    """Create a module pass.
 
     Parameters
     ----------
-    pass_name : str
-        The name of the module pass.
-
     opt_level : int
         The optimization level of this module pass.
 
-    pass_func : Optional[Callable[(Module/Function, PassContext) ->
-                Module/Function]]
-        The implemented optimization pass.
+    name : Optional[str]
+        The name of the module pass. The name could be empty. In this case, the
+        name of the optimization function will be used as the pass name.
 
-    required : List[str]
+    required : Optional[List[str]]
         The list of passes that the module pass is dependent on.
 
     Returns
     -------
-    ret : Pass
-        A module level pass built through pass_func.
+    create_module_pass : Callable
+        The callable that will create a module pass.
+
+	Examples
+    --------
+    The following code creates a module level pass and adds an abs function to
+    the module.
+
+    .. code-block:: python
+        @relay.ir_pass.module_pass(opt_level=2)
+        def transform(mod, ctx):
+            tp = relay.TensorType((10,), "float32")
+            x = relay.var("x", tp)
+            gv = relay.GlobalVar("var")
+            func = relay.Function([x], relay.abs(x))
+            new_mod = relay.Module({gv: func})
+            new_mod.update(mod)
+            return new_mod
+
+        module_pass = transform
+        assert isinstance(module_pass, ir_pass.ModulePass)
+        assert module_pass.info.opt_level == 2
+
+        # Given a module m, the optimization could be invoked as the follwoing:
+        updated_mod = module_pass(m)
+        # Now a function abs should be added to the module m.
     """
-    if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
-        raise TypeError("pass_func must be a callable for Module pass")
 
     required = required if required else []
     if not isinstance(required, (list, tuple)):
-        raise TypeError("Required is expected to be the type of list/tuple.")
+        raise TypeError("Required is expected to be the type of " +
+                        "list/tuple.")
 
-    return _ir_pass.CreateModulePass(pass_name, opt_level, required, pass_func)
+    def create_module_pass(pass_func):
+        """Create the module pass using the user defined optimization
+        function.
+
+        Parameters
+        ----------
+        pass_func : Optional[Callable[(Module/Function, PassContext) ->
+                    Module/Function]]
+            The implemented optimization pass.
+
+         Returns
+        -------
+        ret : Pass
+            A module level pass built through pass_func.
+        """
+        if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
+            raise TypeError("pass_func must be a callable for Module pass")
+
+        return _ir_pass.CreateModulePass(name if name else pass_func.__name__,
+                                         opt_level, required, pass_func)
+
+    return create_module_pass
 
 
-def create_function_pass(pass_name, opt_level, pass_func, required=None):
-    """Create a function pass using a defined optimization function from
-    Python.
+def function_pass(opt_level, name=None, required=None):
+    """Create a function pass.
 
     Parameters
     ----------
-    pass_name : str
-        The name of the function pass.
-
     opt_level : int
-        The optimization level of this function pass.
+        The optimization level of this module pass.
 
-    pass_func : Optional[Callable[(Module/Function, PassContext) ->
-                Module/Function]]
-        The implemented optimization pass.
+    name : Optional[str]
+        The name of the function pass. The name could be empty. In this case, the
+        name of the optimization function will be used as the pass name.
 
-    required : List[str]
-        The list of passes that the function pass is dependent on.
+    required : Optional[List[str]]
+        The list of passes that the module pass is dependent on.
 
     Returns
     -------
-    ret : Pass
-        A function level pass built through pass_func.
+    create_module_pass : Callable
+        The callable that will create a module pass.
+
+    Examples
+    --------
+    The following code creates a function level pass that performs constant
+    folding.
+
+    .. code-block:: python
+        @relay.ir_pass.function_pass(opt_level=2)
+        def transform(func, ctx):
+            return ir_pass.fold_constant(func)
+
+        function_pass = transform
+        assert isinstance(function_pass, ir_pass.FunctionPass)
+        assert function_pass.info.opt_level == 2
+
+        # Given a module m, the optimization could be invoked as the follwoing:
+        updated_mod = function_pass(m)
+        # Now constant folding should have been applied to every function in
+        # the provided module m. And the updated module will be returned.
     """
-    if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
-        raise TypeError("pass_func must be a callable for Module pass")
 
     required = required if required else []
     if not isinstance(required, (list, tuple)):
-        raise TypeError("Required is expected to be the type of list/tuple.")
+        raise TypeError("Required is expected to be the type of " +
+                        "list/tuple.")
 
-    return _ir_pass.CreateFunctionPass(pass_name, opt_level, required, pass_func)
+    def create_function_pass(pass_func):
+        """Create the function pass using the user defined optimization
+        function.
+
+        Parameters
+        ----------
+        pass_func : Optional[Callable[(Module/Function, PassContext) ->
+                    Module/Function]]
+            The implemented optimization pass.
+
+        Returns
+        -------
+        ret : Pass
+            A function level pass built through pass_func.
+        """
+        if not isinstance(pass_func, (types.FunctionType, types.LambdaType)):
+            raise TypeError("pass_func must be a callable for Module pass")
+
+        return _ir_pass.CreateFunctionPass(name if name else pass_func.__name__,
+                                           opt_level, required, pass_func)
+
+    return create_function_pass
 
 
-def create_sequential_pass(pass_name, opt_level, sequential_passes,
-                           required=None, disabled=None):
+def sequential_pass(opt_level, passes, name="sequential_pass", required=None,
+                    disabled=None):
     """Create a sequential pass using a defined optimization function from
     Python.
 
     Parameters
     ----------
-    pass_name : str
-        The name of the sequential pass.
-
     opt_level : int
         The optimization level of this sequential pass.
 
-    sequential_passes : Optional[List[Pass]]
+    passes : Optional[List[Pass]]
         A sequence of passes candidate for optimization.
+
+    name : str
+        The name of the sequential pass.
 
     required : List[str]
         The list of passes that the sequential pass is dependent on.
@@ -272,8 +349,8 @@ def create_sequential_pass(pass_name, opt_level, sequential_passes,
     ret : Pass
         A sequential pass built through pass_func.
     """
-    if not isinstance(sequential_passes, (list, tuple)):
-        raise TypeError("sequential_passes must be a list of Pass objects.")
+    if not isinstance(passes, (list, tuple)):
+        raise TypeError("passes must be a list of Pass objects.")
 
     disabled = disabled if disabled else []
     if not isinstance(disabled, (list, tuple)):
@@ -283,8 +360,8 @@ def create_sequential_pass(pass_name, opt_level, sequential_passes,
     if not isinstance(required, (list, tuple)):
         raise TypeError("Required is expected to be the type of list/tuple.")
 
-    return _ir_pass.CreateSequentialPass(pass_name, opt_level,
-                                         sequential_passes, required, disabled)
+    return _ir_pass.CreateSequentialPass(name, opt_level, passes, required,
+                                         disabled)
 
 
 def post_order_visit(expr, fvisit):

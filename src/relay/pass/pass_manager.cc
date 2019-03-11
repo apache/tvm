@@ -50,7 +50,7 @@ class ModulePassNode : public PassNode {
   /*!
    * \brief Get the pass information/meta data.
    */
-  PassInfo GetPassInfo() const { return pass_info; }
+  PassInfo Info() const { return pass_info; }
 
   /*!
    * \brief Set the context information for a module pass.
@@ -116,7 +116,7 @@ class FunctionPassNode : public PassNode {
   /*!
    * \brief Get the pass information/meta data.
    */
-  PassInfo GetPassInfo() const { return pass_info; }
+  PassInfo Info() const { return pass_info; }
 
   /*!
    * \brief Set the context information for a function-level pass.
@@ -182,7 +182,7 @@ class SequentialPassNode : public PassNode {
   /*!
    * \brief Get the pass information/meta data.
    */
-  PassInfo GetPassInfo() const { return pass_info; }
+  PassInfo Info() const { return pass_info; }
 
   /*!
    * \brief Add a pass to the pass list.
@@ -272,7 +272,7 @@ ModulePass ModulePassNode::make(
 //              2. Probably use CoW for all places that use module instead of
 //              returning the updated one.
 Module ModulePassNode::operator()(const Module& mod) const {
-  PassInfo pass_info = GetPassInfo();
+  PassInfo pass_info = Info();
   LOG(INFO) << "Executing module pass : " << pass_info.operator->()->name
             << " with opt level: " << pass_info.operator->()->opt_level << "\n";
   CHECK(mod.defined());
@@ -297,7 +297,7 @@ FunctionPass FunctionPassNode::make(
 // Perform Module -> Module optimizations at the Function level.
 // TODO(zhiics) Check and handle the required passes.
 Module FunctionPassNode::operator()(const Module& mod) const {
-  PassInfo pass_info = GetPassInfo();
+  PassInfo pass_info = Info();
   LOG(INFO) << "Executing function pass : " << pass_info.operator->()->name
             << " with opt level: " << pass_info.operator->()->opt_level << "\n";
   CHECK(mod.defined());
@@ -415,10 +415,10 @@ TVM_REGISTER_API("relay._ir_pass.PassInfo")
   *ret = PassInfoNode::make(name, opt_level, required);
 });
 
-TVM_REGISTER_API("relay._ir_pass.GetPassInfo")
+TVM_REGISTER_API("relay._ir_pass.Info")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
-  *ret = pass->GetPassInfo();
+  *ret = pass->Info();
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -461,7 +461,7 @@ TVM_REGISTER_API("relay._ir_pass.RunPass")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ModulePassNode>([](const ModulePassNode* node,
                                  tvm::IRPrinter* p) {
-  const PassInfoNode* pn = node->GetPassInfo().operator->();
+  const PassInfoNode* pn = node->Info().operator->();
   p->stream << "Run Module pass: " << pn->name
             << " at the optimization level " << pn->opt_level;
 });
@@ -480,7 +480,7 @@ TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
                                    tvm::IRPrinter* p) {
-  const PassInfoNode* pn = node->GetPassInfo().operator->();
+  const PassInfoNode* pn = node->Info().operator->();
   p->stream << "Run Function pass: " << pn->name
             << " at the optimization level " << pn->opt_level;
 });
@@ -501,13 +501,13 @@ TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<SequentialPassNode>([](const SequentialPassNode* node,
                                      tvm::IRPrinter* p) {
-  const PassInfoNode* seq_pn = node->GetPassInfo().operator->();
+  const PassInfoNode* seq_pn = node->Info().operator->();
   p->stream << "Run SequentialPass pass: " << seq_pn->name
             << " at the optimization level. " << seq_pn->opt_level;
   p->stream << "The passes will be executed are: [";
   for (const auto& it : node->passes) {
     const PassNode* pn = it.operator->();
-    const PassInfoNode* pass_info_node = pn->GetPassInfo().operator->();
+    const PassInfoNode* pass_info_node = pn->Info().operator->();
     p->stream << pass_info_node->name << " ";
   }
   p->stream << "]";

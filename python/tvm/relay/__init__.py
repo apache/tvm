@@ -79,9 +79,9 @@ Match = adt.Match
 var = expr.var
 const = expr.const
 bind = expr.bind
-create_module_pass = ir_pass.create_module_pass
-create_function_pass = ir_pass.create_function_pass
-create_sequential_pass = ir_pass.create_sequential_pass
+module_pass = ir_pass.module_pass
+function_pass = ir_pass.function_pass
+sequential_pass = ir_pass.sequential_pass
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor

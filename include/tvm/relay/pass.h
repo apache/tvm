@@ -135,7 +135,7 @@ class PassNode : public RelayNode {
  public:
   /*
    * \brief Get the pass information/meta data.  */
-  virtual PassInfo GetPassInfo() const = 0;
+  virtual PassInfo Info() const = 0;
 
   /*!
    * \brief Set the context information for a pass.
