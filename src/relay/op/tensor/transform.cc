@@ -1223,7 +1223,7 @@ bool ReverseRel(const Array<Type>& types,
   const auto* param = attrs.as<ReverseAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
   const int axis = param->axis;
-  CHECK(-ndim - 1 < axis && axis < ndim)
+  CHECK(-ndim <= axis && axis < ndim)
     << "reverse only accepts `axis` in [-data.ndim, data.ndim - 1]"
     << ", but got axis = " << axis
     << ", and data.ndim = " << ndim;
