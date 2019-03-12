@@ -565,8 +565,8 @@ def test_deformable_conv2d():
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
-    test_multibox_prior()
     test_multibox_transform_loc()
+    test_multibox_prior()
     test_get_valid_counts()
     test_roi_align()
     test_roi_pool()

@@ -36,10 +36,10 @@ def get_valid_counts_pre(data, flag, idx, score_threshold):
         3D Buffer with shape [batch_size, num_anchors, 6], output of nms.
 
     flag : Buffer
-        1D Buffer of flag indicating valid data with [num_anchors].
+        2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
 
     idx : Buffer
-        1D Buffer of valid data indices with [num_anchors].
+        2D Buffer of valid data indices with shape [batch_size, num_anchors].
 
     score_threshold: float32
         Lower limit of score for valid bounding boxes.
@@ -59,8 +59,7 @@ def get_valid_counts_pre(data, flag, idx, score_threshold):
     idx = ib.buffer_ptr(idx)
     score_threshold = tvm.make.node("FloatImm", dtype="float32", value=score_threshold)
 
-    max_threads = int(math.sqrt(
-        tvm.target.current_target(allow_none=False).max_num_threads))
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -101,10 +100,10 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
         Input data. 3-D Buffer with shape [batch_size, num_anchors, 6].
 
     flag : Buffer
-        1D Buffer of flag indicating valid data with [num_anchors].
+        2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
 
     idx : Buffer
-        1D Buffer of valid data indices with [num_anchors].
+        2D Buffer of valid data indices with shape [batch_size, num_anchors].
 
     valid_count : Buffer
         1-D buffer for valid number of boxes.
@@ -129,22 +128,21 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     valid_count = ib.buffer_ptr(valid_count)
     out = ib.buffer_ptr(out)
 
-    max_threads = int(math.sqrt(
-        tvm.target.current_target(allow_none=False).max_num_threads))
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     nthread_tx = max_threads
-    nthread_bx = batch_size * num_anchors // max_threads + 1
+    nthread_bx = batch_size * num_anchors * elem_length // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
     bx = tvm.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
 
+    with ib.if_scope(tid < batch_size * num_anchors * elem_length):
+        out[tid] = -1.0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = tid / num_anchors # number of batches
         j = tid % num_anchors # number of anchors
         base_idx = i * num_anchors * 6
-        with ib.for_range(0, elem_length) as k:
-            out[base_idx + j * 6 + k] = -1.0
         with ib.if_scope(flag[tid] > 0):
             with ib.for_range(0, elem_length) as k:
                 out[base_idx + (idx[tid] - 1) * 6 + k] = data[base_idx + j * 6 + k]
