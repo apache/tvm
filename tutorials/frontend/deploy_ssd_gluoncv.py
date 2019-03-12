@@ -18,6 +18,7 @@
 Deploy Single Shot Multibox Detector(SSD) model
 ===============================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_
+`Leyuan Wang <https://github.com/Laurawly>`_
 
 This article is an introductory tutorial to deploy SSD models with TVM.
 We will use GluonCV pre-trained SSD model and convert it to Relay IR
@@ -37,13 +38,15 @@ from gluoncv import model_zoo, data, utils
 # ------------------------------
 # .. note::
 #
-#   Currently we support compiling SSD on CPU only.
-#   GPU support is in progress.
+#   We support compiling SSD on bot CPUs and GPUs now.
 #
 #   To get best inference performance on CPU, change
 #   target argument according to your device and
 #   follow the :ref:`tune_relay_x86` to tune x86 CPU and
 #   :ref:`tune_relay_arm` for arm cpu.
+#
+#   To get best performance fo SSD on intel graphics,
+#   change target argument to 'opecl -device=intel_graphics'
 #
 #   SSD with VGG as body network is not supported yet since
 #   x86 conv2d schedule doesn't support dilation.
@@ -54,8 +57,8 @@ supported_model = [
     'ssd_512_resnet50_v1_voc',
     'ssd_512_resnet50_v1_coco',
     'ssd_512_resnet101_v2_voc',
-    'ssd_512_mobilenet1_0_voc',
-    'ssd_512_mobilenet1_0_coco',
+    'ssd_512_mobilenet1.0_voc',
+    'ssd_512_mobilenet1.0_coco',
 ]
 
 model_name = "ssd_512_resnet50_v1_voc"
@@ -98,9 +101,6 @@ def run(graph, lib, params, ctx):
     return class_IDs, scores, bounding_boxs
 
 for target, ctx in target_list:
-    if target == "cuda":
-        print("GPU not supported yet, skip.")
-        continue
     graph, lib, params = compile(target)
     class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
 

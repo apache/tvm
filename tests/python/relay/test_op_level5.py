@@ -177,8 +177,7 @@ def test_get_valid_counts():
         assert "score_threshold" in z.astext()
         func = relay.Function([x], z.astuple())
         func = relay.ir_pass.infer_type(func)
-        ctx_list = [("llvm", tvm.cpu(0))]
-        for target, ctx in ctx_list:
+        for target, ctx in ctx_list():
             intrp = relay.create_executor("debug", ctx=ctx, target=target)
             out = intrp.evaluate(func)(np_data)
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3)
@@ -212,8 +211,7 @@ def test_non_max_suppression():
         func = relay.ir_pass.infer_type(func)
         func_indices = relay.Function([x0, x1], z_indices)
         func_indices = relay.ir_pass.infer_type(func_indices)
-        ctx_list = [("llvm", tvm.cpu(0))]
-        for target, ctx in ctx_list:
+        for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(x0_data, x1_data)
             op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data)
@@ -296,8 +294,7 @@ def test_multibox_transform_loc():
         nms = relay.vision.non_max_suppression(mtl[0], mtl[1], return_indices=False)
         func = relay.Function([cls_prob, loc_pred, anchors], nms)
         func = relay.ir_pass.infer_type(func)
-        ctx_list = [("llvm", tvm.cpu(0))]
-        for target, ctx in ctx_list:
+        for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(np_cls_prob, np_loc_preds,
                                             np_anchors)
