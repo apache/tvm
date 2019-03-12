@@ -11,6 +11,7 @@
 #include <iterator>
 #include <algorithm>
 #include <limits>
+#include <unordered_set>
 
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
