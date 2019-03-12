@@ -33,6 +33,7 @@ We do encourage everyone to work anything they are interested in.
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
+- [Wei Chen](https://github.com/wweic): @wweic
 - [Zhi Chen](https://github.com/zhiics): @zhiics
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Nick Hynes](https://github.com/nhynes): @nhynes
