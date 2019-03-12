@@ -78,7 +78,7 @@ class LoopUnroller : public IRMutator {
 
     if ((auto_unroll && explicit_unroll_) ||
         // unroll loops with extent = 1, no matter how many steps in body
-        (value <= auto_max_extent_ && auto_max_extent_ == 1)) {
+        (0 <= value && value <= auto_max_extent_ && auto_max_extent_ == 1)) {
       return Unroll(op);
     } else {
       if (auto_unroll) {
