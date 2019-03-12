@@ -12,7 +12,7 @@ This is a quick guide to submit a pull request, please also refer to the detaile
     git rebase upstream/master
 
 - Make sure code style check pass by typing the following command, and all the existing test-cases pass.
-  - ``docker/bash.sh tvmai/ci-lint ./tests/scripts/task_lint.sh``  
+  - ``docker/bash.sh tvmai/ci-lint ./tests/scripts/task_lint.sh``
      (Note: You must install docker beforehand so you can run a docker image.)
 - Add test-cases to cover the new features or bugfix the patch introduces.
 - Document the code you wrote, see more at :ref:`doc_guide`
@@ -26,6 +26,28 @@ This is a quick guide to submit a pull request, please also refer to the detaile
   - The detailed guidelines and summarizes useful lessons.
 
 - The patch can be merged after the reviewers approve the pull request.
+
+
+CI Environment
+--------------
+We use docker container to create stable CI environments
+that can be deployed to multiple machines.
+You can find the prebuilt images in `<https://hub.docker.com/r/tvmai/>`_ .
+Because we want a relatively stable CI environment and make use of pre-cached image,
+all of the CI images are built and maintained by comitters.
+
+Upgrade of CI images can cause problems and need fixes to accommodate the new env.
+Here is the protocol to update CI image:
+
+- Send PR to upgrade build script in the repo
+  - Can be done by a contributor, the following steps need committership.
+- Build the new docker image
+- Tag the docker image with a new version and push to tvmai
+- Update the version(most of the time increase the minor version) in the Jenkinsfile, send a PR.
+- Fix any issues wrt to the new image versions in the PR.
+- Merge the PR and now we are in new version.
+- Tag the new version as the latest.
+- Periodically cleanup the old versions on local workers
 
 Testing
 -------

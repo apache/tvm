@@ -3,6 +3,27 @@
 // Jenkins pipeline
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
+// Docker env used for testing
+// Different image may have different version tag
+// because some of them are more stable than anoter.
+//
+// Docker images are maintained by PMC, cached in dockerhub
+// and remains relatively stable over the time.
+// Flow for upgrading docker env(need commiter)
+//
+// - Send PR to upgrade build script in the repo
+// - Build the new docker image
+// - Tag the docker image with a new version and push to tvmai
+// - Update the version in the Jenkinsfile, send a PR
+// - Fix any issues wrt to the new image version in the PR
+// - Merge the PR and now we are in new version
+// - Tag the new version as the lates
+// - Periodically cleanup the old versions on local workers
+//
+ci_gpu = "tvmai/ci-gpu:v0.50"
+ci_cpu = "tvmai/ci-cpu:v0.41"
+ci_lint = "tvmai/ci-lint:v0.50"
+
 // tvm libraries
 tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
 tvm_lib = "build/libtvm.so, " + tvm_runtime
@@ -39,7 +60,7 @@ stage("Sanity Check") {
     node('CPU') {
       ws('workspace/tvm/sanity') {
         init_git()
-        sh "${docker_run} tvmai/ci-lint  ./tests/scripts/task_lint.sh"
+        sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
       }
     }
   }
@@ -103,7 +124,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('tvmai/ci-gpu', 'build', '-j2')
+        make(ci_gpu, 'build', '-j2')
         pack_lib('gpu', tvm_multilib)
         // compiler test
         sh """
@@ -117,7 +138,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER clang-6.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('tvmai/ci-gpu', 'build2', '-j2')
+        make(ci_gpu, 'build2', '-j2')
       }
     }
   },
@@ -138,7 +159,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('tvmai/ci-cpu', 'build', '-j2')
+        make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_cpp_unittest.sh"
