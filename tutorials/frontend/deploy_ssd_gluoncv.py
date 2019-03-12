@@ -97,11 +97,9 @@ def run(graph, lib, params, ctx):
     class_IDs, scores, bounding_boxs = m.get_output(0), m.get_output(1), m.get_output(2)
     return class_IDs, scores, bounding_boxs
 
-#for target, ctx in target_list:
-target = 'cuda'
-ctx = tvm.gpu(0)
-graph, lib, params = build(target)
-class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
+for target, ctx in target_list:
+    graph, lib, params = compile(target)
+    class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
 
 ######################################################################
 # Display result
