@@ -734,14 +734,16 @@ Mutate_(const Min* op, const Expr& self) {
                        c1.Eval()->value + 1 == c2.Eval()->value);
     TVM_TRY_REWRITE_IF(min(((x + c1) / c2) * c2, max(x, c2)), max(x, c2),
                        c2.Eval()->value > 0 &&
-                       c1.Eval()->value + 1 == c2.Eval()->value);
+                       c1.Eval()->value + 1 == c2.Eval()->value &&
+                       CanProveGreaterEqual(x.Eval(), 0));
 
     TVM_TRY_REWRITE_IF(min(x, ((x + c1) / c2) * c2), x,
                        c2.Eval()->value > 0 &&
                        c1.Eval()->value + 1 == c2.Eval()->value);
     TVM_TRY_REWRITE_IF(min(max(x, c2), ((x + c1) / c2) * c2), max(x, c2),
                        c2.Eval()->value > 0 &&
-                       c1.Eval()->value + 1 == c2.Eval()->value);
+                       c1.Eval()->value + 1 == c2.Eval()->value &&
+                       CanProveGreaterEqual(x.Eval(), 0));
 
     TVM_TRY_REWRITE(min(max(x, y), min(x, y)), min(x, y));
     TVM_TRY_REWRITE(min(max(x, y), min(y, x)), min(x, y));
@@ -1060,6 +1062,8 @@ Mutate_(const LT* op, const Expr& self) {
 
     TVM_TRY_REWRITE_IF(x * c1 < y * c1, x < y,
                        c1.Eval()->value > 0);
+    TVM_TRY_REWRITE_IF(x * c1 < y * c1, y < x,
+                       c1.Eval()->value < 0);
 
     // require c1 > 0 to work for any div mode
     TVM_TRY_REWRITE_IF(x * c2 < c1, x < (c1 - 1) / c2 + 1,
@@ -1127,6 +1131,8 @@ Mutate_(const Not* op, const Expr& self) {
   TVM_TRY_REWRITE(!(x > y), x <= y);
   TVM_TRY_REWRITE(!(x == y), x != y);
   TVM_TRY_REWRITE(!(x != y), x == y);
+  TVM_TRY_REWRITE(!(x || y), (!x) && (!y));
+  TVM_TRY_REWRITE(!(x && y), (!x) || (!y));
   return ret;
 }
 
@@ -1224,8 +1230,8 @@ Mutate_(const Or* op, const Expr& self) {
   TVM_TRY_REWRITE_IF(c2 <= x || x <= c1, ctrue,
                      c2.Eval()->value <= c1.Eval()->value + 1);
 
-  TVM_TRY_REWRITE(x == c1 || x != c2, x != c1 || c1 == c2);
-  TVM_TRY_REWRITE(x != c2 || x == c1, x != c1 || c1 == c2);
+  TVM_TRY_REWRITE(x != c1 || x == c2, x != c1 || c1 == c2);
+  TVM_TRY_REWRITE(x == c2 || x != c1, x != c1 || c1 == c2);
   return ret;
 }
 

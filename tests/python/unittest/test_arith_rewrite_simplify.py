@@ -292,6 +292,7 @@ def test_min_index_simplify():
     ck.verify(tvm.min(3 - x, 2 - x), 2 - x)
 
     ck.verify(tvm.min((x + 3) / 4 * 4, x), x)
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000))
     ck.verify(tvm.min((x + 3) / 4 * 4, tvm.max(x, 4)), tvm.max(x, 4))
     ck.verify(tvm.min(x, (x + 3) / 4 * 4), x)
     ck.verify(tvm.min(tvm.max(x, 4), (x + 3) / 4 * 4), tvm.max(x, 4))
@@ -417,6 +418,7 @@ def test_cmp_simplify():
     ck.verify(100 < x + 1, tvm.expr.LT(99, x))
     ck.verify(1 < 100 - x, tvm.expr.LT(x, 99))
     ck.verify(x * 3 < y * 3, x < y)
+    ck.verify(x * (-3) < y * (-3), y < x)
     ck.verify(x * 3 >= y * 3, y <= x)
 
     ck.verify(x * 4 >= 2, tvm.expr.LE(1, x))
@@ -482,7 +484,7 @@ def test_logical_simplify():
     ck.verify(tvm.expr.Or(1 < x, x <= 1), tvm.const(True, "bool"))
     ck.verify(tvm.expr.Or(x <= 1, 2 <= x), tvm.const(True, "bool"))
     ck.verify(tvm.expr.Or(2 <= x, x <= 1), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(x != 1, x == 2), x != 2)
+    ck.verify(tvm.expr.Or(x != 1, x == 2), x != 1)
 
 
 if __name__ == "__main__":
