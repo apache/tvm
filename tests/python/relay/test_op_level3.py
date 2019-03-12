@@ -505,7 +505,7 @@ def test_reverse():
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    verify_reverse((2, 3, 4), 1 )
+    verify_reverse((2, 3, 4), 1)
     verify_reverse((4, 7), 0)
     verify_reverse((2, 3, 4), -1)
 

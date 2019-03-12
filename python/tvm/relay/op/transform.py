@@ -397,9 +397,6 @@ def reverse(data, axis):
     axis: int
         The axis along which to reverse elements.
 
-    .. note::
-        Reverse and flip are equivalent.
-
     Returns
     -------
     ret : relay.Expr
@@ -409,7 +406,7 @@ def reverse(data, axis):
     --------
     .. code-block:: python
 
-        x = [[1, 2], [3, 4]]
+        x = [[1., 2.], [3., 4.]]
         relay.reverse(x, axis=0) = [[3., 4.], [1., 2.]]
 
         relay.reverse(x, axis=1) = [[2., 1.], [4., 3.]]

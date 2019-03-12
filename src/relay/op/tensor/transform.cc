@@ -1223,16 +1223,11 @@ bool ReverseRel(const Array<Type>& types,
   const auto* param = attrs.as<ReverseAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
   const int axis = param->axis;
-  CHECK(-ndim - 1 <= axis && axis <= ndim)
-    << "reverse only accepts `axis` in [-data.ndim - 1, data.ndim]"
+  CHECK(-ndim - 1 < axis && axis < ndim)
+    << "reverse only accepts `axis` in [-data.ndim, data.ndim - 1]"
     << ", but got axis = " << axis
     << ", and data.ndim = " << ndim;
-  std::vector<IndexExpr> oshape;
-  oshape.reserve(ndim);
-  for (int i = 0; i < ndim; ++i) {
-    oshape.emplace_back(data->shape[i]);
-  }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], types[0]);
   return true;
 }
 
@@ -1246,7 +1241,7 @@ Array<Tensor> ReverseCompute(const Attrs& attrs,
 }
 
 Expr MakeReverse(Expr data,
-                int axis) {
+                 int axis) {
   auto attrs = make_node<ReverseAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("reverse");
