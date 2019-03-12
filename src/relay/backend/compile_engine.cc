@@ -15,6 +15,7 @@
 #include <limits>
 #include <mutex>
 #include <functional>
+#include <unordered_map>
 #include "compile_engine.h"
 
 namespace tvm {

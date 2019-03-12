@@ -10,6 +10,7 @@
 #include <ir/IRPrinter.h>
 #include <string>
 #include <algorithm>
+#include <unordered_map>
 #include "base.h"
 #include "runtime/c_runtime_api.h"
 

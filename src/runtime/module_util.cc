@@ -9,6 +9,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <string>
+#include <memory>
 #include "module_util.h"
 
 namespace tvm {

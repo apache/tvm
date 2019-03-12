@@ -8,6 +8,7 @@
 
 #include <tvm/expr.h>
 #include <tvm/schedule.h>
+#include <memory>
 
 namespace tvm {
 namespace arith {

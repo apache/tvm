@@ -8,6 +8,7 @@
 
 #include <tvm/runtime/packed_func.h>
 #include <string>
+#include <utility>
 #include "../common.h"
 
 namespace tvm {

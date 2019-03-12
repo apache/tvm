@@ -10,6 +10,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/transform.h>
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {

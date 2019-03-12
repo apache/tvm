@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <unordered_map>
 #include "../meta_data.h"
 
 namespace tvm {

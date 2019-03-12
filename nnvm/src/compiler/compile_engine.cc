@@ -14,6 +14,7 @@
 #include <tuple>
 #include <vector>
 #include <limits>
+#include <unordered_map>
 #include "graph_hash.h"
 #include "compile_engine.h"
 

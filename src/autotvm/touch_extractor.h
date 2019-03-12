@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <deque>
+#include <unordered_map>
 #include "feature_visitor.h"
 
 namespace tvm {

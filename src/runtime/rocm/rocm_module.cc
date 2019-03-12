@@ -8,6 +8,7 @@
 #include <array>
 #include <string>
 #include <mutex>
+#include <unordered_map>
 #include "rocm_module.h"
 #include "rocm_common.h"
 #include "../pack_args.h"

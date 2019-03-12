@@ -12,6 +12,8 @@
 #ifndef TVM_LANG_ATTR_FUNCTOR_H_
 #define TVM_LANG_ATTR_FUNCTOR_H_
 
+#include <utility>
+
 namespace tvm {
 
 template <typename FType>

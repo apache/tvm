@@ -8,6 +8,7 @@
 
 #include <nnvm/graph.h>
 #include <vector>
+#include <unordered_map>
 
 #include "compile_engine.h"
 

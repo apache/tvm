@@ -7,6 +7,7 @@
 #include <tvm/base.h>
 #include <atomic>
 #include <mutex>
+#include <memory>
 #include "llvm_common.h"
 
 namespace tvm {

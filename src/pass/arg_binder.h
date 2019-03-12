@@ -10,6 +10,7 @@
 #include <tvm/buffer.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace tvm {
 namespace ir {

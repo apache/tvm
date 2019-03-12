@@ -11,6 +11,7 @@
 #include <array>
 #include <string>
 #include <mutex>
+#include <unordered_map>
 #include "cuda_common.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"

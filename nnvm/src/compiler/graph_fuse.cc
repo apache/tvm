@@ -14,7 +14,10 @@
 #include <nnvm/tuple.h>
 #include <tvm/lowered_func.h>
 #include <tvm/runtime/packed_func.h>
+#include <memory>
+#include <utility>
 #include <limits>
+#include <unordered_map>
 
 #include "graph_fuse.h"
 #include "graph_runtime.h"

@@ -4,6 +4,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <utility>
+#include <unordered_map>
 #include "opengl_common.h"
 #include "opengl_module.h"
 #include "../pack_args.h"

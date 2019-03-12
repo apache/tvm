@@ -7,6 +7,7 @@
 #define TVM_SCHEDULE_H_
 
 #include <string>
+#include <unordered_map>
 #include "base.h"
 #include "expr.h"
 #include "tensor.h"

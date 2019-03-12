@@ -9,6 +9,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <unordered_map>
 #include "codegen_llvm.h"
 
 namespace tvm {
