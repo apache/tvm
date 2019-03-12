@@ -43,7 +43,7 @@ class MemArbiter(implicit val p: Parameters) extends Module {
   // write
   io.axi_master.writedata  := io.out_cache.writedata
   io.axi_master.write := io.out_cache.write && out_cache_write
-  io.out_cache.waitrequest := io.axi_master.waitrequest && (out_cache_write || out_cache_ack || idle)
+  io.out_cache.waitrequest := (io.axi_master.waitrequest && (out_cache_write || out_cache_ack || idle)) || (!out_cache_write && io.out_cache.write)
   io.out_cache.readdata <> DontCare
 
   // read
@@ -67,14 +67,12 @@ class MemArbiter(implicit val p: Parameters) extends Module {
 
   switch(state) {
     is (s_IDLE) {
-      when (io.ins_cache.read) {
-        state := s_INS_CACHE_READ
-      } .elsewhen (io.out_cache.write) {
+      when (io.out_cache.write) {
         state := s_OUT_CACHE_WRITE
+      } .elsewhen (io.ins_cache.read) {
+        state := s_INS_CACHE_READ
       } .elsewhen (io.inp_cache.read) {
         state := s_INP_CACHE_READ
-      } .elsewhen (io.inp_cache.read) {
-        state := s_WGT_CACHE_READ
       } .elsewhen (io.wgt_cache.read) {
         state := s_WGT_CACHE_READ
       } .elsewhen (io.uop_cache.read) {
@@ -113,13 +111,10 @@ class MemArbiter(implicit val p: Parameters) extends Module {
     is (s_OUT_CACHE_WRITE) {
       when (!io.axi_master.waitrequest) {
         state := s_IDLE
-        // state := s_OUT_CACHE_ACK
       }
     }
     is (s_OUT_CACHE_ACK) {
-      // when (!io.axi_master.waitrequest) {
-        state := s_IDLE
-      // }
+      state := s_IDLE
     }
   }
 
