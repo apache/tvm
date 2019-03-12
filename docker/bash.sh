@@ -33,6 +33,12 @@ else
     DOCKER_BINARY="docker"
 fi
 
+if [[ ! -z $CUDA_VISIBLE_DEVICES ]]; then
+    CUDA_ENV="-e CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
+else
+    CUDA_ENV=""
+fi
+
 # Print arguments.
 echo "WORKSPACE: ${WORKSPACE}"
 echo "DOCKER CONTAINER NAME: ${DOCKER_IMAGE_NAME}"
@@ -53,6 +59,8 @@ ${DOCKER_BINARY} run --rm --pid=host\
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
     -e "CI_BUILD_GID=$(id -g)" \
+    -e "PYTHONPATH=python:topi/python"\
+    ${CUDA_ENV}\
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
     ${DOCKER_IMAGE_NAME}\
     bash --login /docker/with_the_same_user \
