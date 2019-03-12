@@ -184,17 +184,17 @@ def get_valid_counts_gpu(data, score_threshold=0):
         tvm.extern([(batch_size, num_anchors,), (batch_size, num_anchors,)], [data],
                    lambda ins, outs: get_valid_counts_pre(
                        ins[0], outs[0], outs[1], score_threshold),
-                       dtype=["int32", "int32"],
-                       out_buffers=[temp_flag_buf, temp_idx_buf],
-                       name="get_valid_counts_phase_one")
+                   dtype=["int32", "int32"],
+                   out_buffers=[temp_flag_buf, temp_idx_buf],
+                   name="get_valid_counts_phase_one")
 
     valid_count, out_tensor = \
 	tvm.extern([(batch_size,), data.shape], [data, temp_flag, temp_idx],
-                   lambda ins, outs: get_valid_counts_ir(
-                       ins[0], ins[1], ins[2], outs[0], outs[1]),
-                       dtype=["int32", data.dtype],
-                       in_buffers=[data_buf, temp_flag_buf, temp_idx_buf],
-                       tag="get_valid_counts")
+            lambda ins, outs: get_valid_counts_ir(
+                ins[0], ins[1], ins[2], outs[0], outs[1]),
+            dtype=["int32", data.dtype],
+            in_buffers=[data_buf, temp_flag_buf, temp_idx_buf],
+            tag="get_valid_counts")
 
     return [valid_count, out_tensor]
 
@@ -353,7 +353,8 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
             with ib.for_range(0, nkeep) as j:
                 with ib.if_scope(k < box_data_length):
                     out[(base_idx + j * box_data_length + k)] = \
-                            data[(base_idx + sorted_index[i * num_anchors + j] * box_data_length + k)]
+                    data[(base_idx + sorted_index[i * num_anchors + j] \
+                    * box_data_length + k)]
                 box_indices[i * num_anchors + j] = sorted_index[i * num_anchors + j]
             with ib.if_scope(tvm.all(top_k > 0, top_k < valid_count[i])):
                 with ib.for_range(0, valid_count[i] - nkeep) as j:
@@ -513,7 +514,8 @@ def invalid_to_bottom_ir(data, flag, idx, out):
                 out[base_idx + j * 6 + k] = -1.0
             with ib.if_scope(flag[i * num_anchors + j] > 0):
                 with ib.for_range(0, elem_length) as k:
-                    out[base_idx + (idx[i * num_anchors + j] - 1) * 6 + k] = data[base_idx + j * 6 + k]
+                    out[base_idx + (idx[i * num_anchors + j] - 1) * 6 + k] \
+                    = data[base_idx + j * 6 + k]
     return ib.get()
 
 
@@ -592,7 +594,6 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
-    elem_length = data.shape[2]
 
     valid_count_dtype = "int32"
     valid_count_buf = api.decl_buffer(valid_count.shape, valid_count_dtype,
@@ -647,7 +648,8 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
             (batch_size, num_anchors,), valid_count_dtype, "temp_flag", data_alignment=8)
         temp_idx_buf = api.decl_buffer(
             (batch_size, num_anchors,), valid_count_dtype, "temp_idx", data_alignment=8)
-        temp_flag, temp_idx = tvm.extern([(batch_size, num_anchors,), (batch_size, num_anchors,)], [out],
+        temp_flag, temp_idx = tvm.extern([(batch_size, num_anchors,), \
+                                          (batch_size, num_anchors,)], [out],
                                          lambda ins, outs: invalid_to_bottom_pre(
                                              ins[0], outs[0], outs[1]),
                                          dtype=["int32", "int32"],

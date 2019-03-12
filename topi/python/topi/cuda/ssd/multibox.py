@@ -17,11 +17,11 @@
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, too-many-function-args
 """SSD multibox operators"""
 from __future__ import absolute_import as _abs
-import tvm
 import math
+import tvm
 
 from tvm import api
-from tvm.intrin import exp, if_then_else
+from tvm.intrin import if_then_else
 
 import topi
 
@@ -95,10 +95,9 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
 
             for k in range(num_sizes + num_ratios - 1):
                 w = if_then_else(k < num_sizes,
-                                     size_ratio_concat[
-                                         k] * in_height / in_width / 2.0,
-                                     size_ratio_concat[0] * in_height / in_width *
-                                     math.sqrt(size_ratio_concat[k + 1]) / 2.0)
+                                 size_ratio_concat[k] * in_height / in_width / 2.0,
+                                 size_ratio_concat[0] * in_height / in_width *
+                                 math.sqrt(size_ratio_concat[k + 1]) / 2.0)
                 h = if_then_else(
                     k < num_sizes, size_ratio_concat[k] / 2.0,
                     size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0)
@@ -190,13 +189,11 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     ib = tvm.ir_builder.create()
 
     cls_prob = ib.buffer_ptr(cls_prob)
-    cls_id= ib.buffer_ptr(temp_cls_id)
+    cls_id = ib.buffer_ptr(temp_cls_id)
     valid_count = ib.buffer_ptr(valid_count)
     temp_valid_count = ib.buffer_ptr(temp_valid_count)
     score = ib.buffer_ptr(temp_score)
 
-    box_coord = ib.allocate("float32", (4,), name="box_coord", scope="local")
-    pred_coord = ib.allocate("float32", (4,), name="pred_coord", scope="local")
     threshold = tvm.make.node("FloatImm", dtype="float32", value=threshold)
 
     max_threads = int(
@@ -217,9 +214,11 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
         cls_id[i * num_anchors + j] = 0
         with ib.for_range(0, num_classes-1) as k:
             temp = cls_prob[i * num_classes * num_anchors + (k + 1) * num_anchors + j]
-            cls_id[i * num_anchors + j] = if_then_else(temp > score[i * num_anchors + j], k + 1, cls_id[i * num_anchors + j])
+            cls_id[i * num_anchors + j] = if_then_else(temp > score[i * num_anchors + j], \
+                                                       k + 1, cls_id[i * num_anchors + j])
             score[i * num_anchors + j] = tvm.max(temp, score[i * num_anchors + j])
-        with ib.if_scope(tvm.all(cls_id[i * num_anchors + j] > 0, score[i * num_anchors + j] < threshold)):
+        with ib.if_scope(tvm.all(cls_id[i * num_anchors + j] > 0, \
+                                 score[i * num_anchors + j] < threshold)):
             cls_id[i * num_anchors + j] = 0
         with ib.if_scope(cls_id[i * num_anchors + j] > 0):
             temp_valid_count[i * num_anchors + j] = 1
@@ -229,14 +228,14 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
         with ib.if_scope(tid < batch_size):
             with ib.for_range(0, num_anchors) as k:
                 with ib.if_scope(k > 0):
-                    temp_valid_count[tid * num_anchors +
-                         k] += temp_valid_count[tid * num_anchors + k - 1]
+                    temp_valid_count[tid * num_anchors +k] += \
+                    temp_valid_count[tid * num_anchors + k - 1]
             valid_count[i] = temp_valid_count[tid * num_anchors + num_anchors - 1]
 
     return ib.get()
 
 def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score, out, \
-                     clip, variances, batch_size, num_classes, num_anchors):
+                     clip, variances, batch_size, num_anchors):
     """Low level IR routing for transform location in multibox_detection operator.
 
     Parameters
@@ -267,9 +266,6 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
 
     batch_size : int
         Batch size
-
-    num_classes : int
-        Number of classes
 
     num_anchors : int
         Number of anchors
@@ -312,9 +308,6 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
     score = ib.buffer_ptr(temp_score)
     out_loc = ib.buffer_ptr(out)
 
-    box_coord = ib.allocate("float32", (4,), name="box_coord", scope="local")
-    pred_coord = ib.allocate("float32", (4,), name="pred_coord", scope="local")
-
     max_threads = int(
         tvm.target.current_target(allow_none=False).max_num_threads)
     nthread_tx = max_threads
@@ -337,8 +330,8 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
             out_loc[out_base_idx + 1] = score[tid]
             out_loc[out_base_idx + 2], out_loc[out_base_idx + 3], out_loc[out_base_idx + 4], \
                 out_loc[out_base_idx + 5] = transform_loc(loc_pred, tid * 4,
-                                                        anchor, j * 4, clip, variances[0],
-                                                        variances[1], variances[2], variances[3])
+                                                          anchor, j * 4, clip, variances[0],
+                                                          variances[1], variances[2], variances[3])
 
     return ib.get()
 
@@ -379,7 +372,6 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
         1-D tensor with shape (batch_size,), number of valid anchor boxes.
     """
     batch_size = cls_prob.shape[0]
-    num_classes = cls_prob.shape[1]
     num_anchors = cls_prob.shape[2]
     oshape = (batch_size, num_anchors, 6)
     # Define data alignment for intermediate buffer
@@ -399,12 +391,13 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
         (batch_size, num_anchors,), cls_prob.dtype, "temp_score", data_alignment=8)
 
     valid_count, temp_valid_count, temp_cls_id, temp_score = \
-        tvm.extern([(batch_size,), (batch_size, num_anchors,), (batch_size, num_anchors,), (batch_size, num_anchors,)],
-                   [cls_prob],
+        tvm.extern([(batch_size,), (batch_size, num_anchors,), (batch_size, num_anchors,), \
+                    (batch_size, num_anchors,)], [cls_prob],
                    lambda ins, outs: transform_loc_pre(
                        ins[0], outs[0], outs[1], outs[2], outs[3], threshold),
                    dtype=[valid_count_dtype, valid_count_dtype, valid_count_dtype, cls_prob.dtype],
-                   out_buffers=[valid_count_buf, temp_valid_count_buf, temp_cls_id_buf, temp_score_buf],
+                   out_buffers=[valid_count_buf, temp_valid_count_buf, \
+                                temp_cls_id_buf, temp_score_buf],
                    tag="multibox_transform_loc_phase_one")
 
     out_loc = \
@@ -412,7 +405,7 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
                    [loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score],
                    lambda ins, outs: transform_loc_ir(
                        ins[0], ins[1], ins[2], ins[3], ins[4], outs[0], clip, variances, \
-                       batch_size, num_classes, num_anchors),
+                       batch_size, num_anchors),
                    dtype=[out_loc_dtype],
                    out_buffers=[out_loc_buf],
                    tag="multibox_transform_loc")
@@ -462,5 +455,6 @@ def multibox_detection_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
     inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
                                        clip, threshold, variances)
     out = non_max_suppression(
-        inter_out[0], inter_out[1], -1, nms_threshold, force_suppress, nms_topk, return_indices=False)
+        inter_out[0], inter_out[1], -1, nms_threshold, force_suppress, \
+        nms_topk, return_indices=False)
     return out
