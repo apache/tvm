@@ -1472,8 +1472,11 @@ class GraphProto(object):
 
                 # Infer shapes even without specifying "add_shapes=True"
                 if output_shapes == [None]:
-                    out_type = ir_pass.infer_type(self._nodes[node.name][0])
-                    self._output_shapes[node.name] = [get_const_tuple(out_type.checked_type.shape)]
+                    out_shapes = []
+                    for node_item in self._nodes[node.name]:
+                        out_type = ir_pass.infer_type(node_item)
+                        out_shapes.append(get_const_tuple(out_type.checked_type.shape))
+                    self._output_shapes[node.name] = out_shapes
 
                 if self._output_shapes[node.name] and shape and node.name in shape:
                     assert self._output_shapes[node.name] == list(shape[node.name])
@@ -1482,15 +1485,11 @@ class GraphProto(object):
             node_output = self._nodes[node.name]
             if shape and (not self._output_shapes[node.name][0]
                           or -1 in self._output_shapes[node.name][0]):
-                if isinstance(node_output, _expr.TupleWrapper):
-                    out_shapes = []
-                    for tuple_item in node_output:
-                        out_type = ir_pass.infer_type(tuple_item)
-                        out_shapes.append(get_const_tuple(out_type.checked_type.shape))
-                    self._output_shapes[node.name] = out_shapes
-                else:
-                    out_type = ir_pass.infer_type(node_output[0])
-                    self._output_shapes[node.name] = [get_const_tuple(out_type.checked_type.shape)]
+                out_shapes = []
+                for node_item in node_output:
+                    out_type = ir_pass.infer_type(node_item)
+                    out_shapes.append(get_const_tuple(out_type.checked_type.shape))
+                self._output_shapes[node.name] = out_shapes
 
         out = []
         if outputs is None:
