@@ -9,6 +9,7 @@
 #include <nnvm/graph.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "compile_engine.h"
 

@@ -15,6 +15,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <memory>
 #include "../workspace_pool.h"
 
 namespace tvm {

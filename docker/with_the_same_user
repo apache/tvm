@@ -26,8 +26,15 @@ getent passwd "${CI_BUILD_UID}" || adduser --gid "${CI_BUILD_GID}" --uid "${CI_B
 usermod -a -G sudo "${CI_BUILD_USER}"
 echo "${CI_BUILD_USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-nopasswd-sudo
 
+if [[ ! -z $CUDA_VISIBLE_DEVICES ]]; then
+    CUDA_ENV="CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
+else
+    CUDA_ENV=""
+fi
+
 HOME=${CI_BUILD_HOME}\
     sudo -u "#${CI_BUILD_UID}" --preserve-env\
+    ${CUDA_ENV}\
     PATH=${PATH}\
     JAVA_HOME=${JAVA_HOME}\
     LD_LIBRARY_PATH=${LD_LIBRARY_PATH}\

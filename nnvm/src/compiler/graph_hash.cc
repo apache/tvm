@@ -11,6 +11,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <functional>
 #include <vector>
+#include <utility>
 #include <algorithm>
 #include "node_attr.h"
 #include "graph_hash.h"

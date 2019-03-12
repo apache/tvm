@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <unordered_map>
+#include <unordered_set>
 #include "runtime/packed_func.h"
 #include "schedule_pass.h"
 #include "lowered_func.h"

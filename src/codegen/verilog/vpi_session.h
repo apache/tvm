@@ -9,6 +9,7 @@
 #include <tvm/base.h>
 #include <vector>
 #include <string>
+#include <memory>
 #include "../../common/pipe.h"
 #include "../../../verilog/tvm_vpi.h"
 

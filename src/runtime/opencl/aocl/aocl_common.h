@@ -6,6 +6,7 @@
 #ifndef TVM_RUNTIME_OPENCL_AOCL_AOCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_AOCL_AOCL_COMMON_H_
 
+#include <memory>
 #include "../opencl_common.h"
 
 namespace tvm {

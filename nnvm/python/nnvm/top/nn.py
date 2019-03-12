@@ -205,12 +205,13 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     with tvm.target.create(attrs.get_str("target")):
         if groups == 1:
             # pylint: disable=assignment-from-no-return
-            out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
-                                       dilation, layout, out_layout, out_dtype)
+            out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding, dilation,
+                                       layout, out_layout, out_dtype)
+            # pylint: enable=assignment-from-no-return
         elif groups == in_channel and groups == out_channel:
-            out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides,
-                                                 padding, dilation, layout,
-                                                 out_layout, out_dtype)
+            # pylint: disable=assignment-from-no-return
+            out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
+                                                 dilation, layout, out_layout, out_dtype)
             # pylint: enable=assignment-from-no-return
         else:
             raise ValueError("not support arbitrary group number > 1 for now")

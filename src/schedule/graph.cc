@@ -6,6 +6,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/operation.h>
+#include <utility>
 #include <unordered_set>
 #include <unordered_map>
 #include "graph.h"

@@ -9,6 +9,7 @@
 #include <set>
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
 
 namespace tvm {
 namespace autotvm {

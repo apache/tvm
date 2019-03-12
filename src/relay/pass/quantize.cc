@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include <stack>
+#include <utility>
 #include "pattern_util.h"
 #include "quantize.h"
 

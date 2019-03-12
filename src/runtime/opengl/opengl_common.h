@@ -18,6 +18,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <memory>
 
 namespace tvm {
 namespace runtime {

@@ -14,6 +14,8 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <memory>
+#include <utility>
 #include <vector>
 #include <string>
 

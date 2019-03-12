@@ -8,6 +8,8 @@
 
 #include <nnvm/graph.h>
 #include <vector>
+#include <utility>
+#include <unordered_map>
 
 namespace nnvm {
 namespace compiler {

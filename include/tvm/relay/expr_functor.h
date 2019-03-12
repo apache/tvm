@@ -9,6 +9,8 @@
 
 #include <tvm/node/ir_functor.h>
 #include <string>
+#include <utility>
+#include <unordered_map>
 #include "./expr.h"
 #include "./adt.h"
 #include "./op.h"

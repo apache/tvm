@@ -4,6 +4,7 @@
  * \brief Type solver implementations.
  */
 #include <string>
+#include <memory>
 #include "type_solver.h"
 #include "../ir/type_functor.h"
 

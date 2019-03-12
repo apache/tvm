@@ -8,6 +8,7 @@
 
 #include <tvm/runtime/device_api.h>
 #include <vector>
+#include <memory>
 
 namespace tvm {
 namespace runtime {

@@ -10,6 +10,7 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <unordered_map>
 
 namespace nnvm {
 namespace compiler {

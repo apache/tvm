@@ -20,6 +20,8 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <memory>
+#include <unordered_map>
 #include "../workspace_pool.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"

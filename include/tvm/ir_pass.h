@@ -11,6 +11,7 @@
 
 #include <arithmetic/Simplify.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 #include "expr.h"
@@ -336,7 +337,7 @@ Stmt RewriteUnsafeSelect(Stmt stmt);
 Stmt LowerStorageAccessInfo(Stmt stmt);
 
 /*!
- * \brief Decorate the stmt with a device scope, this is helpful for 
+ * \brief Decorate the stmt with a device scope, this is helpful for
  * hardware accelerator without thread blocks.
  *
  * \param stmt The stmt to be trasnformed
