@@ -23,6 +23,7 @@
 #include <nnvm/node.h>
 #include <dmlc/base.h>
 #include <dmlc/thread_local.h>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

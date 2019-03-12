@@ -12,9 +12,11 @@
 #include <dlpack/dlpack.h>
 
 #include <algorithm>
+#include <memory>
 #include <queue>
 #include <stack>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace nnvm {

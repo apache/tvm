@@ -27,8 +27,10 @@
 #include <nnvm/op_attr_types.h>
 #include <nnvm/compiler/op_attr_types.h>
 #include <nnvm/top/tensor.h>
+#include <memory>
 #include <string>
 #include <set>
+#include <utility>
 #include <vector>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
