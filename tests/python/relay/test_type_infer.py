@@ -118,7 +118,7 @@ def test_recursion():
         sb.ret(f(relay.subtract(n, relay.const(1, ti32)), relay.log(data)))
     mod = relay.Module()
     mod[f] = relay.Function([n, data], sb.get())
-    assert "@f(%1, %2)" in mod.astext()
+    assert "%3 = @f(%1, %2)" in mod.astext()
     assert mod[f].checked_type == relay.FuncType([ti32, tf32], tf32)
 
 

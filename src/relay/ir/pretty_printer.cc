@@ -159,7 +159,7 @@ class PrettyPrinter :
     // print in a new scope
     doc_stack_.push_back(Nil());
     // must print first so doc_stack_.back() reference doesn't become stale
-    Doc doc = Print(node, false);
+    Doc doc = Print(node);
     doc = doc_stack_.back() << doc;
     doc_stack_.pop_back();
     return doc;
@@ -184,9 +184,9 @@ class PrettyPrinter :
   Doc PrintAttrs(const Attrs& attrs, const Expr& op);
 
   // note: gnf flag is only one level deep
-  Doc Print(const NodeRef& node, bool gnf = true, bool meta = false) {
+  Doc Print(const NodeRef& node, bool meta = false) {
     if (node.as_derived<ExprNode>()) {
-      return PrintExpr(Downcast<Expr>(node), gnf, meta);
+      return PrintExpr(Downcast<Expr>(node), meta);
     } else if (node.as_derived<TypeNode>()) {
       return PrintType(Downcast<Type>(node), meta);
     } else if (node.as_derived<ModuleNode>()) {
@@ -255,7 +255,7 @@ class PrettyPrinter :
   //------------------------------------
   // Overload of Expr printing functions
   //------------------------------------
-  Doc PrintExpr(const Expr& expr, bool gnf, bool meta) {
+  Doc PrintExpr(const Expr& expr, bool meta) {
     // Exploit memoization to print GNF.
     // The first time we visit an expression, we need to allocate a temp var
     // for it. Every subsequent time we can just use its assigned variable.
@@ -265,7 +265,7 @@ class PrettyPrinter :
     Doc printed_expr;
     if (meta) {
       printed_expr = meta_.GetMetaNode(GetRef<NodeRef>(expr.get()));
-    } else if (GNF_ && gnf && expr.as<LetNode>()) {
+    } else if (GNF_ && expr.as<LetNode>()) {
       // wrap GNFed let in brackets
       printed_expr = Nil();
       Doc body = Nil();
@@ -276,12 +276,12 @@ class PrettyPrinter :
       printed_expr = VisitExpr(expr);
     }
     // we choose to inline some nodes
-    if (GNF_ && gnf &&
+    if (GNF_ &&
         !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>() &&
         !expr.as<OpNode>() && !expr.as<VarNode>()) {
       Doc temp_var = AllocTemp();
       memo_[expr] = temp_var;
-      doc_stack_.back() << temp_var << " = " << printed_expr << ";";
+      doc_stack_.back() << temp_var << " = " << printed_expr;
       if (expr.as<CallNode>()) {
         doc_stack_.back() << PrintOptionalInfo(expr);
       }
@@ -328,8 +328,8 @@ class PrettyPrinter :
     }
     // default fall-back, record it as meta node.
     Doc doc = Nil();
-    return doc << Print(GetRef<NodeRef>(op), true, true)
-                << PrintOptionalInfo(GetRef<Expr>(op));
+    return doc << Print(GetRef<NodeRef>(op), true)
+               << PrintOptionalInfo(GetRef<Expr>(op));
   }
 
   Doc VisitExpr_(const TupleNode* op) final {
@@ -362,16 +362,8 @@ class PrettyPrinter :
 
   Doc VisitExpr_(const LetNode* op) final {
     Doc doc = Nil();
-    doc << "let " << AllocVar(op->var) << " = ";
-    if (op->value.as<LetNode>()) {
-      doc << PrintBody(op->value);
-    } else {
-      // we use ANF mode for the first level of the value position so the
-      // final expression isn't hoisted or added to the doc stream
-      doc << Print(op->value, false);
-    }
-    doc << ";" << "\n";
-    // we use a nested scope here so GNF hoisting doesn't escape too far
+    doc << "let " << AllocVar(op->var) << " = " << PrintBody(op->value) << ";" << "\n";
+    // we use a scope here so GNF hoisting doesn't escape too far
     // and so consecutive lets don't get hoisted
     doc << PrintScope(op->body);
     return doc;
@@ -458,8 +450,8 @@ class PrettyPrinter :
     std::vector<Doc> clauses;
     for (const auto& clause : op->clauses) {
       Doc clause_doc = Nil();
-      clauses.push_back(clause_doc << Print(clause->lhs, false) << " -> "
-                                   << Print(clause->rhs, false));
+      clauses.push_back(clause_doc << Print(clause->lhs) << " -> "
+                                   << Print(clause->rhs));
     }
     doc << Indent(2, body << "\n" << PrintVec(clauses, Line())) << "\n";
     doc << "}";
@@ -502,7 +494,7 @@ class PrettyPrinter :
 
   Doc VisitTypeDefault_(const Node* node) final {  // NOLINT(*)
     // by default always print as meta data
-    return Print(GetRef<NodeRef>(node), true, true);
+    return Print(GetRef<NodeRef>(node), true);
   }
 
   Doc VisitType_(const TensorTypeNode* node) final {  // NOLINT(*)
