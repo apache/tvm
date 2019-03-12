@@ -319,6 +319,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   }
 
   // loop unroll
+  val shr_imm = imm(log_acc_width - 1, 0).asSInt
+  val shr_imm_cmp = shr_imm >= 0.S
   when (insn_valid && out_cntr_en) {
     for (b <- 0 to (block_out - 1)) {
       src_0(b) := dst_vector((b + 1) * acc_width - 1, b * acc_width).asSInt
@@ -333,10 +335,12 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
                                            Mux(src_0(b) < src_1(b), src_0(b), src_1(b)))
       cmp_res(b) := mix_val(b)
       short_cmp_res(b) := mix_val(b)(out_width - 1, 0)
-      add_val(b) := (src_0(b)(acc_width - 1, 0) + src_1(b)(acc_width - 1, 0)).asSInt
+      val lhs = src_0(b)(acc_width - 1, 0)
+      val rhs = src_1(b)(acc_width - 1, 0)
+      add_val(b) := (lhs + rhs).asSInt
       add_res(b) := add_val(b)
       short_add_res(b) := add_res(b)(out_width - 1, 0)
-      shr_val(b) := (src_0(b)(acc_width - 1, 0) >> src_1(b)(log_acc_width - 1, 0)).asSInt
+      shr_val(b) := Mux(shr_imm_cmp, (lhs >> shr_imm.asUInt).asSInt, (lhs << (-shr_imm).asUInt)(acc_width - 1, 0).asSInt)
       shr_res(b) := shr_val(b)
       short_shr_res(b) := shr_res(b)(out_width - 1, 0)
     }
