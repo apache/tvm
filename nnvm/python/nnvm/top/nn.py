@@ -198,7 +198,9 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
         # pylint: disable=assignment-from-no-return
         out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding, dilation,
                                    layout, out_layout, out_dtype)
+        # pylint: enable=assignment-from-no-return
     elif groups == in_channel and groups == out_channel:
+        # pylint: disable=assignment-from-no-return
         out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
                                              dilation, layout, out_layout, out_dtype)
         # pylint: enable=assignment-from-no-return
