@@ -188,7 +188,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('${ci_i386}', 'build', '-j2')
+        make(${ci_i386}, 'build', '-j2')
         pack_lib('i386', tvm_multilib)
       }
     }
