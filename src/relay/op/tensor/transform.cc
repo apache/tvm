@@ -1227,7 +1227,6 @@ bool ReverseRel(const Array<Type>& types,
     << "reverse only accepts `axis` in [-data.ndim - 1, data.ndim]"
     << ", but got axis = " << axis
     << ", and data.ndim = " << ndim;
-  const int pivot = axis < 0 ? ndim + axis : axis;
   std::vector<IndexExpr> oshape;
   oshape.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
@@ -1256,7 +1255,7 @@ Expr MakeReverse(Expr data,
 
 TVM_REGISTER_API("relay.op._make.reverse")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeReverse, args, rv);
+    runtime::detail::unpack_call<Expr, 2>(MakeReverse, args, rv);
 });
 
 RELAY_REGISTER_OP("reverse")
