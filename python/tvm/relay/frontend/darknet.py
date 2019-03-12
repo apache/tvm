@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=unused-argument
 """
 DarkNet symbol frontend for Relay.
@@ -61,15 +77,6 @@ def _darknet_avgpooling(inputs, params, attrs, prefix):
     new_attrs['padding'] = (pads, pads)
     return get_relay_op('avg_pool2d')(*inputs, **new_attrs)
 
-def _darknet_batch_norm(inputs, params, attrs, prefix):
-    """Process the batchnormalization operation."""
-    new_attrs = {}
-    new_attrs['axis'] = attrs.get('axis', 1)
-    new_attrs['epsilon'] = attrs.get('eps', 0.000001)
-    new_attrs['center'] = True
-    new_attrs['scale'] = True
-    return get_relay_op('batch_norm')(*inputs, **new_attrs)
-
 def _darknet_conv2d(inputs, params, attrs, prefix):
     """Process the convolution 2d operation."""
     new_attrs = {}
@@ -85,14 +92,14 @@ def _darknet_conv2d(inputs, params, attrs, prefix):
     new_attrs['groups'] = attrs.get('num_group', 1)
 
     weight = _get_param_var(params, prefix, 'weight')
-    out = get_relay_op('conv2d')(*inputs, weight, **new_attrs)
+    out = get_relay_op('conv2d')(*inputs, weight=weight, **new_attrs)
 
     use_bias = not attrs.get('use_batchNorm', False)
     if use_bias:
         new_attrs = {}
         new_attrs['axis'] = 1
         bias = _get_param_var(params, prefix, 'bias')
-        out = get_relay_op('bias_add')(out, bias, **new_attrs)
+        out = get_relay_op('bias_add')(out, bias=bias, **new_attrs)
     else:
         new_attrs = {}
         new_attrs['epsilon'] = 0.000001
@@ -107,32 +114,6 @@ def _darknet_conv2d(inputs, params, attrs, prefix):
         new_attrs['activation'] = attrs['activation']
         new_attrs['slope'] = 0.1
         out = _darknet_activations(out, None, new_attrs)
-    return out
-
-def _darknet_conv2d_transpose(inputs, params, attrs, prefix):
-    """Process the convolution 2d transpose operation."""
-    new_attrs = {}
-    kernel = attrs.get('kernel')
-    strides = attrs.get('stride', 1)
-    pads = attrs.get('pad', 0)
-
-    new_attrs['channels'] = attrs.get('num_filter')
-    new_attrs['kernel_size'] = (kernel, kernel)
-    new_attrs['strides'] = (strides, strides)
-    new_attrs['padding'] = (pads, pads)
-    new_attrs['dilation'] = attrs.get('dilate', (1, 1))
-    new_attrs['groups'] = attrs.get('num_group', 1)
-    new_attrs['output_padding'] = attrs.get('adj', (0, 0))
-
-    weight = _get_param_var(params, prefix, 'weight')
-    out = get_relay_op('conv2d_transpose')(*inputs, weight, **new_attrs)
-
-    use_bias = not attrs.get(attrs, 'no_bias')
-    if use_bias:
-        new_attrs = {}
-        new_attrs['axis'] = 1
-        bias = _get_param_var(params, prefix, 'bias')
-        out = get_relay_op('bias_add')(out, bias, **new_attrs)
     return out
 
 def _darknet_shortcut(inputs, params, attrs, prefix):
@@ -266,12 +247,8 @@ def _darknet_region(inputs, params, attrs, prefix):
     split_indices = (2, 4, 5)
     split_res = get_relay_op('split')(data_block, indices_or_sections=split_indices, axis=2)
     split_res0 = get_relay_op('sigmoid')(split_res[0])
-    if not background:
-        split_res2 = get_relay_op('sigmoid')(split_res[2])
-    else:
-        split_res2 = split_res[2]
-    if softmax:
-        split_res3 = get_relay_op('softmax')(split_res[3], axis=2)
+    split_res2 = split_res[2] if background else get_relay_op('sigmoid')(split_res[2])
+    split_res3 = get_relay_op('softmax')(split_res[3], axis=2) if softmax else split_res[3]
     out = get_relay_op('concatenate')((split_res0, split_res[1], split_res2, split_res3), axis=2)
     return get_relay_op('reshape')(out, newshape=input_shape)
 
@@ -385,13 +362,11 @@ class LAYERTYPE(Enum):
 
 _DARKNET_CONVERT_MAP = {
     LAYERTYPE.CONVOLUTIONAL   : _darknet_conv2d,
-    LAYERTYPE.DECONVOLUTIONAL : _darknet_conv2d_transpose,
     LAYERTYPE.CONNECTED       : _darknet_dense,
     LAYERTYPE.MAXPOOL         : _darknet_maxpooling,
     LAYERTYPE.SOFTMAX         : _darknet_softmax_output,
     LAYERTYPE.DROPOUT         : _darknet_dropout,
     LAYERTYPE.AVGPOOL         : _darknet_avgpooling,
-    LAYERTYPE.BATCHNORM       : _darknet_batch_norm,
     LAYERTYPE.ROUTE           : _darknet_route,
     LAYERTYPE.REORG           : _darknet_reorg,
     LAYERTYPE.REGION          : _darknet_region,
@@ -399,6 +374,8 @@ _DARKNET_CONVERT_MAP = {
     LAYERTYPE.UPSAMPLE        : _darknet_upsampling,
     LAYERTYPE.L2NORM          : _darknet_l2normalize,
     LAYERTYPE.YOLO            : _darknet_yolo,
+    LAYERTYPE.DECONVOLUTIONAL : _darknet_not_support,
+    LAYERTYPE.BATCHNORM       : _darknet_not_support,
     LAYERTYPE.DETECTION       : _darknet_not_support,
     LAYERTYPE.CROP            : _darknet_not_support,
     LAYERTYPE.COST            : _darknet_not_support,
@@ -757,7 +734,6 @@ class GraphProto(object):
             attr.update({'n' : layer.n})
             attr.update({'batch' : layer.batch})
             attr.update({'num_hidden' : str(layer.outputs)})
-
             state = self._get_rnn_state_buffer(layer, 'rnn')
             for _ in range(layer.steps):
                 input_layer = layer.input_layer

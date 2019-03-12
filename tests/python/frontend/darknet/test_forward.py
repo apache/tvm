@@ -1,55 +1,44 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
-Compile Darknet Models
+Test Darknet Models
 =====================
-This article is a test script to test darknet models with NNVM.
+This article is a test script to test darknet models with Relay.
 All the required models and libraries will be downloaded from the internet
 by the script.
 """
-import os
-import requests
-import sys
-import urllib
 import numpy as np
 import tvm
 from tvm.contrib import graph_runtime
-from nnvm import frontend
-from nnvm.testing.darknet import LAYERTYPE
-from nnvm.testing.darknet import __darknetffi__
-import nnvm.compiler
-if sys.version_info >= (3,):
-    import urllib.request as urllib2
-else:
-    import urllib2
+from tvm.contrib.download import download_testdata
+download_testdata.__test__ = False
+from tvm.relay.testing.darknet import LAYERTYPE
+from tvm.relay.testing.darknet import __darknetffi__
+from tvm.relay.frontend.darknet import ACTIVATION
 from tvm import relay
-
-def _download(url, path, overwrite=False, sizecompare=False):
-    ''' Download from internet'''
-    if os.path.isfile(path) and not overwrite:
-        if sizecompare:
-            file_size = os.path.getsize(path)
-            res_head = requests.head(url)
-            res_get = requests.get(url, stream=True)
-            if 'Content-Length' not in res_head.headers:
-                res_get = urllib2.urlopen(url)
-            urlfile_size = int(res_get.headers['Content-Length'])
-            if urlfile_size != file_size:
-                print("exist file got corrupted, downloading", path, " file freshly")
-                _download(url, path, True, False)
-                return
-        print('File {} exists, skip.'.format(path))
-        return
-    print('Downloading from url {} to {}'.format(url, path))
-    try:
-        urllib.request.urlretrieve(url, path)
-        print('')
-    except:
-        urllib.urlretrieve(url, path)
 
 DARKNET_LIB = 'libdarknet2.0.so'
 DARKNETLIB_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib/' \
                                     + DARKNET_LIB + '?raw=true'
-_download(DARKNETLIB_URL, DARKNET_LIB)
-LIB = __darknetffi__.dlopen('./' + DARKNET_LIB)
+LIB = __darknetffi__.dlopen(download_testdata(DARKNETLIB_URL, DARKNET_LIB, module='darknet'))
+
+DARKNET_TEST_IMAGE_NAME = 'dog.jpg'
+DARKNET_TEST_IMAGE_URL = 'https://github.com/siju-samuel/darknet/blob/master/data/' + DARKNET_TEST_IMAGE_NAME +'?raw=true'
+DARKNET_TEST_IMAGE_PATH = download_testdata(DARKNET_TEST_IMAGE_URL, DARKNET_TEST_IMAGE_NAME, module='data')
 
 def _read_memory_buffer(shape, data, dtype='float32'):
     length = 1
@@ -60,7 +49,7 @@ def _read_memory_buffer(shape, data, dtype='float32'):
         data_np[i] = data[i]
     return data_np.reshape(shape)
 
-def _get_tvm_output(net, data, build_dtype='float32'):
+def _get_tvm_output(net, data, build_dtype='float32', states=None):
     '''Compute TVM output'''
     dtype = 'float32'
     sym, params = relay.frontend.from_darknet(net, data.shape, dtype)
@@ -73,6 +62,9 @@ def _get_tvm_output(net, data, build_dtype='float32'):
     m = graph_runtime.create(graph, library, ctx)
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
+    if states:
+        for name in states.keys():
+            m.set_input(name, tvm.nd.array(states[name].astype(dtype)))
     m.set_input(**params)
     m.run()
     # get outputs
@@ -81,7 +73,13 @@ def _get_tvm_output(net, data, build_dtype='float32'):
         tvm_out.append(m.get_output(i).asnumpy())
     return tvm_out
 
-def test_forward(net, build_dtype='float32'):
+def _load_net(cfg_url, cfg_name, weights_url, weights_name):
+    cfg_path = download_testdata(cfg_url, cfg_name, module='darknet')
+    weights_path = download_testdata(weights_url, weights_name, module='darknet')
+    net = LIB.load_network(cfg_path.encode('utf-8'), weights_path.encode('utf-8'), 0)
+    return net
+
+def verify_darknet_frontend(net, build_dtype='float32'):
     '''Test network with given input image on both darknet and tvm'''
     def get_darknet_output(net, img):
         LIB.network_predict_image(net, img)
@@ -122,10 +120,7 @@ def test_forward(net, build_dtype='float32'):
 
     dtype = 'float32'
 
-    test_image = 'dog.jpg'
-    img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + test_image   +'?raw=true'
-    _download(img_url, test_image)
-    img = LIB.letterbox_image(LIB.load_image_color(test_image.encode('utf-8'), 0, 0), net.w, net.h)
+    img = LIB.letterbox_image(LIB.load_image_color(DARKNET_TEST_IMAGE_PATH.encode('utf-8'), 0, 0), net.w, net.h)
     darknet_output = get_darknet_output(net, img)
     batch_size = 1
     data = np.empty([batch_size, img.c, img.h, img.w], dtype)
@@ -140,6 +135,25 @@ def test_forward(net, build_dtype='float32'):
     for tvm_outs, darknet_out in zip(tvm_out, darknet_output):
         tvm.testing.assert_allclose(darknet_out, tvm_outs, rtol=1e-3, atol=1e-3)
 
+def _test_rnn_network(net, states):
+    '''Test network with given input data on both darknet and tvm'''
+    def get_darknet_network_predict(net, data):
+        return LIB.network_predict(net, data)
+    from cffi import FFI
+    ffi = FFI()
+    np_arr = np.zeros([1, net.inputs], dtype='float32')
+    np_arr[0, 2] = 1
+    cffi_arr = ffi.cast('float*', np_arr.ctypes.data)
+    tvm_out = _get_tvm_output(net, np_arr, states=states)[0]
+    darknet_output = get_darknet_network_predict(net, cffi_arr)
+    darknet_out = np.zeros(net.outputs, dtype='float32')
+    for i in range(net.outputs):
+        darknet_out[i] = darknet_output[i]
+    last_layer = net.layers[net.n-1]
+    darknet_outshape = (last_layer.batch, last_layer.outputs)
+    darknet_out = darknet_out.reshape(darknet_outshape)
+    tvm.testing.assert_allclose(darknet_out, tvm_out, rtol=1e-4, atol=1e-4)
+
 def test_forward_extraction():
     '''test extraction model'''
     model_name = 'extraction'
@@ -147,10 +161,8 @@ def test_forward_extraction():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
-    test_forward(net)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_alexnet():
@@ -160,10 +172,8 @@ def test_forward_alexnet():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
-    test_forward(net)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_resnet50():
@@ -173,10 +183,8 @@ def test_forward_resnet50():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
-    test_forward(net)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_yolov2():
@@ -186,11 +194,9 @@ def test_forward_yolov2():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
     build_dtype = {}
-    test_forward(net, build_dtype)
+    verify_darknet_frontend(net, build_dtype)
     LIB.free_network(net)
 
 def test_forward_yolov3():
@@ -200,11 +206,9 @@ def test_forward_yolov3():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
     build_dtype = {}
-    test_forward(net, build_dtype)
+    verify_darknet_frontend(net, build_dtype)
     LIB.free_network(net)
 
 def test_forward_convolutional():
@@ -214,7 +218,7 @@ def test_forward_convolutional():
     net.layers[0] = layer
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_dense():
@@ -224,7 +228,7 @@ def test_forward_dense():
     net.layers[0] = layer
     net.w = net.h = 5
     LIB.resize_network(net, 5, 5)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_dense_batchnorm():
@@ -238,7 +242,7 @@ def test_forward_dense_batchnorm():
     net.layers[0] = layer
     net.w = net.h = 2
     LIB.resize_network(net, 2, 2)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_maxpooling():
@@ -248,7 +252,7 @@ def test_forward_maxpooling():
     net.layers[0] = layer
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_avgpooling():
@@ -258,10 +262,10 @@ def test_forward_avgpooling():
     net.layers[0] = layer
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
-def test_forward_batch_norm():
+def test_forward_conv_batch_norm():
     '''test batch normalization layer'''
     net = LIB.make_network(1)
     layer = LIB.make_convolutional_layer(1, 224, 224, 3, 32, 1, 3, 2, 0, 1, 1, 0, 0, 0)
@@ -271,7 +275,7 @@ def test_forward_batch_norm():
     net.layers[0] = layer
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_shortcut():
@@ -280,7 +284,7 @@ def test_forward_shortcut():
     layer_1 = LIB.make_convolutional_layer(1, 224, 224, 3, 32, 1, 3, 2, 0, 1, 0, 0, 0, 0)
     layer_2 = LIB.make_convolutional_layer(1, 111, 111, 32, 32, 1, 1, 1, 0, 1, 0, 0, 0, 0)
     layer_3 = LIB.make_shortcut_layer(1, 0, 111, 111, 32, 111, 111, 32)
-    layer_3.activation = 1
+    layer_3.activation = ACTIVATION.RELU
     layer_3.alpha = 1
     layer_3.beta = 1
     net.layers[0] = layer_1
@@ -288,7 +292,7 @@ def test_forward_shortcut():
     net.layers[2] = layer_3
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_reorg():
@@ -300,7 +304,7 @@ def test_forward_reorg():
     net.layers[1] = layer_2
     net.w = net.h = 222
     LIB.resize_network(net, 222, 222)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_region():
@@ -314,7 +318,7 @@ def test_forward_region():
     net.w = net.h = 19
     LIB.resize_network(net, 19, 19)
     build_dtype = {}
-    test_forward(net, build_dtype)
+    verify_darknet_frontend(net, build_dtype)
     LIB.free_network(net)
 
 def test_forward_yolo_op():
@@ -327,7 +331,7 @@ def test_forward_yolo_op():
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
     build_dtype = {}
-    test_forward(net, build_dtype)
+    verify_darknet_frontend(net, build_dtype)
     LIB.free_network(net)
 
 def test_forward_upsample():
@@ -338,7 +342,7 @@ def test_forward_upsample():
     net.layers[0] = layer
     net.w = net.h = 19
     LIB.resize_network(net, 19, 19)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_l2normalize():
@@ -351,18 +355,18 @@ def test_forward_l2normalize():
     net.layers[0] = layer
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_elu():
     '''test elu activation layer'''
     net = LIB.make_network(1)
     layer_1 = LIB.make_convolutional_layer(1, 224, 224, 3, 32, 1, 3, 2, 0, 1, 0, 0, 0, 0)
-    layer_1.activation = 8
+    layer_1.activation = ACTIVATION.ELU
     net.layers[0] = layer_1
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_softmax():
@@ -373,7 +377,7 @@ def test_forward_softmax():
     net.layers[0] = layer_1
     net.w = net.h = 5
     LIB.resize_network(net, net.w, net.h)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_softmax_temperature():
@@ -384,7 +388,7 @@ def test_forward_softmax_temperature():
     net.layers[0] = layer_1
     net.w = net.h = 5
     LIB.resize_network(net, net.w, net.h)
-    test_forward(net)
+    verify_darknet_frontend(net)
     LIB.free_network(net)
 
 def test_forward_activation_logistic():
@@ -399,7 +403,7 @@ def test_forward_activation_logistic():
     size = 3
     stride = 2
     padding = 0
-    activation = 0
+    activation = ACTIVATION.LOGISTIC
     batch_normalize = 0
     binary = 0
     xnor = 0
@@ -410,7 +414,27 @@ def test_forward_activation_logistic():
     net.w = w
     net.h = h
     LIB.resize_network(net, net.w, net.h)
-    test_forward(net)
+    verify_darknet_frontend(net)
+    LIB.free_network(net)
+
+def test_forward_rnn():
+    '''test RNN layer'''
+    net = LIB.make_network(1)
+    batch = 1
+    inputs = 4
+    outputs = 4
+    steps = 1
+    activation = ACTIVATION.RELU
+    batch_normalize = 0
+    adam = 0
+    layer_1 = LIB.make_rnn_layer(batch, inputs, outputs, steps, activation, batch_normalize, adam)
+    net.layers[0] = layer_1
+    net.inputs = inputs
+    net.outputs = outputs
+    net.w = net.h = 0
+    LIB.resize_network(net, net.w, net.h)
+    states = {"rnn0_state": np.zeros([1, net.inputs])}
+    _test_rnn_network(net, states)
     LIB.free_network(net)
 
 if __name__ == '__main__':
@@ -422,7 +446,7 @@ if __name__ == '__main__':
     test_forward_convolutional()
     test_forward_maxpooling()
     test_forward_avgpooling()
-    test_forward_batch_norm()
+    test_forward_conv_batch_norm()
     test_forward_shortcut()
     test_forward_dense()
     test_forward_dense_batchnorm()
@@ -433,5 +457,6 @@ if __name__ == '__main__':
     test_forward_yolo_op()
     test_forward_upsample()
     test_forward_l2normalize()
-    test_forward_activation_logistic()
     test_forward_elu()
+    test_forward_rnn()
+    test_forward_activation_logistic()

@@ -1,9 +1,25 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 Compile YOLO-V2 and YOLO-V3 in DarkNet Models
 =================================
 **Author**: `Siju Samuel <https://siju-samuel.github.io/>`_
 
-This article is an introductory tutorial to deploy darknet models with NNVM.
+This article is an introductory tutorial to deploy darknet models with TVM.
 All the required models and libraries will be downloaded from the internet by the script.
 This script runs the YOLO-V2 and YOLO-V3 Model with the bounding boxes
 Darknet parsing have dependancy with CFFI and CV2 library
@@ -15,20 +31,19 @@ Please install CFFI and CV2 before executing this script
   pip install opencv-python
 """
 
-# sys, numpy and matplotlib
-import sys
+# numpy and matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
-from ctypes import *
+import sys
 
 # tvm, relay
 import tvm
 from tvm import relay
-import nnvm.testing.yolo_detection
-import nnvm.testing.darknet
-
-from tvm.contrib.download import download
-from nnvm.testing.darknet import __darknetffi__
+from ctypes import *
+from tvm.contrib.download import download_testdata
+from tvm.relay.testing.darknet import __darknetffi__
+import tvm.relay.testing.yolo_detection
+import tvm.relay.testing.darknet
 
 # Model name
 MODEL_NAME = 'yolov3'
@@ -43,19 +58,24 @@ REPO_URL = 'https://github.com/siju-samuel/darknet/blob/master/'
 CFG_URL = REPO_URL + 'cfg/' + CFG_NAME + '?raw=true'
 WEIGHTS_URL = 'https://pjreddie.com/media/files/' + WEIGHTS_NAME
 
-download(CFG_URL, CFG_NAME)
-download(WEIGHTS_URL, WEIGHTS_NAME)
+cfg_path = download_testdata(CFG_URL, CFG_NAME, module="darknet")
+weights_path = download_testdata(WEIGHTS_URL, WEIGHTS_NAME, module="darknet")
 
 # Download and Load darknet library
-DARKNET_LIB = 'libdarknet2.0.so'
-DARKNET_URL = REPO_URL + 'lib/' + DARKNET_LIB + '?raw=true'
+if sys.platform in ['linux', 'linux2']:
+    DARKNET_LIB = 'libdarknet2.0.so'
+    DARKNET_URL = REPO_URL + 'lib/' + DARKNET_LIB + '?raw=true'
+elif sys.platform == 'darwin':
+    DARKNET_LIB = 'libdarknet_mac2.0.so'
+    DARKNET_URL = REPO_URL + 'lib_osx/' + DARKNET_LIB + '?raw=true'
+else:
+    err = "Darknet lib is not supported on {} platform".format(sys.platform)
+    raise NotImplementedError(err)
 
-download(DARKNET_URL, DARKNET_LIB)
+lib_path = download_testdata(DARKNET_URL, DARKNET_LIB, module="darknet")
 
-DARKNET_LIB = __darknetffi__.dlopen('./' + DARKNET_LIB)
-cfg = "./" + str(CFG_NAME)
-weights = "./" + str(WEIGHTS_NAME)
-net = DARKNET_LIB.load_network(cfg.encode('utf-8'), weights.encode('utf-8'), 0)
+DARKNET_LIB = __darknetffi__.dlopen(lib_path)
+net = DARKNET_LIB.load_network(cfg_path.encode('utf-8'), weights_path.encode('utf-8'), 0)
 dtype = 'float32'
 batch_size = 1
 
@@ -85,9 +105,9 @@ test_image = 'dog.jpg'
 print("Loading the test image...")
 img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + \
           test_image + '?raw=true'
-download(img_url, test_image)
+img_path = download_testdata(img_url, test_image, "data")
 
-data = nnvm.testing.darknet.load_image(test_image, netw, neth)
+data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
 ######################################################################
 # Execute on TVM Runtime
 # ----------------------
@@ -136,25 +156,25 @@ elif MODEL_NAME == 'yolov3':
 # do the detection and bring up the bounding boxes
 thresh = 0.5
 nms_thresh = 0.45
-img = nnvm.testing.darknet.load_image_color(test_image)
+img = tvm.relay.testing.darknet.load_image_color(img_path)
 _, im_h, im_w = img.shape
-dets = nnvm.testing.yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh,
+dets = tvm.relay.testing.yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh,
                                                       1, tvm_out)
 last_layer = net.layers[net.n - 1]
-nnvm.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
+tvm.relay.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
 
 coco_name = 'coco.names'
 coco_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + coco_name + '?raw=true'
 font_name = 'arial.ttf'
 font_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + font_name + '?raw=true'
-download(coco_url, coco_name)
-download(font_url, font_name)
+coco_path = download_testdata(coco_url, coco_name, module='data')
+font_path = download_testdata(font_url, font_name, module='data')
 
-with open(coco_name) as f:
+with open(coco_path) as f:
     content = f.readlines()
 
 names = [x.strip() for x in content]
 
-nnvm.testing.yolo_detection.draw_detections(img, dets, thresh, names, last_layer.classes)
+tvm.relay.testing.yolo_detection.draw_detections(font_path, img, dets, thresh, names, last_layer.classes)
 plt.imshow(img.transpose(1, 2, 0))
 plt.show()
