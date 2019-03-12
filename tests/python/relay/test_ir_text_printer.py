@@ -95,7 +95,7 @@ def test_let_if_scope():
 
     f = relay.Function([x, y, cond], result)
     text = f.astext()
-    assert text.count("{") == 4
+    assert text.count("{") == 6
     assert "%cond: bool" in text
     show(f.astext())
 

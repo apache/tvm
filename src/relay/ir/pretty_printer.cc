@@ -250,6 +250,11 @@ class PrettyPrinter :
     return val;
   }
 
+  inline bool IsAtomicExpr(const Expr& expr) {
+    return expr.as<GlobalVarNode>() || expr.as<ConstantNode>() ||
+           expr.as<OpNode>() || expr.as<VarNode>();
+  }
+
   //------------------------------------
   // Overload of Expr printing functions
   //------------------------------------
@@ -273,10 +278,8 @@ class PrettyPrinter :
     } else {
       printed_expr = VisitExpr(expr);
     }
-    // we choose to inline some nodes
-    if (GNF_ &&
-        !expr.as<GlobalVarNode>() && !expr.as<ConstantNode>() &&
-        !expr.as<OpNode>() && !expr.as<VarNode>()) {
+    // we choose to inline atomic exprs
+    if (GNF_ && !IsAtomicExpr(expr)) {
       Doc temp_var = AllocTemp();
       memo_[expr] = temp_var;
       doc_stack_.back() << temp_var << " = " << printed_expr;
@@ -360,9 +363,8 @@ class PrettyPrinter :
 
   Doc VisitExpr_(const LetNode* op) final {
     Doc doc = Nil();
-    doc << "let " << AllocVar(op->var) << " = " << PrintBody(op->value) << ";" << "\n";
+    doc << "let " << AllocVar(op->var) << " = " << Print(op->value) << "\n";
     // we use a scope here so GNF hoisting doesn't escape too far
-    // and so consecutive lets don't get hoisted
     doc << PrintScope(op->body);
     return doc;
   }
@@ -691,7 +693,7 @@ std::string PrettyPrint_(const NodeRef& node,
 std::string RelayPrint(const NodeRef& node,
                        bool show_meta_data,
                        runtime::TypedPackedFunc<std::string(Expr)> annotate) {
-  return PrettyPrint_(node, show_meta_data, annotate, false);
+  return PrettyPrint_(node, show_meta_data, annotate, true);
 }
 
 std::string PassDebugPrint(const NodeRef& node,
