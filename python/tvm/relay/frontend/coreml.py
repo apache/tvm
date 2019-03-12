@@ -81,7 +81,7 @@ def _BatchnormLayerParams(op, inexpr, etab):
     """Get layer of batchnorm parameter"""
     # this changes the symbol
     if op.instanceNormalization:
-        raise NotImplementedError("instance normalization not implemented")
+        raise_operator_unimplemented('instance normalization')
     else:
         params = {'gamma':etab.new_const(list(op.gamma.floatValue)),
                   'beta':etab.new_const(list(op.beta.floatValue)),
@@ -142,7 +142,7 @@ def _ActivationParams(op, inexpr, etab):
         alpha_expr = etab.new_const(alpha)
         beta_expr = etab.new_const(beta)
         return _op.multiply(_op.log(_op.add(_op.exp(inexpr), beta_expr)), alpha_expr)
-    raise NotImplementedError('%s not implemented' % whichActivation)
+    raise_operator_unimplemented(whichActivation)
 
 
 def _ScaleLayerParams(op, inexpr, etab):
@@ -164,7 +164,7 @@ def _PoolingLayerParams(op, inexpr, etab):
             return _op.nn.global_max_pool2d(inexpr)
         if op.type == 1:
             return _op.nn.global_avg_pool2d(inexpr)
-        raise NotImplementedError("Only max and average pooling implemented")
+        raise_operator_unimplemented('pooling (not max or average)')
 
     else:
         params = {'pool_size':list(op.kernelSize),
@@ -184,7 +184,8 @@ def _PoolingLayerParams(op, inexpr, etab):
             params['padding'] = padding
             params['ceil_mode'] = True
         else:
-            raise NotImplementedError("Other convolution padding not implemented")
+            raise_attribute_unimplemented(op.WhichOneof('PoolingPaddingType'),
+                                          'PoolingPaddingType', 'pooling')
 
         # consume padding layer
         if etab.in_padding:
@@ -196,7 +197,7 @@ def _PoolingLayerParams(op, inexpr, etab):
             return _op.nn.max_pool2d(inexpr, **params)
         if op.type == 1:
             return _op.nn.avg_pool2d(inexpr, **params)
-        raise NotImplementedError("Only max and average pooling implemented")
+        raise_operator_unimplemented('pooling (not max or average)')
 
 
 def _SoftmaxLayerParams(op, inexpr, etab):
@@ -239,7 +240,7 @@ def _ConcatLayerParams(op, inexpr, etab):
     if not isinstance(inexpr, list):
         inexpr = [inexpr]
     if op.sequenceConcat:
-        raise NotImplementedError("Sequence Concat not supported")
+        raise_operator_unimplemented('Sequence Concat')
     ret = _op.concatenate(inexpr, axis=1)
     return ret
 
@@ -255,14 +256,14 @@ def _PaddingLayerParams(op, inexpr, etab):
     if op.WhichOneof('PaddingType') == 'constant':
         constant = op.constant
         if constant.value != 0:
-            raise NotImplementedError("Padding value {} not supported.".format(constant.value))
+            raise_attribute_unimplemented(constant.value, 'padding value', 'padding')
         padding = [b.startEdgeSize for b in op.paddingAmounts.borderAmounts]
         padding2 = [b.endEdgeSize for b in op.paddingAmounts.borderAmounts]
         for i, j in zip(padding, padding2):
             assert i == j
         etab.set_padding(padding)
     else:
-        raise NotImplementedError("Only constant padding is supported now.")
+        raise_operator_unimplemented('non-constant padding')
     return inexpr
 
 
@@ -273,8 +274,7 @@ def _PermuteLayerParams(op, inexpr, etab):
 
 def _UpsampleLayerParams(op, inexpr, etab):
     if op.scalingFactor[0] != op.scalingFactor[1]:
-        raise NotImplementedError("Upsampling only supported with same \
-            height and width scaling factor.")
+        raise_attribute_unimplemented('unequal height/width scaling factors', 'upsample')
     interpolationMode = 'NEAREST_NEIGHBOR' if op.mode == 0 else 'BILINEAR'
     return _op.nn.upsampling(inexpr, scale=op.scalingFactor[0], method=interpolationMode)
 
@@ -364,7 +364,7 @@ def coreml_op_to_relay(op, inname, outname, etab):
     """
     classname = type(op).__name__
     if classname not in _convert_map:
-        raise NotImplementedError("%s is not supported" % (classname))
+        raise_operator_unimplemented(classname)
     if isinstance(inname, _base.string_types):
         insym = etab.get_expr(inname)
     else:

@@ -18,7 +18,7 @@ def dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise NotImplementedError("Only 2d kernel supported.")
+        raise_attribute_invalid(len(kernel), 'kernel dimensionality', prefix)
 
     return _impl
 
@@ -29,7 +29,7 @@ def revert_caffe2_pad(pads):
     elif len(pads) == 2:
         pass
     else:
-        raise ValueError("Invalid caffe2 type padding: {}".format(pads))
+        raise_attribute_invalid(len(pads), 'len(pads)', 'padding')
     return pads
 
 def dimension_constraint():
@@ -461,7 +461,7 @@ class Upsample(OnnxOpConverter):
         elif mode == b'linear':
             method = "BILINEAR"
         else:
-            raise ValueError("Invalid ONNX upsample mode: {}".format(mode))
+            raise_attribute_invalid(mode, 'mode', 'upsample')
         attr = {'scale':int(scales[-1]), 'method':method, 'layout':'NCHW'}
         return AttrCvt('upsampling')(inputs, attr)
 
@@ -717,9 +717,7 @@ class ConstantFill(OnnxOpConverter):
             if 'input_as_shape' in attr and attr['input_as_shape']:
                 shape = params[get_name(inputs[0])].asnumpy()
             else:
-                if 'extra_shape' in attr:
-                    raise ImportError(
-                        "Extra Shape not supported with fill_like")
+                raise_attribute_required('extra_shape', 'ConstantFill')
                 return _op.full_like(inputs[0], inputs[1])
 
         if 'extra_shape' in attr:

@@ -15,7 +15,7 @@ def dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise NotImplementedError("Only 2d kernel supported.")
+        raise_operator_unimplemented('non 2d kernel')
 
     return _impl
 
@@ -27,7 +27,7 @@ def revert_caffe2_pad(pads):
     elif len(pads) == 2:
         pass
     else:
-        raise ValueError("Invalid caffe2 type padding: {}".format(pads))
+        raise_attribute_invalid(str(len(pads)), 'len(pads)', 'padding')
     return pads
 
 
@@ -103,8 +103,7 @@ class Caffe2OpConverter(object):
 
         if hasattr(cls, '_impl'):
             return getattr(cls, '_impl')
-        raise NotImplementedError('{} not implemented'.format(
-            cls.__name__))
+        raise_operator_unimplemented(cls.__name__)
 
 
 _caffe2_internal_args = [
@@ -224,8 +223,7 @@ class Concat(Caffe2OpConverter):
                 return 1
             if order == 'NHWC':
                 return 3
-            raise RuntimeError(
-                "Unsupported storage order: {} in caffe2".format(order))
+            raise_attribute_unimplemented(order, 'Concat')
 
         return AttrCvt(
             op_name='concatenate',
@@ -517,8 +515,7 @@ class Caffe2NetDef(object):
             # Add a sanitizing step to convert all byte strings in args to strings
             func = convert_map[op_type](inputs, args, self._params)
         else:
-            raise NotImplementedError(
-                "Operator {} not implemented.".format(op_type))
+            raise_operator_unimplemented(op_type)
         return func
 
 

@@ -27,7 +27,7 @@ def _get_relay_op(op_name):
             op = getattr(_op.image, op_name)
 
     if not op:
-        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
+        raise_operator_unimplemented(op_name)
     return op
 
 class AttrCvt(object):
@@ -99,7 +99,7 @@ class AttrCvt(object):
         new_attrs = {}
         for k in attrs.keys():
             if k in self._excludes:
-                raise NotImplementedError("Attribute {} not supported yet.".format(k))
+                raise_operator_unimplemented(k, op_name)
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.%s", k, op_name)
             elif k in self._ignores:
@@ -148,7 +148,7 @@ class AttrCvt(object):
         """Wrapper for getting required attributes."""
         assert isinstance(attr, dict)
         if key not in attr:
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise_attribute_required(key, self._op_name)
         return attr[key]
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
@@ -178,7 +178,7 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise NotImplementedError("Only 2d kernel supported.")
+        raise_attribute_invalid(len(kernel), 'kernel dimensionality', prefix)
     return _impl
 
 def _dimension_constraint():
@@ -238,7 +238,7 @@ def _pooling(name):
             attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3])
             attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
-            raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
+            raise_attribute_invalid(attr['data_format'], 'data_format', 'pooling')
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             tmp_shape = attr['_input_shapes'][inputs[0]]
@@ -267,7 +267,7 @@ def _pooling(name):
 
             attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
-            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+            raise_attribute_invalid(attr['padding'], 'padding', 'padding')
 
         if name == "avg_pool":
             attr['count_include_pad'] = False
@@ -341,7 +341,7 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
             attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
-            raise TypeError("Unsupported data format type : {}".format(attr['data_format']))
+            raise_attribute_unimplemented(attr['data_format'], 'data_format', 'conv')
 
 
         if opname == 'depthwise':
@@ -386,7 +386,7 @@ def _conv(opname):
             attr['padding'] = [0, 0]
 
         else:
-            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+            raise_attribute_invalid(attr['padding'], 'padding', 'conv')
 
         if 'kernel_layout' not in attr:
             if opname == 'conv':
@@ -791,7 +791,7 @@ def _pad(name):
         if padlist_key in params:
             padlist = params.pop(padlist_key).asnumpy()
         else:
-            raise RuntimeError("Required parameter {} not fount.".format(padlist_key))
+            raise_attribute_required(padlist_key, 'pad')
         paddings = tuple([tuple(l) for l in padlist])
         attr['pad_width'] = paddings
         attr['pad_value'] = 0

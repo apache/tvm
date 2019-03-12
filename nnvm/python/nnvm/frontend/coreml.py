@@ -83,7 +83,7 @@ def BatchnormLayerParams(op, insym, symtab):
     """Get layer of batchnorm parameter"""
     # this changes the symbol
     if op.instanceNormalization:
-        raise NotImplementedError("instance normalization not implemented")
+        raise_operator_unimplemented('instance normalization')
     else:
         params = {'gamma':symtab.new_const(list(op.gamma.floatValue)),
                   'beta':symtab.new_const(list(op.beta.floatValue)),
@@ -136,7 +136,7 @@ def ActivationParams(op, insym, symtab):
         betasym = symtab.new_const(beta)
         return _sym.broadcast_mul(_sym.log(_sym.broadcast_add(
             _sym.exp(insym), betasym)), alphasym)
-    raise NotImplementedError('%s not implemented' % whichActivation)
+    raise_operator_unimplemented(whichActivation)
 
 def ScaleLayerParams(op, insym, symtab):
     """Scale layer params."""
@@ -158,7 +158,7 @@ def PoolingLayerParams(op, insym, symtab):
             return _sym.global_max_pool2d(insym)
         if op.type == 1:
             return _sym.global_avg_pool2d(insym)
-        raise NotImplementedError("Only max and average pooling implemented")
+        raise_operator_unimplemented('pooling (not max or average)')
 
     else:
         params = {'pool_size':list(op.kernelSize),
@@ -178,7 +178,8 @@ def PoolingLayerParams(op, insym, symtab):
             params['padding'] = padding
             params['ceil_mode'] = True
         else:
-            raise NotImplementedError("Other convolution padding not implemented")
+            raise_attribute_invalid(op.WhichOneof('PoolingPaddingType'),
+                                    'PoolingPaddingType', 'pooling')
 
         # consume padding layer
         if symtab.in_padding:
@@ -190,7 +191,7 @@ def PoolingLayerParams(op, insym, symtab):
             return _sym.max_pool2d(insym, **params)
         if op.type == 1:
             return _sym.avg_pool2d(insym, **params)
-        raise NotImplementedError("Only max and average pooling implemented")
+        raise_operator_unimplemented('pooling (not max or average)')
 
 def SoftmaxLayerParams(op, insym, symtab):
     return _sym.softmax(_sym.flatten(insym))
@@ -229,7 +230,7 @@ def ConcatLayerParams(op, insyms, symtab):
     if not isinstance(insyms, list):
         insyms = [insyms]
     if op.sequenceConcat:
-        raise NotImplementedError("Sequence Concat not supported")
+        raise_operator_unimplemented('sequence concat')
     ret = _sym.concatenate(*insyms, axis=1)
     return ret
 
@@ -243,14 +244,14 @@ def PaddingLayerParams(op, insym, symtab):
     if op.WhichOneof('PaddingType') == 'constant':
         constant = op.constant
         if constant.value != 0:
-            raise NotImplementedError("Padding value {} not supported.".format(constant.value))
+            raise_attribute_invalid(constant.value, 'padding value', 'padding')
         padding = [b.startEdgeSize for b in op.paddingAmounts.borderAmounts]
         padding2 = [b.endEdgeSize for b in op.paddingAmounts.borderAmounts]
         for i, j in zip(padding, padding2):
             assert i == j
         symtab.set_padding(padding)
     else:
-        raise NotImplementedError("Only constant padding is supported now.")
+        raise_operator_unimplemented('non-constant padding')
     return insym
 
 def PermuteLayerParams(op, insym, symtab):
@@ -259,8 +260,8 @@ def PermuteLayerParams(op, insym, symtab):
 
 def UpsampleLayerParams(op, insym, symtab):
     if op.scalingFactor[0] != op.scalingFactor[1]:
-        raise NotImplementedError("Upsampling only supported with same \
-            height and width scaling factor.")
+        raise_attribute_invalid(op.scalingFactor, 'scaling factors',
+                                'upsample')
     interpolationMode = 'NEAREST_NEIGHBOR' if op.mode == 0 else 'BILINEAR'
     return _sym.upsampling(insym, scale=op.scalingFactor[0], method=interpolationMode)
 
@@ -341,7 +342,7 @@ def coreml_op_to_nnvm(op, inname, outname, symtab):
     """
     classname = type(op).__name__
     if classname not in _convert_map:
-        raise NotImplementedError("%s is not supported" % (classname))
+        raise_operator_unimplemented(classname)
     if isinstance(inname, string_types):
         insym = symtab.get_var(inname)
     else:

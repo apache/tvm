@@ -11,7 +11,7 @@ import tvm
 from .. import symbol as _sym
 from .. import graph as _graph
 from .. compiler import graph_util, build_module
-from .common import get_nnvm_op, AttrConverter as AttrConvert
+from .common import AttrConverter as AttrConvert
 
 __all__ = ['from_tensorflow']
 
@@ -68,7 +68,7 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise NotImplementedError("Only 2d kernel supported.")
+        raise_attribute_unimplemented('non-2d kernel', prefix)
     return _impl
 
 def _dimension_constraint():
@@ -129,7 +129,7 @@ def _pooling(name):
             attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3])
             attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
-            raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
+            raise_attribute_invalid(attr['data_format'], 'data_format', 'pooling')
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             tmp_shape = attr['_input_shapes'][inputs[0]]
@@ -158,7 +158,7 @@ def _pooling(name):
 
             attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
-            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+            raise_attribute_unimplemented(attr['padding'], 'padding', 'pooling')
 
         if name == "avg_pool":
             attr['count_include_pad'] = False
@@ -232,7 +232,7 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
             attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
-            raise TypeError("Unsupported data format type : {}".format(attr['data_format']))
+            raise_attribute_invalid(attr['data_format'], 'data_format', 'conv')
 
 
         if opname == 'depthwise':
@@ -276,7 +276,7 @@ def _conv(opname):
             attr['padding'] = [0, 0]
 
         else:
-            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+            raise_attribute_invalid(attr['padding'], 'padding', 'conv')
 
         if 'kernel_layout' not in attr:
             if opname == 'conv':
@@ -432,7 +432,7 @@ def _reshape():
                     op_name="reshape",
                     extras={'shape':tuple(params_new[0].asnumpy().flatten())},
                     ignores=['Tshape'])(inputs, attr)
-            raise RuntimeError("Reshape with dynamic shape input not supported yet.")
+            raise_attribute_unimplemented('dynamic shape', 'reshape')
     return _impl
 
 def _bias_add():
@@ -736,7 +736,7 @@ def _pad(name):
         if padlist_key in params:
             padlist = params.pop(padlist_key).asnumpy()
         else:
-            raise RuntimeError("Required parameter {} not fount.".format(padlist_key))
+            raise_attribute_required(padlist_key, 'pad')
         paddings = tuple([tuple(l) for l in padlist])
         attr['pad_width'] = paddings
         attr['pad_value'] = 0
@@ -1188,8 +1188,7 @@ class GraphProto(object):
         missing_operators = self._parse_import_prerequisites(graph)
 
         if missing_operators:
-            raise NotImplementedError( \
-                "The following operators are not implemented: {}".format(missing_operators))
+            raise_operator_unimplemented(*missing_operators)
 
         for node in graph.node:
             if node.op == 'Placeholder':
@@ -1529,7 +1528,7 @@ class GraphProto(object):
                                              self._params, graph,
                                              convert_map_rnn)
         else:
-            raise NotImplementedError("Operator {} not implemented.".format(op_name))
+            raise_operator_unimplemented(op_name)
         return sym
 
     def _fix_extranodes(self, op_name, attr, inputs):
