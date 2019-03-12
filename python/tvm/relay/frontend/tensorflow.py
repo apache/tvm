@@ -778,7 +778,7 @@ def _stridedSlice():
                 pass
             else:
                 final_output.append(out_shape[gather_index])
-        # Prevent 0-dim tensors which are not accepted by nnvm
+        # Prevent 0-dim tensors which are not accepted by Relay
         if not final_output:
             final_output.append(1)
         return _op.reshape(out, newshape=tuple(final_output))
@@ -1444,7 +1444,7 @@ class GraphProto(object):
                             input_shape = self._output_shapes[node_name][0]
                         inputs.append(in_sym[0])
                         input_shapes[in_sym[0]] = input_shape
-                        # This means the node is 1d in NNVM and 0d in TF.
+                        # This means the node is 1d in Relay and 0d in TF.
                         # See `_expand_dims_0d_aware`.
                         if self._outputs_are_0d[node_name][tensor_slot] and input_shape:
                             input_0d_mismatch.add(in_sym)

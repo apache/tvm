@@ -225,8 +225,12 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
         in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
-        strides = [1] + strides + [1]
-        dilations = [1] + dilations + [1]
+        if data_format == 'NHWC':
+            strides = [1] + strides + [1]
+            dilations = [1] + dilations + [1]
+        else:
+            strides = [1, 1] + strides
+            dilations = [1, 1] + dilations
 
         nn_ops.conv2d(in_data,
                       in_filter,
@@ -240,7 +244,9 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
 def test_forward_convolution():
     if is_gpu_available():
         _test_convolution([4, 176, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NCHW')
+        _test_convolution([4, 19, 17, 17], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NCHW')
         _test_convolution([4, 124, 17, 17], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NCHW')
+        _test_convolution([4, 12, 17, 17], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NCHW')
 
     _test_convolution([4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution([4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
