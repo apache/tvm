@@ -829,6 +829,48 @@ inline Tensor tile(const Tensor& x,
 }
 
 /*!
+* \brief Creates an operation to reverse elements of an array
+*
+* \param x The input tensor
+* \param axis The axis along which to reverse elements (allows
+* negative indices as offsets from the last dimension)
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the reverse operation
+*/
+inline Tensor reverse(const Tensor& x,
+                      int axis,
+                      std::string name = "tensor",
+                      std::string tag = kInjective) {
+  size_t ndim = static_cast<size_t>(x->shape.size());
+  CHECK(-ndim - 1 <= axis && axis <= ndim)
+    << "reverse only accepts `axis` in [-data.ndim - 1, data.ndim]"
+    << ", but got axis = " << axis
+    << ", and data.ndim = " << ndim;
+  if (axis < 0) {
+    axis += ndim;
+  }
+  Array<Expr> new_shape;
+  for (size_t i = 0; i < ndim; ++i) {
+    new_shape.push_back(x->shape[i]);
+  }
+
+  return compute(
+    new_shape, [&](const Array<Var>& indices) {
+      Array<Expr> idx;
+      for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
+        idx.push_back(indices[i]);
+      }
+      idx.push_back(indices[axis] / repeats);
+      for (size_t i = axis + 1; i < indices.size(); ++i) {
+        idx.push_back(indices[i]);
+      }
+      return x(idx);
+    }, name, tag);
+}
+
+/*!
 * \brief Gather elements from a n-dimension array.
 *
 * \param data The source array.
