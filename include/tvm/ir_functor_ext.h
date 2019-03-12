@@ -8,6 +8,7 @@
 
 #include "tvm/node/ir_functor.h"
 #include "ir.h"
+#include <utility>
 
 namespace tvm {
 namespace ir {

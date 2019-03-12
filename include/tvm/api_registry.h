@@ -8,6 +8,7 @@
 #define TVM_API_REGISTRY_H_
 
 #include <string>
+#include <utility>
 #include "base.h"
 #include "packed_func_ext.h"
 #include "runtime/registry.h"

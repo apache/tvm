@@ -6,6 +6,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/ir_pass.h>
+#include <unordered_map>
 #include "codegen_cpu.h"
 #include "../../pass/ir_util.h"
 
