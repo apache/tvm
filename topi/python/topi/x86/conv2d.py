@@ -2,6 +2,7 @@
 """Conv2D schedule on x86"""
 
 import logging
+import re
 
 import tvm
 from tvm import autotvm
@@ -41,10 +42,11 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
+    pat = re.compile('NCHW.+(\d+)c')
     if layout == 'NCHW':
         n, ic, h, w = dshape
         oc, _, kh, kw = kshape
-    elif 'NCHW' in layout and 'c' in layout:
+    elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
         if data.dtype == 'uint8':
             oc_chunk, k_ic, kh, kw, k_ic_f, oc_bn, k_ic_s = kshape
@@ -64,7 +66,6 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     oh = (h - kh + 2 * ph) // sh + 1
     ow = (w - kw + 2 * pw) // sw + 1
-    cfg.add_flop(2*oh*ow*kh*kw*oc*ic)
 
     # Create schedule config
     cfg.define_split("tile_ic", ic, num_outputs=2)
