@@ -14,7 +14,7 @@ from tensorflow.python.framework import constant_op
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import variables
-from tensorflow.contrib.lite.python import interpreter as interpreter_wrapper
+from tensorflow.contrib import lite as interpreter_wrapper
 
 import tvm.relay.testing.tf as tf_testing
 
