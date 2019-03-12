@@ -1,8 +1,4 @@
 """API for graph traversing."""
-import json
-
-import nnvm
-
 from tvm import relay
 from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant
 
@@ -59,7 +55,7 @@ def expr2graph(expr, node_dict, node_list):
 
 
 def get_direct_ancestor(node_list, visited_dict, op_name, node_idx, input_names):
-    """Given a node_list in nnvm graph and a node index, return the
+    """Given a node_list in relay function and a node index, return the
     closest ancestor which has op_name as operator name or is multi_input operator.
 
     If node has multiple inputs, multiple ancestor nodes will be returned.
@@ -125,7 +121,7 @@ def get_in_nodes(graph, op_name, input_names):
 
     Parameters
     ----------
-    graph : nnvm Graph or tvm.relay.Expr.Function
+    graph : tvm.relay.Expr.Function
         Input graph.
 
     op_name : str
@@ -139,15 +135,12 @@ def get_in_nodes(graph, op_name, input_names):
     out : dict of int to list of int
         Dictionary maps node index to closest input ancestors.
     """
-    if isinstance(graph, nnvm.graph.Graph):
-        g_dict = json.loads(graph.json())
-        node_list = g_dict["nodes"]
-    elif isinstance(graph, Function):
+    if isinstance(graph, Function):
         node_dict = {}
         node_list = []
         expr2graph(graph, node_dict, node_list)
     else:
-        raise RuntimeError("Input graph must be either NNVM Graph or Relay Function.")
+        raise RuntimeError("Input graph must be Relay Function.")
 
     visited_dict = {}
     in_node_dict = {}

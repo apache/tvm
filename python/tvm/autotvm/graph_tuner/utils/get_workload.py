@@ -10,7 +10,7 @@ from topi.nn.depthwise_conv2d import depthwise_conv2d_nchw
 from .utils import bind_inputs
 
 
-def relay_get_workload(target_op_name):
+def get_workload(target_op_name):
     """Register function for getting operator workloads.
 
     Parameters
@@ -55,8 +55,8 @@ def relay_get_workload(target_op_name):
     return _wrapper
 
 
-@relay_get_workload("conv2d")
-def relay_get_conv2d_NCHWc_AVX_workload(**kwargs):
+@get_workload("conv2d")
+def get_conv2d_NCHWc_AVX_workload(**kwargs):
     """Get workload for conv2d of Intel CPU.
 
     Parameters

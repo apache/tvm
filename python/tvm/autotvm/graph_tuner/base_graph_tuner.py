@@ -1,11 +1,7 @@
 # pylint: disable=too-many-arguments,too-many-locals,too-many-statements,too-many-instance-attributes,too-many-branches,too-many-nested-blocks,invalid-name,unused-argument,unused-variable,no-member
 """Base class for graph tuner."""
 import logging
-import json
 from abc import abstractmethod
-
-import nnvm
-from nnvm.compiler import graph_attr
 
 import topi
 
@@ -50,7 +46,7 @@ class BaseGraphTuner(object):
         target_op in the input graph and layout transformation benchmark need to be
         executed before initialization.
 
-        graph : nnvm Graph or tvm.relay.Expr.Function
+        graph : tvm.relay.Expr.Function
             Input graph
 
         input_shapes : dict of str to tuple.
@@ -152,18 +148,7 @@ class BaseGraphTuner(object):
             self._logger.propagate = False
 
         # Generate workload and schedule dictionaries.
-        if isinstance(graph, nnvm.graph.Graph):
-            graph = graph_attr.set_shape_inputs(graph, input_shapes)
-            graph = graph.apply("InferShape")
-            graph = graph_attr.set_dtype_inputs(graph, dtype)
-            graph = graph.apply("InferType")
-            g_dict = json.loads(graph.json())
-            self._node_list = g_dict["nodes"]
-            shape_list = g_dict['attrs']['shape'][1]
-            node_ptr_map = g_dict["node_row_ptr"]
-            for i, node_entry in enumerate(self._node_list):
-                node_entry["oshape"] = shape_list[node_ptr_map[i]]
-        elif isinstance(graph, relay.expr.Function):
+        if isinstance(graph, relay.expr.Function):
             self._node_list = []
             node_dict = {}
             graph = bind_inputs(graph, input_shapes, dtype)
@@ -181,6 +166,8 @@ class BaseGraphTuner(object):
                 else:
                     raise RuntimeError("Not supported relay node type in graph tuning: %s"
                                        % str(type(node)))
+        else:
+            raise RuntimeError("Unsupported graph type: %s" % str(type(graph)))
 
         self._graph = graph
         self._in_nodes_dict = get_in_nodes(self._graph, self._target_op, input_shapes.keys())

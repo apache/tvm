@@ -5,10 +5,9 @@ import topi
 from tvm import autotvm, relay
 from tvm.relay.testing import resnet
 from tvm.autotvm.task import ConfigEntity
-from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, \
-    relay_get_conv2d_NCHWc_AVX_workload, has_multiple_inputs, get_direct_ancestor, \
-    get_in_nodes, get_out_nodes, shape2layout, get_wkl_map, \
-    infer_conv2d_layout_shape_avx, expr2graph
+from tvm.autotvm.graph_tuner.utils import get_conv2d_NCHWc_AVX_workload, \
+    has_multiple_inputs, get_direct_ancestor, get_in_nodes, get_out_nodes, shape2layout, \
+    get_wkl_map, infer_conv2d_layout_shape_avx, expr2graph
 from topi.nn.conv2d import conv2d
 
 
@@ -38,7 +37,7 @@ def test_get_conv2d_workload():
                                                  dilation, layout, dtype], conv2d)
         expected_wkl_list.append(workload)
 
-    wkl_list = relay_get_conv2d_NCHWc_AVX_workload(expr, {"data": dshape})
+    wkl_list = get_conv2d_NCHWc_AVX_workload(expr, {"data": dshape})
     if len(wkl_list) != len(expected_wkl_list):
         raise RuntimeError("Get workload from relay expr failed: list length mismatch: expecting %d but got %d." %
                            (len(expected_wkl_list), len(wkl_list)))
@@ -72,7 +71,7 @@ def test_get_wkl_map():
     expr2graph(net, node_dict, node_list)
 
     dshape = (1, 3, 256, 256)
-    graph_wkl_list = relay_get_conv2d_NCHWc_AVX_workload(net, {"data": dshape}, unique_wkl=False)
+    graph_wkl_list = get_conv2d_NCHWc_AVX_workload(net, {"data": dshape}, unique_wkl=False)
     node_map = get_wkl_map(node_list, wkl_list, "conv2d", graph_wkl_list)
     expected_out = {4: 2, 5: 3, 6: 5}
     diff_set = set(node_map) ^ set(expected_out)
