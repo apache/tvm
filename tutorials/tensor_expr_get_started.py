@@ -1,12 +1,13 @@
 """
-Get Started with TVM
-====================
+Get Started with Tensor Expression
+==================================
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_
 
-This is an introduction tutorial to TVM.
-TVM is a domain specific language for efficient kernel construction.
+This is an introduction tutorial to Tensor expression language in TVM.
+TVM uses a domain specific tensor expression for efficient kernel construction.
 
-In this tutorial, we will demonstrate the basic workflow in TVM.
+In this tutorial, we will demonstrate the basic workflow to use
+the tensor expression language.
 """
 from __future__ import absolute_import, print_function
 
