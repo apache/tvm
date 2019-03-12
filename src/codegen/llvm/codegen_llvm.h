@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include "llvm_common.h"
 #include "../../runtime/thread_storage_scope.h"
 
