@@ -50,7 +50,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
     else:
         shape_dict = {input_node: input_data.shape}
         dtype_dict = {input_node: input_data.dtype}
-   
+
     sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout, shape=shape_dict, outputs=out_names)
     graph, lib, params = nnvm.compiler.build(sym, target=target, target_host=target_host, shape=shape_dict,
                                              dtype=dtype_dict, params=params)
@@ -126,7 +126,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
 
             tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
                                        num_output=len(out_node), target=device, out_names=out_name)
-            # since the names from tensorflow and nnvm runs are not exactly same, 
+            # since the names from tensorflow and nnvm runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
                 tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
@@ -621,7 +621,7 @@ def test_forward_multi_output():
         out_name = ['out1:0', 'out2:0']
         out_node = [out.strip(':0') for out in out_name]
         in_node = [inp.strip(':0') for inp in in_name]
-        
+
         with tf.Session() as sess:
             final_graph_def = tf.graph_util.convert_variables_to_constants(
                 sess, sess.graph.as_graph_def(add_shapes=True), out_node,)
@@ -1125,7 +1125,7 @@ def test_forward_leaky_relu():
     with tf.Graph().as_default():
         in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
         tf.nn.leaky_relu(in1, alpha=0.4)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu/mul:0')
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu:0')
 
 def test_forward_elu():
     ishape = (1, 3, 10, 10)
