@@ -1243,7 +1243,7 @@ Array<Tensor> ReverseCompute(const Attrs& attrs,
                              const Target& target) {
   const ReverseAttrs *param = attrs.as<ReverseAttrs>();
   CHECK(param != nullptr);
-  return { topi::reverse(inputs[0], param->axis) };
+  return { topi::flip(inputs[0], param->axis) };
 }
 
 Expr MakeReverse(Expr data,
