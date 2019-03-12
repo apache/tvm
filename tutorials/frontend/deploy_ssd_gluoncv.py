@@ -9,9 +9,7 @@ We will use GluonCV pre-trained SSD model and convert it to Relay IR
 import tvm
 
 from matplotlib import pyplot as plt
-from nnvm import compiler
-from nnvm.frontend import from_mxnet
-from nnvm.testing.config import ctx_list
+from tvm.relay.testing.config import ctx_list
 from tvm import relay
 from tvm.contrib import graph_runtime
 from gluoncv import model_zoo, data, utils
