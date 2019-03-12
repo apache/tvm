@@ -79,6 +79,9 @@ Match = adt.Match
 var = expr.var
 const = expr.const
 bind = expr.bind
+module_pass = ir_pass.module_pass
+function_pass = ir_pass.function_pass
+sequential_pass = ir_pass.sequential_pass
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
@@ -90,3 +93,11 @@ fromtext = parser.fromtext
 # Param Serialization
 save_param_dict = param_dict.save_param_dict
 load_param_dict = param_dict.load_param_dict
+
+# Pass manager
+PassInfo = ir_pass.PassInfo
+PassContext = ir_pass.PassContext
+Pass = ir_pass.Pass
+ModulePass = ir_pass.ModulePass
+FunctionPass = ir_pass.FunctionPass
+SequentialPass = ir_pass.SequentialPass
