@@ -14,6 +14,7 @@
 #include <vector>
 #include <tuple>
 #include <utility>
+#include <unordered_map>
 
 #include "base.h"
 #include "node.h"

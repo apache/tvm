@@ -12,6 +12,8 @@
 #include <tvm/relay/error.h>
 #include <vector>
 #include <queue>
+#include <unordered_map>
+#include <unordered_set>
 #include "../../common/arena.h"
 
 

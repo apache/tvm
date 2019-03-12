@@ -1,5 +1,5 @@
 # CI docker GPU env
-# tag: v0.41
+# tag: v0.50
 FROM nvidia/cuda:8.0-cudnn7-devel
 
 # Base scripts

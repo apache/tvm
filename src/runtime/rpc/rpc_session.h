@@ -10,6 +10,8 @@
 #include <tvm/runtime/device_api.h>
 #include <mutex>
 #include <string>
+#include <memory>
+#include <utility>
 #include "../../common/ring_buffer.h"
 
 namespace tvm {

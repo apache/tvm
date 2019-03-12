@@ -8,6 +8,7 @@
 
 #include <tvm/runtime/packed_func.h>
 #include <string>
+#include <unordered_map>
 #include "stackvm.h"
 
 namespace tvm {

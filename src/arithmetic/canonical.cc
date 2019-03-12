@@ -10,6 +10,8 @@
 #include <map>
 #include <limits>
 #include <vector>
+#include <memory>
+#include <unordered_map>
 #include "canonical.h"
 #include "compute_expr.h"
 #include "arithmetic/Simplify.h"

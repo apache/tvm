@@ -9,6 +9,8 @@
 #include <tvm/codegen.h>
 #include <tvm/packed_func_ext.h>
 #include <string>
+#include <unordered_set>
+#include <unordered_map>
 #include "codegen_c.h"
 #include "../runtime/opengl/opengl_module.h"
 

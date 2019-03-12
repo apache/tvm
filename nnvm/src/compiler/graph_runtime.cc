@@ -4,6 +4,7 @@
  * \brief Interface code with TVM graph runtime.
 */
 #include <dmlc/memory_io.h>
+#include <utility>
 #include "graph_runtime.h"
 
 namespace nnvm {

@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 #include <functional>
+#include <unordered_map>
 #include "base.h"
 #include "node.h"
 #include "tuple.h"

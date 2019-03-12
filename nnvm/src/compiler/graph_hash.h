@@ -10,6 +10,7 @@
 #include <nnvm/graph.h>
 #include <tvm/operation.h>
 #include <string>
+#include <utility>
 
 namespace nnvm {
 namespace compiler {

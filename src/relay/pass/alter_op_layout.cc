@@ -13,6 +13,8 @@
 #include <vector>
 #include <functional>
 #include <string>
+#include <utility>
+#include <unordered_map>
 
 #include "alter_op_layout.h"
 

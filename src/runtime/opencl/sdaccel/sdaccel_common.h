@@ -6,6 +6,7 @@
 #ifndef TVM_RUNTIME_OPENCL_SDACCEL_SDACCEL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_SDACCEL_SDACCEL_COMMON_H_
 
+#include <memory>
 #include "../opencl_common.h"
 
 namespace tvm {

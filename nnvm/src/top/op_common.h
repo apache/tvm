@@ -11,6 +11,8 @@
 #include <nnvm/top/tensor.h>
 #include <string>
 #include <vector>
+#include <utility>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace nnvm {

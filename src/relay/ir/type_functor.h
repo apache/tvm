@@ -11,6 +11,7 @@
 #include <tvm/relay/adt.h>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace tvm {
 namespace relay {

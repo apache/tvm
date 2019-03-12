@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <unordered_map>
 #include "./base.h"
 #include "./expr.h"
 #include "./module.h"

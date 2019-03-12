@@ -3,6 +3,7 @@
  * \file type_functor.cc
  * \brief Implementations of type functors.
  */
+#include <utility>
 #include "type_functor.h"
 
 namespace tvm {

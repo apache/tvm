@@ -13,6 +13,8 @@
 #include <nnvm/symbolic.h>
 #include <vector>
 #include <string>
+#include <utility>
+#include <unordered_map>
 
 /*! \brief  macro to guard beginning and end section of all functions */
 #define API_BEGIN() try {

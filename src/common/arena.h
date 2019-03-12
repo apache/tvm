@@ -8,6 +8,7 @@
 #ifndef TVM_COMMON_ARENA_H_
 #define TVM_COMMON_ARENA_H_
 
+#include <utility>
 #include <type_traits>
 
 namespace tvm {

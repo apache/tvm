@@ -50,6 +50,7 @@
 
 #include <utility>
 #include <string>
+#include <memory>
 
 namespace tvm {
 namespace codegen {

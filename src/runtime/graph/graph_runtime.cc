@@ -14,6 +14,8 @@
 #include <numeric>
 #include <vector>
 #include <string>
+#include <memory>
+#include <utility>
 
 namespace tvm {
 namespace runtime {

@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 #include <algorithm>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include "base.h"

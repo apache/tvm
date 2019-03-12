@@ -6,6 +6,7 @@
 #include <cctype>
 #include <sstream>
 #include <iostream>
+#include <utility>
 #include "codegen_verilog.h"
 #include "../../arithmetic/compute_expr.h"
 

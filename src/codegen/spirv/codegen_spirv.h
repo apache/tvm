@@ -11,6 +11,8 @@
 #include <tvm/lowered_func.h>
 
 #include <vector>
+#include <memory>
+#include <unordered_map>
 
 #include "ir_builder.h"
 #include "../../runtime/thread_storage_scope.h"

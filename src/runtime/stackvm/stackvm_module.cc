@@ -5,6 +5,9 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
 #include <dmlc/memory_io.h>
+#include <memory>
+#include <utility>
+#include <unordered_map>
 #include "stackvm_module.h"
 #include "../file_util.h"
 #include "../module_util.h"
