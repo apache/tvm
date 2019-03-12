@@ -45,8 +45,8 @@ from gluoncv import model_zoo, data, utils
 #   follow the :ref:`tune_relay_x86` to tune x86 CPU and
 #   :ref:`tune_relay_arm` for arm cpu.
 #
-#   To get best performance fo SSD on intel graphics,
-#   change target argument to 'opecl -device=intel_graphics'
+#   To get best performance fo SSD on Intel graphics,
+#   change target argument to 'opencl -device=intel_graphics'
 #
 #   SSD with VGG as body network is not supported yet since
 #   x86 conv2d schedule doesn't support dilation.
