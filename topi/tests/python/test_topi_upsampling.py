@@ -51,11 +51,11 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCH
 def test_upsampling():
     # NEAREST_NEIGHBOR - NCHW
     verify_upsampling(8, 16, 32, 32, 2)
-    verify_upsampling(12, 32, 64, 64, 3)
+    verify_upsampling(2, 32, 64, 64, 3)
 
     # NEAREST_NEIGHBOR - NHWC
     verify_upsampling(8, 16, 32, 32, 2, layout="NHWC")
-    verify_upsampling(12, 32, 64, 64, 3, layout="NHWC")
+    verify_upsampling(2, 32, 64, 64, 3, layout="NHWC")
 
     # BILINEAR - NCHW
     verify_upsampling(2, 2, 32, 32, 2, method="BILINEAR")
