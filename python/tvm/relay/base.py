@@ -38,7 +38,7 @@ def register_relay_attr_node(type_key=None):
 
 class RelayNode(NodeBase):
     """Base class of all Relay nodes."""
-    def astext(self, show_meta_data=True, annotate=None, gnf=True, visit_default=False):
+    def astext(self, show_meta_data=True, annotate=None):
         """Get the text format of the expression.
 
         Parameters
@@ -50,9 +50,6 @@ class RelayNode(NodeBase):
         annotate: Optional[relay.Expr->str]
             Optional annotate function to provide additional
             information in the comment block.
-
-        gnf : bool
-            Whether to print in GNF.
 
         Note
         ----

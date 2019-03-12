@@ -118,12 +118,10 @@ class PrettyPrinter :
  public:
   explicit PrettyPrinter(bool GNF,
                          bool show_meta_data,
-                         runtime::TypedPackedFunc<std::string(Expr)> annotate,
-                         bool visit_default) :
+                         runtime::TypedPackedFunc<std::string(Expr)> annotate) :
                          GNF_(GNF),
                          show_meta_data_(show_meta_data),
-                         annotate_(annotate),
-                         visit_default_(visit_default) {}
+                         annotate_(annotate) {}
 
   /*!
     * \brief Print additional info about expr in comment.
@@ -601,8 +599,6 @@ class PrettyPrinter :
   bool show_meta_data_;
   /*! \brief additional comment function */
   runtime::TypedPackedFunc<std::string(Expr)> annotate_;
-  /*! \brief Whether to visit default attributes. */
-  bool visit_default_;
   /*! \brief Stack of docs to implement scoped GNFing. */
   std::vector<Doc> doc_stack_{};
   /*! \brief Map from Expr to Doc */
@@ -677,32 +673,44 @@ Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {  // NOLINT(*
     return doc << ", " << meta_.GetMetaNode(attrs);
   } else {
     AttrPrinter printer(doc, this);
-    if (visit_default_) {
-      const_cast<BaseAttrsNode*>(attrs.operator->())->VisitAttrs(&printer);
-    } else {
-      const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
-    }
+    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
     return doc;
   }
 }
 
-std::string RelayPrint(const NodeRef& node,
-                       bool show_meta_data,
-                       runtime::TypedPackedFunc<std::string(Expr)> annotate,
-                       bool gnf,
-                       bool visit_default) {
+std::string PrettyPrint_(const NodeRef& node,
+                         bool show_meta_data,
+                         runtime::TypedPackedFunc<std::string(Expr)> annotate,
+                         bool gnf) {
   Doc doc = Nil();
   doc << "v0.0.1" << "\n"
-      << PrettyPrinter(gnf, show_meta_data, annotate, visit_default).PrintFinal(node);
+      << PrettyPrinter(gnf, show_meta_data, annotate).PrintFinal(node);
   return Layout(doc);
+}
+
+std::string RelayPrint(const NodeRef& node,
+                       bool show_meta_data,
+                       runtime::TypedPackedFunc<std::string(Expr)> annotate) {
+  return PrettyPrint_(node, show_meta_data, annotate, false);
+}
+
+std::string PassDebugPrint(const NodeRef& node,
+                           bool show_meta_data,
+                           runtime::TypedPackedFunc<std::string(Expr)> annotate,
+                           bool gnf) {
+  return PrettyPrint_(node, show_meta_data, annotate, gnf);
 }
 
 TVM_REGISTER_API("relay._expr.RelayPrint")
 .set_body_typed<std::string(const NodeRef&,
                             bool,
-                            runtime::TypedPackedFunc<std::string(Expr)>,
+                            runtime::TypedPackedFunc<std::string(Expr)>)>(RelayPrint);
+
+TVM_REGISTER_API("relay._ir_pass.pass_debug_print")
+.set_body_typed<std::string(const NodeRef&,
                             bool,
-                            bool)>(RelayPrint);
+                            runtime::TypedPackedFunc<std::string(Expr)>,
+                            bool)>(PassDebugPrint);
 
 }  // namespace relay
 }  // namespace tvm
