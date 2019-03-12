@@ -897,8 +897,8 @@ def test_forward_mobilenet():
 
 #######################################################################
 # ResnetV2
-# ---------
-def _test_forward_resnetv2():
+# --------
+def test_forward_resnetv2():
     '''test resnet model'''
     if is_gpu_available():
         with tf.Graph().as_default():
@@ -911,8 +911,13 @@ def _test_forward_resnetv2():
 
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
-                tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', tf_output[0].shape, 'float32')
-                tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+                for device in ["llvm", "cuda"]:
+                    ctx = tvm.context(device, 0)
+                    if not ctx.exist:
+                        print("Skip because %s is not enabled" % device)
+                        continue
+                    tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', len(tf_output), target=device)
+                    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # PTB
@@ -1236,7 +1241,7 @@ if __name__ == '__main__':
     test_forward_inception_v3()
     test_forward_inception_v1()
     test_forward_mobilenet()
-    #_test_forward_resnetv2()
+    test_forward_resnetv2()
     test_forward_ptb()
 
     # RNN
