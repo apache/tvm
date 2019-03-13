@@ -422,6 +422,13 @@ def _mx_tile(inputs, attrs):
     return _op.tile(inputs[0], **new_attrs)
 
 
+def _mx_reverse(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis")
+    return _op.reverse(inputs[0], **new_attrs)
+
+
 def _mx_roi_align(inputs, attrs):
     new_attrs = {}
     new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
@@ -612,6 +619,7 @@ _convert_map = {
     "_arange"       : _mx_arange,
     "repeat"        : _mx_repeat,
     "tile"          : _mx_tile,
+    "reverse"       : _mx_reverse,
     "BlockGrad"     : _mx_BlockGrad,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,

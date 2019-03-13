@@ -146,6 +146,15 @@ struct TileAttrs : public tvm::AttrsNode<TileAttrs> {
   }
 };  // struct TileAttrs
 
+/*! \brief Attributes used in reverse operators */
+struct ReverseAttrs : public tvm::AttrsNode<ReverseAttrs> {
+  Integer axis;
+  TVM_DECLARE_ATTRS(ReverseAttrs, "relay.attrs.ReverseAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
+        .describe("The axis along which to reverse elements.");
+  }
+};  // struct ReverseAttrs
+
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
   // use axis to make the name numpy compatible.

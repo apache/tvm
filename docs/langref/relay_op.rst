@@ -99,6 +99,7 @@ This level enables additional math and transform operators.
    tvm.relay.stack
    tvm.relay.repeat
    tvm.relay.tile
+   tvm.relay.reverse
 
 
 **Level 4: Broadcast and Reductions**
@@ -229,6 +230,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.stack
 .. autofunction:: tvm.relay.repeat
 .. autofunction:: tvm.relay.tile
+.. autofunction:: tvm.relay.reverse
 
 
 Level 4 Definitions

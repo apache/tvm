@@ -491,6 +491,25 @@ def test_arange():
     verify_arange(20, 1, -1.5)
 
 
+def test_reverse():
+    def verify_reverse(dshape, axis):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.reverse(x, axis=axis)
+        zz = relay.ir_pass.infer_type(z)
+
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
+        ref_res = np.flip(x_data, axis)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_reverse((2, 3, 4), 1)
+    verify_reverse((4, 7), 0)
+    verify_reverse((2, 3, 4), -1)
+
+
 if __name__ == "__main__":
     test_cast()
     test_zeros_ones()
@@ -515,3 +534,4 @@ if __name__ == "__main__":
     test_squeeze_bad_axes_infer_type()
     test_split_infer_type()
     test_arange()
+    test_reverse()
