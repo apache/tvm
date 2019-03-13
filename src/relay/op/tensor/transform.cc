@@ -1137,6 +1137,12 @@ bool TileRel(const Array<Type>& types,
   CHECK(reps.defined())
     << "repetition array is not defined. data.ndim = " << ndim;
   const size_t rndim = reps.size();
+  for (size_t i = 0; i < rndim; ++i) {
+    if (const tvm::ir::IntImm* val = reps[i].as<tvm::ir::IntImm>()) {
+      CHECK_GT(val->value, 0)
+          << "Tile reps value should always be larger than 0, but get: " << val->value;
+    }
+  }
   size_t tndim = (ndim > rndim) ? ndim : rndim;
   // re-construct data shape or reps shape
   std::vector<IndexExpr> data_shape;

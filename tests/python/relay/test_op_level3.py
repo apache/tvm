@@ -504,9 +504,9 @@ def test_tile():
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    verify_tile((2, 3, 4), (0, 2, 1))
-    verify_tile((2, 3, 4), (0, 2))
-    verify_tile((2, 3), (0, 2, 1))
+    verify_tile((2, 3, 4), (3, 2, 1))
+    verify_tile((2, 3, 4), (1, 2))
+    verify_tile((2, 3), (3, 2, 1))
 
 def test_repeat():
     def verify_repeat(dshape, repeats, axis):
@@ -525,21 +525,22 @@ def test_repeat():
 
 def test_stack():
     def verify_stack(dshapes, axis):
-        dshapes = np.array(dshapes, dtype="int32")
-        x = relay.var("input_shapes", relay.TensorType(dshapes.shape, "int32"))
+        y = []
+        for shape in dshapes:
+            y.append(relay.var("input", relay.TensorType(shape, "float32")))
+        x = relay.Tuple(y)
         z = relay.stack(x, axis=axis)
 
-        func = relay.Function([x], z)
+        func = relay.Function(y, z)
         x_data = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
         ref_res = np.stack(x_data, axis=axis)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = intrp.evaluate(func)(*x_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    verify_stack([[2,], [2,], [2,]], -1)
-    verify_stack([(2,), (2,), (2,)], 1)
+    verify_stack([(2,), (2,), (2,)], -1)
     verify_stack([(2,), (2,), (2,)], 0)
     verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
     verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
@@ -591,5 +592,5 @@ if __name__ == "__main__":
     test_arange()
     test_reverse()
     test_stack()
-    test_repeat()
     test_tile()
+    test_repeat()
