@@ -433,17 +433,14 @@ def _mx_roi_align(inputs, attrs):
 def _mx_upsampling(inputs, attrs):
     scale_height = attrs.get_float("scale_height", None)
     scale_width = attrs.get_float("scale_width", None)
-    if scale_height is None:
-        height = attrs.get_int("height", 1)
-        scale_height = float(height) // inputs[0].shape[2]
-    if scale_width is None:
-        width = attrs.get_int("width", 1)
-        scale_width = float(width) // inputs[0].shape[3]
-    assert scale_height == scale_width
-    scale = scale_width
-    layout = 'NCHW'
-    method = 'BILINEAR'
-    return _op.nn.upsampling(inputs[0], scale=scale, layout=layout, method=method)
+    height = attrs.get_int("height", 1)
+    width = attrs.get_int("width", 1)
+    if scale_height is not None:
+        height = scale_height * inputs[0].shape[2]
+    if scale_width is not None:
+        width = scale_width * inputs[0].shape[3]
+    size = (inputs[0].shape[0], inputs[0].shape[1], height, width)
+    return _op.image.resize(inputs[0], size)
 
 def _mx_proposal(inputs, attrs):
     new_attrs = {}
