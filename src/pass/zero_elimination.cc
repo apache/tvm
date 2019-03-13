@@ -1394,6 +1394,9 @@ DomainSimplificationResult SimplifyDomain(const Expr& cond,
     res.conditions.push_back(SuperSimplify(Substitute(old_cond, res.old_to_new), vranges));
   }
 
+  // Reverse the axis so that it matches the order of the original variables
+  res.axis = Array<Var>(res.axis.rbegin(), res.axis.rend());
+
   return res;
 }
 
