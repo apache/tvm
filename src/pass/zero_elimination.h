@@ -10,6 +10,7 @@
 #include <tvm/tensor.h>
 
 #include <string>
+#include <unordered_map>
 
 namespace tvm {
 namespace ir {

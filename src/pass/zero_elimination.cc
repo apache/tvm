@@ -18,6 +18,8 @@
 #include <set>
 #include <utility>
 #include <vector>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "arithmetic/ModulusRemainder.h"
 #include "../op/op_util.h"
