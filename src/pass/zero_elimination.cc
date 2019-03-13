@@ -1448,7 +1448,16 @@ Expr ExtractAsTensorMaybe(const Expr& e, const Expr& cond,
 
   // If the expression does not use vars then it is probably better to keep it inlined
   if (res.axis.empty()) {
+    // We can return the new_expr here instead of the old e because it doesn't use variables
+    // otherwise we would need to replace the new vars or create a let-expression
     return new_expr;
+  }
+
+  // If it's already a call to a tensor then extracting it will probably be useless
+  if (const Call* call = new_expr.as<Call>()) {
+    if (call->call_type == Call::CallType::Halide) {
+      return e;
+    }
   }
 
   // Compute volumes before and after
