@@ -226,6 +226,7 @@ struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
   }
 };
 
+/*! \brief Attributes for LayoutTransform operator */
 struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   std::string src_layout;
   std::string dst_layout;
@@ -235,6 +236,17 @@ struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
         .describe("The source layout of the tensor. (e.g. NCHW)");
     TVM_ATTR_FIELD(dst_layout)
         .describe("The destination layout of the tensor. (e.g. NCHW16c)");
+  }
+};
+
+/*! \brief Attributes for ShapeOf operator */
+struct ShapeOfAttrs : public tvm::AttrsNode<ShapeOfAttrs> {
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(ShapeOfAttrs, "relay.attrs.ShapeOfAttrs") {
+    TVM_ATTR_FIELD(dtype)
+        .describe("Target data type")
+        .set_default(NullValue<DataType>());
   }
 };
 

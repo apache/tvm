@@ -495,6 +495,19 @@ def _mx_l2_normalize(inputs, attrs):
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
 
 
+def _mx_shape_array(inputs, attrs):
+    assert len(inputs) == 1
+    if attrs.get_int("lhs_begin", None) is not None:
+        raise RuntimeError("shape_array doesn't support lhs_begin")
+    if attrs.get_int("lhs_end", None) is not None:
+        raise RuntimeError("shape_array doesn't support lhs_end")
+    if attrs.get_int("rhs_begin", None) is not None:
+        raise RuntimeError("shape_array doesn't support rhs_begin")
+    if attrs.get_int("rhs_end", None) is not None:
+        raise RuntimeError("shape_array doesn't support rhs_end")
+    return _op.shape_of(inputs[0], dtype='int64')
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -621,6 +634,7 @@ _convert_map = {
     "tile"          : _mx_tile,
     "reverse"       : _mx_reverse,
     "BlockGrad"     : _mx_BlockGrad,
+    "shape_array"   : _mx_shape_array,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     # vision

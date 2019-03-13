@@ -40,6 +40,7 @@ register_schedule("maximum", schedule_injective)
 register_schedule("minimum", schedule_injective)
 register_schedule("right_shift", schedule_injective)
 register_schedule("left_shift", schedule_injective)
+register_schedule("shape_of", schedule_injective)
 
 # zeros
 @register_compute("zeros")

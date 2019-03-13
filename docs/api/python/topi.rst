@@ -75,6 +75,7 @@ List of operators
    topi.stack
    topi.repeat
    topi.tile
+   topi.shape
    topi.layout_transform
    topi.image.resize
 
@@ -136,6 +137,7 @@ topi
 .. autofunction:: topi.stack
 .. autofunction:: topi.repeat
 .. autofunction:: topi.tile
+.. autofunction:: topi.shape
 .. autofunction:: topi.layout_transform
 
 topi.nn
