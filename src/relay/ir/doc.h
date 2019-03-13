@@ -8,6 +8,7 @@
 #define TVM_RELAY_IR_DOC_H_
 
 #include <tvm/relay/expr.h>
+#include <memory>
 #include <string>
 #include <vector>
 
