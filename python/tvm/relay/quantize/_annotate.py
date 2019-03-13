@@ -112,6 +112,11 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     kind: QAnnotateKind
         the kind of annotation field.
     """
+    quantize_op = _op.get("relay.op.annotation.simulated_quantize")
+    if isinstance(data, _expr.Call) and data.op == quantize_op:
+        if data.attrs.kind == kind and data.attrs.sign == sign and data.attrs.rounding == rounding:
+            return data
+
     dom_scale = _expr.var("dom_scale")
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
