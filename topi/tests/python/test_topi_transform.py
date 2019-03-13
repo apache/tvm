@@ -564,6 +564,33 @@ def test_layout_transform():
         check_device(backend)
 
 
+def test_shape():
+    in_shape = (8, 7, 13)
+    dtype = "int32"
+    A = tvm.placeholder(shape=in_shape, dtype="float32", name="A")
+    B = topi.shape(A, dtype)
+
+    input = np.random.uniform(size=in_shape).astype(A.dtype)
+    output = np.asarray(in_shape).astype(dtype)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        tvm_input = tvm.nd.array(input, ctx)
+        tvm_output = tvm.nd.empty(output.shape, ctx=ctx, dtype=dtype)
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(B)
+        f = tvm.build(s, [A, B], device, name="shape")
+        f(tvm_input, tvm_output)
+        tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
+
+    for backend in get_all_backend():
+        check_device(backend)
+
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
@@ -581,3 +608,4 @@ if __name__ == "__main__":
     test_layout_transform()
     test_repeat()
     test_tile()
+    test_shape()

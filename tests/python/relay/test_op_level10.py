@@ -177,6 +177,20 @@ def test_batch_matmul():
     verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
     verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
 
+def test_shape_of():
+    shape = (10, 5, 12)
+    x = relay.var("x", shape=shape)
+    func = relay.Function([x], relay.op.shape_of(x))
+    func = relay.ir_pass.infer_type(func)
+    x_data = np.random.rand(*shape).astype('float32')
+    for target, ctx in ctx_list():
+        # Because using graph executor, this op will be optimized after
+        # constant folding pass, here we only test with interpreter
+        for kind in ["debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(),
+                                        np.array(shape).astype('int32'))
 
 if __name__ == "__main__":
     test_collapse_sum_like()
@@ -184,3 +198,4 @@ if __name__ == "__main__":
     test_slice_like()
     test_reverse_reshape()
     test_batch_matmul()
+    test_shape_of()

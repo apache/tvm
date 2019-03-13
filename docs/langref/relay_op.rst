@@ -155,6 +155,7 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.broadcast_to_like
    tvm.relay.collapse_sum_like
    tvm.relay.slice_like
+   tvm.relay.shape_of
    tvm.relay.layout_transform
    tvm.relay.device_copy
    tvm.relay.annotation.on_device
@@ -275,6 +276,7 @@ Level 10 Definitions
 .. autofunction:: tvm.relay.broadcast_to_like
 .. autofunction:: tvm.relay.collapse_sum_like
 .. autofunction:: tvm.relay.slice_like
+.. autofunction:: tvm.relay.shape_of
 .. autofunction:: tvm.relay.layout_transform
 .. autofunction:: tvm.relay.device_copy
 .. autofunction:: tvm.relay.annotation.on_device
