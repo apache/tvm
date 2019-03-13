@@ -1086,8 +1086,8 @@ Array<Tensor> RepeatCompute(const Attrs& attrs,
 }
 
 Expr MakeRepeat(Expr data,
-                    int repeats,
-                    int axis) {
+                int repeats,
+                int axis) {
   auto attrs = make_node<RepeatAttrs>();
   attrs->repeats = repeats;
   attrs->axis = axis;
@@ -1203,6 +1203,69 @@ RELAY_REGISTER_OP("tile")
 .add_type_rel("Tile", TileRel)
 .set_attr<FTVMCompute>("FTVMCompute", TileCompute)
 .set_attr<TOpPattern>("TOpPattern", kBroadcast);
+
+// reverse operator
+TVM_REGISTER_NODE_TYPE(ReverseAttrs);
+
+bool ReverseRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "reverse: expect input type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<ReverseAttrs>();
+  const int ndim = static_cast<int>(data->shape.size());
+  const int axis = param->axis;
+  CHECK(-ndim <= axis && axis < ndim)
+    << "reverse only accepts `axis` in [-data.ndim, data.ndim - 1]"
+    << ", but got axis = " << axis
+    << ", and data.ndim = " << ndim;
+  reporter->Assign(types[1], types[0]);
+  return true;
+}
+
+Array<Tensor> ReverseCompute(const Attrs& attrs,
+                             const Array<Tensor>& inputs,
+                             const Type& out_type,
+                             const Target& target) {
+  const ReverseAttrs *param = attrs.as<ReverseAttrs>();
+  CHECK(param != nullptr);
+  return { topi::flip(inputs[0], param->axis) };
+}
+
+Expr MakeReverse(Expr data,
+                 int axis) {
+  auto attrs = make_node<ReverseAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("reverse");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.reverse")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeReverse, args, rv);
+});
+
+RELAY_REGISTER_OP("reverse")
+.describe(R"code(Reverses the order of elements along given `axis` while preserving array shape.
+
+- **data**: The input data to the operator.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.Reverse")
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Reverse", ReverseRel)
+.set_attr<FTVMCompute>("FTVMCompute", ReverseCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // where operator
 bool WhereRel(const Array<Type>& types,

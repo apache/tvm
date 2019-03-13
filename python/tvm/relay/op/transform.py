@@ -385,6 +385,35 @@ def tile(data, reps):
     return _make.tile(data, reps)
 
 
+def reverse(data, axis):
+    """Reverses the order of elements along given axis while preserving array shape.
+    By default, repeat flattens the input array into 1-D and then repeats the elements.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis: int
+        The axis along which to reverse elements.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1., 2.], [3., 4.]]
+        relay.reverse(x, axis=0) = [[3., 4.], [1., 2.]]
+
+        relay.reverse(x, axis=1) = [[2., 1.], [4., 3.]]
+    """
+    return _make.reverse(data, axis)
+
+
 def where(condition, x, y):
     """Selecting elements from either x or y depending on the value of the
     condition.
