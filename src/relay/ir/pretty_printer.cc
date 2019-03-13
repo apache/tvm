@@ -423,7 +423,7 @@ class PrettyPrinter :
     for (Expr arg : op->args) {
       args.push_back(Print(arg));
     }
-    return doc << "(" << PrintVec(args) << PrintAttrs(op->attrs, GetRef<Expr>(op)) << ")";
+    return doc << "(" << PrintVec(args) << PrintAttrs(op->attrs, op->op) << ")";
   }
 
   Doc VisitExpr_(const RefCreateNode* op) final {
