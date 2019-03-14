@@ -11,6 +11,14 @@
 namespace tvm {
 namespace relay {
 
+Doc::Doc(const std::string& str) {
+  if (str == "\n") {
+    this->stream_ = {Line()};
+  } else {
+    this->stream_ = {Text(str)};
+  }
+}
+
 // DSL function implementations
 
 // text constructor
@@ -31,11 +39,7 @@ Doc& Doc::operator<<(const Doc& right) {
 
 // like above, but automatically lifts string to a doc
 Doc& Doc::operator<<(const std::string& right) {
-  if (right == "\n") {
-    return *this << Line();
-  } else {
-    return *this << Text(right);
-  }
+  return *this << Doc(right);
 }
 
 // indent a doc
@@ -69,17 +73,17 @@ Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep) {
  */
 Doc PrintBool(bool value) {
   if (value) {
-    return Text("True");
+    return Doc("True");
   } else {
-    return Text("False");
+    return Doc("False");
   }
 }
 
 Doc PrintDType(DataType dtype) {
-  return Text(runtime::TVMType2String(Type2TVMType(dtype)));
+  return Doc(Text(runtime::TVMType2String(Type2TVMType(dtype))));
 }
 
-Doc PrintString(const std::string& value) { // NOLINT(*)
+Doc PrintString(const std::string& value) {
   // TODO(M.K.): add escape.
   Doc doc;
   return doc << "\"" << value << "\"";

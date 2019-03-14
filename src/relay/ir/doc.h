@@ -25,20 +25,21 @@ using DocAtom = std::shared_ptr<DocAtomNode>;
 struct TextNode : DocAtomNode {
   std::string str;
 
-  TextNode(const std::string& str) : str(str) {}
+  explicit TextNode(const std::string& str) : str(str) {}
 };
 
 struct LineNode : DocAtomNode {
   int indent;
 
-  LineNode(int indent) : indent(indent) {}
+  explicit LineNode(int indent) : indent(indent) {}
 };
 
 // Doc is a stream-like interface
-struct Doc {
+class Doc {
  public:
   Doc() {}
-  Doc(const DocAtom& atom) : stream_({atom}) {}
+  explicit Doc(const DocAtom& atom) : stream_({atom}) {}
+  explicit Doc(const std::string& str);
 
   // Append right to left.
   Doc& operator<<(const Doc& right);
@@ -66,6 +67,7 @@ struct Doc {
     }
     return os.str();
   }
+
  private:
   std::vector<DocAtom> stream_;
 };
@@ -78,7 +80,7 @@ DocAtom Text(const std::string& str);
 DocAtom Line(int indent = 0);
 
 // render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
-Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep = Text(", "));
+Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep = Doc(", "));
 // Print constant bool value.
 Doc PrintBool(bool value);
 Doc PrintDType(DataType dtype);
@@ -100,7 +102,7 @@ Doc PrintConstScalar(DataType dtype, const T* data) {
   } else {
     os << dtype << "(" << data[0] << ")";
   }
-  return Text(os.str());
+  return Doc(os.str());
 }
 
 }  // namespace relay

@@ -224,7 +224,7 @@ class PrettyPrinter :
       }
     }
     name_alloc_map_[unique_prefix] = 0;
-    return Text(unique_prefix);
+    return Doc(unique_prefix);
   }
 
   /*!
@@ -397,22 +397,22 @@ class PrettyPrinter :
         doc << "\n";
       }
       os << "def @" << kv.first->name_hint;
-      doc << PrintFunc(Text(os.str()), kv.second);
+      doc << PrintFunc(Doc(os.str()), kv.second);
       doc << "\n";
     }
     return doc;
   }
 
   Doc VisitExpr_(const FunctionNode* op) final {
-    return PrintFunc(Text("fn "), GetRef<Function>(op));
+    return PrintFunc(Doc("fn "), GetRef<Function>(op));
   }
 
   Doc VisitExpr_(const GlobalVarNode* op) final {
-    return Text('@' + op->name_hint);
+    return Doc('@' + op->name_hint);
   }
 
   Doc VisitExpr_(const OpNode* op) final {
-    return Text(op->name);
+    return Doc(op->name);
   }
 
   Doc VisitExpr_(const CallNode* op) final {
@@ -452,7 +452,7 @@ class PrettyPrinter :
       clauses.push_back(clause_doc << Print(clause->lhs) << " -> "
                                    << Print(clause->rhs));
     }
-    doc << Indent(2, body << "\n" << PrintVec(clauses, Line())) << "\n";
+    doc << Indent(2, body << "\n" << PrintVec(clauses, Doc("\n"))) << "\n";
     doc << "}";
     return doc;
   }
@@ -472,7 +472,7 @@ class PrettyPrinter :
   }
 
   Doc VisitExpr_(const ConstructorNode* n) final {
-    return Text(n->name_hint);
+    return Doc(n->name_hint);
   }
 
   //------------------------------------
@@ -491,12 +491,12 @@ class PrettyPrinter :
     return printed_type;
   }
 
-  Doc VisitTypeDefault_(const Node* node) final {  // NOLINT(*)
+  Doc VisitTypeDefault_(const Node* node) final {
     // by default always print as meta data
     return Print(GetRef<NodeRef>(node), true);
   }
 
-  Doc VisitType_(const TensorTypeNode* node) final {  // NOLINT(*)
+  Doc VisitType_(const TensorTypeNode* node) final {
     // scalar type
     if (node->shape.size() == 0) {
       return PrintDType(node->dtype);
@@ -547,7 +547,7 @@ class PrettyPrinter :
   // Overload of Attr printing functions
   //------------------------------------
 
-  Doc PrintAttr(const NodeRef& value, bool meta = false) {  // NOLINT(*)
+  Doc PrintAttr(const NodeRef& value, bool meta = false) {
     if (value.defined()) {
       Doc printed_attr;
       if (meta) {
@@ -557,15 +557,15 @@ class PrettyPrinter :
       }
       return printed_attr;
     } else {
-      return Text("None");
+      return Doc("None");
     }
   }
 
-  Doc VisitAttrDefault_(const Node* op) final { // NOLINT(*)
+  Doc VisitAttrDefault_(const Node* op) final {
     return PrintAttr(GetRef<NodeRef>(op), true);
   }
 
-  Doc VisitAttr_(const ArrayNode* op) final {  // NOLINT(*)
+  Doc VisitAttr_(const ArrayNode* op) final {
     Doc doc;
     doc << "[";
     std::vector<Doc> arr_vals;
@@ -577,19 +577,19 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc VisitAttr_(const ir::IntImm* op) final {  // NOLINT(*)
+  Doc VisitAttr_(const ir::IntImm* op) final {
     return PrintConstScalar(op->type, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::UIntImm* op) final {  // NOLINT(*)
+  Doc VisitAttr_(const ir::UIntImm* op) final {
     return PrintConstScalar(op->type, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::FloatImm* op) final {  // NOLINT(*)
+  Doc VisitAttr_(const ir::FloatImm* op) final {
     return PrintConstScalar(op->type, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::StringImm* op) final {  // NOLINT(*)
+  Doc VisitAttr_(const ir::StringImm* op) final {
     return PrintString(op->value);
   }
 
@@ -665,7 +665,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
   PrettyPrinter* parent_;
 };
 
-Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {  // NOLINT(*)
+Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {
   Doc doc;
   if (!attrs.defined()) return doc;
   const auto* op_node = op.as<OpNode>();
