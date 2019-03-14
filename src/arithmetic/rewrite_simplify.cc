@@ -747,6 +747,8 @@ Mutate_(const Min* op, const Expr& self) {
 
     TVM_TRY_REWRITE(min(max(x, y), min(x, y)), min(x, y));
     TVM_TRY_REWRITE(min(max(x, y), min(y, x)), min(x, y));
+    TVM_TRY_REWRITE(min(min(x, y), max(x, y)), min(x, y));
+    TVM_TRY_REWRITE(min(min(x, y), max(y, x)), min(x, y));
 
     TVM_TRY_REWRITE(min(max(x, y), x), x);
     TVM_TRY_REWRITE(min(max(x, y), y), y);
@@ -778,6 +780,10 @@ Mutate_(const Min* op, const Expr& self) {
     TVM_TRY_REWRITE(min(x + y, x + z), min(y, z) + x);
     TVM_TRY_REWRITE(min(x + y, z + x), min(y, z) + x);
 
+    // sub distribution
+    TVM_TRY_REWRITE(min(y - x, z - x), min(y, z) - x);
+    TVM_TRY_REWRITE(min(x - y, x - z), x - max(y, z));
+
     // constant folding rule.
     TVM_TRY_REWRITE(min(min(x, c1), c2), min(x, min(c1, c2)));
 
@@ -800,7 +806,7 @@ Mutate_(const Min* op, const Expr& self) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
       if (c2val % c1val == 0) {
-        if (c2val / c1val > 0) {
+        if (c2val / c1val >= 0) {
           return (min(x, c2val / c1val) * c1val).Eval();
         } else {
           return (max(x, c2val / c1val) * c1val).Eval();
@@ -886,6 +892,8 @@ Mutate_(const Max* op, const Expr& self) {
 
     TVM_TRY_REWRITE(max(min(x, y), max(x, y)), max(x, y));
     TVM_TRY_REWRITE(max(min(x, y), max(y, x)), max(x, y));
+    TVM_TRY_REWRITE(max(max(x, y), min(x, y)), max(x, y));
+    TVM_TRY_REWRITE(max(max(x, y), min(y, x)), max(x, y));
 
     TVM_TRY_REWRITE(max(min(x, y), x), x);
     TVM_TRY_REWRITE(max(min(x, y), y), y);
@@ -920,6 +928,10 @@ Mutate_(const Max* op, const Expr& self) {
     TVM_TRY_REWRITE(max(x + y, x + z), max(y, z) + x);
     TVM_TRY_REWRITE(max(x + y, z + x), max(y, z) + x);
 
+    // sub distribution
+    TVM_TRY_REWRITE(max(y - x, z - x), max(y, z) - x);
+    TVM_TRY_REWRITE(max(x - y, x - z), x - min(y, z));
+
     // constant folding rule.
     TVM_TRY_REWRITE(max(max(x, c1), c2), max(x, max(c1, c2)));
 
@@ -942,7 +954,7 @@ Mutate_(const Max* op, const Expr& self) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
       if (c2val % c1val == 0) {
-        if (c2val / c1val > 0) {
+        if (c2val / c1val >= 0) {
           return (max(x, c2val / c1val) * c1val).Eval();
         } else {
           return (min(x, c2val / c1val) * c1val).Eval();
@@ -1131,8 +1143,8 @@ Mutate_(const Not* op, const Expr& self) {
   TVM_TRY_REWRITE(!(x > y), x <= y);
   TVM_TRY_REWRITE(!(x == y), x != y);
   TVM_TRY_REWRITE(!(x != y), x == y);
-  TVM_TRY_REWRITE(!(x || y), (!x) && (!y));
-  TVM_TRY_REWRITE(!(x && y), (!x) || (!y));
+  TVM_TRY_RECURSIVE_REWRITE(!(x || y), (!x) && (!y));
+  TVM_TRY_RECURSIVE_REWRITE(!(x && y), (!x) || (!y));
   return ret;
 }
 
