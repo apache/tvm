@@ -122,6 +122,7 @@ public class Module extends TVMValue {
   }
 
   /**
+   * Get type key of the module.
    * @return type key of the module.
    */
   public String typeKey() {
