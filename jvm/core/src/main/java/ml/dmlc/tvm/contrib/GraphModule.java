@@ -72,7 +72,7 @@ public class GraphModule {
   }
 
   /**
-   * Set inputs to the module
+   * Set inputs to the module.
    * @param key The input key.
    * @param value The input value.
    * @return self.

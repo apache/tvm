@@ -75,7 +75,7 @@ public class Function extends TVMValue {
   }
 
   /**
-   * Initialize the function with handle
+   * Initialize the function with handle.
    * @param handle the handle to the underlying function.
    * @param isResident Whether this is a resident function in jvm
    */
