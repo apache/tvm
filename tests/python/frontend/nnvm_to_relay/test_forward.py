@@ -72,6 +72,23 @@ def test_forward_dqn():
     verify_nnvm_to_relay(model, params, data_shape=(1, 4, 84, 84))
 
 
+def test_forward_split_concatenate():
+    shape = (2, 16)
+
+    tensor = nnvm.sym.Variable("data", shape=shape)
+
+    splited = nnvm.sym.split(tensor, indices_or_sections=2, axis=1)
+
+    concatenated = nnvm.sym.concatenate(*splited, axis=1)
+
+    params = {}
+
+    verify_nnvm_to_relay(splited[0], params, data_shape=shape)
+    verify_nnvm_to_relay(splited[1], params, data_shape=shape)
+    verify_nnvm_to_relay(splited, params, data_shape=shape)
+    verify_nnvm_to_relay(concatenated, params, data_shape=shape)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -80,3 +97,4 @@ if __name__ == '__main__':
     test_forward_inception_v3()
     test_forward_densenet()
     test_forward_dqn()
+    test_forward_split_concatenate()
