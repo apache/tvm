@@ -55,6 +55,7 @@ We do encourage everyone to work anything they are interested in.
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
 - [Junru Shao](https://github.com/junrushao1994): @junrushao1994
 - [Haichen Shen](https://github.com/icemelon9): @icemelon9
+- [Xingjian Shi](https://github.com/sxjscience): @sxjscience
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Alex Weaver](https://github.com/alex-weaver): @alex-weaver
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun
