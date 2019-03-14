@@ -11,6 +11,16 @@
 namespace tvm {
 namespace relay {
 
+// Text constructor
+DocAtom Text(const std::string& str) {
+  return std::make_shared<TextNode>(str);
+}
+
+// Line constructor
+DocAtom Line(int indent = 0) {
+  return std::make_shared<LineNode>(indent);
+}
+
 Doc::Doc(const std::string& str) {
   if (str == "\n") {
     this->stream_ = {Line()};
@@ -21,41 +31,27 @@ Doc::Doc(const std::string& str) {
 
 // DSL function implementations
 
-// text constructor
-DocAtom Text(const std::string& str) {
-  return std::make_shared<TextNode>(str);
-}
-
-// line constructor
-DocAtom Line(int indent) {
-  return std::make_shared<LineNode>(indent);
-}
-
-// sugar for Concat with result stored in left
 Doc& Doc::operator<<(const Doc& right) {
   this->stream_.insert(this->stream_.end(), right.stream_.begin(), right.stream_.end());
   return *this;
 }
 
-// like above, but automatically lifts string to a doc
 Doc& Doc::operator<<(const std::string& right) {
   return *this << Doc(right);
 }
 
-// indent a doc
 Doc Indent(int indent, const Doc& doc) {
   Doc ret;
   for (auto atom : doc.stream_) {
     if (auto text = std::dynamic_pointer_cast<TextNode>(atom)) {
-      ret << atom;
+      ret.stream_.push_back(text);
     } else if (auto line = std::dynamic_pointer_cast<LineNode>(atom)) {
-      ret << Line(indent + line->indent);
+      ret.stream_.push_back(Line(indent + line->indent));
     } else {assert(false);}
   }
   return ret;
 }
 
-// render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
 Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep) {
   Doc seq;
   if (vec.size() != 0) {
@@ -67,10 +63,6 @@ Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep) {
   return seq;
 }
 
-/*!
- * \brief Print constant bool value.
- * \param value The value to be printed.
- */
 Doc PrintBool(bool value) {
   if (value) {
     return Doc("True");
@@ -80,7 +72,7 @@ Doc PrintBool(bool value) {
 }
 
 Doc PrintDType(DataType dtype) {
-  return Doc(Text(runtime::TVMType2String(Type2TVMType(dtype))));
+  return Doc(runtime::TVMType2String(Type2TVMType(dtype)));
 }
 
 Doc PrintString(const std::string& value) {

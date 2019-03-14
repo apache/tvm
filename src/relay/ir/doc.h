@@ -2,7 +2,9 @@
  *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/doc.h
  * \brief Doc ADT used for pretty printing.
- * Based on Section 1 of https://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf.
+ *  Based on Section 1 of
+ *  https://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf, but with
+ *  a vector instead of an implicitly linked list.
  */
 #ifndef TVM_RELAY_IR_DOC_H_
 #define TVM_RELAY_IR_DOC_H_
@@ -15,7 +17,7 @@
 namespace tvm {
 namespace relay {
 
-// ADT
+// Doc Atom ADT
 struct DocAtomNode {
   virtual ~DocAtomNode() = default;
 };
@@ -38,12 +40,11 @@ struct LineNode : DocAtomNode {
 class Doc {
  public:
   Doc() {}
-  explicit Doc(const DocAtom& atom) : stream_({atom}) {}
   explicit Doc(const std::string& str);
 
-  // Append right to left.
+  // Append right to this.
   Doc& operator<<(const Doc& right);
-  // like above, but automatically lifts string to a doc atom
+  // like above, but automatically lifts string to a Doc
   Doc& operator<<(const std::string& right);
   // like above, but converts right to a string first
   template<typename T>
@@ -56,6 +57,7 @@ class Doc {
   // indent a doc stream
   friend Doc Indent(int indent, const Doc& doc);
 
+  // Wadler's `layout`
   std::string str() {
     std::ostringstream os;
     for (auto atom : stream_) {
@@ -74,16 +76,13 @@ class Doc {
 
 // DSL functions
 
-// text constructor
-DocAtom Text(const std::string& str);
-// line constructor
-DocAtom Line(int indent = 0);
-
 // render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
 Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep = Doc(", "));
-// Print constant bool value.
+// Print a constant bool value.
 Doc PrintBool(bool value);
+// Print a data type.
 Doc PrintDType(DataType dtype);
+// Print a string.
 Doc PrintString(const std::string& value);
 /*!
  * \brief special method to print out const scalar

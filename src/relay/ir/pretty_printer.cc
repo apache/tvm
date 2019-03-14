@@ -155,7 +155,7 @@ class PrettyPrinter :
   // numbers to be reused and prevents hoisted vars from escaping too far
   Doc PrintScope(const NodeRef& node) {
     // print in a new scope
-    doc_stack_.push_back({});
+    doc_stack_.push_back(Doc());
     // must print first so doc_stack_.back() reference doesn't become stale
     Doc doc = Print(node);
     doc = doc_stack_.back() << doc;
@@ -241,7 +241,7 @@ class PrettyPrinter :
     Doc val = GetUniqueName("%" + name);
     // still print if ir is malformed, but show the error.
     if (memo_.count(var)) {
-      val << Text("-malformed-ir");
+      val << "-malformed-ir";
     }
     memo_[var] = val;
     if (var->type_annotation.defined()) {
