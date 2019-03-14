@@ -19,8 +19,7 @@ make -j4 sdk && make -j4 sdk_install_pkg
 ./linux/installer/bin/sgx_linux_x64_sdk*.bin --prefix /opt
 cd -
 
-tag=6098af # v1.0.5
-git clone --branch=$tag --depth=1 https://github.com/baidu/rust-sgx-sdk.git /opt/rust-sgx-sdk
+git clone --branch=v1.0.5 --depth=1 https://github.com/baidu/rust-sgx-sdk.git /opt/rust-sgx-sdk
 cd /opt/rust-sgx-sdk
 curl -s -S -L 'https://gist.githubusercontent.com/nhynes/37164039c5d3f33aa4f123e4ba720036/raw/b0de575fe937231799930764e76c664b92975163/rust-sgx-sdk.diff' | git apply
 cd -
