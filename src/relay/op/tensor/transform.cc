@@ -363,7 +363,7 @@ RELAY_REGISTER_OP("stack")
 .set_attrs_type_key("relay.attrs.StackAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
-.set_support_level(1)
+.set_support_level(3)
 .add_type_rel("Stack", StackRel)
 .set_attr<FTVMCompute>("FTVMCompute", StackCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
@@ -1109,7 +1109,7 @@ RELAY_REGISTER_OP("repeat")
 .set_num_inputs(1)
 .set_attrs_type_key("relay.attrs.Repeat")
 .add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(1)
+.set_support_level(3)
 .add_type_rel("Repeat", RepeatRel)
 .set_attr<FTVMCompute>("FTVMCompute", RepeatCompute)
 .set_attr<TOpPattern>("TOpPattern", kBroadcast);
@@ -1134,9 +1134,15 @@ bool TileRel(const Array<Type>& types,
   const size_t ndim = data->shape.size();
   const Array<Integer>& reps = param->reps;
   // check dimension match
-  CHECK(!reps.defined())
+  CHECK(reps.defined())
     << "repetition array is not defined. data.ndim = " << ndim;
   const size_t rndim = reps.size();
+  for (size_t i = 0; i < rndim; ++i) {
+    if (const tvm::ir::IntImm* val = reps[i].as<tvm::ir::IntImm>()) {
+      CHECK_GT(val->value, 0)
+          << "Tile reps value should always be larger than 0, but get: " << val->value;
+    }
+  }
   size_t tndim = (ndim > rndim) ? ndim : rndim;
   // re-construct data shape or reps shape
   std::vector<IndexExpr> data_shape;
@@ -1158,6 +1164,10 @@ bool TileRel(const Array<Type>& types,
   } else {
     for (size_t i = 0; i < rndim; ++i)
         reps_shape.emplace_back(reps[i]);
+    for (size_t i = 0; i < (rndim - ndim); ++i)
+        data_shape.emplace_back(1);
+    for (size_t i = 0; i < ndim; ++i)
+        data_shape.emplace_back(data->shape[i]);
   }
   std::vector<IndexExpr> oshape;
   oshape.reserve(tndim);
@@ -1199,7 +1209,7 @@ RELAY_REGISTER_OP("tile")
 .set_num_inputs(1)
 .set_attrs_type_key("relay.attrs.Tile")
 .add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(1)
+.set_support_level(3)
 .add_type_rel("Tile", TileRel)
 .set_attr<FTVMCompute>("FTVMCompute", TileCompute)
 .set_attr<TOpPattern>("TOpPattern", kBroadcast);
