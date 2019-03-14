@@ -4,7 +4,9 @@ from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 from tvm import relay
 from model_zoo import c2_squeezenet, c2_resnet50, c2_vgg19
-from caffe2.python import workspace
+from caffe2.python import workspace, core
+from caffe2.proto import caffe2_pb2
+from collections import namedtuple
 
 
 def get_tvm_output(model,
@@ -81,7 +83,135 @@ def test_forward_vgg19():
     verify_caffe2_forward_impl(c2_vgg19, (1, 3, 224, 224), (1, 1000))
 
 
+Model = namedtuple('Model', ['init_net', 'predict_net'])
+
+
+def test_elementwise_add():
+    data_shape = (1, 16, 9, 9)
+    init_net = caffe2_pb2.NetDef()
+    init_net.name = 'test_init_net'
+    init_net.external_output[:] = ['A', 'B']
+    init_net.op.extend([
+        core.CreateOperator(
+            'GivenTensorFill',
+            [],
+            ['A'],
+            shape=data_shape,
+            values=np.random.uniform(size=data_shape).flatten().tolist(),
+        ),
+        core.CreateOperator(
+            'GivenTensorFill',
+            [],
+            ['B'],
+            shape=data_shape,
+            values=np.random.uniform(size=data_shape).flatten().tolist(),
+        ),
+    ])
+
+    predict_net = caffe2_pb2.NetDef()
+    predict_net.name = 'test_predict_net'
+    predict_net.external_input[:] = ['A', 'B']
+    predict_net.external_output[:] = ['C']
+    predict_net.op.extend([
+        core.CreateOperator(
+            'Add',
+            ['A', 'B'],
+            ['C'],
+        )
+    ])
+
+    model = Model(init_net, predict_net)
+    verify_caffe2_forward_impl(model, data_shape, data_shape)
+
+
+def test_elementwise_add_with_broadcast():
+    data_shape = (1, 16, 9, 9)
+    init_net = caffe2_pb2.NetDef()
+    init_net.name = 'test_init_net'
+    init_net.external_output[:] = ['A', 'B']
+    init_net.op.extend([
+        core.CreateOperator(
+            'GivenTensorFill',
+            [],
+            ['A'],
+            shape=data_shape,
+            values=np.random.uniform(size=data_shape).flatten().tolist(),
+        ),
+        core.CreateOperator(
+            'GivenTensorFill',
+            [],
+            ['B'],
+            shape=(1,),
+            values=np.random.uniform(size=1).flatten().tolist(),
+        ),
+    ])
+
+    predict_net = caffe2_pb2.NetDef()
+    predict_net.name = 'test_predict_net'
+    predict_net.external_input[:] = ['A', 'B']
+    predict_net.external_output[:] = ['C']
+    predict_net.op.extend([
+        core.CreateOperator(
+            'Add',
+            ['A', 'B'],
+            ['C'],
+            broadcast=1,
+        )
+    ])
+
+    model = Model(init_net, predict_net)
+    verify_caffe2_forward_impl(model, data_shape, data_shape)
+
+
+def test_normalize_yuv():
+    data_shape = (1, 3, 96, 96)
+    init_net = caffe2_pb2.NetDef()
+    init_net.name = 'test_init_net'
+    init_net.external_output[:] = ['A', 'mean', 'std']
+    init_net.op.extend([
+        core.CreateOperator(
+            'GivenTensorFill',
+            [],
+            ['A'],
+            shape=data_shape,
+            values=np.random.uniform(size=data_shape).flatten().tolist(),
+        ),
+        core.CreateOperator(
+            'GivenTensorFill',
+            [],
+            ['mean'],
+            shape=(1, 3,),
+            values=np.random.uniform(size=3).flatten().tolist(),
+        ),
+        core.CreateOperator(
+            'GivenTensorFill',
+            [],
+            ['std'],
+            shape=(1, 3,),
+            values=np.random.uniform(size=3).flatten().tolist(),
+        ),
+    ])
+
+    predict_net = caffe2_pb2.NetDef()
+    predict_net.name = 'test_predict_net'
+    predict_net.external_input[:] = ['A', 'mean', 'std']
+    predict_net.external_output[:] = ['C']
+    predict_net.op.extend([
+        core.CreateOperator(
+            'NormalizePlanarYUV',
+            ['A', 'mean', 'std'],
+            ['C'],
+        )
+    ])
+
+    model = Model(init_net, predict_net)
+    verify_caffe2_forward_impl(model, data_shape, data_shape)
+
+
 if __name__ == '__main__':
     test_forward_squeezenet1_1()
     test_forward_resnet50()
     test_forward_vgg19()
+    test_elementwise_add()
+    test_elementwise_add_with_broadcast()
+    test_normalize_yuv()
