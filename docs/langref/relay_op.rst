@@ -81,6 +81,7 @@ This level enables additional math and transform operators.
    tvm.relay.squeeze
    tvm.relay.floor
    tvm.relay.ceil
+   tvm.relay.sign
    tvm.relay.trunc
    tvm.relay.clip
    tvm.relay.round
@@ -213,6 +214,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.squeeze
 .. autofunction:: tvm.relay.floor
 .. autofunction:: tvm.relay.ceil
+.. autofunction:: tvm.relay.sign
 .. autofunction:: tvm.relay.trunc
 .. autofunction:: tvm.relay.clip
 .. autofunction:: tvm.relay.round
