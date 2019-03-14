@@ -40,7 +40,7 @@ def verify_transpose(in_shape, axes):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(B)
-        foo = tvm.build(s, [A, B], device, name="tranpose")
+        foo = tvm.build(s, [A, B], device, name="transpose")
         data_npy = np.arange(np.prod(in_shape)).reshape(in_shape).astype(A.dtype)
         out_npy = data_npy.transpose(axes)
         data_nd = tvm.nd.array(data_npy, ctx)
@@ -416,10 +416,10 @@ def test_expand_dims():
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)
 
 
-def test_tranpose():
-    verify_tranpose((3, 10, 2), (1, 0, 2))
-    verify_tranpose((3, 10, 5), (2, 0, 1))
-    verify_tranpose((3, 10), None)
+def test_transpose():
+    verify_transpose((3, 10, 2), (1, 0, 2))
+    verify_transpose((3, 10, 5), (2, 0, 1))
+    verify_transpose((3, 10), None)
 
 
 def test_reshape():
