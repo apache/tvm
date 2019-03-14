@@ -13,104 +13,53 @@ namespace relay {
 
 // DSL function implementations
 
-// empty doc/nil constructor
-Doc Nil() {
-  return std::make_shared<NilNode>();
-}
-
 // text constructor
-Doc Text(const std::string& str, const Doc& doc) {
-  return std::make_shared<TextNode>(str, doc);
-}
-
-// lift string to text
-Doc Text(const std::string& str) {
-  return Text(str, Nil());
+DocAtom Text(const std::string& str) {
+  return std::make_shared<TextNode>(str);
 }
 
 // line constructor
-Doc Line(int indent, const Doc& doc) {
-  return std::make_shared<LineNode>(indent, doc);
-}
-
-// new line
-Doc Line() {
-  return Line(0, Nil());
-}
-
-// concat two docs
-Doc Concat(const Doc& left, const Doc& right) {
-  if (auto nil = std::dynamic_pointer_cast<NilNode>(left)) {
-    // throw away nil
-    return right;
-  } else if (auto text = std::dynamic_pointer_cast<TextNode>(left)) {
-    // push right into text continuation
-    return Text(text->str, Concat(text->doc, right));
-  } else if (auto line = std::dynamic_pointer_cast<LineNode>(left)) {
-    // push right into line continuation
-    return Line(line->indent, Concat(line->doc, right));
-  } else {assert(false);}
-}
-
-// sugar for Concat
-Doc operator+(const Doc& left, const Doc& right) {
-  return Concat(left, right);
+DocAtom Line(int indent) {
+  return std::make_shared<LineNode>(indent);
 }
 
 // sugar for Concat with result stored in left
-Doc& operator<<(Doc& left, const Doc& right) {
-  left = left + right;
-  return left;
+Doc& Doc::operator<<(const Doc& right) {
+  this->stream_.insert(this->stream_.end(), right.stream_.begin(), right.stream_.end());
+  return *this;
 }
 
 // like above, but automatically lifts string to a doc
-Doc& operator<<(Doc& left, const std::string& right) {
+Doc& Doc::operator<<(const std::string& right) {
   if (right == "\n") {
-    return left << Line();
+    return *this << Line();
   } else {
-    return left << Text(right);
+    return *this << Text(right);
   }
 }
 
 // indent a doc
 Doc Indent(int indent, const Doc& doc) {
-  if (auto nil = std::dynamic_pointer_cast<NilNode>(doc)) {
-    // absorb indent
-    return nil;
-  } else if (auto text = std::dynamic_pointer_cast<TextNode>(doc)) {
-    // push indent through
-    return Text(text->str, Indent(indent, text->doc));
-  } else if (auto line = std::dynamic_pointer_cast<LineNode>(doc)) {
-    // add indent to line and continue
-    return Line(indent + line->indent, Indent(indent, line->doc));
-  } else {assert(false);}
-}
-
-// convert a doc to a string
-std::string Layout(const Doc& doc) {
-  if (auto nil = std::dynamic_pointer_cast<NilNode>(doc)) {
-    return "";
-  } else if (auto text = std::dynamic_pointer_cast<TextNode>(doc)) {
-    // add text and continue
-    return text->str + Layout(text->doc);
-  } else if (auto line = std::dynamic_pointer_cast<LineNode>(doc)) {
-    // add a newline and indents, then continue
-    return "\n" + std::string(line->indent, ' ') + Layout(line->doc);
-  } else {assert(false);}
+  Doc ret;
+  for (auto atom : doc.stream_) {
+    if (auto text = std::dynamic_pointer_cast<TextNode>(atom)) {
+      ret << atom;
+    } else if (auto line = std::dynamic_pointer_cast<LineNode>(atom)) {
+      ret << Line(indent + line->indent);
+    } else {assert(false);}
+  }
+  return ret;
 }
 
 // render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
 Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep) {
   Doc seq;
-  if (vec.size() == 0) {
-    seq = Nil();
-  } else {
+  if (vec.size() != 0) {
     seq = vec[0];
     for (size_t i = 1; i < vec.size(); i++) {
       seq << sep << vec[i];
     }
   }
-
   return seq;
 }
 
@@ -132,7 +81,7 @@ Doc PrintDType(DataType dtype) {
 
 Doc PrintString(const std::string& value) { // NOLINT(*)
   // TODO(M.K.): add escape.
-  Doc doc = Nil();
+  Doc doc;
   return doc << "\"" << value << "\"";
 }
 

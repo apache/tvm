@@ -83,7 +83,7 @@ class TextMetaDataContext {
         meta_data_[node->type_key()];
     int64_t index = static_cast<int64_t>(mvector.size());
     mvector.push_back(node);
-    Doc doc = Nil();
+    Doc doc;
     doc << "meta[" << node->type_key() << "][" << index << "]";
     meta_repr_[node] = doc;
     return meta_repr_[node];
@@ -128,23 +128,23 @@ class PrettyPrinter :
     * \param expr The expression.
     */
   Doc PrintOptionalInfo(const Expr& expr) {
-    Doc doc = Nil();
+    Doc doc;
     // additional information in comment.
     if (annotate_ != nullptr) {
-      return doc << " # " << annotate_(expr);
+      return doc << " // " << annotate_(expr);
     } else if (expr->checked_type_.defined()) {
-      doc << " # ty=";
+      doc << " // ty=";
       return doc << Print(expr->checked_type());
     } else {
-      return Nil();
+      return doc;
     }
   }
 
   // indent a new body
   // TODO(jmp): indent should be an instance variable of the printer
   Doc PrintBody(const NodeRef& node, int indent = 2) {
-    Doc doc = Nil();
-    Doc body = Nil();
+    Doc doc;
+    Doc body;
     doc << "{";
     doc << Indent(indent, body << "\n" << PrintScope(node)) << "\n";
     doc << "}";
@@ -155,7 +155,7 @@ class PrettyPrinter :
   // numbers to be reused and prevents hoisted vars from escaping too far
   Doc PrintScope(const NodeRef& node) {
     // print in a new scope
-    doc_stack_.push_back(Nil());
+    doc_stack_.push_back({});
     // must print first so doc_stack_.back() reference doesn't become stale
     Doc doc = Print(node);
     doc = doc_stack_.back() << doc;
@@ -164,7 +164,7 @@ class PrettyPrinter :
   }
 
   Doc PrintFinal(const NodeRef& node) {
-    Doc doc = Nil();
+    Doc doc;
     doc << PrintScope(node);
     if (!meta_.empty()) {
       if (show_meta_data_) {
@@ -190,13 +190,13 @@ class PrettyPrinter :
     } else if (node.as_derived<ModuleNode>()) {
       return PrintMod(Downcast<Module>(node));
     } else {
-      Doc doc = Nil();
+      Doc doc;
       return doc << node;
     }
   }
 
   Doc TempVar(int n) {
-    Doc doc = Nil();
+    Doc doc;
     return doc << "%" << n;
   }
 
@@ -270,8 +270,7 @@ class PrettyPrinter :
       printed_expr = meta_.GetMetaNode(GetRef<NodeRef>(expr.get()));
     } else if (GNF_ && expr.as<LetNode>()) {
       // wrap GNFed let in brackets
-      printed_expr = Nil();
-      Doc body = Nil();
+      Doc body;
       printed_expr << "{";
       printed_expr << Indent(2, body << "\n" << VisitExpr(expr)) << "\n";
       printed_expr << "}";
@@ -328,7 +327,7 @@ class PrettyPrinter :
       }
     }
     // default fall-back, record it as meta node.
-    Doc doc = Nil();
+    Doc doc;
     return doc << Print(GetRef<NodeRef>(op), true)
                << PrintOptionalInfo(GetRef<Expr>(op));
   }
@@ -338,7 +337,7 @@ class PrettyPrinter :
     for (Expr field : op->fields) {
       fields.push_back(Print(field));
     }
-    Doc doc = Nil();
+    Doc doc;
     doc << "(" << PrintVec(fields);
     // conform to python tuple format (1,)
     if (op->fields.size() == 1) {
@@ -348,12 +347,12 @@ class PrettyPrinter :
   }
 
   Doc VisitExpr_(const TupleGetItemNode* op) final {
-    Doc doc = Nil();
+    Doc doc;
     return doc << Print(op->tuple) << "." << op->index;
   }
 
   Doc VisitExpr_(const IfNode* op) final {
-    Doc doc = Nil();
+    Doc doc;
     doc << "if (" << Print(op->cond) << ") ";
     doc << PrintBody(op->true_branch);
     doc << " else ";
@@ -362,7 +361,7 @@ class PrettyPrinter :
   }
 
   Doc VisitExpr_(const LetNode* op) final {
-    Doc doc = Nil();
+    Doc doc;
     doc << "let " << AllocVar(op->var) << " = " << Print(op->value) << "\n";
     // we use a scope here so GNF hoisting doesn't escape too far
     doc << PrintScope(op->body);
@@ -374,7 +373,7 @@ class PrettyPrinter :
       // Possibly through meta data
       CHECK_EQ(fn->type_params.size(), 0U)
       << "generic fn not yet supported";
-      Doc doc = Nil();
+      Doc doc;
       doc << prefix << "(";
       std::vector<Doc> params;
       for (Var param : fn->params) {
@@ -390,7 +389,7 @@ class PrettyPrinter :
   }
 
   Doc PrintMod(const Module& mod) {
-    Doc doc = Nil();
+    Doc doc;
     int counter = 0;
     for (const auto& kv : mod->functions) {
       std::ostringstream os;
@@ -417,7 +416,7 @@ class PrettyPrinter :
   }
 
   Doc VisitExpr_(const CallNode* op) final {
-    Doc doc = Nil();
+    Doc doc;
     doc << Print(op->op);
     std::vector<Doc> args;
     for (Expr arg : op->args) {
@@ -427,29 +426,29 @@ class PrettyPrinter :
   }
 
   Doc VisitExpr_(const RefCreateNode* op) final {
-    Doc doc = Nil();
+    Doc doc;
     return doc << "ref(" << Print(op->value) << ")";
   }
 
   Doc VisitExpr_(const RefReadNode* op) final {
-    Doc doc = Nil();
+    Doc doc;
     return doc << Print(op->ref) << "^";
   }
 
   Doc VisitExpr_(const RefWriteNode* op) final {
-    Doc doc = Nil();
+    Doc doc;
     return doc << "(" << Print(op->ref) << " := " << Print(op->value) << ")";
   }
 
   Doc VisitExpr_(const MatchNode* op) final {
     // TODO(jmp): Lots of code duplication here because PrintBody and PrintScope don't accept Docs.
-    Doc doc = Nil();
-    Doc body = Nil();
+    Doc doc;
+    Doc body;
     doc << "match " << Print(op->data) << " ";
     doc << "{";
     std::vector<Doc> clauses;
     for (const auto& clause : op->clauses) {
-      Doc clause_doc = Nil();
+      Doc clause_doc;
       clauses.push_back(clause_doc << Print(clause->lhs) << " -> "
                                    << Print(clause->rhs));
     }
@@ -459,7 +458,7 @@ class PrettyPrinter :
   }
 
   Doc VisitPattern_(const PatternConstructorNode* p) final {
-    Doc doc = Nil();
+    Doc doc;
     doc << p->constructor->name_hint << "(";
     std::vector<Doc> pats;
     for (const auto& pat : p->patterns) {
@@ -502,7 +501,7 @@ class PrettyPrinter :
     if (node->shape.size() == 0) {
       return PrintDType(node->dtype);
     }
-    Doc doc = Nil();
+    Doc doc;
     doc << "Tensor[(";
     std::vector<Doc> shapes;
     for (NodeRef shape : node->shape) {
@@ -521,7 +520,7 @@ class PrettyPrinter :
     for (Type field : node->fields) {
       fields.push_back(Print(field));
     }
-    Doc doc = Nil();
+    Doc doc;
     doc << "(" << PrintVec(fields);
     // conform to python tuple format (1,)
     if (node->fields.size() == 1) {
@@ -531,7 +530,7 @@ class PrettyPrinter :
   }
 
   Doc VisitType_(const FuncTypeNode* node) final {
-    Doc doc = Nil();
+    Doc doc;
     std::vector<Doc> arg_types;
     for (Type arg_type : node->arg_types) {
       arg_types.push_back(Print(arg_type));
@@ -540,7 +539,7 @@ class PrettyPrinter :
   }
 
   Doc VisitType_(const RefTypeNode* node) final {
-    Doc doc = Nil();
+    Doc doc;
     return doc << "ref(" << Print(node->value) << ")";
   }
 
@@ -567,7 +566,7 @@ class PrettyPrinter :
   }
 
   Doc VisitAttr_(const ArrayNode* op) final {  // NOLINT(*)
-    Doc doc = Nil();
+    Doc doc;
     doc << "[";
     std::vector<Doc> arr_vals;
     for (NodePtr<Node> val : op->data) {
@@ -626,7 +625,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
 
   template<typename T>
   Doc PrintKV(const char* key, const T& value) {
-    Doc doc = Nil();
+    Doc doc;
     return doc << ", " << key << "=" << value;
   }
 
@@ -667,8 +666,8 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
 };
 
 Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {  // NOLINT(*)
-  if (!attrs.defined()) return Nil();
-  Doc doc = Nil();
+  Doc doc;
+  if (!attrs.defined()) return doc;
   const auto* op_node = op.as<OpNode>();
   if (op_node && (attrs->type_index() != op_node->attrs_type_index)) {
     // fallback
@@ -684,10 +683,10 @@ std::string PrettyPrint_(const NodeRef& node,
                          bool show_meta_data,
                          runtime::TypedPackedFunc<std::string(Expr)> annotate,
                          bool gnf) {
-  Doc doc = Nil();
+  Doc doc;
   doc << "v0.0.1" << "\n"
       << PrettyPrinter(gnf, show_meta_data, annotate).PrintFinal(node);
-  return Layout(doc);
+  return doc.str();
 }
 
 std::string RelayPrint(const NodeRef& node,

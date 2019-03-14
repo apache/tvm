@@ -16,61 +16,67 @@ namespace tvm {
 namespace relay {
 
 // ADT
-struct DocNode {
-  virtual ~DocNode() = default;
+struct DocAtomNode {
+  virtual ~DocAtomNode() = default;
 };
 
-using Doc = std::shared_ptr<DocNode>;
+using DocAtom = std::shared_ptr<DocAtomNode>;
 
-struct NilNode : DocNode { };
-
-struct TextNode : DocNode {
+struct TextNode : DocAtomNode {
   std::string str;
-  Doc doc;
 
-  TextNode(const std::string& str, const Doc& doc) : str(str), doc(doc) {}
+  TextNode(const std::string& str) : str(str) {}
 };
 
-struct LineNode : DocNode {
+struct LineNode : DocAtomNode {
   int indent;
-  Doc doc;
 
-  LineNode(int indent, const Doc& doc) : indent(indent), doc(doc) {}
+  LineNode(int indent) : indent(indent) {}
 };
 
-// text constructor
-Doc Text(const std::string& str, const Doc& doc);
+// Doc is a stream-like interface
+struct Doc {
+ public:
+  Doc() {}
+  Doc(const DocAtom& atom) : stream_({atom}) {}
 
-// line constructor
-Doc Line(int indent, const Doc& doc);
+  // Append right to left.
+  Doc& operator<<(const Doc& right);
+  // like above, but automatically lifts string to a doc atom
+  Doc& operator<<(const std::string& right);
+  // like above, but converts right to a string first
+  template<typename T>
+  Doc& operator<<(const T& right) {
+    std::ostringstream os;
+    os << right;
+    return *this << os.str();
+  }
+
+  // indent a doc stream
+  friend Doc Indent(int indent, const Doc& doc);
+
+  std::string str() {
+    std::ostringstream os;
+    for (auto atom : stream_) {
+      if (auto text = std::dynamic_pointer_cast<TextNode>(atom)) {
+        os << text->str;
+      } else if (auto line = std::dynamic_pointer_cast<LineNode>(atom)) {
+        os << "\n" << std::string(line->indent, ' ');
+      } else {assert(false);}
+    }
+    return os.str();
+  }
+ private:
+  std::vector<DocAtom> stream_;
+};
 
 // DSL functions
 
-// empty doc/nil constructor
-Doc Nil();
-// lift string to text
-Doc Text(const std::string& str);
-// new line
-Doc Line();
-// concat two docs
-Doc Concat(const Doc& left, const Doc& right);
-// sugar for Concat
-Doc operator+(const Doc& left, const Doc& right);
-// sugar for Concat with result stored in left
-Doc& operator<<(Doc& left, const Doc& right);
-// like above, but automatically lifts string to a doc
-Doc& operator<<(Doc& left, const std::string& right);
-// like above, but converts right to a string
-template<typename T>
-Doc& operator<<(Doc& left, const T& right) {
-  std::ostringstream os;
-  os << right;
-  return left << os.str();
-}
-// indent a doc
-Doc Indent(int indent, const Doc& doc);
-// convert doc to a string
-std::string Layout(const Doc& doc);
+// text constructor
+DocAtom Text(const std::string& str);
+// line constructor
+DocAtom Line(int indent = 0);
+
 // render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
 Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep = Text(", "));
 // Print constant bool value.
