@@ -121,6 +121,26 @@ struct ROIAlignAttrs : public tvm::AttrsNode<ROIAlignAttrs> {
   }
 };
 
+/*! \brief Attributes used in roi_pool operators */
+struct ROIPoolAttrs : public tvm::AttrsNode<ROIPoolAttrs> {
+  Array<IndexExpr> pooled_size;
+  double spatial_scale;
+  std::string layout;
+  TVM_DECLARE_ATTRS(ROIPoolAttrs, "relay.attrs.ROIPoolAttrs") {
+    TVM_ATTR_FIELD(pooled_size).describe("Output size of roi pool.");
+    TVM_ATTR_FIELD(spatial_scale)
+        .describe(
+            "Ratio of input feature map height (or w) to raw image height (or w). "
+            "Equals the reciprocal of total stride in convolutional layers, which should be "
+            "in range (0.0, 1.0]");
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively. Convolution is applied on the 'H' and"
+        "'W' dimensions.");
+  }
+};
+
 /*! \brief Attributes used in yolo reorg operators */
 struct YoloReorgAttrs : public tvm::AttrsNode<YoloReorgAttrs> {
   Integer stride;

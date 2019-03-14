@@ -438,6 +438,14 @@ def _mx_roi_align(inputs, attrs):
     return _op.vision.roi_align(inputs[0], inputs[1], **new_attrs)
 
 
+def _mx_roi_pooling(inputs, attrs):
+    new_attrs = {}
+    new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
+    new_attrs["spatial_scale"] = attrs.get_float("spatial_scale")
+    new_attrs["layout"] = "NCHW"
+    return _op.vision.roi_pool(inputs[0], inputs[1], **new_attrs)
+
+
 def _mx_proposal(inputs, attrs):
     new_attrs = {}
     new_attrs["scales"] = attrs.get_float_tuple("scales", (4.0, 8.0, 16.0, 32.0))
@@ -641,6 +649,7 @@ _convert_map = {
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
     "_contrib_MultiBoxDetection" : _mx_multibox_detection,
     "_contrib_ROIAlign" : _mx_roi_align,
+    "ROIPooling"        : _mx_roi_pooling,
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
