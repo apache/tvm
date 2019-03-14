@@ -22,6 +22,22 @@ def schedule_roi_align(_, outs, target):
 
 reg.register_pattern("vision.roi_align", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+@reg.register_compute("vision.roi_pool")
+def compute_roi_pool(attrs, inputs, _, target):
+    """Compute definition of roi_pool"""
+    assert attrs.layout == "NCHW"
+    return [topi.vision.rcnn.roi_pool_nchw(
+        inputs[0], inputs[1], pooled_size=get_const_tuple(attrs.pooled_size),
+        spatial_scale=attrs.spatial_scale)]
+
+@reg.register_schedule("vision.roi_pool")
+def schedule_roi_pool(_, outs, target):
+    """Schedule definition of roi_pool"""
+    with target:
+        return topi.generic.vision.schedule_roi_pool(outs)
+
+reg.register_pattern("vision.roi_pool", OpPattern.OUT_ELEMWISE_FUSABLE)
+
 @reg.register_compute("vision.proposal")
 def compute_proposal(attrs, inputs, _, target):
     """Compute definition of proposal"""
