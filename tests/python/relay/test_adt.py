@@ -23,6 +23,9 @@ none = p.none
 nil = p.nil
 cons = p.cons
 l = p.l
+hd = p.hd
+tl = p.tl
+nth = p.nth
 length = p.length
 map = p.map
 foldl = p.foldl
@@ -120,6 +123,30 @@ def test_list_constructor():
     a = relay.TypeVar("a")
     assert relay.ir_pass.infer_type(cons(z(), nil()), mod).checked_type == l(nat())
 
+def test_hd_tl():
+    expected = list(range(10))
+    l = nil()
+    for i in reversed(expected):
+        l = cons(build_nat(i), l)
+
+    got = []
+    for i in range(len(expected)):
+        got.append(count(intrp.evaluate(hd(l))))
+        l = tl(l)
+
+    assert got == expected
+
+def test_nth():
+    expected = list(range(10))
+    l = nil()
+    for i in reversed(expected):
+        l = cons(build_nat(i), l)
+
+    got = []
+    for i in range(len(expected)):
+        got.append(count(intrp.evaluate(nth(l, build_nat(i)))))
+
+    assert got == expected
 
 def test_length():
     a = relay.TypeVar("a")
