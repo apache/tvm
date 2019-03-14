@@ -52,6 +52,18 @@ Doc Indent(int indent, const Doc& doc) {
   return ret;
 }
 
+std::string Doc::str() {
+  std::ostringstream os;
+  for (auto atom : this->stream_) {
+    if (auto text = std::dynamic_pointer_cast<TextNode>(atom)) {
+      os << text->str;
+    } else if (auto line = std::dynamic_pointer_cast<LineNode>(atom)) {
+      os << "\n" << std::string(line->indent, ' ');
+    } else {assert(false);}
+  }
+  return os.str();
+}
+
 Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep) {
   Doc seq;
   if (vec.size() != 0) {

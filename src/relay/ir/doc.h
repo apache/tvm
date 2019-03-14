@@ -58,17 +58,7 @@ class Doc {
   friend Doc Indent(int indent, const Doc& doc);
 
   // Wadler's `layout`
-  std::string str() {
-    std::ostringstream os;
-    for (auto atom : stream_) {
-      if (auto text = std::dynamic_pointer_cast<TextNode>(atom)) {
-        os << text->str;
-      } else if (auto line = std::dynamic_pointer_cast<LineNode>(atom)) {
-        os << "\n" << std::string(line->indent, ' ');
-      } else {assert(false);}
-    }
-    return os.str();
-  }
+  std::string str();
 
  private:
   std::vector<DocAtom> stream_;
