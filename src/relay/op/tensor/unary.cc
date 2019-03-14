@@ -146,6 +146,16 @@ RELAY_REGISTER_UNARY_OP("round")
 .set_support_level(3)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::round));
 
+RELAY_REGISTER_UNARY_OP("sign")
+.describe(R"code(Returns the sign of input array, computed element-wise.
+
+.. numpy::
+   sign(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::sign));
+
 
 RELAY_REGISTER_UNARY_OP("abs")
 .describe(R"code(Returns the abs of input array, computed element-wise.

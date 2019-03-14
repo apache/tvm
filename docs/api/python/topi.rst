@@ -11,6 +11,7 @@ List of operators
    topi.negative
    topi.floor
    topi.ceil
+   topi.sign
    topi.trunc
    topi.round
    topi.abs
@@ -96,6 +97,7 @@ topi
 .. autofunction:: topi.identity
 .. autofunction:: topi.floor
 .. autofunction:: topi.ceil
+.. autofunction:: topi.sign
 .. autofunction:: topi.trunc
 .. autofunction:: topi.round
 .. autofunction:: topi.abs

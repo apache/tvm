@@ -158,6 +158,20 @@ def abs(data):
     """
     return _make.abs(data)
 
+def sign(data):
+    """Compute element-wise absolute of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.sign(data)
 
 def tanh(data):
     """Compute element-wise tanh of data.

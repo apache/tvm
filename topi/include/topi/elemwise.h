@@ -89,6 +89,28 @@ inline Tensor logical_not(const Tensor& x,
 }
 
 /*!
+* \brief Returns the sign of the tensor
+*
+* \param x The input tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the sign
+*/
+inline Tensor sign(const Tensor& x,
+                   std::string name = "tensor",
+                   std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    Expr zero = make_zero(x->dtype);
+    Expr one = make_const(x->dtype, 1);
+    Expr minus_one = make_const(x->dtype, -1);
+    auto s1 = tvm::ir::Select::make((x(i) < zero), minus_one, zero);
+    auto s2 = tvm::ir::Select::make((x(i) > zero), one, s1);
+    return s2;
+  }, name, tag);
+}
+
+/*!
 * \brief Creates an operation that clips each element of a tensor to
 * the interval [a_min, a_max]
 *
