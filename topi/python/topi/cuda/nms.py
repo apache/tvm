@@ -147,7 +147,8 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
         base_idx = i * num_anchors * elem_length
         with ib.if_scope(flag[tid] > 0):
             with ib.for_range(0, elem_length) as k:
-                out[base_idx + (idx[tid] - 1) * elem_length + k] = data[base_idx + j * elem_length + k]
+                out[base_idx + (idx[tid] - 1) * elem_length + k] =\
+                data[base_idx + j * elem_length + k]
         valid_count[i] = idx[i * num_anchors + num_anchors - 1]
 
     return ib.get()
