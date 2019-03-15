@@ -1,30 +1,33 @@
 import argparse
 import re
 
+default_team_id = "3FR42MXLK9"
+default_bundle_identifier = 'ml.dmlc.tvmrpc'
+
 parser = argparse.ArgumentParser(description='Update tvmrpc.xcodeproj\
  developer information')
-parser.add_argument('--org_unit', type=str, required=True,
-                    help='Your own Organization Unit.\n\
-                    The Organization Unit can be found by following:\n\
-                    1. Open Keychain Access.\n\
-                    2. Find out your own iPhone Developer certificate.\n\
-                    3. Right click certificate, choose ```Get Info```.\n\
-                    4. Read & copy your Organization Unit.')
+parser.add_argument('--team_id', type=str, required=True,
+                    help='Apple Developer Team ID.\n\
+                    Can be found here:\n\
+                    \n\
+                    https://developer.apple.com/account/#/membership\n\
+                    (example: {})'.format(default_team_id))
 
 parser.add_argument('--bundle_identifier', type=str, required=False,
-                    default="tvmrpc",
-                    help='The new bundle identifier')
+                    default=default_bundle_identifier,
+                    help='The new bundle identifier\n\
+                    (example: {})'.format(default_bundle_identifier))
 
 args = parser.parse_args()
-org_unit = args.org_unit
+team_id = args.team_id
 bundle_identifier = args.bundle_identifier
 
 fi = open("tvmrpc.xcodeproj/project.pbxproj")
 proj_config = fi.read()
 fi.close()
 
-proj_config = proj_config.replace("3FR42MXLK9", org_unit)
-proj_config = proj_config.replace("ml.dmlc.tvmrpc", bundle_identifier)
+proj_config = proj_config.replace(default_team_id, team_id)
+proj_config = proj_config.replace(default_bundle_identifier, bundle_identifier)
 fo = open("tvmrpc.xcodeproj/project.pbxproj", "w")
 fo.write(proj_config)
 fo.close()
