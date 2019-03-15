@@ -198,8 +198,8 @@ void BoundDeducer::Transform() {
     } else {
       // a < b -> a <= b - 1
       is_greater = false;
-      expr_      = op->a;
-      result     = op->b - 1;
+      expr_ = op->a;
+      result = op->b - 1;
     }
   } else if (const LE* op = expr_.as<LE>()) {
     if (GetPath(target_, op->a).empty()) {
