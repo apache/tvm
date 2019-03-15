@@ -92,6 +92,7 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
         with ib.if_scope((j < in_width)):
             center_h = (i + offset_h) * steps_h
             center_w = (j + offset_w) * steps_w
+
             for k in range(num_sizes + num_ratios - 1):
                 w = if_then_else(k < num_sizes,
                                  size_ratio_concat[k] * in_height / in_width / 2.0,
