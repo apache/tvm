@@ -31,7 +31,7 @@ from tvm import relay
 from tvm.relay import testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
-from tvm.autotvm.graph_tuner.utils import relay_get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
+from tvm.autotvm.graph_tuner.utils import get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
@@ -165,7 +165,7 @@ def tune_kernels(tasks,
 def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
     target_op = "conv2d"
     data_layout = "NCHWc"
-    graph_wkl_list = relay_get_conv2d_NCHWc_AVX_workload(graph, {"data": dshape}, unique_wkl=False)
+    graph_wkl_list = get_conv2d_NCHWc_AVX_workload(graph, {"data": dshape}, unique_wkl=False)
     Tuner = DPTuner if use_DP else PBQPTuner
     executor = Tuner(graph, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
                      ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx)
@@ -189,7 +189,7 @@ def tune_and_evaluate(tuning_opt):
     tune_kernels(tasks, **tuning_opt)
     tune_graph(net, data_shape, log_file, graph_opt_sch_file)
 
-    # compile kernels with history best records
+    # compile kernels with graph-level best records
     with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
         with relay.build_config(opt_level=3):

@@ -24,7 +24,7 @@ def layout_transform(*args):
     cfg = get_config()
     cfg.add_flop(-1)
     data = args[0]
-    out = topi.nn.layout_transform(*args)
+    out = topi.layout_transform(*args)
     sch = topi.generic.schedule_injective([out])
     return sch, [data, out]
 
@@ -298,8 +298,7 @@ class BaseGraphTuner(object):
                         out_layout = shape2layout(out_shape, self._data_layout)
                         data_placeholder = tvm.placeholder(in_shape, name="data",
                                                            dtype=self._dtype)
-                        args = [data_placeholder, in_layout, out_layout, out_shape,
-                                "layout_transform", "injective"]
+                        args = [data_placeholder, in_layout, out_layout]
                         callback(c_idx, t_idx, m, n, args)
 
     def _create_matrix_callback(self, from_node_idx, to_node_idx, from_sch_idx,
@@ -307,12 +306,11 @@ class BaseGraphTuner(object):
         """Create dictionary containing matrix format of layout transformation
         between nodes."""
         sargs = serialize_args(args)
-        in_shape = [val if isinstance(val, int) else val.value for val in sargs[0][1]]
-        out_shape = [val if isinstance(val, int) else val.value for val in sargs[3]]
+        in_layout, out_layout = args[1], args[2]
         ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(sargs)
         idx_pair_key = (from_node_idx, to_node_idx)
 
-        if in_shape == out_shape:
+        if in_layout == out_layout:
             layout_transform_time = 0
         else:
             layout_transform_time = \
@@ -424,10 +422,8 @@ class BaseGraphTuner(object):
         def _fetch_args_callback(from_node_idx, to_node_idx, from_sch_idx,
                                  to_sch_idx, args):
             """Callback function to fetch layout transform args"""
-            sargs = serialize_args(args)
-            in_shape = [val if isinstance(val, int) else val.value for val in sargs[0][1]]
-            out_shape = [val if isinstance(val, int) else val.value for val in sargs[3]]
-            if in_shape != out_shape:
+            in_layout, out_layout = args[1], args[2]
+            if in_layout != out_layout:
                 args_list.append(args)
 
         self._iterate_layout_transform(_fetch_args_callback)

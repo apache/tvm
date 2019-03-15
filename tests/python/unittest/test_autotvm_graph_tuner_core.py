@@ -67,8 +67,7 @@ def _create_data(target, dshape, dtype, layout):
         records.append((ms_input, ms_output))
 
     ltf_records = []
-    ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c", (1, 1, 16, 16, 512),
-               "layout_transform", "injective"]
+    ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
     ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
     ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
     ltf_task = copy.deepcopy(tasks[0])
@@ -78,18 +77,15 @@ def _create_data(target, dshape, dtype, layout):
     ltf_records.append((ms_input, ms_output))
 
     ltf_keys = []
-    ltf_arg = [tvm.placeholder((1, 4, 8, 8, 4), dtype=dtype), "NCHW4c", "NCHW8c", (1, 2, 8, 8, 8),
-               "layout_transform", "injective"]
+    ltf_arg = [tvm.placeholder((1, 4, 8, 8, 4), dtype=dtype), "NCHW4c", "NCHW8c"]
     ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
     ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
     ltf_keys.append(ltf_wkl)
-    ltf_arg = [tvm.placeholder((1, 1, 8, 8, 32), dtype=dtype), "NCHW32c", "NCHW4c", (1, 8, 8, 8, 4),
-               "layout_transform", "injective"]
+    ltf_arg = [tvm.placeholder((1, 1, 8, 8, 32), dtype=dtype), "NCHW32c", "NCHW4c"]
     ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
     ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
     ltf_keys.append(ltf_wkl)
-    ltf_arg = [tvm.placeholder((1, 4, 8, 8, 8), dtype=dtype), "NCHW8c", "NCHW32c", (1, 1, 8, 8, 32),
-               "layout_transform", "injective"]
+    ltf_arg = [tvm.placeholder((1, 4, 8, 8, 8), dtype=dtype), "NCHW8c", "NCHW32c"]
     ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
     ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
     ltf_keys.append(ltf_wkl)
