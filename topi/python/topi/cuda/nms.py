@@ -129,7 +129,7 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     valid_count = ib.buffer_ptr(valid_count)
     out = ib.buffer_ptr(out)
 
-    max_threads = int(math_sqrt(tvm.target.current_target(allow_none=False).max_num_threads))
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors * elem_length // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
