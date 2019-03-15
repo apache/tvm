@@ -357,6 +357,38 @@ def test_roi_align():
     verify_roi_align((4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5, sample_ratio=2)
 
 
+def test_roi_pool():
+    def verify_roi_pool(data_shape, rois_shape, pooled_size, spatial_scale):
+        data = relay.var("data", relay.ty.TensorType(data_shape, "float32"))
+        rois = relay.var("rois", relay.ty.TensorType(rois_shape, "float32"))
+        z = relay.vision.roi_pool(data, rois, pooled_size=(pooled_size, pooled_size),
+                                   spatial_scale=spatial_scale, layout="NCHW")
+        zz = relay.ir_pass.infer_type(z)
+
+        batch, channel, in_size, _ = data_shape
+        num_roi = rois_shape[0]
+        assert zz.checked_type == relay.ty.TensorType(
+                (num_roi, channel, pooled_size, pooled_size), "float32")
+
+        func = relay.Function([data, rois], z)
+        func = relay.ir_pass.infer_type(func)
+        np_data = np.random.uniform(size=data_shape).astype("float32")
+        np_rois = np.random.uniform(size=rois_shape).astype('float32') * in_size
+        np_rois[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi).astype('float32')
+        ref_res = topi.testing.roi_pool_nchw_python(np_data, np_rois, pooled_size=pooled_size,
+                                                     spatial_scale=spatial_scale)
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(np_data, np_rois)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-4)
+            intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+            op_res2 = intrp2.evaluate(func)(np_data, np_rois)
+            tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-4)
+
+    verify_roi_pool((1, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=1.0)
+    verify_roi_pool((4, 4, 16, 16), (32, 5), pooled_size=7, spatial_scale=0.5)
+
+
 def test_proposal():
     def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
         cls_prob = relay.var("cls_prob", relay.ty.TensorType(np_cls_prob.shape, "float32"))
@@ -464,6 +496,7 @@ if __name__ == "__main__":
     test_multibox_transform_loc()
     test_get_valid_counts()
     test_roi_align()
+    test_roi_pool()
     test_proposal()
     test_yolo_reorg_infer_shape()
     test_yolo_reorg()
