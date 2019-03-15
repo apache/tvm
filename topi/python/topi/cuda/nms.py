@@ -82,7 +82,9 @@ def sort_ir(data, index, output):
 
     return ib.get()
 
-def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, nms_topk):
+def nms_ir(data, sorted_index, valid_count, out, box_indices,
+           max_output_size, iou_threshold, force_suppress, 
+           top_k, coord_start, id_index):
     """Low level IR routing for transform location in multibox_detection operator.
 
     Parameters
@@ -107,6 +109,12 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
 
     nms_topk : int
         Keep maximum top k detections before nms, -1 for no limit.
+
+    coord_start : int
+        Start index of the consecutive 4 coordinates.
+
+    id_index : int
+        index of the class categories, -1 to disable.
 
     Returns
     -------
@@ -142,18 +150,17 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     bx = tvm.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
-    i = bx * max_threads + tx
+    k = bx * max_threads + tx
 
-    nms_threshold_node = tvm.make.node(
-        "FloatImm", dtype="float32", value=nms_threshold)
-    nms_topk_node = tvm.make.node("IntImm", dtype="int32", value=nms_topk)
-    force_suppress_node = tvm.make.node(
-        "IntImm", dtype="int32", value=1 if force_suppress else 0)
-    with ib.for_range(0, batch_size, for_type="unroll") as b:
-        base_idx = b * num_anchors * 6
-        with ib.if_scope( \
-                tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
-                        p_valid_count[0] > 0)):
+    iou_threshold = tvm.make.node("FloatImm", dtype="float32", value=iou_threshold)
+    top_k = tvm.make.node("IntImm", dtype="int32", value=top_k)
+    coord_start = tvm.make.node("IntImm", dtype="int32", value=coord_start)
+    id_index = tvm.make.node("IntImm", dtype="int32", value=id_index)
+    force_suppress = tvm.make.node("IntImm", dtype="int32", value=1 if force_suppress else 0)
+
+    with ib.for_range(0, batch_size, for_type="unroll") as i:
+        base_idx = i * num_anchors * box_data_length
+        with ib.if_scope(tvm.all(iou_threshold > 0, valid_count[i] > 0)):
             # Reorder output
             nkeep = tvm.if_then_else( \
                     tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[b]),
@@ -167,21 +174,20 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
                     with ib.if_scope(i < 6):
                         p_out[(base_idx + (l + nkeep) * 6 + i)] = -1.0
             # Apply nms
-            with ib.for_range(0, p_valid_count[b]) as l:
-                offset_l = l * 6
-                with ib.if_scope(p_out[base_idx + offset_l] >= 0):
-                    with ib.if_scope(i < p_valid_count[b]):
-                        offset_i = i * 6
-                        with ib.if_scope(tvm.all(i > l, p_out[base_idx
-                                                              + offset_i] >= 0)):
-                            with ib.if_scope(tvm.any(force_suppress_node > 0,
-                                                     p_out[base_idx + offset_l] ==
-                                                     p_out[base_idx + offset_i])):
-                                # When force_suppress == True or class_id equals
-                                iou = calculate_overlap(p_out, base_idx + offset_l + 2,
-                                                        base_idx + offset_i + 2)
-                                with ib.if_scope(iou >= nms_threshold):
-                                    p_out[base_idx + offset_i] = -1.0
+            with ib.for_range(0, valid_count[i]) as j:
+                offset_j = j * box_data_length
+                with ib.if_scope(out[base_idx + offset_j] >= 0):
+                    with ib.if_scope(k < valid_count[i]):
+                        offset_k = k * box_data_length
+                        with ib.if_scope(tvm.all(k > j, out[base_idx + offset_k] >= 0, \
+						 tvm.any(force_suppress > 0, id_index < 0, \
+                                                         out[base_idx + offset_j] == \
+                                                         out[base_idx + offset_k]))):
+                            iou = calculate_overlap(out, base_idx + offset_k + coord_start,
+                                                    base_idx + offset_j + coord_start)
+                            with ib.if_scope(iou >= iou_threshold):
+                                out[base_idx + offset_k] = -1.0
+                                box_indices[i * num_anchors + k] = -1
                 ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
                                       tvm.convert(['shared']),
                                       tvm.expr.Call.Intrinsic, None, 0))
@@ -198,15 +204,10 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
 
 
 @non_max_suppression.register(["cuda", "gpu"])
-def nms_gpu(data,
-            valid_count,
-            max_output_size=-1,
-            iou_threshold=0.5,
-            force_suppress=False,
-            top_k=-1,
-            id_index=0,
-            return_indices=True,
-            invalid_to_bottom=False):
+def non_max_supression_gpu(data, valid_count, max_output_size=-1,
+                           iou_threshold=0.5, force_suppress=False, top_k=-1,
+                           coord_start=2, score_index=1, id_index=0,
+                           return_indices=True, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -230,6 +231,12 @@ def nms_gpu(data,
 
     top_k : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
+
+    coord_start : required, int
+        Start index of the consecutive 4 coordinates.
+
+    score_index : optional, int
+        Index of the scores/confidence of boxes.
 
     id_index : optional, int
         index of the class categories, -1 to disable.
@@ -269,8 +276,7 @@ def nms_gpu(data,
     valid_count_dtype = "int32"
     valid_count_buf = api.decl_buffer(valid_count.shape, valid_count_dtype,
                                       "valid_count_buf", data_alignment=4)
-    data_buf = api.decl_buffer(
-        data.shape, data.dtype, "data_buf", data_alignment=8)
+    score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(
         score_shape, lambda i, j: data[i, j, 1], name="score_tensor")
@@ -295,9 +301,10 @@ def nms_gpu(data,
         tvm.extern(data.shape,
                    [data, sort_tensor, valid_count],
                    lambda ins, outs: nms_ir(
-                       ins[0], ins[1], ins[2], outs[0], iou_threshold,
-                       force_suppress, top_k),
-                   dtype="float32",
+                       ins[0], ins[1], ins[2], outs[0], outs[1],
+                       max_output_size, iou_threshold, force_suppress,
+                       top_k, coord_start, id_index),
+                   dtype=[data.dtype, "int32"],
                    in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
                    tag="nms")
     return out

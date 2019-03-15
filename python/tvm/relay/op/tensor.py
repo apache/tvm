@@ -690,6 +690,30 @@ def concatenate(data, axis):
     return _make.concatenate(Tuple(data), axis)
 
 
+def stack(data, axis):
+    """Join a sequence of arrays along a new axis.
+
+    Parameters
+    ----------
+    data : Union(List[relay.Expr], Tuple(relay.Expr))
+        A list of tensors.
+
+    axis : int
+        The axis in the result array along which the input arrays are stacked.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The stacked tensor.
+    """
+    data = list(data)
+    if not data:
+        raise ValueError("relay.stack requires data to be non-empty.")
+    if not isinstance(axis, int):
+        raise ValueError("For now, we only support integer axis")
+    return _make.stack(Tuple(data), axis)
+
+
 def copy(data):
     """Copy a tensor.
 

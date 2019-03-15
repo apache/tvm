@@ -529,15 +529,6 @@ def _mx_box_nms(inputs, attrs):
     id_index = attrs.get_int('id_index', -1)
     in_format = attrs.get_str('in_format', 'corner')
     out_format = attrs.get_str('out_format', 'corner')
-    if coord_start != 2:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "coord_start" must equal 2 for operator box_nms.')
-    if score_index != 1:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "score_index" must equal 1 for operator box_nms.')
-    if id_index != -1 and int(id_index) != 0:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "id_index" must equal either -1 or 0 for operator box_nms.')
     if in_format != 'corner':
         raise tvm.error.OpAttributeInvalid(
             'Value of attribute "in_format" must equal "corner" for operator box_nms.')
@@ -551,6 +542,8 @@ def _mx_box_nms(inputs, attrs):
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
                                              top_k=top_k,
+                                             coord_start=coord_start,
+                                             score_index=score_index,
                                              id_index=id_index,
                                              return_indices=False,
                                              invalid_to_bottom=True)
