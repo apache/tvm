@@ -13,16 +13,15 @@ def generate_quantized_np(shape, bits, out_dtype):
 
 # Verify that certain special instructions from the tensorize pass exist
 def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel, stride, padding, 
-                                 activation_bits, weight_bits, dorefa):
+                                 activation_bits, weight_bits, unipolar):
     in_height = in_width = in_size
     input_type = 'uint32'
-    out_dtype = 'int32'
 
     with tvm.target.arm_cpu('rasp3b'):
         A = tvm.placeholder((batch, in_height, in_width, in_channel), dtype=input_type, name='A')
         W = tvm.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_type, name='W')
-        B = topi.nn.bitserial_conv2d(A, W, stride, padding, activation_bits, weight_bits, out_dtype=out_dtype, 
-                                     layout="NHWC", dorefa=dorefa)
+        B = topi.nn.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits, 
+                                          pack_dtype='uint8', out_dtype='int16', unipolar=unipolar)
         s = topi.generic.schedule_bitserial_conv2d_nhwc([B])
 
     func = tvm.build(s, [A, W, B], tvm.target.arm_cpu('rasp3b'))
@@ -44,6 +43,9 @@ def test_bitserial_conv2d():
 
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 1, 1, False)
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, False)
+
+    verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 1, 1, True)
+    verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, True)
 
 if __name__ == "__main__":
     test_bitserial_conv2d()
