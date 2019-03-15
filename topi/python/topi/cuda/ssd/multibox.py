@@ -199,7 +199,7 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     max_threads = int(
         tvm.target.current_target(allow_none=False).max_num_threads)
     nthread_tx = max_threads
-    nthread_bx = (batch_size * num_classes * num_anchors) // max_threads + 1
+    nthread_bx = (batch_size *  num_anchors) // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
     bx = tvm.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
