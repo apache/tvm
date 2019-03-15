@@ -39,18 +39,19 @@ from gluoncv import model_zoo, data, utils
 #   x86 conv2d schedule doesn't support dilation.
 
 supported_model = [
-    'ssd_512_resnet18_v1_voc',
-    'ssd_512_resnet18_v1_coco',
+    'ssd_300_vgg16_atrous_voc',
+    'ssd_300_vgg16_atrous_coco',
+    'ssd_512_vgg16_atrous_voc',
+    'ssd_512_vgg16_atrous_coco',
     'ssd_512_resnet50_v1_voc',
     'ssd_512_resnet50_v1_coco',
     'ssd_512_resnet101_v2_voc',
-    'ssd_512_mobilenet1_0_voc',
-    'ssd_512_mobilenet1_0_coco',
+    'ssd_512_mobilenet1.0_voc',
+    'ssd_512_mobilenet1.0_coco',
 ]
 
-model_name = "ssd_512_resnet50_v1_voc"
+model_name = supported_model[4]
 dshape = (1, 3, 512, 512)
-dtype = "float32"
 target_list = ctx_list()
 
 ######################################################################
@@ -66,7 +67,7 @@ x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 
 block = model_zoo.get_model(model_name, pretrained=True)
 
-def compile(target):
+def build(target):
     net, params = relay.frontend.from_mxnet(block, {"data": dshape})
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(net, target, params=params)
@@ -88,10 +89,10 @@ def run(graph, lib, params, ctx):
     return class_IDs, scores, bounding_boxs
 
 for target, ctx in target_list:
-    if target == "cuda":
+    if target == "cuda" or target == "opencl":
         print("GPU not supported yet, skip.")
         continue
-    graph, lib, params = compile(target)
+    graph, lib, params = build(target)
     class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
 
 ######################################################################
