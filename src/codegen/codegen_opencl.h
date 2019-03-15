@@ -38,6 +38,8 @@ class CodeGenOpenCL final : public CodeGenC {
 
   // overload visitor
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const Call* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const Select* op, std::ostream& os) final; // NOLINT(*)
 
  private:
   // whether enable fp16 and fp64 extension
