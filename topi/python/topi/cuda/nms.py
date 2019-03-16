@@ -262,7 +262,7 @@ def sort_ir(data, index, output):
     return ib.get()
 
 def nms_ir(data, sorted_index, valid_count, out, box_indices,
-           max_output_size, iou_threshold, force_suppress, 
+           max_output_size, iou_threshold, force_suppress,
            top_k, coord_start, id_index):
     """Low level IR routing for transform location in multibox_detection operator.
 
@@ -628,9 +628,6 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
 
     out_buf = api.decl_buffer(
         data.shape, data.dtype, "out_buf", data_alignment=8)
-
-    box_indices_buf = api.decl_buffer(
-        (batch_size, num_anchors), "int32", "box_indices_buf", data_alignment=8)
 
     out, box_indices = \
         tvm.extern([data.shape, (batch_size, num_anchors)],
