@@ -759,12 +759,11 @@ void Canonical::SetRange(Var v, Range r, int level) {
 }  // namespace arith
 
 namespace ir {
-
-Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
+Stmt CanonicalSimplifyX(Stmt stmt, Map<Var, Range> vrange) {
   return arith::Canonical(vrange).Simplify(stmt);
 }
 
-Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
+Expr CanonicalSimplifyX(Expr expr, Map<Var, Range> vrange) {
   return arith::Canonical(vrange).Simplify(expr);
 }
 
@@ -781,7 +780,6 @@ T Simplify_(T a, Map<Var, Range> vrange) {
   }
   return HalideIR::Internal::simplify(a, true, rscope);
 }
-
 
 /*!
  * \brief Simplify just the combiner of the given reduce node.
@@ -931,8 +929,5 @@ Expr Simplify(Expr a, Map<Var, Range> vrange) {
   return Simplify_(a, vrange);
 }
 
-Stmt Simplify(Stmt a, Map<Var, Range> vrange) {
-  return Simplify_(a, vrange);
-}
 }  // namespace ir
 }  // namespace tvm

@@ -102,6 +102,10 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             *ret = self->rewrite_simplify(args[0]);
         });
+      } else if (name == "canonical_simplify") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            *ret = self->canonical_simplify(args[0]);
+        });
       } else if (name == "bind") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             auto& sptr = args[1].node_sptr();

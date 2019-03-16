@@ -11,14 +11,18 @@ namespace arith {
 Analyzer::Analyzer()
     : const_int_bound(this),
       modular_set(this),
-      rewrite_simplify(this) {
+      rewrite_simplify(this),
+      canonical_simplify(this) {
 }
 
 void Analyzer::Bind(const VarExpr& v, const Expr& expr) {
   Var var(v.node_);
-  this->const_int_bound.Update(var, this->const_int_bound(expr));
-  this->modular_set.Update(var, this->modular_set(expr));
-  this->rewrite_simplify.Update(var, this->rewrite_simplify(expr));
+  Expr new_expr = expr;
+
+  this->const_int_bound.Update(var, this->const_int_bound(new_expr));
+  this->modular_set.Update(var, this->modular_set(new_expr));
+  this->rewrite_simplify.Update(var, new_expr);
+  this->canonical_simplify.Update(var, new_expr);
 }
 
 void Analyzer::Bind(const VarExpr& v, const Range& range) {
@@ -47,5 +51,6 @@ bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
   if (bd->min_value >= lower_bound) return true;
   return false;
 }
+
 }  // namespace arith
 }  // namespace tvm
