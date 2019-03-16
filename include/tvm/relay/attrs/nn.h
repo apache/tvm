@@ -25,7 +25,7 @@ struct BiasAddAttrs : public tvm::AttrsNode<BiasAddAttrs> {
   TVM_DECLARE_ATTRS(BiasAddAttrs, "relay.attrs.BiasAddAttrs") {
     TVM_ATTR_FIELD(axis)
         .describe("The axis to add the bias")
-        .set_default(1);
+        .set_default(-1);
   }
 };
 
