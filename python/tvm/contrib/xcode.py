@@ -138,7 +138,7 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         sys.stderr.write("Compilation error:\n")
-        sys.stderr.write(out)
+        sys.stderr.write(py_str(out))
         sys.stderr.flush()
         libbin = None
     else:
