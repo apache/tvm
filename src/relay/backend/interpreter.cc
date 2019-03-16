@@ -270,16 +270,30 @@ class Interpreter :
     return TupleValueNode::make(values);
   }
 
-  Value VisitExpr_(const FunctionNode* func_node) final {
-    auto func = GetRef<Function>(func_node);
+  // TODO(@jroesch): this doesn't support mutual letrec.
+  Value MakeClosure(const Function& func, const Var& letrec_name = Var()) {
     tvm::Map<Var, Value> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
     for (const auto& var : free_vars) {
-      captured_mod.Set(var, Eval(var));
+      // Evaluate the free var (which could be a function call) if it hasn't
+      // shown up in a letting binding that has invoked the function.
+      if (!letrec_name.defined() || letrec_name != var) {
+        captured_mod.Set(var, Eval(var));
+      }
     }
 
-    return ClosureNode::make(captured_mod, func);
+    // We must use mutation here to build a self referential closure.
+    auto closure = ClosureNode::make(captured_mod, func);
+    auto mut_closure =
+        static_cast<ClosureNode*>(const_cast<Node*>(closure.get()));
+    mut_closure->env.Set(letrec_name, closure);
+    return closure;
+  }
+
+  Value VisitExpr_(const FunctionNode* func_node) final {
+    auto func = GetRef<Function>(func_node);
+    return MakeClosure(func);
   }
 
   Value InvokePrimitiveOp(Function func,
@@ -438,10 +452,16 @@ class Interpreter :
     }
   }
 
-  Value VisitExpr_(const LetNode* op) final {
-    auto value = Eval(op->value);
-    this->extend(op->var, value);
-    return Eval(op->body);
+  Value VisitExpr_(const LetNode* let) final {
+    if (auto func = let->value.as<FunctionNode>()) {
+      auto clo = MakeClosure(GetRef<Function>(func), let->var);
+      this->extend(let->var, clo);
+    } else {
+      auto value = Eval(let->value);
+      this->extend(let->var, value);
+    }
+
+    return Eval(let->body);
   }
 
   Value VisitExpr_(const TupleGetItemNode* op) final {

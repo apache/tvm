@@ -18,7 +18,7 @@ def check_equal(graph, tf_out):
             np.testing.assert_allclose(x, y)
 
 
-def vanilla_loop():
+def test_vanilla_loop():
     graph = tf.Graph()
     with graph.as_default():
         i = tf.constant(0)
@@ -26,6 +26,7 @@ def vanilla_loop():
         def c(i): return tf.less(i, 10)
 
         def b(i): return tf.add(i, 1)
+
         r = tf.while_loop(c, b, [i])
 
         with tf.Session() as sess:
@@ -34,7 +35,7 @@ def vanilla_loop():
         check_equal(graph, tf_out)
 
 
-def loop_2_vars():
+def test_loop_2_vars():
     graph = tf.Graph()
     with graph.as_default():
         i0 = tf.constant(0)
@@ -43,6 +44,7 @@ def loop_2_vars():
         def c(i, j): return i < 10
 
         def b(i, j): return [tf.add(i, 1), j]
+
         i1, i2 = tf.while_loop(c, b, loop_vars=[i0, j0])
         i1 += tf.constant(1337)
 
@@ -52,7 +54,7 @@ def loop_2_vars():
     check_equal(graph, tf_out)
 
 
-def loop_3_vars():
+def test_loop_3_vars():
     graph = tf.Graph()
     with graph.as_default():
         i0 = tf.constant(1)
@@ -70,7 +72,7 @@ def loop_3_vars():
     check_equal(graph, tf_out)
 
 
-def loop_conditions():
+def test_loop_conditions():
     graph = tf.Graph()
     with graph.as_default():
         i = tf.constant(1)
@@ -90,7 +92,7 @@ def loop_conditions():
     check_equal(graph, tf_out)
 
 
-def loop_bodies():
+def test_loop_bodies():
     graph = tf.Graph()
     with graph.as_default():
         def body(x):
@@ -109,7 +111,7 @@ def loop_bodies():
     check_equal(graph, tf_out)
 
 
-def nested_loop():
+def test_nested_loop():
     graph = tf.Graph()
     with graph.as_default():
 
@@ -125,13 +127,14 @@ def nested_loop():
             return tf.greater(x, 100)
         x = tf.constant(3)
         r = tf.while_loop(condition, body, loop_vars=[x])
+
         with tf.Session() as sess:
             tf_out = sess.run(r)
 
     check_equal(graph, tf_out)
 
 
-def vanilla_cond():
+def test_vanilla_cond():
     graph = tf.Graph()
     with graph.as_default():
         i = tf.constant(1)
@@ -150,7 +153,7 @@ def vanilla_cond():
     check_equal(graph, tf_out)
 
 
-def multiple_cond_vars():
+def test_multiple_cond_vars():
     graph = tf.Graph()
     with graph.as_default():
         x1 = tf.constant(7)
@@ -158,13 +161,14 @@ def multiple_cond_vars():
         z = tf.constant(20)
         r = tf.cond(tf.less(tf.add(x1, x2), 10),
                     lambda: tf.add(10, 2), lambda: tf.square(5))
+
         with tf.Session() as sess:
             tf_out = sess.run(r)
 
     check_equal(graph, tf_out)
 
 
-def cond_fn_parameters():
+def test_cond_fn_parameters():
     graph = tf.Graph()
     with graph.as_default():
         def fn1(x, y):
@@ -177,13 +181,14 @@ def cond_fn_parameters():
         j = tf.constant(2)
         k = tf.constant(3)
         r = tf.cond(tf.less(i, j), lambda: fn1(i, k), lambda: fn2(j, k))
+
         with tf.Session() as sess:
             tf_out = sess.run(r, feed_dict={i: 1, j: 2, k: 3})
 
     check_equal(graph, tf_out)
 
 
-def nested_cond():
+def test_nested_cond():
     graph = tf.Graph()
     with graph.as_default():
         def fn1(a, b):
@@ -204,13 +209,14 @@ def nested_cond():
         z = tf.constant(7)
         pred = tf.less(x, y)
         r = tf.cond(pred, lambda: fn1(x, y), lambda: fn2(y, z))
+
         with tf.Session() as sess:
             tf_out = sess.run(r, feed_dict={x: 1, y: 2, z: 3, pred: True})
 
     check_equal(graph, tf_out)
 
 
-def loop_in_cond():
+def test_loop_in_cond():
     graph = tf.Graph()
     with graph.as_default():
         def fn1(a, b):
@@ -237,7 +243,7 @@ def loop_in_cond():
     check_equal(graph, tf_out)
 
 
-def cond_in_loop():
+def test_cond_in_loop():
     graph = tf.Graph()
     with graph.as_default():
         def body(x):
@@ -258,41 +264,22 @@ def cond_in_loop():
     check_equal(graph, tf_out)
 
 
-def loop_lambda_placeholder():
-    graph = tf.Graph()
-    with graph.as_default():
-        c = lambda i, j: tf.equal(tf.less(i, 17), tf.greater(j, 7))
-        b = lambda i, j: [i + 3, j - 13]
-
-        i = tf.placeholder(tf.float32)
-        j = tf.placeholder(tf.float32)
-        r = tf.while_loop(c, b, loop_vars=[i, j])
-
-        with tf.Session() as sess:
-            tf_out = sess.run(r, feed_dict={i: -203, j: 107})
-
-    check_equal(graph, tf_out)
-
-
 if __name__ == "__main__":
 
     # tf.while_loop
-    vanilla_loop()
-    loop_2_vars()
-    loop_3_vars()
-    loop_conditions()
-    loop_bodies()
+    test_vanilla_loop()
+    test_loop_2_vars()
+    test_loop_3_vars()
+    test_loop_conditions()
+    test_loop_bodies()
 
     # tf.cond
-    vanilla_cond()
-    multiple_cond_vars()
-    cond_fn_parameters()
+    test_vanilla_cond()
+    test_multiple_cond_vars()
+    test_cond_fn_parameters()
 
     # nested cases
-    nested_loop()
-    nested_cond()
-    loop_in_cond()
-    cond_in_loop()
-
-    # w/ placeholder and lambda
-    loop_lambda_placeholder()
+    test_nested_loop()
+    test_nested_cond()
+    test_loop_in_cond()
+    test_cond_in_loop()
