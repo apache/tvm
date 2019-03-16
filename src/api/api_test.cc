@@ -39,6 +39,30 @@ TVM_REGISTER_API("_nop")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
   });
 
+TVM_REGISTER_API("_test_wrap_callback")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    PackedFunc pf = args[0];
+    *ret = runtime::TypedPackedFunc<void()>([pf](){
+        pf();
+      });
+  });
+
+TVM_REGISTER_API("_test_raise_error_callback")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    std::string msg = args[0];
+    *ret = runtime::TypedPackedFunc<void()>([msg](){
+        LOG(FATAL) << msg;
+      });
+  });
+
+TVM_REGISTER_API("_test_check_eq_callback")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    std::string msg = args[0];
+    *ret = runtime::TypedPackedFunc<void(int x, int y)>([msg](int x, int y){
+        CHECK_EQ(x, y) << msg;
+      });
+  });
+
 TVM_REGISTER_API("_context_test")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     DLContext ctx = args[0];
@@ -48,6 +72,20 @@ TVM_REGISTER_API("_context_test")
     CHECK_EQ(static_cast<int>(ctx.device_id), did);
     *ret = ctx;
   });
+
+
+// in src/api_test.cc
+void ErrorTest(int x, int y) {
+  // raise ValueError
+  CHECK_EQ(x, y) << "ValueError: expect x and y to be equal.";
+  if (x == 1) {
+    // raise InternalError.
+    LOG(FATAL) << "InternalError: cannot reach here";
+  }
+}
+
+TVM_REGISTER_API("_ErrorTest")
+.set_body_typed<void(int, int)>(ErrorTest);
 
 // internal function used for debug and testing purposes
 TVM_REGISTER_API("_ndarray_use_count")

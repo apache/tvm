@@ -2,7 +2,7 @@ import ctypes
 import traceback
 from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
-from ..base import string_types
+from ..base import string_types, py2cerror
 from ..node_generic import convert_to_node, NodeGeneric
 from ..runtime_ctypes import TVMType, TVMContext, TVMByteArray
 
@@ -38,6 +38,7 @@ cdef int tvm_callback(TVMValue* args,
         rv = local_pyfunc(*pyargs)
     except Exception:
         msg = traceback.format_exc()
+        msg = py2cerror(msg)
         TVMAPISetLastError(c_str(msg))
         return -1
     if rv is not None:
