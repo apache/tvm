@@ -81,6 +81,10 @@ def get_valid_counts_pre(data, flag, idx, score_threshold):
             flag[tid] = 0
             idx[tid] = 0
 
+    ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
+                          tvm.convert(['shared']),
+                          tvm.expr.Call.Intrinsic, None, 0))
+
     with ib.if_scope(tid < batch_size):
         with ib.for_range(0, num_anchors) as k:
             with ib.if_scope(k > 0):
