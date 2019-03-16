@@ -101,5 +101,5 @@ def non_max_suppression(data,
     """
     return _make.non_max_suppression(data, valid_count, max_output_size,
                                      iou_threshold, force_suppress, top_k,
-                                     coord_start, score_index, id_index, 
+                                     coord_start, score_index, id_index,
                                      return_indices, invalid_to_bottom)
