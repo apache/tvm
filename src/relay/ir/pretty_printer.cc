@@ -90,7 +90,7 @@ class TextMetaDataContext {
   }
   /*!
    * \brief Get the metadata section in json format.
-   * \return the meta datastring.
+   * \return the meta data string.
    */
   std::string GetMetaSection() const {
     if (meta_data_.size() == 0) return std::string();
