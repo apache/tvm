@@ -36,7 +36,7 @@ The ```rpc_config.txt``` file should be in the following format:
 ```
 The build script will copy all the dynamic libraries into bundle ```tvmrpc.app/Frameworks/tvm```,
 which you will be able to load via RPC using ```remote.load_module```.
-It will also create an ```tvmrpc.app/Frameworks/tvm/rpc_config.txt``` contaiing the first line.
+It will also create an ```tvmrpc.app/Frameworks/tvm/rpc_config.txt``` containing the first line.
 
 When we run the testcase, the testcase read the configuration from ```tvmrpc.app/Frameworks/tvm/rpc_config.txt```
 and connect to the specified RPC proxy, start serving loop.
