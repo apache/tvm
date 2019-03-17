@@ -115,7 +115,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
     char axis = v->var.get()->name_hint[0];
     if (axis >= 'a' && axis <= 'z') {
       CHECK(exist_axis[axis-'a'+'A']) << "Invalid layout " << name << ": missing axis "
-                                      << axis - 'a' + 'A';
+                                      << axis;
     }
   }
 }
