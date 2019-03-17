@@ -6,6 +6,8 @@ And configure the proxy host field as commented.
 
 import tvm
 import os
+import re
+import sys
 from tvm import rpc
 from tvm.contrib import util, xcode
 import numpy as np
@@ -15,6 +17,12 @@ proxy_host = os.environ["TVM_IOS_RPC_PROXY_HOST"]
 # Set your desination via env variable.
 # Should in format "platform=iOS,id=<the test device uuid>"
 destination = os.environ["TVM_IOS_RPC_DESTINATION"]
+
+if not re.match(r"^platform=.*,id=.*$", destination):
+    print("Bad format: {}".format(destination))
+    print("Example of expected string: platform=iOS,id=1234567890abcabcabcabc1234567890abcabcab")
+    sys.exit(1)
+
 proxy_port = 9090
 key = "iphone"
 
