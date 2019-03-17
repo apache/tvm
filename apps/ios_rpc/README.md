@@ -8,15 +8,15 @@ You will need XCode and an iOS device to use this.
 ## Building
 Before start, please run ```init_proj.py``` to update XCode developer metadata. After this step, open
 ```tvmrpc.xcodeproj``` by using XCode, build the App and install the App on the phone. Usually, we
-**do not** use the iOS App directly. 
+**do not** use the iOS App directly.
 
 ## Workflow
 Due to security restriction of iOS10. We cannot upload dynamic libraries to the App and load it from sandbox.
 Instead, we need to build a list of libraries, pack them into the app bundle, launch the RPC server and
 connect to test the bundled libraries. We use ```xcodebuild test``` to automate this process.
 
-The test script [tests/ios_rpc_test.py](tests/ios_rpc_test.py) is a good template for the workflow. With this 
-script, we don't need to manually operate the iOS App, this script will build the app, run it and collect the results automatically. 
+The test script [tests/ios_rpc_test.py](tests/ios_rpc_test.py) is a good template for the workflow. With this
+script, we don't need to manually operate the iOS App, this script will build the app, run it and collect the results automatically.
 
  To run the script,  you need to configure the following environment variables
 
