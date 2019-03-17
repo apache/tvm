@@ -582,5 +582,57 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
         Conv2DInferCorrectLayout<Conv2DAttrs>);
 
 
+// Positional relay function to create depthwise conv2d NCHWc operator
+// used by frontend FFI.
+Expr MakeDepthwiseConv2DNCHWc(Expr data,
+                              Expr kernel,
+                              Array<IndexExpr> strides,
+                              Array<IndexExpr> padding,
+                              Array<IndexExpr> dilation,
+                              int groups,
+                              IndexExpr channels,
+                              Array<IndexExpr> kernel_size,
+                              std::string data_layout,
+                              std::string kernel_layout,
+                              std::string out_layout,
+                              DataType out_dtype) {
+  auto attrs = make_node<Conv2DAttrs>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->channels = channels;
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->out_dtype = std::move(out_dtype);
+  static const Op& op = Op::Get("nn.contrib_depthwise_conv2d_NCHWc");
+  return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 12>(MakeDepthwiseConv2DNCHWc, args, rv);
+  });
+
+
+RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
+.describe(R"code(Compute conv2d with NCHWc data layout. Only supports NCHW layout.
+- **data**: Input is 5D packed tensor.
+- **weight**: 6D packed tensor.
+
+- **out**:  Output is 5D packed tensor
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.DepthwiseConv2D")
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(10)
+.add_type_rel("Conv2D", Conv2DRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+        Conv2DInferCorrectLayout<Conv2DAttrs>);
+
+
 }  // namespace relay
 }  // namespace tvm
