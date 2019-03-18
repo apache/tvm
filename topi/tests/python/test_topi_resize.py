@@ -5,6 +5,8 @@ import topi
 import topi.testing
 import math
 
+from common import get_all_backend
+
 def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, out_width, layout='NCHW', align_corners=False):
 
     if layout == 'NCHW':
@@ -40,7 +42,7 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
 
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
 
-    for device in ['llvm', 'cuda', 'vulkan', 'nvptx']:
+    for device in get_all_backend():
         check_device(device)
 
 def test_resize():
