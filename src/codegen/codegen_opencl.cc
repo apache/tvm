@@ -208,6 +208,25 @@ void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOL
   os << "))";
 }
 
+void CodeGenOpenCL::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
+  /* Return type of ternary expression is not always same as its sub-expressions,
+   * add a cast */
+  if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    os << "(";
+    PrintType(op->args[2].type(), os);
+    os << ")";
+  }
+  CodeGenC::VisitExpr_(op, os);
+}
+
+void CodeGenOpenCL::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
+  /* Return type of ternary expression is not always same as its sub-expressions,
+   * add a cast */
+  os << "(";
+  PrintType(op->true_value.type(), os);
+  os << ")";
+  CodeGenC::VisitExpr_(op, os);
+}
 
 runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
   using tvm::runtime::Registry;
