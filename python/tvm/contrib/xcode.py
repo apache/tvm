@@ -126,8 +126,13 @@ def compile_metal(code, path_target=None, sdk="macosx"):
         out_file.write(code)
     file_target = path_target if path_target else temp_target
 
+    # See:
+    # - https://developer.apple.com/documentation/metal/gpu_functions_libraries/building_a_library_with_metal_s_command-line_tools#overview # pylint: disable=line-too-long
+    #
+    #   xcrun -sdk macosx metal -c MyLibrary.metal -o MyLibrary.air
+    #   xcrun -sdk macosx metallib MyLibrary.air -o MyLibrary.metallib
     cmd1 = ["xcrun", "-sdk", sdk, "metal", "-O3"]
-    cmd1 += [temp_code, "-o", temp_ir]
+    cmd1 += ["-c", temp_code, "-o", temp_ir]
     cmd2 = ["xcrun", "-sdk", sdk, "metallib"]
     cmd2 += [temp_ir, "-o", file_target]
     proc = subprocess.Popen(
