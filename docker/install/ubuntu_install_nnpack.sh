@@ -7,7 +7,8 @@ set -o pipefail
 apt-get update && apt-get install -y --no-install-recommends git cmake
 
 # TODO: specific tag?
-git clone --branch=1e005b0c2 --depth=1 https://github.com/Maratyszcza/NNPACK NNPACK
+git clone https://github.com/Maratyszcza/NNPACK NNPACK
+(cd NNPACK && git checkout 1e005b0c2)
 
 mkdir -p NNPACK/build
 cd NNPACK/build
