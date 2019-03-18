@@ -7,7 +7,7 @@ from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
 from ... import nd as _nd
-from .common import ExprTable
+from .common import ExprTable, new_var
 
 __all__ = ['from_keras']
 
@@ -664,7 +664,7 @@ def from_keras(model, shape=None):
     def _convert_input_layer(keras_layer):
         input_name = keras_layer.name
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
-        etab.set_expr(input_name, _expr.var(input_name, shape=input_shape))
+        etab.set_expr(input_name, new_var(input_name, shape=input_shape))
 
     etab = ExprTable()
     for keras_layer in model.layers:
