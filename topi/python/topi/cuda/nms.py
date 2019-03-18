@@ -61,7 +61,7 @@ def get_valid_counts_pre(data, flag, idx, score_threshold):
     idx = ib.buffer_ptr(idx)
     score_threshold = tvm.make.node("FloatImm", dtype="float32", value=score_threshold)
 
-    max_threads = int(math.sqrt(tvm.target.current_target(allow_none=False).max_num_threads))
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -80,10 +80,6 @@ def get_valid_counts_pre(data, flag, idx, score_threshold):
         with ib.else_scope():
             flag[tid] = 0
             idx[tid] = 0
-
-    ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                          tvm.convert(['shared']),
-                          tvm.expr.Call.Intrinsic, None, 0))
 
     with ib.if_scope(tid < batch_size):
         with ib.for_range(0, num_anchors) as k:
