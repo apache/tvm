@@ -197,7 +197,7 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     threshold = tvm.make.node("FloatImm", dtype="float32", value=threshold)
 
     max_threads = int(
-        tvm.target.current_target(allow_none=False).max_num_threads)
+        math.sqrt(tvm.target.current_target(allow_none=False).max_num_threads))
     nthread_tx = max_threads
     nthread_bx = (batch_size *  num_anchors) // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -309,7 +309,7 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
     out_loc = ib.buffer_ptr(out)
 
     max_threads = int(
-        tvm.target.current_target(allow_none=False).max_num_threads)
+        math.sqrt(tvm.target.current_target(allow_none=False).max_num_threads))
     nthread_tx = max_threads
     nthread_bx = (batch_size * num_anchors) // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")

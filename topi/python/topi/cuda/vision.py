@@ -33,10 +33,14 @@ def _default_schedule(outs):
     def traverse(op):
         """inline all one-to-one-mapping operators except the last stage (output)"""
         if op.tag in ["nms", "invalid_to_bottom"]:
-            sort = op.input_tensors[1]
+            if op.tag == "nms":
+                sort = op.input_tensors[1]
+            else:
+                out = op.input_tensors[0]
+                sort = s[out].op.input_tensors[1]
             score = s[sort].op.input_tensors[0]
             fused = s[score].fuse(*s[score].op.axis)
-            num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+            num_thread = int(tvm.target.current_target(allow_none=False).max_num_threads)
             bx, tx = s[score].split(fused, factor=num_thread)
             s[score].bind(bx, tvm.thread_axis("blockIdx.x"))
             s[score].bind(tx, tvm.thread_axis("threadIdx.x"))
