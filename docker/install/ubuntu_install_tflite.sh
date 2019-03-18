@@ -5,7 +5,7 @@ set -u
 set -o pipefail
 
 # Download, build and install flatbuffers
-git clone --depth=1 --recursive https://github.com/google/flatbuffers.git
+git clone --branch=v1.10.0 --depth=1 --recursive https://github.com/google/flatbuffers.git
 cd flatbuffers
 cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 make install -j8
