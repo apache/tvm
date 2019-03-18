@@ -181,7 +181,6 @@ class PrettyPrinter :
 
   Doc PrintAttrs(const Attrs& attrs, const Expr& op);
 
-  // note: gnf flag is only one level deep
   Doc Print(const NodeRef& node, bool meta = false) {
     if (node.as_derived<ExprNode>()) {
       return PrintExpr(Downcast<Expr>(node), meta);

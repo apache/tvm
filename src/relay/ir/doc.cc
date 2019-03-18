@@ -32,6 +32,7 @@ Doc::Doc(const std::string& str) {
 // DSL function implementations
 
 Doc& Doc::operator<<(const Doc& right) {
+  assert(this != &right);
   this->stream_.insert(this->stream_.end(), right.stream_.begin(), right.stream_.end());
   return *this;
 }
