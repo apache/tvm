@@ -7,7 +7,7 @@ namespace tvm {
 TVM_REGISTER_GLOBAL("_register_datatype")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       DatatypeRegistry::Global()->RegisterDatatype(
-          args[0], (uint8_t)args[1].operator int());
+          args[0], (uint8_t)args[1].operator int(), args[2].operator size_t());
     });
 
 TVM_REGISTER_GLOBAL("_get_type_code")
@@ -20,10 +20,19 @@ TVM_REGISTER_GLOBAL("_get_type_name")
       *ret = DatatypeRegistry::Global()->GetTypeName(args[0].operator int());
     });
 
+TVM_REGISTER_GLOBAL("_get_storage_size")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      // TODO(gus) I cast this down to an int so that it can be automatically
+      // converted to TVMRetValue. This is dumb and should be fixed somehow.
+      *ret = (int)DatatypeRegistry::Global()->GetStorageSize(args[0].operator int());
+    });
+
 void DatatypeRegistry::RegisterDatatype(const std::string& type_name,
-                                        uint8_t type_code) {
+                                        uint8_t type_code,
+                                        size_t storage_size) {
   code_to_name[type_code] = type_name;
   name_to_code[type_name] = type_code;
+  code_to_storage_size[type_code] = storage_size;
 }
 
 uint8_t DatatypeRegistry::GetTypeCode(const std::string& type_name) {
@@ -32,6 +41,10 @@ uint8_t DatatypeRegistry::GetTypeCode(const std::string& type_name) {
 
 std::string DatatypeRegistry::GetTypeName(uint8_t type_code) {
   return code_to_name[type_code];
+}
+
+size_t DatatypeRegistry::GetStorageSize(uint8_t type_code) {
+  return code_to_storage_size[type_code];
 }
 
 const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
