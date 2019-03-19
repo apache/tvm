@@ -42,7 +42,7 @@ def sort_ir(data, valid_count, output, axis, is_ascend, flag):
     axis_mul_after = 1
     shape = data.shape
     if axis < 0:
-        axis = len(shape) + axis;
+        axis = len(shape) + axis
     for i in range(0, len(shape)):
         size *= shape[i]
         if i < axis:
@@ -112,12 +112,12 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
     out : tvm.Tensor
         The output of this function.
     """
-    data_buf = api.decl_buffer(data.shape, data.dtype,"data_buf", data_alignment=8)
+    data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     valid_count_buf = api.decl_buffer(valid_count.shape, valid_count.dtype,
                                       "valid_count_buf", data_alignment=4)
     out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=4)
 
-    out =  tvm.extern([data.shape],
+    out = tvm.extern([data.shape],
                       [data, valid_count],
                       lambda ins, outs: sort_ir(
                           ins[0], ins[1], outs[0], axis, bool(is_ascend), bool(flag)),
@@ -127,4 +127,3 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
                       name="argsort_gpu",
                       tag="argsort_gpu")
     return out
-
