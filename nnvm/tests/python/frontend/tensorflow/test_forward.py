@@ -137,7 +137,7 @@ def is_gpu_available():
     from tensorflow.python.client import device_lib
     local_device_protos = device_lib.list_local_devices()
     gpu_list = [x.name for x in local_device_protos if x.device_type == 'GPU']
-    if len(gpu_list) < 0:
+    if len(gpu_list) > 0:
         print("Tensorflow GPU:", gpu_list)
         return True
     else:
@@ -168,7 +168,7 @@ def _test_pooling(input_shape, **kwargs):
 
     if is_gpu_available():
         input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
-        kwargs['data_layout'] = 'NCHW'
+        kwargs['data_format'] = 'NCHW'
         _test_pooling_iteration(input_shape, **kwargs)
 
 def test_forward_pooling():
@@ -225,8 +225,12 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
         in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
-        strides = [1] + strides + [1]
-        dilations = [1] + dilations + [1]
+        if data_format == 'NHWC':
+            strides = [1] + strides + [1]
+            dilations = [1] + dilations + [1]
+        else:
+            strides = [1, 1] + strides
+            dilations = [1, 1] + dilations
 
         nn_ops.conv2d(in_data,
                       in_filter,
@@ -898,7 +902,7 @@ def test_forward_mobilenet():
 
 #######################################################################
 # ResnetV2
-# ---------
+# --------
 def test_forward_resnetv2():
     '''test resnet model'''
     if is_gpu_available():
@@ -912,8 +916,13 @@ def test_forward_resnetv2():
 
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
-                tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', tf_output.shape, 'float32')
-                tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+                for device in ["llvm", "cuda"]:
+                    ctx = tvm.context(device, 0)
+                    if not ctx.exist:
+                        print("Skip because %s is not enabled" % device)
+                        continue
+                    tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', len(tf_output), target=device)
+                    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # PTB

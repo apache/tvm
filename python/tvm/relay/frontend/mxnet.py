@@ -437,6 +437,17 @@ def _mx_roi_align(inputs, attrs):
     new_attrs["layout"] = "NCHW"
     return _op.vision.roi_align(inputs[0], inputs[1], **new_attrs)
 
+def _mx_upsampling(inputs, attrs):
+    scale_height = attrs.get_float("scale_height", None)
+    scale_width = attrs.get_float("scale_width", None)
+    height = attrs.get_int("height", 1)
+    width = attrs.get_int("width", 1)
+    if scale_height is not None:
+        height = scale_height * inputs[0].shape[2]
+    if scale_width is not None:
+        width = scale_width * inputs[0].shape[3]
+    size = (inputs[0].shape[0], inputs[0].shape[1], height, width)
+    return _op.image.resize(inputs[0], size)
 
 def _mx_roi_pooling(inputs, attrs):
     new_attrs = {}
@@ -646,6 +657,7 @@ _convert_map = {
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     # vision
+    "_contrib_BilinearResize2D" : _mx_upsampling,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
     "_contrib_MultiBoxDetection" : _mx_multibox_detection,
     "_contrib_ROIAlign" : _mx_roi_align,

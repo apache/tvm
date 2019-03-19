@@ -1,4 +1,4 @@
-from ..base import TVMError
+from ..base import get_last_ffi_error
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython cimport pycapsule
@@ -148,7 +148,7 @@ cdef inline c_str(pystr):
 
 cdef inline CALL(int ret):
     if ret != 0:
-        raise TVMError(py_str(TVMGetLastError()))
+        raise get_last_ffi_error()
 
 
 cdef inline object ctypes_handle(void* chandle):
