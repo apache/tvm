@@ -52,6 +52,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
                                             uint8_t type_code,
                                             uint8_t src_type_code);
 
+  // TODO(gus) Could use asserts here
 #define DEFINE_GET_LOWER_FUNC_(OP)                                  \
   inline const runtime::PackedFunc* Get##OP##LowerFunc(             \
       const std::string& target, uint8_t type_code) {               \
