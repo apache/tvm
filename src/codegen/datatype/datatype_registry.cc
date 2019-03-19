@@ -79,10 +79,11 @@ TVM_REGISTER_GLOBAL("_register_Cast")
       const std::string type = args[1];
       const std::string src_type = args[2];
       const std::string extern_func_name = args[3];
+
       auto lower_cast_name =
-          "tvm.datatypes.lower." + target + ".cast." + type + "." + src_type;
+          "tvm.datatypes.lower." + target + ".Cast." + type + "." + src_type;
       runtime::Registry::Register(lower_cast_name)
-          .set_body([extern_func_name](TVMArgs args, TVMRetValue* rv) {
+          .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {
             Expr e = args[0];
             const ir::Cast *cast = e.as<ir::Cast>();
             internal_assert(cast);
