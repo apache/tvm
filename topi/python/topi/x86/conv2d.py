@@ -42,7 +42,7 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
-    pat = re.compile('NCHW.+(\d+)c')
+    pat = re.compile(r'NCHW.+(\d+)c')
     if layout == 'NCHW':
         n, ic, h, w = dshape
         oc, _, kh, kw = kshape
