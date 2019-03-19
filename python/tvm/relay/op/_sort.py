@@ -1,8 +1,9 @@
 """Definition of argsort op"""
+# pylint: disable=invalid-name,unused-argument
 from __future__ import absolute_import
 
 import topi
-from topi.util import get_const_int, get_const_float, get_float_tuple
+from topi.util import get_const_int
 from .. import op as reg
 from ..op import OpPattern
 
