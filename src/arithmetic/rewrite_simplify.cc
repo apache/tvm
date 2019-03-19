@@ -96,6 +96,8 @@ class RewriteSimplifier::Impl : public IRMutator {
     kEQ,
     kGT,
     kLT,
+    kGE,
+    kLE,
     kNE
   };
   // reference to the main analyzer
@@ -139,6 +141,12 @@ class RewriteSimplifier::Impl : public IRMutator {
     }
     if (dbound->max_value < val) {
       return kLT;
+    }
+    if (dbound->min_value >= val) {
+      return kGE;
+    }
+    if (dbound->max_value <= val) {
+      return kLE;
     }
     return kUnknown;
   }
@@ -994,12 +1002,10 @@ Mutate_(const EQ* op, const Expr& self) {
 
   if (IsIndexType(op->a.type())) {
     CompareResult result = TryCompare(op->a - op->b, 0);
-    if (result != kUnknown) {
-      if (result == kEQ) {
-        return make_const(op->type, true);
-      } else {
-        return make_const(op->type, false);
-      }
+    if (result == kEQ) {
+      return make_const(op->type, true);
+    } else if (result == kNE || result == kGT || result == kLT) {
+      return make_const(op->type, false);
     }
     TVM_TRY_REWRITE(x - c1 == 0, x == c1);
     TVM_TRY_REWRITE(c1 - x == 0, x == c1);
@@ -1055,7 +1061,7 @@ Mutate_(const LT* op, const Expr& self) {
     if (result == kLT) {
       return make_const(op->type, true);
     }
-    if (result == kEQ || result == kGT) {
+    if (result == kEQ || result == kGT || result == kGE) {
       return make_const(op->type, false);
     }
 
