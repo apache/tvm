@@ -11,3 +11,8 @@ extern "C" uint8_t GetTypeCode(const std::string& type_name) {
   return (*tvm::runtime::Registry::Get("_get_type_code"))(type_name).
   operator int();
 }
+
+extern "C" size_t GetStorageSize(uint8_t type_code) {
+  return (*tvm::runtime::Registry::Get("_get_storage_size"))(type_code).
+  operator unsigned long();
+}

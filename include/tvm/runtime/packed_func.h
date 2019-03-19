@@ -44,6 +44,7 @@
 
 extern "C" std::string GetTypeName(uint8_t);
 extern "C" uint8_t GetTypeCode(const std::string& type_name);
+extern "C" size_t GetStorageSize(uint8_t type_code);
 
 namespace HalideIR {
 // Forward declare type for extensions
@@ -1025,7 +1026,15 @@ inline TVMType String2TVMType(std::string s) {
     scan += custom_name_len + 1;
 
     auto type_name = s.substr(7, custom_name_len);
+    // TODO(gus) asserts for these?
     t.code = GetTypeCode(type_name);
+    t.bits = GetStorageSize(t.code);
+    // TODO(gus) We assume above that the storage size will have been set for
+    // this custom type. At this point, parsing will continue, and will
+    // potentially parse out a bitwidth from the string, e.g. if the user
+    // supplied `custom[mytype]16x8`. This would result in overwriting the
+    // bitwidth that we just grabbed with GetStorageSize. We're going to assume
+    // that the user DOESN'T do this; the behavior if they do this is undefined.
   } else {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;
