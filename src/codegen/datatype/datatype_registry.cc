@@ -53,7 +53,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
   std::ostringstream ss;
   ss << "tvm.datatypes.lower.";
   ss << target << ".";
-  ss << "cast"
+  ss << "Cast"
      << ".";
 
   if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {
@@ -73,8 +73,8 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
   return runtime::Registry::Get(ss.str());
 }
 
-TVM_REGISTER_GLOBAL("_register_cast")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("_register_Cast")
+    .set_body([](TVMArgs args, TVMRetValue *rv) {
       const std::string target = args[0];
       const std::string type = args[1];
       const std::string src_type = args[2];
@@ -84,7 +84,7 @@ TVM_REGISTER_GLOBAL("_register_cast")
       runtime::Registry::Register(lower_cast_name)
           .set_body([extern_func_name](TVMArgs args, TVMRetValue* rv) {
             Expr e = args[0];
-            const ir::Cast* cast = e.as<ir::Cast>();
+            const ir::Cast *cast = e.as<ir::Cast>();
             internal_assert(cast);
             // TODO(gus) UInt(32) here is the resulting storage class, maybe.
             // They should probably be able to specify this themselves. Or it should

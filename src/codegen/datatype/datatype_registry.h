@@ -62,10 +62,8 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
 #define DEFINE_GET_LOWER_FUNC_(OP)                                  \
   inline const runtime::PackedFunc* Get##OP##LowerFunc(             \
       const std::string& target, uint8_t type_code) {               \
-    internal_assert(                                                \
-        DatatypeRegistry::Global()->DatatypeRegistered(type_code)); \
     return runtime::Registry::Get(                                  \
-        "tvm.datatypes. ## OP ## .lower.add." +                     \
+        "tvm.datatypes.lower." + target + "." #OP "." +             \
         DatatypeRegistry::Global()->GetTypeName(type_code));        \
   }
 
