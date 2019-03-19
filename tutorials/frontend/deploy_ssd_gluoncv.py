@@ -61,9 +61,8 @@ supported_model = [
     'ssd_512_mobilenet1.0_coco',
 ]
 
-model_name = "ssd_512_resnet50_v1_voc"
+model_name = supported_model[4]
 dshape = (1, 3, 512, 512)
-dtype = "float32"
 target_list = ctx_list()
 
 ######################################################################
@@ -79,7 +78,7 @@ x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 
 block = model_zoo.get_model(model_name, pretrained=True)
 
-def compile(target):
+def build(target):
     net, params = relay.frontend.from_mxnet(block, {"data": dshape})
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(net, target, params=params)
@@ -100,9 +99,11 @@ def run(graph, lib, params, ctx):
     class_IDs, scores, bounding_boxs = m.get_output(0), m.get_output(1), m.get_output(2)
     return class_IDs, scores, bounding_boxs
 
-for target, ctx in target_list:
-    graph, lib, params = compile(target)
-    class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
+#for target, ctx in target_list:
+target = 'cuda'
+ctx = tvm.gpu(0)
+graph, lib, params = build(target)
+class_IDs, scores, bounding_boxs = run(graph, lib, params, ctx)
 
 ######################################################################
 # Display result

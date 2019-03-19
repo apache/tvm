@@ -30,6 +30,20 @@
 namespace tvm {
 namespace relay {
 
+struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
+  int axis;
+  bool is_ascend;
+
+  TVM_DECLARE_ATTRS(ArgsortAttrs, "relay.attrs.ArgsortAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(-1)
+      .describe("Axis along which to sort the input tensor."
+                "If not given, the flattened array is used.");
+    TVM_ATTR_FIELD(is_ascend).set_default(true)
+      .describe("Whether to sort in ascending or descending order."
+                "By default, sort in ascending order");
+  }
+};
+
 /*! \brief Attributes used in multibox_prior operators */
 struct MultiBoxPriorAttrs : public tvm::AttrsNode<MultiBoxPriorAttrs> {
   Array<IndexExpr> sizes;

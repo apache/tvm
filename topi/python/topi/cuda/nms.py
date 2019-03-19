@@ -23,6 +23,7 @@ from tvm import api
 from tvm.intrin import if_then_else
 from topi.vision import non_max_suppression, get_valid_counts
 from ..util import get_const_tuple
+from .sort import argsort
 
 
 def get_valid_counts_pre(data, flag, idx, score_threshold):
@@ -201,65 +202,6 @@ def get_valid_counts_gpu(data, score_threshold=0):
 
     return [valid_count, out_tensor]
 
-
-def sort_ir(data, index, output):
-    """Low level IR to do sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
-
-    Parameters
-    ----------
-    data: Buffer
-        2D Buffer of input boxes' score with shape [batch_size, num_anchors].
-
-    index : Buffer
-        1D Buffer of number of valid number of boxes.
-
-    output : Buffer
-        2D Output buffer of indicies of sorted tensor with shape [batch_size, num_anchors].
-
-    Returns
-    -------
-    stmt : Stmt
-        The result IR statement.
-    """
-
-    assert data.dtype == "float32", "Currently only supports input dtype to be float32"
-    batch, num_anchors = get_const_tuple(data.shape)
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
-    ib = tvm.ir_builder.create()
-    p_data = ib.buffer_ptr(data)
-    p_index = ib.buffer_ptr(index)
-    p_out = ib.buffer_ptr(output)
-    nthread_tx = max_threads
-    nthread_bx = num_anchors // max_threads + 1
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("vthread")
-    ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "virtual_thread", nthread_bx)
-    tid = bx * nthread_tx + tx
-    temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
-    temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
-
-    with ib.for_range(0, batch, for_type="unroll") as b:
-        start = b * num_anchors
-        with ib.if_scope(tid < num_anchors):
-            p_out[start + tid] = tid
-        # OddEvenTransposeSort
-        with ib.for_range(0, p_index[b]) as k:
-            with ib.if_scope(tid < (p_index[b] + 1) // 2):
-                offset = start + 2 * tid + (k % 2)
-                with ib.if_scope( \
-                        tvm.all(offset + 1 < p_index[0], p_data[offset] < p_data[offset + 1])):
-                    temp_data[0] = p_data[offset]
-                    p_data[offset] = p_data[offset + 1]
-                    p_data[offset + 1] = temp_data[0]
-                    temp_index[0] = p_out[offset]
-                    p_out[offset] = p_out[offset + 1]
-                    p_out[offset + 1] = temp_index[0]
-            ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                                  tvm.convert(['shared']),
-                                  tvm.expr.Call.Intrinsic, None, 0))
-
-    return ib.get()
 
 def nms_ir(data, sorted_index, valid_count, out, box_indices,
            max_output_size, iou_threshold, force_suppress,
@@ -585,7 +527,7 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
         iou_threshold = 0.7
         force_suppress = True
         top_k = -1
-        out = non_max_supression(data=data, valid_count=valid_count, iou_threshold=iout_threshold,
+        out = non_max_supression(data=data, valid_count=valid_count, iou_threshold=iou_threshold,
                                  force_suppress=force_supress, top_k=top_k, return_indices=False)
         np_data = np.random.uniform(dshape)
         np_valid_count = np.array([4])
@@ -606,22 +548,13 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
-    score_tensor_buf = api.decl_buffer(score_tensor.shape, data.dtype,
+    score_tensor_buf = api.decl_buffer(score_shape, data.dtype,
                                        "score_tensor_buf", data_alignment=8)
 
-    sort_tensor_dtype = "int32"
-    sort_tensor_buf = api.decl_buffer(score_shape, sort_tensor_dtype,
-                                      "sort_tensor_buf", data_alignment=8)
+    sort_tensor = argsort(score_tensor, valid_count, score_axis, False, True)
 
-    sort_tensor = \
-        tvm.extern(score_shape,
-                   [score_tensor, valid_count],
-                   lambda ins, outs: sort_ir(
-                       ins[0], ins[1], outs[0]),
-                   dtype=sort_tensor_dtype,
-                   in_buffers=[score_tensor_buf, valid_count_buf],
-                   out_buffers=sort_tensor_buf,
-                   name="nms_sort")
+    sort_tensor_buf = api.decl_buffer(sort_tensor.shape, sort_tensor.dtype,
+                                      "sort_tensor_buf", data_alignment=8)
 
     data_buf = api.decl_buffer(
         data.shape, data.dtype, "data_buf", data_alignment=8)
@@ -630,7 +563,7 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
         data.shape, data.dtype, "out_buf", data_alignment=8)
 
     out, box_indices = \
-        tvm.extern([data.shape, (batch_size, num_anchors)],
+        tvm.extern([data.shape, score_shape],
                    [data, sort_tensor, valid_count],
                    lambda ins, outs: nms_ir(
                        ins[0], ins[1], ins[2], outs[0], outs[1],
@@ -638,6 +571,7 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
                        top_k, coord_start, id_index),
                    dtype=[data.dtype, "int32"],
                    in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
+                   name="nms",
                    tag="nms")
 
     if return_indices:
@@ -647,11 +581,10 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
         output_buf = api.decl_buffer(
             data.shape, data.dtype, "output_buf", data_alignment=8)
         temp_flag_buf = api.decl_buffer(
-            (batch_size, num_anchors,), valid_count_dtype, "temp_flag", data_alignment=8)
+            score_shape, valid_count_dtype, "temp_flag", data_alignment=8)
         temp_idx_buf = api.decl_buffer(
-            (batch_size, num_anchors,), valid_count_dtype, "temp_idx", data_alignment=8)
-        temp_flag, temp_idx = tvm.extern([(batch_size, num_anchors,), \
-                                          (batch_size, num_anchors,)], [out],
+            score_shape, valid_count_dtype, "temp_idx", data_alignment=8)
+        temp_flag, temp_idx = tvm.extern([score_shape, score_shape], [out],
                                          lambda ins, outs: invalid_to_bottom_pre(
                                              ins[0], outs[0], outs[1]),
                                          dtype=["int32", "int32"],
@@ -665,6 +598,7 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
                             dtype=[data.dtype],
                             in_buffers=[out_buf, temp_flag_buf, temp_idx_buf],
                             out_buffers=[output_buf],
+                            name="invalid_to_bottom",
                             tag="invalid_to_bottom")
         return output
 

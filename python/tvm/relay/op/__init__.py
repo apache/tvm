@@ -24,6 +24,7 @@ from .op import get, register, register_schedule, register_compute, register_gra
 from .reduce import *
 from .tensor import *
 from .transform import *
+from .sort import *
 from . import nn
 from . import annotation
 from . import image

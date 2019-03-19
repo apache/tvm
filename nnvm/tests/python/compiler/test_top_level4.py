@@ -723,6 +723,7 @@ def test_argmax():
     np.testing.assert_allclose(out.asnumpy(), np_argmax, atol=1e-5, rtol=1e-5)
 
 if __name__ == "__main__":
+    test_non_max_suppression()
     test_reshape()
     test_broadcast()
     test_reduce()

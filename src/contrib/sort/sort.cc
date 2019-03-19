@@ -59,7 +59,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
   DLTensor *sort_num = args[1];
   DLTensor *output = args[2];
   int32_t axis = args[3];
-  bool is_descend = args[4];
+  bool is_ascend = args[4];
+  bool flag = args[5];
 
   auto dtype = input->dtype;
   auto data_ptr = static_cast<float *>(input->data);
@@ -88,19 +89,21 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
     }
   }
 
+  int32_t current_sort_num = input->shape[axis];
   for (int64_t i = 0 ; i < axis_mul_before; ++i) {
     for (int64_t j = 0 ; j < axis_mul_after; ++j) {
       sorter.clear();
-      int32_t current_sort_num = *(sort_num_ptr + i * axis_mul_after + j);
+      if (flag)
+        current_sort_num = *(sort_num_ptr + i * axis_mul_after + j);
       int64_t base_idx = i * input->shape[axis] * axis_mul_after + j;
       for (int64_t k = 0; k < current_sort_num; ++k) {
         int64_t full_idx = base_idx + k * axis_mul_after;
         sorter.emplace_back(std::make_pair(k, *(data_ptr + full_idx)));
       }
-      if (is_descend) {
-        std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<float>);
-      } else {
+      if (is_ascend) {
         std::stable_sort(sorter.begin(), sorter.end(), CompareAscend<float>);
+      } else {
+        std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<float>);
       }
       for (int32_t k = 0; k < input->shape[axis]; ++k) {
         *(static_cast<int32_t *>(output->data) + base_idx + k * axis_mul_after)
