@@ -1013,11 +1013,15 @@ inline TVMType String2TVMType(std::string s) {
   } else if (s.substr(0, 6) == "custom") {
     // TODO(gus): too much hardcoding here.
     scan = s.c_str() + 6;
-    if (*scan != '[') LOG(FATAL) << "expected opening brace after 'custom' type in" << s;
+    if (*scan != '[')
+      LOG(FATAL) << "expected opening brace after 'custom' type in" << s;
     ++scan;
     size_t custom_name_len = 0;
-    while (scan + custom_name_len <= s.c_str() + s.length() && *(scan+custom_name_len) != ']') ++custom_name_len;
-    if (*(scan+custom_name_len) != ']') LOG(FATAL) << "expected closing brace after 'custom' type in" << s;
+    while (scan + custom_name_len <= s.c_str() + s.length() &&
+           *(scan + custom_name_len) != ']')
+      ++custom_name_len;
+    if (*(scan + custom_name_len) != ']')
+      LOG(FATAL) << "expected closing brace after 'custom' type in" << s;
     scan += custom_name_len + 1;
 
     auto type_name = s.substr(7, custom_name_len);
