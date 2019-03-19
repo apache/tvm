@@ -344,7 +344,7 @@ class Reshape(OnnxOpConverter):
             m.run()
             params_new = m.get_output(0)
             inputs.pop(1)
-            out = _op.reshape(inputs[0], tuple(params_new.asnumpy().flatten()))
+            out = _op.reshape(inputs[0], tuple(params_new.asnumpy().astype('int32').flatten()))
 
         return out
 
@@ -483,20 +483,7 @@ class Shape(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        from topi.util import get_const_tuple
-        try:
-            out_type = ir_pass.infer_type(inputs[0])
-            out_shape = get_const_tuple(out_type.checked_type.shape)
-        except ValueError as e:
-            raise ImportError(
-                "Please pass graph level shapes to compute shape node properly {}".format(e))
-
-        node_name = attr['tvm_custom']['name']
-        params[node_name] = _nd.array(np.asarray(out_shape, dtype='int64'))
-
-        return _expr.var(node_name,
-                         shape=params[node_name].shape,
-                         dtype=params[node_name].dtype)
+        return _op.shape_of(inputs[0])
 
 class Cast(OnnxOpConverter):
     """ Operator converter for Cast.
