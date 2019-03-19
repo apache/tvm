@@ -82,6 +82,10 @@ RUN bash /install/ubuntu_install_redis.sh
 COPY install/ubuntu_install_antlr.sh /install/ubuntu_install_antlr.sh
 RUN bash /install/ubuntu_install_antlr.sh
 
+# NNPACK deps
+COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
+RUN bash /install/ubuntu_install_nnpack.sh
+
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}
