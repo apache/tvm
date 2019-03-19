@@ -31,6 +31,8 @@
 #include <type_traits>
 #include "expr.h"
 #include "ir.h"
+// TODO(gus) how to do this include?
+#include "../../src/codegen/datatype/datatype_registry.h"
 
 namespace tvm {
 /*!
@@ -551,6 +553,25 @@ inline Expr MakeConstScalar(Type t, ValueType value) {
   if (t.is_int()) return ir::IntImm::make(t, static_cast<int64_t>(value));
   if (t.is_uint()) return ir::UIntImm::make(t, static_cast<uint64_t>(value));
   if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
+  if (DatatypeRegistry::Global()->DatatypeRegistered(static_cast<uint8_t>(t.code()))) {
+    switch (DatatypeRegistry::Global()->GetStorageSize(t.code())) {
+    case 1:
+      // TODO(gus): here and below, hardcoding uint to 1.
+      // How should we do this?
+      return ir::UIntImm::make(Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()), static_cast<bool>(value));
+    case 8:
+      return ir::UIntImm::make(Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()), static_cast<uint8_t>(value));
+    case 16:
+      return ir::UIntImm::make(Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()), static_cast<uint16_t>(value));
+    case 32:
+      return ir::UIntImm::make(Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()), static_cast<uint32_t>(value));
+    case 64:
+      return ir::UIntImm::make(Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()), static_cast<uint64_t>(value));
+    default:
+      // TODO(gus): this should be handled earlier
+      LOG(FATAL) << "Custom datatype has invalid storage size";
+    }
+  }
   LOG(FATAL) << "cannot make const for type " << t;
   return Expr();
 }
