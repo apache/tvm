@@ -334,6 +334,10 @@ def _convert_upsample(inexpr, keras_layer, _):
             raise TypeError("Unsupported upsampling type with different axes size : {}"
                             .format(keras_layer.size))
         params = {'scale': h}
+
+        if hasattr(keras_layer, 'interpolation'):
+            params['method'] = 'NEAREST_NEIGHBOR' if keras_layer.interpolation == 'nearest' else 'BILINEAR'
+
     elif upsample_type == 'UpSampling3D':
         h, w, d = keras_layer.size
         if h != w or w != d:
