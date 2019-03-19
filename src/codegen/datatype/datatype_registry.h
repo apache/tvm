@@ -1,7 +1,7 @@
 #ifndef DATATYPE_REGISTRY_H_
 #define DATATYPE_REGISTRY_H_
 
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 #include <string>
 #include <unordered_map>
