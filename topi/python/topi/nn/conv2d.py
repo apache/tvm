@@ -331,7 +331,10 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     # default declaration
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding,
+                                                           (dilated_kernel_h,
+                                                            dilated_kernel_w))
+    HPAD = pad_top + pad_down and WPAD = pad_left + pad_right
     HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
     dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
     assert (dh, dw) == (1, 1), "Does not support dilation"
