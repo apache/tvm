@@ -468,7 +468,7 @@ def _mx_roi_align(inputs, attrs):
     new_attrs["layout"] = "NCHW"
     return _op.vision.roi_align(inputs[0], inputs[1], **new_attrs)
 
-def _mx_upsampling(inputs, attrs):
+def _mx_resize(inputs, attrs):
     scale_height = attrs.get_float("scale_height", None)
     scale_width = attrs.get_float("scale_width", None)
     height = attrs.get_int("height", 1)
@@ -771,7 +771,7 @@ _convert_map = {
     "SoftmaxActivation" : _mx_softmax_activation,
     "smooth_l1"     : _mx_smooth_l1,
     # vision
-    "_contrib_BilinearResize2D" : _mx_upsampling,
+    "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
     "_contrib_MultiBoxDetection" : _mx_multibox_detection,
     "_contrib_ROIAlign" : _mx_roi_align,
