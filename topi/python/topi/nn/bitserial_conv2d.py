@@ -246,7 +246,7 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     re_axes = cfg.define_reorder("reorder_0",
                                  [n, co, oh, ow, vc, vh, vw, kh, kw, kb, ib, ci],
                                  policy='interval_all', interval=(6, 11))
-    cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW)
+    # cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW)
     # ====================
 
     VC = cfg["tile_co"].size[-1]
@@ -348,7 +348,7 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     re_axes = cfg.define_reorder("reorder_0",
                                  [n, oh, ow, co, vh, vw, kh, kw, kb, ib, vc, ci],
                                  policy='interval_all', interval=(3, 7))
-    cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW)
+    cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW) # these are actually binary ops
     # ====================
 
     VC = cfg["tile_co"].size[-1]
