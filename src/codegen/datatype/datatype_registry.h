@@ -41,6 +41,9 @@ class DatatypeRegistry {
   inline bool DatatypeRegistered(uint8_t type_code) {
     return code_to_name.find(type_code) != code_to_name.end();
   }
+  inline bool DatatypeRegistered(std::string type_name) {
+    return name_to_code.find(type_name) != name_to_code.end();
+  }
 
  private:
   // TODO(gus) is there a typedef for the code?
