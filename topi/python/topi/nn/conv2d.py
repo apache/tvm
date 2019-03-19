@@ -334,7 +334,8 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding,
                                                            (dilated_kernel_h,
                                                             dilated_kernel_w))
-    HPAD = pad_top + pad_down and WPAD = pad_left + pad_right
+    HPAD = pad_top + pad_down
+    WPAD = pad_left + pad_right
     HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
     dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
     assert (dh, dw) == (1, 1), "Does not support dilation"
