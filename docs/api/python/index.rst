@@ -11,6 +11,7 @@ Python API
    target
    build
    module
+   error
    ndarray
    container
    function

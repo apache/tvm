@@ -26,9 +26,6 @@
  * \param e the exception
  * \return the return value of API after exception is handled
  */
-inline int TVMAPIHandleException(const std::runtime_error &e) {
-  TVMAPISetLastError(e.what());
-  return -1;
-}
+int TVMAPIHandleException(const std::runtime_error &e);
 
 #endif  // TVM_RUNTIME_RUNTIME_BASE_H_

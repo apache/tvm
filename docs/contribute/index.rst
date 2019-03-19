@@ -28,5 +28,6 @@ Here are guidelines for contributing to various aspect of the project:
    committer_guide
    document
    code_guide
+   error_handling
    pull_request
    git_howto
