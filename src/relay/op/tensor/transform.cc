@@ -753,24 +753,26 @@ Array<Tensor> TakeCompute(const Attrs& attrs,
   const auto* param = attrs.as<TakeAttrs>();
   CHECK(param != nullptr);
   if (!param->axis.defined()) {
-    return Array<Tensor>{ topi::take(inputs[0], inputs[1]) };
+    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->mode) };
   } else {
-    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->axis) };
+    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->axis, param->mode) };
   }
 }
 
 Expr MakeTake(Expr data,
               Expr indices,
-              Integer axis) {
+              Integer axis,
+              std::string mode) {
   auto attrs = make_node<TakeAttrs>();
   attrs->axis = std::move(axis);
+  attrs->mode = std::move(mode);
   static const Op& op = Op::Get("take");
   return CallNode::make(op, {data, indices}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_API("relay.op._make.take")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeTake, args, rv);
+    runtime::detail::unpack_call<Expr, 4>(MakeTake, args, rv);
 });
 
 RELAY_REGISTER_OP("take")

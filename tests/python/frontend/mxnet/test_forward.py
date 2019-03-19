@@ -464,13 +464,32 @@ def test_forward_embedding():
     verify((2, 2), (4, 5))
     verify((2, 3, 4), (4, 5))
 
-
 def test_forward_smooth_l1():
     data = mx.sym.var('data')
     mx_sym = mx.sym.smooth_l1(data)
     verify_mxnet_frontend_impl(mx_sym, (3, 4), (3, 4))
     mx_sym = mx.sym.smooth_l1(data, scalar=1.0)
     verify_mxnet_frontend_impl(mx_sym, (3, 4), (3, 4))
+
+def test_forward_take():
+    def verify(shape, indices_src, axis, mode="clip"):
+        x_np = np.random.uniform(size=shape).astype("float32")
+        indices_np = np.array(indices_src, dtype="float32")
+        ref_res = mx.nd.take(mx.nd.array(x_np), mx.nd.array(indices_np), axis, mode)
+        mx_sym = mx.sym.take(mx.sym.var("x"), mx.sym.var("y"), axis, mode)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape, "y": indices_np.shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x_np, indices_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((2,2), [[[1,0],[0,1]]], 0)
+    verify((2,2), [[[1,0],[0,1]]], 1)
+    verify((4,3,5,6), [[2,1,0,0]], -2)
+    verify((3,4), [-1, 5], 0)
+    verify((3,4), [-1, 5], 0, mode="wrap")
+    verify((3,4), [-1, 5], 1)
+    verify((3,4), [-1, 5], 1, mode="wrap")
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -507,3 +526,4 @@ if __name__ == '__main__':
     test_forward_full()
     test_forward_embedding()
     test_forward_smooth_l1()
+    test_forward_take()
