@@ -133,9 +133,9 @@ def test_forward_conv():
         verify_keras_frontend(keras_model)
 
 
-def test_forward_upsample():
+def test_forward_upsample(interpolation='nearest'):
     data = keras.layers.Input(shape=(32,32,3))
-    x = keras.layers.UpSampling2D(size=(3,3))(data)
+    x = keras.layers.UpSampling2D(size=(3,3), interpolation=interpolation)(data)
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
 
@@ -246,7 +246,8 @@ if __name__ == '__main__':
     test_forward_dense()
     test_forward_pool()
     test_forward_conv()
-    test_forward_upsample()
+    test_forward_upsample(interpolation='nearest')
+    test_forward_upsample(interpolation='bilinear')
     test_forward_reshape()
     test_forward_crop()
     test_forward_multi_inputs()
