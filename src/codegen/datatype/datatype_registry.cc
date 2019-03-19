@@ -87,26 +87,28 @@ TVM_REGISTER_GLOBAL("_register_Cast")
             Expr e = args[0];
             const ir::Cast *cast = e.as<ir::Cast>();
             internal_assert(cast);
-            // TODO(gus) UInt(32) here is the resulting storage class, maybe.
-            // They should probably be able to specify this themselves. Or it should
-            // be given when the datatype is originally registered.
-            *rv = ir::Call::make(UInt(32), extern_func_name, {cast->value},
-                                 ir::Call::Extern);
+            *rv = ir::Call::make(UInt(cast->type.bits()), extern_func_name,
+                                 {cast->value}, ir::Call::Extern);
           });
+    });
+
+#define REGISTER_OP_A_B(OP)                                                    \
+  TVM_REGISTER_GLOBAL("_register_" #OP)                                        \
+      .set_body([](TVMArgs args, TVMRetValue *rv) {                            \
+        const std::string target = args[0];                                    \
+        const std::string type = args[1];                                      \
+        const std::string extern_func_name = args[2];                          \
+        auto lower_op_name =                                                   \
+            "tvm.datatypes.lower." + target + "." #OP "." + type;              \
+        runtime::Registry::Register(lower_op_name)                             \
+            .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {      \
+              Expr e = args[0];                                                \
+              const ir::OP *op = e.as<ir::OP>();                               \
+              internal_assert(op);                                             \
+              *rv = ir::Call::make(UInt(op->type.bits()), extern_func_name,    \
+                                   {op->a, op->b}, ir::Call::Extern);          \
+            });                                                                \
       });
 
-TVM_REGISTER_GLOBAL("_register_op").set_body([](TVMArgs args, TVMRetValue* rv) {
-  const std::string target = args[0];
-  const std::string op = args[1];
-  PackedFunc ext_func = args[2];
-  auto ext_func_name = "tvm.datatypes.lower." + target + "." + op + ".external";
-  runtime::Registry::Register(ext_func_name).set_body(ext_func);
-  runtime::Registry::Register("tvm.datatypes.lower." + target + "." + op)
-      .set_body([ext_func_name](TVMArgs args, TVMRetValue* rv) {
-        Expr e = args[0];
-        const ir::Add* add = e.as<ir::Add>();
-        internal_assert(add);
-        return topi::detail::call_packed({Expr(ext_func_name), add->a, add->b});
-      });
-});
+REGISTER_OP_A_B(Add);
 }  // namespace tvm
