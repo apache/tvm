@@ -158,7 +158,7 @@ def register_error(func_name=None, cls=None):
 
 def _valid_error_name(name):
     """Check whether name is a valid error name."""
-    return all(x.isalnum() or x == '_' or x == '.' for x in name)
+    return all(x.isalnum() or x in "_." for x in name)
 
 
 def _find_error_type(line):

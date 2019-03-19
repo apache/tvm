@@ -72,7 +72,7 @@ corresponding error class automatically.
 
 How to choose an Error Type
 ---------------------------
-You can go through the error types are listed below, try to us common
+You can go through the error types are listed below, try to use common
 sense and also refer to the choices in the existing code.
 We try to keep a reasonable amount of error types.
 If you feel there is a need to add a new error type, do the following steps:
@@ -89,14 +89,18 @@ error messages when necessary.
 .. code:: python
 
    def preferred():
-       # very clear about what is being raised and what is the error message.
+       # Very clear about what is being raised and what is the error message.
        raise OpNotImplemented("Operator relu is not implemented in the MXNet fronend")
 
    def _op_not_implemented(op_name):
-       return OpNotImpelemented("Operator {} is not implemented.").format(op_name)
+       return OpNotImplemented("Operator {} is not implemented.").format(op_name)
 
    def not_preferred():
+       # Introduces another level of indirection.
        raise _op_not_implemented("relu")
+
+If we need to introduce a wrapper function that constructs multi-line error messages,
+please put wrapper in the same file so other developers can look up the implementation easily.
 
 
 System-wide Errors

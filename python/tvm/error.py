@@ -37,11 +37,11 @@ register_error("TypeError", TypeError)
 
 @register_error
 class OpError(TVMError):
-    """Base class of all operator errors in fronends."""
+    """Base class of all operator errors in frontends."""
 
 
 @register_error
-class OpNotImplemented(OpError):
+class OpNotImplemented(OpError, NotImplementedError):
     """Operator is not implemented.
 
     Example
@@ -55,7 +55,7 @@ class OpNotImplemented(OpError):
 
 
 @register_error
-class OpAttributeRequired(OpError):
+class OpAttributeRequired(OpError, AttributeError):
     """Required attribute is not found.
 
     Example
@@ -69,7 +69,7 @@ class OpAttributeRequired(OpError):
 
 
 @register_error
-class OpAttributeInvalid(OpError):
+class OpAttributeInvalid(OpError, AttributeError):
     """Attribute value is invalid when taking in a frontend operator.
 
     Example
@@ -83,7 +83,7 @@ class OpAttributeInvalid(OpError):
 
 
 @register_error
-class OpAttributeUnimplemented(OpError):
+class OpAttributeUnimplemented(OpError, NotImplementedError):
     """Attribute is not supported in a certain frontend.
 
     Example

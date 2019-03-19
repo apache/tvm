@@ -9,6 +9,7 @@ def test_op_translation():
         assert False
     except tvm.error.OpNotImplemented as e:
         msg = str(e)
+        assert isinstance(e, NotImplementedError)
         assert msg.find("api_test.cc") != -1
 
     fchk_eq = tvm._api_internal._test_check_eq_callback(
