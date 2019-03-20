@@ -129,7 +129,7 @@ class CopyIntrinInjector : public IRMutator {
     CHECK_EQ(load_strides.size(), loop_var_size + 1);
     Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
     Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
-    if(loop_var_size == 0) {
+    if (loop_var_size == 0) {
         src_strides.push_back(make_const(Int(32), 1));
         dst_strides.push_back(make_const(Int(32), 1));
     }
