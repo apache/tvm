@@ -30,8 +30,8 @@ def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
         4-D with shape [batch, channel, in_height*scale, in_width*scale]
         or [batch, in_height*scale, in_width*scale, channel]
     """
-
-    if layout == "NCHW":
+    base_layout = layout[0:4]
+    if base_layout == "NCHW":
         out_shape = (simplify(data.shape[2] * scale), simplify(data.shape[3] * scale))
     elif layout == "NHWC":
         out_shape = (simplify(data.shape[1] * scale), simplify(data.shape[2] * scale))

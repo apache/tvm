@@ -411,6 +411,51 @@ def test_alter_layout_concatenate():
 
     assert(alpha_equal(a, b))
 
+
+def test_alter_layout_nchw_upsamping_op():
+    """Test upsamping operators """
+    def before():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var('weight', shape=(32, 32, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.nn.upsampling(y, scale=2)
+        y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2))
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    @register_alter_op_layout("nn.conv2d", level=108)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var("weight")
+        x = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout="NCHW16c")
+        y = relay.nn.upsampling(y, scale=2, layout="NCHW16c")
+        y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2), layout='NCHW16c')
+        y = relay.layout_transform(y, "NCHW16c", "NCHW")
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = canonicalize_ops(a)
+    a = infer_type(a)
+    
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
+    assert(alpha_equal(a, b))
+
+
 if __name__ == "__main__":
     test_alter_op()
     test_alter_return_none()
@@ -420,3 +465,4 @@ if __name__ == "__main__":
     test_alter_layout_broadcast_op()
     test_alter_layout_scalar()
     test_alter_layout_concatenate()
+    test_alter_layout_nchw_upsamping_op()

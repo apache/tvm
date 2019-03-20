@@ -292,7 +292,7 @@ def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
         5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
     Filter : tvm.Tensor
-        4-D with shape [out_channel_chunk, filter_height, filter_width, out_channel_block]
+        6-D with shape [out_channel_chunk, 1, filter_height, filter_width, 1, out_channel_block]
         In NCHWc depthwise convolution,
         we group kernel's in_channel and channel_multiplier together then do the tiling.
 
@@ -317,6 +317,6 @@ def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
     Returns
     -------
     Output : tvm.Tensor
-        4-D with shape [batch, out_channel, out_height, out_width]
+        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
     raise ValueError("missing register for topi.nn.depthwise_conv2d_NCHWc")
