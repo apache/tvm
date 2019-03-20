@@ -44,9 +44,9 @@ class Doc {
 
   // Append right to this.
   Doc& operator<<(const Doc& right);
-  // like above, but automatically lifts string to a Doc
+  // Like above, but automatically lifts string to a Doc.
   Doc& operator<<(const std::string& right);
-  // like above, but converts right to a string first
+  // Like above, but converts right to a string first.
   template<typename T>
   Doc& operator<<(const T& right) {
     std::ostringstream os;
@@ -54,7 +54,7 @@ class Doc {
     return *this << os.str();
   }
 
-  // indent a doc stream
+  // Indent a doc stream.
   friend Doc Indent(int indent, const Doc& doc);
 
   // Wadler's `layout`
@@ -66,7 +66,7 @@ class Doc {
 
 // DSL functions
 
-// render vectors of docs with a separator. e.g. [1, 2, 3], f -> 1f2f3
+// Render vectors of docs with a separator. e.g. PrintVec([1, 2, 3], f) -> 1f2f3
 Doc PrintVec(const std::vector<Doc>& vec, const Doc& sep = Doc(", "));
 // Print a constant bool value.
 Doc PrintBool(bool value);
