@@ -28,7 +28,7 @@ def initialize_box_adt(mod):
 
 
 def test_monomorphic_let():
-    "Program: let x = 1; return x"
+    "Program: let x = 1; x"
     sb = relay.ScopeBuilder()
     x = sb.let('x', relay.const(1.0, "float64"))
     sb.ret(x)
@@ -48,7 +48,7 @@ def test_add_broadcast_op():
     """
     Program:
         fn (x: Tensor[(10, 4), f32], y: Tensor[(5, 10, 1), f32]) -> Tensor[(5, 10, 4), f32] {
-            return x + y;
+            x + y
         }
     """
     x = relay.var('x', shape=(10, 4))
@@ -67,7 +67,7 @@ def test_dual_op():
        fn (x : Tensor[f32, (10, 10)]) {
          let t1 = log(x);
          let t2 = add(t1, x);
-         return t1;
+         t1
        }
     """
     tp = relay.TensorType((10, 10), "float32")
@@ -84,7 +84,7 @@ def test_dual_op():
 def test_decl():
     """Program:
        def f(x : Tensor[(10, 10), f32]) {
-           return log(x);
+           log(x)
        }
     """
     tp = relay.TensorType((10, 10))
@@ -99,9 +99,9 @@ def test_recursion():
     Program:
        def f(n: i32, data: f32) -> f32 {
           if (n == 0) {
-              return data;
+              data
           } else {
-              return f(n - 1, log(data));
+              f(n - 1, log(data))
           }
        }
     """

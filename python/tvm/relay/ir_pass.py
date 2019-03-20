@@ -905,3 +905,35 @@ def eliminate_common_subexpr(expr, fskip=None):
       The output expression.
     """
     return _ir_pass.eliminate_common_subexpr(expr, fskip)
+
+
+def pass_debug_print(ast, show_meta_data=True, annotate=None, gnf=True):
+    """
+    THIS SHOULD BE USED ONLY FOR DEBUGGING, NOT AS AN INTERCHANGE FORMAT!
+    USE `.astext()` INSTEAD!
+
+    A version of the pretty printer intended for debugging passes. Contains
+    advanced printing options.
+
+    Parameters
+    ----------
+    ast : Union[relay.Expr, relay.Module, relay.Type]
+        The relay fragment to be turned into text.
+
+    show_meta_data : bool
+        Whether to include meta data section in the text
+        if there is meta data.
+
+    annotate: Optional[relay.Expr->str]
+        Optional annotate function to provide additional
+        information in the comment block.
+
+    gnf : bool
+        Whether to print in GNF. If it is disabled, pointers are left implicit.
+
+    Returns
+    -------
+    text : str
+        A text representation of `ast`.
+    """
+    return _ir_pass.pass_debug_print(ast, show_meta_data, annotate, gnf)
