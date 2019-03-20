@@ -115,6 +115,8 @@ stage('Build') {
            echo set\\(USE_CUDA ON\\) >> config.cmake
            echo set\\(USE_OPENGL ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-6.0\\) >> config.cmake
+           echo set\\(USE_NNPACK ON\\) >> config.cmake
+           echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
            echo set\\(USE_RPC ON\\) >> config.cmake
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME ON\\) >> config.cmake
