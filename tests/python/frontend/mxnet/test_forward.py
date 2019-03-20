@@ -379,7 +379,6 @@ def test_forward_l2_normalize():
     mx_sym = mx.sym.L2Normalization(data, mode="channel")
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4, 5), (2, 3, 4, 5))
 
-
 def test_forward_shape_array():
     def verify(shape):
         x_np = np.random.uniform(size=shape).astype("float32")
@@ -395,6 +394,75 @@ def test_forward_shape_array():
     verify((3, 4, 5))
     verify((3, 4, 5, 6))
 
+def test_forward_squeeze():
+    def verify(shape, axis):
+        x_np = np.random.uniform(size=shape).astype("float32")
+        if axis is None:
+            ref_res = mx.nd.squeeze(mx.nd.array(x_np))
+            mx_sym = mx.sym.squeeze(mx.sym.var("x"))
+        else:
+            ref_res = mx.nd.squeeze(mx.nd.array(x_np), axis=axis)
+            mx_sym = mx.sym.squeeze(mx.sym.var("x"), axis=axis)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((1, 3, 1), None)
+    verify((1, 3, 1), 0)
+    verify((1, 3, 1), 2)
+    verify((1, 3, 1), (0, 2))
+
+def test_forward_broadcast_axis():
+    def verify(shape, axis, size):
+        x_np = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.broadcast_axis(mx.nd.array(x_np), axis=axis, size=size)
+        mx_sym = mx.sym.broadcast_axis(mx.sym.var("x"), axis=axis, size=size)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((1, 2, 1), 2, 3)
+    verify((1, 2, 1), (0, 2), (2, 3))
+
+def test_forward_full():
+    def verify(val, shape, dtype):
+        ctx = mx.cpu()
+        ref_res = mx.nd.full(shape, val, dtype=dtype)
+        mx_sym = mx.sym.full(shape, val, dtype=dtype)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {})
+        for target, ctx in ctx_list():
+            # Skip testing graph runtime because this op will be optimized out
+            # by constant folding.
+            for kind in ["debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)()
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify(2, (3, 4), "float32")
+    verify(2, (3, 4), "int32")
+    verify(3.5, (1, 3, 4), "float32")
+
+def test_forward_embedding():
+    def verify(data_shape, weight_shape):
+        in_dim, out_dim = weight_shape
+        x_np = np.random.randint(0, weight_shape[0], size=data_shape).astype("float32")
+        w_np = np.random.uniform(size=weight_shape).astype("float32")
+        ref_res = mx.nd.Embedding(mx.nd.array(x_np), mx.nd.array(w_np),
+                                  input_dim=in_dim, output_dim=out_dim)
+        mx_sym = mx.sym.Embedding(mx.sym.var("x"), mx.sym.var("w"),
+                                  input_dim=in_dim, output_dim=out_dim)
+        new_sym, _ = relay.frontend.from_mxnet(
+            mx_sym, {"x": data_shape, "w": weight_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x=x_np, w=w_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((2, 2), (4, 5))
+    verify((2, 3, 4), (4, 5))
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -426,3 +494,7 @@ if __name__ == '__main__':
     test_forward_slice_axis()
     test_forward_l2_normalize()
     test_forward_shape_array()
+    test_forward_squeeze()
+    test_forward_broadcast_axis()
+    test_forward_full()
+    test_forward_embedding()
