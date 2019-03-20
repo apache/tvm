@@ -36,9 +36,14 @@ def test_simplify_mod():
         with ib.for_range(0, 16, name="i") as i:
             A[i] = A[(j * 32 + i+1) % 16]
     body = ib.get()
-    stmt = tvm.ir_pass.CanonicalSimplify(body)
-    diff = tvm.ir_pass.CanonicalSimplify(stmt.body.body.value.index - (1 + i) % 16)
+    stmt = tvm.ir_pass.CanonicalSimplify(body,  {j: tvm.Range(0, 6), n: tvm.Range(0, 10)})
+    diff = tvm.ir_pass.CanonicalSimplify(stmt.body.value.index - (1 + i) % 16)
     assert diff.value == 0
+    # if we can't prove that j is non-negative, we can't prove that (j+16) % 16 is j%16
+    index = tvm.ir_pass.CanonicalSimplify((j + 16) % 16)
+    assert index != j
+    index = tvm.ir_pass.CanonicalSimplify((j + 16) % 16, {j: tvm.Range(0, 6)})
+    assert index == j
     # if we can't prove that j+n*32 is non-negative, we can't prove that (j+n*32) % 16 is j%16
     index = tvm.ir_pass.CanonicalSimplify(
         (j + n * 32) % 16, {j: tvm.Range(0, 6)})
