@@ -52,8 +52,6 @@ from gluoncv import model_zoo, data, utils
 #   x86 conv2d schedule doesn't support dilation.
 
 supported_model = [
-    'ssd_512_resnet18_v1_voc',
-    'ssd_512_resnet18_v1_coco',
     'ssd_512_resnet50_v1_voc',
     'ssd_512_resnet50_v1_coco',
     'ssd_512_resnet101_v2_voc',
@@ -61,7 +59,7 @@ supported_model = [
     'ssd_512_mobilenet1.0_coco',
 ]
 
-model_name = supported_model[4]
+model_name = supported_model[0]
 dshape = (1, 3, 512, 512)
 target_list = ctx_list()
 
