@@ -22,7 +22,7 @@ def compute_argsort(attrs, inputs, _, target):
     is_ascend = bool(get_const_int(attrs.is_ascend))
     flag = bool(get_const_int(attrs.flag))
     return [
-        topi.argsort(inputs[0], inputs[1], axis, is_ascend, flag)
+        topi.argsort(inputs[0], None, axis, is_ascend, flag=False)
     ]
 
 

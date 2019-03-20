@@ -2,7 +2,7 @@
 from __future__ import absolute_import as _abs
 from . import _make
 
-def argsort(data, valid_count, axis=-1, is_ascend=1, flag=0):
+def argsort(data, axis=-1, is_ascend=1):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
 
@@ -25,4 +25,4 @@ def argsort(data, valid_count, axis=-1, is_ascend=1, flag=0):
     out : relay.Expr
         Tensor with same shape as data.
     """
-    return _make.argsort(data, valid_count, axis, is_ascend, flag)
+    return _make.argsort(data, axis, is_ascend)
