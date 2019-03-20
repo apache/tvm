@@ -365,14 +365,14 @@ class GraphRuntimeCodegen(ExprFunctor):
             metadata['signatures']['default']['outputs'][node_name]['shape'] = shapes[node_id[0]]
 
         # Keep  'metadata' always at end
-        json_dict = OrderedDict({
-            "nodes": nodes,
-            "arg_nodes": arg_nodes,
-            "heads": heads,
-            "attrs": attrs,
-            "node_row_ptr":  node_row_ptr,
-            "metadata": metadata
-        })
+        json_dict = OrderedDict([
+            ("nodes", nodes),
+            ("arg_nodes", arg_nodes),
+            ("heads", heads),
+            ("attrs", attrs),
+            ("node_row_ptr", node_row_ptr),
+            ("metadata", metadata),
+        ])
 
         return json.dumps(json_dict, indent=2)
 
