@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name, import-self, unused-argument, unused-variable, inconsistent-return-statements
 """CoreML frontend."""
 from __future__ import absolute_import as _abs
+import tvm
 import numpy as np
 from .. import ir_pass
 from .. import expr as _expr
@@ -81,7 +82,8 @@ def _BatchnormLayerParams(op, inexpr, etab):
     """Get layer of batchnorm parameter"""
     # this changes the symbol
     if op.instanceNormalization:
-        raise_operator_unimplemented('instance normalization')
+        raise tvm.error.OpNotImplemented(
+            'Operator "instance normalization" is not supported in frontend CoreML.')
     else:
         params = {'gamma':etab.new_const(list(op.gamma.floatValue)),
                   'beta':etab.new_const(list(op.beta.floatValue)),
@@ -142,7 +144,8 @@ def _ActivationParams(op, inexpr, etab):
         alpha_expr = etab.new_const(alpha)
         beta_expr = etab.new_const(beta)
         return _op.multiply(_op.log(_op.add(_op.exp(inexpr), beta_expr)), alpha_expr)
-    raise_operator_unimplemented(whichActivation)
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported in frontend CoreML.'.format(whichActivation))
 
 
 def _ScaleLayerParams(op, inexpr, etab):
@@ -164,7 +167,8 @@ def _PoolingLayerParams(op, inexpr, etab):
             return _op.nn.global_max_pool2d(inexpr)
         if op.type == 1:
             return _op.nn.global_avg_pool2d(inexpr)
-        raise_operator_unimplemented('pooling (not max or average)')
+        raise tvm.error.OpNotImplemented(
+            'Only Max and Average Pooling are supported in frontend CoreML.')
 
     else:
         params = {'pool_size':list(op.kernelSize),
@@ -184,8 +188,9 @@ def _PoolingLayerParams(op, inexpr, etab):
             params['padding'] = padding
             params['ceil_mode'] = True
         else:
-            raise_attribute_unimplemented(op.WhichOneof('PoolingPaddingType'),
-                                          'PoolingPaddingType', 'pooling')
+            msg = 'PoolingPaddingType {} is not supported in operator Pooling.'
+            op_name = op.WhichOneof('PoolingPaddingType')
+            raise tvm.error.OpAttributeUnimplemented(msg.format(op_name))
 
         # consume padding layer
         if etab.in_padding:
@@ -197,7 +202,8 @@ def _PoolingLayerParams(op, inexpr, etab):
             return _op.nn.max_pool2d(inexpr, **params)
         if op.type == 1:
             return _op.nn.avg_pool2d(inexpr, **params)
-        raise_operator_unimplemented('pooling (not max or average)')
+        raise tvm.error.OpNotImplemented(
+            'Only Max and Average Pooling are supported in CoreML.')
 
 
 def _SoftmaxLayerParams(op, inexpr, etab):
@@ -240,7 +246,8 @@ def _ConcatLayerParams(op, inexpr, etab):
     if not isinstance(inexpr, list):
         inexpr = [inexpr]
     if op.sequenceConcat:
-        raise_operator_unimplemented('Sequence Concat')
+        raise tvm.error.OpNotImplemented(
+            'Operator Sequence Concat is not supported in frontend CoreML.')
     ret = _op.concatenate(inexpr, axis=1)
     return ret
 
@@ -256,14 +263,16 @@ def _PaddingLayerParams(op, inexpr, etab):
     if op.WhichOneof('PaddingType') == 'constant':
         constant = op.constant
         if constant.value != 0:
-            raise_attribute_unimplemented(constant.value, 'padding value', 'padding')
+            raise tvm.error.OpAttributeUnimplemented(
+                '{} is not supported in operator Padding.'.format(constant.value))
         padding = [b.startEdgeSize for b in op.paddingAmounts.borderAmounts]
         padding2 = [b.endEdgeSize for b in op.paddingAmounts.borderAmounts]
         for i, j in zip(padding, padding2):
             assert i == j
         etab.set_padding(padding)
     else:
-        raise_operator_unimplemented('non-constant padding')
+        raise tvm.error.OpNotImplemented(
+            'Non-constant padding is not supported in frontend CoreML.')
     return inexpr
 
 
@@ -274,7 +283,8 @@ def _PermuteLayerParams(op, inexpr, etab):
 
 def _UpsampleLayerParams(op, inexpr, etab):
     if op.scalingFactor[0] != op.scalingFactor[1]:
-        raise_attribute_unimplemented('unequal height/width scaling factors', 'upsample')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Upsample height and width must be equal.')
     interpolationMode = 'NEAREST_NEIGHBOR' if op.mode == 0 else 'BILINEAR'
     return _op.nn.upsampling(inexpr, scale=op.scalingFactor[0], method=interpolationMode)
 
@@ -364,7 +374,8 @@ def coreml_op_to_relay(op, inname, outname, etab):
     """
     classname = type(op).__name__
     if classname not in _convert_map:
-        raise_operator_unimplemented(classname)
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend CoreML.'.format(classname))
     if isinstance(inname, _base.string_types):
         insym = etab.get_expr(inname)
     else:

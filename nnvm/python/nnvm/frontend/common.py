@@ -7,13 +7,15 @@ from .._base import string_types
 def get_nnvm_op(op_name):
     op = getattr(_sym, op_name)
     if not op:
-        raise_operator_unimplemented(op_name)
+        raise OpNotImplemented(
+            'Operator {} is not supported.'.format(op))
     return op
 
 def required_attr(attr, key, op_name):
     assert isinstance(attr, dict)
     if key not in attr:
-        raise_attribute_required(key, op_name)
+        raise OpAttributeRequired(
+            'Required attribute {} not found in operator {}'.format(key, op_name))
     return attr[key]
 
 def parse_tshape(tshape):

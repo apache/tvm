@@ -6,6 +6,7 @@ from __future__ import absolute_import as _abs
 import numpy as np
 import tvm
 from .. import symbol as _sym
+from .common import get_nnvm_op, required_attr, parse_tshape, parse_bool_str
 
 class LAYERTYPE(object):
     """Darknet LAYERTYPE Class constant."""
@@ -61,7 +62,8 @@ def _darknet_maxpooling(inputs, attrs):
     """Process the max pool 2d operation."""
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'maxpool'))
     if len(kernel) != 1:
-        raise_attribute_unimplemented('non-2d kernel', 'pool_2d')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels for Max Pooling are not supported in frontend Darknet.')
 
     op_name, new_attrs = 'max_pool2d', {}
     strides = int(attrs.get('stride', (1, 1)))
@@ -79,7 +81,8 @@ def _darknet_avgpooling(inputs, attrs):
     """Process the average pool 2d operation."""
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'avgpool'))
     if len(kernel) != 1:
-        raise_attribute_unimplemented('non-2d kernel', 'pool_2d')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels for Average Pooling are not supported in frontend Darknet.')
 
     op_name, new_attrs = 'avg_pool2d', {}
     strides = int(attrs.get('stride', (1, 1)))
@@ -103,10 +106,12 @@ def _darknet_conv2d(inputs, attrs):
     """Process the convolution 2d operation."""
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'conv2d'))
     if len(kernel) != 1:
-        raise_attribute_unimplemented('non 2d kernel', 'conv2d')
+        raise tvm.error.OpAttributeUnimplemented('Non-2D kernels for Conv2D are unsupported '
+                                                 'in frontend Darknet.')
     layout = attrs.get('layout', 'NCHW')
     if layout not in ['NCHW', 'NHWC']:
-        raise_attribute_invalid(layout, 'layout', 'conv2d')
+        raise tvm.error.OpAttributeInvalid(
+            'Value {} in attribute "layout" of operator Conv2D is not valid.'.format(layout))
     strides = int(attrs.get('stride', (1, 1)))
     pads = int(attrs.get('pad', (0, 0)))
 
@@ -142,13 +147,16 @@ def _darknet_conv2d(inputs, attrs):
 def _darknet_conv2d_transpose(inputs, attrs):
     """Process the convolution 2d transpose operation."""
     if 'target_shape' in attrs:
-        raise_attribute_unimplemented('target_shape', 'conv2d_transpose')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "target_shape" is not supported in operator Conv2D-transpose.')
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'conv2d_transpose'))
     if len(kernel) != 2:
-        raise_attribute_unimplemented('non-2d kernel', 'conv2d_transpose')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels are not supported in operator Conv2D-transpose.')
     layout = attrs.get('layout', 'NCHW')
     if layout not in ['NCHW', 'NHWC']:
-        raise_attribute_invalid(layout, 'layout', 'conv2d_transpose')
+        msg = 'Value {} in attribute "layout" of operator Conv2D-transpose is not valid.'
+        raise tvm.error.OpAttributeInvalid(msg.format(layout))
     op_name, new_attrs = 'conv2d_transpose', {}
     new_attrs['channels'] = required_attr(attrs, 'num_filter', 'conv2d_transpose')
     new_attrs['kernel_size'] = kernel
@@ -222,7 +230,8 @@ def _darknet_dropout(inputs, attrs):
 def _darknet_reshape(inputs, attrs):
     """Process the reshape operation."""
     if parse_bool_str(attrs, 'reverse'):
-        raise_attribute_unimplemented('reverse', 'reshape')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "reverse" is not supported in operator Reshape.')
     op_name, new_attrs = 'reshape', {}
     new_attrs['shape'] = required_attr(attrs, 'shape', 'reshape')
     return get_nnvm_op(op_name)(*inputs, **new_attrs), None
@@ -324,7 +333,8 @@ def _darknet_activations(inputs, attrs):
     elif ACTIVATION.ELU == act:
         act_type = 'elu'
     else:
-        raise_operator_unimplemented('act: ' + act)
+        raise tvm.error.OpNotImplemented(
+            'Operator act: {} is not supported in framework Darknet.'.format(act))
 
     if act_type in ['relu', 'tanh']:
         op_name, new_attrs = act_type, {}
@@ -339,7 +349,8 @@ def _darknet_activations(inputs, attrs):
         op_name, new_attrs = act_type, {}
         sym = get_nnvm_op(op_name)(*inputs, **new_attrs)
     else:
-        raise_operator_unimplemented('act_type: ' + act_type)
+        raise tvm.error.OpNotImplemented(
+            'Operator act: {} is not supported in framework Darknet.'.format(act))
     return sym, None
 
 def _darknet_op_not_support(inputs, attrs):
@@ -402,7 +413,8 @@ def _darknet_convert_symbol(op_name, inputs, attrs):
     if op_name in _DARKNET_CONVERT_MAP:
         sym, out_name = _DARKNET_CONVERT_MAP[op_name](inputs, attrs)
     else:
-        raise_operator_unimplemented(op_name)
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend Darknet.'.format(op_name))
     if out_name is  None:
         out_name = sym.list_output_names()[0].replace('_output', '')
     return out_name, sym
@@ -448,9 +460,10 @@ class GraphProto(object):
         if layer.nweights == 0:
             return
 
-        if (layer.n * layer.c * layer.size * layer.size) != layer.nweights:
-            raise_attribute_invalid(layer.n * layer.c * layer.size * layer.size,
-                                    'layer weights size', 'conv2d')
+        if layer.n * layer.c * layer.size * layer.size != layer.nweights:
+            msg = 'nweights ({}) != n * c * h * w ({}) in operator {}'
+            msg = msg.format(layer.nweights, layer.n * layer.c * layer.size ** 2, opname)
+            raise tvm.error.OpAttributeInvalid(msg)
 
         shape = (layer.n, layer.c, layer.size, layer.size)
         weights = self._read_memory_buffer(shape, layer.weights)
@@ -630,7 +643,8 @@ class GraphProto(object):
             pass
 
         else:
-            raise_operator_unimplemented(layer.type)
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported in frontend Darknet.'.format(layer.type))
 
         return attr
 
@@ -763,7 +777,8 @@ class GraphProto(object):
 
         elif LAYERTYPE.LSTM == layer.type:
             if layer.steps > 1:
-                raise_attribute_invalid(layer.steps, 'number of steps', 'RNN')
+                raise tvm.error.OpAttributeInvalid(
+                    'Number of steps {} of RNN is not valid.'.format(layer.steps))
 
             op_name_add = 'elemwise_add'
             op_name_mul = 'elemwise_mul'
@@ -829,7 +844,8 @@ class GraphProto(object):
 
         elif LAYERTYPE.GRU == layer.type:
             if layer.steps > 1:
-                raise_attribute_invalid(layer.steps, 'number of steps', 'RNN')
+                raise tvm.error.OpAttributeInvalid(
+                    'Number of steps {} is not valid in RNN.'.format(layer.steps))
 
             op_name_add = 'elemwise_add'
             op_name_mul = 'elemwise_mul'

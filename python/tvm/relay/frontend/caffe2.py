@@ -1,6 +1,7 @@
 # pylint: disable=import-self, invalid-name, line-too-long, unused-argument
 """Caffe2 frontend"""
 from __future__ import absolute_import as _abs
+import tvm
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
@@ -15,7 +16,8 @@ def dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise_operator_unimplemented('non 2d kernel')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels are not supported for operator {}2d'.format(prefix))
 
     return _impl
 
@@ -27,7 +29,8 @@ def revert_caffe2_pad(pads):
     elif len(pads) == 2:
         pass
     else:
-        raise_attribute_invalid(str(len(pads)), 'len(pads)', 'padding')
+        raise tvm.error.OpAttributeInvalid(
+            'Number of pads must equal 2 or 4.')
     return pads
 
 
@@ -103,7 +106,8 @@ class Caffe2OpConverter(object):
 
         if hasattr(cls, '_impl'):
             return getattr(cls, '_impl')
-        raise_operator_unimplemented(cls.__name__)
+        raise tvm.error.OpNotInplemented(
+            'Operator {} is not supported in frontend Caffe2.'.format(cls.__name__))
 
 
 _caffe2_internal_args = [
@@ -223,7 +227,8 @@ class Concat(Caffe2OpConverter):
                 return 1
             if order == 'NHWC':
                 return 3
-            raise_attribute_unimplemented(order, 'Concat')
+            raise tvm.error.OpAttributeUnimplemented(
+                'Order {} is not supported in operator Concat.'.format(order))
 
         return AttrCvt(
             op_name='concatenate',
@@ -515,7 +520,8 @@ class Caffe2NetDef(object):
             # Add a sanitizing step to convert all byte strings in args to strings
             func = convert_map[op_type](inputs, args, self._params)
         else:
-            raise_operator_unimplemented(op_type)
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported in frontend Caffe2.'.format(op_type))
         return func
 
 

@@ -4,6 +4,7 @@ from __future__ import absolute_import as _abs
 import json
 import tvm
 from .. import symbol as _sym
+from .common import get_nnvm_op, required_attr, parse_tshape, parse_bool_str
 
 __all__ = ['from_mxnet']
 
@@ -15,11 +16,13 @@ def _rename(new_name):
 def _pooling(inputs, attrs):
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'pooling'))
     if len(kernel) != 2:
-        raise_attribute_unimplemented('non-2d kernel', 'pool_2d')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels are not supported for Pool2D.')
     global_pool = 'global' if parse_bool_str(attrs, 'global_pool') else ''
     pool_type = required_attr(attrs, 'pool_type', 'pooling')
     if pool_type not in ['avg', 'max']:
-        raise_attribute_unimplemented('non-avg/max', 'pool2d')
+        raise tvm.error.OpNotImplemented(
+            'Only max and average pooling are supported in frontend MXNet.')
     op_name, new_attrs = '_'.join([global_pool, pool_type, 'pool2d']).strip('_'), {}
     # new_attrs['layout'] = 'NCHW'
     if not global_pool:
@@ -32,11 +35,15 @@ def _pooling(inputs, attrs):
     return get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 def _batch_norm(inputs, attrs):
-        raise_attribute_unimplemented('output_mean_var', 'batch_norm')
+    if parse_bool_str(attrs, 'output_mean_var'):
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "output_mean_var" is not supported in operator batch_norm.')
     # if parse_bool_str(attrs, 'fix_gamma'):
     #     _warn_not_used('fix_gamma', 'batch_norm')
     if parse_bool_str(attrs, 'use_global_stats'):
-        warn_not_used('use_global_stats', 'batch_norm')
+        from warnings import warn
+        warn(
+            'Attribute "use_global_stats" is ignored in operator batch_norm.')
     # if parse_bool_str(attrs, 'momentum'):
     #     _warn_not_used('momentum', 'batch_norm')
     op_name, new_attrs = 'batch_norm', {}
@@ -54,10 +61,12 @@ def _concat(inputs, attrs):
 def _conv2d(inputs, attrs):
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'conv2d'))
     if len(kernel) != 2:
-        raise_attribute_unimplemented('non 2d kernel', 'conv2d')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels are not supported for operator Conv2D.')
     layout = attrs.get('layout', 'NCHW')
     if layout not in ['NCHW', 'NHWC']:
-        raise_attribute_unimplemented('layout: ' + layout, 'conv2d')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Layout {} is not supported in operator Conv2D.'.format(layout))
     if 'kernel_layout' in attrs:
         kernel_layout = attrs['kernel_layout']
     else:
@@ -76,13 +85,16 @@ def _conv2d(inputs, attrs):
 
 def _conv2d_transpose(inputs, attrs):
     if 'target_shape' in attrs:
-        raise_attribute_unimplemented('target_shape', 'conv2d_transpose')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "target_shape" is not supported in operator Conv2D-transpose.')
     kernel = parse_tshape(required_attr(attrs, 'kernel', 'conv2d_transpose'))
     if len(kernel) != 2:
-        raise_attribute_invalid(len(kernel), 'kernel dim', 'conv2d_transpose')
+        raise tvm.error.OpAttributeInvalid(
+            'Non-2D kernels are not supported in Conv2D-transpose.')
     layout = attrs.get('layout', 'NCHW')
     if layout not in ['NCHW', 'NHWC']:
-        raise_attribute_unimplemented('layout: ' + layout, 'conv2d_transpose')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Layout {} is not supported in operator Conv2D-transpose.')
     if 'kernel_layout' in attrs:
         kernel_layout = attrs['kernel_layout']
     else:
@@ -138,7 +150,8 @@ def _leaky_relu(inputs, attrs):
         op_name, new_attrs = 'leaky_relu', {'alpha': str(slope)}
         sym = get_nnvm_op(op_name)(*inputs, **new_attrs)
     else:
-        raise_attribute_unimplemented([act_type])
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend MXNet.'.format(act_type))
     return sym
 
 def _activations(inputs, attrs):
@@ -149,12 +162,14 @@ def _activations(inputs, attrs):
     elif act_type == 'softrelu':
         sym = _sym.log((1 + _sym.exp(*inputs)))
     else:
-        raise_operator_unimplemented(act_type)
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend MXNet.'.format(act_type))
     return sym
 
 def _reshape(inputs, attrs):
     if parse_bool_str(attrs, 'reverse'):
-        raise_attribute_unimplemented('reverse', 'reshape')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "reverse" is not supported in operator Reshape.')
     op_name, new_attrs = 'reshape', {}
     new_attrs['shape'] = required_attr(attrs, 'shape', 'reshape')
     return get_nnvm_op(op_name)(*inputs, **new_attrs)
@@ -218,7 +233,7 @@ def _contrib_multibox_detection(inputs, attrs):
     new_attrs1 = {'return_indices': False, 'iou_threshold': float(nms_threshold),
                   'force_suppress': force_suppress, 'top_k': int(nms_topk)}
     data, valid_count = get_nnvm_op('multibox_transform_loc')(inputs[0], inputs[1],
-                                                               inputs[2], **new_attrs0)
+                                                              inputs[2], **new_attrs0)
     return get_nnvm_op('non_max_suppression')(data, valid_count, **new_attrs1)
 
 def _elemwise_sum(inputs, _):
@@ -231,10 +246,12 @@ def _crop_like(inputs, attrs):
         tuple([float(x.strip()) for x in attrs.get('offsets').strip('()').split(',')]) \
             if attrs.get('offsets') is not None else (0, 0)
     if offsets != (0, 0):
-        raise_attribute_invalid(offsets, 'offsets', 'crop_like')
+        raise tvm.error.OpAttributeInvalid(
+            'crop_like offsets must equal (0,0).')
     center_crop = parse_bool_str(attrs, 'center_crop', default="False")
     if center_crop:
-        raise_attribute_unimplemented('center crop', 'crop_like')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Center crop is not supported in operator crop_like.')
     if len(inputs) < 2:
         raise RuntimeError("Only support crop_like pattern.")
     new_attrs["axis"] = [2, 3]
@@ -381,7 +398,8 @@ def _convert_symbol(op_name, inputs, attrs,
     elif op_name in convert_map:
         sym = convert_map[op_name](inputs, attrs)
     else:
-        raise_operator_unimplemented(op_name)
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend MXNet.'.format(op_name))
     return sym
 
 def _as_list(arr):
