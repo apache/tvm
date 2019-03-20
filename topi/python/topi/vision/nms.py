@@ -336,22 +336,9 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
     score_tensor_buf = api.decl_buffer(score_tensor.shape, data.dtype,
                                        "score_tensor_buf", data_alignment=8)
-    sort_tensor_dtype = "int32"
-    sort_tensor_buf = api.decl_buffer(score_shape, sort_tensor_dtype,
-                                      "sort_tensor_buf", data_alignment=8)
-    '''
-    sort_tensor = \
-        tvm.extern(score_shape,
-                   [score_tensor, valid_count],
-                   lambda ins, outs: tvm.call_packed(
-                       "tvm.contrib.sort.argsort", ins[0], ins[1],
-                       outs[0], score_axis, True),
-                   dtype=sort_tensor_dtype,
-                   in_buffers=[score_tensor_buf, valid_count_buf],
-                   out_buffers=sort_tensor_buf,
-                   name="nms_sort")
-    '''
     sort_tensor = argsort(score_tensor, valid_count, score_axis, False, True)
+    sort_tensor_buf = api.decl_buffer(sort_tensor.shape, sort_tensor.dtype,
+                                      "sort_tensor_buf", data_alignment=8)
     out, box_indices = hybrid_nms(data, sort_tensor, valid_count,
                                   tvm.const(max_output_size, dtype="int32"),
                                   tvm.const(iou_threshold, dtype="float32"),
