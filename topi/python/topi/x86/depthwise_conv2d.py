@@ -58,7 +58,7 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
                                 layout, out_layout, out_dtype=None):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     batch, in_channel_chunk, in_height, in_width, in_channel_block = get_const_tuple(data.shape)
-    out_channel_chunk, filter_height, filter_width, out_channel_block \
+    out_channel_chunk, _, filter_height, filter_width, __, out_channel_block \
         = get_const_tuple(kernel.shape)
 
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
@@ -102,7 +102,7 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
                       oh*HSTR+kh, ow*WSTR+kw,
                       ((oco * out_channel_block + oci) // channel_multiplier) % in_channel_block]
              .astype(out_dtype) *
-             kernel[oco, kh, kw, oci].astype(out_dtype)),
+             kernel[oco, 0, kh, kw, 0, oci].astype(out_dtype)),
             axis=[kh, kw]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_NCHWc")
     return Output
