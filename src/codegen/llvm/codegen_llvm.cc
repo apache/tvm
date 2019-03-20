@@ -32,6 +32,7 @@
 #include "codegen_cpu.h"
 #include "../../pass/ir_util.h"
 #include "../../arithmetic/compute_expr.h"
+#include "../datatype/datatype_registry.h"
 
 namespace tvm {
 namespace codegen {
@@ -316,6 +317,10 @@ llvm::Type* CodeGenLLVM::LLVMType(const Type& t) const {
       case 64: etype = llvm::Type::getDoubleTy(*ctx_); break;
       default: LOG(FATAL) << "do not support " << t;
     }
+  } else if (DatatypeRegistry::Global()->DatatypeRegistered(t.code())) {
+    // Custom types.
+    etype = llvm::Type::getIntNTy(
+                                  *ctx_, DatatypeRegistry::Global()->GetStorageSize(t.code()));
   }
   if (t.lanes() != 1) {
     return llvm::VectorType::get(etype, t.lanes());
