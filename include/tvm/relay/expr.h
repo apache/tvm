@@ -551,10 +551,9 @@ inline const TTypeNode* ExprNode::type_as() const {
  *        additional comment block to an expr.
  * \return The text representation.
  */
-std::string RelayPrint(
-    const NodeRef& node,
-    bool show_meta_data = true,
-    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+std::string RelayPrint(const NodeRef& node,
+                       bool show_meta_data = true,
+                       runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_
