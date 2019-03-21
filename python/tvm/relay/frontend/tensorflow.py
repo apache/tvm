@@ -10,7 +10,6 @@ from collections import defaultdict
 import numpy as np
 
 import tvm
-from tvm import relay
 from topi.util import get_const_tuple
 from .. import ir_pass
 from .. import expr as _expr
@@ -1370,8 +1369,8 @@ class Branch:
         """An internal API to create a relay if node from the matched TF
         condition construct.
         """
-        cond = relay.op.min(self.cond)
-        return relay.If(cond, self.true_branch, self.false_branch)
+        cond = tvm.relay.op.min(self.cond)
+        return tvm.relay.If(cond, self.true_branch, self.false_branch)
 
     def if_node(self):
         """Create an tvm.relay.If node if it hasn't been created yet."""
@@ -1447,31 +1446,31 @@ class Loop:
         """An internal API to create a Relay recurisve call for a matched TF
         `while_loop` construct.
         """
-        wl = relay.var('while_loop')
+        wl = tvm.relay.var('while_loop')
 
-        sb = relay.scope_builder.ScopeBuilder()
+        sb = tvm.relay.scope_builder.ScopeBuilder()
 
         loop_vars = []
         bind_map = {}
         for i, var in enumerate(self.loop_vars):
             assert isinstance(var, _expr.Var), repr(var)
-            v = relay.var("loop_var" + str(i),
-                          type_annotation=var.type_annotation)
+            v = tvm.relay.var("loop_var" + str(i),
+                              type_annotation=var.type_annotation)
             loop_vars.append(v)
             bind_map[var] = v
 
-        self.cond = relay.bind(self.cond, bind_map)
-        self.body = [relay.bind(b, bind_map) for b in self.body]
+        self.cond = tvm.relay.bind(self.cond, bind_map)
+        self.body = [tvm.relay.bind(b, bind_map) for b in self.body]
 
-        cond = relay.op.min(self.cond)
+        cond = tvm.relay.op.min(self.cond)
 
         with sb.if_scope(cond):
             sb.ret(wl(*self.body))
         with sb.else_scope():
-            sb.ret(relay.Tuple(loop_vars))
+            sb.ret(tvm.relay.Tuple(loop_vars))
 
-        loop_fn = relay.Function(loop_vars, sb.get())
-        sb = relay.scope_builder.ScopeBuilder()
+        loop_fn = tvm.relay.Function(loop_vars, sb.get())
+        sb = tvm.relay.scope_builder.ScopeBuilder()
         sb.let(wl, loop_fn)
         sb.ret(wl(*self.loop_vars))
         return sb.get()
