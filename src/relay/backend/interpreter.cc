@@ -556,7 +556,7 @@ class Interpreter :
     CHECK_NE(cvn->constructor->tag, -1);
     if (op->constructor->tag == cvn->constructor->tag) {
       // todo(M.K.): should use ptr equality but it is broken
-      CHECK(op->patterns.size() == cvn->fields.size());
+      CHECK_EQ(op->patterns.size(), cvn->fields.size());
       for (size_t i = 0; i < op->patterns.size(); ++i) {
         if (!VisitPattern(op->patterns[i], cvn->fields[i])) {
           return false;

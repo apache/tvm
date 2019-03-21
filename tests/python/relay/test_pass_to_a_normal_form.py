@@ -154,6 +154,7 @@ def test_add():
     assert count(intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
     assert "let" in mod[add].astext()
 
+
 def test_let():
     x = relay.Var("x")
     y = relay.Var("y")
@@ -163,6 +164,17 @@ def test_let():
     check_eval(body, 8)
     check_eval(to_a_normal_form(body), 8)
 
+
+def test_function():
+    x = relay.Var("x")
+    f = relay.Function([x], x + x)
+    d = relay.const(4.0, 'float32')
+    anf_f = to_a_normal_form(f)
+    assert isinstance(anf_f, relay.Function)
+    check_eval(f(d), 8)
+    check_eval(anf_f(d), 8)
+
+
 if __name__ == '__main__':
     test_explicit_bound()
     test_order()
@@ -171,3 +183,4 @@ if __name__ == '__main__':
     test_ref()
     test_add()
     test_let()
+    test_function()

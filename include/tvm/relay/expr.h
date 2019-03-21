@@ -570,8 +570,8 @@ inline const TTypeNode* ExprNode::type_as() const {
  * \return The text representation.
  */
 std::string AsText(const NodeRef& node,
-                    bool show_meta_data = true,
-                    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+                   bool show_meta_data = true,
+                   runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_

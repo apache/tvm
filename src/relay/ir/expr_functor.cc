@@ -43,9 +43,6 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 }
 
 Expr ExprMutator::VisitExpr_(const VarNode* op) {
-  // NOTE: var will only be mutated once
-  // Thanks to the memo and reused during rewriting if necessary.
-  // It is safe to assume that the
   if (op->type_annotation.defined()) {
     auto type = this->VisitType(op->type_annotation);
     if (!op->type_annotation.same_as(type)) {
