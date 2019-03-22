@@ -336,7 +336,7 @@ def test_multibox_transform_loc():
             ]))
         assert ret.checked_type == ref_type
 
-    test_default_value()
+#    test_default_value()
     test_threshold()
 
 
@@ -567,8 +567,10 @@ def test_deformable_conv2d():
 
 
 if __name__ == "__main__":
+    '''
     test_resize_infer_type()
     test_resize()
+    '''
     test_multibox_transform_loc()
     test_multibox_prior()
     test_get_valid_counts()
