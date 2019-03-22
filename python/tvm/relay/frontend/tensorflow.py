@@ -545,7 +545,7 @@ def _reshape():
             inputs.pop(1)
             return AttrCvt(
                 op_name="reshape",
-                extras={'newshape':tuple(params_new.asnumpy().astype('int32').flatten())},
+                extras={'newshape':tuple(params_new.asnumpy().astype('int64').flatten())},
                 ignores=['Tshape'])(inputs, attr)
     return _impl
 
