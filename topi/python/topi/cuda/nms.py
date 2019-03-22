@@ -22,7 +22,6 @@ import tvm
 from tvm import api
 from tvm.intrin import if_then_else
 from topi.vision import non_max_suppression, get_valid_counts
-from ..util import get_const_tuple
 from .sort import argsort
 
 
@@ -548,9 +547,6 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
-    score_tensor_buf = api.decl_buffer(score_shape, data.dtype,
-                                       "score_tensor_buf", data_alignment=8)
-
     sort_tensor = argsort(score_tensor, valid_count, score_axis, False, True)
 
     sort_tensor_buf = api.decl_buffer(sort_tensor.shape, sort_tensor.dtype,

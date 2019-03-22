@@ -1,12 +1,10 @@
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
 """Argsort operator """
-import math
 import tvm
 
 from tvm import api
 from tvm.intrin import if_then_else
 from topi.sort import argsort
-from ..util import get_const_tuple
 
 
 def sort_ir(data, valid_count, output, axis, is_ascend, flag):

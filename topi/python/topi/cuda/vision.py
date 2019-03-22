@@ -206,6 +206,19 @@ def schedule_get_valid_counts(outs):
 
 @generic.schedule_argsort.register(["cuda", "gpu"])
 def schedule_argsort(outs):
+    """Schedule for argsort operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of argsort
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
