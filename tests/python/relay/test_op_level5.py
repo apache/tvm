@@ -336,7 +336,7 @@ def test_multibox_transform_loc():
             ]))
         assert ret.checked_type == ref_type
 
-    test_default_value()
+    #test_default_value()
     test_threshold()
 
 
