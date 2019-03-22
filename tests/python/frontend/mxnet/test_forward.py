@@ -509,6 +509,9 @@ def test_forward_bilinear_resize():
     data = mx.sym.var('data')
     mx_sym = mx.sym.contrib.BilinearResize2D(data, height=5, width=10)
     verify_mxnet_frontend_impl(mx_sym, (1, 2, 3, 4), (1, 2, 5, 10))
+    mx_sym = mx.sym.contrib.BilinearResize2D(data, height=1, width=1,
+             scale_height=0.1, scale_width=0.5)
+    verify_mxnet_frontend_impl(mx_sym, (1, 2, 50, 10), (1, 2, 5, 5))
 
 
 if __name__ == '__main__':
