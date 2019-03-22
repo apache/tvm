@@ -136,8 +136,7 @@ class PrettyPrinter :
     public TypeFunctor<Doc(const Type&)>,
     public AttrFunctor<Doc(const NodeRef&)> {
  public:
-  explicit PrettyPrinter(bool GNF,
-                         bool show_meta_data,
+  explicit PrettyPrinter(bool show_meta_data,
                          runtime::TypedPackedFunc<std::string(Expr)> annotate) :
                          show_meta_data_(show_meta_data),
                          annotate_(annotate) {}
@@ -772,37 +771,23 @@ Doc PrettyPrinter::PrintAttrs(const Attrs& attrs, const Expr& op) {
 
 std::string PrettyPrint_(const NodeRef& node,
                          bool show_meta_data,
-                         runtime::TypedPackedFunc<std::string(Expr)> annotate,
-                         bool gnf) {
+                         runtime::TypedPackedFunc<std::string(Expr)> annotate) {
   Doc doc;
   doc << "v0.0.1" << "\n"
-      << PrettyPrinter(gnf, show_meta_data, annotate).PrintFinal(node);
+      << PrettyPrinter(show_meta_data, annotate).PrintFinal(node);
   return doc.str();
 }
 
 std::string AsText(const NodeRef& node,
-                    bool show_meta_data,
-                    runtime::TypedPackedFunc<std::string(Expr)> annotate) {
-  return PrettyPrint_(node, show_meta_data, annotate, true);
-}
-
-std::string PassDebugPrint(const NodeRef& node,
-                           bool show_meta_data,
-                           runtime::TypedPackedFunc<std::string(Expr)> annotate,
-                           bool gnf) {
-  return PrettyPrint_(node, show_meta_data, annotate, gnf);
+                       bool show_meta_data,
+                       runtime::TypedPackedFunc<std::string(Expr)> annotate) {
+  return PrettyPrint_(node, show_meta_data, annotate);
 }
 
 TVM_REGISTER_API("relay._expr.AsText")
 .set_body_typed<std::string(const NodeRef&,
                             bool,
                             runtime::TypedPackedFunc<std::string(Expr)>)>(AsText);
-
-TVM_REGISTER_API("relay._ir_pass.pass_debug_print")
-.set_body_typed<std::string(const NodeRef&,
-                            bool,
-                            runtime::TypedPackedFunc<std::string(Expr)>,
-                            bool)>(PassDebugPrint);
 
 }  // namespace relay
 }  // namespace tvm
