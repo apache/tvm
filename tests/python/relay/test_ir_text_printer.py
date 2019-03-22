@@ -3,8 +3,9 @@ import tvm.relay.testing
 import numpy as np
 from tvm import relay
 
-
 do_print = [False]
+
+SEMVER = "v0.0.1\n"
 
 def show(text):
     if do_print[0]:
@@ -153,16 +154,17 @@ def test_densenet():
     net.astext()
 
 def test_call_node_order():
-    assert relay.fromtext("v0.0.1\n(fn(%x) { %x })((fn(%y) { %y })(1))").astext(show_meta_data=False) == ("v0.0.1\n"
-                               "%0 = fn (%y) {\n"
-                               "  %y\n"
-                               "}\n"
-                               "%1 = %0(1)\n"
-                               "%2 = fn (%x) {\n"
-                               "  %x\n"
-                               "}\n"
-                               "%3 = %2(%1)\n"
-                               "%3")
+    assert relay.fromtext(SEMVER+"(fn(%x) { %x })((fn(%y) { %y })(1))").astext() == SEMVER + \
+        ("v0.0.1\n"
+         "%0 = fn (%y) {\n"
+         "  %y\n"
+         "}\n"
+         "%1 = %0(1)\n"
+         "%2 = fn (%x) {\n"
+         "  %x\n"
+         "}\n"
+         "%3 = %2(%1)\n"
+         "%3")
 
 if __name__ == "__main__":
     do_print[0] = True
