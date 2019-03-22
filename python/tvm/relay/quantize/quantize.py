@@ -74,7 +74,8 @@ class QConfig(NodeBase):
         "round_for_shift": True,
         "store_lowbit_output": True,
         "debug_enabled_ops": None,
-        "use_stop_fusion": True
+        "use_stop_fusion": True,
+        "quantize_dense": True
     }
 
     # pylint: disable=no-member
@@ -149,6 +150,9 @@ def qconfig(**kwargs):
     use_stop_fusion: boolean
         Whether add stop_fusion when casting to dtype_activation. stop_fusion forces lowbit
         results to be stored in memory.
+
+    quantize_dense: boolean
+        Whether to quantize dense layers.
 
     Returns
     -------
