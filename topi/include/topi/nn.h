@@ -97,7 +97,6 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
                          const int axis = 1,
                          std::string name = "tensor",
                          std::string tag = kBroadcast) {
-  CHECK_EQ(4, x->shape.size());
   CHECK((size_t)axis < x->shape.size()) <<
         "Wrong axis ("  << axis << ")value. ";
   CHECK(topi::detail::GetConstInt(slope->shape[0]) ==
