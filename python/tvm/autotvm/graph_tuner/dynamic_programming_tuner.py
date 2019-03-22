@@ -17,11 +17,8 @@ class DPTuner(BaseGraphTuner):
 
     Note: currently dynamic programming is used to solve this MDP problem. However,
     this problem is intrinsically non-polynomial. DP can't apply for more complicated
-    models, such as networks with many element-wise sum operators. In this case, a simple
-    greedy method greedy_schedule can be used to generate suboptimal schedules.
-
-    TODO  Analyse time/memory complexity of the algorithm and automatically switch to
-    TODO  greedy method if DP is prohibitively expensive.
+    models, such as networks with many element-wise sum operators. In this case, switch
+    to heuristic algorithm such as PBQP tuner.
     """
     def __init__(self, *args, **kwargs):
         """Create a dynamic programming tuner.
