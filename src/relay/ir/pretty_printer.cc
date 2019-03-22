@@ -416,11 +416,13 @@ class PrettyPrinter :
 
   Doc VisitExpr_(const CallNode* op) final {
     Doc doc;
-    doc << Print(op->op);
+    // visit args first so they are lifted before the op
+    // this places op closer to its call site
     std::vector<Doc> args;
     for (Expr arg : op->args) {
       args.push_back(Print(arg));
     }
+    doc << Print(op->op);
     return doc << "(" << PrintVec(args) << PrintAttrs(op->attrs, op->op) << ")";
   }
 

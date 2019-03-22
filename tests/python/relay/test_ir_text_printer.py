@@ -152,6 +152,17 @@ def test_densenet():
     net, params = tvm.relay.testing.densenet.get_workload(batch_size=1)
     net.astext()
 
+def test_call_node_order():
+    assert relay.fromtext("v0.0.1\n(fn(%x) { %x })((fn(%y) { %y })(1))").astext(show_meta_data=False) == ("v0.0.1\n"
+                               "%0 = fn (%y) {\n"
+                               "  %y\n"
+                               "}\n"
+                               "%1 = %0(1)\n"
+                               "%2 = fn (%x) {\n"
+                               "  %x\n"
+                               "}\n"
+                               "%3 = %2(%1)\n"
+                               "%3")
 
 if __name__ == "__main__":
     do_print[0] = True
@@ -170,3 +181,4 @@ if __name__ == "__main__":
     test_call_attrs()
     test_let_if_scope()
     test_variable_name()
+    test_call_node_order()
