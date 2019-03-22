@@ -1369,6 +1369,9 @@ class Branch:
         """An internal API to create a relay if node from the matched TF
         condition construct.
         """
+        # `cond`  returns a tensor that contains boolean values. We add a `min`
+        # operator to checks if there is any false value. If so, this condition
+        # doesn't not hold.
         cond = tvm.relay.op.min(self.cond)
         return tvm.relay.If(cond, self.true_branch, self.false_branch)
 
@@ -1376,7 +1379,6 @@ class Branch:
         """Create an tvm.relay.If node if it hasn't been created yet."""
         if self._if is None:
             self._if = self._if_node()
-            return self._if
         return self._if
 
 
