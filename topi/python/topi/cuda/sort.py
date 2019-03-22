@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
 """Argsort operator """
 import math
 import tvm
@@ -43,12 +44,12 @@ def sort_ir(data, valid_count, output, axis, is_ascend, flag):
     shape = data.shape
     if axis < 0:
         axis = len(shape) + axis
-    for i in range(0, len(shape)):
-        size *= shape[i]
+    for i, value in enumerate(shape, 0):
+        size *= value
         if i < axis:
-            axis_mul_before *= shape[i]
+            axis_mul_before *= value
         elif i > axis:
-            axis_mul_after *= shape[i]
+            axis_mul_after *= value
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     ib = tvm.ir_builder.create()
     data = ib.buffer_ptr(data)
@@ -74,14 +75,24 @@ def sort_ir(data, valid_count, output, axis, is_ascend, flag):
             with ib.for_range(0, current_sort_num) as k:
                 with ib.if_scope(tid < (current_sort_num + 1) // 2):
                     offset = base_idx + (2 * tid + (k % 2)) * axis_mul_after
-                    with ib.if_scope(tvm.all(offset + axis_mul_after < current_sort_num, \
-                                             data[offset] < data[offset + axis_mul_after])):
-                        temp_data[0] = data[offset]
-                        data[offset] = data[offset + axis_mul_after]
-                        data[offset + 1] = temp_data[0]
-                        temp_index[0] = output[offset]
-                        output[offset] = output[offset + axis_mul_after]
-                        output[offset + axis_mul_after] = temp_index[0]
+                    with ib.if_scope(is_ascend):
+                        with ib.if_scope(tvm.all(offset + axis_mul_after < current_sort_num, \
+                                                 data[offset] > data[offset + axis_mul_after])):
+                            temp_data[0] = data[offset]
+                            data[offset] = data[offset + axis_mul_after]
+                            data[offset + 1] = temp_data[0]
+                            temp_index[0] = output[offset]
+                            output[offset] = output[offset + axis_mul_after]
+                            output[offset + axis_mul_after] = temp_index[0]
+                    with ib.else_scope():
+                        with ib.if_scope(tvm.all(offset + axis_mul_after < current_sort_num, \
+                                                 data[offset] < data[offset + axis_mul_after])):
+                            temp_data[0] = data[offset]
+                            data[offset] = data[offset + axis_mul_after]
+                            data[offset + 1] = temp_data[0]
+                            temp_index[0] = output[offset]
+                            output[offset] = output[offset + axis_mul_after]
+                            output[offset + axis_mul_after] = temp_index[0]
                 ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
                                       tvm.convert(['shared']),
                                       tvm.expr.Call.Intrinsic, None, 0))
@@ -118,12 +129,12 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
     out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=4)
 
     out = tvm.extern([data.shape],
-                      [data, valid_count],
-                      lambda ins, outs: sort_ir(
-                          ins[0], ins[1], outs[0], axis, bool(is_ascend), bool(flag)),
-                      dtype=["int32"],
-                      in_buffers=[data_buf, valid_count_buf],
-                      out_buffers=[out_buf],
-                      name="argsort_gpu",
-                      tag="argsort_gpu")
+                     [data, valid_count],
+                     lambda ins, outs: sort_ir(
+                         ins[0], ins[1], outs[0], axis, bool(is_ascend), bool(flag)),
+                     dtype=["int32"],
+                     in_buffers=[data_buf, valid_count_buf],
+                     out_buffers=[out_buf],
+                     name="argsort_gpu",
+                     tag="argsort_gpu")
     return out
