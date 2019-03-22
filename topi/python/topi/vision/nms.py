@@ -18,7 +18,7 @@
 """Non-maximum suppression operator"""
 import tvm
 
-from tvm import api, hybrid
+from tvm import hybrid
 from ..sort import argsort
 
 @hybrid.script
@@ -328,7 +328,6 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
-    valid_count_dtype = "int32"
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
