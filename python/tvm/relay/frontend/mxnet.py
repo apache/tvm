@@ -475,9 +475,9 @@ def _mx_resize(inputs, attrs):
     width = attrs.get_int("width", 1)
     shape = ir_pass.infer_type(inputs[0]).checked_type.shape
     if scale_height is not None:
-        height = scale_height * shape[2]
+        height = (scale_height * shape[2]).astype("int32")
     if scale_width is not None:
-        width = scale_width * shape[3]
+        width = (scale_width * shape[3]).astype("int32")
     size = (height, width)
     return _op.image.resize(inputs[0], size, align_corners=True)
 
