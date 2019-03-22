@@ -48,4 +48,6 @@ if(NOT USE_SGX STREQUAL "OFF")
     -L${USE_SGX}/lib64 -l${_urts_lib}
     -L${RUST_SGX_SDK}/sgx_ustdc -lsgx_ustdc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_SGX_SRCS})
+
+  include_directories(${RUST_SGX_SDK}/edl ${RUST_SGX_SDK}/common)
 endif()
