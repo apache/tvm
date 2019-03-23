@@ -61,9 +61,6 @@ pub use tvm_common::{
 
 pub use self::{array::*, errors::*, graph::*, module::*, threading::*, workspace::*};
 
-#[cfg(target_env = "sgx")]
-use self::sgx::ocall_packed_func;
-
 lazy_static! {
     static ref LAST_ERROR: std::sync::RwLock<Option<&'static std::ffi::CStr>> =
         std::sync::RwLock::new(None);
