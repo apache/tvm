@@ -154,7 +154,9 @@ def test_densenet():
     net.astext()
 
 def test_call_node_order():
-    assert relay.fromtext(SEMVER+"(fn(%x) { %x })((fn(%y) { %y })(1))").astext() == SEMVER + \
+    x = relay.var("x")
+    y = relay.var("y")
+    assert relay.Call(relay.Function([x], x), [relay.Call(relay.Function([y], y), [relay.const(1)])]).astext() == SEMVER + \
         ("%0 = fn (%y) {\n"
          "  %y\n"
          "}\n"
