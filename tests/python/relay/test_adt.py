@@ -26,6 +26,7 @@ l = p.l
 hd = p.hd
 tl = p.tl
 nth = p.nth
+update = p.update
 length = p.length
 map = p.map
 foldl = p.foldl
@@ -141,6 +142,23 @@ def test_nth():
     l = nil()
     for i in reversed(expected):
         l = cons(build_nat(i), l)
+
+    got = []
+    for i in range(len(expected)):
+        got.append(count(intrp.evaluate(nth(l, build_nat(i)))))
+
+    assert got == expected
+
+def test_update():
+    expected = list(range(10))
+    l = nil()
+    # create zero initialized list
+    for i in range(len(expected)):
+        l = cons(build_nat(0), l)
+
+    # set value
+    for i, v in enumerate(expected):
+        l = update(l, build_nat(i), build_nat(v))
 
     got = []
     for i in range(len(expected)):
