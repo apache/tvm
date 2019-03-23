@@ -527,7 +527,7 @@ struct StructuralHash {
  *
  * \return expression in A-Normal Form
  */
-Expr ToANormalForm(const Expr& e, const Module& mod);
+TVM_DLL Expr ToANormalForm(const Expr& e, const Module& mod);
 
 /*! \brief Remove let binding and directly share via pointer instead.
  *
@@ -538,7 +538,7 @@ Expr ToANormalForm(const Expr& e, const Module& mod);
  *
  * \return the expression in graph normal form.
  */
-Expr ToGraphNormalForm(const Expr& e);
+TVM_DLL Expr ToGraphNormalForm(const Expr& e);
 
 }  // namespace relay
 }  // namespace tvm
