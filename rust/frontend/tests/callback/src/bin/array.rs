@@ -1,4 +1,3 @@
-#![feature(extern_crate_item_prelude, try_from)]
 #![allow(unused_imports)]
 
 extern crate ndarray as rust_ndarray;
@@ -11,11 +10,11 @@ use std::{
     str::FromStr,
 };
 
-use tvm::*;
+use tvm::{errors::Error, *};
 
 fn main() {
     register_global_func! {
-        fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue> {
+        fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
             let mut ret = 0f32;
             let shape = &mut [2];
             for arg in args.iter() {

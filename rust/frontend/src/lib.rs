@@ -12,20 +12,22 @@
 //! Checkout the `examples` repository for more details.
 
 #![allow(non_camel_case_types, unused_unsafe)]
-#![feature(try_from, try_trait, fn_traits, unboxed_closures, box_syntax)]
+#![feature(try_trait, fn_traits, unboxed_closures, box_syntax)]
 
 #[macro_use]
-extern crate error_chain;
-extern crate tvm_common;
+extern crate failure;
 #[macro_use]
 extern crate lazy_static;
 extern crate ndarray as rust_ndarray;
 extern crate num_traits;
+extern crate tvm_common;
 
 use std::{
     ffi::{CStr, CString},
     str,
 };
+
+use failure::Error;
 
 pub use crate::{
     bytearray::TVMByteArray,
@@ -95,8 +97,8 @@ mod tests {
 
     #[test]
     fn set_error() {
-        let err = ErrorKind::EmptyArray;
+        let err = errors::EmptyArrayError;
         set_last_error(&err.into());
-        assert_eq!(get_last_error().trim(), ErrorKind::EmptyArray.to_string());
+        assert_eq!(get_last_error().trim(), errors::EmptyArrayError.to_string());
     }
 }

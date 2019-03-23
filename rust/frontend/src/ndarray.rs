@@ -25,11 +25,12 @@
 
 use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 
-use crate::rust_ndarray::{Array, ArrayD};
+use failure::Error;
 use num_traits::Num;
+use rust_ndarray::{Array, ArrayD};
 use tvm_common::{ffi, TVMType};
 
-use crate::{Error, ErrorKind, Result, TVMByteArray, TVMContext};
+use crate::{errors, TVMByteArray, TVMContext};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 ///
@@ -98,12 +99,13 @@ impl NDArray {
     }
 
     /// Shows whether the underlying ndarray is contiguous in memory or not.
-    pub fn is_contiguous(&self) -> Result<bool> {
+    pub fn is_contiguous(&self) -> Result<bool, Error> {
         Ok(match self.strides() {
             None => true,
             Some(strides) => {
-                // MissingShapeError in case shape is not determined
-                self.shape()?
+                // errors::MissingShapeError in case shape is not determined
+                self.shape()
+                    .ok_or(errors::MissingShapeError)?
                     .iter()
                     .zip(strides)
                     .rfold(
@@ -137,14 +139,16 @@ impl NDArray {
     /// assert_eq!(ndarray.shape(), Some(shape));
     /// assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
     /// ```
-    pub fn to_vec<T>(&self) -> Result<Vec<T>> {
-        if self.shape().is_none() {
-            bail!("{}", ErrorKind::EmptyArray);
-        }
-        let earr = NDArray::empty(self.shape()?, TVMContext::cpu(0), self.dtype());
+    pub fn to_vec<T>(&self) -> Result<Vec<T>, Error> {
+        ensure!(self.shape().is_some(), errors::EmptyArrayError);
+        let earr = NDArray::empty(
+            self.shape().ok_or(errors::MissingShapeError)?,
+            TVMContext::cpu(0),
+            self.dtype(),
+        );
         let target = self.copy_to_ndarray(earr)?;
         let arr = unsafe { *(target.handle) };
-        let sz = self.size()? as usize;
+        let sz = self.size().ok_or(errors::MissingShapeError)?;
         let mut v: Vec<T> = Vec::with_capacity(sz * mem::size_of::<T>());
         unsafe {
             v.as_mut_ptr()
@@ -155,7 +159,7 @@ impl NDArray {
     }
 
     /// Converts the NDArray to [`TVMByteArray`].
-    pub fn to_bytearray(&self) -> Result<TVMByteArray> {
+    pub fn to_bytearray(&self) -> Result<TVMByteArray, Error> {
         let v = self.to_vec::<u8>()?;
         Ok(TVMByteArray::from(&v))
     }
@@ -183,14 +187,14 @@ impl NDArray {
     }
 
     /// Copies the NDArray to another target NDArray.
-    pub fn copy_to_ndarray(&self, target: NDArray) -> Result<NDArray> {
-        if self.dtype() != target.dtype() {
+    pub fn copy_to_ndarray(&self, target: NDArray) -> Result<NDArray, Error> {
+        if dbg!(self.dtype()) != dbg!(target.dtype()) {
             bail!(
                 "{}",
-                ErrorKind::TypeMismatch(
-                    format!("{}", self.dtype().to_string()),
-                    format!("{}", target.dtype().to_string()),
-                )
+                errors::TypeMismatchError {
+                    expected: format!("{}", self.dtype().to_string()),
+                    actual: format!("{}", target.dtype().to_string()),
+                }
             );
         }
         check_call!(ffi::TVMArrayCopyFromTo(
@@ -202,8 +206,12 @@ impl NDArray {
     }
 
     /// Copies the NDArray to a target context.
-    pub fn copy_to_ctx(&self, target: &TVMContext) -> Result<NDArray> {
-        let tmp = NDArray::empty(self.shape()?, target.clone(), self.dtype());
+    pub fn copy_to_ctx(&self, target: &TVMContext) -> Result<NDArray, Error> {
+        let tmp = NDArray::empty(
+            self.shape().ok_or(errors::MissingShapeError)?,
+            target.clone(),
+            self.dtype(),
+        );
         let copy = self.copy_to_ndarray(tmp)?;
         Ok(copy)
     }
@@ -213,11 +221,14 @@ impl NDArray {
         rnd: &ArrayD<T>,
         ctx: TVMContext,
         dtype: TVMType,
-    ) -> Result<Self> {
+    ) -> Result<Self, Error> {
         let mut shape = rnd.shape().to_vec();
         let mut nd = NDArray::empty(&mut shape, ctx, dtype);
         let mut buf = Array::from_iter(rnd.into_iter().map(|&v| v as T));
-        nd.copy_from_buffer(buf.as_slice_mut()?);
+        nd.copy_from_buffer(
+            buf.as_slice_mut()
+                .expect("Array from iter must be contiguous."),
+        );
         Ok(nd)
     }
 
@@ -245,23 +256,25 @@ macro_rules! impl_from_ndarray_rustndarray {
     ($type:ty, $type_name:tt) => {
         impl<'a> TryFrom<&'a NDArray> for ArrayD<$type> {
             type Error = Error;
-            fn try_from(nd: &NDArray) -> Result<ArrayD<$type>> {
-                if nd.shape().is_none() {
-                    bail!("{}", ErrorKind::EmptyArray);
-                }
+            fn try_from(nd: &NDArray) -> Result<ArrayD<$type>, Self::Error> {
+                ensure!(nd.shape().is_some(), errors::MissingShapeError);
                 assert_eq!(nd.dtype(), TVMType::from_str($type_name)?, "Type mismatch");
-                Ok(Array::from_shape_vec(&*nd.shape()?, nd.to_vec::<$type>()?)?)
+                Ok(Array::from_shape_vec(
+                    &*nd.shape().ok_or(errors::MissingShapeError)?,
+                    nd.to_vec::<$type>()?,
+                )?)
             }
         }
 
         impl<'a> TryFrom<&'a mut NDArray> for ArrayD<$type> {
             type Error = Error;
-            fn try_from(nd: &mut NDArray) -> Result<ArrayD<$type>> {
-                if nd.shape().is_none() {
-                    bail!("{}", ErrorKind::EmptyArray);
-                }
+            fn try_from(nd: &mut NDArray) -> Result<ArrayD<$type>, Self::Error> {
+                ensure!(nd.shape().is_some(), errors::MissingShapeError);
                 assert_eq!(nd.dtype(), TVMType::from_str($type_name)?, "Type mismatch");
-                Ok(Array::from_shape_vec(&*nd.shape()?, nd.to_vec::<$type>()?)?)
+                Ok(Array::from_shape_vec(
+                    &*nd.shape().ok_or(errors::MissingShapeError)?,
+                    nd.to_vec::<$type>()?,
+                )?)
             }
         }
     };

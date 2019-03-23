@@ -5,7 +5,8 @@ use failure::Error;
 pub use crate::ffi::TVMValue;
 use crate::ffi::*;
 
-pub trait PackedFunc = Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync;
+pub trait PackedFunc =
+    Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync;
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
@@ -46,7 +47,7 @@ macro_rules! ensure_type {
     ($val:ident, $expected_type_code:expr) => {
         ensure!(
             $val.type_code == $expected_type_code as i64,
-            crate::errors::ValueDowncastError::new(
+            $crate::errors::ValueDowncastError::new(
                 $val.type_code as i64,
                 $expected_type_code as i64
             )
@@ -274,18 +275,23 @@ impl TryFrom<TVMRetValue> for String {
     type Error = Error;
     fn try_from(ret: TVMRetValue) -> Result<String, Self::Error> {
         ensure_type!(ret, TVMTypeCode_kStr);
-        Ok(unsafe { std::ffi::CString::from_raw(ret.value.v_str as *mut i8) }.into_string()?)
+        let cs = unsafe { std::ffi::CString::from_raw(ret.value.v_handle as *mut i8) };
+        let ret_str = cs.clone().into_string();
+        if cfg!(feature = "bindings") {
+            std::mem::forget(cs); // TVM C++ takes ownership of CString. (@see TVMFuncCall)
+        }
+        Ok(ret_str?)
     }
 }
 
 impl From<String> for TVMRetValue {
     fn from(s: String) -> Self {
-        let s_box = box std::ffi::CString::new(s).unwrap();
+        let cs = std::ffi::CString::new(s).unwrap();
         Self {
             value: TVMValue {
-                v_handle: s_box.as_ptr() as *mut i8 as *mut c_void,
+                v_str: cs.into_raw() as *mut i8,
             },
-            box_value: s_box,
+            box_value: box (),
             type_code: TVMTypeCode_kStr as i64,
         }
     }

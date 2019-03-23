@@ -4,6 +4,7 @@
 
 use std::{convert::TryFrom, os::raw::c_void};
 
+use failure::Error;
 use tvm_common::{
     ensure_type,
     ffi::{self, TVMValue},
@@ -42,9 +43,9 @@ macro_rules! impl_tvm_val_from_handle {
 
         impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for $ty {
             type Error = Error;
-            fn try_from(arg: &TVMArgValue<'v>) -> Result<$ty> {
+            fn try_from(arg: &TVMArgValue<'v>) -> Result<$ty, Self::Error> {
                 ensure_type!(arg, $type_code);
-                Ok($ty::new(unsafe { *(arg.value.v_handle as *const $handle) }))
+                Ok($ty::new(unsafe { arg.value.v_handle as $handle }))
             }
         }
 
@@ -62,7 +63,7 @@ macro_rules! impl_tvm_val_from_handle {
 
         impl TryFrom<TVMRetValue> for $ty {
             type Error = Error;
-            fn try_from(ret: TVMRetValue) -> Result<$ty> {
+            fn try_from(ret: TVMRetValue) -> Result<$ty, Self::Error> {
                 ensure_type!(ret, $type_code);
                 Ok($ty::new(unsafe { ret.value.v_handle as $handle }))
             }
@@ -99,14 +100,11 @@ macro_rules! impl_boxed_ret_value {
         }
         impl TryFrom<TVMRetValue> for $type {
             type Error = Error;
-            fn try_from(ret: TVMRetValue) -> Result<$type> {
+            fn try_from(ret: TVMRetValue) -> Result<$type, Self::Error> {
                 if let Ok(val) = ret.box_value.downcast::<$type>() {
                     Ok(*val)
                 } else {
-                    bail!(ErrorKind::TryFromTVMRetValueError(
-                        stringify!($type).to_string(),
-                        ret.type_code
-                    ))
+                    bail!(ValueDowncastError::new($code as i64, ret.type_code as i64))
                 }
             }
         }
@@ -118,7 +116,7 @@ impl_boxed_ret_value!(TVMByteArray, ffi::TVMTypeCode_kBytes);
 
 impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for TVMByteArray {
     type Error = Error;
-    fn try_from(arg: &TVMArgValue<'v>) -> Result<Self> {
+    fn try_from(arg: &TVMArgValue<'v>) -> Result<Self, Self::Error> {
         ensure_type!(arg, ffi::TVMTypeCode_kBytes);
         Ok(TVMByteArray::new(unsafe {
             *(arg.value.v_handle as *mut ffi::TVMByteArray)

@@ -8,9 +8,10 @@ use std::{
     ptr,
 };
 
+use failure::Error;
 use tvm_common::ffi;
 
-use crate::{function::Function, ErrorKind, Result};
+use crate::{errors, function::Function};
 
 const ENTRY_FUNC: &'static str = "__tvm_main__";
 
@@ -40,7 +41,7 @@ impl Module {
     }
 
     /// Gets a function by name from a registered module.
-    pub fn get_function(&self, name: &str, query_import: bool) -> Result<Function> {
+    pub fn get_function(&self, name: &str, query_import: bool) -> Result<Function, Error> {
         let name = CString::new(name)?;
         let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
         check_call!(ffi::TVMModGetFunction(
@@ -49,11 +50,13 @@ impl Module {
             query_import as c_int,
             &mut fhandle as *mut _
         ));
-        if fhandle.is_null() {
-            bail!(ErrorKind::NullHandle(format!("{}", name.into_string()?)))
-        } else {
-            Ok(Function::new(fhandle))
-        }
+        ensure!(
+            !fhandle.is_null(),
+            errors::NullHandleError {
+                name: format!("{}", name.into_string()?)
+            }
+        );
+        Ok(Function::new(fhandle))
     }
 
     /// Imports a dependent module such as `.ptx` for gpu.
@@ -62,10 +65,21 @@ impl Module {
     }
 
     /// Loads a module shared library from path.
-    pub fn load<P: AsRef<Path>>(path: &P) -> Result<Module> {
-        let ext = CString::new(path.as_ref().extension()?.to_str()?)?;
+    pub fn load<P: AsRef<Path>>(path: &P) -> Result<Module, Error> {
+        let ext = CString::new(
+            path.as_ref()
+                .extension()
+                .unwrap_or(std::ffi::OsStr::new(""))
+                .to_str()
+                .ok_or_else(|| {
+                    format_err!("Bad module load path: `{}`.", path.as_ref().display())
+                })?,
+        )?;
         let func = Function::get("module._LoadFromFile").expect("API function always exists");
-        let cpath = CString::new(path.as_ref().to_str()?)?;
+        let cpath =
+            CString::new(path.as_ref().to_str().ok_or_else(|| {
+                format_err!("Bad module load path: `{}`.", path.as_ref().display())
+            })?)?;
         let ret: Module = call_packed!(func, &cpath, &ext)?.try_into()?;
         Ok(ret)
     }
