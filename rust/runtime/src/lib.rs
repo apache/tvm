@@ -14,7 +14,6 @@
     allocator_api,
     box_syntax,
     fn_traits,
-    try_from,
     unboxed_closures,
     vec_remove_item
 )]

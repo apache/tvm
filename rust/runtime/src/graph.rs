@@ -333,7 +333,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     }
 }
 
-/// Converts a string to TVM DLDataTypeCode. @see `String2TVMType` in packed_func.h
+// Converts a string to TVM DLDataTypeCode. @see `String2TVMType` in packed_func.h
 named!(
   tvm_str_to_type<CompleteStr, DataType>,
   do_parse!(
@@ -356,7 +356,7 @@ named!(
   )
 );
 
-/// Converts a bytes to String.
+// Converts a bytes to String.
 named!(
     name<String>,
     map_res!(length_bytes!(le_u64), |b: &[u8]| String::from_utf8(
@@ -364,7 +364,7 @@ named!(
     ))
 );
 
-/// Parses a TVMContext
+// Parses a TVMContext
 named!(
   tvm_ctx<&[u8], TVMContext>,
   do_parse!(
@@ -374,7 +374,7 @@ named!(
   )
 );
 
-/// Parses a DataType
+// Parses a DataType
 named!(
   data_type<&[u8], DataType>,
   do_parse!(
@@ -385,7 +385,7 @@ named!(
   )
 );
 
-/// Parses a Tensor from a TVM array file.
+// Parses a Tensor from a TVM array file.
 named!(
     tensor<Tensor>,
     do_parse!(
@@ -409,7 +409,7 @@ named!(
     )
 );
 
-/// Parses a graph params dict from a params binary file.
+// Parses a graph params dict from a params binary file.
 named!(
     parse_param_dict<HashMap<String, Tensor>>,
     do_parse!(
