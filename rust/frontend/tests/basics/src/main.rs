@@ -1,5 +1,3 @@
-#![feature(try_from)]
-
 extern crate ndarray as rust_ndarray;
 extern crate tvm_frontend as tvm;
 

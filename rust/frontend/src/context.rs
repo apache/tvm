@@ -24,12 +24,14 @@ use std::{
     ptr,
 };
 
+use failure::Error;
+
 use tvm_common::{
-    ffi::{self, TVMTypeCode_kTVMType, TVMValue},
+    ffi::{self, TVMValue},
     TVMArgValue,
 };
 
-use crate::{function, Result};
+use crate::function;
 
 /// Device type can be from a supported device name. See the supported devices
 /// in [TVM](https://github.com/dmlc/tvm).
@@ -215,7 +217,7 @@ impl TVMContext {
     }
 
     /// Synchronize the context stream.
-    pub fn sync(&self) -> Result<()> {
+    pub fn sync(&self) -> Result<(), Error> {
         check_call!(ffi::TVMSynchronize(
             self.device_type.0 as i32,
             self.device_id as i32,

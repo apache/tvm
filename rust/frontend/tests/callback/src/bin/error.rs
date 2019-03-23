@@ -1,4 +1,4 @@
-#![feature(extern_crate_item_prelude, panic_info_message)]
+#![feature(panic_info_message)]
 #![allow(unused_imports)]
 
 use std::panic;
@@ -6,15 +6,15 @@ use std::panic;
 #[macro_use]
 extern crate tvm_frontend as tvm;
 
-use tvm::*;
+use tvm::{errors::Error, *};
 
 fn main() {
     register_global_func! {
-        fn error(_args: &[TVMArgValue]) -> Result<TVMRetValue> {
-            Err(ErrorKind::TypeMismatch(
-                format!("{}", "i64".to_string()),
-                format!("{}", "f64".to_string()),
-            ).into())
+        fn error(_args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
+            Err(errors::TypeMismatchError{
+                expected: "i64".to_string(),
+                actual: "f64".to_string(),
+            }.into())
         }
     }
 

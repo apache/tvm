@@ -1,15 +1,14 @@
-#![feature(extern_crate_item_prelude, try_from)]
 #![allow(unused_imports)]
 
 #[macro_use]
 extern crate tvm_frontend as tvm;
 
 use std::convert::TryInto;
-use tvm::*;
+use tvm::{errors::Error, *};
 
 fn main() {
     register_global_func! {
-        fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue> {
+        fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
             let mut ret = 0.0;
             for arg in args.into_iter() {
                 let val: f64 = arg.try_into()?;

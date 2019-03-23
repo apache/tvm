@@ -1,15 +1,14 @@
-#![feature(try_from)]
 #![allow(unused_imports)]
 
 #[macro_use]
 extern crate tvm_frontend as tvm;
 use std::convert::TryInto;
-use tvm::*;
+use tvm::{errors::Error, *};
 
 // FIXME
 fn main() {
     register_global_func! {
-        fn concate_str(args: &[TVMArgValue]) -> Result<TVMRetValue> {
+        fn concate_str(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
             let mut ret = "".to_string();
             for arg in args.iter() {
                 let val: &str = arg.try_into()?;
