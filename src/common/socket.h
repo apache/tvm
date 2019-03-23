@@ -65,7 +65,7 @@ struct SockAddr {
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = PF_UNSPEC;
     hints.ai_flags = AI_PASSIVE;
-    hints.ai_protocol = SOCK_STREAM;
+    hints.ai_socktype = SOCK_STREAM;
     addrinfo *res = NULL;
     int sig = getaddrinfo(host, NULL, &hints, &res);
     CHECK(sig == 0 && res != NULL)
