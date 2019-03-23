@@ -1,7 +1,7 @@
 //! This crate contains the refactored basic components required
 //! for `runtime` and `frontend` TVM crates.
 
-#![feature(box_syntax, trait_alias, try_from)]
+#![feature(box_syntax, trait_alias)]
 
 #[macro_use]
 extern crate failure;
