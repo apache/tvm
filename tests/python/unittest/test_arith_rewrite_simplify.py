@@ -450,6 +450,21 @@ def test_cmp_simplify():
     ck.verify(tvm.max(8, x) > 10, tvm.expr.LT(10, x))
     ck.verify(x + 1 < tvm.max(8, x), x < 7)
 
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 10), override=True)
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(-10, 0), override=True)
+    ck.analyzer.update(z, tvm.arith.ConstIntBound(-5, 5), override=True)
+
+    ck.verify(x < 11, tvm.const(1, "bool"))
+    ck.verify(x <= 10, tvm.const(1, "bool"))
+    ck.verify(z <= 5, tvm.const(1, "bool"))
+    ck.verify(x + y <= 10, tvm.const(1, "bool"))
+    ck.verify(x + y >= -10, tvm.const(1, "bool"))
+    ck.verify(z - 5 <= y + 10, tvm.const(1, "bool"))
+    ck.verify(tvm.all(x > -1, z <= x + 5), tvm.const(1, "bool"))
+    ck.verify(x*y <= 0, tvm.const(1, "bool"))
+    ck.verify((x + 1)*(y - 1) < 0, tvm.const(1, "bool"))
+    ck.verify(y*y >= 0, tvm.const(1, "bool"))
+
 
 def test_logical_simplify():
     ck = RewriteChecker()
