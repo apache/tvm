@@ -6,11 +6,11 @@
 #ifndef TVM_RELAY_PASS_DEPENDENCY_GRAPH_H_
 #define TVM_RELAY_PASS_DEPENDENCY_GRAPH_H_
 
+#include "let_list.h"
+#include "../../common/arena.h"
 #include <unordered_map>
 #include <vector>
 #include <tvm/relay/expr.h>
-#include "let_list.h"
-#include "../../common/arena.h"
 
 namespace tvm {
 namespace relay {
