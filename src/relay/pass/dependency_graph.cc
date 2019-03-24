@@ -4,9 +4,9 @@
  * \brief
  */
 #include "dependency_graph.h"
+#include <tvm/relay/expr_functor.h>
 #include <unordered_set>
 #include <utility>
-#include <tvm/relay/expr_functor.h>
 
 namespace tvm {
 namespace relay {
