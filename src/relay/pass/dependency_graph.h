@@ -6,6 +6,8 @@
 #ifndef TVM_RELAY_PASS_DEPENDENCY_GRAPH_H_
 #define TVM_RELAY_PASS_DEPENDENCY_GRAPH_H_
 
+#include <unordered_map>
+#include <vector>
 #include <tvm/relay/expr.h>
 #include "let_list.h"
 #include "../../common/arena.h"
@@ -52,4 +54,4 @@ class DependencyGraph {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_PASS_QUANTIZE_H_
+#endif  // TVM_RELAY_PASS_DEPENDENCY_GRAPH_H_
