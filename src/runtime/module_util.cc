@@ -22,9 +22,7 @@
  * \file module_util.cc
  * \brief Utilities for module.
  */
-#ifndef _LIBCPP_SGX_CONFIG
 #include <dmlc/memory_io.h>
-#endif
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <string>
@@ -35,7 +33,6 @@ namespace tvm {
 namespace runtime {
 
 void ImportModuleBlob(const char* mblob, std::vector<Module>* mlist) {
-#ifndef _LIBCPP_SGX_CONFIG
   CHECK(mblob != nullptr);
   uint64_t nbytes = 0;
   for (size_t i = 0; i < sizeof(nbytes); ++i) {
@@ -58,9 +55,6 @@ void ImportModuleBlob(const char* mblob, std::vector<Module>* mlist) {
     Module m = (*f)(static_cast<void*>(stream));
     mlist->push_back(m);
   }
-#else
-  LOG(FATAL) << "SGX does not support ImportModuleBlob";
-#endif
 }
 
 PackedFunc WrapPackedFunc(BackendPackedCFunc faddr,
