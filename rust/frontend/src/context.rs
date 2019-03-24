@@ -158,15 +158,15 @@ pub struct TVMContext {
     /// Supported device types
     pub device_type: TVMDeviceType,
     /// Device id
-    pub device_id: usize,
+    pub device_id: i32,
 }
 
 impl TVMContext {
     /// Creates context from device type and id.
-    pub fn new(device_type: TVMDeviceType, device_id: usize) -> Self {
+    pub fn new(device_type: TVMDeviceType, device_id: i32) -> Self {
         TVMContext {
-            device_type: device_type,
-            device_id: device_id,
+            device_type,
+            device_id,
         }
     }
 }
@@ -175,7 +175,7 @@ macro_rules! impl_ctxs {
     ($(($ctx:ident, $dldevt:expr));+) => {
         $(
             impl TVMContext {
-                pub fn $ctx(device_id: usize) -> Self {
+                pub fn $ctx(device_id: i32) -> Self {
                     Self::new(TVMDeviceType($dldevt), device_id)
                 }
             }
@@ -238,7 +238,7 @@ macro_rules! impl_device_attrs {
                     // `unwrap` is ok here because if there is any error,
                     // if would occur in function call.
                     function::Builder::from(func)
-                        .args(&[dt, self.device_id, $attr_kind])
+                        .args(&[dt, self.device_id as usize, $attr_kind])
                         .invoke()
                         .unwrap()
                         .try_into()
@@ -262,7 +262,7 @@ impl From<ffi::DLContext> for TVMContext {
     fn from(ctx: ffi::DLContext) -> Self {
         TVMContext {
             device_type: TVMDeviceType::from(ctx.device_type),
-            device_id: ctx.device_id as usize,
+            device_id: ctx.device_id,
         }
     }
 }

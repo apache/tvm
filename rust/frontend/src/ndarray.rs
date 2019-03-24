@@ -188,7 +188,7 @@ impl NDArray {
 
     /// Copies the NDArray to another target NDArray.
     pub fn copy_to_ndarray(&self, target: NDArray) -> Result<NDArray, Error> {
-        if dbg!(self.dtype()) != dbg!(target.dtype()) {
+        if self.dtype() != target.dtype() {
             bail!(
                 "{}",
                 errors::TypeMismatchError {

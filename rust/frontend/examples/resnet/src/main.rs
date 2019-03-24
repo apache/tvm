@@ -1,5 +1,3 @@
-#![feature(try_from)]
-
 extern crate csv;
 extern crate image;
 extern crate ndarray;
@@ -55,10 +53,8 @@ fn main() {
         "input size is {:?}",
         input.shape().expect("cannot get the input shape")
     );
-    let graph = std::ffi::CString::new(
-        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_graph.json")).unwrap(),
-    )
-    .unwrap();
+    let graph =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_graph.json")).unwrap();
     // load the built module
     let lib = Module::load(&Path::new(concat!(
         env!("CARGO_MANIFEST_DIR"),

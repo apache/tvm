@@ -45,7 +45,7 @@ impl FromStr for TVMType {
             _ => return Err(format_err!("Unknown type {}", type_name)),
         };
 
-        Ok(dbg!(TVMType::new(type_code, bits, lanes)))
+        Ok(TVMType::new(type_code, bits, lanes))
     }
 }
 

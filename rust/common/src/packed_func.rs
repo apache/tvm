@@ -59,7 +59,7 @@ macro_rules! ensure_type {
 macro_rules! impl_prim_tvm_arg {
     ($type_code:ident, $field:ident, $field_type:ty, [ $( $type:ty ),+ ] ) => {
         $(
-            impl<'a> From<$type> for TVMArgValue<'a> {
+            impl From<$type> for TVMArgValue<'static> {
                 fn from(val: $type) -> Self {
                     TVMArgValue {
                         value: TVMValue { $field: val as $field_type },
@@ -112,11 +112,25 @@ impl_prim_tvm_arg!(
     [u8, u16, u32, u64, usize]
 );
 
+#[cfg(feature = "bindings")]
+// only allow this in bindings because pure-rust can't take ownership of leaked CString
+impl<'a> From<&String> for TVMArgValue<'a> {
+    fn from(string: &String) -> Self {
+        TVMArgValue {
+            value: TVMValue {
+                v_str: std::ffi::CString::new(string.clone()).unwrap().into_raw(),
+            },
+            type_code: TVMTypeCode_kStr as i64,
+            _lifetime: PhantomData,
+        }
+    }
+}
+
 impl<'a> From<&std::ffi::CString> for TVMArgValue<'a> {
     fn from(string: &std::ffi::CString) -> Self {
         TVMArgValue {
             value: TVMValue {
-                v_handle: string.as_ptr() as *const _ as *mut c_void,
+                v_str: string.as_ptr(),
             },
             type_code: TVMTypeCode_kStr as i64,
             _lifetime: PhantomData,
