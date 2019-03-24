@@ -31,4 +31,4 @@ lib/cpp_deploy_pack: cpp_deploy.cc lib/test_addone_sys.o lib/libtvm_runtime_pack
 # Deploy using pre-built libtvm_runtime.so
 lib/cpp_deploy_normal: cpp_deploy.cc lib/test_addone_sys.o
 	@mkdir -p $(@D)
-	$(CXX) $(PKG_CFLAGS) -o $@  $^ $(PKG_LDFLAGS) -ltvm_runtime
+	$(CXX) $(PKG_CFLAGS) -o $@  $^ -ltvm_runtime $(PKG_LDFLAGS)
