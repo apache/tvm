@@ -149,10 +149,9 @@ class PrettyPrinter :
     Doc doc;
     // additional information in comment.
     if (annotate_ != nullptr) {
-      return doc << " // " << annotate_(expr);
+      return doc << " /* " << annotate_(expr) << " */";
     } else if (expr->checked_type_.defined()) {
-      doc << " // ty=";
-      return doc << Print(expr->checked_type());
+      return doc << " /* ty=" << Print(expr->checked_type()) << " */";
     } else {
       return doc;
     }
@@ -353,6 +352,10 @@ class PrettyPrinter :
       printed_expr = VisitExpr(expr);
     }
 
+    if (expr.as<CallNode>()) {
+      printed_expr << PrintOptionalInfo(expr);
+    }
+
     // add expr to doc
     if (expr.as<VarNode>()) {
       // This is our first time visiting the var and we hit the VarNode case
@@ -366,11 +369,7 @@ class PrettyPrinter :
     } else {
       Doc temp_var = AllocTemp();
       memo_[expr] = temp_var;
-      doc_stack_.back() << temp_var << " = " << printed_expr;
-      if (expr.as<CallNode>()) {
-        doc_stack_.back() << PrintOptionalInfo(expr);
-      }
-      doc_stack_.back() << "\n";
+      doc_stack_.back() << temp_var << " = " << printed_expr << "\n";
       return temp_var;
     }
   }
