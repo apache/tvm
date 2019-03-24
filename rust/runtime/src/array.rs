@@ -101,6 +101,22 @@ impl<'a> Storage<'a> {
         }
         s
     }
+
+    /// Returns a view of the stored data.
+    pub fn as_slice(&self) -> &[u8] {
+        match self {
+            Storage::Owned(alloc) => alloc.as_slice(),
+            Storage::View(slice, _) => &*slice,
+        }
+    }
+
+    /// Returns a mutable view of the stored data.
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        match self {
+            Storage::Owned(alloc) => alloc.as_mut_slice(),
+            Storage::View(slice, _) => slice,
+        }
+    }
 }
 
 impl<'d, 's, T> From<&'d [T]> for Storage<'s> {
@@ -152,6 +168,14 @@ unsafe impl<'a> Send for Tensor<'a> {}
 impl<'a> Tensor<'a> {
     pub fn shape(&self) -> Vec<i64> {
         self.shape.clone()
+    }
+
+    pub fn data(&self) -> &Storage {
+        &self.data
+    }
+
+    pub fn data_mut(&mut self) -> &'a mut Storage {
+        &mut self.data
     }
 
     /// Returns the data of this `Tensor` as a `Vec`.

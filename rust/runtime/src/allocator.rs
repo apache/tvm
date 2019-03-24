@@ -55,6 +55,16 @@ impl Allocation {
     pub fn align(&self) -> usize {
         self.layout.align()
     }
+
+    /// Returns a view of the Allocation.
+    pub fn as_slice(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.as_mut_ptr(), self.size()) }
+    }
+
+    /// Returns a mutable view of the Allocation.
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut(self.as_mut_ptr(), self.size()) }
+    }
 }
 
 impl Drop for Allocation {

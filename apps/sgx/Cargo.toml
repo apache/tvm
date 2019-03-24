@@ -1,0 +1,11 @@
+[package]
+name = "sgx-demo"
+version = "0.1.0"
+authors = ["Nick Hynes <nhynes@nhynes.com>"]
+edition = "2018"
+
+[dependencies]
+tvm-runtime = { path = "../../rust/runtime" }
+
+[build-dependencies]
+ar = "0.6"

@@ -162,15 +162,15 @@ impl<'a> TryFrom<&'a str> for Graph {
 ///
 /// println!("{:#?}", Array::try_from(output).unwrap());
 /// ```
-pub struct GraphExecutor<'m, 't> {
+pub struct GraphExecutor<'m> {
     graph: Graph,
     op_execs: Vec<Box<dyn Fn() + 'm>>,
     tensors: Vec<Tensor<'t>>,
 }
 
-unsafe impl<'m, 't> Send for GraphExecutor<'m, 't> {}
+unsafe impl<'m> Send for GraphExecutor<'m> {}
 
-impl<'m, 't> GraphExecutor<'m, 't> {
+impl<'m> GraphExecutor<'m> {
     pub fn new<M: 'm + Module>(graph: Graph, lib: &'m M) -> Result<Self, Error> {
         let tensors = Self::setup_storages(&graph)?;
         Ok(GraphExecutor {
@@ -188,7 +188,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     }
 
     /// Allocates `Storages` for each `storage_id` and returns `Tensor`s to hold each output.
-    fn setup_storages<'a>(graph: &'a Graph) -> Result<Vec<Tensor<'t>>, Error> {
+    fn setup_storages<'a>(graph: &'a Graph) -> Result<Vec<Tensor<'static>>, Error> {
         let storage_ids = graph.get_attr::<(String, Vec<usize>)>("storage_id")?.1;
         let shapes = graph.get_attr::<(String, Vec<Vec<i64>>)>("shape")?.1;
         let dtypes = graph
@@ -319,8 +319,8 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         }
     }
 
-    /// Returns the graph input with name `name`, if it exists.
-    pub fn get_input<S: AsRef<str>>(&mut self, name: S) -> Option<&Tensor> {
+    /// Returns a reference to the graph input with name `name`, if it exists.
+    pub fn get_input<S: AsRef<str>>(&self, name: S) -> Option<&Tensor> {
         self.get_input_index(name.as_ref())
             .and_then(move |idx| Some(&self.tensors[idx]))
     }
