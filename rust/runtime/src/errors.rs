@@ -30,9 +30,3 @@ pub enum GraphFormatError {
     #[fail(display = "Invalid DLType: {}", 0)]
     InvalidDLType(String),
 }
-
-#[derive(Debug, Fail)]
-#[fail(display = "SGX error: 0x{:x}", code)]
-pub struct SgxError {
-    pub code: u32,
-}

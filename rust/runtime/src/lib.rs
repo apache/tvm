@@ -36,11 +36,7 @@
     vec_remove_item
 )]
 
-#[cfg(target_env = "sgx")]
-extern crate alloc;
 extern crate bounded_spsc_queue;
-#[cfg(target_env = "sgx")]
-extern crate core;
 #[macro_use]
 extern crate failure;
 #[macro_use]
@@ -50,7 +46,6 @@ extern crate lazy_static;
 extern crate ndarray;
 #[macro_use]
 extern crate nom;
-#[cfg(not(target_env = "sgx"))]
 extern crate num_cpus;
 extern crate serde;
 #[macro_use]
@@ -63,9 +58,6 @@ mod array;
 pub mod errors;
 mod graph;
 mod module;
-#[cfg(target_env = "sgx")]
-#[macro_use]
-pub mod sgx;
 mod threading;
 mod workspace;
 
@@ -88,8 +80,6 @@ lazy_static! {
 #[no_mangle]
 pub extern "C" fn TVMAPISetLastError(cmsg: *const i8) {
     *LAST_ERROR.write().unwrap() = Some(unsafe { std::ffi::CStr::from_ptr(cmsg) });
-    #[cfg(target_env = "sgx")]
-    ocall_packed!("__sgx_set_last_error__", cmsg);
 }
 
 #[no_mangle]

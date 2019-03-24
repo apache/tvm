@@ -18,29 +18,17 @@
  */
 
 use std::{
+    env,
     os::raw::{c_int, c_void},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Barrier,
     },
-};
-
-#[cfg(not(target_env = "sgx"))]
-use num_cpus;
-#[cfg(not(target_env = "sgx"))]
-use std::{
-    env,
     thread::{self, JoinHandle},
 };
 
-#[cfg(target_env = "sgx")]
-use std::{collections::VecDeque, ptr, sync::Mutex};
-
 use bounded_spsc_queue::{self, Producer};
 use tvm_common::ffi::TVMParallelGroupEnv;
-
-#[cfg(target_env = "sgx")]
-use super::{TVMArgValue, TVMRetValue};
 
 pub(crate) type FTVMParallelLambda =
     extern "C" fn(task_id: usize, penv: *const TVMParallelGroupEnv, cdata: *const c_void) -> i32;
@@ -82,7 +70,6 @@ impl Job {
     /// Waits for all tasks in this `Job` to be completed.
     fn wait(&self) {
         while self.pending.load(Ordering::Acquire) > 0 {
-            #[cfg(not(target_env = "sgx"))]
             thread::yield_now();
         }
     }
@@ -111,13 +98,11 @@ impl FnOnce<()> for Task {
 #[derive(Default)]
 struct Threads {
     #[allow(unused)]
-    #[cfg(not(target_env = "sgx"))]
     handles: Vec<JoinHandle<()>>,
     queues: Vec<Producer<Task>>,
 }
 
 impl<'a> Threads {
-    #[cfg(not(target_env = "sgx"))]
     fn launch<F: Sync + Send + FnOnce(Consumer<Task>) + 'static + Copy>(
         num_threads: usize,
         cb: F,
@@ -133,23 +118,6 @@ impl<'a> Threads {
             handles: handles,
             queues: queues,
         }
-    }
-
-    #[cfg(target_env = "sgx")]
-    fn launch<F: Sync + Send + FnOnce(Consumer<Task>) + 'static + Copy>(
-        num_threads: usize,
-        _cb: F,
-    ) -> Self {
-        let mut consumer_queues = SGX_QUEUES.lock().unwrap();
-        let queues = (0..num_threads)
-            .map(|_| {
-                let (p, c) = bounded_spsc_queue::make(2);
-                consumer_queues.push_back(c.into());
-                p
-            })
-            .collect();
-        ocall_packed!("__sgx_thread_group_launch__", num_threads as u64);
-        Threads { queues: queues }
     }
 }
 
@@ -211,13 +179,7 @@ impl<T> Consumer<T> {
 unsafe impl<T> Send for Consumer<T> {}
 unsafe impl<T> Sync for Consumer<T> {}
 
-#[cfg(target_env = "sgx")]
-lazy_static! {
-  /// Holds tasks for untrusted threads which re-enter the enclave to execute.
-  static ref SGX_QUEUES: Mutex<VecDeque<Consumer<Task>>> = Mutex::new(VecDeque::new());
-}
-
-#[cfg(all(not(target_arch = "wasm32"), not(target_env = "sgx")))]
+#[cfg(not(target_arch = "wasm32"))]
 fn max_concurrency() -> usize {
     if let Ok(threads_str) = env::var("TVM_NUM_THREADS").or(env::var("OMP_NUM_THREADS")) {
         if let Ok(threads) = usize::from_str_radix(&threads_str, 10) {
@@ -227,27 +189,9 @@ fn max_concurrency() -> usize {
     num_cpus::get_physical()
 }
 
-#[cfg(target_env = "sgx")]
-fn max_concurrency() -> usize {
-    usize::from_str_radix(env!("TVM_NUM_THREADS"), 10).unwrap_or(1)
-}
-
 #[cfg(target_arch = "wasm32")]
 fn max_concurrency() -> usize {
     0 // wasm doesn't support threads yet
-}
-
-#[cfg(target_env = "sgx")]
-pub fn tvm_run_worker(_args: &[TVMArgValue]) -> TVMRetValue {
-    let q = {
-        let mut qs = SGX_QUEUES.lock().unwrap();
-        qs.pop_front()
-        // `qs: MutexGuard` needs to be dropped here since `run_worker` won't return
-    };
-    if let Some(q) = q {
-        ThreadPool::run_worker(q);
-    }
-    TVMRetValue::default()
 }
 
 #[no_mangle]
@@ -273,27 +217,6 @@ pub extern "C" fn TVMBackendParallelLaunch(
         });
     }
     return 0;
-}
-
-#[cfg(target_env = "sgx")]
-pub(crate) fn sgx_join_threads() {
-    extern "C" fn poison_pill(
-        _task_id: usize,
-        _penv: *const TVMParallelGroupEnv,
-        _cdata: *const c_void,
-    ) -> i32 {
-        <i32>::min_value()
-    }
-
-    THREAD_POOL.with(|pool| {
-        pool.launch(Job {
-            cb: poison_pill,
-            cdata: ptr::null(),
-            req_num_tasks: 0,
-            pending: Arc::new(AtomicUsize::new(0)),
-        });
-    });
-    ocall_packed!("__sgx_thread_group_join__", 0);
 }
 
 // @see https://github.com/dmlc/tvm/issues/988 for information on why this function is used.

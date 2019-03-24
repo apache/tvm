@@ -17,9 +17,6 @@
  * under the License.
  */
 
-#[cfg(target_env = "sgx")]
-use alloc::alloc::{self, Layout, LayoutErr};
-#[cfg(not(target_env = "sgx"))]
 use std::alloc::{self, Layout, LayoutErr};
 
 const DEFAULT_ALIGN_BYTES: usize = 4;
