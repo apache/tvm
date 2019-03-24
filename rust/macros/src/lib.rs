@@ -23,7 +23,7 @@ extern crate proc_macro;
 
 use std::{fs::File, io::Read};
 
-use proc_quote::quote;
+use quote::quote;
 
 #[proc_macro]
 pub fn import_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -57,7 +57,7 @@ pub fn import_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         goblin::Object::Mach(goblin::mach::Mach::Binary(obj)) => {
             obj.symbols()
                 .filter_map(|s| match s {
-                    Ok((name, nlist))
+                    Ok((name, ref nlist))
                         if nlist.is_global()
                             && nlist.n_sect != 0
                             && !name.ends_with("tvm_module_ctx") =>

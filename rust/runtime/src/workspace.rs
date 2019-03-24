@@ -51,7 +51,7 @@ impl WorkspacePool {
     }
 
     fn alloc(&mut self, size: usize) -> Result<*mut u8, Error> {
-        if self.free.len() == 0 {
+        if self.free.is_empty() {
             return self.alloc_new(size);
         }
         let idx = self
@@ -64,10 +64,7 @@ impl WorkspacePool {
                 }
                 cur_ws_idx.or(Some(idx)).and_then(|cur_idx| {
                     let cur_size = self.workspaces[cur_idx].size();
-                    Some(match ws_size <= cur_size {
-                        true => idx,
-                        false => cur_idx,
-                    })
+                    Some(if ws_size <= cur_size { idx } else { cur_idx })
                 })
             });
         match idx {
@@ -90,9 +87,10 @@ impl WorkspacePool {
                 break;
             }
         }
-        Ok(self
-            .free
-            .push(ws_idx.ok_or(format_err!("Tried to free nonexistent workspace."))?))
+        if let Some(ws_idx) = ws_idx {
+            self.free.push(ws_idx);
+        }
+        Ok(())
     }
 }
 
@@ -133,5 +131,5 @@ pub extern "C" fn TVMBackendFreeWorkspace(
             Err(_) => -1,
         }) as c_int
     });
-    return 0;
+    0
 }

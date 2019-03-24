@@ -23,10 +23,10 @@ use std::path::PathBuf;
 
 fn main() {
     let tvm_home = option_env!("TVM_HOME").map(str::to_string).unwrap_or({
-        let tvm_home = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
             .unwrap();
-        tvm_home
+        crate_dir
             .parent()
             .unwrap()
             .parent()
