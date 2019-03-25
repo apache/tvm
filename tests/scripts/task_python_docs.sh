@@ -1,4 +1,8 @@
 #!/bin/bash
+
+set -e
+set -u
+
 mkdir -p docs/_build/html
 rm -rf docs/_build/html/jsdoc
 rm -rf docs/_build/html/javadoc
@@ -10,17 +14,17 @@ rm -rf docs/tutorials
 make doc
 
 # JS doc
-jsdoc web/tvm_runtime.js web/README.md || exit -1
-mv out docs/_build/html/jsdoc || exit -1
+jsdoc web/tvm_runtime.js web/README.md
+mv out docs/_build/html/jsdoc
 
 # Java doc
-make javadoc || exit -1
-mv jvm/core/target/site/apidocs docs/_build/html/javadoc || exit -1
+make javadoc
+mv jvm/core/target/site/apidocs docs/_build/html/javadoc
 
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
 cd docs
-PYTHONPATH=`pwd`/../python make html || exit -1
+PYTHONPATH=`pwd`/../python make html
 cd _build/html
 tar czf docs.tgz *
 mv docs.tgz ../../../

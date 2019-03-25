@@ -1,28 +1,31 @@
 #!/bin/bash
+
+set -e
+
 export PYTHONPATH=python:topi/python:apps/extension/python
 export LD_LIBRARY_PATH=build:${LD_LIBRARY_PATH}
 
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
 # Test TVM
-make cython || exit -1
-make cython3 || exit -1
+make cython
+make cython3
 
 # Test extern package
 cd apps/extension
 rm -rf lib
-make || exit -1
+make
 cd ../..
-python -m nose -v apps/extension/tests || exit -1
+python -m nose -v apps/extension/tests
 
-TVM_FFI=cython python -m nose -v tests/python/integration || exit -1
-TVM_FFI=ctypes python3 -m nose -v tests/python/integration || exit -1
-TVM_FFI=cython python -m nose -v tests/python/contrib || exit -1
-TVM_FFI=ctypes python3 -m nose -v tests/python/contrib || exit -1
+TVM_FFI=cython python -m nose -v tests/python/integration
+TVM_FFI=ctypes python3 -m nose -v tests/python/integration
+TVM_FFI=cython python -m nose -v tests/python/contrib
+TVM_FFI=ctypes python3 -m nose -v tests/python/contrib
 
-TVM_FFI=cython python -m nose -v tests/python/relay || exit -1
-TVM_FFI=ctypes python3 -m nose -v tests/python/relay || exit -1
+TVM_FFI=cython python -m nose -v tests/python/relay
+TVM_FFI=ctypes python3 -m nose -v tests/python/relay
 
 # Do not enable OpenGL
-# TVM_FFI=cython python -m nose -v tests/webgl || exit -1
-# TVM_FFI=ctypes python3 -m nose -v tests/webgl || exit -1
+# TVM_FFI=cython python -m nose -v tests/webgl
+# TVM_FFI=ctypes python3 -m nose -v tests/webgl
