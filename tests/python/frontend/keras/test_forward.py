@@ -106,6 +106,17 @@ def test_forward_dense():
     verify_keras_frontend(keras_model)
 
 
+def test_forward_sequential():
+    keras_model = keras.models.Sequential([
+        keras.layers.Dense(16, input_dim=32, activation='relu'),
+        keras.layers.Dropout(0.5),
+        keras.layers.Dense(8, activation='relu'),
+        keras.layers.Dropout(0.5),
+        keras.layers.Dense(1, activation='sigmoid')
+    ])
+    verify_keras_frontend(keras_model)
+
+
 def test_forward_pool():
     data = keras.layers.Input(shape=(32,32,1))
     # maxpool
@@ -244,6 +255,7 @@ if __name__ == '__main__':
     test_forward_merge()
     test_forward_activations()
     test_forward_dense()
+    test_forward_sequential()
     test_forward_pool()
     test_forward_conv()
     test_forward_upsample(interpolation='nearest')
