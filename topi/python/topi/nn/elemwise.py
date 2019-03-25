@@ -69,7 +69,7 @@ def prelu(x, slope, axis=1):
         [http://arxiv.org/pdf/1502.01852v1.pdf]
     """
 
-    assert len(x.shape) == 4 and len(slope.shape) == 1
+    assert len(slope.shape) == 1
     assert axis < len(x.shape)
     assert get_const_int(slope.shape[0]) == get_const_int(x.shape[axis])
 
