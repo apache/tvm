@@ -27,6 +27,11 @@ use super::Module;
 
 pub struct SystemLibModule;
 
+#[cfg(target_env = "sgx")]
+extern "C" {
+    fn __tvm_module_startup();
+}
+
 lazy_static! {
     static ref SYSTEM_LIB_FUNCTIONS: Mutex<HashMap<String, &'static (dyn PackedFunc)>> =
         Mutex::new(HashMap::new());
@@ -44,6 +49,8 @@ impl Module for SystemLibModule {
 
 impl Default for SystemLibModule {
     fn default() -> Self {
+        #[cfg(target_env = "sgx")]
+        unsafe { __tvm_module_startup(); }
         SystemLibModule {}
     }
 }

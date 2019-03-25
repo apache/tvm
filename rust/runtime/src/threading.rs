@@ -186,7 +186,7 @@ fn max_concurrency() -> usize {
             return threads;
         }
     }
-    num_cpus::get_physical()
+    num_cpus::get()
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -200,7 +200,7 @@ pub extern "C" fn TVMBackendParallelLaunch(
     cdata: *const c_void,
     num_task: usize,
 ) -> c_int {
-    if max_concurrency() == 0 {
+    if max_concurrency() < 2 {
         let penv = TVMParallelGroupEnv {
             sync_handle: 0 as *mut c_void,
             num_task: 1,

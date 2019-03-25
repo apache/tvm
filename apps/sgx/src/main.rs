@@ -22,10 +22,12 @@ fn main() {
     let listener = std::net::TcpListener::bind("127.0.0.1:4242").unwrap();
     for stream in listener.incoming() {
         let mut stream = stream.unwrap();
-        stream.read_exact(input_bytes.as_mut_slice()).unwrap();
+        if let Err(_) = stream.read_exact(input_bytes.as_mut_slice()) {
+            continue;
+        }
         exec.run();
-        stream
-            .write_all(exec.get_output(0).unwrap().data().as_slice())
-            .unwrap();
+        if let Err(_) = stream.write_all(exec.get_output(0).unwrap().data().as_slice()) {
+            continue;
+        }
     }
 }
