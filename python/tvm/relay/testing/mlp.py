@@ -50,7 +50,7 @@ def get_net(batch_size,
                      dtype=dtype)
     data = relay.nn.batch_flatten(data)
     fc1 = relay.nn.dense(data, relay.var("fc1_weight"), units=128)
-    fc1 = relay.nn.bias_add(fc1, relay.var("fc2_bias"))
+    fc1 = relay.nn.bias_add(fc1, relay.var("fc1_bias"))
     act1 = relay.nn.relu(fc1)
     fc2 = relay.nn.dense(act1, relay.var("fc2_weight"), units=64)
     fc2 = relay.nn.bias_add(fc2, relay.var("fc2_bias"))
