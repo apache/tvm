@@ -9,6 +9,7 @@
 #include <tvm/arithmetic.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_mutator.h>
+#include <unordered_map>
 #include "const_fold.h"
 #include "pattern_match.h"
 

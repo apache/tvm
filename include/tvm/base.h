@@ -12,6 +12,7 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <utility>
 #include "runtime/registry.h"
 
 namespace tvm {

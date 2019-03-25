@@ -661,7 +661,7 @@ Mutate_(const Mod* op, const Expr& self) {
       SumExpr lhs, extra;
       if (TryLinearEquation(psum, cval, &lhs, &extra)) {
         Expr temp = Normalize(extra);
-        if (const auto* pconst = temp.as<IntImm>()) {
+        if (temp.as<IntImm>()) {
           return temp % c1.Eval();
         } else {
           // If temp < cval && temp >=0 then can remove the mod.

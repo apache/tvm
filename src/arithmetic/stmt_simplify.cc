@@ -126,7 +126,8 @@ Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
   return analyzer.canonical_simplify(expr);
 }
 
-Stmt Simplify(Stmt a, Map<Var, Range> vrange) {
+template<typename T>
+T Simplify_(T a, Map<Var, Range> vrange) {
   using namespace HalideIR::Internal;
   Scope<Interval> rscope;
   for (auto kv : vrange) {
@@ -137,6 +138,30 @@ Stmt Simplify(Stmt a, Map<Var, Range> vrange) {
                  simplify(r->min + r->extent - make_const(r->min.type(), 1))));
   }
   return HalideIR::Internal::simplify(a, true, rscope);
+}
+
+
+Expr Simplify(Expr a, Map<Var, Range> vrange) {
+  // Simplify top level reduce.
+  if (const Reduce* r = a.as<Reduce>()) {
+    Array<Expr> new_source;
+    for (auto& e : r->source) {
+      new_source.push_back(Simplify_(e, vrange));
+    }
+    Expr new_condition = Simplify_(r->condition, vrange);
+    if (r->source.same_as(new_source) &&
+        r->condition.same_as(new_condition)) {
+      return a;
+    } else {
+      return Reduce::make(
+              r->combiner, new_source, r->axis, new_condition, r->value_index);
+    }
+  }
+  return Simplify_(a, vrange);
+}
+
+Stmt Simplify(Stmt a, Map<Var, Range> vrange) {
+  return Simplify_(a, vrange);
 }
 }  // namespace ir
 }  // namespace tvm
