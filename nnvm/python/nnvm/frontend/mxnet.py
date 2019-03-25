@@ -324,7 +324,7 @@ _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   'flatten', 'log', 'log_softmax', 'max', 'min', 'negative',
                   'ones_like', 'relu', 'sigmoid', 'slice_like', 'softmax',
                   'sum', 'tanh', 'transpose', 'zeros_like', 'gather_nd',
-                  'reshape_like', 'where']
+                  'reshape_like', 'where', 'smooth_l1']
 
 _convert_map = {
     '_copy'         : _rename('copy'),

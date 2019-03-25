@@ -290,6 +290,15 @@ def test_forward_minimum():
         tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+def test_forward_smooth_l1():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.smooth_l1(data)
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (3, 4))
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.smooth_l1(data, scalar=1.0)
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (3, 4))
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -315,3 +324,4 @@ if __name__ == '__main__':
     test_forward_slice()
     test_forward_maximum()
     test_forward_minimum()
+    test_forward_smooth_l1()

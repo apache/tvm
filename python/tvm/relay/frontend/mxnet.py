@@ -581,6 +581,7 @@ _identity_list = [
     "zeros_like",
     "ones_like",
     "where",
+    "smooth_l1",
 ]
 
 _convert_map = {

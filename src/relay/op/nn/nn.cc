@@ -511,6 +511,40 @@ Normalizes along dimension axis using an L2 norm
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .add_type_rel("Identity", IdentityRel);
 
+// smooth_l1
+TVM_REGISTER_NODE_TYPE(SmoothL1Attrs);
+
+Expr MakeSmoothL1(Expr data,
+                  double scalar) {
+  auto attrs = make_node<SmoothL1Attrs>();
+  attrs->scalar = scalar;
+  static const Op& op = Op::Get("nn.smooth_l1");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.smooth_l1")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeSmoothL1, args, rv);
+  });
+
+RELAY_REGISTER_OP("nn.smooth_l1")
+.describe(R"code(Smooth L1 layer.
+
+.. math::
+    f(x) =
+    \begin{cases}
+    (\sigma x)^2/2,& \text{if }x < 1/\sigma^2\\
+    |x|-0.5/\sigma^2,& \text{otherwise}
+    \end{cases}
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.SmoothL1Attrs")
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(2)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+.add_type_rel("Identity", IdentityRel);
+
 // Dropout
 TVM_REGISTER_NODE_TYPE(DropoutAttrs);
 

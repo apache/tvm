@@ -270,6 +270,15 @@ def schedule_l2_normalize(attrs, outs, target):
 
 reg.register_pattern("nn.l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# smooth_l1
+@reg.register_compute("nn.smooth_l1")
+def compute_smooth_l1(attrs, inputs, out_dtype, target):
+    """Compute definition of smooth_l1"""
+    return [topi.nn.smooth_l1(inputs[0], attrs.scalar)]
+
+reg.register_schedule("nn.smooth_l1", schedule_injective)
+reg.register_pattern("nn.smooth_l1", OpPattern.INJECTIVE)
+
 # upsampling
 reg.register_schedule("nn.upsampling", reg.schedule_injective)
 def schedule_upsampling(_, outs, target):

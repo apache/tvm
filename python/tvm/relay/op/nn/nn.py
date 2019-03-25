@@ -645,6 +645,34 @@ def l2_normalize(data, eps, axis=None):
     return _make.l2_normalize(data, eps, axis)
 
 
+def smooth_l1(data, scalar=1.0):
+#pylint: disable=anomalous-backslash-in-string
+    """Compute smooth L1 value on the input data
+
+    .. math::
+        y(i, j) =
+        \begin{cases}
+        (\sigma x(i, j))^2/2,& \text{if} x(i, j) < 1/\sigma^2\\
+        |x(i, j)|-0.5/\sigma^2,& \text{otherwise}
+        \end{cases}
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    scalar : float, default 1.0
+        scalar input
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+#pylint: enable=anomalous-backslash-in-string
+    return _make.smooth_l1(data, scalar)
+
+
 def dropout(data, rate=0.5):
     """Applies the dropout operation to the input array.
 

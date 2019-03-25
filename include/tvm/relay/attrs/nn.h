@@ -438,6 +438,16 @@ struct L2NormalizeAttrs : public tvm::AttrsNode<L2NormalizeAttrs> {
   }
 };
 
+/*! \brief Attributes for SmoothL1 operator */
+struct SmoothL1Attrs : public tvm::AttrsNode<SmoothL1Attrs> {
+  double scalar;
+
+  TVM_DECLARE_ATTRS(SmoothL1Attrs, "relay.attrs.SmoothL1Attrs") {
+    TVM_ATTR_FIELD(scalar).set_default(1.0f)
+      .describe("scalar input.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_NN_H_

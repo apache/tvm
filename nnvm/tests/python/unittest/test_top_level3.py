@@ -23,8 +23,14 @@ def test_prelu():
     assert(y.list_input_names()[0] == 'x')
     assert(y.list_input_names()[1] == 'w')
 
+def test_smooth_l1():
+    x = sym.Variable("x")
+    y = sym.smooth_l1(x, scalar=1.0)
+    assert(y.list_input_names()[0] == 'x')
+
 if __name__ == "__main__":
     test_scalar_op()
     test_reshape()
     test_leaky_relu()
     test_prelu()
+    test_smooth_l1()

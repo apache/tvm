@@ -505,6 +505,15 @@ struct L2NormalizeParam : public dmlc::Parameter<L2NormalizeParam> {
   }
 };
 
+struct SmoothL1Param : public dmlc::Parameter<SmoothL1Param> {
+  float scalar;
+
+  DMLC_DECLARE_PARAMETER(SmoothL1Param) {
+    DMLC_DECLARE_FIELD(scalar).set_default(1.0f)
+      .describe("scalar input");
+  }
+};
+
 }  // namespace top
 }  // namespace nnvm
 

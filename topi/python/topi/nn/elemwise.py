@@ -77,3 +77,27 @@ def prelu(x, slope, axis=1):
         xval = x(*indices)
         return tvm.expr.Select(xval > 0, xval, xval * slope(indices[axis]))
     return tvm.compute(x.shape, _compute_channelwise)
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def smooth_l1(x, scalar=1.0):
+    """ Smooth L1.
+    It accepts an input ``x`` and computes the output as :
+    math:`smooth_l1(x) y = x < 1/(\sigma)^2 ? (\sigma x)^2 / 2 : |x| - 0.5 / \sigma^2`,
+    Arguments:
+    x : tvm.Tensor
+        Input argument.
+
+    scalar : float
+        scalar input.
+
+    Returns:
+    y : tvm.Tensor
+        The result.
+
+    """
+    def _compute(*indices):
+        xval = x(*indices)
+        return tvm.expr.Select(xval < 1.0 / scalar / scalar,
+                               scalar * scalar * xval * xval / 2.,
+                               tvm.expr.Select(xval < 0, -xval, xval) - 0.5 / scalar / scalar)
+    return tvm.compute(x.shape, _compute)

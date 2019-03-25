@@ -13,7 +13,6 @@ from .registry import OpPattern
 reg.register_schedule("relu", _fschedule_broadcast)
 reg.register_pattern("relu", OpPattern.ELEMWISE)
 
-
 # leaky_relu
 reg.register_schedule("leaky_relu", _fschedule_broadcast)
 reg.register_pattern("leaky_relu", OpPattern.ELEMWISE)
@@ -35,7 +34,6 @@ reg.register_pattern("pad", OpPattern.INJECTIVE)
 # layout transform
 reg.register_schedule("__layout_transform__", _fschedule_injective)
 reg.register_pattern("__layout_transform__", OpPattern.INJECTIVE)
-
 
 @reg.register_schedule("softmax")
 def schedule_softmax(_, outs, target):
@@ -391,3 +389,13 @@ def schedule_l2_normalize(attrs, outs, target):
         return topi.generic.schedule_l2_normalize(outs)
 
 reg.register_pattern("l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("smooth_l1")
+def compute_smooth_l1(attrs, inputs, _):
+    """Compute definition of smooth_l1"""
+    scalar = attrs.get_float("scalar")
+    return topi.nn.smooth_l1(inputs[0], scalar)
+
+# smooth_l1
+reg.register_schedule("smooth_l1", _fschedule_injective)
+reg.register_pattern("smooth_l1", OpPattern.INJECTIVE)

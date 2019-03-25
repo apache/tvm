@@ -47,6 +47,32 @@ def test_unary_op():
         check_single_op(opfunc, ref)
 
 
+def test_smooth_l1():
+    def smooth_l1(x, scalar=1.0):
+        res = np.abs(x) - 0.5 / scalar / scalar
+        res[x < (1.0 / scalar / scalar)] = np.power(scalar * x[x < (1.0 / scalar / scalar)], 2) / 2.
+        return res
+    shape = (10, 4)
+    dtype = 'float32'
+    tp = relay.TensorType(shape, dtype)
+    x = relay.var("x", tp)
+    y = relay.nn.smooth_l1(x)
+    # test printer
+    assert ("%0 = {}(%x)".format(y.op.name)) in y.astext()
+    # test type inference
+    assert relay.ir_pass.infer_type(y).checked_type == tp
+
+    data = np.random.rand(*shape).astype(dtype)
+    ref_res = smooth_l1(data)
+    func = relay.Function([x], y)
+    for target, ctx in ctx_list():
+        # use graph by execuor default for testing, as we need
+        # create function explicitly to avoid constant-folding.
+        intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res = intrp.evaluate(func)(data)
+        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-5)
+
+
 def test_binary_op():
     def inst(vars, sh):
         return [vars.get(s, s) for s in sh]

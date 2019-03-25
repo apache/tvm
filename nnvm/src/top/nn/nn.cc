@@ -727,5 +727,29 @@ NNVM_REGISTER_OP(l2_normalize)
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
 .set_support_level(1);
 
+DMLC_REGISTER_PARAMETER(SmoothL1Param);
+
+inline bool SmoothL1InferShape(const nnvm::NodeAttrs& attrs,
+                               std::vector<TShape>* in_shape,
+                               std::vector<TShape>* out_shape) {
+  TShape dshape = (*in_shape)[0];
+  TShape oshape = dshape;
+
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  return true;
+}
+
+NNVM_REGISTER_OP(smooth_l1)
+.describe(R"code(Calculate Smooth L1 Loss)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data.")
+.set_attr_parser(ParamParser<SmoothL1Param>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<SmoothL1Param>)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr<FInferShape>("FInferShape", SmoothL1InferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
+.set_support_level(1);
+
 }  // namespace top
 }  // namespace nnvm
