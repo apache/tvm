@@ -41,7 +41,7 @@ def get_valid_counts_pre(data, flag, idx, score_threshold):
     idx : Buffer
         2D Buffer of valid data indices with shape [batch_size, num_anchors].
 
-    score_threshold: float32
+    score_threshold : float32
         Lower limit of score for valid bounding boxes.
 
     Returns
@@ -547,7 +547,7 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
-    sort_tensor = argsort(score_tensor, valid_count, score_axis, False, True)
+    sort_tensor = argsort(score_tensor, valid_count, 1, False, True)
 
     sort_tensor_buf = api.decl_buffer(sort_tensor.shape, sort_tensor.dtype,
                                       "sort_tensor_buf", data_alignment=8)
