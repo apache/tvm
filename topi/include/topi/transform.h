@@ -1084,6 +1084,7 @@ inline Tensor layout_transform(const Tensor& src,
 /*!
  * \brief Get the shape of input tensor.
  * \param src the input tensor.
+ * \param dtype the type of the elements in the tensor.
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return Tensor of input shape.
