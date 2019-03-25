@@ -83,6 +83,7 @@ def test_leaky_relu():
 def test_prelu():
     verify_prelu((1, 3, 2, 2), (3,), 1, (3, 1, 1))
     verify_prelu((1, 3, 2, 2), (2,), 2, (2, 1))
+    verify_prelu((1, 3), (3,), 1, (3, ))
 
 if __name__ == "__main__":
     test_schedule_big_array()
