@@ -1,4 +1,8 @@
 #!/bin/bash
+
+set -e
+set -u
+
 export PYTHONPATH=python
 
 cp /emsdk-portable/.emscripten ~/.emscripten
@@ -11,13 +15,13 @@ echo "Build TVM Web runtime..."
 make web
 
 echo "Prepare test libraries..."
-python tests/web/prepare_test_libs.py || exit -1
+python tests/web/prepare_test_libs.py
 
 echo "Start testing..."
 
 for test in tests/web/test_*.js; do
     echo node $test
-    node $test || exit -1
+    node $test
 done
 
 echo "All tests finishes..."

@@ -1,5 +1,9 @@
 #!/bin/bash
+
+set -e
+set -u
+
 export PYTHONPATH=python
-make verilog || exit -1
-nosetests -v tests/verilog/unittest || exit -1
-nosetests -v tests/verilog/integration || exit -1
+make verilog
+nosetests -v tests/verilog/unittest
+nosetests -v tests/verilog/integration
