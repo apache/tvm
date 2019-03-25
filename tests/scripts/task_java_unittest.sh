@@ -1,9 +1,10 @@
 #!/bin/bash
 
 set -e
+set -u
 
 export PYTHONPATH=python
-export LD_LIBRARY_PATH=lib:${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 
 CURR_DIR=$(cd `dirname $0`; pwd)
 SCRIPT_DIR=$CURR_DIR/../../jvm/core/src/test/scripts
