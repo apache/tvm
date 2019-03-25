@@ -87,8 +87,17 @@ TVM_REGISTER_GLOBAL("_register_Cast")
             Expr e = args[0];
             const ir::Cast *cast = e.as<ir::Cast>();
             internal_assert(cast);
-            *rv = ir::Call::make(UInt(cast->type.bits()), extern_func_name,
-                                 {cast->value}, ir::Call::Extern);
+            // Custom datatypes should get cast to their underlying storage
+            // type.
+            // TODO(gus) I'm not using the width registered originally; I'm
+            // using the bits() attached to the type (where does this come
+            // from?)
+            auto return_type = DatatypeRegistry::Global()->DatatypeRegistered(
+                                   cast->type.code())
+                                   ? UInt(cast->type.bits())
+                                   : cast->type;
+            *rv = ir::Call::make(return_type, extern_func_name, {cast->value},
+                                 ir::Call::Extern);
           });
     });
 
