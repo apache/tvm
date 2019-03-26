@@ -410,6 +410,48 @@ def conv2d_winograd_without_weight_transform(input, filter, strides, padding, di
     raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
 
 
+def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_dtype):
+    """Weight transformation for winograd
+     Parameters
+    ----------
+    kernel: Tensor
+        The raw kernel tensor with layout "NCHW". Only 3x3 kernel is supported for now.
+    convolution_algorithm: int
+        The convolution algorithm for Winograd NNPACK.
+     Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [alpha, alpha, CO, CI]
+    """
+    from tvm.contrib import nnpack
+    return nnpack.convolution_inference_weight_transform(
+        kernel, algorithm=convolution_algorithm, dtype=out_dtype)
+
+@tvm.target.generic_func
+def conv2d_winograd_nnpack_without_weight_transform(
+        input, filter, bias, strides, padding, dilation, layout, out_dtype):
+    """Compute convolution in winograd algorithm. The filter is supposed to be transformed
+    in advance.
+     Parameters
+    ----------
+    input : tvm.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+    filter : tvm.Tensor
+        4-D with shape [num_filter, in_channel, 8, 8]
+    bias : tvm.Tensor
+        1-D with shape [num_filter]
+    strides : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+     Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+    """
+    raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
+
+
 @tvm.target.generic_func
 def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtype=None):
     """Group convolution operator in NCHW layout.

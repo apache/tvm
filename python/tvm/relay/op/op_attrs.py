@@ -19,5 +19,10 @@ class Conv2DWinogradWeightTransformAttrs(Attrs):
 
 
 @register_relay_attr_node
+class Conv2DWinogradNNPACKWeightTransformAttrs(Attrs):
+    """Attribute of nn.contrib_conv2d_winograd_nnpack_weight_transform"""
+
+
+@register_relay_attr_node
 class GlobalPool2DAttrs(Attrs):
     """Attribute of nn.global_pool"""

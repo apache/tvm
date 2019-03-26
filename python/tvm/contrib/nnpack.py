@@ -149,11 +149,12 @@ def convolution_inference_without_weight_transform(
             ins[1],
             ins[2] if bias is not None else 0,
             outs[0], padding[0], padding[1], padding[2], padding[3],
-            stride[0], stride[1], nthreads, algorithm), name="C")
+            stride[0], stride[1], nthreads, algorithm), name="C", dtype='float32')
 
 def convolution_inference_weight_transform(
         kernel, nthreads=1,
-        algorithm=ConvolutionAlgorithm.AUTO):
+        algorithm=ConvolutionAlgorithm.AUTO,
+        dtype='float32'):
     """Create an extern op to do inference convolution of 3D tensor data and
     4D tensor kernel and 1D tensor bias with nnpack.
 
@@ -171,13 +172,14 @@ def convolution_inference_weight_transform(
     """
     assert algorithm in (ConvolutionAlgorithm.WT_8x8, ConvolutionAlgorithm.WT_8x8_FP16)
     output_channels, input_channels, _, _ = kernel.shape
-
     transform_tile_size = 8
+    if not isinstance(dtype, str):
+        dtype = dtype.dtype
     return _api.extern(
         (output_channels, input_channels, transform_tile_size, transform_tile_size),
         [kernel],
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.nnpack.convolution_inference_weight_transform",
-            ins[0], outs[0], nthreads, algorithm), name="transform_kernel")
+            ins[0], outs[0], nthreads, algorithm), name="transform_kernel", dtype=dtype)
 
 _init_api("tvm.contrib.nnpack")
