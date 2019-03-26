@@ -183,6 +183,26 @@ struct WinogradWeightTransformParam : public dmlc::Parameter<WinogradWeightTrans
     static const constexpr int kWeight = 0;
 };
 
+struct WinogradNNPACKWeightTransformParam
+    : public dmlc::Parameter<WinogradNNPACKWeightTransformParam> {
+  int convolution_algorithm;
+  int out_dtype;
+
+  DMLC_DECLARE_PARAMETER(WinogradNNPACKWeightTransformParam) {
+    DMLC_DECLARE_FIELD(convolution_algorithm)
+        .describe(
+            "The convolution algorithm for Winograd NNPACK. "
+            "E.g. tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8 for WT_8x8, "
+            "tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8_FP16 for WT_8x8_FP16");
+    DMLC_DECLARE_DTYPE_FIELD(out_dtype)
+        .add_enum("same", -1)
+        .set_default(-1)
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+
+  static const constexpr int kWeight = 0;
+};
+
 struct WinogradConv2DParam : public dmlc::Parameter<WinogradConv2DParam> {
   int channels;
   TShape kernel_size;

@@ -155,6 +155,24 @@ struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
   }
 };
 
+/*! \brief Attributes used in winograd weight transformation operators */
+struct Conv2DWinogradNNPACKWeightTransformAttrs
+    : public tvm::AttrsNode<Conv2DWinogradNNPACKWeightTransformAttrs> {
+  int convolution_algorithm;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(Conv2DWinogradNNPACKWeightTransformAttrs,
+                    "relay.attrs.Conv2DWinogradNNPACKWeightTransformAttrs") {
+    TVM_ATTR_FIELD(convolution_algorithm)
+        .describe(
+            "The convolution algorithm for Winograd NNPACK. "
+            "E.g. tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8 for WT_8x8, "
+            "tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8_FP16 for WT_8x8_FP16");
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+};
 
 /*! \brief Attributes used in softmax operators */
 struct SoftmaxAttrs : public tvm::AttrsNode<SoftmaxAttrs> {

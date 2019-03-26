@@ -161,6 +161,10 @@ def alter_conv2d_layout(attrs, inputs, tinfos):
             sym.contrib.conv2d_winograd_without_weight_transform
     sym.contrib_conv2d_winograd_weight_transform = \
             sym.contrib.conv2d_winograd_weight_transform
+    sym.contrib_conv2d_winograd_nnpack_without_weight_transform = \
+            sym.contrib.conv2d_winograd_nnpack_without_weight_transform
+    sym.contrib_conv2d_winograd_nnpack_weight_transform = \
+            sym.contrib.conv2d_winograd_nnpack_weight_transform
     sym.nn = sym
 
     # map relay argument names to nnvm argument names
@@ -272,6 +276,49 @@ def schedule_contrib_conv2d_winograd_without_weight_transform(attrs, outs, targe
 
 reg.register_pattern("_contrib_conv2d_winograd_without_weight_transform",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_compute("_contrib_conv2d_winograd_nnpack_weight_transform")
+def compute_contrib_conv2d_winograd_nnpack_weight_transform(attrs, inputs, _):
+    convolution_algorithm = attrs.get_int('convolution_algorithm')
+    out_dype = attrs.get_str('out_dtype')
+    return topi.nn.conv2d_winograd_nnpack_weight_transform(
+        inputs[0], convolution_algorithm, out_dype)
+
+
+@reg.register_schedule("_contrib_conv2d_winograd_nnpack_weight_transform")
+def schedule_contrib_conv2d_winograd_nnpack_weight_transform(attrs, outs, target):
+    with tvm.target.create(target):
+        return topi.generic.schedule_conv2d_winograd_nnpack_weight_transform(outs)
+
+reg.register_pattern("_contrib_conv2d_winograd_nnpack_weight_transform", OpPattern.OPAQUE)
+
+
+@reg.register_compute("_contrib_conv2d_winograd_nnpack_without_weight_transform")
+def compute_contrib_conv2d_winograd_nnpack_without_weight_transform(attrs, inputs, _):
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.get_str("layout")
+    out_dtype = attrs.get_str("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
+    assert dilation == (1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+
+    # pylint: disable=assignment-from-no-return
+    out = topi.nn.conv2d_winograd_nnpack_without_weight_transform(
+        inputs[0], inputs[1], inputs[2] if attrs.get_bool("use_bias") else None,
+        strides, padding, dilation, layout, out_dtype)
+    return out
+
+@reg.register_schedule("_contrib_conv2d_winograd_nnpack_without_weight_transform")
+def schedule_contrib_conv2d_winograd_nnpack_without_weight_transform(attrs, outs, target):
+    with tvm.target.create(target):
+        return topi.generic.schedule_conv2d_winograd_nnpack_without_weight_transform(outs)
+
+reg.register_pattern("_contrib_conv2d_winograd_nnpack_without_weight_transform",
+                     OpPattern.OPAQUE)
 
 
 # conv2d_transpose

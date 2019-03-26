@@ -122,6 +122,39 @@ def schedule_conv2d_winograd_without_weight_transform(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv2d_winograd_nnpack_weight_transform(outs):
+    """Schedule for weight transformation of winograd
+     Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of this operator
+          in the format of an array of tensors.
+     Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    # Typically this is computed in nnvm PreCompute pass
+    s = tvm.create_schedule([x.op for x in outs])
+    return s
+
+@tvm.target.generic_func
+def schedule_conv2d_winograd_nnpack_without_weight_transform(outs):
+    """Schedule for winograd without weight transformation
+     Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of this operator
+          in the format of an array of tensors.
+     Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
 

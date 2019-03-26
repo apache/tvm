@@ -326,6 +326,58 @@ def schedule_contrib_conv2d_winograd_weight_transform(attrs, outs, target):
 reg.register_pattern("nn.contrib_conv2d_winograd_weight_transform",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
+
+# winograd nnpack related operators
+@reg.register_compute("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
+def compute_contrib_conv2d_winograd_nnpack_without_weight_transform(
+        attrs, inputs, out_dtype, target):
+    """Compute definition of conv2d_winograd_nnpack_without_weight_transform"""
+    # pylint: disable=assignment-from-no-return
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    data_layout = attrs.get_str("data_layout")
+    out_dtype = attrs.get_str("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+    assert dilation == (1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+
+    # No bias
+    out = topi.nn.conv2d_winograd_nnpack_without_weight_transform(
+        inputs[0], inputs[1], None, strides, padding, dilation, data_layout,
+        out_dtype)
+
+    return [out]
+
+@reg.register_schedule("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
+def schedule_contrib_conv2d_winograd_nnpack_without_weight_transform(attrs, outs, target):
+    """Schedule definition of conv2d_winograd_nnpack_without_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_winograd_nnpack_without_weight_transform(outs)
+
+reg.register_pattern("nn.contrib_conv2d_winograd_nnpack_without_weight_transform",
+                     OpPattern.OPAQUE)
+
+
+@reg.register_compute("nn.contrib_conv2d_winograd_nnpack_weight_transform")
+def compute_contrib_conv2d_winograd_nnpack_weight_transform(attrs, inputs, out_dtype, target):
+    """Compute definition of contrib_conv2d_winograd_nnpack_weight_transform"""
+    convolution_algorithm = attrs.get_int('convolution_algorithm')
+    out = topi.nn.conv2d_winograd_nnpack_weight_transform(
+        inputs[0], convolution_algorithm, out_dtype)
+    return [out]
+
+@reg.register_schedule("nn.contrib_conv2d_winograd_nnpack_weight_transform")
+def schedule_contrib_conv2d_winograd_nnpack_weight_transform(attrs, outs, target):
+    """Schedule definition of contrib_conv2d_winograd_nnpack_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_winograd_nnpack_weight_transform(outs)
+
+reg.register_pattern("nn.contrib_conv2d_winograd_nnpack_weight_transform",
+                     OpPattern.OPAQUE)
+
+
 @reg.register_compute("nn.contrib_conv2d_NCHWc")
 def compute_contrib_conv2d_NCHWc(attrs, inputs, out_dtype, target):
     """Compute definition of conv2d NCHWc"""
