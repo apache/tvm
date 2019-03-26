@@ -139,6 +139,8 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "device_api.rpc";
   } else if (target == "vpi" || target == "verilog") {
     f_name = "device_api.vpi";
+  } else if (target == "micro_dev") {
+    f_name = "device_api.micro_dev";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {
     f_name = "device_api.gpu";
   } else if (target.length() >= 4 && target.substr(0, 4) == "rocm") {
