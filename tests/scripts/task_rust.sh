@@ -1,10 +1,11 @@
 #!/bin/bash
 
 set -e
+set -u
 
 export TVM_HOME="$(git rev-parse --show-toplevel)"
 
-export LD_LIBRARY_PATH="$TVM_HOME/lib":"$TVM_HOME/build":"$TVM_HOME/nnvm":$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH="$TVM_HOME/lib:$TVM_HOME/build:$TVM_HOME/nnvm:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$TVM_HOME/python":"$TVM_HOME/nnvm/python":"$TVM_HOME/topi/python"
 export RUST_DIR="$TVM_HOME/rust"
 
