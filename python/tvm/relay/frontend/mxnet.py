@@ -850,6 +850,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
                 dtype = dtype_info
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]
         elif op_name in _convert_map:
+            print(op_name)
             res = _convert_map[op_name](children, attrs)
             if isinstance(res, (_expr.TupleWrapper, tuple, list)):
                 pass

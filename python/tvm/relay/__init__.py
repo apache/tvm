@@ -34,6 +34,7 @@ from . import param_dict
 # Root operators
 from .op import Op
 from .op.reduce import *
+from .op.sort import *
 from .op.tensor import *
 from .op.transform import *
 from . import nn
