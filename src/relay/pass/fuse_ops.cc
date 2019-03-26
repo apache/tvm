@@ -263,7 +263,12 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const TupleGetItemNode* op) final {
     CHECK(graph_.node_map.count(op));
     Node* node = graph_.node_map.at(op);
-    this->Update(op->tuple, node, kOpaque);
+    node->pattern = kInjective;
+    if (op->tuple->checked_type().as<TupleTypeNode>()) {
+      this->Update(op->tuple, node, kInjective);
+    } else {
+      this->Update(op->tuple, nullptr, kOpaque);
+    }
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);
   }
@@ -807,6 +812,17 @@ class FuseMutator : private ExprMutator {
     }
     // This tuple is an intermediate node in the group
     return TupleNode::make(new_fields);
+  }
+
+  Expr VisitExpr_(const TupleGetItemNode* tuple_get) {
+    auto new_node = TupleGetItemNode::make(this->Mutate(tuple_get->tuple), tuple_get->index);
+    auto* ret_group = gmap_.at(tuple_get)->FindRoot();
+    if (ret_group == gmap_.at(tuple_get)) {
+      // unlike the tuple case above, this node should never be isolated
+      return MakeNewFunction(ret_group, tuple_get->checked_type(), new_node);
+    }
+    // This is an intermediate node in the group
+    return new_node;
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
