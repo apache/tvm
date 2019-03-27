@@ -261,13 +261,22 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   }
 
   void VisitExpr_(const TupleGetItemNode* op) final {
-    CHECK(graph_.node_map.count(op));
-    Node* node = graph_.node_map.at(op);
-    node->pattern = kInjective;
-    if (op->tuple->checked_type().as<TupleTypeNode>()) {
-      this->Update(op->tuple, node, kInjective);
-    } else {
+    auto tuple_type = op->tuple->checked_type().as<TupleTypeNode>();
+    CHECK(tuple_type);
+    bool has_reference = false;
+    for (auto ty : tuple_type->fields) {
+      if (auto ref_ty = ty.as<RefTypeNode>()) {
+        has_reference = true;
+        break;
+      }
+    }
+    if (has_reference) {
       this->Update(op->tuple, nullptr, kOpaque);
+    } else {
+      CHECK(graph_.node_map.count(op));
+      Node* node = graph_.node_map.at(op);
+      node->pattern = kInjective;
+      this->Update(op->tuple, node, kInjective);
     }
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);
@@ -815,10 +824,16 @@ class FuseMutator : private ExprMutator {
   }
 
   Expr VisitExpr_(const TupleGetItemNode* tuple_get) {
-    auto new_node = TupleGetItemNode::make(this->Mutate(tuple_get->tuple), tuple_get->index);
     auto* ret_group = gmap_.at(tuple_get)->FindRoot();
+    auto new_tuple = GetNewArguments({tuple_get->tuple}, ret_group)[0];
+    auto new_node = TupleGetItemNode::make(new_tuple, tuple_get->index);
     if (ret_group == gmap_.at(tuple_get)) {
-      // unlike the tuple case above, this node should never be isolated
+      if (gmap_.at(tuple_get->tuple.get())->FindRoot() != ret_group) {
+        // Isolated. This case occurs when tuple is created by an Opaque op
+        // e.g. multibox_transform_loc
+        return ExprMutator::VisitExpr_(tuple_get);
+      }
+      // A new function whose output is a tuple field access
       return MakeNewFunction(ret_group, tuple_get->checked_type(), new_node);
     }
     // This is an intermediate node in the group
