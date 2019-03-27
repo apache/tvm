@@ -466,7 +466,7 @@ def invalid_to_bottom_ir(data, flag, idx, out):
 
 
 @non_max_suppression.register(["cuda", "gpu"])
-def non_max_supression_gpu(data, valid_count, max_output_size=-1,
+def non_max_suppression_gpu(data, valid_count, max_output_size=-1,
                            iou_threshold=0.5, force_suppress=False, top_k=-1,
                            coord_start=2, score_index=1, id_index=0,
                            return_indices=True, invalid_to_bottom=False):
@@ -526,7 +526,7 @@ def non_max_supression_gpu(data, valid_count, max_output_size=-1,
         iou_threshold = 0.7
         force_suppress = True
         top_k = -1
-        out = non_max_supression(data=data, valid_count=valid_count, iou_threshold=iou_threshold,
+        out = non_max_suppression(data=data, valid_count=valid_count, iou_threshold=iou_threshold,
                                  force_suppress=force_supress, top_k=top_k, return_indices=False)
         np_data = np.random.uniform(dshape)
         np_valid_count = np.array([4])
