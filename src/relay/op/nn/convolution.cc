@@ -855,7 +855,7 @@ by concating all the *g* results.
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("offset", "Tensor", "The offset tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
-.set_support_level(10)
+.set_support_level(2)
 .add_type_rel("DeformableConv2D", DeformableConv2DRel);
 
 // Positional relay function to create deformable_conv2d operator
