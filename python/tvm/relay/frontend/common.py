@@ -255,7 +255,8 @@ class ExprTable(object):
 
     def set_expr(self, name, expr):
         assert isinstance(expr, _expr.Expr)
-        self.exprs[name] = expr
+        if name not in self.exprs:
+            self.exprs[name] = expr
 
     def set_padding(self, paddings):
         self.paddings = paddings
