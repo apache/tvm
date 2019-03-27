@@ -65,9 +65,9 @@ class LocalBuilder(Builder):
 
         if isinstance(build_func, str):
             if build_func == 'default':
-                build_func = default_build_func
+                build_func = make_build_func()
             elif build_func == 'ndk':
-                build_func = android_ndk_build_func
+                build_func = make_build_func("so", ndk.create_shared)
             else:
                 raise ValueError("Invalid build_func" + build_func)
 
@@ -349,46 +349,41 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
-def default_build_func(measure_input, tmp_dir, **kwargs):
+def make_build_func(file_ext="tar", fcompile=None, **export_library_kwargs):
     """
-    Default build func. This can work for cuda, opencl, llvm backend
+    make_build_func which crates build func.
 
     Parameters
     ----------
-    measure_input: MeasureInput
-        The input of measurement
-    tmp_dir: str
-        The path of temporary directory to export generated library
+    file_ext: str
+        filename extension of the exported shared library
+    fcompile: function
+        Compilation function to create dynamic library
+    export_library_kwargs: optional
+        Additional arguments passed to fcompile
     """
-    tic = time.time()
-    try:
-        filename = os.path.join(tmp_dir, "tmp_func_%0x.tar" % getrandbits(64))
-        func, arg_info = _build_func_common(measure_input, **kwargs)
-        func.export_library(filename)
-    except Exception as e:  # pylint: disable=broad-except
-        return BuildResult(None, None, e, time.time() - tic)
-    return BuildResult(filename, arg_info, None, time.time() - tic)
+    def build_func(measure_input, tmp_dir, **kwargs):
+        """
+        build_func. This can work for cuda, opencl, llvm and ndk (android) backend
 
-
-def android_ndk_build_func(measure_input, tmp_dir, **kwargs):
-    """
-    Build function for android device using ndk.
-
-    Parameters
-    ----------
-    measure_input: MeasureInput
-        The input of measurement
-    tmp_dir: str
-        The path of temporary directory to export generated library
-    """
-    tic = time.time()
-    try:
-        filename = os.path.join(tmp_dir, "tmp_func_%0x.so" % getrandbits(64))
-        func, arg_info = _build_func_common(measure_input, **kwargs)
-        func.export_library(filename, ndk.create_shared)
-    except Exception as e:  # pylint: disable=broad-except
-        return BuildResult(None, None, e, time.time() - tic)
-    return BuildResult(filename, arg_info, None, time.time() - tic)
+        Parameters
+        ----------
+        measure_input: MeasureInput
+            The input of measurement
+        tmp_dir: str
+            The path of temporary directory to export generated library
+        kwargs: optional
+            Additional arguments passed to _build_func_common
+        """
+        tic = time.time()
+        try:
+            filename = os.path.join(tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), file_ext))
+            func, arg_info = _build_func_common(measure_input, **kwargs)
+            func.export_library(filename, fcompile, **export_library_kwargs)
+        except Exception as e:  # pylint: disable=broad-except
+            return BuildResult(None, None, e, time.time() - tic)
+        return BuildResult(filename, arg_info, None, time.time() - tic)
+    return build_func
 
 
 def run_through_rpc(measure_input, build_result,

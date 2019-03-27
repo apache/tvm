@@ -174,6 +174,27 @@ target = tvm.target.create('opencl -device=mali')
 # This target host is used for cross compilation. You can query it by :code:`gcc -v` on your device.
 target_host = 'llvm -target=aarch64-linux-gnu'
 
+# Use Cross-Compiler to export lib
+#
+# False - use default build_func - lib will be exported as .tar file containing object file (.o file).
+# Edge device needs build-essential package to be installed (gcc, g++, ld)
+#
+# True - use cross compiler to export lib as .so file.
+# Cross-compiler must be installed on tuner box and specified below ("cc" parameter).
+# Edge device does not need build-essential package (gcc, g++, ld) to be installed
+use_cross_compiler_to_export_lib = False
+
+# Cross-Compiler which will be used to create shared library (.so file) for edge device
+# To install Cross-Compiler on tuner box use the following commands:
+#
+# for ARMv7 gnueabihf (hf stands for HardFloat)
+# $ apt install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+#
+# for ARMv8 aarch64
+# $ apt install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+cc = 'aarch64-linux-gnu-g++'
+
+
 # Also replace this with the device key in your tracker
 device_key = 'rk3399'
 
@@ -185,6 +206,13 @@ network = 'resnet-18'
 log_file = "%s.%s.log" % (device_key, network)
 dtype = 'float32'
 
+build_func = 'default'
+if use_android:
+    build_func = 'ndk'
+elif use_cross_compiler_to_export_lib:
+    from tvm.autotvm.measure.measure_methods import make_build_func
+    build_func = make_build_func('so', cc=cc)
+
 tuning_option = {
     'log_filename': log_file,
 
@@ -194,7 +222,8 @@ tuning_option = {
 
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(
-            build_func='ndk' if use_android else 'default'),
+            build_func=build_func,
+        ),
         runner=autotvm.RPCRunner(
             device_key, host='0.0.0.0', port=9190,
             number=10,
