@@ -617,8 +617,8 @@ def _mx_deformable_convolution(inputs, attrs):
     use_bias = not attrs.get_bool("no_bias", False)
     res = _op.nn.deformable_conv2d(inputs[0], inputs[1], inputs[2], **new_attrs)
     if use_bias:
-        assert len(inputs) == 3
-        res = _op.nn.bias_add(res, inputs[2])
+        assert len(inputs) == 4
+        res = _op.nn.bias_add(res, inputs[3])
     return res
 
 

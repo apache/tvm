@@ -435,7 +435,8 @@ def compute_deformable_conv2d(attrs, inputs, out_dtype, target):
     dilation = get_const_tuple(attrs.dilation)
     deformable_groups = attrs.deformable_groups
     groups = attrs.groups
-    out_dtype = inputs[0].dtype if out_dtype in ("same", "") else attrs.out_dtype
+    out_dtype = attrs.out_dtype
+    out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
     with target:
         out = topi.nn.deformable_conv2d_nchw(inputs[0], inputs[1], inputs[2], strides, padding,
                                              dilation, deformable_groups, groups, out_dtype)
