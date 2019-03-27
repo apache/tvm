@@ -7,7 +7,7 @@ from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
 from ... import nd as _nd
-from .common import ExprTable
+from .common import ExprTable, new_var
 
 __all__ = ['from_keras']
 
@@ -661,12 +661,15 @@ def from_keras(model, shape=None):
         raise ValueError("Keras frontend currently supports data_format = channels_last only.")
     _check_unsupported_layers(model)
 
+    def _convert_input_layer(keras_layer):
+        input_name = keras_layer.name
+        input_shape = shape[input_name] if shape is not None and input_name in shape else None
+        etab.set_expr(input_name, new_var(input_name, shape=input_shape))
+
     etab = ExprTable()
     for keras_layer in model.layers:
         if isinstance(keras_layer, keras.engine.InputLayer):
-            input_name = keras_layer.name
-            input_shape = shape[input_name] if shape is not None and input_name in shape else None
-            etab.set_expr(input_name, _expr.var(input_name, shape=input_shape))
+            _convert_input_layer(keras_layer)
         else:
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
                        else keras_layer._inbound_nodes if hasattr(keras_layer, '_inbound_nodes') \
@@ -690,6 +693,7 @@ def from_keras(model, shape=None):
                 for n_idx, t_idx, inbound_layer in zip_node:
                     if isinstance(inbound_layer, keras.engine.InputLayer):
                         expr_name = inbound_layer.name
+                        _convert_input_layer(inbound_layer)
                     else:
                         expr_name = inbound_layer.name + ':' + str(n_idx) + ':' + str(t_idx)
                     expr = etab.get_expr(expr_name)
