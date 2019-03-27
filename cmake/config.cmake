@@ -127,7 +127,7 @@ set(USE_MPS OFF)
 set(USE_ROCBLAS OFF)
 
 # Whether use contrib sort
-set(USE_SORT OFF)
+set(USE_SORT ON)
 
 # Build ANTLR parser for Relay text format
 set(USE_ANTLR OFF)
