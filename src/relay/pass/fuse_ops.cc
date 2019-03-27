@@ -265,7 +265,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     CHECK(tuple_type);
     bool has_reference = false;
     for (auto ty : tuple_type->fields) {
-      if (auto ref_ty = ty.as<RefTypeNode>()) {
+      if (ty.as<RefTypeNode>()) {
         has_reference = true;
         break;
       }
