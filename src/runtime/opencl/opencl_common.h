@@ -11,6 +11,16 @@
 #include <tvm/runtime/device_api.h>
 #include <dmlc/logging.h>
 
+/* There are many OpenCL platforms that do not yet support OpenCL 2.0,
+ * hence we use 1.2 APIs, some of which are now deprecated.  In order
+ * to turn off the deprecation warnings (elevated to errors by
+ * -Werror) we explicitly disable the 1.2 deprecation warnings.
+ *
+ * At the point TVM supports minimum version 2.0, we can remove this
+ * define.
+ */
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
