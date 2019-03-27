@@ -21,6 +21,8 @@ class DatatypesLowerer : public IRMutator {
   DatatypesLowerer(const std::string& target) : target_(target) {}
 
   inline Expr Mutate_(const Cast* op, const Expr& e) final {
+    Expr expr = IRMutator::Mutate_(op, e);
+    op = expr.as<Cast>();
     auto type_code = op->type.code();
     auto src_type_code = op->value.type().code();
     // If either datatype is a registered custom datatype, we must lower.
@@ -29,22 +31,22 @@ class DatatypesLowerer : public IRMutator {
       auto lower = GetCastLowerFunc(target_, type_code, src_type_code);
       internal_assert(lower);
       // TODO(gus) they use this->Mutate; why?
-      Expr r = (*lower)(e);
-      return Mutate(r);
+      return (*lower)(expr);
     }
-    return e;
+    return expr;
   }
 
-#define DEFINE_MUTATE__(OP)                                          \
-  inline Expr Mutate_(const OP* op, const Expr& e) final {           \
-    auto type_code = op->type.code();                                \
-    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) { \
-      auto lower = Get##OP##LowerFunc(target_, type_code);           \
-      internal_assert(lower);                                        \
-      Expr r = (*lower)(e);                                          \
-      return Mutate(r);                                              \
-    }                                                                \
-    return e;                                                        \
+#define DEFINE_MUTATE__(OP)                                                    \
+  inline Expr Mutate_(const OP *op, const Expr &e) final {                     \
+    Expr expr = IRMutator::Mutate_(op, e);                                     \
+    op = expr.as<OP>();                                                        \
+    auto type_code = op->type.code();                                          \
+    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {           \
+      auto lower = Get##OP##LowerFunc(target_, type_code);                     \
+      internal_assert(lower);                                                  \
+      return (*lower)(expr);                                                   \
+    }                                                                          \
+    return expr;                                                               \
   }
 
   // TODO(gus) this list should be the same as the list of
@@ -64,7 +66,16 @@ class DatatypesLowerer : public IRMutator {
   DEFINE_MUTATE__(GT)
   DEFINE_MUTATE__(GE)
   DEFINE_MUTATE__(Select)
-  DEFINE_MUTATE__(Load)
+  // TODO(gus) currently running into an error where, in a simple program
+  // consisting of casting two placeholder floats to bfloats, adding them, and
+  // casting back to float, the lowering is encountering a Load of a bfloat.
+  // This makes sense; when we use the cast values, this is technically a Load
+  // in TVM.
+  // One way to make this go away for now is to remove Load from this list. But
+  // is this correct? Somehow, it works, but I'm not sure how; the codegen stage
+  // is somehow gracefully able to encounter a Load of a custom datatype and not
+  // fail.
+  //DEFINE_MUTATE__(Load)
   DEFINE_MUTATE__(Ramp)
   DEFINE_MUTATE__(Broadcast)
   DEFINE_MUTATE__(Let)
