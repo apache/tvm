@@ -29,7 +29,6 @@ class Prelude:
         x = Var("x", self.l(a))
         y = Var("y")
         z = Var("z")
-        # Don't match nil() since it will break type checking
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), y)
         self.mod[self.hd] = Function([x], Match(x, [cons_case]), a, [a])
 
@@ -43,9 +42,8 @@ class Prelude:
         x = Var("x", self.l(a))
         y = Var("y")
         z = Var("z")
-        nil_case = Clause(PatternConstructor(self.nil, []), self.nil())
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), z)
-        self.mod[self.tl] = Function([x], Match(x, [nil_case, cons_case]), self.l(a), [a])
+        self.mod[self.tl] = Function([x], Match(x, [cons_case]), self.l(a), [a])
 
     def define_list_nth(self):
         """Defines a function to get the nth element of a list.
