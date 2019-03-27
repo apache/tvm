@@ -88,7 +88,7 @@ def hybrid_get_valid_counts(data, score_threshold):
     out_tensor = output_tensor((batch_size,
                                 num_anchors,
                                 box_data_length),
-                                data.dtype)
+                               data.dtype)
     for i in parallel(batch_size):
         valid_count[i] = 0
         for j in range(num_anchors):
