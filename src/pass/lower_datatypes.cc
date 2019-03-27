@@ -29,8 +29,10 @@ class DatatypesLowerer : public IRMutator {
     if (DatatypeRegistry::Global()->DatatypeRegistered(type_code) ||
         DatatypeRegistry::Global()->DatatypeRegistered(src_type_code)) {
       auto lower = GetCastLowerFunc(target_, type_code, src_type_code);
-      internal_assert(lower);
-      // TODO(gus) they use this->Mutate; why?
+      CHECK(lower) << "Cast lowering function for target " << target_
+                   << " destination type " << static_cast<unsigned>(type_code)
+                   << " source type " << static_cast<unsigned>(src_type_code)
+                   << "not found";
       return (*lower)(expr);
     }
     return expr;
@@ -43,7 +45,9 @@ class DatatypesLowerer : public IRMutator {
     auto type_code = op->type.code();                                          \
     if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {           \
       auto lower = Get##OP##LowerFunc(target_, type_code);                     \
-      internal_assert(lower);                                                  \
+      CHECK(lower) << #OP " lowering function for target " << target_          \
+                   << " type " << static_cast<unsigned>(type_code)             \
+                   << "not found";                                             \
       return (*lower)(expr);                                                   \
     }                                                                          \
     return expr;                                                               \
