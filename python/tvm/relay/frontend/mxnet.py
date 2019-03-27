@@ -186,6 +186,14 @@ def _mx_pooling(inputs, attrs):
         'Operator {} Pooling is not supported for frontend MXNet.'.format(pool_type.capitalize()))
 
 
+def _mx_adaptive_pooling(inputs, attrs):
+    output_size = attrs.get_int_tupple("output_size", [])
+    print(output_size)
+    if output_size != 1:
+       raise RuntimeError("AdaptiveAvgPooling with output_size other than 1 is not supported yet.")
+    return _op.nn.global_avg_pool2d(inputs[0])
+
+
 def _mx_dropout(inputs, attrs):
     rate = attrs.get_float("p", 0.5)
     return _op.nn.dropout(inputs[0], rate=rate)
@@ -795,6 +803,7 @@ _convert_map = {
     "_contrib_MultiBoxDetection" : _mx_multibox_detection,
     "_contrib_ROIAlign" : _mx_roi_align,
     "ROIPooling"        : _mx_roi_pooling,
+    "AdaptiveAvgPooling2D" : _mx_adaptive_pooling,
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
