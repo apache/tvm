@@ -2,7 +2,6 @@
 """Deformable Conv2D operators"""
 import tvm
 
-from .pad import pad
 from .util import get_pad_tuple
 from ..util import get_const_tuple
 from ..cpp.image import bilinear_sample_nchw
@@ -88,10 +87,10 @@ def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, def
                     _bilinear(n, c,
                               y * stride_h - pad_top + kh * dilation_h +
                               offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
-                                  (kh * kernel_w + kw) * 2, y, x],
+                                     (kh * kernel_w + kw) * 2, y, x],
                               x * stride_w - pad_left + kw * dilation_w +
                               offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
-                                  (kh * kernel_w + kw) * 2 + 1, y, x]))
+                                     (kh * kernel_w + kw) * 2 + 1, y, x]))
     return tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda n, f, y, x: tvm.sum(

@@ -2,10 +2,8 @@
 """Schedule template of deformable conv2d with cuda backend"""
 import tvm
 from tvm import autotvm
-from tvm.contrib import cudnn
-
 from .. import nn, generic
-from ..util import get_const_tuple, traverse_inline
+from ..util import traverse_inline
 
 
 autotvm.register_topi_compute(nn.deformable_conv2d_nchw, ["cuda", "gpu"], "direct",
@@ -42,6 +40,7 @@ def schedule_deformable_conv2d_nchw_cuda(cfg, outs):
 
 
 def schedule_direct_cuda(cfg, s, conv):
+    """Schedule template of deformable conv2d"""
     n, f, y, x = s[conv].op.axis
     rc, ry, rx = s[conv].op.reduce_axis
     cfg.define_split("tile_f", f, num_outputs=4)
