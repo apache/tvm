@@ -48,7 +48,7 @@ class CanonicalExprNode : public BaseExprNode {
 /*!
  * \brief Internal "Split normal form" of expression.
  *
- * This is a special expression that represent
+ * This is a special expression that represents
  * a scaled value derived from a split of an index.
  *
  * result = ((index % upper_factor) / lower_factor) * scale
@@ -75,6 +75,7 @@ class SplitExprNode : public CanonicalExprNode {
   Expr NormalizeWithScale(int64_t sscale) const {
     Expr res = this->index;
     Type dtype = this->type;
+    // consistent checking.
     CHECK_EQ(this->type, dtype);
     if (this->scale == 0) {
       return make_const(dtype, 0);
@@ -117,7 +118,7 @@ inline bool SplitExprNode::IndexEqual(const SplitExpr& other) const {
 }
 
 /*!
- * \brief Normal form that represent sum of expressions.
+ * \brief Normal form that represents sum of expressions.
  *
  *  result = sum(args) + base.
  */
@@ -129,7 +130,7 @@ class SumExprNode : public CanonicalExprNode {
    * args are divided into segments with the same index.
    * within each segment, the SplitExpr is ordered in descending order of lower_factor.
    *
-   * \note Can be mutated by TryMergeSplitExpr, which is idempotent
+   * \note Can be mutated by SimplifySplitExprs, which is idempotent
    */
   mutable std::vector<SplitExpr> args;
   /*! \brief Base value in the summation. */
@@ -149,7 +150,7 @@ class SumExprNode : public CanonicalExprNode {
         if (lhs->lower_factor == rhs->upper_factor &&
             lhs->scale % rhs->scale == 0 &&
             lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor) {
-          // Merge condition:
+          // General merge condition and proof:
           // - x = lhs->index % lhs->upper_factor
           // - s = lhs->scale / rhs->scale
           // - c = rhs->lower_factor
@@ -157,6 +158,19 @@ class SumExprNode : public CanonicalExprNode {
           //    ((x / (c * s)) * s + (x % (c * s)) / c
           // => ((x / c) / s) * s + ((x / c) % s)
           // => (x / c)
+          //
+          // Examples:
+          //
+          //    (z / 6) * 6 + ((z % 6) / 3) * 3
+          // => ((z / 6) * 2 + (z % 6) / 3) * 3
+          // => (z / 3) * 3
+          // note: x = z, c = 3, s = 2
+          //
+          //    ((z % 12) / 6) * 6 + ((z % 6) / 3) * 3
+          // => (((z % 12) / 6) * 2 + ((z % 12) % 6) / 3) * 3
+          // => ((z % 12) / 3) * 3
+          // note: x = z % 12, c = 3, s = 2
+          //
           SplitExprNode* merged = rhs.CopyOnWrite();
           merged->upper_factor = lhs->upper_factor;
           // reset args[i] to be zero.
@@ -166,6 +180,9 @@ class SumExprNode : public CanonicalExprNode {
       }
     }
     // sort by the entry
+    // Here we simply sort by descending order of scales
+    // we do not sort by index for now because it can be costly
+    // to deep compare Exprs, and address of Vars can be runtime dependent.
     auto fcompare = [](const SplitExpr& lhs, const SplitExpr& rhs) {
       // order by scale first
       if (lhs->scale > rhs->scale) return true;
@@ -239,8 +256,10 @@ class SumExprNode : public CanonicalExprNode {
    * \param scale The scale to be applied.
    */
   void DivideBy(int64_t scale) {
+    CHECK_EQ(this->base % scale, 0);
     this->base /= scale;
     for (size_t i = 0; i < this->args.size(); ++i) {
+      CHECK_EQ(args[i]->scale % scale, 0);
       args[i].CopyOnWrite()->scale /= scale;
     }
   }

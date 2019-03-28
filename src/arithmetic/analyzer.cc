@@ -17,7 +17,10 @@ Analyzer::Analyzer()
 
 void Analyzer::Bind(const VarExpr& v, const Expr& expr) {
   Var var(v.node_);
+
   Expr new_expr = expr;
+  new_expr = this->canonical_simplify(new_expr);
+  new_expr = this->rewrite_simplify(new_expr);
 
   this->const_int_bound.Update(var, this->const_int_bound(new_expr));
   this->modular_set.Update(var, this->modular_set(new_expr));
