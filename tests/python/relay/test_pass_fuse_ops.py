@@ -286,41 +286,41 @@ def test_fuse_myia_regression():
     assert relay.ir_pass.alpha_equal(f, after)
 
 
-def test_gru():
-    def before(rnn_dim):
-        X = relay.var("X", shape=(1, rnn_dim))
-        W = relay.var("W", shape=(3 * rnn_dim, rnn_dim))
+def test_fuse_tuple_get_elemwise():
+    def before(dim):
+        X = relay.var("X", shape=(1, dim))
+        W = relay.var("W", shape=(3 * dim, dim))
         matmul = relay.nn.dense(X, W)
         splitted = relay.split(matmul, indices_or_sections=3, axis=1)
         out = relay.sigmoid(splitted[0]) + relay.tanh(splitted[1]) * relay.exp(splitted[2])
         return relay.Function([X, W], out)
 
-    def expected(rnn_dim):
-        p0 = relay.var("p0", shape=(1, rnn_dim))
-        p1 = relay.var("p1", shape=(3 * rnn_dim, rnn_dim))
+    def expected(dim):
+        p0 = relay.var("p0", shape=(1, dim))
+        p1 = relay.var("p1", shape=(3 * dim, dim))
         matmul = relay.nn.dense(p0, p1)
         f0 = relay.Function([p0, p1], matmul)
 
-        p01 = relay.var("p01", shape=(1, 3 * rnn_dim))
+        p01 = relay.var("p01", shape=(1, 3 * dim))
         splitted = relay.split(p01, indices_or_sections=3, axis=1)
         out = relay.sigmoid(splitted[0]) + relay.tanh(splitted[1]) * relay.exp(splitted[2])
         f1 = relay.Function([p01], out)
 
-        X = relay.var("X", shape=(1, rnn_dim))
-        W = relay.var("W", shape=(3 * rnn_dim, rnn_dim))
+        X = relay.var("X", shape=(1, dim))
+        W = relay.var("W", shape=(3 * dim, dim))
         y = relay.Call(f0, [X, W])
         z = relay.Call(f1, [y])
         return relay.Function([X, W], z)
 
-    rnn_dim = 10
-    z = before(rnn_dim)
+    dim = 10
+    z = before(dim)
     z = relay.ir_pass.infer_type(z)
     zz = relay.ir_pass.fuse_ops(z, opt_level=0)
     assert not relay.ir_pass.free_vars(zz)
     zz = relay.ir_pass.fuse_ops(z, opt_level=2)
     zz = relay.ir_pass.infer_type(zz)
     assert not relay.ir_pass.free_vars(zz)
-    after = relay.ir_pass.infer_type(expected(rnn_dim))
+    after = relay.ir_pass.infer_type(expected(dim))
     assert relay.ir_pass.alpha_equal(zz, after)
 
 
@@ -369,5 +369,5 @@ if __name__ == "__main__":
     test_tuple_strided_slice()
     test_stop_fusion()
     test_fuse_myia_regression()
-    test_gru()
+    test_fuse_tuple_get_elemwise()
     test_tuple_get_root()

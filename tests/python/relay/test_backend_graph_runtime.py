@@ -128,8 +128,8 @@ def test_plan_memory():
     assert len(device_types) == 1
 
 
-def test_gru():
-    def gru(rnn_dim):
+def test_gru_like():
+    def unit(rnn_dim):
         X = relay.var("X", shape=(1, rnn_dim))
         W = relay.var("y", shape=(3 * rnn_dim, rnn_dim))
         matmul = relay.nn.dense(X, W)
@@ -140,7 +140,7 @@ def test_gru():
     def sigmoid(x):
         return 1 / (1 + np.exp(-x))
 
-    def gru_numpy(X, W):
+    def unit_numpy(X, W):
         prod = np.dot(X, W.transpose())
         splits = np.split(prod, indices_or_sections=3, axis=1)
         return sigmoid(splits[0]) + np.tanh(splits[1]) * np.exp(splits[2])
@@ -150,7 +150,7 @@ def test_gru():
     x = np.random.rand(1, rnn_dim).astype(dtype)
     y = np.random.rand(3*rnn_dim, rnn_dim).astype(dtype) * 0.01 - 0.005
     out_shape = (1, rnn_dim)
-    z = gru(rnn_dim)
+    z = unit(rnn_dim)
 
     for target, ctx in ctx_list():
         with relay.build_config(opt_level=2):
@@ -161,7 +161,7 @@ def test_gru():
             m.set_input(**params)
             m.run()
             out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
-            ref = gru_numpy(x, y)
+            ref = unit_numpy(x, y)
             tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
@@ -171,4 +171,4 @@ if __name__ == "__main__":
     test_add_op_scalar()
     test_add_op_tensor()
     test_add_op_broadcast()
-    test_gru()
+    test_gru_like()
