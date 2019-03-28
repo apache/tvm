@@ -18,13 +18,6 @@ from gluoncv import model_zoo, data, utils
 ######################################################################
 # Preliminary and Set parameters
 # ------------------------------
-# We should build TVM with sort support, in TVM root directory
-#
-# .. code-block:: bash
-#
-#   echo "set(USE_SORT ON)" > config.mk
-#   make -j8
-#
 # .. note::
 #
 #   Currently we support compiling SSD on CPU only.
