@@ -244,12 +244,12 @@ def schedule_group_conv2d_nchw(outs):
 
 @tvm.target.generic_func
 def schedule_deformable_conv2d_nchw(outs):
-    """Schedule for conv2d_nchw
+    """Schedule for deformable_conv2d_nchw
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of conv2d_nchw
+          The computation graph description of deformable_conv2d_nchw
           in the format of an array of tensors.
 
     Returns
