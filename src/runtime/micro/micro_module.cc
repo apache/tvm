@@ -10,6 +10,7 @@
 #include <string>
 #include "micro_session.h"
 #include "low_level_device.h"
+#include "micro_common.h"
 
 namespace tvm {
 namespace runtime {

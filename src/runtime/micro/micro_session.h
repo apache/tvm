@@ -18,33 +18,6 @@
 
 namespace tvm {
 namespace runtime {
-/*! \brief number of bytes in each page */
-constexpr int kPageSize = 4096;
-
-/*! \brief memory offset at which text section starts  */
-constexpr int kTextStart = 64;
-
-/*! \brief memory offset at which data section starts  */
-constexpr int kDataStart = 50000;
-
-/*! \brief memory offset at which bss section starts  */
-constexpr int kBssStart = 100000;
-
-/*! \brief memory offset at which args section starts  */
-constexpr int kArgsStart = 150000;
-
-/*! \brief memory offset at which stack section starts  */
-constexpr int kStackStart = 250000;
-
-/*! \brief memory offset at which heap section starts  */
-constexpr int kHeapStart = 300000;
-
-/*! \brief memory offset at which workspace section starts  */
-constexpr int kWorkspaceStart = 350000;
-
-/*! \brief total memory size */
-constexpr int kMemorySize = 409600;
-
 /*!
  * \brief allocator for a on-device memory section
  */
@@ -123,28 +96,6 @@ class MicroSession {
    */
   const std::shared_ptr<LowLevelDevice> low_level_device() const {
     return low_level_device_;
-  }
-
-  /*!
-   * \brief converts actual address to offset from base_addr
-   * \note assumes low_level_device_ is initialized
-   * \param addr address to be converted to offset
-   * \return offset from base_addr
-   */
-  const void* GetOffset(void* addr) const {
-    return (void*) ((uint8_t*) addr - 
-                    (uint8_t*) low_level_device()->base_addr());
-  }
-
-  /*!
-   * \brief converts offset to actual address
-   * \note assumes low_level_device_ is initialized
-   * \param offset offset from base_addr
-   * \return on-device physical address
-   */
-  const void* GetAddr(void* offset) const {
-    return (void*) ((uint8_t*) low_level_device()->base_addr() +
-                    reinterpret_cast<std::uintptr_t>(offset));
   }
 
  private:

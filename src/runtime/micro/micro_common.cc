@@ -21,6 +21,7 @@ const char* SectionToString(SectionKind section) {
     case kStack: return "stack";
     case kHeap: return "heap";
     case kWorkspace: return "workspace";
+    default: return "";
   }
 }
 
@@ -38,16 +39,16 @@ std::string RelocateBinarySections(std::string binary_name,
   return "";
 }
 
-std::string ReadSection(std::string binary_name, Section section) {
+std::string ReadSection(std::string binary_name, SectionKind section) {
   return "";
 }
 
-size_t GetSectionSize(std::string binary_name, Section section) {
+size_t GetSectionSize(std::string binary_name, SectionKind section) {
   return 0;
 }
 
 std::unordered_map<std::string, void*> GetSymbolMap(std::string binary) {
-  return nullptr;
+  return std::unordered_map<std::string, void*>();
 }
 }  // namespace runtime
 }  // namespace tvm

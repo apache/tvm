@@ -7,7 +7,7 @@
 
 #include <stdio.h>
 #include <string>
-#include "micro_session.h"
+#include <unordered_map>
 
 namespace tvm {
 namespace runtime {
@@ -23,6 +23,54 @@ enum SectionKind : int {
   kHeap = 5,
   kWorkspace = 6,
 };
+
+/*! \brief number of bytes in each page */
+constexpr int kPageSize = 4096;
+
+/*! \brief memory offset at which text section starts  */
+constexpr int kTextStart = 64;
+
+/*! \brief memory offset at which data section starts  */
+constexpr int kDataStart = 50000;
+
+/*! \brief memory offset at which bss section starts  */
+constexpr int kBssStart = 100000;
+
+/*! \brief memory offset at which args section starts  */
+constexpr int kArgsStart = 150000;
+
+/*! \brief memory offset at which stack section starts  */
+constexpr int kStackStart = 250000;
+
+/*! \brief memory offset at which heap section starts  */
+constexpr int kHeapStart = 300000;
+
+/*! \brief memory offset at which workspace section starts  */
+constexpr int kWorkspaceStart = 350000;
+
+/*! \brief total memory size */
+constexpr int kMemorySize = 409600;
+
+/*!
+ * \brief converts actual address to offset from base_addr
+ * \param addr address to be converted to offset
+ * \param base_addr base address
+ * \return offset from base_addr
+ */
+inline void* GetOffset(const void* addr, const void* base_addr) {
+  return (void*) ((uint8_t*) addr - (uint8_t*) base_addr);
+}
+
+/*!
+ * \brief converts offset to actual address
+ * \param offset offset from base_addr
+ * \param base_addr base address
+ * \return address relative to base_addr
+ */
+inline void* GetAddr(const void* offset, const void* base_addr) {
+  return (void*) ((uint8_t*) base_addr +
+                  reinterpret_cast<std::uintptr_t>(offset));
+}
 
 /*!
  * \brief maps section enums to text
