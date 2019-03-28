@@ -388,13 +388,30 @@ def test_forward_softmax():
 # Mobilenet
 # ---------
 
-def test_forward_mobilenet():
+def test_forward_mobilenet_v1():
     '''test mobilenet v1 tflite model'''
     # MobilenetV1
     temp = util.tempdir()
     tflite_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz",
         "mobilenet_v1_1.0_224.tflite", temp)
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
+    tvm_data = np.transpose(data, axes=(0, 3, 1, 2))
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, tvm_data, 'input')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+    temp.remove()
+
+def test_forward_mobilenet_v2():
+    '''test mobilenet v2 tflite model'''
+    # MobilenetV2
+    temp = util.tempdir()
+    tflite_model_file = tf_testing.get_workload_official(
+        "http://storage.googleapis.com/mobilenet_v2/checkpoints/mobilenet_v2_1.0_224.tgz",
+        "mobilenet_v2_1.0_224.tflite", temp)
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
     data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
@@ -441,5 +458,6 @@ if __name__ == '__main__':
     test_forward_softmax()
 
     # End to End
-    test_forward_mobilenet()
+    test_forward_mobilenet_v1()
+    test_forward_mobilenet_v2()
     test_forward_inception_v3_net()

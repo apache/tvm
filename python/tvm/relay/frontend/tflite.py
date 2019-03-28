@@ -45,7 +45,8 @@ class OperatorConverter(object):
             'SOFTMAX': self.convert_softmax,
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
-            "CONCATENATION": self.convert_concatenation
+            'CONCATENATION': self.convert_concatenation,
+            'ADD': self.convert_add
         }
 
     def check_unsupported_ops(self):
@@ -287,6 +288,25 @@ class OperatorConverter(object):
         # if we have activation fn
         if fused_activation_fn != ActivationFunctionType.NONE:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
+        return out
+
+    def convert_add(self, op):
+        """Convert TFLite add"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        lhs_tensor = input_tensors[0]
+        rhs_tensor = input_tensors[1]
+        lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
+        rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
+        out = _op.add(lhs_expr, rhs_expr)
+
         return out
 
     def convert_squeeze(self, op):
