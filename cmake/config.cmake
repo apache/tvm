@@ -127,7 +127,7 @@ set(USE_MPS OFF)
 set(USE_ROCBLAS OFF)
 
 # Whether use contrib sort
-set(USE_SORT OFF)
+set(USE_SORT ON)
 
 # Whether use TensorRT
 # /path/to/tensorrt that contains include and lib dirs
