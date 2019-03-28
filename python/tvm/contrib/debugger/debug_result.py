@@ -1,9 +1,18 @@
 """Graph debug results dumping class."""
-import os
+import collections
 import json
+import os
+import numpy as np
 import tvm
 
 GRAPH_DUMP_FILE_NAME = '_tvmdbg_graph_dump.json'
+CHROME_TRACE_FILE_NAME = "_tvmdbg_execution_trace.json"
+
+ChromeTraceEvent = collections.namedtuple(
+    'ChromeTraceEvent',
+    ['ts', 'tid', 'pid', 'name', 'ph']
+)
+
 
 class DebugResult(object):
     """Graph debug data module.
@@ -126,6 +135,45 @@ class DebugResult(object):
 
         with open(os.path.join(self._dump_path, "output_tensors.params"), "wb") as param_f:
             param_f.write(save_tensors(output_tensors))
+
+    def dump_chrome_trace(self):
+        """Dump the trace to the Chrome trace.json format.
+        """
+        def s_to_us(t):
+            return t * 10 ** 6
+
+        starting_times = np.zeros(len(self._time_list) + 1)
+        starting_times[1:] = np.cumsum([times[0] for times in self._time_list])
+
+        def node_to_events(node, times, starting_time):
+            return [
+                ChromeTraceEvent(
+                    ts=s_to_us(starting_time),
+                    tid=1,
+                    pid=1,
+                    ph='B',
+                    name=node['name'],
+                ),
+                ChromeTraceEvent(
+                    # Use start + duration instead of end to ensure precise timings.
+                    ts=s_to_us(times[0] + starting_time),
+                    tid=1,
+                    pid=1,
+                    ph='E',
+                    name=node['name'],
+                ),
+            ]
+        events = [
+            e for (node, times, starting_time) in zip(
+                self._nodes_list, self._time_list, starting_times)
+            for e in node_to_events(node, times, starting_time)]
+        result = dict(
+            displayTimeUnit='ns',
+            traceEvents=[e._asdict() for e in events]
+        )
+
+        with open(os.path.join(self._dump_path, CHROME_TRACE_FILE_NAME), "w") as trace_f:
+            json.dump(result, trace_f)
 
     def dump_graph_json(self, graph):
         """Dump json formatted graph.
