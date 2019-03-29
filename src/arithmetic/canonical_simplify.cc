@@ -75,8 +75,6 @@ class SplitExprNode : public CanonicalExprNode {
   Expr NormalizeWithScale(int64_t sscale) const {
     Expr res = this->index;
     Type dtype = this->type;
-    // consistent checking.
-    CHECK_EQ(this->type, dtype);
     if (this->scale == 0) {
       return make_const(dtype, 0);
     }
@@ -170,6 +168,7 @@ class SumExprNode : public CanonicalExprNode {
           // => (((z % 12) / 6) * 2 + ((z % 12) % 6) / 3) * 3
           // => ((z % 12) / 3) * 3
           // note: x = z % 12, c = 3, s = 2
+          // note also the invariance lhs->upper_factor % lhs->lower_factor == 0
           //
           SplitExprNode* merged = rhs.CopyOnWrite();
           merged->upper_factor = lhs->upper_factor;
