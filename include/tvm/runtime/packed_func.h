@@ -962,7 +962,10 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   // considered the same as the bits field?
   os << TypeCode2Str(t.code);
   if (t.code == kHandle) return os;
-  os << static_cast<int>(t.bits);
+  // For now, just don't append the bits if the datatype is custom. This is to
+  // keep it consistent with the parser, which doesn't expect a bits field after
+  // a custom datatype.
+  if (!GetCustomDatatypeRegistered(t.code)) os << static_cast<int>(t.bits);
   if (t.lanes != 1) {
     os << 'x' << static_cast<int>(t.lanes);
   }
