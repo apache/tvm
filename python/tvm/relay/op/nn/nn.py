@@ -433,7 +433,7 @@ def batch_flatten(data):
     return _make.batch_flatten(data)
 
 
-def bias_add(data, bias, axis=-1):
+def bias_add(data, bias, axis=1):
     """add_bias operator.
 
     Add 1D bias to the axis of data.
