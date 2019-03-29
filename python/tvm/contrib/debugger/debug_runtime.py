@@ -220,7 +220,9 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self._run_debug()
         # Step 2. Dump the output tensors to the dump folder
         self.debug_datum.dump_output_tensor()
-        # Step 3. Display the collected information
+        # Step 3. Dump the Chrome trace to the dump folder
+        self.debug_datum.dump_chrome_trace()
+        # Step 4. Display the collected information
         self.debug_datum.display_debug_result()
 
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
