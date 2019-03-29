@@ -753,5 +753,148 @@ RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
         Conv2DInferCorrectLayout<Conv2DAttrs>);
 
 
+bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                         const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 4);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[2].as<TensorTypeNode>();
+
+  CHECK(data);
+  auto* param = attrs.as<DeformableConv2DAttrs>();
+  CHECK_EQ(param->data_layout, "NCHW") << "data layout not supported.";
+  CHECK_EQ(param->kernel_layout, "OIHW") << "kernel_layout not supported.";
+
+  IndexExpr channels, dilated_ksize_y, dilated_ksize_x, ksize_y, ksize_x;
+
+  // infer weight shape if kernel_size and channels are defiend
+  if (param->kernel_size.defined() && param->channels.defined()) {
+    CHECK_EQ(param->kernel_size.size(), 2);
+    CHECK_EQ(param->dilation.size(), 2);
+    Array<IndexExpr> wshape(
+       {param->channels,
+         data->shape[1] / param->groups,
+         param->kernel_size[0],
+         param->kernel_size[1]});
+    channels = param->channels;
+    ksize_y = param->kernel_size[0];
+    ksize_x = param->kernel_size[1];
+    dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
+    dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
+    // assign result to reporter
+    reporter->Assign(types[2], TensorTypeNode::make(wshape, data->dtype));
+  } else {
+    // use weight to infer the conv shape.
+    if (weight == nullptr) return false;
+    auto wshape = weight->shape;
+    if (param->kernel_size.defined()) {
+      CHECK_EQ(param->kernel_size.size(), 2);
+      // check the size
+      CHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) &&
+            reporter->AssertEQ(param->kernel_size[1], wshape[3]))
+          << "DeformableConv2D: shape of weight is inconsistent with kernel_size, "
+          << " kernel_size=" << param->kernel_size
+          << " wshape=" << wshape;
+    }
+    if (param->channels.defined()) {
+      CHECK(reporter->AssertEQ(param->channels, wshape[0]))
+          << "DeformableConv2D: shape of weight is inconsistent with channels, "
+          << " channels=" << param->channels
+          << " wshape=" << wshape;
+    }
+    CHECK(reporter->AssertEQ(data->shape[1] / param->groups, wshape[1]));
+    channels = wshape[0];
+    ksize_y = wshape[2];
+    ksize_x = wshape[3];
+    dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
+    dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
+  }
+  // dilation
+  Array<IndexExpr> oshape({data->shape[0], channels, 0, 0});
+
+  oshape.Set(2, (data->shape[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1);
+  oshape.Set(3, (data->shape[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1);
+  DataType out_dtype = param->out_dtype;
+
+  // infer offset shape
+  Array<IndexExpr> offset_shape({data->shape[0], 2 * ksize_y * ksize_x * param->deformable_groups,
+          oshape[2], oshape[3]});
+  reporter->Assign(types[1], TensorTypeNode::make(offset_shape, data->dtype));
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+
+  reporter->Assign(types[3], TensorTypeNode::make(oshape, out_dtype));
+  return true;
+}
+
+
+TVM_REGISTER_NODE_TYPE(DeformableConv2DAttrs);
+
+RELAY_REGISTER_OP("nn.deformable_conv2d")
+    .describe(R"code(Compute 2-D deformable convolution on 4-D input.
+The deformable convolution operation is described in https://arxiv.org/abs/1703.06211
+
+For 2-D deformable convolution, the shapes are
+- **data**: (batch_size, channel, height, width)
+- **offset**: (batch_size, deformable_groups * kernel[0] * kernel[1] * 2, out_height, out_width)
+- **weight**: (num_filter, channel, kernel[0], kernel[1])
+- **out**: (batch_size, num_filter, out_height, out_width).
+
+If `deformable_groups` is larger than 1, denoted by *dg*, then split the
+input `offset` evenly into *dg* parts along the channel axis, and also evenly split `out`
+evenly into *dg* parts along the channel axis. Next compute the deformable convolution, apply the
+*i*-th part of the offset part on the *i*-th out.
+
+If `groups` is larger than 1, denoted by *g*, then split the input `data` evenly into *g* parts
+along the channel axis, and also evenly split `weight` along the first dimension. Next compute
+the convolution on the *i*-th part of the data with the *i*-th weight part. The output is obtained
+by concating all the *g* results.
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.DeformableConv2D")
+.set_num_inputs(3)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("offset", "Tensor", "The offset tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(5)
+.add_type_rel("DeformableConv2D", DeformableConv2DRel);
+
+// Positional relay function to create deformable_conv2d operator
+// used by frontend FFI.
+Expr MakeDeformableConv2D(Expr data,
+                          Expr offset,
+                          Expr weight,
+                          Array<IndexExpr> strides,
+                          Array<IndexExpr> padding,
+                          Array<IndexExpr> dilation,
+                          int deformable_groups,
+                          int groups,
+                          int channels,
+                          Array<IndexExpr> kernel_size,
+                          std::string data_layout,
+                          std::string kernel_layout,
+                          std::string out_layout,
+                          DataType out_dtype) {
+  auto attrs = make_node<DeformableConv2DAttrs>();
+  attrs->strides = strides;
+  attrs->padding = padding;
+  attrs->dilation = dilation;
+  attrs->deformable_groups = deformable_groups;
+  attrs->groups = groups;
+  attrs->channels = channels;
+  attrs->kernel_size = kernel_size;
+  attrs->data_layout = data_layout;
+  attrs->kernel_layout = kernel_layout;
+  attrs->out_layout = out_layout;
+  attrs->out_dtype = out_dtype;
+  static const Op& op = Op::Get("nn.deformable_conv2d");
+  return CallNode::make(op, {data, offset, weight}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.deformable_conv2d")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 14>(MakeDeformableConv2D, args, rv);
+  });
+
+
 }  // namespace relay
 }  // namespace tvm
