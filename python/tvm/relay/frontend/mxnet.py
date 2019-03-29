@@ -594,6 +594,15 @@ def _mx_embedding(inputs, _):
     return _op.take(weight, indices.astype('int32'), axis=0)
 
 
+def _mx_smooth_l1(inputs, attrs):
+    scalar = attrs.get_float("scalar", 1.0)
+    scalar_sq = scalar * scalar
+    mask = _op.less(inputs[0], _expr.const(1.0 / scalar_sq, dtype='float32'))
+    return _op.where(mask,
+                     _expr.const(scalar_sq / 2.0, dtype='float32') * inputs[0] * inputs[0],
+                     _op.abs(inputs[0]) - _expr.const(0.5 / scalar_sq))
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -729,6 +738,7 @@ _convert_map = {
     "Embedding"     : _mx_embedding,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
+    "smooth_l1"     : _mx_smooth_l1,
     # vision
     "_contrib_BilinearResize2D" : _mx_upsampling,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
