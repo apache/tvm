@@ -27,6 +27,13 @@ TVM_REGISTER_GLOBAL("_get_storage_size")
       *ret = (int)DatatypeRegistry::Global()->GetStorageSize(args[0].operator int());
     });
 
+// TODO(gus) make naming consistent
+TVM_REGISTER_GLOBAL("_get_custom_datatype_registered")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      *ret = DatatypeRegistry::Global()->DatatypeRegistered(
+          args[0].operator int());
+    });
+
 void DatatypeRegistry::RegisterDatatype(const std::string& type_name,
                                         uint8_t type_code,
                                         size_t storage_size) {
