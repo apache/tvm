@@ -5,9 +5,10 @@
 namespace tvm {
 
 TVM_REGISTER_GLOBAL("_register_datatype")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
       DatatypeRegistry::Global()->RegisterDatatype(
-          args[0], (uint8_t)args[1].operator int(), args[2].operator size_t());
+          args[0], static_cast<uint8_t>(args[1].operator int()),
+          args[2].operator size_t());
     });
 
 TVM_REGISTER_GLOBAL("_get_type_code")
@@ -24,7 +25,8 @@ TVM_REGISTER_GLOBAL("_get_storage_size")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       // TODO(gus) I cast this down to an int so that it can be automatically
       // converted to TVMRetValue. This is dumb and should be fixed somehow.
-      *ret = (int)DatatypeRegistry::Global()->GetStorageSize(args[0].operator int());
+      *ret = static_cast<int>(
+          DatatypeRegistry::Global()->GetStorageSize(args[0].operator int()));
     });
 
 // TODO(gus) make naming consistent
@@ -34,7 +36,7 @@ TVM_REGISTER_GLOBAL("_get_custom_datatype_registered")
           args[0].operator int());
     });
 
-void DatatypeRegistry::RegisterDatatype(const std::string& type_name,
+void DatatypeRegistry::RegisterDatatype(const std::string &type_name,
                                         uint8_t type_code,
                                         size_t storage_size) {
   code_to_name[type_code] = type_name;

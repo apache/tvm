@@ -4,6 +4,7 @@
 #include <tvm/runtime/registry.h>
 #include <string>
 
+// TODO(gus) all of these functions could wrap the Registry::Get with a CHECK
 // TODO(gus) this is generating warnings due to returning a string.
 extern "C" std::string GetTypeName(uint8_t type_code) {
   return (*tvm::runtime::Registry::Get("_get_type_name"))(type_code).
