@@ -127,125 +127,22 @@ class SumExprNode : public CanonicalExprNode {
    *
    * args are divided into segments with the same index.
    * within each segment, the SplitExpr is ordered in descending order of lower_factor.
-   *
-   * \note Can be mutated by SimplifySplitExprs, which is idempotent
    */
-  mutable std::vector<SplitExpr> args;
+  std::vector<SplitExpr> args;
   /*! \brief Base value in the summation. */
   int64_t base{0};
-
-  /*! \brief Simplify the args by merging SplitExprs */
-  void SimplifySplitExprs() const {
-    // NOTE: This algorithm relies on the factor that args are divided into segments
-    // and each segment is sorted in descending order of lower_factor.
-    for (size_t i = 0; i < args.size(); ++i) {
-      if (args[i]->scale == 0) continue;
-      for (size_t j = i + 1; j < args.size(); ++j) {
-        SplitExpr& lhs = args[i];
-        SplitExpr& rhs = args[j];
-        if (!lhs->IndexEqual(rhs)) break;
-        if (lhs->upper_factor < rhs->lower_factor) break;
-        if (lhs->lower_factor == rhs->upper_factor &&
-            lhs->scale % rhs->scale == 0 &&
-            lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor) {
-          // Rules used in the proof:
-          //
-          // Rule 1:  (x % (c * s)) / c  =  (x / c) % s
-          // Proof:
-          //  x can always be decomposed into p * c * s + q * c + r
-          //  where  0 <= q * c + r < c * s  and  0 <= r  <  c.
-          //  Then, lhs = ((p * c * s + q * c + r) % (c * s)) / c = (q * c + r) / c = q
-          //  rhs = ((p * c * s + q * c + r) / c) % s = (p * s + q) % s = q
-          //  Thus, lhs = rhs
-          //
-          // The above proof is for the floordiv.
-          // The same rule also holds for trucdiv(division rule in C).
-          // Because both sides only involve mul, div and mod,
-          // we can take abs of x, c and s, apply the floordiv proof,
-          // and finally add the sign back.
-          //
-          // Rule 2:  (x / s) * s + x % s = x  (true for both truc and floor div)
-          //
-          // General merge condition and proof:
-          // - x = lhs->index % lhs->upper_factor
-          // - s = lhs->scale / rhs->scale
-          // - c = rhs->lower_factor
-          //
-          //    ((x / (c * s)) * s + (x % (c * s)) / c
-          // => ((x / c) / s) * s + ((x / c) % s)
-          // => (x / c)
-          //
-          // Examples:
-          //
-          //    (z / 6) * 6 + ((z % 6) / 3) * 3
-          // => ((z / 6) * 2 + (z % 6) / 3) * 3
-          // => (z / 3) * 3
-          // note: x = z, c = 3, s = 2
-          //
-          //    ((z % 12) / 6) * 6 + ((z % 6) / 3) * 3
-          // => (((z % 12) / 6) * 2 + ((z % 12) % 6) / 3) * 3
-          // => ((z % 12) / 3) * 3
-          // note: x = z % 12, c = 3, s = 2
-          // note also the invariance lhs->upper_factor % lhs->lower_factor == 0
-          //
-          SplitExprNode* merged = rhs.CopyOnWrite();
-          merged->upper_factor = lhs->upper_factor;
-          // reset args[i] to be zero.
-          lhs.CopyOnWrite()->scale = 0;
-          break;
-        }
-      }
-    }
-    // sort by the entry
-    // Here we simply sort by descending order of scales
-    // we do not sort by index for now because it can be costly
-    // to deep compare Exprs, and address of Vars can be runtime dependent.
-    auto fcompare = [](const SplitExpr& lhs, const SplitExpr& rhs) {
-      // order by scale first
-      if (lhs->scale > rhs->scale) return true;
-      if (lhs->scale < rhs->scale) return false;
-      // then order by factor
-      if (lhs->lower_factor > rhs->lower_factor) return true;
-      if (lhs->lower_factor < rhs->lower_factor) return false;
-      // then order by upper factor
-      if (lhs->upper_factor > rhs->upper_factor) return true;
-      if (lhs->upper_factor < rhs->upper_factor) return false;
-      // tie.
-      return false;
-    };
-    std::stable_sort(args.begin(), args.end(), fcompare);
-  }
   /*!
    * \brief Return the normal Expr that is equivalent to self.
    * \return The normal expression.
    */
   Expr Normalize() const final {
-    this->SimplifySplitExprs();
-    Type dtype = this->type;
     // quick path 1.
     if (this->args.size() == 0) {
-      return make_const(dtype, this->base);
+      return make_const(this->type, this->base);
     }
-    // Positive scales first
-    Expr res = make_const(dtype, 0);
-    for (size_t i = 0; i < this->args.size(); ++i) {
-      if (this->args[i]->scale > 0) {
-        res = res + this->args[i]->Normalize();
-      }
-    }
-    if (this->base > 0) {
-      res = res + make_const(dtype, this->base);
-    }
-    // negative scales follows using sub.
-    for (size_t i = 0; i < this->args.size(); ++i) {
-      if (this->args[i]->scale < 0) {
-        res = res - this->args[i]->NormalizeWithScale(-1);
-      }
-    }
-    if (this->base < 0) {
-      res = res - make_const(dtype, -this->base);
-    }
-    return res;
+    return Normalize_(this->type,
+                      SimplifySplitExprs(args),
+                      base);
   }
   /*!
    * \brief Whether self is divisible by scale.
@@ -323,6 +220,125 @@ class SumExprNode : public CanonicalExprNode {
 
   static constexpr const char* _type_key = "arith.SumExpr";
   TVM_DECLARE_NODE_TYPE_INFO(SumExprNode, CanonicalExprNode);
+
+ private:
+  /*!
+   * \brief Simplify the args by merging SplitExprs
+   * \param args The original list of arguments.
+   * \return simplified version.
+   */
+  static std::vector<SplitExpr>
+  SimplifySplitExprs(std::vector<SplitExpr> args) {
+    // NOTE: This algorithm relies on the factor that args are divided into segments
+    // and each segment is sorted in descending order of lower_factor.
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (args[i]->scale == 0) continue;
+      for (size_t j = i + 1; j < args.size(); ++j) {
+        SplitExpr& lhs = args[i];
+        SplitExpr& rhs = args[j];
+        if (!lhs->IndexEqual(rhs)) break;
+        if (lhs->upper_factor < rhs->lower_factor) break;
+        if (lhs->lower_factor == rhs->upper_factor &&
+            lhs->scale % rhs->scale == 0 &&
+            lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor) {
+          // Rules used in the proof:
+          //
+          // Rule 1:  (x % (c * s)) / c  =  (x / c) % s
+          // Proof:
+          //  x can always be decomposed into p * c * s + q * c + r
+          //  where  0 <= q * c + r < c * s  and  0 <= r  <  c.
+          //  Then, lhs = ((p * c * s + q * c + r) % (c * s)) / c = (q * c + r) / c = q
+          //  rhs = ((p * c * s + q * c + r) / c) % s = (p * s + q) % s = q
+          //  Thus, lhs = rhs
+          //
+          // The above proof is for the floordiv.
+          // The same rule also holds for trucdiv(division rule in C).
+          // Because both sides only involve mul, div and mod,
+          // we can take abs of x, c and s, apply the floordiv proof,
+          // and finally add the sign back.
+          //
+          // Rule 2:  (x / s) * s + x % s = x  (true for both truc and floor div)
+          //
+          // General merge condition and proof:
+          // - x = lhs->index % lhs->upper_factor
+          // - s = lhs->scale / rhs->scale
+          // - c = rhs->lower_factor
+          //
+          //    ((x / (c * s)) * s + (x % (c * s)) / c
+          // => ((x / c) / s) * s + ((x / c) % s)
+          // => (x / c)
+          //
+          // Examples:
+          //
+          //    (z / 6) * 6 + ((z % 6) / 3) * 3
+          // => ((z / 6) * 2 + (z % 6) / 3) * 3
+          // => (z / 3) * 3
+          // note: x = z, c = 3, s = 2
+          //
+          //    ((z % 12) / 6) * 6 + ((z % 6) / 3) * 3
+          // => (((z % 12) / 6) * 2 + ((z % 12) % 6) / 3) * 3
+          // => ((z % 12) / 3) * 3
+          // note: x = z % 12, c = 3, s = 2
+          // note also the invariance lhs->upper_factor % lhs->lower_factor == 0
+          //
+          SplitExprNode* merged = rhs.CopyOnWrite();
+          merged->upper_factor = lhs->upper_factor;
+          // reset args[i] to be zero.
+          lhs.CopyOnWrite()->scale = 0;
+          break;
+        }
+      }
+    }
+    // sort by the entry
+    // Here we simply sort by descending order of scales.
+    // For now, we do not compare by index because that comparison
+    // can be runtime dependent and create inderminism.
+    // we do not sort by index for now because it can be costly
+    // to deep compare Exprs, and address of Vars can be runtime dependent.
+    //
+    auto fcompare = [](const SplitExpr& lhs, const SplitExpr& rhs) {
+      // order by scale first
+      if (lhs->scale > rhs->scale) return true;
+      if (lhs->scale < rhs->scale) return false;
+      // then order by factor
+      if (lhs->lower_factor > rhs->lower_factor) return true;
+      if (lhs->lower_factor < rhs->lower_factor) return false;
+      // then order by upper factor
+      if (lhs->upper_factor > rhs->upper_factor) return true;
+      if (lhs->upper_factor < rhs->upper_factor) return false;
+      // tie.
+      // TODO(tvm-team) We might consider index as the last comparison point,
+      // after we make deep comparator more derministic.
+      // Specifically, we can consider comparing names of vars and break ties with address.
+      return false;
+    };
+    std::stable_sort(args.begin(), args.end(), fcompare);
+    return args;
+  }
+  static Expr Normalize_(Type dtype,
+                         const std::vector<SplitExpr>& args,
+                         int64_t base) {
+    // Positive scales first
+    Expr res = make_const(dtype, 0);
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (args[i]->scale > 0) {
+        res = res + args[i]->Normalize();
+      }
+    }
+    if (base > 0) {
+      res = res + make_const(dtype, base);
+    }
+    // negative scales follows using sub.
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (args[i]->scale < 0) {
+        res = res - args[i]->NormalizeWithScale(-1);
+      }
+    }
+    if (base < 0) {
+      res = res - make_const(dtype, -base);
+    }
+    return res;
+  }
 };
 
 TVM_DEFINE_COW_NODE_REF(SumExpr, Expr, SumExprNode);
