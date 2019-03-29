@@ -5,8 +5,10 @@ from __future__ import absolute_import as _abs
 import os
 import sys
 import time
+import uuid
+import shutil
 
-def download(url, path, overwrite=False, size_compare=False, verbose=1):
+def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=3):
     """Downloads the file from the internet.
     Set the input options correctly to overwrite or do the size comparison
 
@@ -53,6 +55,11 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1):
 
     # Stateful start time
     start_time = time.time()
+    dirpath = os.path.dirname(path)
+    if not os.path.isdir(dirpath):
+        os.makedirs(dirpath)
+    random_uuid = str(uuid.uuid4())
+    tempfile = os.path.join(dirpath, random_uuid)
 
     def _download_progress(count, block_size, total_size):
         #pylint: disable=unused-argument
@@ -68,11 +75,62 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1):
                          (percent, progress_size / (1024.0 * 1024), speed, duration))
         sys.stdout.flush()
 
-    if sys.version_info >= (3,):
-        urllib2.urlretrieve(url, path, reporthook=_download_progress)
-        print("")
+    while retries >= 0:
+        # Disable pyling too broad Exception
+        # pylint: disable=W0703
+        try:
+            if sys.version_info >= (3,):
+                urllib2.urlretrieve(url, tempfile, reporthook=_download_progress)
+                print("")
+            else:
+                f = urllib2.urlopen(url)
+                data = f.read()
+                with open(tempfile, "wb") as code:
+                    code.write(data)
+            shutil.move(tempfile, path)
+            break
+        except Exception as err:
+            retries -= 1
+            if retries == 0:
+                os.remove(tempfile)
+                raise err
+            else:
+                print("download failed due to {}, retrying, {} attempt{} left"
+                      .format(repr(err), retries, 's' if retries > 1 else ''))
+
+
+TEST_DATA_ROOT_PATH = os.path.join(os.path.expanduser('~'), '.tvm_test_data')
+if not os.path.exists(TEST_DATA_ROOT_PATH):
+    os.mkdir(TEST_DATA_ROOT_PATH)
+
+def download_testdata(url, relpath, module=None):
+    """Downloads the test data from the internet.
+
+    Parameters
+    ----------
+    url : str
+        Download url.
+
+    relpath : str
+        Relative file path.
+
+    module : Union[str, list, tuple], optional
+        Subdirectory paths under test data folder.
+
+    Returns
+    -------
+    abspath : str
+        Absolute file path of downloaded file
+    """
+    global TEST_DATA_ROOT_PATH
+    if module is None:
+        module_path = ''
+    elif isinstance(module, str):
+        module_path = module
+    elif isinstance(module, (list, tuple)):
+        module_path = os.path.join(*module)
     else:
-        f = urllib2.urlopen(url)
-        data = f.read()
-        with open(path, "wb") as code:
-            code.write(data)
+        raise ValueError("Unsupported module: " + module)
+    abspath = os.path.join(TEST_DATA_ROOT_PATH, module_path, relpath)
+    download(url, abspath, overwrite=False, size_compare=True)
+    return abspath

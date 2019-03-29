@@ -12,44 +12,16 @@ import urllib
 import numpy as np
 import tvm
 from tvm.contrib import graph_runtime
+from tvm.contrib.download import download_testdata
 from nnvm import frontend
 from nnvm.testing.darknet import LAYERTYPE
 from nnvm.testing.darknet import __darknetffi__
 import nnvm.compiler
-if sys.version_info >= (3,):
-    import urllib.request as urllib2
-else:
-    import urllib2
-
-
-def _download(url, path, overwrite=False, sizecompare=False):
-    ''' Download from internet'''
-    if os.path.isfile(path) and not overwrite:
-        if sizecompare:
-            file_size = os.path.getsize(path)
-            res_head = requests.head(url)
-            res_get = requests.get(url, stream=True)
-            if 'Content-Length' not in res_head.headers:
-                res_get = urllib2.urlopen(url)
-            urlfile_size = int(res_get.headers['Content-Length'])
-            if urlfile_size != file_size:
-                print("exist file got corrupted, downloading", path, " file freshly")
-                _download(url, path, True, False)
-                return
-        print('File {} exists, skip.'.format(path))
-        return
-    print('Downloading from url {} to {}'.format(url, path))
-    try:
-        urllib.request.urlretrieve(url, path)
-        print('')
-    except:
-        urllib.urlretrieve(url, path)
 
 DARKNET_LIB = 'libdarknet2.0.so'
 DARKNETLIB_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib/' \
                                     + DARKNET_LIB + '?raw=true'
-_download(DARKNETLIB_URL, DARKNET_LIB)
-LIB = __darknetffi__.dlopen('./' + DARKNET_LIB)
+LIB = __darknetffi__.dlopen(download_testdata(DARKNETLIB_URL, DARKNET_LIB, module='darknet'))
 
 def _read_memory_buffer(shape, data, dtype='float32'):
     length = 1
@@ -81,6 +53,12 @@ def _get_tvm_output(net, data, build_dtype='float32'):
     for i in range(m.get_num_outputs()):
         tvm_out.append(m.get_output(i).asnumpy())
     return tvm_out
+
+def _load_net(cfg_url, cfg_name, weights_url, weights_name):
+    cfg_path = download_testdata(cfg_url, cfg_name, module='darknet')
+    weights_path = download_testdata(weights_url, weights_name, module='darknet')
+    net = LIB.load_network(cfg_path.encode('utf-8'), weights_path.encode('utf-8'), 0)
+    return net
 
 def test_forward(net, build_dtype='float32'):
     '''Test network with given input image on both darknet and tvm'''
@@ -125,8 +103,8 @@ def test_forward(net, build_dtype='float32'):
 
     test_image = 'dog.jpg'
     img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + test_image   +'?raw=true'
-    _download(img_url, test_image)
-    img = LIB.letterbox_image(LIB.load_image_color(test_image.encode('utf-8'), 0, 0), net.w, net.h)
+    img_path = download_testdata(img_url, test_image, module='darknet')
+    img = LIB.letterbox_image(LIB.load_image_color(img_path.encode('utf-8'), 0, 0), net.w, net.h)
     darknet_output = get_darknet_output(net, img)
     batch_size = 1
     data = np.empty([batch_size, img.c, img.h, img.w], dtype)
@@ -167,9 +145,7 @@ def test_forward_extraction():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
     test_forward(net)
     LIB.free_network(net)
 
@@ -180,9 +156,7 @@ def test_forward_alexnet():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
     test_forward(net)
     LIB.free_network(net)
 
@@ -193,9 +167,7 @@ def test_forward_resnet50():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
     test_forward(net)
     LIB.free_network(net)
 
@@ -206,9 +178,7 @@ def test_forward_yolov2():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
     build_dtype = {}
     test_forward(net, build_dtype)
     LIB.free_network(net)
@@ -220,9 +190,7 @@ def test_forward_yolov3():
     weights_name = model_name + '.weights'
     cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
     weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
-    _download(cfg_url, cfg_name)
-    _download(weights_url, weights_name)
-    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
+    net = _load_net(cfg_url, cfg_name, weights_url, weights_name)
     build_dtype = {}
     test_forward(net, build_dtype)
     LIB.free_network(net)
