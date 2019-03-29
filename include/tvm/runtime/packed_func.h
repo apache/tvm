@@ -955,7 +955,10 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  // TODO(gus): need to handle custom type codes in this case.
+  // TODO(gus) we need to set in stone the formatting for custom datatypes. The
+  // main open question that I see is how we use the `bits` field, if at all.
+  // Each custom type will have its underlying storage type; should this be
+  // considered the same as the bits field?
   os << TypeCode2Str(t.code);
   if (t.code == kHandle) return os;
   os << static_cast<int>(t.bits);
