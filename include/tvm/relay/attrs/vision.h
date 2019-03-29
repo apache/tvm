@@ -30,6 +30,7 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief Attributes used in argsort operators */
 struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
   int axis;
   bool is_ascend;

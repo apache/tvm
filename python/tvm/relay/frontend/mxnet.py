@@ -186,6 +186,13 @@ def _mx_pooling(inputs, attrs):
         'Operator {} Pooling is not supported for frontend MXNet.'.format(pool_type.capitalize()))
 
 
+def _mx_adaptive_pooling(inputs, attrs):
+    output_size = attrs.get_int_tuple("output_size", [])
+    if output_size != (1,):
+       raise RuntimeError("AdaptiveAvgPooling with output_size other than 1 is not supported yet.")
+    return _op.nn.global_avg_pool2d(inputs[0])
+
+
 def _mx_dropout(inputs, attrs):
     rate = attrs.get_float("p", 0.5)
     return _op.nn.dropout(inputs[0], rate=rate)
@@ -643,10 +650,11 @@ def _mx_deformable_convolution(inputs, attrs):
 
 def _mx_argsort(inputs, attrs):
     assert len(inputs) == 1
+    src_shape = ir_pass.infer_type(inputs[0])._checked_type_.shape
     new_attrs = {}
     new_attrs["axis"] = attrs.get_int("axis", -1)
     new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
-    return _op.argsort(inputs[0], **new_attrs)
+    return _op.vision.argsort(inputs[0], **new_attrs)
 
 
 # Note: due to attribute conversion constraint
@@ -799,6 +807,7 @@ _convert_map = {
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
+    "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_pooling,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #

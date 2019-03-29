@@ -21,7 +21,6 @@ from .generic_op_impl import *
 from .reduction import *
 from .transform import *
 from .broadcast import *
-from .sort import *
 from . import nn
 from . import x86
 from . import cuda

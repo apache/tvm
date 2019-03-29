@@ -22,6 +22,8 @@ from .multibox import *
 from .nms import *
 from .rcnn import *
 from .yolo import *
+from .sort import *
 from . import _rcnn
 from . import _yolo
 from . import _vision
+from .import _sort

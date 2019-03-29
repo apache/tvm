@@ -6,3 +6,4 @@ from . import ssd
 from .reorg import *
 from .nms import *
 from .rcnn import *
+from .sort import *

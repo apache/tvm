@@ -568,6 +568,28 @@ def test_deformable_conv2d():
     test_run(2, 4, 16, 4, 4, 1)
 
 
+def test_argsort():
+    def verify_argsort(shape, axis, is_ascend):
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        z = relay.vision.argsort(x, axis=axis, is_ascend=is_ascend)
+        zz = relay.ir_pass.infer_type(z)
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(size=shape).astype("float32")
+        if is_ascend:
+            ref_res = np.argsort(x_data, axis=axis)
+        else:
+            ref_res = np.argsort(-x_data, axis=axis)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_argsort((2, 3, 4), axis=0, is_ascend=False)
+    verify_argsort((1, 4, 6), axis=1, is_ascend=True)
+    verify_argsort((3, 5, 6), axis=-1, is_ascend=False)
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
@@ -581,3 +603,4 @@ if __name__ == "__main__":
     test_yolo_reorg()
     test_non_max_suppression()
     test_deformable_conv2d()
+    test_argsort()

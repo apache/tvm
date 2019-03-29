@@ -20,7 +20,7 @@ bool ArgsortRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     CHECK(types[0].as<IncompleteTypeNode>())
-        << "repeat: expect input type to be TensorType but get "
+        << "Argsort: expect input type to be TensorType but get "
         << types[0];
     return false;
   }
@@ -34,19 +34,19 @@ Expr MakeArgsort(Expr data,
   auto attrs = make_node<ArgsortAttrs>();
   attrs->axis = axis;
   attrs->is_ascend = is_ascend;
-  static const Op& op = Op::Get("argsort");
+  static const Op& op = Op::Get("vision.argsort");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op._make.argsort")
+TVM_REGISTER_API("relay.op.vision._make.argsort")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
   runtime::detail::unpack_call<Expr, 3>(MakeArgsort, args, rv);
 });
 
 
-RELAY_REGISTER_OP("Argsort")
-.describe(R"doc(Returns the indics that would sort an
+RELAY_REGISTER_OP("vision.argsort")
+.describe(R"doc(Returns the indices that would sort an
 input array along the given axis.
 )doc" TVM_ADD_FILELINE)
 .set_num_inputs(1)

@@ -24,7 +24,7 @@ import topi.testing
 
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
-from topi.vision import ssd, non_max_suppression, get_valid_counts
+from topi.vision import ssd, non_max_suppression, get_valid_counts, argsort
 
 
 def verify_get_valid_counts(dshape, score_threshold):
@@ -412,7 +412,7 @@ def test_argsort():
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.cuda.argsort(data, valid_count, is_ascend = False, flag=False)
+            out = argsort(data, valid_count, axis = -1, is_ascend = False, flag=False)
             s = topi.generic.schedule_argsort(out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
