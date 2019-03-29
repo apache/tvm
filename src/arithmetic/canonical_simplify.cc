@@ -148,6 +148,24 @@ class SumExprNode : public CanonicalExprNode {
         if (lhs->lower_factor == rhs->upper_factor &&
             lhs->scale % rhs->scale == 0 &&
             lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor) {
+          // Rules used in the proof:
+          //
+          // Rule 1:  (x % (c * s)) / c  =  (x / c) % s
+          // Proof:
+          //  x can always be decomposed into p * c * s + q * c + r
+          //  where  0 <= q * c + r < c * s  and  0 <= r  <  c.
+          //  Then, lhs = ((p * c * s + q * c + r) % (c * s)) / c = (q * c + r) / c = q
+          //  rhs = ((p * c * s + q * c + r) / c) % s = (p * s + q) % s = q
+          //  Thus, lhs = rhs
+          //
+          // The above proof is for the floordiv.
+          // The same rule also holds for trucdiv(division rule in C).
+          // Because both sides only involve mul, div and mod,
+          // we can take abs of x, c and s, apply the floordiv proof,
+          // and finally add the sign back.
+          //
+          // Rule 2:  (x / s) * s + x % s = x  (true for both truc and floor div)
+          //
           // General merge condition and proof:
           // - x = lhs->index % lhs->upper_factor
           // - s = lhs->scale / rhs->scale
