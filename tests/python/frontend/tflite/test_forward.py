@@ -391,10 +391,9 @@ def test_forward_softmax():
 def test_forward_mobilenet():
     '''test mobilenet v1 tflite model'''
     # MobilenetV1
-    temp = util.tempdir()
     tflite_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz",
-        "mobilenet_v1_1.0_224.tflite", temp)
+        "mobilenet_v1_1.0_224.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
     data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
@@ -403,7 +402,6 @@ def test_forward_mobilenet():
     tvm_output = run_tvm_graph(tflite_model_buf, tvm_data, 'input')
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
                                 rtol=1e-5, atol=1e-5)
-    temp.remove()
 
 #######################################################################
 # Inception V3
@@ -412,10 +410,9 @@ def test_forward_mobilenet():
 def test_forward_inception_v3_net():
     '''test inception v3 tflite model'''
     # InceptionV3
-    temp = util.tempdir()
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v3_2018_04_27.tgz",
-        "inception_v3.tflite", temp)
+        "inception_v3.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
     data = np.random.uniform(size=(1, 299, 299, 3)).astype('float32')
@@ -424,7 +421,6 @@ def test_forward_inception_v3_net():
     tvm_output = run_tvm_graph(tflite_model_buf, tvm_data, 'input')
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
                                 rtol=1e-5, atol=1e-5)
-    temp.remove()
 
 #######################################################################
 # Main

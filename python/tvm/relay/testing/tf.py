@@ -13,7 +13,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.core.framework import graph_pb2
 
-from tvm.contrib import util
+from tvm.contrib.download import download_testdata
 
 ######################################################################
 # Some helper functions
@@ -136,7 +136,7 @@ class NodeLookup(object):
             return ''
         return self.node_lookup[node_id]
 
-def get_workload_official(model_url, model_sub_path, temp_dir):
+def get_workload_official(model_url, model_sub_path):
     """ Import workload from tensorflow official
 
     Parameters
@@ -158,21 +158,17 @@ def get_workload_official(model_url, model_sub_path, temp_dir):
     """
 
     model_tar_name = os.path.basename(model_url)
-
-    from mxnet.gluon.utils import download
-    temp_path = temp_dir.relpath("./")
-    path_model = temp_path + model_tar_name
-
-    download(model_url, path_model)
+    model_path = download_testdata(model_url, model_tar_name, module=['tf', 'official'])
+    dir_path = os.path.dirname(model_path)
 
     import tarfile
-    if path_model.endswith("tgz") or path_model.endswith("gz"):
-        tar = tarfile.open(path_model)
-        tar.extractall(path=temp_path)
+    if model_path.endswith("tgz") or model_path.endswith("gz"):
+        tar = tarfile.open(model_path)
+        tar.extractall(path=dir_path)
         tar.close()
     else:
-        raise RuntimeError('Could not decompress the file: ' + path_model)
-    return temp_path + model_sub_path
+        raise RuntimeError('Could not decompress the file: ' + model_path)
+    return os.path.join(dir_path, model_sub_path)
 
 def get_workload(model_path, model_sub_path=None):
     """ Import workload from frozen protobuf
@@ -192,24 +188,18 @@ def get_workload(model_path, model_sub_path=None):
 
     """
 
-    temp = util.tempdir()
     if model_sub_path:
-        path_model = get_workload_official(model_path, model_sub_path, temp)
+        path_model = get_workload_official(model_path, model_sub_path)
     else:
         repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/'
-        model_name = os.path.basename(model_path)
         model_url = os.path.join(repo_base, model_path)
-
-        from mxnet.gluon.utils import download
-        path_model = temp.relpath(model_name)
-        download(model_url, path_model)
+        path_model = download_testdata(model_url, model_path, module='tf')
 
     # Creates graph from saved graph_def.pb.
     with tf.gfile.FastGFile(path_model, 'rb') as f:
         graph_def = tf.GraphDef()
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
-        temp.remove()
         return graph_def
 
 #######################################################################
@@ -292,7 +282,7 @@ def do_tf_sample(session, data, in_states, num_samples):
 
 def _create_ptb_vocabulary(data_dir):
     """Read the PTB sample data input to create vocabulary"""
-    data_path = data_dir+'simple-examples/data/'
+    data_path = os.path.join(data_dir, 'simple-examples/data/')
     file_name = 'ptb.train.txt'
     def _read_words(filename):
         """Read the data for creating vocabulary"""
@@ -341,13 +331,10 @@ def get_workload_ptb():
     ptb_model_file = 'RNN/ptb/ptb_model_with_lstmblockcell.pb'
 
     import tarfile
-    from tvm.contrib.download import download
-    DATA_DIR = './ptb_data/'
-    if not os.path.exists(DATA_DIR):
-        os.mkdir(DATA_DIR)
-    download(sample_url, DATA_DIR+sample_data_file)
-    t = tarfile.open(DATA_DIR+sample_data_file, 'r')
-    t.extractall(DATA_DIR)
+    file_path = download_testdata(sample_url, sample_data_file, module=['tf', 'ptb_data'])
+    dir_path = os.path.dirname(file_path)
+    t = tarfile.open(file_path, 'r')
+    t.extractall(dir_path)
 
-    word_to_id, id_to_word = _create_ptb_vocabulary(DATA_DIR)
+    word_to_id, id_to_word = _create_ptb_vocabulary(dir_path)
     return word_to_id, id_to_word, get_workload(ptb_model_file)
