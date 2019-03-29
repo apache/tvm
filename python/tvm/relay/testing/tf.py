@@ -13,7 +13,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.core.framework import graph_pb2
 
-from tvm.contrib import util
 from tvm.contrib.download import download_testdata
 
 ######################################################################

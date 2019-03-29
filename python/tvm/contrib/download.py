@@ -8,8 +8,6 @@ import time
 import uuid
 import shutil
 
-from . import util as _util
-
 def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=3):
     """Downloads the file from the internet.
     Set the input options correctly to overwrite or do the size comparison
@@ -78,6 +76,8 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
         sys.stdout.flush()
 
     while retries >= 0:
+        # Disable pyling too broad Exception
+        # pylint: disable=W0703
         try:
             if sys.version_info >= (3,):
                 urllib2.urlretrieve(url, tempfile, reporthook=_download_progress)
@@ -89,14 +89,14 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
                     code.write(data)
             shutil.move(tempfile, path)
             break
-        except Exception as e:
+        except Exception as err:
             retries -= 1
             if retries == 0:
                 os.remove(tempfile)
-                raise e
+                raise err
             else:
                 print("download failed due to {}, retrying, {} attempt{} left"
-                      .format(repr(e), retries, 's' if retries > 1 else ''))
+                      .format(repr(err), retries, 's' if retries > 1 else ''))
 
 
 TEST_DATA_ROOT_PATH = os.path.join(os.path.expanduser('~'), '.tvm_test_data')
@@ -116,7 +116,7 @@ def download_testdata(url, relpath, module=None):
 
     module : Union[str, list, tuple], optional
         Subdirectory paths under test data folder.
-    
+
     Returns
     -------
     abspath : str
