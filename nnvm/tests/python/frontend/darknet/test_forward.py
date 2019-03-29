@@ -103,7 +103,7 @@ def test_forward(net, build_dtype='float32'):
 
     test_image = 'dog.jpg'
     img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + test_image   +'?raw=true'
-    img_path = download_testdata(img_url, test_image, module='darknet')
+    img_path = download_testdata(img_url, test_image, module='data')
     img = LIB.letterbox_image(LIB.load_image_color(img_path.encode('utf-8'), 0, 0), net.w, net.h)
     darknet_output = get_darknet_output(net, img)
     batch_size = 1

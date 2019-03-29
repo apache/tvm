@@ -59,9 +59,9 @@ model_url = os.path.join(repo_base, model_file)
 data_url = os.path.join(repo_base, data_file)
 
 # Download files listed below.
-from mxnet.gluon.utils import download
-download(model_url, model_file)
-download(data_url, model_file)
+from tvm.contrib.download import download_testdata
+model_path = download_testdata(model_url, model_file, module='keras')
+data_path = download_testdata(data_url, data_file, module='data')
 
 latent_dim = 256  # Latent dimensionality of the encoding space.
 test_samples = 10000  # Number of samples used for testing.
@@ -76,7 +76,7 @@ input_texts = []
 target_texts = []
 input_characters = set()
 target_characters = set()
-with open(data_file, 'r', encoding='utf-8') as f:
+with open(data_path, 'r', encoding='utf-8') as f:
     lines = f.read().split('\n')
 test_samples = min(test_samples, len(lines))
 max_encoder_seq_length = 0
@@ -112,7 +112,7 @@ reverse_target_char_index = dict(
 # Load Keras Model
 # ----------------
 # Restore the model and construct the encoder and decoder.
-model = load_model(model_file)
+model = load_model(model_path)
 encoder_inputs = model.input[0]   # input_1
 
 encoder_outputs, state_h_enc, state_c_enc = model.layers[2].output   # lstm_1

@@ -52,25 +52,14 @@ Below you can find an example for how to compile TFLite model using TVM.
 ######################################################################
 # Utils for downloading and extracting zip files
 # ---------------------------------------------
-
-def download(url, path, overwrite=False):
-    import os
-    if os.path.isfile(path) and not overwrite:
-        print('File {} existed, skip.'.format(path))
-        return
-    print('Downloading from url {} to {}'.format(url, path))
-    try:
-        import urllib.request
-        urllib.request.urlretrieve(url, path)
-    except:
-        import urllib
-        urllib.urlretrieve(url, path)
+import os
 
 def extract(path):
     import tarfile
     if path.endswith("tgz") or path.endswith("gz"):
+        dir_path = os.path.dirname(path)
         tar = tarfile.open(path)
-        tar.extractall()
+        tar.extractall(path=dir_path)
         tar.close()
     else:
         raise RuntimeError('Could not decompress the file: ' + path)
@@ -80,14 +69,17 @@ def extract(path):
 # Load pretrained TFLite model
 # ---------------------------------------------
 # we load mobilenet V1 TFLite model provided by Google
+from tvm.contrib.download import download_testdata
+
 model_url = "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz"
 
 # we download model tar file and extract, finally get mobilenet_v1_1.0_224.tflite
-download(model_url, "mobilenet_v1_1.0_224.tgz", False)
-extract("mobilenet_v1_1.0_224.tgz")
+model_path = download_testdata(model_url, "mobilenet_v1_1.0_224.tgz", module=['tf', 'official'])
+model_dir = os.path.dirname(model_path)
+extract(model_path)
 
 # now we have mobilenet_v1_1.0_224.tflite on disk and open it
-tflite_model_file = "mobilenet_v1_1.0_224.tflite"
+tflite_model_file = os.path.join(model_dir, "mobilenet_v1_1.0_224.tflite")
 tflite_model_buf = open(tflite_model_file, "rb").read()
 
 # get TFLite model from buffer
@@ -103,8 +95,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 image_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-download(image_url, 'cat.png')
-resized_image = Image.open('cat.png').resize((224, 224))
+image_path = download_testdata(image_url, 'cat.png', module='data')
+resized_image = Image.open(image_path).resize((224, 224))
 plt.imshow(resized_image)
 plt.show()
 image_data = np.asarray(resized_image).astype("float32")
@@ -179,11 +171,11 @@ label_file_url = ''.join(['https://raw.githubusercontent.com/',
                           'app/src/main/assets/',
                           'labels_mobilenet_quant_v1_224.txt'])
 label_file = "labels_mobilenet_quant_v1_224.txt"
-download(label_file_url, label_file)
+label_path = download_testdata(label_file_url, label_file, module='data')
 
 # map id to 1001 classes
 labels = dict()
-with open(label_file) as f:
+with open(label_path) as f:
     for id, line in enumerate(f):
         labels[id] = line
 

@@ -331,7 +331,7 @@ def get_workload_ptb():
     ptb_model_file = 'RNN/ptb/ptb_model_with_lstmblockcell.pb'
 
     import tarfile
-    file_path = download_testdata(sample_url, sample_data_file, module=['tf', 'ptb_data'])
+    file_path = download_testdata(sample_url, sample_data_file, module=['data', 'ptb_data'])
     dir_path = os.path.dirname(file_path)
     t = tarfile.open(file_path, 'r')
     t.extractall(dir_path)

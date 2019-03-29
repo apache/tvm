@@ -22,9 +22,9 @@ by the script.
 """
 import random
 import numpy as np
-from mxnet.gluon.utils import download
 import tvm
 from tvm.contrib import graph_runtime
+from tvm.contrib.download import download_testdata
 from nnvm.testing.darknet import __darknetffi__
 import nnvm
 import nnvm.frontend.darknet
@@ -49,17 +49,15 @@ REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
 CFG_URL = REPO_URL + 'cfg/' + CFG_NAME + '?raw=true'
 WEIGHTS_URL = REPO_URL + 'weights/' + WEIGHTS_NAME + '?raw=true'
 
-download(CFG_URL, CFG_NAME)
-download(WEIGHTS_URL, WEIGHTS_NAME)
+cfg_path = download_testdata(CFG_URL, CFG_NAME, module='darknet')
+weights_path = download_testdata(WEIGHTS_URL, WEIGHTS_NAME, module='darknet')
 
 # Download and Load darknet library
 DARKNET_LIB = 'libdarknet.so'
 DARKNET_URL = REPO_URL + 'lib/' + DARKNET_LIB + '?raw=true'
-download(DARKNET_URL, DARKNET_LIB)
-DARKNET_LIB = __darknetffi__.dlopen('./' + DARKNET_LIB)
-cfg = "./" + str(CFG_NAME)
-weights = "./" + str(WEIGHTS_NAME)
-net = DARKNET_LIB.load_network(cfg.encode('utf-8'), weights.encode('utf-8'), 0)
+lib_path = download_testdata(DARKNET_URL, DARKNET_LIB, module='darknet')
+DARKNET_LIB = __darknetffi__.dlopen(lib_path)
+net = DARKNET_LIB.load_network(cfg_path.encode('utf-8'), weights_path.encode('utf-8'), 0)
 dtype = 'float32'
 batch_size = 1
 

@@ -33,6 +33,7 @@ from __future__ import print_function
 
 import numpy as np
 import tvm
+from tvm.contrib.download import download_testdata
 import nnvm.compiler
 import nnvm.testing
 
@@ -106,16 +107,14 @@ def download_synset():
 
     print("Downloading synset...")
 
-    from mxnet import gluon
-
     url = "https://gist.githubusercontent.com/zhreshold/" + \
           "4d0b62f3d01426887599d4f7ede23ee5/raw/" + \
           "596b27d23537e5a1b5751d2b0481ef172f58b539/" + \
           "imagenet1000_clsid_to_human.txt"
-    file_name = "synset.txt"
+    file_name = "imagenet1000_clsid_to_human.txt"
 
-    gluon.utils.download(url, file_name)
-    with open(file_name) as f:
+    file_path = download_testdata(url, file_name, module='data')
+    with open(file_path) as f:
         synset = eval(f.read())
 
     print("- Synset downloaded!")
@@ -144,14 +143,13 @@ def download_image():
     print("Downloading cat image...")
 
     from matplotlib import pyplot as plt
-    from mxnet import gluon
     from PIL import Image
 
     url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
     img_name = "cat.png"
 
-    gluon.utils.download(url, img_name)
-    image = Image.open(img_name).resize((224, 224))
+    img_path = download_testdata(url, img_name, module='data')
+    image = Image.open(img_path).resize((224, 224))
 
     print("- Cat image downloaded!")
 
