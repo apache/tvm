@@ -268,6 +268,8 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // in its parameters. But when TVM lowers a fused function, it expects all
     // arguments to be a Tensor or a tuple containing only Tensors.
     // To avoid modifying codegen logic, we do not allow fusing through a reference.
+    // The reference itself will be recursively visited via call to ExprVisitor::VisitExpr_(op)
+    // below and corresponding visitor methods
     bool has_reference = false;
     for (auto ty : tuple_type->fields) {
       if (ty.as<RefTypeNode>()) {
