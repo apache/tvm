@@ -603,6 +603,25 @@ def _mx_smooth_l1(inputs, attrs):
                      _op.abs(inputs[0]) - _expr.const(0.5 / scalar_sq))
 
 
+def _mx_deformable_convolution(inputs, attrs):
+    new_attrs = {}
+    assert attrs.get_bool("no_bias")
+    new_attrs["kernel_size"] = attrs.get_int_tuple("kernel")
+    new_attrs["strides"] = attrs.get_int_tuple("stride")
+    new_attrs["padding"] = attrs.get_int_tuple("pad")
+    new_attrs["dilation"] = attrs.get_int_tuple("dilate")
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["deformable_groups"] = attrs.get_int("num_deformable_group", 1)
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    assert attrs.get_str("layout", "NCHW") == "NCHW", "Deformable conv2d only supports NCHW layout"
+    use_bias = not attrs.get_bool("no_bias", False)
+    res = _op.nn.deformable_conv2d(inputs[0], inputs[1], inputs[2], **new_attrs)
+    if use_bias:
+        assert len(inputs) == 4
+        res = _op.nn.bias_add(res, inputs[3])
+    return res
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -748,6 +767,7 @@ _convert_map = {
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
+    "_contrib_DeformableConvolution" : _mx_deformable_convolution,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #

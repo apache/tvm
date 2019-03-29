@@ -426,3 +426,26 @@ def schedule_contrib_depthwise_conv2d_NCHWc(attrs, outs, target):
 
 reg.register_pattern("nn.contrib_depthwise_conv2d_NCHWc",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("nn.deformable_conv2d")
+def compute_deformable_conv2d(attrs, inputs, out_dtype, target):
+    """Compute definition of deformable_conv2d"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    deformable_groups = attrs.deformable_groups
+    groups = attrs.groups
+    out_dtype = attrs.out_dtype
+    out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+    with target:
+        out = topi.nn.deformable_conv2d_nchw(inputs[0], inputs[1], inputs[2], strides, padding,
+                                             dilation, deformable_groups, groups, out_dtype)
+    return [out]
+
+@reg.register_schedule("nn.deformable_conv2d")
+def schedule_deformable_conv2d(attrs, outs, target):
+    """Schedule definition of deformable_conv2d"""
+    with target:
+        return topi.generic.schedule_deformable_conv2d_nchw(outs)
+
+reg.register_pattern("nn.deformable_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
