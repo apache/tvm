@@ -7,8 +7,24 @@ from .._base import string_types
 def get_nnvm_op(op_name):
     op = getattr(_sym, op_name)
     if not op:
-        raise RuntimeError("Unable to map op_name {} to nnvm.sym".format(op_name))
+        raise OpNotImplemented(
+            'Operator {} is not supported.'.format(op))
     return op
+
+def required_attr(attr, key, op_name):
+    assert isinstance(attr, dict)
+    if key not in attr:
+        raise OpAttributeRequired(
+            'Required attribute {} not found in operator {}'.format(key, op_name))
+    return attr[key]
+
+def parse_tshape(tshape):
+    """Parse tshape in string."""
+    return [int(x.strip()) for x in tshape.strip('()').split(',')]
+
+def parse_bool_str(attr, key, default='False'):
+    """Parse bool string to boolean."""
+    return attr.get(key, default).strip().lower() in ['true', '1', 't', 'y', 'yes']
 
 class Renamer(object):
     """A simply renamer for operators.

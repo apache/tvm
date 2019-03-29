@@ -27,7 +27,8 @@ def _get_relay_op(op_name):
             op = getattr(_op.image, op_name)
 
     if not op:
-        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend TensorFlow.'.format(op_name))
     return op
 
 class AttrCvt(object):
@@ -99,7 +100,8 @@ class AttrCvt(object):
         new_attrs = {}
         for k in attrs.keys():
             if k in self._excludes:
-                raise NotImplementedError("Attribute {} not supported yet.".format(k))
+                raise tvm.error.OpAttributeUnimplemented(
+                    'Attribute {} in operator {} is not supported.'.format(k, op_name))
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.%s", k, op_name)
             elif k in self._ignores:
@@ -148,7 +150,8 @@ class AttrCvt(object):
         """Wrapper for getting required attributes."""
         assert isinstance(attr, dict)
         if key not in attr:
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise tvm.error.OpAttributeRequired(
+                'Attribute {} not found in operator {}'.format(key, self._op_name))
         return attr[key]
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
@@ -178,7 +181,8 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise NotImplementedError("Only 2d kernel supported.")
+        raise tvm.error.OpAttributeInvalid(
+            'Only 2D kernels are supported for operator {}'.format(prefix + '2d'))
     return _impl
 
 def _dimension_constraint():
@@ -238,7 +242,9 @@ def _pooling(name):
             attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3])
             attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
-            raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
+            msg = 'Value {} of attribute "data_format" of operator Pooling ' \
+                  'is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attrs['data_format']))
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             tmp_shape = attr['_input_shapes'][inputs[0]]
@@ -267,7 +273,9 @@ def _pooling(name):
 
             attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
-            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+            msg = 'Value {} in attribute "padding" of operator Pooling is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
 
         if name == "avg_pool":
             attr['count_include_pad'] = False
@@ -341,7 +349,9 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
             attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
-            raise TypeError("Unsupported data format type : {}".format(attr['data_format']))
+            msg = 'Value {} in attribute "data_format" of operator Conv is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
 
         if opname == 'depthwise':
@@ -386,7 +396,9 @@ def _conv(opname):
             attr['padding'] = [0, 0]
 
         else:
-            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+            msg = 'Value {} in attribute "padding" of operator Conv is not ' \
+                  'valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
 
         if 'kernel_layout' not in attr:
             if opname == 'conv':
@@ -791,7 +803,8 @@ def _pad(name):
         if padlist_key in params:
             padlist = params.pop(padlist_key).asnumpy()
         else:
-            raise RuntimeError("Required parameter {} not fount.".format(padlist_key))
+            raise tvm.error.OpAttributeRequired(
+                'Attribute {} not found in operator Pad.'.format(padlist_key))
         paddings = tuple([tuple(l) for l in padlist])
         attr['pad_width'] = paddings
         attr['pad_value'] = 0

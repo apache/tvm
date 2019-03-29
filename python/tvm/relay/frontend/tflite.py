@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 import math
 import numpy as np
+import tvm
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
@@ -59,8 +60,10 @@ class OperatorConverter(object):
                 unsupported_ops_set.add(op_code_str)
 
         if unsupported_ops_set:
-            raise NotImplementedError("Unsupported Ops: %s" % (
-                ','.join(unsupported_ops_set)))
+            msg = 'The following operators are not supported in frontend ' \
+                  'TFLite: {}'
+            ops = str(list(unsupported_ops_set)).strip('[,]')
+            raise tvm.error.OpNotImplemented(msg.format(ops))
 
     def convert_op_to_relay(self):
         """Convert TFLite ops to relay ops"""
@@ -205,8 +208,8 @@ class OperatorConverter(object):
             # finally convert back if necessary
             in_expr = _op.transpose(in_expr, axes=(0, 2, 3, 1))
         else:
-            raise NotImplementedError("Not support input shape length {} of reshape : "
-                                      .format(str(input_shape_length)))
+            msg = 'Input shape length {} for operator Reshape is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(input_shape_length))
 
         out = _op.reshape(in_expr, newshape=tuple(target_shape))
 
@@ -223,8 +226,8 @@ class OperatorConverter(object):
         elif len(target_shape) == 4:
             out = _op.transpose(out, axes=(0, 3, 1, 2))
         else:
-            raise NotImplementedError("Not support to reshape to shape length {}: "
-                                      .format(str(len(target_shape))))
+            raise tvm.error.OpAttributeInvalid(
+                'Length of target shape must be between 1 and 5 for operator Reshape.')
 
         return out
 
@@ -330,8 +333,8 @@ class OperatorConverter(object):
             # finally convert back if necessary
             in_expr = _op.transpose(in_expr, axes=(0, 2, 3, 1))
         else:
-            raise NotImplementedError("Not support input shape length {} of squeeze : "
-                                      .format(str(input_shape_length)))
+            msg = 'Input shape length {} for operator Squeeze is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(input_shape_length))
 
         out = _op.squeeze(in_expr, axis=tuple(squeeze_axis))
 
@@ -348,8 +351,8 @@ class OperatorConverter(object):
         elif output_shape_length == 4:
             out = _op.transpose(out, axes=(0, 3, 1, 2))
         else:
-            raise NotImplementedError("Not support to squeeze to length {} : "
-                                      .format(str(output_shape_length)))
+            msg = 'Output shape length {} for operator Squeeze is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(output_shape_length))
 
         return out
 
@@ -369,8 +372,8 @@ class OperatorConverter(object):
         if fused_activation_fn == ActivationFunctionType.TANH:
             return _op.tanh(in_expr)
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
-        raise NotImplementedError("Unsupported fused activation fn {}"
-                                  .format(fused_activation_fn_str))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend TFLite.'.format(fused_activation_fn_str))
 
     def convert_conv(self, op, conv_type):
         """convolution implementation."""
@@ -409,7 +412,8 @@ class OperatorConverter(object):
             assert depth_multiplier == 1, "TF frontend have transformed it be 1 " \
                                           "no matter original value be set by 0.25, 0.5 or any else"
         else:
-            raise ValueError("Not support conv type: {}".format(conv_type))
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported for frontend TFLite.'.format(conv_type))
 
         stride_h = conv_options.StrideH()
         stride_w = conv_options.StrideW()
@@ -466,7 +470,8 @@ class OperatorConverter(object):
                                                           (pad_top, pad_bottom),
                                                           (pad_left, pad_right)))
         else:
-            raise NotImplementedError("Not support padding format: {}".format(padding))
+            raise tvm.error.OpAttributeUnimplemented(
+                'Padding format {} is not supported for operator Conv.'.format(padding))
 
         out = _op.nn.conv2d(data=in_expr, weight=weight_expr, **params)
 
@@ -529,14 +534,16 @@ class OperatorConverter(object):
             pad_left, pad_right = get_pad_value(input_w, filter_w, stride_w)
             params['padding'] = [pad_top, pad_left, pad_bottom, pad_right]
         else:
-            raise NotImplementedError("Not support padding format: {}".format(padding))
+            raise tvm.error.OpAttributeUnimplemented(
+                'Padding format {} for operator Pool2D is not supported.'.format(padding))
 
         if pool_type == "average":
             out = _op.nn.avg_pool2d(in_expr, **params)
         elif pool_type == "max":
             out = _op.nn.max_pool2d(in_expr, **params)
         else:
-            raise ValueError("Not support pool type: {}".format(pool_type))
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported for frontend TFLite.'.format(pool_type + ' pool'))
 
         # If we have fused activations
         if fused_activation_fn != ActivationFunctionType.NONE:

@@ -397,7 +397,8 @@ class Upsample(OnnxOpConverter):
         elif mode == b'linear':
             method = "BILINEAR"
         else:
-            raise ValueError("Invalid ONNX upsample mode: {}".format(mode))
+            raise tvm.error.OpAttributeInvalid(
+                'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
         return _sym.upsampling(inputs[0], scale=int(scales[-1]), method=method, layout='NCHW')
 
 
@@ -922,8 +923,8 @@ class GraphProto(object):
         elif op_name in convert_map:
             sym = convert_map[op_name](inputs, attrs, self._params)
         else:
-            raise NotImplementedError(
-                "Operator {} not implemented.".format(op_name))
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported in frontend ONNX.')
         return sym
 
     def _fix_outputs(self, op_name, outputs):

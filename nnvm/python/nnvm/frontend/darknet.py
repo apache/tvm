@@ -6,6 +6,7 @@ from __future__ import absolute_import as _abs
 import numpy as np
 import tvm
 from .. import symbol as _sym
+from .common import get_nnvm_op, required_attr, parse_tshape, parse_bool_str
 
 class LAYERTYPE(object):
     """Darknet LAYERTYPE Class constant."""
@@ -57,45 +58,12 @@ class ACTIVATION(object):
 
 __all__ = ['from_darknet']
 
-def _darknet_get_nnvm_op(op_name):
-    """Get the nnvm operation from opname, raise error if not supported."""
-    op = getattr(_sym, op_name)
-    if not op:
-        raise RuntimeError("Not to map op_name {} to nnvm.sym".format(op_name))
-    return op
-
-def _darknet_required_attr(attr, key):
-    """Check the attribute exists and return if exists, if not return error."""
-    assert isinstance(attr, dict)
-    if key not in attr:
-        raise AttributeError("Required attribute {} not found.".format(key))
-    return attr[key]
-
-def _darknet_raise_not_supported(attr, op='nnvm'):
-    """Raise error if any operation is not supported."""
-    err = "{} is not supported in {}.".format(attr, op)
-    raise NotImplementedError(err)
-
-def _darknet_warn_not_used(attr, op='nnvm'):
-    """Raise warning if any operation not supported."""
-    import warnings
-    err = "{} is ignored in {}.".format(attr, op)
-    warnings.warn(err)
-
-def _darknet_parse_tshape(tshape):
-    """Parse tshape in string."""
-    return [int(x.strip()) for x in tshape.strip('()').split(',')]
-
-def _darknet_parse_bool_str(attr, key, default='False'):
-    """Parse bool string to boolean."""
-    return attr.get(key, default).strip().lower() in \
-                                    ['true', '1', 't', 'y', 'yes']
-
 def _darknet_maxpooling(inputs, attrs):
     """Process the max pool 2d operation."""
-    kernel = _darknet_parse_tshape(_darknet_required_attr(attrs, 'kernel'))
+    kernel = parse_tshape(required_attr(attrs, 'kernel', 'maxpool'))
     if len(kernel) != 1:
-        _darknet_raise_not_supported('non-2d kernel', 'pool_2d')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels for Max Pooling are not supported in frontend Darknet.')
 
     op_name, new_attrs = 'max_pool2d', {}
     strides = int(attrs.get('stride', (1, 1)))
@@ -107,13 +75,14 @@ def _darknet_maxpooling(inputs, attrs):
     if extra_pad_size:
         pad_width = ((0, 0), (0, 0), (0, extra_pad_size), (0, extra_pad_size))
         inputs = _sym.pad(*inputs, pad_width=pad_width, pad_value=np.finfo(np.float32).min)
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_avgpooling(inputs, attrs):
     """Process the average pool 2d operation."""
-    kernel = _darknet_parse_tshape(_darknet_required_attr(attrs, 'kernel'))
+    kernel = parse_tshape(required_attr(attrs, 'kernel', 'avgpool'))
     if len(kernel) != 1:
-        _darknet_raise_not_supported('non-2d kernel', 'pool_2d')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels for Average Pooling are not supported in frontend Darknet.')
 
     op_name, new_attrs = 'avg_pool2d', {}
     strides = int(attrs.get('stride', (1, 1)))
@@ -122,7 +91,7 @@ def _darknet_avgpooling(inputs, attrs):
     new_attrs['strides'] = str((strides, strides))
     new_attrs['padding'] = str((pads, pads))
 
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_batch_norm(inputs, attrs):
     """Process the batchnormalization operation."""
@@ -131,21 +100,23 @@ def _darknet_batch_norm(inputs, attrs):
     new_attrs['epsilon'] = attrs.get('eps', 0.000001)
     new_attrs['center'] = True
     new_attrs['scale'] = True
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_conv2d(inputs, attrs):
     """Process the convolution 2d operation."""
-    kernel = _darknet_parse_tshape(_darknet_required_attr(attrs, 'kernel'))
+    kernel = parse_tshape(required_attr(attrs, 'kernel', 'conv2d'))
     if len(kernel) != 1:
-        _darknet_raise_not_supported('non 2d kernel', 'conv2d')
+        raise tvm.error.OpAttributeUnimplemented('Non-2D kernels for Conv2D are unsupported '
+                                                 'in frontend Darknet.')
     layout = attrs.get('layout', 'NCHW')
     if layout not in ['NCHW', 'NHWC']:
-        _darknet_raise_not_supported('layout: ' + layout, 'conv2d')
+        raise tvm.error.OpAttributeInvalid(
+            'Value {} in attribute "layout" of operator Conv2D is not valid.'.format(layout))
     strides = int(attrs.get('stride', (1, 1)))
     pads = int(attrs.get('pad', (0, 0)))
 
     op_name, new_attrs = 'conv2d', {}
-    new_attrs['channels'] = _darknet_required_attr(attrs, 'num_filter')
+    new_attrs['channels'] = required_attr(attrs, 'num_filter', 'conv2d')
     new_attrs['kernel_size'] = [kernel[0], kernel[0]]
     new_attrs['strides'] = (strides, strides)
     new_attrs['padding'] = (pads, pads)
@@ -157,13 +128,13 @@ def _darknet_conv2d(inputs, attrs):
     else:
         new_attrs['use_bias'] = True
     out_name = {}
-    sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
+    sym = get_nnvm_op(op_name)(*inputs, **new_attrs)
     out_name[0] = sym.list_output_names()[0].replace('_output', '')
 
     if attrs.get('use_batchNorm', False) is True:
         op_name, new_attrs = 'batch_norm', {}
         new_attrs['epsilon'] = 0.000001
-        sym = _darknet_get_nnvm_op(op_name)(*sym, **new_attrs)
+        sym = get_nnvm_op(op_name)(*sym, **new_attrs)
         out_name[1] = sym.list_output_names()[0].replace('_output', '')
     if 'activation' in attrs:
         new_attrs = {}
@@ -176,15 +147,18 @@ def _darknet_conv2d(inputs, attrs):
 def _darknet_conv2d_transpose(inputs, attrs):
     """Process the convolution 2d transpose operation."""
     if 'target_shape' in attrs:
-        _darknet_raise_not_supported('target_shape', 'conv2d_transpose')
-    kernel = _darknet_parse_tshape(_darknet_required_attr(attrs, 'kernel'))
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "target_shape" is not supported in operator Conv2D-transpose.')
+    kernel = parse_tshape(required_attr(attrs, 'kernel', 'conv2d_transpose'))
     if len(kernel) != 2:
-        _darknet_raise_not_supported('non-2d kernel', 'conv2d_transpose')
+        raise tvm.error.OpAttributeUnimplemented(
+            'Non-2D kernels are not supported in operator Conv2D-transpose.')
     layout = attrs.get('layout', 'NCHW')
     if layout not in ['NCHW', 'NHWC']:
-        _darknet_raise_not_supported('layout: ' + layout, 'conv2d_transpose')
+        msg = 'Value {} in attribute "layout" of operator Conv2D-transpose is not valid.'
+        raise tvm.error.OpAttributeInvalid(msg.format(layout))
     op_name, new_attrs = 'conv2d_transpose', {}
-    new_attrs['channels'] = _darknet_required_attr(attrs, 'num_filter')
+    new_attrs['channels'] = required_attr(attrs, 'num_filter', 'conv2d_transpose')
     new_attrs['kernel_size'] = kernel
     new_attrs['strides'] = attrs.get('stride', (1, 1))
     new_attrs['output_padding'] = attrs.get('adj', (0, 0))
@@ -192,8 +166,8 @@ def _darknet_conv2d_transpose(inputs, attrs):
     new_attrs['dilation'] = attrs.get('dilate', (1, 1))
     new_attrs['groups'] = attrs.get('num_group', 1)
     new_attrs['layout'] = layout
-    new_attrs['use_bias'] = not _darknet_parse_bool_str(attrs, 'no_bias')
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    new_attrs['use_bias'] = not parse_bool_str(attrs, 'no_bias')
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_shortcut(inputs, attrs):
     """Process the shortcut operation."""
@@ -219,7 +193,7 @@ def _darknet_shortcut(inputs, attrs):
                            pad_value=0.)
 
     new_inputs = _as_list([input_0, input_1])
-    sym = _darknet_get_nnvm_op(op_name)(*new_inputs, **new_attrs)
+    sym = get_nnvm_op(op_name)(*new_inputs, **new_attrs)
     out_name = sym.list_output_names()[0].replace('_output', '')
     if 'activation' in attrs:
         new_attrs['activation'] = attrs['activation']
@@ -229,17 +203,17 @@ def _darknet_shortcut(inputs, attrs):
 def _darknet_dense(inputs, attrs):
     """Process the dense operation."""
     op_name, new_attrs = 'dense', {}
-    new_attrs['units'] = _darknet_required_attr(attrs, 'num_hidden')
+    new_attrs['units'] = required_attr(attrs, 'num_hidden', 'dense')
     out_name = {}
     new_attrs['use_bias'] = attrs.get('use_bias', False)
     if attrs.get('use_flatten', False) is True:
         inputs[0] = _sym.flatten(inputs[0])
-    sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
+    sym = get_nnvm_op(op_name)(*inputs, **new_attrs)
     out_name[0] = sym.list_output_names()[0].replace('_output', '')
     if 'use_batchNorm' in attrs:
         op_name, new_attrs = 'batch_norm', {}
         new_attrs['epsilon'] = 0.000001
-        sym = _darknet_get_nnvm_op(op_name)(*sym, **new_attrs)
+        sym = get_nnvm_op(op_name)(*sym, **new_attrs)
         out_name[1] = sym.list_output_names()[0].replace('_output', '')
     if 'activation' in attrs:
         new_attrs = {}
@@ -251,28 +225,29 @@ def _darknet_dropout(inputs, attrs):
     """Process the dropout operation, its a blank operation."""
     op_name, new_attrs = 'dropout', {}
     new_attrs['rate'] = attrs.get('p', 0.5)
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_reshape(inputs, attrs):
     """Process the reshape operation."""
-    if _darknet_parse_bool_str(attrs, 'reverse'):
-        _darknet_raise_not_supported('reverse', 'reshape')
+    if parse_bool_str(attrs, 'reverse'):
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "reverse" is not supported in operator Reshape.')
     op_name, new_attrs = 'reshape', {}
-    new_attrs['shape'] = _darknet_required_attr(attrs, 'shape')
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    new_attrs['shape'] = required_attr(attrs, 'shape', 'reshape')
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_upsampling(inputs, attrs):
     """Process the upsampling operation."""
     op_name, new_attrs = 'upsampling', {}
     new_attrs['scale'] = attrs.get('scale', 1)
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_l2normalize(inputs, attrs):
     """Process the l2 normalization operation."""
     op_name, new_attrs = 'l2_normalize', {}
     new_attrs['eps'] = attrs.get('eps', 0)
     new_attrs['axis'] = attrs.get('axis', 1)
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_softmax_output(inputs, attrs):
     """Process the softmax operation."""
@@ -280,25 +255,25 @@ def _darknet_softmax_output(inputs, attrs):
     if temperature != 1:
         inputs[0] = inputs[0] / float(temperature)
     op_name, new_attrs = 'softmax', {}
-    if _darknet_parse_bool_str(attrs, 'multi_output'):
+    if parse_bool_str(attrs, 'multi_output'):
         new_attrs['axis'] = 1
 
     if attrs.get('use_flatten', False) is True:
         inputs[0] = _sym.flatten(inputs[0])
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_route(inputs, attrs):
     """Process the route operation, which is equivalent to concat."""
     op_name = 'concatenate'
     new_attrs = {'axis': attrs.get('dim', 1)}
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_reorg(inputs, attrs):
     """Process the reorg operation."""
     op_name, new_attrs = 'yolo_reorg', {}
     if 'stride' in attrs:
         new_attrs = {'stride': attrs.get('stride', 1)}
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    return get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_region(inputs, attrs):
     """Process the region operation."""
@@ -344,7 +319,7 @@ def _darknet_yolo(inputs, attrs):
 
 def _darknet_activations(inputs, attrs):
     """Process the activation function."""
-    act = _darknet_required_attr(attrs, 'activation')
+    act = required_attr(attrs, 'activation', 'activations')
     if ACTIVATION.LOGISTIC == act:
         act_type = 'sigmoid'
     elif ACTIVATION.RELU == act:
@@ -358,22 +333,24 @@ def _darknet_activations(inputs, attrs):
     elif ACTIVATION.ELU == act:
         act_type = 'elu'
     else:
-        _darknet_raise_not_supported('act: ' + act)
+        raise tvm.error.OpNotImplemented(
+            'Operator act: {} is not supported in framework Darknet.'.format(act))
 
     if act_type in ['relu', 'tanh']:
         op_name, new_attrs = act_type, {}
-        sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
+        sym = get_nnvm_op(op_name)(*inputs, **new_attrs)
     elif act_type in ['leaky_relu']:
         op_name, new_attrs = act_type, {}
         new_attrs['alpha'] = attrs.get('slope', 0.1)
-        sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
+        sym = get_nnvm_op(op_name)(*inputs, **new_attrs)
     elif act_type in ['elu']:
         sym = -1 * _sym.relu(1 - _sym.exp(*inputs)) + _sym.relu(*inputs)
     elif act_type in ['sigmoid']:
         op_name, new_attrs = act_type, {}
-        sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
+        sym = get_nnvm_op(op_name)(*inputs, **new_attrs)
     else:
-        _darknet_raise_not_supported('act_type: ' + act_type)
+        raise tvm.error.OpNotImplemented(
+            'Operator act: {} is not supported in framework Darknet.'.format(act))
     return sym, None
 
 def _darknet_op_not_support(inputs, attrs):
@@ -436,7 +413,8 @@ def _darknet_convert_symbol(op_name, inputs, attrs):
     if op_name in _DARKNET_CONVERT_MAP:
         sym, out_name = _DARKNET_CONVERT_MAP[op_name](inputs, attrs)
     else:
-        _darknet_raise_not_supported('Operator type ' + str(op_name))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend Darknet.'.format(op_name))
     if out_name is  None:
         out_name = sym.list_output_names()[0].replace('_output', '')
     return out_name, sym
@@ -482,8 +460,10 @@ class GraphProto(object):
         if layer.nweights == 0:
             return
 
-        if (layer.n * layer.c * layer.size * layer.size) != layer.nweights:
-            raise RuntimeError("layer weights size not matching with n c h w")
+        if layer.n * layer.c * layer.size * layer.size != layer.nweights:
+            msg = 'nweights ({}) != n * c * h * w ({}) in operator {}'
+            msg = msg.format(layer.nweights, layer.n * layer.c * layer.size ** 2, opname)
+            raise tvm.error.OpAttributeInvalid(msg)
 
         shape = (layer.n, layer.c, layer.size, layer.size)
         weights = self._read_memory_buffer(shape, layer.weights)
@@ -663,8 +643,8 @@ class GraphProto(object):
             pass
 
         else:
-            err = "Darknet layer type {} is not supported in nnvm.".format(layer.type)
-            raise NotImplementedError(err)
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported in frontend Darknet.'.format(layer.type))
 
         return attr
 
@@ -761,7 +741,7 @@ class GraphProto(object):
 
                 op_name, new_attrs = 'elemwise_add', {}
                 new_inputs = _as_list([sym, state])
-                state = _darknet_get_nnvm_op(op_name)(*new_inputs, **new_attrs)
+                state = get_nnvm_op(op_name)(*new_inputs, **new_attrs)
                 self._outs.append(state)
 
                 output_layer = layer.output_layer
@@ -786,7 +766,7 @@ class GraphProto(object):
 
                 op_name, new_attrs = 'elemwise_add', {}
                 new_inputs = _as_list([sym, state])
-                state = _darknet_get_nnvm_op(op_name)(*new_inputs, **new_attrs)
+                state = get_nnvm_op(op_name)(*new_inputs, **new_attrs)
                 self._outs.append(state)
 
                 output_layer = layer.output_layer
@@ -797,7 +777,8 @@ class GraphProto(object):
 
         elif LAYERTYPE.LSTM == layer.type:
             if layer.steps > 1:
-                raise NotImplementedError("Currently support only single step GRU")
+                raise tvm.error.OpAttributeInvalid(
+                    'Number of steps {} of RNN is not valid.'.format(layer.steps))
 
             op_name_add = 'elemwise_add'
             op_name_mul = 'elemwise_mul'
@@ -819,16 +800,16 @@ class GraphProto(object):
                 sym_uo = self._get_darknet_rnn_attrs(layer.uo, input_sym)
 
                 new_inputs = _as_list([sym_wf, sym_uf])
-                add_f = _darknet_get_nnvm_op(op_name_add)(*new_inputs, **attrs)
+                add_f = get_nnvm_op(op_name_add)(*new_inputs, **attrs)
 
                 new_inputs = _as_list([sym_wi, sym_ui])
-                add_i = _darknet_get_nnvm_op(op_name_add)(*new_inputs, **attrs)
+                add_i = get_nnvm_op(op_name_add)(*new_inputs, **attrs)
 
                 new_inputs = _as_list([sym_wg, sym_ug])
-                add_g = _darknet_get_nnvm_op(op_name_add)(*new_inputs, **attrs)
+                add_g = get_nnvm_op(op_name_add)(*new_inputs, **attrs)
 
                 new_inputs = _as_list([sym_wo, sym_uo])
-                add_o = _darknet_get_nnvm_op(op_name_add)(*new_inputs, **attrs)
+                add_o = get_nnvm_op(op_name_add)(*new_inputs, **attrs)
 
                 act_attr['activation'] = ACTIVATION.LOGISTIC
                 act_f, _ = _darknet_activations(_as_list(add_f), act_attr)
@@ -843,19 +824,19 @@ class GraphProto(object):
                 act_o, _ = _darknet_activations(_as_list(add_o), act_attr)
 
                 new_inputs = _as_list([act_i, act_g])
-                mul_t = _darknet_get_nnvm_op(op_name_mul)(*new_inputs, **attrs)
+                mul_t = get_nnvm_op(op_name_mul)(*new_inputs, **attrs)
 
                 new_inputs = _as_list([act_f, c_state])
-                c_state = _darknet_get_nnvm_op(op_name_mul)(*new_inputs, **attrs)
+                c_state = get_nnvm_op(op_name_mul)(*new_inputs, **attrs)
 
                 new_inputs = _as_list([mul_t, c_state])
-                c_state = _darknet_get_nnvm_op(op_name_add)(*new_inputs, **attrs)
+                c_state = get_nnvm_op(op_name_add)(*new_inputs, **attrs)
 
                 act_attr['activation'] = ACTIVATION.TANH
                 h_state, _ = _darknet_activations(_as_list(c_state), act_attr)
 
                 new_inputs = _as_list([act_o, h_state])
-                h_state = _darknet_get_nnvm_op(op_name_mul)(*new_inputs, **attrs)
+                h_state = get_nnvm_op(op_name_mul)(*new_inputs, **attrs)
                 self._outs = self._outs + [c_state, h_state]
                 sym = h_state
             self._sym_array[layer_num] = sym
@@ -863,7 +844,8 @@ class GraphProto(object):
 
         elif LAYERTYPE.GRU == layer.type:
             if layer.steps > 1:
-                raise NotImplementedError("Currently support only single step GRU")
+                raise tvm.error.OpAttributeInvalid(
+                    'Number of steps {} is not valid in RNN.'.format(layer.steps))
 
             op_name_add = 'elemwise_add'
             op_name_mul = 'elemwise_mul'
@@ -881,10 +863,10 @@ class GraphProto(object):
                 sym_uh = self._get_darknet_rnn_attrs(layer.uh, input_sym)
 
                 new_inputs = _as_list([sym_uz, sym_wz])
-                add_z = _darknet_get_nnvm_op(op_name_add)(*new_inputs, **attrs)
+                add_z = get_nnvm_op(op_name_add)(*new_inputs, **attrs)
 
                 new_inputs = _as_list([sym_ur, sym_wr])
-                add_r = _darknet_get_nnvm_op(op_name_add)(*new_inputs, **attrs)
+                add_r = get_nnvm_op(op_name_add)(*new_inputs, **attrs)
 
                 act_attr['activation'] = ACTIVATION.LOGISTIC
                 act_z, _ = _darknet_activations(_as_list(add_z), act_attr)
@@ -893,12 +875,12 @@ class GraphProto(object):
                 act_r, _ = _darknet_activations(_as_list(add_r), act_attr)
 
                 new_inputs = _as_list([act_r, state])
-                forgot = _darknet_get_nnvm_op(op_name_mul)(*new_inputs, **attrs)
+                forgot = get_nnvm_op(op_name_mul)(*new_inputs, **attrs)
 
                 sym_wh = self._get_darknet_rnn_attrs(layer.wh, forgot)
 
                 new_inputs = _as_list([sym_uh, sym_wh])
-                h_state = _darknet_get_nnvm_op(op_name_add)(*new_inputs, **attrs)
+                h_state = get_nnvm_op(op_name_add)(*new_inputs, **attrs)
 
                 if layer.tanh == 1:
                     act_attr['activation'] = ACTIVATION.TANH
