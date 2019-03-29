@@ -158,7 +158,7 @@ predictions = np.squeeze(predictions)
 
 # Creates node ID --> English string lookup.
 node_lookup = tf_testing.NodeLookup(label_lookup_path=map_proto_path,
-                                    uid_lookup_path=label_path))
+                                    uid_lookup_path=label_path)
 
 # Print top 5 predictions from TVM output.
 top_k = predictions.argsort()[-5:][::-1]
