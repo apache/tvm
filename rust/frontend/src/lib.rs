@@ -11,8 +11,7 @@
 //!
 //! Checkout the `examples` repository for more details.
 
-#![allow(non_camel_case_types, unused_unsafe)]
-#![feature(try_trait, fn_traits, unboxed_closures, box_syntax)]
+#![feature(box_syntax)]
 
 #[macro_use]
 extern crate failure;

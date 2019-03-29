@@ -88,7 +88,7 @@ fn main() {
         .get_function("set_input", false)
         .unwrap();
 
-    let data_str = std::ffi::CString::new("data").unwrap();
+    let data_str = "data".to_string();
     call_packed!(set_input_fn, &data_str, &input).unwrap();
     // get `run` function from runtime module
     let ref run_fn = graph_runtime_module.get_function("run", false).unwrap();

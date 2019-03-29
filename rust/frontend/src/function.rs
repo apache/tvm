@@ -188,6 +188,7 @@ impl<'a, 'm> Builder<'a, 'm> {
 
     /// Calls the function that created from `Builder`.
     pub fn invoke(&mut self) -> Result<TVMRetValue, Error> {
+        #![allow(unused_unsafe)]
         ensure!(self.func.is_some(), errors::FunctionNotFoundError);
 
         let num_args = self.arg_buf.len();
@@ -235,7 +236,7 @@ unsafe extern "C" fn tvm_callback(
     fhandle: *mut c_void,
 ) -> c_int {
     // turning off the incorrect linter complaints
-    #![allow(unused_assignments)]
+    #![allow(unused_assignments, unused_unsafe)]
     let len = num_args as usize;
     let args_list = slice::from_raw_parts_mut(args, len);
     let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
