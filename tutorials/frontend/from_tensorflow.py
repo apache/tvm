@@ -44,7 +44,7 @@ map_proto_url = os.path.join(repo_base, map_proto)
 
 # Human readable text for labels
 label_map = 'imagenet_synset_to_human_label_map.txt'
-label_map_url = os.path.join(repo_base, lable_map)
+label_map_url = os.path.join(repo_base, label_map)
 
 # Target settings
 # Use these commented settings to build for cuda.
