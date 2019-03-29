@@ -28,7 +28,7 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
 
     verbose: int, optional
         Verbose level
-    
+
     retries: int, optional
         Number of time to retry download, default at 3.
     """
