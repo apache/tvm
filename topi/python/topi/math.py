@@ -209,6 +209,23 @@ def sqrt(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
+def rsqrt(x):
+    """Take inverse square root of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: 1/tvm.sqrt(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def sigmoid(x):
     """Take sigmoid tanh of input x.
 

@@ -59,6 +59,7 @@ def test_ewise():
     test_apply(topi.sigmoid, "sigmoid", lambda x:1/(1+np.exp(-x)), -1, 1)
     test_apply(topi.log, "log", np.log, 0, 100)
     test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
+    test_apply(topi.rsqrt, "rsqrt", lambda x:1/np.sqrt(x), 0, 100)
 
 if __name__ == "__main__":
     test_util()

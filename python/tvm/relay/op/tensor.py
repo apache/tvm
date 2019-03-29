@@ -63,6 +63,22 @@ def sqrt(data):
     return _make.sqrt(data)
 
 
+def rsqrt(data):
+    """Compute elementwise rsqrt of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.rsqrt(data)
+
+
 def sigmoid(data):
     """Compute elementwise sigmoid of data.
 
