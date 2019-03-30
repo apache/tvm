@@ -232,7 +232,7 @@ def verify_flip(in_shape, axis):
     for device in ["llvm", "cuda", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
-def verify_take(src_shape, indices_src, axis=None, mode="CLIP"):
+def verify_take(src_shape, indices_src, axis=None, mode="clip"):
     src_dtype = "float32"
     indices_dtype = "int32"
     indices_src = np.array(indices_src, dtype=indices_dtype)
@@ -499,11 +499,11 @@ def test_take():
     verify_take((2,2), [[[1,0],[0,1]]], 1)
     verify_take((4,3,5,6), [[2,1,0,0]], -2)
     verify_take((3,4), [-5, 20])
-    verify_take((3,4), [-5, 20], mode="WRAP")
+    verify_take((3,4), [-5, 20], mode="wrap")
     verify_take((3,4), [-1, 2], axis=0)
-    verify_take((3,4), [-1, 2], axis=0, mode="WRAP")
+    verify_take((3,4), [-1, 2], axis=0, mode="wrap")
     verify_take((3,4), [-1, 2], axis=1)
-    verify_take((3,4), [-1, 2], axis=1, mode="WRAP")
+    verify_take((3,4), [-1, 2], axis=1, mode="wrap")
 
 def test_gather_nd():
     for indices_dtype in ['int32', 'float32']:

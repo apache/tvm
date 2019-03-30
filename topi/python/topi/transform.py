@@ -228,7 +228,7 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
-def take(a, indices, axis=None, mode="CLIP"):
+def take(a, indices, axis=None, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -245,8 +245,8 @@ def take(a, indices, axis=None, mode="CLIP"):
 
     mode : str, optional
         Specifies how out-of-bound indices will behave.
-        CLIP - clip to the range (default)
-        WRAP - wrap around the indices
+        clip - clip to the range (default)
+        wrap - wrap around the indices
 
     Returns
     -------

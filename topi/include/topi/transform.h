@@ -604,7 +604,7 @@ inline Array<Tensor> split_sections(const Tensor& x,
 */
 inline Tensor take(const Tensor& a,
                    const Tensor& indices,
-                   std::string mode = "CLIP",
+                   std::string mode = "clip",
                    std::string name = "tensor",
                    std::string tag = kInjective) {
   Array<Expr> a_shape = a->shape;
@@ -614,13 +614,13 @@ inline Tensor take(const Tensor& a,
     a_size = a_size * a_shape[i];
   }
 
-  if (mode == "CLIP") {
+  if (mode == "clip") {
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
           auto idx = tvm::min(tvm::max(0, indices(out_index)), a_size - 1);
           return a(UnravelIndex(idx, a_shape));
         }, name, tag);
-  } else {  // mode == "WRAP"
+  } else {  // mode == "wrap"
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
           auto idx = (indices(out_index) % a_size + a_size) % a_size;
@@ -644,7 +644,7 @@ inline Tensor take(const Tensor& a,
 inline Tensor take(const Tensor& a,
                    const Tensor& indices,
                    int axis,
-                   std::string mode = "CLIP",
+                   std::string mode = "clip",
                    std::string name = "tensor",
                    std::string tag = kInjective) {
   if (axis < 0) {
@@ -665,7 +665,7 @@ inline Tensor take(const Tensor& a,
       out_shape.push_back(a->shape[i]);
     }
   }
-  if (mode == "CLIP") {
+  if (mode == "clip") {
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
           Array<Expr> indices_position;
@@ -684,7 +684,7 @@ inline Tensor take(const Tensor& a,
           }
           return a(real_indices);
         }, name, tag);
-  } else {  // mode == "WRAP"
+  } else {  // mode == "wrap"
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
           Array<Expr> indices_position;

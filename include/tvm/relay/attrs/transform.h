@@ -80,10 +80,10 @@ struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
         .describe("The axis over which to select values.");
-    TVM_ATTR_FIELD(mode).set_default("CLIP")
+    TVM_ATTR_FIELD(mode).set_default("clip")
         .describe("Specify how out-of-bound indices will behave."
-                  "CLIP - clip to the range (default)"
-                  "WRAP - wrap around the indices");
+                  "clip - clip to the range (default)"
+                  "wrap - wrap around the indices");
   }
 };
 

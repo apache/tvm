@@ -243,7 +243,7 @@ def test_take_infer_type():
     verify_take((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2)
 
 def test_take():
-    def verify_take(src_shape, indices_src, axis=None, mode="CLIP"):
+    def verify_take(src_shape, indices_src, axis=None, mode="clip"):
         src_dtype = "float32"
         indices_dtype = "int32"
         indices_src = np.array(indices_src, dtype=indices_dtype)
@@ -253,7 +253,7 @@ def test_take():
 
         func = relay.Function([x, indices], z)
         x_data = np.random.uniform(low=-1, high=1, size=src_shape).astype(src_dtype)
-        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=mode.lower())
+        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=mode)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
@@ -270,11 +270,11 @@ def test_take():
     verify_take((2,2), [[[1,0],[0,1]]], 1)
     verify_take((4,3,5,6), [[2,1,0,0]], -2)
     verify_take((3,4), [-5, 20])
-    verify_take((3,4), [-5, 20], mode="WRAP")
+    verify_take((3,4), [-5, 20], mode="wrap")
     verify_take((3,4), [-1, 2], axis=0)
-    verify_take((3,4), [-1, 2], axis=0, mode="WRAP")
+    verify_take((3,4), [-1, 2], axis=0, mode="wrap")
     verify_take((3,4), [-1, 2], axis=1)
-    verify_take((3,4), [-1, 2], axis=1, mode="WRAP")
+    verify_take((3,4), [-1, 2], axis=1, mode="wrap")
 
 
 def test_split_infer_type():
