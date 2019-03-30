@@ -327,8 +327,7 @@ Registering an API Endpoint
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 With the AST traversers written, the pass can be registered to become a TVM
-API endpoint (more detail can be found in :doc:`runtime.md`). In order to
-register the pass, we need the following code snippet:
+API endpoint with the following code snippet:
 
 .. code:: c
 
@@ -338,4 +337,5 @@ register the pass, we need the following code snippet:
     });
 
 And the pass can now be used in C++ and Python, though it's a good idea to
-wrap the API in Python, as described in :ref:`relay-add-op`.
+wrap the API in Python, as described in :ref:`relay-add-op`. More detail
+about registration can be found in :doc:`runtime.md`.
