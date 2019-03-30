@@ -603,9 +603,26 @@ SplitDivConst(SplitExpr lhs, int64_t cval) {
 
   if (cval % lhs->scale == 0) {
     int64_t scaled_cval = cval / lhs->scale;
-    lhs.CopyOnWrite()->scale = 1;
-    lhs.CopyOnWrite()->lower_factor *= scaled_cval;
-    return lhs;
+    if (lhs->upper_factor == SplitExprNode::kPosInf ||
+        lhs->upper_factor % (lhs->lower_factor * scaled_cval) == 0) {
+      // directly fold division.
+      lhs.CopyOnWrite()->scale = 1;
+      lhs.CopyOnWrite()->lower_factor *= scaled_cval;
+      lhs->Verify();
+      return lhs;
+    } else if (lhs->upper_factor <= (lhs->lower_factor * scaled_cval)) {
+      // (x % c1) / c2  => 0 when c2 >= c1
+      return ToSplitExpr(make_zero(lhs.type()));
+    } else {
+      // move the upper_factor modular into index.
+      lhs.CopyOnWrite()->index =
+          lhs->index % make_const(lhs.type(), lhs->upper_factor);
+      lhs.CopyOnWrite()->upper_factor = SplitExprNode::kPosInf;
+      lhs.CopyOnWrite()->scale = 1;
+      lhs.CopyOnWrite()->lower_factor *= scaled_cval;
+      lhs->Verify();
+      return lhs;
+    }
   }
   // directly return the split with cval == 1
   lhs = ToSplitExpr(Normalize(lhs));
@@ -681,6 +698,10 @@ SplitModConst(SplitExpr lhs, int64_t cval) {
     if (lhs->upper_factor == SplitExprNode::kPosInf ||
         lhs->upper_factor % new_upper_factor == 0) {
       lhs.CopyOnWrite()->upper_factor = new_upper_factor;
+      lhs->Verify();
+      return lhs;
+    } else if (new_upper_factor % lhs->upper_factor == 0) {
+      // (x % 2) % 4 => x % 2
       return lhs;
     }
   }

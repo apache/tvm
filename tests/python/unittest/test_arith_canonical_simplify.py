@@ -25,8 +25,17 @@ def test_split_index_simplify():
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
     ck.verify((x/3) *3 + x % 3, x)
     ck.verify((x/6) * 6 + ((x/3) % 2) * 3 + x % 3, x)
-    # split simplification
+
+    # split div const
+    ck.verify(((x % 16) / 2) * 2 / 4, (x % 16) / 4)
+    ck.verify((x % 2) / 8, 0)
+    ck.verify((x % 2) / 7, 0)
+    ck.verify(((x % 16) / 2) * 2 / 6, (x % 16) / 6)
+
+    # split mod const
     ck.verify((x * 8) % 16, (x % 2) * 8)
+    ck.verify((x * 8) % 2, 0)
+
     # simplify then fold
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000))
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 1000))
