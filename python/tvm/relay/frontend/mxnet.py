@@ -450,7 +450,7 @@ def _mx_take(inputs, attrs):
     if mode == "raise":
         raise RuntimeError("take doesn't support raise mode")
     axis = attrs.get_int("axis", 0)
-    return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode.upper())
+    return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode)
 
 
 def _mx_reverse(inputs, attrs):
