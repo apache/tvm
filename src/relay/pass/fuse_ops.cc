@@ -263,21 +263,19 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const TupleGetItemNode* op) final {
     auto tuple_type = op->tuple->checked_type().as<TupleTypeNode>();
     CHECK(tuple_type);
-    // If this tuple contain a reference type, and we fuse TupleGetItem and
-    // the reference, a fused function will have a tuple containing a reference
-    // in its parameters. But when TVM lowers a fused function, it expects all
-    // arguments to be a Tensor or a tuple containing only Tensors.
-    // To avoid modifying codegen logic, we do not allow fusing through a reference.
-    // The reference itself will be recursively visited via call to ExprVisitor::VisitExpr_(op)
-    // below and corresponding visitor methods
-    bool has_reference = false;
+    // when TVM lowers a fused function, it expects all arguments to be a Tensor or
+    // a tuple containing only Tensors. But this tuple may contain a reference or
+    // another tuple. To avoid modifying codegen logic, we do not allow fusing through this node
+    // if the tuple contains such non Tensor fields. However, all fields will be recursively
+    // visited via call to ExprVisitor::VisitExpr_(op) below and corresponding visitor methods.
+    bool has_non_tensor = false;
     for (auto ty : tuple_type->fields) {
-      if (ty.as<RefTypeNode>()) {
-        has_reference = true;
+      if (!ty.as<TensorTypeNode>()) {
+        has_non_tensor = true;
         break;
       }
     }
-    if (has_reference) {
+    if (has_non_tensor) {
       this->Update(op->tuple, nullptr, kOpaque);
     } else {
       CHECK(graph_.node_map.count(op));
