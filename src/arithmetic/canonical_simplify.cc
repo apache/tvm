@@ -264,7 +264,7 @@ class SumExprNode : public CanonicalExprNode {
           // - s = lhs->scale / rhs->scale
           // - c = rhs->lower_factor
           //
-          //    ((x / (c * s)) * s + (x % (c * s)) / c
+          //    (x / (c * s)) * s + (x % (c * s)) / c
           // => ((x / c) / s) * s + ((x / c) % s)
           // => (x / c)
           //
