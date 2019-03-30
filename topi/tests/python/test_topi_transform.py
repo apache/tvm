@@ -259,9 +259,9 @@ def verify_take(src_shape, indices_src, axis=None, mode="clip"):
         data_npy = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
 
         if axis is None:
-            out_npys = np.take(data_npy, indices_src, mode=mode.lower())
+            out_npys = np.take(data_npy, indices_src, mode=mode)
         else:
-            out_npys = np.take(data_npy, indices_src, axis=axis, mode=mode.lower())
+            out_npys = np.take(data_npy, indices_src, axis=axis, mode=mode)
         data_nd = tvm.nd.array(data_npy, ctx)
         indices_nd = tvm.nd.array(indices_src, ctx)
         out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=src_dtype)
