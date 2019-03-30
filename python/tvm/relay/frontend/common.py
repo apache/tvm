@@ -321,6 +321,10 @@ class AttrCvt(object):
         else:
             assert callable(self._op_name), "op_name can either be string or callable"
             op_name = self._op_name(attrs)
+
+        # ignore 'tvm_custom' always
+        self._ignores.append('tvm_custom')
+
         # convert attributes
         new_attrs = {}
         for k in attrs.keys():
@@ -329,7 +333,8 @@ class AttrCvt(object):
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.sym.%s", k, op_name)
             elif k in self._ignores:
-                logging.debug("Attribute %s is ignored in relay.sym.%s", k, op_name)
+                if k != 'tvm_custom':
+                    logging.warning("Attribute %s is ignored in relay.sym.%s", k, op_name)
             elif k in self._transforms:
                 new_name, defaults, transform = self._parse_default(self._transforms[k])
                 if defaults is None:
@@ -416,4 +421,6 @@ class Renamer(object):
         self._new_name = new_name
 
     def __call__(self, inputs, attrs, *args):
+        if 'tvm_custom' in attrs:
+            attrs.pop('tvm_custom')
         return get_relay_op(self._new_name)(*inputs, **attrs)
