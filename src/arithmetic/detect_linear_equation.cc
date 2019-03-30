@@ -127,25 +127,21 @@ Array<Expr> DetectLinearEquation(const Expr& e, const Array<Var>& vars) {
   Expr base = e;
   Array<Expr> coeff;
 
-  if (0 == vars.size()) {
-    coeff.push_back(make_const(Int(32), 1));
-  } else {
-    for (Var v : vars) {
-      LinearEqEntry ret;
-      if (!LinearEqDetector(v).Detect(base, &ret)) {
-        return Array<Expr>();
-      }
-      coeff.push_back(ret.coeff);
-      base = std::move(ret.base);
+  for (Var v : vars) {
+    LinearEqEntry ret;
+    if (!LinearEqDetector(v).Detect(base, &ret)) {
+      return Array<Expr>();
     }
+    coeff.push_back(ret.coeff);
+    base = std::move(ret.base);
+  }
 
-    std::unordered_set<const Variable*> vset;
-    for (size_t i = vars.size(); i != 1; --i) {
-      vset.insert(vars[i - 1].get());
-      // The previous coeff contains the variable
-      if (ExprUseVar(coeff[i - 2], vset)) {
-        return Array<Expr>();
-      }
+  std::unordered_set<const Variable*> vset;
+  for (size_t i = vars.size(); i > 1; --i) {
+    vset.insert(vars[i - 1].get());
+    // The previous coeff contains the variable
+    if (ExprUseVar(coeff[i - 2], vset)) {
+      return Array<Expr>();
     }
   }
   coeff.push_back(base);
