@@ -117,6 +117,22 @@ def test_constraint_scope():
     assert m.coeff == 1
     assert m.base == 0
 
+def test_intersect():
+    a = tvm.var("a")
+    analyzer = tvm.arith.Analyzer()
+    with analyzer.constraint_scope(a % 4 == 1):
+        with analyzer.constraint_scope(a % 3 == 1):
+            m = analyzer.modular_set(a)
+            assert m.coeff == 12
+            assert m.base == 1
+
+    with analyzer.constraint_scope(a % 3 == 2):
+        with analyzer.constraint_scope(a % 5 == 3):
+            with analyzer.constraint_scope(a % 7 == 2):
+                m = analyzer.modular_set(a)
+                assert m.coeff == 105
+                assert m.base == 23
+
 
 if __name__ == "__main__":
     test_cast()
@@ -126,3 +142,4 @@ if __name__ == "__main__":
     test_min_max_select()
     test_mix_index()
     test_constraint_scope()
+    test_intersect()
