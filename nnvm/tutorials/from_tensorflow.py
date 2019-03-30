@@ -52,8 +52,8 @@ map_proto = 'imagenet_2012_challenge_label_map_proto.pbtxt'
 map_proto_url = os.path.join(repo_base, map_proto)
 
 # Human readable text for labels
-lable_map = 'imagenet_synset_to_human_label_map.txt'
-lable_map_url = os.path.join(repo_base, lable_map)
+label_map = 'imagenet_synset_to_human_label_map.txt'
+label_map_url = os.path.join(repo_base, label_map)
 
 # Target settings
 # Use these commented settings to build for cuda.
@@ -70,19 +70,19 @@ ctx = tvm.cpu(0)
 # Download required files
 # -----------------------
 # Download files listed above.
-from mxnet.gluon.utils import download
+from tvm.contrib.download import download_testdata
 
-download(image_url, img_name)
-download(model_url, model_name)
-download(map_proto_url, map_proto)
-download(lable_map_url, lable_map)
+img_path = download_testdata(image_url, img_name, module='data')
+model_path = download_testdata(model_url, model_name, module=['tf', 'InceptionV1'])
+map_proto_path = download_testdata(map_proto_url, map_proto, module='data')
+label_path = download_testdata(label_map_url, label_map, module='data')
 
 ######################################################################
 # Import model
 # ------------
 # Creates tensorflow graph definition from protobuf file.
 
-with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
+with tf.gfile.FastGFile(model_path, 'rb') as f:
     graph_def = tf.GraphDef()
     graph_def.ParseFromString(f.read())
     graph = tf.import_graph_def(graph_def, name='')
@@ -103,7 +103,7 @@ with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
 #
 
 from PIL import Image
-image = Image.open(img_name).resize((299, 299))
+image = Image.open(img_path).resize((299, 299))
 
 x = np.array(image)
 
@@ -117,7 +117,7 @@ x = np.array(image)
 #   params: params converted from tensorflow params (tensor protobuf).
 sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout)
 
-print ("Tensorflow protobuf imported as nnvm graph")
+print("Tensorflow protobuf imported as nnvm graph")
 ######################################################################
 # NNVM Compilation
 # ----------------
@@ -157,8 +157,8 @@ predictions = tvm_output.asnumpy()
 predictions = np.squeeze(predictions)
 
 # Creates node ID --> English string lookup.
-node_lookup = tf_testing.NodeLookup(label_lookup_path=os.path.join("./", map_proto),
-                                         uid_lookup_path=os.path.join("./", lable_map))
+node_lookup = tf_testing.NodeLookup(label_lookup_path=map_proto_path,
+                                    uid_lookup_path=label_path)
 
 # Print top 5 predictions from TVM output.
 top_k = predictions.argsort()[-5:][::-1]
@@ -175,7 +175,7 @@ for node_id in top_k:
 def create_graph():
     """Creates a graph from saved GraphDef file and returns a saver."""
     # Creates graph from saved graph_def.pb.
-    with tf.gfile.FastGFile(model_name, 'rb') as f:
+    with tf.gfile.FastGFile(model_path, 'rb') as f:
         graph_def = tf.GraphDef()
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
@@ -209,8 +209,8 @@ def run_inference_on_image(image):
         predictions = np.squeeze(predictions)
 
         # Creates node ID --> English string lookup.
-        node_lookup = tf_testing.NodeLookup(label_lookup_path=os.path.join("./", map_proto),
-                                                 uid_lookup_path=os.path.join("./", lable_map))
+        node_lookup = tf_testing.NodeLookup(label_lookup_path=map_proto_path,
+                                            uid_lookup_path=label_path)
 
         # Print top 5 predictions from tensorflow.
         top_k = predictions.argsort()[-5:][::-1]
@@ -220,4 +220,4 @@ def run_inference_on_image(image):
             score = predictions[node_id]
             print('%s (score = %.5f)' % (human_string, score))
 
-run_inference_on_image (img_name)
+run_inference_on_image(img_path)

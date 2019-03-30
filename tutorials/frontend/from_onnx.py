@@ -20,19 +20,7 @@ import onnx
 import numpy as np
 import tvm
 import tvm.relay as relay
-
-def download(url, path, overwrite=False):
-    import os
-    if os.path.isfile(path) and not overwrite:
-        print('File {} existed, skip.'.format(path))
-        return
-    print('Downloading from url {} to {}'.format(url, path))
-    try:
-        import urllib.request
-        urllib.request.urlretrieve(url, path)
-    except:
-        import urllib
-        urllib.urlretrieve(url, path)
+from tvm.contrib.download import download_testdata
 
 ######################################################################
 # Load pretrained ONNX model
@@ -44,9 +32,9 @@ model_url = ''.join(['https://gist.github.com/zhreshold/',
                      'bcda4716699ac97ea44f791c24310193/raw/',
                      '93672b029103648953c4e5ad3ac3aadf346a4cdc/',
                      'super_resolution_0.2.onnx'])
-download(model_url, 'super_resolution.onnx', False)
+model_path = download_testdata(model_url, 'super_resolution.onnx', module='onnx')
 # now you have super_resolution.onnx on disk
-onnx_model = onnx.load('super_resolution.onnx')
+onnx_model = onnx.load(model_path)
 
 ######################################################################
 # Load a test image
@@ -54,8 +42,8 @@ onnx_model = onnx.load('super_resolution.onnx')
 # A single cat dominates the examples!
 from PIL import Image
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-download(img_url, 'cat.png')
-img = Image.open('cat.png').resize((224, 224))
+img_path = download_testdata(img_url, 'cat.png', module='data')
+img = Image.open(img_path).resize((224, 224))
 img_ycbcr = img.convert("YCbCr")  # convert to YCbCr
 img_y, img_cb, img_cr = img_ycbcr.split()
 x = np.array(img_y)[np.newaxis, np.newaxis, :, :]
