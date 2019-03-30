@@ -39,7 +39,6 @@ class CopyIntrinInjector : public IRMutator {
   bool MatchCopyPattern(Stmt stmt, Stmt *out) {
     using namespace arith;
     Stmt body = stmt;
-    bool is_single_point_copy = false;
 
     // strip the loops
     std::vector<const For*> loops;
@@ -60,7 +59,6 @@ class CopyIntrinInjector : public IRMutator {
     const Cast* cast = store->value.as<Cast>();
     const Load* load = store->value.as<Load>();
     if (0 == loops.size()) {
-      is_single_point_copy = true;
       CHECK(!has_cond);
     }
     // for now only support true condition matching
@@ -83,9 +81,8 @@ class CopyIntrinInjector : public IRMutator {
         arith::DetectLinearEquation(load->index, loop_vars);
     if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
     Array<Expr> dst_shape;
-    auto loop_var_size = loop_vars.size();
-    if (is_single_point_copy) {
-      loop_var_size = 1;
+    const size_t loop_var_size = loop_vars.size();
+    if (loop_var_size == 0) {
       dst_shape.push_back(make_const(Int(32), 1));
     } else {
       for (const For* op : loops) {
@@ -132,6 +129,10 @@ class CopyIntrinInjector : public IRMutator {
     CHECK_EQ(load_strides.size(), loop_var_size + 1);
     Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
     Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
+    if (loop_var_size == 0) {
+        src_strides.push_back(make_const(Int(32), 1));
+        dst_strides.push_back(make_const(Int(32), 1));
+    }
     Buffer dst = BufferNode::make(
         Var(store->buffer_var.node_),
         store->value.type(),
