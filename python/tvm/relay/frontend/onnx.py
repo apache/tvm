@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 
 import logging
+import tvm
 import numpy as np
 from ... import nd as _nd
 from .. import ir_pass
@@ -333,7 +334,6 @@ class Reshape(OnnxOpConverter):
             # TODO: good to check inputs to be in params.
             #       to be enhanced when relay support list_input_names API of NNVM
             logging.warning("Infering Reshape argument by precompute")
-            import tvm
             func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
             with tvm.relay.build_config(opt_level=0):
                 graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
