@@ -3,7 +3,7 @@
 from __future__ import absolute_import
 from ..expr import const
 from .op import register_gradient
-from .transform import collapse_sum_like, where
+from .transform import collapse_sum_like, broadcast_to_like, where
 from .tensor import exp, negative, power, less
 from .tensor import zeros_like, ones_like
 
@@ -77,3 +77,20 @@ def divide_grad(orig, grad):
     x, y = orig.args
     return [collapse_sum_like(grad / y, x),
             collapse_sum_like(- (grad * orig / y), y)]
+
+
+@register_gradient("zeros_like")
+def zeros_like_grad(orig, grad):
+    """Returns [0]"""
+    return [orig]
+
+@register_gradient("ones_like")
+def ones_like_grad(orig, grad):
+    """Returns [0]"""
+    return [zeros_like(orig.args[0])]
+
+@register_gradient("collapse_sum_like")
+def collapse_sum_like_grad(orig, grad):
+    """Returns [broadcast_to_like(grad, x), 0]"""
+    x, y = orig.args
+    return [broadcast_to_like(grad, x), zeros_like(y)]
