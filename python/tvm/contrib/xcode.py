@@ -98,6 +98,9 @@ def create_dylib(output, objects, arch, sdk="macosx"):
         raise RuntimeError(msg)
 
 
+# assign so as default output format
+create_dylib.output_format = "dylib"
+
 def compile_metal(code, path_target=None, sdk="macosx"):
     """Compile metal with CLI tool from env.
 

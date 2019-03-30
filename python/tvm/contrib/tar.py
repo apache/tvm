@@ -42,6 +42,9 @@ def tar(output, files):
         msg += py_str(out)
         raise RuntimeError(msg)
 
+# assign output format
+tar.output_format = "tar"
+
 
 def untar(tar_file, directory):
     """Unpack all tar files into the directory

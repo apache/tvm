@@ -29,12 +29,44 @@ def create_shared(output,
     cc : str, optional
         The compile string.
     """
-    if sys.platform == "darwin" or sys.platform.startswith('linux'):
+    if sys.platform == "darwin" or sys.platform.startswith("linux"):
         _linux_shared(output, objects, options, cc)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
+
+
+# assign so as default output format
+create_shared.output_format = "so" if sys.platform != "win32" else "dll"
+
+
+def cross_compiler(cc, options=None, output_format="so"):
+    """Create a cross compiler function.
+
+    Parameters
+    ----------
+    cc :  str
+        The cross compiler name.
+
+    options : list, optional
+        List of additional optional string.
+
+    output_format : str, optional
+        Library output format.
+
+    Returns
+    -------
+    fcompile : function
+        A compilation function that can be passed to export_library.
+    """
+    def _fcompile(outputs, objects, opts=None):
+        opts = opts if opts else []
+        if options:
+            opts += options
+        _linux_shared(outputs, objects, opts, cc=cc)
+    _fcompile.output_format = output_format
+    return _fcompile
 
 
 def _linux_shared(output, objects, options, cc="g++"):
