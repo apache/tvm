@@ -14,6 +14,7 @@ import tvm
 import tvm.relay as relay
 from tvm import rpc
 from tvm.contrib import util, graph_runtime as runtime
+from tvm.contrib.download import download_testdata
 
 ######################################################################
 # .. _build-tvm-runtime-on-device:
@@ -82,7 +83,6 @@ from tvm.contrib import util, graph_runtime as runtime
 # You can found more details about this part at tutorial :ref:`tutorial-from-mxnet`.
 
 from mxnet.gluon.model_zoo.vision import get_model
-from mxnet.gluon.utils import download
 from PIL import Image
 import numpy as np
 
@@ -92,9 +92,10 @@ block = get_model('resnet18_v1', pretrained=True)
 ######################################################################
 # In order to test our model, here we download an image of cat and
 # transform its format.
+img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
 img_name = 'cat.png'
-download('https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true', img_name)
-image = Image.open(img_name).resize((224, 224))
+img_path = download_testdata(img_url, img_name, module='data')
+image = Image.open(img_path).resize((224, 224))
 
 def transform_image(image):
     image = np.array(image) - np.array([123., 117., 104.])
@@ -112,9 +113,9 @@ synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '4d0b62f3d01426887599d4f7ede23ee5/raw/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',
                       'imagenet1000_clsid_to_human.txt'])
-synset_name = 'synset.txt'
-download(synset_url, synset_name)
-with open(synset_name) as f:
+synset_name = 'imagenet1000_clsid_to_human.txt'
+synset_path = download_testdata(synset_url, synset_name, module='data')
+with open(synset_path) as f:
     synset = eval(f.read())
 
 ######################################################################

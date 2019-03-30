@@ -25,7 +25,7 @@ import tvm
 import sys
 
 from ctypes import *
-from tvm.contrib.download import download
+from tvm.contrib.download import download_testdata
 from nnvm.testing.darknet import __darknetffi__
 
 # Model name
@@ -41,8 +41,8 @@ REPO_URL = 'https://github.com/siju-samuel/darknet/blob/master/'
 CFG_URL = REPO_URL + 'cfg/' + CFG_NAME + '?raw=true'
 WEIGHTS_URL = 'https://pjreddie.com/media/files/' + WEIGHTS_NAME
 
-download(CFG_URL, CFG_NAME)
-download(WEIGHTS_URL, WEIGHTS_NAME)
+cfg_path = download_testdata(CFG_URL, CFG_NAME, module="darknet")
+weights_path = download_testdata(WEIGHTS_URL, WEIGHTS_NAME, module="darknet")
 
 # Download and Load darknet library
 if sys.platform in ['linux', 'linux2']:
@@ -55,12 +55,10 @@ else:
     err = "Darknet lib is not supported on {} platform".format(sys.platform)
     raise NotImplementedError(err)
 
-download(DARKNET_URL, DARKNET_LIB)
+lib_path = download_testdata(DARKNET_URL, DARKNET_LIB, module="darknet")
 
-DARKNET_LIB = __darknetffi__.dlopen('./' + DARKNET_LIB)
-cfg = "./" + str(CFG_NAME)
-weights = "./" + str(WEIGHTS_NAME)
-net = DARKNET_LIB.load_network(cfg.encode('utf-8'), weights.encode('utf-8'), 0)
+DARKNET_LIB = __darknetffi__.dlopen(lib_path)
+net = DARKNET_LIB.load_network(cfg_path.encode('utf-8'), weights_path.encode('utf-8'), 0)
 dtype = 'float32'
 batch_size = 1
 
@@ -88,9 +86,9 @@ test_image = 'dog.jpg'
 print("Loading the test image...")
 img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + \
           test_image + '?raw=true'
-download(img_url, test_image)
+img_path = download_testdata(img_url, test_image, "data")
 
-data = nnvm.testing.darknet.load_image(test_image, netw, neth)
+data = nnvm.testing.darknet.load_image(img_path, netw, neth)
 ######################################################################
 # Execute on TVM Runtime
 # ----------------------
@@ -150,10 +148,10 @@ coco_name = 'coco.names'
 coco_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + coco_name + '?raw=true'
 font_name = 'arial.ttf'
 font_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + font_name + '?raw=true'
-download(coco_url, coco_name)
-download(font_url, font_name)
+coco_path = download_testdata(coco_url, coco_name, module='data')
+font_path = download_testdata(font_url, font_name, module='data')
 
-with open(coco_name) as f:
+with open(coco_path) as f:
     content = f.readlines()
 
 names = [x.strip() for x in content]
