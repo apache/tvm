@@ -37,6 +37,12 @@ class ConstantChecker : private ExprVisitor {
  public:
   // Check whether an expression is constant. The results are memoized.
   bool Check(const Expr& expr) {
+    // The `ConstantNode` case is common enough that we check directly for the
+    // case here, to avoid the time overhead of dispatching through the vtable
+    // and the space overhead of memoizing always-true results.
+    if (expr.as<ConstantNode>()) {
+      return true;
+    }
     const auto it = memo_.find(expr);
     if (it != memo_.end())
       return it->second;
@@ -46,10 +52,6 @@ class ConstantChecker : private ExprVisitor {
 
  private:
   std::unordered_map<Expr, bool, NodeHash, NodeEqual> memo_;
-
-  void VisitExpr_(const ConstantNode* n) final {
-    memo_[GetRef<Constant>(n)] = true;
-  }
 
   void VisitExpr_(const TupleNode* n) final {
     bool result = true;

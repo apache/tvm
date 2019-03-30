@@ -13,7 +13,8 @@ passes.
 At a high level, there are three key components to writing a pass:
 
 - Creating one or more C++ classes that traverse the program
-- Registering an API endpoint with the ``TVM_REGISTER_API`` macro that performs the pass
+- Registering an API endpoint (a TVM packed function) with the
+  ``TVM_REGISTER_API`` macro that performs the pass
 - Wrapping the Python API hook in a neater interface
 
 To begin, we'll give an overview of the key mechanisms for writing a compiler
@@ -26,13 +27,31 @@ AST Traversers
 The base class used to traverse Relay programs is ``ExprFunctor``. The public
 interface it provides is a ``VisitExpr`` method that takes an expression and
 zero or more arguments and returns an instance of some type. When you extend
-this class, you define the AST traversal pattern by providing implementations
-of ``VisitExpr_`` for each type of expression.
+this class, you define the AST traversal pattern by overriding
+implementations of ``VisitExpr_`` for each type of expression.
+
+The relation between ``VisitExpr`` and ``VisitExpr_`` has to do with
+dispatch. Each ``VisitExpr_`` definition targets a specific type of
+expression, but you don't always know which node type you'll be visiting.
+To remedy this, ``ExprFunctor`` provides a ``VisitExpr`` function which
+routes from the given expression to the ``VisitExpr_`` case that handles it.
+Although C++ already provides dynamic dispatch, ``ExprFunctor`` defines its
+own vtable, which ``VisitExpr`` uses. By defining our own vtable, we have
+more control over dispatch. For example, if we wanted to define a
+``PrintVisitor`` traverser that printed "Here" before every visit, we
+could override ``VisitExpr``:
+
+.. code:: c
+
+    void PrintVisitor::VisitExpr(const Expr& expr) {
+      std::cout << "Here" << std::endl;
+      ExprFunctor::VisitExpr(expr);
+    }
 
 ``ExprFunctor`` itself is a very general class, which is why more often than
 not, you will be extending ``ExprVisitor`` or ``ExprMutator``. These classes
 extend ``ExprFunctor`` and provide default implementations of ``VisitExpr_``
-for each expression type that capture common traversal patterns. Having these
+that capture common traversal patterns for each expression type. Having these
 default implementations means we only need to provide overriding
 implementations for the expression types where we want different behavior. We
 describe each subclass on its own in the following sections.
@@ -41,8 +60,8 @@ Expression Visitors
 ~~~~~~~~~~~~~~~~~~~
 
 ``ExprVisitor`` is for passes that don't modify the program and instead
-collect information about the program. With this class, ``VisitExpr`` and the
-private counterparts return nothing. The default ``VisitExpr_``
+perform program analyses and collect information. With this class,
+``VisitExpr`` and the private counterparts return nothing. The ``VisitExpr_``
 implementations provided by this class simply visit all of the expression's
 fields that are expressions. The default implementation for ``IfNode`` is
 shown below.
@@ -55,15 +74,12 @@ shown below.
       this->VisitExpr(op->false_branch);
     }
 
-Note that we're calling ``VisitExpr`` and not ``VisitExpr_`` here. This way,
-routing to the appropriate implementation is taken care of for you, and you
-don't need to touch the vtable in ``ExprFunctor``.
+Note that we're calling ``VisitExpr`` and not ``VisitExpr_`` here, so we can
+use the vtable in ``ExprFunctor`` for routing.
 
 Now, if we wanted to write a class ``CallChecker`` that checks if any
 function calls appear in the program, we would only need to extend
 ``ExprVisitor`` and define the following ``VisitExpr_`` method:
-
-TODO: Why does ``ExprFunctor`` have its own vtable?
 
 .. code:: c
 
@@ -72,8 +88,9 @@ TODO: Why does ``ExprFunctor`` have its own vtable?
     }
 
 where ``result_`` is a field. In this case, we don't need to further recurse
-on the fields of the ``CallNode``, because ``result_`` is already true. To
-make this visitor usable, we would provide the following public method:
+on the fields of the ``CallNode``, because ``result_`` is already true and we
+now know the original expression contains a call. To make this visitor
+usable, we would provide the following public method:
 
 .. code:: c
 
@@ -285,21 +302,33 @@ pointed to by ``op->index``. The reason we need to check is because
     }
 
 In the ``CallNode`` case, we first use the ``VisitExpr_`` of ``ExprMutator``
-to visit the call, which const-folds all of the call parameters. Then we
-evaluate the call only if all of the arguments are constant (using
-``ConstantChecker``). Evaluating the call produces a value, so we use a
-helper method ``ValueToExpr`` to allow us to place the evaluated expression
-back into the AST.
+to visit the call, which const-folds all of the fields of the call. We use
+``ExprMutator::VisitExpr_`` instead of ``VisitExpr``, because we want to
+bypass the vtable (to avoid an infinite loop) and use the default
+implementation provided by ``ExprMutator``. Then we evaluate the call only if
+all of the arguments are constant (using ``ConstantChecker``). Evaluating the
+call produces a **value**, so we use a helper method ``ValueToExpr`` to allow
+us to place the evaluated expression back into the AST.
 
-TODO: Why does the ``CallNode`` case call ``VisitExpr_`` and not
-``VisitExpr``?
+Now, we construct the public interface ``FoldConstant`` to our constant
+folder, which is a standalone function outside of the ``ConstantFolder``
+class. ``FoldConstant`` takes an expression and internally creates and uses a
+``ConstantFolder`` instance (the full definition can be found in
+``include/tvm/relay/pass.h``).
+
+To allow other C++ modules to use our pass, we declare the public interface
+in ``src/relay/pass/pass.h``:
+
+.. code:: c
+
+    TVM_DLL Expr FoldConstant(const Expr& expr);
 
 Registering an API Endpoint
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-With the AST traversers written, we now wrap the entire pass in a standalone
-``FoldConstant`` procedure, so it can be registered to become a TVM API
-endpoint. In order to register the pass, we need the following code snippet:
+With the AST traversers written, the pass can be registered to become a TVM
+API endpoint (more detail can be found in :doc:`runtime.md`). In order to
+register the pass, we need the following code snippet:
 
 .. code:: c
 
@@ -309,10 +338,4 @@ endpoint. In order to register the pass, we need the following code snippet:
     });
 
 And the pass can now be used in C++ and Python, though it's a good idea to
-wrap the API in Python, as described in the next section.
-
-Including a Python API Hook
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-A description of this step can be found in the identically-titled section in
-relay-add-op_.
+wrap the API in Python, as described in :ref:`relay-add-op`.
