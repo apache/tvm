@@ -144,7 +144,7 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     for (const auto& con : op->constructors) {
       if (!con->belong_to.same_as(op->header)) {
         ReportFatalError(RELAY_ERROR(con << " has header " << con->belong_to
-                                     << " but " << op << "has header " << op->header));
+                                     << " but " << op << " has header " << op->header));
       }
 
       for (const Type& t : con->inputs) {
