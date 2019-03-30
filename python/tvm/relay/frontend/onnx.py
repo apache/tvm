@@ -835,7 +835,7 @@ def _get_convert_map(opset):
         # 'InstanceNormalization'
         # 'LpNormalization'
         'Dropout': AttrCvt('dropout', {'ratio': 'rate'}, ignores=['is_test']),
-        'Flatten': Renamer('flatten'),
+        'Flatten': Renamer('batch_flatten'),
         'LRN': LRN.get_converter(opset),
 
         # defs/reduction
