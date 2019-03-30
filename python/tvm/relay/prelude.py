@@ -143,7 +143,7 @@ class Prelude:
                                         Match(av, [nil_case, cons_case]), b, [a, b])
 
     def define_list_foldr1(self):
-        """Defines a right-way fold over an un-empty list.
+        """Defines a right-way fold over a nonempty list.
 
         foldr1(f, l) : fn<a>(fn(a, a) -> a, list[a]) -> a
 
