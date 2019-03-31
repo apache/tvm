@@ -553,7 +553,6 @@ def test_stack():
     verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
 
 
-
 def test_reverse():
     def verify_reverse(dshape, axis):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
@@ -571,6 +570,23 @@ def test_reverse():
     verify_reverse((2, 3, 4), 1)
     verify_reverse((4, 7), 0)
     verify_reverse((2, 3, 4), -1)
+
+
+def test_gather_nd():
+    def verify_gather_nd(dshape, indices):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.gather_nd(x, indices=indices)
+
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = x_data[indices]
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_gather_nd((2, 2), [[1, 1, 0], [0, 1, 0]])
 
 
 if __name__ == "__main__":
@@ -601,3 +617,4 @@ if __name__ == "__main__":
     test_stack()
     test_tile()
     test_repeat()
+    test_gather_nd()
