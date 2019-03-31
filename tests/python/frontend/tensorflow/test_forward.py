@@ -477,13 +477,13 @@ def test_forward_stridedslice():
 # ----------------
 
 def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
-    """ One iteration of a GatherV2 """
+    """ One iteration of a GatherV2"""
 
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
     indices = tf.placeholder("int32", indice_shape, name="indices")
     tf.gather(in_data, indices, axis=axis)
-    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+    np_data = np.random.uniform(1, 10, size=ip_shape).astype(dtype)
 
     def _fill_indices(indice_value):
         indices = np.array(ip_shape, dtype=dtype)
@@ -861,6 +861,22 @@ def test_forward_logical():
     test_logical_or()
     test_logical_xor()
     test_logical_not()
+
+
+#######################################################################
+# Where, Select
+# --------------------
+def test_where():
+    ''' Where: return elements depending on conditions'''
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+            input1 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='input1')
+            input2 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='input2')
+            mask = input1 > input2
+            tf.where(mask, input1 + 1, input2 * 2)
+            in_data1 = np.random.uniform(0, 10, size=(1, 4, 4, 3)).astype("uint32")
+            in_data2 = np.random.uniform(0, 10, size=(1, 4, 4, 3)).astype("uint32")
+            compare_tf_with_tvm([in_data1, in_data2], ['input1:0', 'input2:0'], 'Select:0')
 
 
 #######################################################################
@@ -1299,3 +1315,4 @@ if __name__ == '__main__':
     # Relational ops
     test_forward_rel_ops()
     test_forward_logical()
+    test_where()

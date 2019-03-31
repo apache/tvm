@@ -683,10 +683,10 @@ def _gather():
         new_input = []
         new_input.append(inputs.pop(0))
         new_input.append(inputs.pop(0))
-        return  AttrCvt(op_name="take",
-                        extras={'axis': tvm.const(axis, 'int32')},
-                        ignores=['Tindices', 'Tparams', 'validate_indices', \
-                                 'Taxis', '_class'])(new_input, attr)
+        return AttrCvt(op_name="take",
+                       extras={'axis': tvm.const(axis, 'int32')},
+                       ignores=['Tindices', 'Tparams', 'validate_indices', \
+                                'Taxis', '_class'])(new_input, attr)
     return _impl
 
 def _infer_out_shapes(inputs, params):
@@ -818,7 +818,6 @@ def _pad(name):
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
 
-
 def _transpose():
     def _impl(inputs, attr, params):
         # If perm is not specified, axes is left empty,
@@ -829,6 +828,11 @@ def _transpose():
         else:
             axes = None
         return _op.transpose(inputs[0], axes=axes)
+    return _impl
+
+def _where():
+    def _impl(inputs, attr, params):
+        return AttrCvt(op_name="where")(inputs, attr)
     return _impl
 
 def _rank():
@@ -1015,6 +1019,7 @@ _convert_map = {
     'DepthwiseConv2dNative'             : _conv('depthwise'),
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
+    'Select'                            : _where(),
     'Fill'                              : _fill(),
     'GatherV2'                          : _gather(),
     'Gather'                            : _gather(),
