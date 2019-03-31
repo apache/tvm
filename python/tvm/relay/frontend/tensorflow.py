@@ -676,6 +676,17 @@ def _gather_v2():
                                  'Taxis', '_class'])(new_input, attr)
     return _impl
 
+def _gather_v1():
+    def _impl(inputs, attr, params):
+        new_input = []
+        new_input.append(inputs.pop(0))
+        new_input.append(inputs.pop(0))
+        return AttrCvt(op_name="take",
+                       extras={'axis': tvm.const(0, 'int32')},
+                       ignores=['Tindices', 'Tparams', 'validate_indices', \
+                                'Taxis', '_class'])(new_input, attr)
+    return _impl
+
 def _infer_out_shapes(inputs, params):
     """A method to get the output shape of an intermediate node in the relay graph."""
     out_type = ir_pass.infer_type(inputs)
@@ -1003,6 +1014,7 @@ _convert_map = {
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Fill'                              : _fill(),
     'GatherV2'                          : _gather_v2(),
+    'Gather'                            : _gather_v1(),
     'StridedSlice'                      : _stridedSlice(),
     'LRN'                               : _lrn(),
     'Pad'                               : _pad('Pad'),
