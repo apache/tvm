@@ -464,6 +464,14 @@ def test_forward_embedding():
     verify((2, 2), (4, 5))
     verify((2, 3, 4), (4, 5))
 
+
+def test_forward_smooth_l1():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.smooth_l1(data)
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (3, 4))
+    mx_sym = mx.sym.smooth_l1(data, scalar=1.0)
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (3, 4))
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -498,3 +506,4 @@ if __name__ == '__main__':
     test_forward_broadcast_axis()
     test_forward_full()
     test_forward_embedding()
+    test_forward_smooth_l1()

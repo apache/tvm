@@ -217,7 +217,6 @@ def test_tuple_strided_slice():
     assert not relay.ir_pass.free_vars(zz)
     after = relay.ir_pass.infer_type(expected(dshape))
     assert relay.ir_pass.alpha_equal(zz, after)
-    print(zz.astext())
 
 
 def test_stop_fusion():
@@ -287,6 +286,81 @@ def test_fuse_myia_regression():
     assert relay.ir_pass.alpha_equal(f, after)
 
 
+def test_fuse_tuple_get_elemwise():
+    def before(dim):
+        X = relay.var("X", shape=(1, dim))
+        W = relay.var("W", shape=(3 * dim, dim))
+        matmul = relay.nn.dense(X, W)
+        splitted = relay.split(matmul, indices_or_sections=3, axis=1)
+        out = relay.sigmoid(splitted[0]) + relay.tanh(splitted[1]) * relay.exp(splitted[2])
+        return relay.Function([X, W], out)
+
+    def expected(dim):
+        p0 = relay.var("p0", shape=(1, dim))
+        p1 = relay.var("p1", shape=(3 * dim, dim))
+        matmul = relay.nn.dense(p0, p1)
+        f0 = relay.Function([p0, p1], matmul)
+
+        p01 = relay.var("p01", shape=(1, 3 * dim))
+        splitted = relay.split(p01, indices_or_sections=3, axis=1)
+        out = relay.sigmoid(splitted[0]) + relay.tanh(splitted[1]) * relay.exp(splitted[2])
+        f1 = relay.Function([p01], out)
+
+        X = relay.var("X", shape=(1, dim))
+        W = relay.var("W", shape=(3 * dim, dim))
+        y = relay.Call(f0, [X, W])
+        z = relay.Call(f1, [y])
+        return relay.Function([X, W], z)
+
+    dim = 10
+    z = before(dim)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dim))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
+def test_tuple_get_root():
+    def before(dim):
+        X = relay.var("X", shape=(1, 3 * dim))
+        W = relay.var("W", shape=(dim, dim))
+        splitted = relay.split(X, indices_or_sections=3, axis=1)
+        out = relay.nn.dense(splitted[0], W)
+        return relay.Function([X, W], out)
+
+    def expected(dim):
+        p0 = relay.var("p0", shape=(1, 3 * dim))
+        splitted = relay.split(p0, indices_or_sections=3, axis=1)
+        out = splitted[0]
+        f0 = relay.Function([p0], out)
+
+        p01 = relay.var("p01", shape=(1, dim))
+        p1 = relay.var("p1", shape=(dim, dim))
+        out = relay.nn.dense(p01, p1)
+        f1 = relay.Function([p01, p1], out)
+
+        X = relay.var("X", shape=(1, 3 * dim))
+        W = relay.var("W", shape=(dim, dim))
+        y = relay.Call(f0, [X])
+        z = relay.Call(f1, [y, W])
+        return relay.Function([X, W], z)
+
+    dim = 10
+    z = before(dim)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dim))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -295,3 +369,5 @@ if __name__ == "__main__":
     test_tuple_strided_slice()
     test_stop_fusion()
     test_fuse_myia_regression()
+    test_fuse_tuple_get_elemwise()
+    test_tuple_get_root()

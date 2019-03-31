@@ -20,30 +20,31 @@ https://mxnet.incubator.apache.org/versions/master/install/index.html
 """
 # some standard imports
 import mxnet as mx
+import numpy as np
 import nnvm
 import tvm
-import numpy as np
+from tvm.contrib.download import download_testdata
 
 ######################################################################
 # Download Resnet18 model from Gluon Model Zoo
 # ---------------------------------------------
 # In this section, we download a pretrained imagenet model and classify an image.
 from mxnet.gluon.model_zoo.vision import get_model
-from mxnet.gluon.utils import download
 from PIL import Image
 from matplotlib import pyplot as plt
 block = get_model('resnet18_v1', pretrained=True)
+img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
 img_name = 'cat.png'
 synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '4d0b62f3d01426887599d4f7ede23ee5/raw/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',
                       'imagenet1000_clsid_to_human.txt'])
-synset_name = 'synset.txt'
-download('https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true', img_name)
-download(synset_url, synset_name)
-with open(synset_name) as f:
+synset_name = 'imagenet1000_clsid_to_human.txt'
+img_path = download_testdata(img_url, img_name, module='data')
+synset_path = download_testdata(synset_url, synset_name, module='data')
+with open(synset_path) as f:
     synset = eval(f.read())
-image = Image.open(img_name).resize((224, 224))
+image = Image.open(img_path).resize((224, 224))
 plt.imshow(image)
 plt.show()
 

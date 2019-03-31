@@ -20,6 +20,10 @@ def test_basic():
     m = tvm.arith.DetectLinearEquation(b * 7, [a])
     assert m[0].value == 0
 
+    m = tvm.arith.DetectLinearEquation(b * 7, [])
+    assert len(m) == 1
+    assert tvm.ir_pass.Simplify(m[0] - b * 7).value == 0
+
 def test_multivariate():
     v = [tvm.var("v%d" % i) for i in range(4)]
     b = tvm.var("b")
@@ -41,6 +45,10 @@ def test_multivariate():
     m = tvm.arith.DetectLinearEquation((v[0] - v[1]), [v[2]])
     assert(m[0].value == 0)
     assert(tvm.ir_pass.Simplify(m[1] - (v[0] - v[1])).value == 0)
+
+    m = tvm.arith.DetectLinearEquation((v[0] - v[1]), [])
+    assert(len(m) == 1)
+    assert(tvm.ir_pass.Simplify(m[0] - (v[0] - v[1])).value == 0)
 
 if __name__ == "__main__":
     test_basic()

@@ -19,22 +19,10 @@ https://github.com/apple/coremltools
 """
 import tvm
 import tvm.relay as relay
+from tvm.contrib.download import download_testdata
 import coremltools as cm
 import numpy as np
 from PIL import Image
-
-def download(url, path, overwrite=False):
-    import os
-    if os.path.isfile(path) and not overwrite:
-        print('File {} existed, skip.'.format(path))
-        return
-    print('Downloading from url {} to {}'.format(url, path))
-    try:
-        import urllib.request
-        urllib.request.urlretrieve(url, path)
-    except:
-        import urllib
-        urllib.urlretrieve(url, path)
 
 ######################################################################
 # Load pretrained CoreML model
@@ -43,17 +31,17 @@ def download(url, path, overwrite=False):
 # provided by apple in this example
 model_url = 'https://docs-assets.developer.apple.com/coreml/models/MobileNet.mlmodel'
 model_file = 'mobilenet.mlmodel'
-download(model_url, model_file)
+model_path = download_testdata(model_url, model_file, module='coreml')
 # Now you have mobilenet.mlmodel on disk
-mlmodel = cm.models.MLModel(model_file)
+mlmodel = cm.models.MLModel(model_path)
 
 ######################################################################
 # Load a test image
 # ------------------
 # A single cat dominates the examples!
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-download(img_url, 'cat.png')
-img = Image.open('cat.png').resize((224, 224))
+img_path = download_testdata(img_url, 'cat.png', module='data')
+img = Image.open(img_path).resize((224, 224))
 x = np.transpose(img, (2, 0, 1))[np.newaxis, :]
 
 ######################################################################
@@ -94,8 +82,8 @@ synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '4d0b62f3d01426887599d4f7ede23ee5/raw/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',
                       'imagenet1000_clsid_to_human.txt'])
-synset_name = 'synset.txt'
-download(synset_url, synset_name)
-with open(synset_name) as f:
+synset_name = 'imagenet1000_clsid_to_human.txt'
+synset_path = download_testdata(synset_url, synset_name, module='data')
+with open(synset_path) as f:
     synset = eval(f.read())
 print('Top-1 id', top1, 'class name', synset[top1])
