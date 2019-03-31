@@ -175,6 +175,9 @@ class ThreadAllreduceBuilder final : public IRMutator {
     }
     std::vector<Stmt> seq;
     std::vector<Var> shared_bufs(size);
+    // This sync is necessary because there might be incomplete read of
+    // previous iteration on the same buffer.
+    seq.emplace_back(SyncThread("shared"));
     for (size_t idx = 0; idx < size; ++idx) {
       shared_bufs[idx] = Var("red_buf"+std::to_string(idx), Handle());
       Expr pred = const_true(types[idx].lanes());
