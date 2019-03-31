@@ -12,6 +12,7 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <utility>
 #include "runtime/registry.h"
 
 namespace tvm {
@@ -31,6 +32,44 @@ using ::tvm::AttrVisitor;
     }                                                             \
     using ContainerType = NodeName;                               \
   };                                                              \
+
+/*!
+ * \brief Macro to make it easy to define node ref type that
+ *  has a CopyOnWrite member function.
+ *
+ *  CopyOnWrite will generate a unique copy of the internal node.
+ *  The node will be copied if it is referenced by multiple places.
+ *  The function returns the raw pointer to the node to allow modification
+ *  of the content.
+ *
+ * \code
+ *
+ *  MyCOWNodeRef ref, ref2;
+ *  ref2 = ref;
+ *  ref.CopyOnWrite()->value = new_value;
+ *  assert(ref2->value == old_value);
+ *  assert(ref->value == new_value);
+ *
+ * \endcode
+ */
+#define TVM_DEFINE_COW_NODE_REF(TypeName, BaseType, NodeName)           \
+  class TypeName : public BaseType {                                    \
+   public:                                                              \
+    TypeName() {}                                                       \
+    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : BaseType(n) {}   \
+    const NodeName* operator->() const {                                \
+      return static_cast<const NodeName*>(node_.get());                 \
+    }                                                                   \
+    inline NodeName* CopyOnWrite() {                                    \
+      CHECK(node_ != nullptr);                                          \
+      if (!node_.unique())  {                                           \
+        NodePtr<NodeName> n = make_node<NodeName>(*(operator->()));     \
+        NodePtr<Node>(std::move(n)).swap(node_);                        \
+      }                                                                 \
+      return static_cast<NodeName*>(node_.get());                       \
+    }                                                                   \
+    using ContainerType = NodeName;                                     \
+  };
 
 
 /*!
