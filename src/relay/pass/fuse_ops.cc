@@ -715,7 +715,9 @@ class GraphPartitioner {
           // The final terminal node can already be fused to a OutEWiseFusable group.
           auto fcond = [](OpPatternKind kind, bool is_sink) {
             if (!is_sink) {
-              return kind <= kBroadcast;
+              // Elemwise, broadcast, and injective ops on the parallel branches
+              // are allowed be fused to the elemwise/broadcast master.
+              return kind <= kInjective;
             } else {
               return (kind <= kBroadcast ||
                       kind == kCommReduce ||
