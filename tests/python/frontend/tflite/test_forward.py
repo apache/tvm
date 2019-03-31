@@ -406,10 +406,9 @@ def test_forward_mobilenet_v1():
 def test_forward_mobilenet_v2():
     '''test mobilenet v2 tflite model'''
     # MobilenetV2
-    temp = util.tempdir()
     tflite_model_file = tf_testing.get_workload_official(
-        "http://storage.googleapis.com/mobilenet_v2/checkpoints/mobilenet_v2_1.0_224.tgz",
-        "mobilenet_v2_1.0_224.tflite", temp)
+        "http://download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz",
+        "mobilenet_v2_1.0_224.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
     data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
@@ -418,7 +417,6 @@ def test_forward_mobilenet_v2():
     tvm_output = run_tvm_graph(tflite_model_buf, tvm_data, 'input')
     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
                                 rtol=1e-5, atol=1e-5)
-    temp.remove()
 
 #######################################################################
 # Inception V3
