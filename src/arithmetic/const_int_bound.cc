@@ -37,6 +37,10 @@ struct ConstIntBoundAnalyzer::Entry {
   bool is_const(int64_t value) const {
     return min_value == max_value && min_value == value;
   }
+
+  bool operator==(const Entry& other) const {
+    return min_value == other.min_value && max_value == other.max_value;
+  }
 };
 
 class ConstIntBoundAnalyzer::Impl :
@@ -55,7 +59,11 @@ class ConstIntBoundAnalyzer::Impl :
               const Entry& info,
               bool override) {
     if (!override) {
-      CHECK(!var_map_.count(var));
+      auto it = var_map_.find(var);
+      if (it != var_map_.end()) {
+        CHECK(it->second == info)
+          << "var \'" << var << "\' already updated.";
+      }
     }
     var_map_[var] = info;
   }
