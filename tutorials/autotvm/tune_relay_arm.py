@@ -186,7 +186,7 @@ tuning_option = {
     'log_filename': log_file,
 
     'tuner': 'xgb',
-    'n_trial': 1000,
+    'n_trial': 1500,
     'early_stopping': 800,
 
     'measure_option': autotvm.measure_option(

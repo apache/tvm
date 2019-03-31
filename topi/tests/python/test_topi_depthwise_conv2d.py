@@ -216,7 +216,8 @@ def _transform_kernel(kernel, bn):
     out_channel = channel * channel_multiplier
     kernel = np.reshape(kernel, (out_channel//bn, bn, kh, kw))
     kernel = np.transpose(kernel, (0, 2, 3, 1))
-    return kernel
+    out_channel_chunk, kh, kw, out_channel_block = kernel.shape
+    return kernel.reshape(out_channel_chunk, 1, kh, kw, 1, out_channel_block)
 
 def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_multiplier, filter_height, stride, padding, dilation=1):
     in_width = in_height
@@ -246,7 +247,7 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
 
     # placeholder
     Input = tvm.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='Input')
-    Filter = tvm.placeholder((out_channel//oc_block, filter_height, filter_width, oc_block), name='Filter')
+    Filter = tvm.placeholder((out_channel//oc_block, 1, filter_height, filter_width, 1, oc_block), name='Filter')
     in_layout = "NCHW%dc" % ic_block
     out_layout = "NCHW%dc" % oc_block
     dtype = 'float32'
@@ -297,10 +298,12 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
 
         input_tvm = tvm.nd.array(input_np, ctx)
         filter_tvm = tvm.nd.array(filter_np, ctx)
+
         depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape),
                                                      dtype=DepthwiseConv2d.dtype), ctx)
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
         # launch kernel 1 (depthwise_conv2d)
+        print(filter_tvm.shape)
         f1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
         # launch kernel 2 (depthwise_conv2d + relu)
         f2(input_tvm, filter_tvm, relu_tvm)

@@ -70,6 +70,7 @@ class TaskExtractEnv:
             topi.nn.dense: "topi_nn_dense",
             topi.nn.bitserial_conv2d_nchw: "topi_nn_bitserial_conv2d_nchw",
             topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
+            topi.nn.deformable_conv2d_nchw: "topi_nn_deformable_conv2d_nchw",
         }
 
         self.topi_to_schedule = {
@@ -82,6 +83,7 @@ class TaskExtractEnv:
             topi.nn.dense: [topi.generic.schedule_dense],
             topi.nn.bitserial_conv2d_nchw: [topi.generic.schedule_bitserial_conv2d_nchw],
             topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
+            topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
         }
 
         self._register_tracing()
@@ -193,6 +195,15 @@ class TaskExtractEnv:
             data = args[0]
             kernel = args[1]
             return s, [data, kernel, C]
+
+        @register("topi_nn_deformable_conv2d_nchw")
+        def _topi_nn_deformable_conv2d_nchw(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            A, Offset, W = args[:3]
+            C = topi.nn.deformable_conv2d_nchw(*args, **kwargs)
+            s = topi.generic.schedule_deformable_conv2d_nchw([C])
+            return s, [A, Offset, W, C]
 
     def reset(self, wanted_topi_funcs):
         """Reset task collections

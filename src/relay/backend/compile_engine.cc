@@ -81,7 +81,16 @@ class ScheduleGetter :
     }
     readable_name_stream_ << "fused";
     cache_node->outputs = this->VisitExpr(prim_func->body);
-    cache_node->func_name = readable_name_stream_.str();
+    auto candidate_name = readable_name_stream_.str();
+    constexpr static size_t kMaxFuncNameLength = 80;
+    if (candidate_name.size() > kMaxFuncNameLength) {
+      std::stringstream truncated_name;
+      truncated_name <<  candidate_name.substr(0, kMaxFuncNameLength);
+      truncated_name << "_" << std::hash<std::string>{}(candidate_name) << "_";
+      candidate_name = truncated_name.str();
+    }
+    cache_node->func_name = candidate_name;
+
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
     // Fusion over tupled results may leave identity relationships

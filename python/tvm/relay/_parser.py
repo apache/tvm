@@ -512,6 +512,9 @@ __source_name_counter__ = 0
 def fromtext(data, source_name=None):
     # type: (str, str) -> Union[expr.Expr, module.Module]
     """Parse a Relay program."""
+    if data == "":
+        raise ParseError("Cannot parse the empty string.")
+
     global __source_name_counter__
 
     if source_name is None:

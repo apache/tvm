@@ -78,7 +78,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
   Expr Mutate_(const Load* op, const Expr& e) final {
     auto it = load_remap_.find(op->buffer_var.get());
     if (it != load_remap_.end()) {
-      CHECK(is_zero(op->index));
+      CHECK(is_zero(op->index)) << e;
       return it->second;
     } else {
       return IRMutator::Mutate_(op, e);

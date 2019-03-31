@@ -8,6 +8,7 @@ from .conv2d_hwcn_python import conv2d_hwcn_python
 from .conv2d_nchw_python import conv2d_nchw_python
 from .conv2d_nhwc_python import conv2d_nhwc_python
 from .conv2d_transpose_nchw_python import conv2d_transpose_nchw_python
+from .deformable_conv2d_nchw_python import deformable_conv2d_nchw_python
 from .depthwise_conv2d_python import depthwise_conv2d_python_nchw, depthwise_conv2d_python_nhwc
 from .dilate_python import dilate_python
 from .softmax_python import softmax_python, log_softmax_python

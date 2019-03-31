@@ -218,8 +218,42 @@ class RewriteSimplifier {
  private:
   friend class Analyzer;
   friend class ConstraintContext;
+  friend class CanonicalSimplifier;
   explicit RewriteSimplifier(Analyzer* parent);
   ~RewriteSimplifier();
+  class Impl;
+  /*! \brief Internal impl */
+  Impl* impl_;
+};
+
+/*!
+ * \brief Canonical-form based simplifier.
+ */
+class CanonicalSimplifier {
+ public:
+  /*!
+   * \brief analyze the expr
+   * \param expr The expression of interest.
+   * \return the result of the analysis.
+   */
+  Expr operator()(const Expr& expr);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_expr
+   * \param override Whether do we allow override of existing information.
+   */
+  void Update(const Var& var,
+              const Expr& new_expr,
+              bool override = false);
+
+ private:
+  friend class Analyzer;
+  friend class ConstraintContext;
+  explicit CanonicalSimplifier(Analyzer* parent);
+  ~CanonicalSimplifier();
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -277,6 +311,8 @@ class Analyzer {
   ModularSetAnalyzer modular_set;
   /*! \brief sub-analyzer rewrite simplfy */
   RewriteSimplifier rewrite_simplify;
+  /*! \brief sub-analyzer rewrite simplfy */
+  CanonicalSimplifier canonical_simplify;
   /*! \brief constructor */
   Analyzer();
   /*!

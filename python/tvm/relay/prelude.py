@@ -29,7 +29,6 @@ class Prelude:
         x = Var("x", self.l(a))
         y = Var("y")
         z = Var("z")
-        # Don't match nil() since it will break type checking
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), y)
         self.mod[self.hd] = Function([x], Match(x, [cons_case]), a, [a])
 
@@ -43,9 +42,8 @@ class Prelude:
         x = Var("x", self.l(a))
         y = Var("y")
         z = Var("z")
-        nil_case = Clause(PatternConstructor(self.nil, []), self.nil())
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), z)
-        self.mod[self.tl] = Function([x], Match(x, [nil_case, cons_case]), self.l(a), [a])
+        self.mod[self.tl] = Function([x], Match(x, [cons_case]), self.l(a), [a])
 
     def define_list_nth(self):
         """Defines a function to get the nth element of a list.
@@ -61,6 +59,25 @@ class Prelude:
         z_case = Clause(PatternConstructor(self.z), self.hd(x))
         s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]), self.nth(self.tl(x), y))
         self.mod[self.nth] = Function([x, n], Match(n, [z_case, s_case]), a, [a])
+
+    def define_list_update(self):
+        """Defines a function to update the nth element of a list and return the updated list.
+
+        update(l, i, v) : list[a] -> nat -> a -> list[a]
+        """
+        self.update = GlobalVar("update")
+        a = TypeVar("a")
+        l = Var("l", self.l(a))
+        n = Var("n", self.nat())
+        v = Var("v", a)
+
+        y = Var("y")
+
+        z_case = Clause(PatternConstructor(self.z), self.cons(v, self.tl(l)))
+        s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]),
+                        self.cons(self.hd(l), self.update(self.tl(l), y, v)))
+
+        self.mod[self.update] = Function([l, n, v], Match(n, [z_case, s_case]), self.l(a), [a])
 
     def define_list_map(self):
         """Defines a function for mapping a function over a list's
@@ -470,6 +487,7 @@ class Prelude:
         self.define_nat_add()
         self.define_list_length()
         self.define_list_nth()
+        self.define_list_update()
         self.define_list_sum()
 
         self.define_tree_adt()

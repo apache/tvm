@@ -10,7 +10,8 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
 
-def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False):
+def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,
+        devices=['cuda', 'llvm -device=arm_cpu', 'opencl -device=mali']):
     print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
 
     in_height = in_width = in_size
@@ -67,7 +68,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
 
-    for device in ['cuda', 'llvm -device=arm_cpu', 'opencl -device=mali']:
+    for device in devices:
         check_device(device)
 
 

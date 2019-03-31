@@ -3,10 +3,12 @@
 from __future__ import absolute_import as _abs
 
 import json
+import tvm
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
 from ... import nd as _nd
+
 from .common import StrAttrsDict
 from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
 from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
@@ -41,7 +43,8 @@ def _get_channel_axis(layout, op_name):
         return 1
     if layout == "NHWC":
         return 3
-    raise RuntimeError("layout: {} is not supported in {}".format(layout, op_name))
+    raise tvm.error.OpAttributeInvalid(
+        'Value {} in attribute "layout" of operator {} is not valid.'.format(layout, op_name))
 
 
 def _mx_activations(inputs, attrs):
@@ -61,7 +64,8 @@ def _mx_activations(inputs, attrs):
             return _op.add(_op.log(_op.add(one, exp_neg_abs_x)),
                            _op.nn.relu(x))
         return _stable_softrelu(inputs[0])
-    raise RuntimeError("Do not support act_type: {}".format(act_type))
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported for frontend MXNet.'.format(act_type))
 
 
 def _mx_compare(new_op, wrapper):
@@ -74,7 +78,8 @@ def _mx_compare(new_op, wrapper):
 def _mx_conv2d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
-        raise RuntimeError("non-2d kernel is not supported in conv2d")
+        raise tvm.error.OpAttributeInvalid(
+            'Non-2D kernels are not supported for operator Conv2D.')
     data_layout = attrs.get_str("layout", "NCHW")
     channel_axis = _get_channel_axis(data_layout, "conv2d")
 
@@ -102,10 +107,12 @@ def _mx_conv2d(inputs, attrs):
 
 def _mx_conv2d_transpose(inputs, attrs):
     if "target_shape" in attrs.attrs:
-        raise RuntimeError("target_shape is not supported in conv2d_transpose")
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "target_shape" is not supported for operator Conv2D-transpose.')
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
-        raise RuntimeError("non-2d kernel is not supported in conv2d")
+        raise tvm.error.OpAttributeInvalid(
+            'Non-2D kernels are not supported for operator Conv2D-transpose.')
     data_layout = attrs.get_str("layout", "NCHW")
     channel_axis = _get_channel_axis(data_layout, "conv2d_transpose")
 
@@ -140,7 +147,8 @@ def _mx_pooling(inputs, attrs):
     def _pool2d(new_op, is_avg):
         kernel_size = attrs.get_int_tuple("kernel")
         if len(kernel_size) != 2:
-            raise RuntimeError("non-2d kernel is not supported in pool2d")
+            raise tvm.error.OpAttributeInvalid(
+                'Only 2D kernels are supported for operator Pool2D.')
         new_attrs = {}
         new_attrs["pool_size"] = kernel_size
         new_attrs["strides"] = attrs.get_int_tuple("stride", (1, 1))
@@ -158,7 +166,8 @@ def _mx_pooling(inputs, attrs):
         if global_pool:
             return _op.nn.global_avg_pool2d(inputs[0])
         return _pool2d(_op.nn.avg_pool2d, True)
-    raise RuntimeError("Do not support pool_type:{}".format(pool_type))
+    raise tvm.error.OpNotImplemented(
+        'Operator {} Pooling is not supported for frontend MXNet.'.format(pool_type.capitalize()))
 
 
 def _mx_dropout(inputs, attrs):
@@ -172,7 +181,8 @@ def _mx_BlockGrad(inputs, attrs): #pylint: disable=unused-argument
 
 def _mx_batch_norm(inputs, attrs):
     if attrs.get_bool("output_mean_var", False):
-        raise RuntimeError("batch_norm do not support output_mean_var")
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "output_mean_var" is not supported for operator Batch Norm.')
     if attrs.get_bool("use_global_stats", False):
         _warn_not_used("use_global_stats", "batch_norm")
     new_attrs = {}
@@ -188,10 +198,18 @@ def _mx_slice(inputs, attrs):
     begin = attrs.get_int_tuple('begin', None)
     end = attrs.get_int_tuple('end', None)
     stride = attrs.get_int_tuple('step', None)
-    if begin is None or end is None:
-        raise RuntimeError("begin and end are required parameters.")
-    if None in begin or None in end:
-        raise RuntimeError("None in begin or end is not supported yet.")
+    if begin is None:
+        raise tvm.error.OpAttributeRequired(
+            'Attribute "begin" not found in operator Slice.')
+    if end is None:
+        raise tvm.error.OpAttributeRequired(
+            'Attribute "end" not found in operator Slice.')
+    if None in begin:
+        raise tvm.error.OpAttributeInvalid(
+            'Value None in attribute "begin" of operator Slice is not valid.')
+    if None in end:
+        raise tvm.error.OpAttributeInvalid(
+            'Value None in attribute "end" of operator Slice is not valid.')
     new_attrs = {'begin': begin, 'end': end}
     if stride is not None:
         new_attrs['strides'] = stride
@@ -213,7 +231,7 @@ def _mx_slice_axis(inputs, attrs):
     ax_end = attrs.get_str("end")
     if axis < 0:
         axis += len(shape)
-    assert axis >= 0 and axis < len(shape)
+    assert 0 <= axis < len(shape)
     if ax_end == "None":
         ax_end = int(shape[axis])
     else:
@@ -222,8 +240,8 @@ def _mx_slice_axis(inputs, attrs):
         ax_beg += int(shape[axis])
     if ax_end < 0:
         ax_end += int(shape[axis])
-    assert ax_beg >= 0 and ax_beg < int(shape[axis])
-    assert ax_end > ax_beg and ax_end <= int(shape[axis])
+    assert 0 <= ax_beg < int(shape[axis])
+    assert ax_beg < ax_end <= int(shape[axis])
     begin = []
     end = []
     for i, dim in enumerate(shape):
@@ -295,7 +313,8 @@ def _mx_leaky_relu(inputs, attrs):
         upper_bound = attrs.get_float("upper_bound")
         alpha = (lower_bound + upper_bound) / 2.0
         return _op.nn.leaky_relu(inputs[0], alpha=alpha)
-    raise RuntimeError("act_type: {} is not supported".format(act_type))
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported for frontend MXNet.'.format(act_type))
 
 
 def _mx_make_power(power):
@@ -389,7 +408,9 @@ def _mx_batch_dot(inputs, attrs):
     transpose_a = attrs.get_bool("transpose_a", False)
     transpose_b = attrs.get_bool("transpose_b", False)
     if transpose_a is True:
-        raise RuntimeError("batch_dot: only support transpose_a=False")
+        msg = 'Value {} in attribute "transpose_a" of operator batch_dot ' \
+              'is not valid.'
+        raise tvm.error.OpAttributeInvalid(msg.format(transpose_a))
     if transpose_b is False:
         b = _op.transpose(b, axes=[0, 2, 1])
     return _op.batch_matmul(a, b)
@@ -398,7 +419,8 @@ def _mx_batch_dot(inputs, attrs):
 def _mx_arange(inputs, attrs):
     assert len(inputs) == 0
     if attrs.get_int("repeat", 1) != 1:
-        raise RuntimeError("arange doesn't support repeat")
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "repeat" is not supported in operator arange.')
     new_attrs = {}
     new_attrs["start"] = attrs.get_float("start", 0)
     new_attrs["stop"] = attrs.get_float("stop")
@@ -482,15 +504,20 @@ def _mx_box_nms(inputs, attrs):
     in_format = attrs.get_str('in_format', 'corner')
     out_format = attrs.get_str('out_format', 'corner')
     if coord_start != 2:
-        raise RuntimeError('coord_start %s is not supported.' % coord_start)
+        raise tvm.error.OpAttributeInvalid(
+            'Value of attribute "coord_start" must equal 2 for operator box_nms.')
     if score_index != 1:
-        raise RuntimeError('score_index %s is not supported.' % score_index)
+        raise tvm.error.OpAttributeInvalid(
+            'Value of attribute "score_index" must equal 1 for operator box_nms.')
     if id_index != -1 and int(id_index) != 0:
-        raise RuntimeError('id_index %s is not supported.' % id_index)
+        raise tvm.error.OpAttributeInvalid(
+            'Value of attribute "id_index" must equal either -1 or 0 for operator box_nms.')
     if in_format != 'corner':
-        raise RuntimeError('in_format %s is not supported.' % in_format)
+        raise tvm.error.OpAttributeInvalid(
+            'Value of attribute "in_format" must equal "corner" for operator box_nms.')
     if out_format != 'corner':
-        raise RuntimeError('out_format %s is not supported.' % out_format)
+        raise tvm.error.OpAttributeInvalid(
+            'Value of attribute "out_format" must equal "corner" for operator box_nms.')
 
     ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
     nms_out = _op.vision.non_max_suppression(ret[1],
@@ -508,7 +535,8 @@ def _mx_l2_normalize(inputs, attrs):
     new_attrs = {}
     mode = attrs.get_str('mode', 'instance')
     if mode != 'channel':
-        raise RuntimeError('mode %s is not supported.' % mode)
+        raise tvm.error.OpAttributeInvalid(
+            'Value of attribute "mode" must equal "channel" for operator l2_normalize.')
     new_attrs['eps'] = attrs.get_float('eps', 1e-10)
     new_attrs['axis'] = [1]
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
@@ -527,11 +555,81 @@ def _mx_shape_array(inputs, attrs):
     return _op.shape_of(inputs[0], dtype='int64')
 
 
+def _mx_full(inputs, attrs):
+    assert len(inputs) == 0
+    val = attrs.get_float("value")
+    shape = attrs.get_int_tuple("shape")
+    dtype = attrs.get_str("dtype", "float32")
+    return _op.full(_expr.const(val, dtype), shape, dtype)
+
+
+def _mx_squeeze(inputs, attrs):
+    assert len(inputs) == 1
+    axis = attrs.get_int_tuple("axis", None)
+    return _op.squeeze(inputs[0], axis)
+
+
+def _mx_broadcast_axis(inputs, attrs):
+    assert len(inputs) == 1
+    axis = attrs.get_int_tuple("axis", [])
+    size = attrs.get_int_tuple("size", [])
+    assert len(axis) == len(size)
+    if len(axis) == 0:
+        return inputs[0]
+    src_shape = ir_pass.infer_type(inputs[0])._checked_type_.shape
+    tgt_shape = []
+    for i, dim in enumerate(src_shape):
+        if i not in axis:
+            tgt_shape.append(dim)
+        else:
+            assert int(dim) == 1
+            idx = axis.index(i)
+            tgt_shape.append(size[idx])
+    return _op.broadcast_to(inputs[0], tgt_shape)
+
+
+def _mx_embedding(inputs, _):
+    assert len(inputs) == 2
+    indices, weight = inputs
+    return _op.take(weight, indices.astype('int32'), axis=0)
+
+
+def _mx_smooth_l1(inputs, attrs):
+    scalar = attrs.get_float("scalar", 1.0)
+    scalar_sq = scalar * scalar
+    mask = _op.less(inputs[0], _expr.const(1.0 / scalar_sq, dtype='float32'))
+    return _op.where(mask,
+                     _expr.const(scalar_sq / 2.0, dtype='float32') * inputs[0] * inputs[0],
+                     _op.abs(inputs[0]) - _expr.const(0.5 / scalar_sq))
+
+
+def _mx_deformable_convolution(inputs, attrs):
+    new_attrs = {}
+    assert attrs.get_bool("no_bias")
+    new_attrs["kernel_size"] = attrs.get_int_tuple("kernel")
+    new_attrs["strides"] = attrs.get_int_tuple("stride")
+    new_attrs["padding"] = attrs.get_int_tuple("pad")
+    new_attrs["dilation"] = attrs.get_int_tuple("dilate")
+    new_attrs["channels"] = attrs.get_int("num_filter")
+    new_attrs["deformable_groups"] = attrs.get_int("num_deformable_group", 1)
+    new_attrs["groups"] = attrs.get_int("num_group", 1)
+    assert attrs.get_str("layout", "NCHW") == "NCHW", "Deformable conv2d only supports NCHW layout"
+    use_bias = not attrs.get_bool("no_bias", False)
+    res = _op.nn.deformable_conv2d(inputs[0], inputs[1], inputs[2], **new_attrs)
+    if use_bias:
+        assert len(inputs) == 4
+        res = _op.nn.bias_add(res, inputs[3])
+    return res
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
     "log",
     "exp",
+    "sqrt",
+    "floor",
+    "ceil",
     "sigmoid",
     "tanh",
     "negative",
@@ -567,7 +665,6 @@ _convert_map = {
     "Flatten"                : _rename(_op.nn.batch_flatten),
     # scalar power
     "square"                 : _mx_make_power(2),
-    "sqrt"                   : _mx_make_power(1/2),
     "rsqrt"                  : _mx_make_power(-1/2),
     "cbrt"                   : _mx_make_power(1/3),
     "rcbrt"                  : _mx_make_power(-1/3),
@@ -649,13 +746,18 @@ _convert_map = {
     "batch_dot"     : _mx_batch_dot,
     "LeakyReLU"     : _mx_leaky_relu,
     "_arange"       : _mx_arange,
+    "_full"         : _mx_full,
     "repeat"        : _mx_repeat,
     "tile"          : _mx_tile,
     "reverse"       : _mx_reverse,
+    "squeeze"       : _mx_squeeze,
+    "broadcast_axis": _mx_broadcast_axis,
     "BlockGrad"     : _mx_BlockGrad,
     "shape_array"   : _mx_shape_array,
+    "Embedding"     : _mx_embedding,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
+    "smooth_l1"     : _mx_smooth_l1,
     # vision
     "_contrib_BilinearResize2D" : _mx_upsampling,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
@@ -665,6 +767,7 @@ _convert_map = {
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
+    "_contrib_DeformableConvolution" : _mx_deformable_convolution,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
@@ -726,7 +829,8 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
                 raise RuntimeError("unexpected type %s" % type(res))
             node_map[nid] = res
         else:
-            raise RuntimeError("{} is not supported in relay frontend".format(op_name))
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported in frontend MXNet.'.format(op_name))
 
     outputs = [node_map[e[0]][e[1]] for e in jgraph["heads"]]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)

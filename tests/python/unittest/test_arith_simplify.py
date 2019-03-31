@@ -21,7 +21,6 @@ def test_simplify():
     assert zz.a == x and zz.b.value == 4
 
     n = tvm.var('n')
-    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n % (-1)), tvm.const(0, "int32"))
     assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n % 1), tvm.const(0, "int32"))
     assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n / 1), n)
     tvm.ir_pass.CanonicalSimplify(n / (-1))
@@ -29,36 +28,16 @@ def test_simplify():
     #  assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n / (-1)),
     #                           tvm.ir_pass.CanonicalSimplify(-n))
 
-def test_simplify_div():
-    x = tvm.var('x')
-    assert tvm.ir_pass.CanonicalSimplify((16+48*x)/16 - (1 + (x*3))).value == 0
-    # (17+48*x)/16 is not simplifiable for arbitrary x because when 17+48*x<0
-    # (17+48*x)/16 != 1+3*x
-    r = tvm.ir_pass.CanonicalSimplify((17+48*x)/16)
-    assert r.b.value == 16
-    assert tvm.ir_pass.CanonicalSimplify(r.a - (17 + 48*x)).value == 0
-    # However, when x >= 0, then 17+48*x >= 0 and (17+48*x)/16 can be simplified
-    assert tvm.ir_pass.CanonicalSimplify((17+48*x)/16 - (1 + (x*3)), {x: tvm.Range(0,10)}).value == 0
-
-    # Trying expressions that are not simplifiable for any values of the variables
-    r = tvm.ir_pass.CanonicalSimplify((17+47*x)/16, {x: tvm.Range(0,10)})
-    assert r.b.value == 16
-    assert tvm.ir_pass.CanonicalSimplify(r.a - (17+47*x)).value == 0
-
-    r = tvm.ir_pass.CanonicalSimplify((8*x - 17)/8, {x : tvm.Range(4,10)})
-    assert tvm.ir_pass.CanonicalSimplify(r - (x-3)).value == 0
-
 def test_simplify_mod():
-    """Not yet working, mock design"""
     ib = tvm.ir_builder.create()
     n = tvm.var('n')
-    j = tvm.var('j')
     A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 16, name="i") as i:
-        A[i] = A[((n * 4 + j * 2) * 8 + i+1) % 16]
+    with ib.for_range(0, 10, name="j") as j:
+        with ib.for_range(0, 16, name="i") as i:
+            A[i] = A[(j * 32 + i+1) % 16]
     body = ib.get()
     stmt = tvm.ir_pass.CanonicalSimplify(body)
-    diff = tvm.ir_pass.CanonicalSimplify(stmt.body.value.index - (1 + i) % 16)
+    diff = tvm.ir_pass.CanonicalSimplify(stmt.body.body.value.index - (1 + i) % 16)
     assert diff.value == 0
     # if we can't prove that j+n*32 is non-negative, we can't prove that (j+n*32) % 16 is j%16
     index = tvm.ir_pass.CanonicalSimplify(
@@ -95,8 +74,8 @@ def test_modular():
             y: tvm.Range(i32_const(0), i32_const(2)),
             x: tvm.Range(i32_const(0), i32_const(14))}
     idx = ry * 16 + rx + y * 16 + x
-    z1 = tvm.ir_pass.CanonicalSimplify(idx // 16, vmap)
     z2 = tvm.ir_pass.CanonicalSimplify(idx % 16, vmap)
+    z1 = tvm.ir_pass.CanonicalSimplify(idx // 16, vmap)
     assert tvm.ir_pass.CanonicalSimplify(z1 - (ry + y)).value == 0
     assert tvm.ir_pass.CanonicalSimplify(z2 - (rx + x)).value == 0
 
@@ -117,10 +96,9 @@ def test_const_propagation():
 
 
 if __name__ == "__main__":
-    test_simplify_div()
-    test_simplify_mod()
     test_modular()
     test_simplify()
     test_mul()
     test_simplify_minmax()
     test_const_propagation()
+    test_simplify_mod()
