@@ -11,14 +11,6 @@ from ..nn.util import get_pad_tuple
 from ..util import get_const_int, get_const_tuple
 from .. import generic
 
-@autotvm.task.register("topi_nn_bitserial_conv2d_nhwc")
-def _topi_bitserial_conv2d(*args, **kwargs):
-    args = deserialize_args(args)
-    C = bitserial_conv2d_nhwc(*args, **kwargs)
-    s = generic.nn.schedule_bitserial_conv2d_nhwc([C])
-    data, kernel = args[:2]
-    return s, [data, kernel, C]
-
 def _kernel_vec_spatial_pack_nhwc(kernel, kernel_bits, VC, use_bitpack=True):
     if use_bitpack:
         kernel_q = bitpack(kernel, kernel_bits, pack_axis=2, bit_axis=2, pack_type='uint8')
@@ -79,7 +71,6 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weigh
                               filter=lambda x: x.size[-1] >= 2)
     ow, vw = cfg.define_split('tile_ow', ow, policy='all', num_outputs=2,
                               filter=lambda x: x.size[-1] >= 2)
-    # cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
     ci_o, ci_i = cfg.define_split("tile_ci", ci, num_outputs=2,
                                   filter=lambda x: x.size[-1] == 8 or x.size[-1] == 16)
     re_axes = cfg.define_reorder("reorder_0",

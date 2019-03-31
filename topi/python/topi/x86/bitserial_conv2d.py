@@ -7,26 +7,8 @@ from topi.util import get_const_int
 from .. import generic, tag
 from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc, bitserial_conv2d_nchw
 
-@autotvm.task.register("topi_x86_bitserial_conv_nhwc")
-def topi_bitserial_conv2d_nhwc(*args, **kwargs):
-    args = deserialize_args(args)
-    C = bitserial_conv2d_nhwc(*args, **kwargs)
-    s = generic.nn.schedule_bitserial_conv2d_nhwc([C])
-    data = args[0]
-    kernel = args[1]
-    return s, [data, kernel, C]
-
-@autotvm.task.register("topi_arm_cpu_bitserial_conv_nchw")
-@autotvm.task.register("topi_x86_bitserial_conv_nchw")
-def topi_bitserial_conv2d_nchw(*args, **kwargs):
-    args = deserialize_args(args)
-    C = bitserial_conv2d_nchw(*args, **kwargs)
-    s = generic.nn.schedule_bitserial_conv2d_nchw([C])
-    data = args[0]
-    kernel = args[1]
-    return s, [data, kernel, C]
-
 @autotvm.register_topi_schedule(generic.nn.schedule_bitserial_conv2d_nchw, ['cpu'], 'direct')
+@autotvm.register_topi_schedule(generic.nn.schedule_bitserial_conv2d_nhwc, ['cpu'], 'direct')
 def schedule_bitserial_conv2d(cfg, outs):
     """CPU schedule for bitserial convolutions NCHW and NHWC"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -76,6 +58,7 @@ def schedule_bitserial_conv2d(cfg, outs):
 def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
                                     kernel_q, kernel_vec,
                                     conv_out, output, last):
+    print ("Schedule bitserial conv2d nchw")
     IB, _, CI, IH, IW = data_q.shape
     KB, CO, _, KH, KW = kernel_q.shape
     _, _, OH, OW = output.shape
@@ -175,6 +158,7 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
 def _schedule_bitserial_conv2d_nhwc(cfg, s, data_q, data_pad, data_vec,
                                     kernel_q, kernel_vec,
                                     conv_out, output, last):
+    print ("Schedule bitserial conv2d nhwc x86")
     # no stride and padding info here
     _, IH, IW, CI, IB = data_q.shape
     KH, KW, _, CO, KB = kernel_q.shape
