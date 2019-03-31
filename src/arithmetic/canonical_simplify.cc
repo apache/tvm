@@ -407,7 +407,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \param coeff The co-efficient.
    * \param out_divisible The result divisible component.
    * \param out_non_divisible The non-divisible component.
-   * \return Whetjer detection is successful.
+   * \return Whether detection is successful.
    */
   bool TryLinearEquation(const SumExprNode* psum,
                          int64_t coeff,

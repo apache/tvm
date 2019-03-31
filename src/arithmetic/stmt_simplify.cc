@@ -36,10 +36,10 @@ class StmtSimplifier : public IRMutator {
       ConstraintContext ctx(&analyzer_, Mutate(Not::make(condition)));
       else_case = this->Mutate(op->else_case);
     }
-    if (is_one(condition)) return op->then_case;
+    if (is_one(condition)) return then_case;
     if (is_zero(condition)) {
-      if (op->else_case.defined()) {
-        return op->else_case;
+      if (else_case.defined()) {
+        return else_case;
       }
       return Evaluate::make(0);
     }
