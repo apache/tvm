@@ -719,6 +719,7 @@ class GraphPartitioner {
             } else {
               return (kind <= kBroadcast ||
                       kind == kCommReduce ||
+                      kind == kInjective ||
                       kind == kOutEWiseFusable);
             }
           };

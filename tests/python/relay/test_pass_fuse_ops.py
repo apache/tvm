@@ -23,13 +23,15 @@ def test_fuse_simple():
         x = relay.var("x", shape=(10, 20))
         y = relay.add(x, relay.const(1, "float32"))
         z = relay.exp(y)
-        return relay.Function([x], z)
+        w = relay.squeeze(z)
+        return relay.Function([x], w)
 
     def expected():
         x = relay.var("p", shape=(10, 20))
         y = relay.add(x, relay.const(1, "float32"))
         z = relay.exp(y)
-        f1 = relay.Function([x], z)
+        w = relay.squeeze(z)
+        f1 = relay.Function([x], w)
         x = relay.var("x", shape=(10, 20))
         y = relay.Call(f1, [x])
         return relay.Function([x], y)
