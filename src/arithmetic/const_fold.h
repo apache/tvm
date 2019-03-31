@@ -7,6 +7,8 @@
 #define TVM_ARITHMETIC_CONST_FOLD_H_
 
 #include <tvm/ir.h>
+#include <tvm/ir_mutator.h>
+#include <tvm/expr_operator.h>
 #include <algorithm>
 
 namespace tvm {
