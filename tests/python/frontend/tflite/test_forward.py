@@ -11,6 +11,7 @@ from tvm import relay
 from tvm.contrib import util
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
+from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import variables
@@ -99,7 +100,7 @@ def run_tflite_graph(tflite_model_buf, input_data):
 
 
 def compare_tflite_with_tvm(tflite_in_data, tvm_in_data, in_name, input_tensors,
-                            output_tensors, output_need_transpose_nchw=False,
+                            output_tensors, output_need_transpose=False,
                             init_global_variables=False):
     """Generic function to generate and compare TFLite and TVM output"""
     tflite_in_data = convert_to_list(tflite_in_data)
@@ -126,9 +127,19 @@ def compare_tflite_with_tvm(tflite_in_data, tvm_in_data, in_name, input_tensors,
 
             tvm_output = run_tvm_graph(tflite_model_buffer, tvm_in_data, in_node, target=device)
             for i in range(len(tflite_output)):
-                if output_need_transpose_nchw:
+                if output_need_transpose:
+                    dim = len(tvm_output[i].shape)
+                    if dim == 3:
+                        # N C H*W to N H*W C
+                        axes = (0, 2, 1)
+                    elif dim == 4:
+                        # N C H W to N H W C
+                        axes = (0, 2, 3, 1)
+                    else:
+                        raise NotImplementedError("Not support input shape {} of transpose : ".
+                                                  format(str(dim)))
                     tvm.testing.assert_allclose(tflite_output[i],
-                                                np.transpose(tvm_output[i], axes=(0, 2, 3, 1)),
+                                                np.transpose(tvm_output[i], axes=axes),
                                                 atol=1e-5, rtol=1e-5)
                 else:
                     tvm.testing.assert_allclose(tflite_output[i], tvm_output[i],
@@ -152,7 +163,7 @@ def _test_pooling_iteration(input_shape, **kwargs):
         out = nn_ops.pool(in_data, **kwargs)
 
         compare_tflite_with_tvm(x, tvm_data, 'Placeholder:0', [in_data], [out],
-                                output_need_transpose_nchw=True)
+                                output_need_transpose=True)
 
 
 def _test_pooling(input_shape, **kwargs):
@@ -236,7 +247,7 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
         # TFLite output is NHWC, TVM is NCHW, we need transpose
         compare_tflite_with_tvm(tflite_data_array, tvm_data_array,
                                 'Placeholder:0', [in_data], [out],
-                                output_need_transpose_nchw=True)
+                                output_need_transpose=True)
 
 
 def test_forward_convolution():
@@ -328,6 +339,44 @@ def test_forward_concatenation():
         [np.arange(6).reshape((2, 1, 1, 3)),
          np.arange(6).reshape((2, 1, 1, 3)),
          np.arange(6).reshape((2, 1, 1, 3))], 1)
+
+
+#######################################################################
+# Add
+# -------
+
+def _test_add(data):
+    """ One iteration of add """
+
+    assert len(data) == 2
+    need_transpose = False
+    if len(data[0].shape) == 1 or len(data[0].shape) == 2:
+        tvm_data = data
+    elif len(data[0].shape) == 3:
+        need_transpose = True
+        tvm_data = [np.transpose(d, axes=(0, 2, 1)) for d in data]
+    elif len(data[0].shape) == 4:
+        need_transpose = True
+        tvm_data = [np.transpose(d, axes=(0, 3, 1, 2)) for d in data]
+    else:
+        raise NotImplementedError("Not support input shape {} of add : ".
+                                  format(str(len(data.shape))))
+
+    with tf.Graph().as_default():
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in_0'),
+                   array_ops.placeholder(shape=data[1].shape, dtype=data[1].dtype, name='in_1')]
+        out = math_ops.add(in_data[0], in_data[1])
+        compare_tflite_with_tvm(data, tvm_data, ['in_0:0','in_1:0'],
+                                in_data, [out], need_transpose)
+
+def test_forward_add():
+    """ Add """
+    _test_add([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+               np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3))])
+    _test_add([np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)),
+               np.arange(6.0, dtype=np.float32).reshape((2, 1, 3))])
+    _test_add([np.arange(3.0, dtype=np.float32).reshape((1, 3)),
+               np.arange(3.0, dtype=np.float32).reshape((1, 3))])
 
 
 #######################################################################
@@ -450,6 +499,9 @@ if __name__ == '__main__':
     test_forward_convolution()
     test_forward_pooling()
     test_forward_softmax()
+
+    # Math
+    test_forward_add()
 
     # End to End
     test_forward_mobilenet_v1()
