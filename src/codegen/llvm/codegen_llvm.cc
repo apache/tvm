@@ -4,9 +4,11 @@
  */
 #ifdef TVM_LLVM_VERSION
 // Part of the code are adapted from Halide's CodeGen_LLVM
-
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
+
+#include <algorithm>
+
 #include "codegen_llvm.h"
 #include "codegen_cpu.h"
 #include "../../pass/ir_util.h"
@@ -410,12 +412,16 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
 llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent) {
   int num_elems = static_cast<int>(vec->getType()->getVectorNumElements());
   if (extent == num_elems && begin == 0) return vec;
-  CHECK_LE(begin + extent, num_elems);
-  std::vector<unsigned> indices;
+  std::vector<llvm::Constant*> indices;
+  indices.reserve(extent);
   for (int i = 0; i < extent; ++i) {
-    indices.push_back(begin + i);
+    if (begin + i >= 0 && begin + i < num_elems) {
+      indices.push_back(llvm::ConstantInt::get(t_int32_, begin + i));
+    } else {
+      indices.push_back(llvm::UndefValue::get(t_int32_));
+    }
   }
-  return builder_->CreateShuffleVector(vec, vec, indices);
+  return builder_->CreateShuffleVector(vec, vec, llvm::ConstantVector::get(indices));
 }
 
 llvm::Value* CodeGenLLVM::CreateVecFlip(llvm::Value* vec) {
@@ -446,24 +452,31 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
         v->getType()->getVectorNumElements());
   }
   while (vecs.size() > 1) {
-    for (size_t i = 0; i < vecs.size(); i+=2) {
-      if (i + 1 >= vecs.size()) {
-        vecs[i / 2] = vecs[i]; continue;
-      }
+    std::vector<llvm::Value*> new_vecs;
+    for (size_t i = 0; i < vecs.size() - 1; i += 2) {
       llvm::Value* lhs = vecs[i];
       llvm::Value* rhs = vecs[i + 1];
-      int lanes = static_cast<int>(std::max(
-          lhs->getType()->getVectorNumElements(),
-          rhs->getType()->getVectorNumElements()));
-      lhs = CreateVecPad(lhs, lanes);
-      rhs = CreateVecPad(lhs, lanes);
+      const size_t lhs_lanes = lhs->getType()->getVectorNumElements();
+      const size_t rhs_lanes = rhs->getType()->getVectorNumElements();
+      if (lhs_lanes < rhs_lanes) {
+        lhs = CreateVecPad(lhs, rhs_lanes);
+      } else if (rhs_lanes < lhs_lanes) {
+        rhs = CreateVecPad(rhs, lhs_lanes);
+      }
+      const size_t shared_lanes = std::max(lhs_lanes, rhs_lanes);
       std::vector<unsigned> mask;
-      for (int i = 0; i < lanes * 2; ++i) {
+      for (size_t i = 0; i < lhs_lanes; ++i) {
         mask.push_back(i);
       }
-      vecs[i / 2] = builder_->CreateShuffleVector(lhs, rhs, mask);
+      for (size_t i = 0; i < rhs_lanes; ++i) {
+        mask.push_back(shared_lanes + i);
+      }
+      new_vecs.push_back(builder_->CreateShuffleVector(lhs, rhs, mask));
     }
-    vecs.resize((vecs.size() + 1) / 2);
+    if (vecs.size() % 2 != 0) {
+      new_vecs.push_back(vecs.back());
+    }
+    vecs.swap(new_vecs);
   }
   return CreateVecSlice(vecs[0], 0, total_lanes);
 }
