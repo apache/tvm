@@ -222,7 +222,7 @@ def rsqrt(x):
     y : tvm.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: 1/tvm.sqrt(x(*i)))
+    return tvm.compute(x.shape, lambda *i: tvm.rsqrt(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)

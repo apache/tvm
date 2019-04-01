@@ -19,6 +19,7 @@ List of operators
    topi.tanh
    topi.log
    topi.sqrt
+   topi.rsqrt
    topi.sigmoid
    topi.clip
    topi.cast
@@ -105,6 +106,7 @@ topi
 .. autofunction:: topi.tanh
 .. autofunction:: topi.log
 .. autofunction:: topi.sqrt
+.. autofunction:: topi.rsqrt
 .. autofunction:: topi.sigmoid
 .. autofunction:: topi.clip
 .. autofunction:: topi.cast
