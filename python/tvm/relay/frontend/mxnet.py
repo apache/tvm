@@ -631,8 +631,7 @@ def _mx_deformable_convolution(inputs, attrs):
     return res
 
 
-def _mx_gather_nd(inputs, attrs):
-    new_attrs = {}
+def _mx_gather_nd(inputs):
     assert len(inputs) == 2
     return _op.gather_nd(inputs[0], inputs[1])
 
