@@ -142,6 +142,29 @@ class Prelude:
         self.mod[self.foldr] = Function([f, bv, av],
                                         Match(av, [nil_case, cons_case]), b, [a, b])
 
+    def define_list_foldr1(self):
+        """Defines a right-way fold over a nonempty list.
+
+        foldr1(f, l) : fn<a>(fn(a, a) -> a, list[a]) -> a
+
+        foldr1(f, cons(a1, cons(a2, cons(..., cons(an, nil)))))
+        evalutes to f(a1, f(a2, f(..., f(an-1, an)))...)
+        """
+        self.foldr1 = GlobalVar("foldr1")
+        a = TypeVar("a")
+        f = Var("f", FuncType([a, a], a))
+        av = Var("av", self.l(a))
+        x = Var("x")
+        y = Var("y")
+        z = Var("z")
+        one_case = Clause(PatternConstructor(self.cons,
+                                             [PatternVar(x), PatternConstructor(self.nil)]), x)
+        cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
+                           f(y, self.foldr1(f, z)))
+        self.mod[self.foldr1] = Function([f, av],
+                                         Match(av, [one_case, cons_case]), a, [a])
+
+
     def define_list_concat(self):
         """Defines a function that concatenates two lists.
 
@@ -471,6 +494,7 @@ class Prelude:
         self.define_list_map()
         self.define_list_foldl()
         self.define_list_foldr()
+        self.define_list_foldr1()
         self.define_list_concat()
         self.define_list_filter()
         self.define_list_zip()
