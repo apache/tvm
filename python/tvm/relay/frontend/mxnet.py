@@ -189,7 +189,7 @@ def _mx_pooling(inputs, attrs):
 def _mx_adaptive_pooling(inputs, attrs):
     output_size = attrs.get_int_tuple("output_size", [])
     if output_size != (1,):
-       raise RuntimeError("AdaptiveAvgPooling with output_size other than 1 is not supported yet.")
+        raise RuntimeError("AdaptiveAvgPooling with output_size other than 1 is not supported yet.")
     return _op.nn.global_avg_pool2d(inputs[0])
 
 
@@ -650,7 +650,6 @@ def _mx_deformable_convolution(inputs, attrs):
 
 def _mx_argsort(inputs, attrs):
     assert len(inputs) == 1
-    src_shape = ir_pass.infer_type(inputs[0])._checked_type_.shape
     new_attrs = {}
     new_attrs["axis"] = attrs.get_int("axis", -1)
     new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
@@ -786,7 +785,6 @@ _convert_map = {
     "repeat"        : _mx_repeat,
     "tile"          : _mx_tile,
     "take"          : _mx_take,
-    "argsort"       : _mx_argsort,
     "reverse"       : _mx_reverse,
     "squeeze"       : _mx_squeeze,
     "broadcast_axis": _mx_broadcast_axis,
