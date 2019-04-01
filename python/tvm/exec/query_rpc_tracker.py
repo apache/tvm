@@ -12,7 +12,7 @@ def main():
     parser.add_argument('--host', type=str, default="",
                         help='the hostname of the tracker')
     parser.add_argument('--port', type=int, default=None,
-                        help='The port of the PRC')
+                        help='The port of the RPC')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
 
