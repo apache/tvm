@@ -253,11 +253,10 @@ def concatenate_rewrite(ref_call, new_args, ctx):
 
     # make sure the inputs of concatenate are all normal
     # expression or annotate expression
-    if kind_list[0] is None:
-        for k in kind_list:
-            assert k is None
+    if all([k is None for k in kind_list]):
         return None
-    for k in kind_list:
-        assert k is not None
+    for i, k in enumerate(kind_list):
+        if k is None:
+            expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.ACTIVATION)
     expr = _forward_op(ref_call, [_expr.Tuple(expr_list)])
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
