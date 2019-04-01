@@ -2146,7 +2146,7 @@ bool GatherNDRel(const Array<Type>& types,
   const size_t ndim = data->shape.size();
   const IntImm* mdim = data->shape[0].as<IntImm>();
   const size_t kdim = indices->shape.size() - 1;
-  CHECK(mdim->value <= ndim)
+  CHECK(size_t(mdim->value) <= ndim)
         << "GatherND: indices shape does satisfy.";
 
   Array<IndexExpr> oshape;
