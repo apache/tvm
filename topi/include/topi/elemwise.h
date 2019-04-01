@@ -30,7 +30,6 @@ TOPI_DECLARE_UNARY_OP(exp);
 TOPI_DECLARE_UNARY_OP(tanh);
 TOPI_DECLARE_UNARY_OP(sigmoid);
 TOPI_DECLARE_UNARY_OP(sqrt);
-TOPI_DECLARE_UNARY_OP(rsqrt);
 TOPI_DECLARE_UNARY_OP(log);
 TOPI_DECLARE_UNARY_OP(floor);
 TOPI_DECLARE_UNARY_OP(ceil);
@@ -108,6 +107,23 @@ inline Tensor sign(const Tensor& x,
     auto s1 = tvm::ir::Select::make((x(i) < zero), minus_one, zero);
     auto s2 = tvm::ir::Select::make((x(i) > zero), one, s1);
     return s2;
+  }, name, tag);
+}
+
+/*!
+* \brief Creates an operation that returns rsqrt of a given tensor
+*
+* \param x The input tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the rsqrt operation
+*/
+inline Tensor rsqrt(const Tensor& x,
+                       std::string name = "tensor",
+                       std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    return 1/tvm::sqrt(x(i));
   }, name, tag);
 }
 
