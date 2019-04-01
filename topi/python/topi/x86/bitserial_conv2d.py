@@ -2,10 +2,8 @@
 """Bitserial conv2d schedule on x86"""
 import tvm
 from tvm import autotvm
-from tvm.autotvm.task.topi_integration import deserialize_args
 from topi.util import get_const_int
 from .. import generic, tag
-from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc, bitserial_conv2d_nchw
 
 @autotvm.register_topi_schedule(generic.nn.schedule_bitserial_conv2d_nchw, ['cpu'], 'direct')
 @autotvm.register_topi_schedule(generic.nn.schedule_bitserial_conv2d_nhwc, ['cpu'], 'direct')
@@ -58,7 +56,6 @@ def schedule_bitserial_conv2d(cfg, outs):
 def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
                                     kernel_q, kernel_vec,
                                     conv_out, output, last):
-    print ("Schedule bitserial conv2d nchw")
     IB, _, CI, IH, IW = data_q.shape
     KB, CO, _, KH, KW = kernel_q.shape
     _, _, OH, OW = output.shape
@@ -158,7 +155,6 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
 def _schedule_bitserial_conv2d_nhwc(cfg, s, data_q, data_pad, data_vec,
                                     kernel_q, kernel_vec,
                                     conv_out, output, last):
-    print ("Schedule bitserial conv2d nhwc x86")
     # no stride and padding info here
     _, IH, IW, CI, IB = data_q.shape
     KH, KW, _, CO, KB = kernel_q.shape

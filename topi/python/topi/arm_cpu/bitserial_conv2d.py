@@ -3,7 +3,6 @@
 from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
-from tvm.autotvm.task.topi_integration import deserialize_args
 from .. import tag
 from ..nn.pad import pad
 from ..nn.bitserial_conv2d import bitpack, bitserial_conv2d_nhwc

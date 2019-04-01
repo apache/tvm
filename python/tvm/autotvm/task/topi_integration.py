@@ -177,7 +177,7 @@ class TaskExtractEnv:
             if bias is not None:
                 return s, [data, weight, bias, C]
             return s, [data, weight, C]
-       
+
         @register("topi_nn_bitserial_conv2d_nhwc")
         def _topi_bitserial_conv2d_nhwc(*args, **kwargs):
             args = deserialize_args(args)
