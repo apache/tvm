@@ -224,5 +224,5 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
                          in_buffers=[data_buf],
                          out_buffers=[out_buf],
                          name="argsort_gpu",
-                         tag="argsort_gpu") 
+                         tag="argsort_gpu")
     return out
