@@ -662,7 +662,7 @@ def gather_nd(data, indices):
     data : relay.Expr
         The input data to the operator.
 
-    indices : tuple of int
+    indices : relay.Expr
         The shape of output tensor.
 
     Returns

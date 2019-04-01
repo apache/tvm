@@ -2133,7 +2133,7 @@ bool GatherNDRel(const Array<Type>& types,
   const auto* indices = types[1].as<TensorTypeNode>();
   if (data == nullptr) {
     CHECK(types[0].as<IncompleteTypeNode>())
-        << "GatherND: expect input type to be TensorType but get "
+        << "GatherND: expect input data type to be TensorType but get "
         << types[0];
     return false;
   }
@@ -2144,18 +2144,17 @@ bool GatherNDRel(const Array<Type>& types,
     return false;
   }
   const size_t ndim = data->shape.size();
-  const size_t mdim = indices->shape[0];
+  const IntImm* mdim = data->shape[0].as<IntImm>();
   const size_t kdim = indices->shape.size() - 1;
-  CHECK(mdim <= ndim)
+  CHECK(mdim->value <= ndim)
         << "GatherND: indices shape does satisfy.";
 
   Array<IndexExpr> oshape;
   for (size_t i = 1; i < kdim + 1; ++i)
       oshape.push_back(indices->shape[i]);
-  if (mdim < ndim)
-    for (size_t i = mdim; i < ndim; ++i)
-        oshape.push_back(data->shape[i]);
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  for (size_t i = mdim->value; i < ndim; ++i)
+      oshape.push_back(data->shape[i]);
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
   return true;
 }
 
@@ -2168,8 +2167,8 @@ Array<Tensor> GatherNDCompute(const Attrs& attrs,
 
 Expr MakeGatherND(Expr data,
                   Expr indices) {
-  static const Op& op = Op::Get("GatherND");
-  return CallNode::make(op, {data}, {});
+  static const Op& op = Op::Get("gather_nd");
+  return CallNode::make(op, {data, indices}, {});
 }
 
 TVM_REGISTER_API("relay.op._make.gather_nd")
