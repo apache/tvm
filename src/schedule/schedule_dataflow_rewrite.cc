@@ -603,8 +603,8 @@ void InjectInline(ScheduleNode* sch) {
       if (!op.same_as(s->op)) {
         for (int idx = 0; idx < s->op->num_outputs(); ++idx) {
           repl[s->op.output(idx)] = op.output(idx);
-          s->op = op;
         }
+        s->op = op;
       }
     } else {
       Operation op = s->op->ReplaceInputs(s->op, repl);
