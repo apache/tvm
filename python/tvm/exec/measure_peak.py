@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--rpc-host', type=str, default="0.0.0.0",
                         help='the hostname of the server')
     parser.add_argument('--rpc-port', type=int, default=9090,
-                        help='The port of the PRC')
+                        help='The port of the RPC')
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
