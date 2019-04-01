@@ -95,7 +95,7 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     return output_data
 
 
-def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False, no_gpu=False):
+def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False, no_gpu=False, atol=1e-5, rtol=1e-5):
     """Generic function to generate and compare tensorflow and TVM output"""
 
     out_name = convert_to_list(out_name)
@@ -132,7 +132,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
-                tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
+                tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=atol, rtol=rtol)
 
         sess.close()
 
@@ -1055,7 +1055,7 @@ def _test_lrn(ishape, size, axis, bias, alpha, beta):
                                             alpha=alpha,
                                             beta=beta)
 
-        compare_tf_with_tvm(inp_array, 'lrn0_data:0', 'lrn:0')
+        compare_tf_with_tvm(inp_array, 'lrn0_data:0', 'lrn:0', atol=1e-4, rtol=1e-4)
 
 def test_forward_lrn():
     _test_lrn((1, 3, 20, 20), 3, 1, 1.0, 1.0, 0.5)
