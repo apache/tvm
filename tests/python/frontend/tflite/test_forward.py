@@ -11,6 +11,7 @@ from tvm import relay
 from tvm.contrib import util
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
+from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
@@ -343,7 +344,7 @@ def test_forward_concatenation():
 
 #######################################################################
 # Add
-# -------
+# ---
 
 def _test_add(data):
     """ One iteration of add """
@@ -362,12 +363,21 @@ def _test_add(data):
         raise NotImplementedError("Not support input shape {} of add : ".
                                   format(str(len(data.shape))))
 
+    # Test with two tensors
     with tf.Graph().as_default():
         in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in_0'),
                    array_ops.placeholder(shape=data[1].shape, dtype=data[1].dtype, name='in_1')]
         out = math_ops.add(in_data[0], in_data[1])
         compare_tflite_with_tvm(data, tvm_data, ['in_0:0','in_1:0'],
                                 in_data, [out], need_transpose)
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')]
+        out = math_ops.add(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
+        compare_tflite_with_tvm([data[0]], [tvm_data[0]], ['in:0'],
+                                in_data, [out], need_transpose)
+
 
 def test_forward_add():
     """ Add """
