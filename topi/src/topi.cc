@@ -297,11 +297,13 @@ TVM_REGISTER_GLOBAL("topi.layout_transform")
 
 TVM_REGISTER_GLOBAL("topi.take")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  if (args.size() == 2) {
-    *rv = take(args[0], args[1]);
+  if (args.size() == 3) {
+    std::string mode = args[2];
+    *rv = take(args[0], args[1], mode);
   } else {
     int axis = args[2];
-    *rv = take(args[0], args[1], axis);
+    std::string mode = args[3];
+    *rv = take(args[0], args[1], axis, mode);
   }
   });
 

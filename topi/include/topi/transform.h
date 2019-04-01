@@ -604,22 +604,29 @@ inline Array<Tensor> split_sections(const Tensor& x,
 */
 inline Tensor take(const Tensor& a,
                    const Tensor& indices,
+                   std::string mode = "clip",
                    std::string name = "tensor",
                    std::string tag = kInjective) {
   Array<Expr> a_shape = a->shape;
-  Array<Expr> out_shape;
-  for (size_t j = 0; j < indices->shape.size(); ++j) {
-    out_shape.push_back(indices->shape[j]);
+  Array<Expr> out_shape = indices->shape;
+  Expr a_size = 1;
+  for (size_t i = 0; i < a_shape.size(); ++i) {
+    a_size = a_size * a_shape[i];
   }
 
-  return compute(
+  if (mode == "clip") {
+    return compute(
         out_shape, [&](const Array<Var>& out_index) {
-          Array<Expr> indices_position;
-          for (size_t j = 0; j < indices->shape.size(); ++j) {
-            indices_position.push_back(out_index[j]);
-          }
-          return a(UnravelIndex(indices(indices_position), a_shape));
+          auto idx = tvm::min(tvm::max(0, indices(out_index)), a_size - 1);
+          return a(UnravelIndex(idx, a_shape));
         }, name, tag);
+  } else {  // mode == "wrap"
+    return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          auto idx = (indices(out_index) % a_size + a_size) % a_size;
+          return a(UnravelIndex(idx, a_shape));
+        }, name, tag);
+  }
 }
 
 /*!
@@ -637,12 +644,15 @@ inline Tensor take(const Tensor& a,
 inline Tensor take(const Tensor& a,
                    const Tensor& indices,
                    int axis,
+                   std::string mode = "clip",
                    std::string name = "tensor",
                    std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(a->shape.size());
   }
+  CHECK_GE(axis, 0) << "axis out of bounds";
   CHECK_LT(axis, a->shape.size()) << "axis out of bounds";
+  auto axis_dim = a->shape[axis];
 
   int indices_len = static_cast<int>(indices->shape.size());
   Array<Expr> out_shape;
@@ -655,7 +665,8 @@ inline Tensor take(const Tensor& a,
       out_shape.push_back(a->shape[i]);
     }
   }
-  return compute(
+  if (mode == "clip") {
+    return compute(
         out_shape, [&](const Array<Var>& out_index) {
           Array<Expr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis+indices_len); ++j) {
@@ -665,12 +676,33 @@ inline Tensor take(const Tensor& a,
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
-          real_indices.push_back(indices(indices_position));
+          auto idx = tvm::min(tvm::max(0, indices(indices_position)),
+                              axis_dim - 1);
+          real_indices.push_back(idx);
           for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
             real_indices.push_back(out_index[j]);
           }
           return a(real_indices);
         }, name, tag);
+  } else {  // mode == "wrap"
+    return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          Array<Expr> indices_position;
+          for (size_t j = axis; j < static_cast<size_t>(axis+indices_len); ++j) {
+            indices_position.push_back(out_index[j]);
+          }
+          Array<Expr> real_indices;
+          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
+            real_indices.push_back(out_index[j]);
+          }
+          auto idx = (indices(indices_position) % axis_dim + axis_dim) % axis_dim;
+          real_indices.push_back(idx);
+          for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
+            real_indices.push_back(out_index[j]);
+          }
+          return a(real_indices);
+        }, name, tag);
+  }
 }
 
 /*!

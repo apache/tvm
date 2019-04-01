@@ -444,6 +444,15 @@ def _mx_tile(inputs, attrs):
     return _op.tile(inputs[0], **new_attrs)
 
 
+def _mx_take(inputs, attrs):
+    assert len(inputs) == 2
+    mode = attrs.get_str("mode", "clip")
+    if mode == "raise":
+        raise RuntimeError("take doesn't support raise mode")
+    axis = attrs.get_int("axis", 0)
+    return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode)
+
+
 def _mx_reverse(inputs, attrs):
     assert len(inputs) == 1
     new_attrs = {}
@@ -749,6 +758,7 @@ _convert_map = {
     "_full"         : _mx_full,
     "repeat"        : _mx_repeat,
     "tile"          : _mx_tile,
+    "take"          : _mx_take,
     "reverse"       : _mx_reverse,
     "squeeze"       : _mx_squeeze,
     "broadcast_axis": _mx_broadcast_axis,
