@@ -663,10 +663,13 @@ def _square():
         return _op.multiply(inputs[0], inputs[0])
     return _impl
 
-def _gather_v2():
-    "Tensorflow now support only gatherv2"
+def _gather():
+    "GatherV2, Gather"
     def _impl(inputs, attr, params):
-        axis = params[inputs.pop(2).name_hint].asnumpy()[0]
+
+        axis = 0
+        if len(inputs) > 2:
+            axis = params[inputs.pop(2).name_hint].asnumpy()[0]
         new_input = []
         new_input.append(inputs.pop(0))
         new_input.append(inputs.pop(0))
@@ -674,17 +677,6 @@ def _gather_v2():
                         extras={'axis': tvm.const(axis, 'int32')},
                         ignores=['Tindices', 'Tparams', 'validate_indices', \
                                  'Taxis', '_class'])(new_input, attr)
-    return _impl
-
-def _gather_v1():
-    def _impl(inputs, attr, params):
-        new_input = []
-        new_input.append(inputs.pop(0))
-        new_input.append(inputs.pop(0))
-        return AttrCvt(op_name="take",
-                       extras={'axis': tvm.const(0, 'int32')},
-                       ignores=['Tindices', 'Tparams', 'validate_indices', \
-                                'Taxis', '_class'])(new_input, attr)
     return _impl
 
 def _infer_out_shapes(inputs, params):
@@ -1013,8 +1005,8 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Fill'                              : _fill(),
-    'GatherV2'                          : _gather_v2(),
-    'Gather'                            : _gather_v1(),
+    'GatherV2'                          : _gather(),
+    'Gather'                            : _gather(),
     'StridedSlice'                      : _stridedSlice(),
     'LRN'                               : _lrn(),
     'Pad'                               : _pad('Pad'),
