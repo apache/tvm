@@ -228,7 +228,7 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
-def take(a, indices, axis=None):
+def take(a, indices, axis=None, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -243,13 +243,18 @@ def take(a, indices, axis=None):
         The axis over which to select values. By default,
         the flattened input array is used.
 
+    mode : str, optional
+        Specifies how out-of-bound indices will behave.
+        clip - clip to the range (default)
+        wrap - wrap around the indices
+
     Returns
     -------
     ret : tvm.Tensor
     """
     if axis is None:
-        return cpp.take(a, indices)
-    return cpp.take(a, indices, int(axis))
+        return cpp.take(a, indices, mode)
+    return cpp.take(a, indices, int(axis), mode)
 
 
 def gather_nd(a, indices):

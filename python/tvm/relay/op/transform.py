@@ -186,7 +186,7 @@ def reshape_like(data, shape_like):
     return _make.reshape_like(data, shape_like)
 
 
-def take(data, indices, axis=None):
+def take(data, indices, axis=None, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -201,12 +201,17 @@ def take(data, indices, axis=None):
         The axis over which to select values. By default,
         the flattened input array is used.
 
+    mode : str, optional
+        Specifies how out-of-bound indices will behave.
+        clip - clip to the range (default)
+        wrap - wrap around the indices
+
     Returns
     -------
     ret : relay.Expr
         The computed result.
     """
-    return _make.take(data, indices, axis)
+    return _make.take(data, indices, axis, mode)
 
 
 def full(fill_value, shape=(), dtype=""):

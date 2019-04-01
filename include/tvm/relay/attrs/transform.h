@@ -75,10 +75,15 @@ struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
 
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer axis;
+  std::string mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
         .describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(mode).set_default("clip")
+        .describe("Specify how out-of-bound indices will behave."
+                  "clip - clip to the range (default)"
+                  "wrap - wrap around the indices");
   }
 };
 
