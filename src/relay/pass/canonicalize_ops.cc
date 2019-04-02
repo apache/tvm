@@ -24,7 +24,11 @@ class BiasAddSimplifier : public ExprMutator {
 
       auto ttype = n->args[0]->type_as<TensorTypeNode>();
       size_t n_dim = ttype->shape.size();
-      Expr expanded_bias = ExpandBiasToMatchAxis(call->args[1], n_dim, {param->axis});
+      int axis = param->axis;
+      if (axis < 0) {
+        axis += n_dim;
+      }
+      Expr expanded_bias = ExpandBiasToMatchAxis(call->args[1], n_dim, {axis});
       Expr ret = Add(call->args[0], expanded_bias);
       ret->checked_type_ = n->checked_type_;
       return ret;

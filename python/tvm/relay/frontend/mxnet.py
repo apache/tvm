@@ -34,7 +34,7 @@ def _mx_fully_connected(inputs, attrs):
     res = _op.nn.dense(inputs[0], inputs[1], units=units)
     if use_bias:
         assert len(inputs) == 3
-        res = _op.nn.bias_add(res, inputs[2])
+        res = _op.nn.bias_add(res, inputs[2], axis=-1)
     return res
 
 
@@ -413,7 +413,7 @@ def _mx_batch_dot(inputs, attrs):
         raise tvm.error.OpAttributeInvalid(msg.format(transpose_a))
     if transpose_b is False:
         b = _op.transpose(b, axes=[0, 2, 1])
-    return _op.batch_matmul(a, b)
+    return _op.nn.batch_matmul(a, b)
 
 
 def _mx_arange(inputs, attrs):
