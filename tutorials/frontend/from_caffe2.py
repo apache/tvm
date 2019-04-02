@@ -37,12 +37,13 @@ resnet50 = Model('resnet50')
 # Load a test image
 # ------------------
 # A single cat dominates the examples!
-from tvm.contrib.download import download_testdata
+from tvm.contrib.download import download
 from PIL import Image
 from matplotlib import pyplot as plt
 import numpy as np
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-img_path = download_testdata(img_url, 'cat.png', module='data')
+img_path = 'cat.png'
+download(img_url, img_path)
 img = Image.open(img_path).resize((224, 224))
 plt.imshow(img)
 plt.show()
@@ -105,8 +106,8 @@ synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',
                       'imagenet1000_clsid_to_human.txt'])
 synset_name = 'imagenet1000_clsid_to_human.txt'
-synset_path = download_testdata(synset_url, synset_name, module='data')
-with open(synset_path) as f:
+download(synset_url, synset_name)
+with open(synset_name) as f:
     synset = eval(f.read())
 print('Relay top-1 id: {}, class name: {}'.format(top1_tvm, synset[top1_tvm]))
 # confirm correctness with caffe2 output
