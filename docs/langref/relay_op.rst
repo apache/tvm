@@ -92,6 +92,7 @@ This level enables additional math and transform operators.
    tvm.relay.zeros_like
    tvm.relay.ones
    tvm.relay.ones_like
+   tvm.relay.gather_nd
    tvm.relay.full
    tvm.relay.full_like
    tvm.relay.cast
@@ -225,6 +226,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.zeros_like
 .. autofunction:: tvm.relay.ones
 .. autofunction:: tvm.relay.ones_like
+.. autofunction:: tvm.relay.gather_nd
 .. autofunction:: tvm.relay.full
 .. autofunction:: tvm.relay.full_like
 .. autofunction:: tvm.relay.cast

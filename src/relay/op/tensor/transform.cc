@@ -2122,5 +2122,75 @@ example below::
 .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// gather_nd operator
+bool GatherNDRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  // `types` contains: [data, indices, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "GatherND: expect input data type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  if (indices == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "GatherND: expect indices type to be TensorType but get "
+        << types[1];
+    return false;
+  }
+  const size_t ndim = data->shape.size();
+  const IntImm* mdim = data->shape[0].as<IntImm>();
+  const size_t kdim = indices->shape.size() - 1;
+  CHECK(size_t(mdim->value) <= ndim)
+        << "GatherND: indices shape does satisfy.";
+
+  Array<IndexExpr> oshape;
+  for (size_t i = 1; i < kdim + 1; ++i)
+      oshape.push_back(indices->shape[i]);
+  for (size_t i = mdim->value; i < ndim; ++i)
+      oshape.push_back(data->shape[i]);
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+Array<Tensor> GatherNDCompute(const Attrs& attrs,
+                              const Array<Tensor>& inputs,
+                              const Type& out_type,
+                              const Target& target) {
+  return { topi::gather_nd(inputs[0], inputs[1]) };
+}
+
+Expr MakeGatherND(Expr data,
+                  Expr indices) {
+  static const Op& op = Op::Get("gather_nd");
+  return CallNode::make(op, {data, indices}, {});
+}
+
+TVM_REGISTER_API("relay.op._make.gather_nd")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeGatherND, args, rv);
+});
+
+RELAY_REGISTER_OP("gather_nd")
+.describe(R"code(Gather elements or slices from data and store to
+                 a tensor whose shape is defined by indices.
+
+Given data with shape (X_0, X_1, ..., X_{N-1}) and indices with
+shape (M, Y_0, ..., Y_{K-1}), the output will have shape
+(Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), where M <= N. If M == N,
+output shape will simply be (Y_0, ..., Y_{K-1}).
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("GatherND", GatherNDRel)
+.set_attr<FTVMCompute>("FTVMCompute", GatherNDCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
 }  // namespace relay
 }  // namespace tvm
