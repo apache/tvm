@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, import-self, len-as-condition
+# pylint: disable=invalid-name, import-self, len-as-condition, unused-argument
 """MXNet symbol frontend."""
 from __future__ import absolute_import as _abs
 
@@ -631,7 +631,7 @@ def _mx_deformable_convolution(inputs, attrs):
     return res
 
 
-def _mx_gather_nd(inputs):
+def _mx_gather_nd(inputs, attrs):
     assert len(inputs) == 2
     return _op.gather_nd(inputs[0], inputs[1])
 
