@@ -20,7 +20,7 @@ import onnx
 import numpy as np
 import tvm
 import tvm.relay as relay
-from tvm.contrib.download import download_testdata
+from tvm.contrib.download import download
 
 ######################################################################
 # Load pretrained ONNX model
@@ -32,7 +32,8 @@ model_url = ''.join(['https://gist.github.com/zhreshold/',
                      'bcda4716699ac97ea44f791c24310193/raw/',
                      '93672b029103648953c4e5ad3ac3aadf346a4cdc/',
                      'super_resolution_0.2.onnx'])
-model_path = download_testdata(model_url, 'super_resolution.onnx', module='onnx')
+model_path = 'super_resolution.onnx'
+download(model_url, model_path)
 # now you have super_resolution.onnx on disk
 onnx_model = onnx.load(model_path)
 
@@ -42,7 +43,8 @@ onnx_model = onnx.load(model_path)
 # A single cat dominates the examples!
 from PIL import Image
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-img_path = download_testdata(img_url, 'cat.png', module='data')
+img_path = 'cat.png'
+download(img_url, img_path)
 img = Image.open(img_path).resize((224, 224))
 img_ycbcr = img.convert("YCbCr")  # convert to YCbCr
 img_y, img_cb, img_cr = img_ycbcr.split()
