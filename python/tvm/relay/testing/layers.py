@@ -134,5 +134,5 @@ def dense_add_bias(data, weight=None, bias=None, units=None, **kwargs):
     if not bias:
         bias = relay.var(name + "_bias")
     data = relay.nn.dense(data, weight, units, **kwargs)
-    data = relay.nn.bias_add(data, bias)
+    data = relay.nn.bias_add(data, bias, axis=-1)
     return data
