@@ -123,7 +123,8 @@ inline Tensor rsqrt(const Tensor& x,
                        std::string name = "tensor",
                        std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
-    return 1/tvm::sqrt(x(i));
+    Expr one = make_const(x->dtype, 1);
+    return one/tvm::sqrt(x(i));
   }, name, tag);
 }
 
