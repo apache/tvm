@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, import-self, len-as-condition, unused-argument
+# pylint: disable=invalid-name, import-self, len-as-condition
 """MXNet symbol frontend."""
 from __future__ import absolute_import as _abs
 
@@ -631,11 +631,6 @@ def _mx_deformable_convolution(inputs, attrs):
     return res
 
 
-def _mx_gather_nd(inputs, attrs):
-    assert len(inputs) == 2
-    return _op.gather_nd(inputs[0], inputs[1])
-
-
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -651,6 +646,7 @@ _identity_list = [
     "zeros_like",
     "ones_like",
     "where",
+    "gather_nd",
 ]
 
 _convert_map = {
@@ -773,7 +769,6 @@ _convert_map = {
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "smooth_l1"     : _mx_smooth_l1,
-    "gather_nd"     : _mx_gather_nd,
     # vision
     "_contrib_BilinearResize2D" : _mx_upsampling,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
