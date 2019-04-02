@@ -651,3 +651,36 @@ def reverse_reshape(data, newshape):
     if isinstance(newshape, int):
         newshape = [newshape]
     return _make._contrib_reverse_reshape(data, list(newshape))
+
+
+def gather_nd(data, indices):
+    """Gather elements or slices from data and store to a tensor whose shape is
+    defined by indices.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The shape of output tensor.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [[0, 1], [2, 3]]
+        indices = [[1, 1, 0], [0, 1, 0]]
+        relay.gather_nd(data, indices) = [2, 3, 0]
+
+        data = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
+        indices = [[0, 1], [1, 0]]
+        relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
+    """
+
+    return _make.gather_nd(data, indices)

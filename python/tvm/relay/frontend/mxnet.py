@@ -646,6 +646,7 @@ _identity_list = [
     "zeros_like",
     "ones_like",
     "where",
+    "gather_nd",
 ]
 
 _convert_map = {
@@ -782,7 +783,6 @@ _convert_map = {
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
-    # "gather_nd",
     # "Crop"          : _crop_like,
 }
 

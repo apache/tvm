@@ -491,6 +491,21 @@ def test_forward_take():
     verify((3,4), [-1, 5], 1)
     verify((3,4), [-1, 5], 1, mode="wrap")
 
+def test_forward_gather_nd():
+    def verify(xshape, yshape, y_data):
+        x_data = np.random.uniform(size=xshape).astype("float32")
+        ref_res = mx.nd.gather_nd(mx.nd.array(x_data), mx.nd.array(y_data))
+        mx_sym = mx.sym.gather_nd(mx.sym.var("x_data"), mx.sym.var("y_data"))
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x_data": xshape, "y_data": yshape}, {"x_data": "float32", "y_data": "int32"})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
+    verify((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -527,3 +542,4 @@ if __name__ == '__main__':
     test_forward_embedding()
     test_forward_smooth_l1()
     test_forward_take()
+    test_forward_gather_nd()
