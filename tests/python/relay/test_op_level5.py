@@ -196,7 +196,7 @@ def test_non_max_suppression():
                    iou_threshold=0.5, force_suppress=False, top_k=-1,
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
-        x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int"))
+        x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int32"))
         z = relay.vision.non_max_suppression(x0, x1, max_output_size = -1, \
             iou_threshold = iou_threshold, force_suppress = force_suppress, \
             top_k = top_k, return_indices=False)

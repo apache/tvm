@@ -27,7 +27,6 @@ def sort_ir(data, output, axis, is_ascend):
     stmt : Stmt
         The result IR statement.
     """
-
     size = 1
     axis_mul_before = 1
     axis_mul_after = 1
@@ -53,6 +52,7 @@ def sort_ir(data, output, axis, is_ascend):
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
+    is_ascend = tvm.make.node("IntImm", dtype="int32", value=is_ascend)
 
     with ib.for_range(0, axis_mul_before) as i:
         with ib.for_range(0, axis_mul_after) as j:
@@ -64,24 +64,24 @@ def sort_ir(data, output, axis, is_ascend):
             with ib.for_range(0, current_sort_num) as k:
                 with ib.if_scope(tid < (current_sort_num + 1) // 2):
                     offset = base_idx + (2 * tid + (k % 2)) * axis_mul_after
-                    with ib.if_scope(is_ascend):
-                        with ib.if_scope(tvm.all(2 * tid + (k % 2) + 1 < current_sort_num, \
-                                                 data[offset] > data[offset + axis_mul_after])):
-                            temp_data[0] = data[offset]
-                            data[offset] = data[offset + axis_mul_after]
-                            data[offset + axis_mul_after] = temp_data[0]
-                            temp_index[0] = output[offset]
-                            output[offset] = output[offset + axis_mul_after]
-                            output[offset + axis_mul_after] = temp_index[0]
-                    with ib.else_scope():
-                        with ib.if_scope(tvm.all(2 * tid + (k % 2) + 1 < current_sort_num, \
-                                                 data[offset] < data[offset + axis_mul_after])):
-                            temp_data[0] = data[offset]
-                            data[offset] = data[offset + axis_mul_after]
-                            data[offset + axis_mul_after] = temp_data[0]
-                            temp_index[0] = output[offset]
-                            output[offset] = output[offset + axis_mul_after]
-                            output[offset + axis_mul_after] = temp_index[0]
+                    with ib.if_scope(tvm.all(is_ascend == 1, \
+                                             2 * tid + (k % 2) + 1 < current_sort_num, \
+                                             data[offset] > data[offset + axis_mul_after])):
+                        temp_data[0] = data[offset]
+                        data[offset] = data[offset + axis_mul_after]
+                        data[offset + axis_mul_after] = temp_data[0]
+                        temp_index[0] = output[offset]
+                        output[offset] = output[offset + axis_mul_after]
+                        output[offset + axis_mul_after] = temp_index[0]
+                    with ib.if_scope(tvm.all(is_ascend == 0, \
+                                             2 * tid + (k % 2) + 1 < current_sort_num, \
+                                             data[offset] < data[offset + axis_mul_after])):
+                        temp_data[0] = data[offset]
+                        data[offset] = data[offset + axis_mul_after]
+                        data[offset + axis_mul_after] = temp_data[0]
+                        temp_index[0] = output[offset]
+                        output[offset] = output[offset + axis_mul_after]
+                        output[offset + axis_mul_after] = temp_index[0]
                 ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
                                       tvm.convert(['shared']),
                                       tvm.expr.Call.Intrinsic, None, 0))
@@ -142,6 +142,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
+    is_ascend = tvm.make.node("IntImm", dtype="int32", value=is_ascend)
 
     with ib.for_range(0, axis_mul_before) as i:
         with ib.for_range(0, axis_mul_after) as j:
@@ -153,24 +154,24 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
             with ib.for_range(0, current_sort_num) as k:
                 with ib.if_scope(tid < (current_sort_num + 1) // 2):
                     offset = base_idx + (2 * tid + (k % 2)) * axis_mul_after
-                    with ib.if_scope(is_ascend):
-                        with ib.if_scope(tvm.all(2 * tid + (k % 2) + 1 < current_sort_num, \
-                                                 data[offset] > data[offset + axis_mul_after])):
-                            temp_data[0] = data[offset]
-                            data[offset] = data[offset + axis_mul_after]
-                            data[offset + axis_mul_after] = temp_data[0]
-                            temp_index[0] = output[offset]
-                            output[offset] = output[offset + axis_mul_after]
-                            output[offset + axis_mul_after] = temp_index[0]
-                    with ib.else_scope():
-                        with ib.if_scope(tvm.all(2 * tid + (k % 2) + 1 < current_sort_num, \
-                                                 data[offset] < data[offset + axis_mul_after])):
-                            temp_data[0] = data[offset]
-                            data[offset] = data[offset + axis_mul_after]
-                            data[offset + axis_mul_after] = temp_data[0]
-                            temp_index[0] = output[offset]
-                            output[offset] = output[offset + axis_mul_after]
-                            output[offset + axis_mul_after] = temp_index[0]
+                    with ib.if_scope(tvm.all(is_ascend == 1, \
+                                             2 * tid + (k % 2) + 1 < current_sort_num, \
+                                             data[offset] > data[offset + axis_mul_after])):
+                        temp_data[0] = data[offset]
+                        data[offset] = data[offset + axis_mul_after]
+                        data[offset + axis_mul_after] = temp_data[0]
+                        temp_index[0] = output[offset]
+                        output[offset] = output[offset + axis_mul_after]
+                        output[offset + axis_mul_after] = temp_index[0]
+                    with ib.if_scope(tvm.all(is_ascend == 0, \
+                                             2 * tid + (k % 2) + 1 < current_sort_num, \
+                                             data[offset] < data[offset + axis_mul_after])):
+                        temp_data[0] = data[offset]
+                        data[offset] = data[offset + axis_mul_after]
+                        data[offset + axis_mul_after] = temp_data[0]
+                        temp_index[0] = output[offset]
+                        output[offset] = output[offset + axis_mul_after]
+                        output[offset + axis_mul_after] = temp_index[0]
                 ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
                                       tvm.convert(['shared']),
                                       tvm.expr.Call.Intrinsic, None, 0))
@@ -209,7 +210,7 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
         out = tvm.extern([data.shape],
                          [data, valid_count],
                          lambda ins, outs: sort_nms_ir(
-                             ins[0], ins[1], outs[0], axis, bool(is_ascend)),
+                             ins[0], ins[1], outs[0], axis, is_ascend),
                          dtype="int32",
                          in_buffers=[data_buf, valid_count_buf],
                          out_buffers=[out_buf],
@@ -219,7 +220,7 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
         out = tvm.extern([data.shape],
                          [data],
                          lambda ins, outs: sort_ir(
-                             ins[0], outs[0], axis, bool(is_ascend)),
+                             ins[0], outs[0], axis, is_ascend),
                          dtype="int32",
                          in_buffers=[data_buf],
                          out_buffers=[out_buf],
