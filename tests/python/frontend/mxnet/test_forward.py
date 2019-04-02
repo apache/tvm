@@ -505,6 +505,12 @@ def test_forward_gather_nd():
     verify((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
     verify((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
 
+def test_forward_bilinear_resize():
+    # add tests including scale_height and scale_width when mxnet is updated to version 1.5
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.contrib.BilinearResize2D(data, height=5, width=10)
+    verify_mxnet_frontend_impl(mx_sym, (1, 2, 3, 4), (1, 2, 5, 10))
+
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -543,3 +549,4 @@ if __name__ == '__main__':
     test_forward_smooth_l1()
     test_forward_take()
     test_forward_gather_nd()
+    test_forward_bilinear_resize()
