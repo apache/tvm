@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 from tvm.relay.testing.config import ctx_list
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.contrib.download import download_testdata
+from tvm.contrib.download import download
 from gluoncv import model_zoo, data, utils
 
 
@@ -50,9 +50,10 @@ target_list = ctx_list()
 ######################################################################
 # Download and pre-process demo image
 
-im_fname = download_testdata('https://github.com/dmlc/web-data/blob/master/' +
-                             'gluoncv/detection/street_small.jpg?raw=true',
-                             'street_small.jpg', module='data')
+im_fname = 'street_small.jpg'
+download('https://github.com/dmlc/web-data/blob/master/' +
+         'gluoncv/detection/street_small.jpg?raw=true',
+         im_fname)
 x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 
 ######################################################################
