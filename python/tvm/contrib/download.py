@@ -59,7 +59,7 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
     # Stateful start time
     start_time = time.time()
     dirpath = os.path.dirname(path)
-    if not os.path.isdir(dirpath):
+    if dirpath and not os.path.isdir(dirpath):
         os.makedirs(dirpath)
     random_uuid = str(uuid.uuid4())
     tempfile = os.path.join(dirpath, random_uuid)
