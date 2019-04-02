@@ -611,7 +611,7 @@ def test_non_max_suppression():
         m = graph_runtime.create(graph, lib, ctx)
         m.set_input(**{"data": np_data, "valid_count": np_valid_count})
         m.run()
-        tvm_outout = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
+        tvm_out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
 def np_slice_like(np_data, np_shape_like, axis=[]):

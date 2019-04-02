@@ -676,5 +676,4 @@ def gather_nd(data, indices):
         indices = [[0, 1], [1, 0]]
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
     """
-
     return _make.gather_nd(data, indices)
