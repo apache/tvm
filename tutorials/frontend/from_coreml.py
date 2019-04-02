@@ -84,7 +84,7 @@ synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',
                       'imagenet1000_clsid_to_human.txt'])
 synset_name = 'imagenet1000_clsid_to_human.txt'
-synset_path = download_testdata(synset_url, synset_name, module='data')
-with open(synset_path) as f:
+download_testdata(synset_url, synset_name)
+with open(synset_name) as f:
     synset = eval(f.read())
 print('Top-1 id', top1, 'class name', synset[top1])
