@@ -3,18 +3,17 @@ use std::{
     os::raw::{c_char, c_int},
 };
 
-use errors::Result;
-use ffi::runtime::TVMValue;
-use runtime::{threading::sgx_join_threads, SystemLibModule, TVMArgValue, TVMRetValue};
-
-pub use runtime::threading::tvm_run_worker as run_worker;
+pub use crate::threading::tvm_run_worker as run_worker;
+use crate::{threading::sgx_join_threads, SystemLibModule, TVMArgValue, TVMRetValue};
+use errors::SgxError;
+use ffi::TVMValue;
 
 #[macro_export]
 macro_rules! tvm_ocall {
     ($func: expr) => {
         match $func {
             0 => Ok(()),
-            err => Err(format!("SGX error: {}", err)),
+            code => Err(SgxError { code }),
         }
     };
 }
@@ -33,7 +32,10 @@ extern "C" {
     ) -> SgxStatus;
 }
 
-pub fn ocall_packed_func<S: AsRef<str>>(fn_name: S, args: &[TVMArgValue]) -> Result<TVMRetValue> {
+pub fn ocall_packed_func<S: AsRef<str>>(
+    fn_name: S,
+    args: &[TVMArgValue],
+) -> Result<TVMRetValue, SgxError> {
     let mut ret_val = TVMValue { v_int64: 0 };
     let ret_type_code = 0i64;
     unsafe {
@@ -58,11 +60,11 @@ pub fn ocall_packed_func<S: AsRef<str>>(fn_name: S, args: &[TVMArgValue]) -> Res
 #[macro_export]
 macro_rules! ocall_packed {
   ($fn_name:expr, $($args:expr),+) => {
-    ocall_packed_func($fn_name, &[$($args.into(),)+])
+    $crate::sgx::ocall_packed_func($fn_name, &[$($args.into(),)+])
       .expect(concat!("Error calling `", $fn_name, "`"))
   };
   ($fn_name:expr) => {
-    ocall_packed_func($fn_name, &Vec::new())
+    $crate::sgx::ocall_packed_func($fn_name, &Vec::new())
       .expect(concat!("Error calling `", $fn_name, "`"))
   }
 }

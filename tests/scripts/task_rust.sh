@@ -14,11 +14,11 @@ cargo fmt -- --check
 
 # test common
 cd $RUST_DIR/common
-cargo build --features runtime
-cargo test --features runtime --tests
+cargo build
+cargo test --tests
 
-cargo build --features frontend
-cargo test --features frontend --tests
+cargo build --features bindings
+cargo test --features bindings --tests
 
 # test runtime
 cd $RUST_DIR/runtime

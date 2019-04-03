@@ -3,9 +3,9 @@
 //!
 //! For more detail, please see the example `resnet` in `examples` repository.
 
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
 
-use crate::ts;
+use tvm_common::{ffi, TVMArgValue};
 
 /// A struct holding TVM byte-array.
 ///
@@ -19,11 +19,11 @@ use crate::ts;
 /// ```
 #[derive(Debug, Clone)]
 pub struct TVMByteArray {
-    pub(crate) inner: ts::TVMByteArray,
+    pub(crate) inner: ffi::TVMByteArray,
 }
 
 impl TVMByteArray {
-    pub(crate) fn new(barr: ts::TVMByteArray) -> TVMByteArray {
+    pub(crate) fn new(barr: ffi::TVMByteArray) -> TVMByteArray {
         TVMByteArray { inner: barr }
     }
 
@@ -46,11 +46,23 @@ impl TVMByteArray {
 
 impl<'a> From<&'a Vec<u8>> for TVMByteArray {
     fn from(arg: &Vec<u8>) -> Self {
-        let barr = ts::TVMByteArray {
+        let barr = ffi::TVMByteArray {
             data: arg.as_ptr() as *const c_char,
             size: arg.len(),
         };
         TVMByteArray::new(barr)
+    }
+}
+
+impl<'a> From<&TVMByteArray> for TVMArgValue<'a> {
+    fn from(arr: &TVMByteArray) -> Self {
+        Self {
+            value: ffi::TVMValue {
+                v_handle: &arr.inner as *const ffi::TVMByteArray as *const c_void as *mut c_void,
+            },
+            type_code: ffi::TVMTypeCode_kBytes as i64,
+            _lifetime: std::marker::PhantomData,
+        }
     }
 }
 

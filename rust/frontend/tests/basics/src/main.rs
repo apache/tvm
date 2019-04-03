@@ -1,6 +1,8 @@
 extern crate ndarray as rust_ndarray;
 extern crate tvm_frontend as tvm;
 
+use std::str::FromStr;
+
 use tvm::*;
 
 fn main() {
@@ -12,7 +14,7 @@ fn main() {
     } else {
         (TVMContext::gpu(0), "gpu")
     };
-    let dtype = TVMType::from("float32");
+    let dtype = TVMType::from_str("float32").unwrap();
     let mut arr = NDArray::empty(shape, ctx, dtype);
     arr.copy_from_buffer(data.as_mut_slice());
     let mut ret = NDArray::empty(shape, ctx, dtype);
@@ -26,8 +28,7 @@ fn main() {
     function::Builder::from(&mut fadd)
         .arg(&arr)
         .arg(&arr)
-        .set_output(&mut ret)
-        .unwrap()
+        .arg(&mut ret)
         .invoke()
         .unwrap();
 

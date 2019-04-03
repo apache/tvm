@@ -18,12 +18,20 @@
 //! ```
 
 use std::{
+    convert::TryInto,
     fmt::{self, Display, Formatter},
     os::raw::c_void,
     ptr,
 };
 
-use crate::{function, ts, Result};
+use failure::Error;
+
+use tvm_common::{
+    ffi::{self, TVMValue},
+    TVMArgValue,
+};
+
+use crate::function;
 
 /// Device type can be from a supported device name. See the supported devices
 /// in [TVM](https://github.com/dmlc/tvm).
@@ -45,35 +53,35 @@ impl Default for TVMDeviceType {
     }
 }
 
-impl From<TVMDeviceType> for ts::DLDeviceType {
+impl From<TVMDeviceType> for ffi::DLDeviceType {
     fn from(device_type: TVMDeviceType) -> Self {
         match device_type.0 {
-            1 => ts::DLDeviceType_kDLCPU,
-            2 => ts::DLDeviceType_kDLGPU,
-            3 => ts::DLDeviceType_kDLCPUPinned,
-            4 => ts::DLDeviceType_kDLOpenCL,
-            7 => ts::DLDeviceType_kDLVulkan,
-            8 => ts::DLDeviceType_kDLMetal,
-            9 => ts::DLDeviceType_kDLVPI,
-            10 => ts::DLDeviceType_kDLROCM,
-            12 => ts::DLDeviceType_kDLExtDev,
+            1 => ffi::DLDeviceType_kDLCPU,
+            2 => ffi::DLDeviceType_kDLGPU,
+            3 => ffi::DLDeviceType_kDLCPUPinned,
+            4 => ffi::DLDeviceType_kDLOpenCL,
+            7 => ffi::DLDeviceType_kDLVulkan,
+            8 => ffi::DLDeviceType_kDLMetal,
+            9 => ffi::DLDeviceType_kDLVPI,
+            10 => ffi::DLDeviceType_kDLROCM,
+            12 => ffi::DLDeviceType_kDLExtDev,
             _ => panic!("device type not found!"),
         }
     }
 }
 
-impl From<ts::DLDeviceType> for TVMDeviceType {
-    fn from(device_type: ts::DLDeviceType) -> Self {
+impl From<ffi::DLDeviceType> for TVMDeviceType {
+    fn from(device_type: ffi::DLDeviceType) -> Self {
         match device_type {
-            ts::DLDeviceType_kDLCPU => TVMDeviceType(1),
-            ts::DLDeviceType_kDLGPU => TVMDeviceType(2),
-            ts::DLDeviceType_kDLCPUPinned => TVMDeviceType(3),
-            ts::DLDeviceType_kDLOpenCL => TVMDeviceType(4),
-            ts::DLDeviceType_kDLVulkan => TVMDeviceType(7),
-            ts::DLDeviceType_kDLMetal => TVMDeviceType(8),
-            ts::DLDeviceType_kDLVPI => TVMDeviceType(9),
-            ts::DLDeviceType_kDLROCM => TVMDeviceType(10),
-            ts::DLDeviceType_kDLExtDev => TVMDeviceType(12),
+            ffi::DLDeviceType_kDLCPU => TVMDeviceType(1),
+            ffi::DLDeviceType_kDLGPU => TVMDeviceType(2),
+            ffi::DLDeviceType_kDLCPUPinned => TVMDeviceType(3),
+            ffi::DLDeviceType_kDLOpenCL => TVMDeviceType(4),
+            ffi::DLDeviceType_kDLVulkan => TVMDeviceType(7),
+            ffi::DLDeviceType_kDLMetal => TVMDeviceType(8),
+            ffi::DLDeviceType_kDLVPI => TVMDeviceType(9),
+            ffi::DLDeviceType_kDLROCM => TVMDeviceType(10),
+            ffi::DLDeviceType_kDLExtDev => TVMDeviceType(12),
             _ => panic!("device type not found!"),
         }
     }
@@ -117,6 +125,18 @@ impl<'a> From<&'a str> for TVMDeviceType {
     }
 }
 
+impl<'a> From<&'a TVMDeviceType> for TVMArgValue<'a> {
+    fn from(dev_type: &'a TVMDeviceType) -> Self {
+        Self {
+            value: TVMValue {
+                v_int64: dev_type.0 as i64,
+            },
+            type_code: ffi::DLDataTypeCode_kDLInt as i64,
+            _lifetime: std::marker::PhantomData,
+        }
+    }
+}
+
 /// Represents the underlying device context. Default is cpu.
 ///
 /// ## Examples
@@ -138,15 +158,15 @@ pub struct TVMContext {
     /// Supported device types
     pub device_type: TVMDeviceType,
     /// Device id
-    pub device_id: usize,
+    pub device_id: i32,
 }
 
 impl TVMContext {
     /// Creates context from device type and id.
-    pub fn new(device_type: TVMDeviceType, device_id: usize) -> Self {
+    pub fn new(device_type: TVMDeviceType, device_id: i32) -> Self {
         TVMContext {
-            device_type: device_type,
-            device_id: device_id,
+            device_type,
+            device_id,
         }
     }
 }
@@ -155,7 +175,7 @@ macro_rules! impl_ctxs {
     ($(($ctx:ident, $dldevt:expr));+) => {
         $(
             impl TVMContext {
-                pub fn $ctx(device_id: usize) -> Self {
+                pub fn $ctx(device_id: i32) -> Self {
                     Self::new(TVMDeviceType($dldevt), device_id)
                 }
             }
@@ -185,20 +205,20 @@ impl<'a> From<&'a str> for TVMContext {
 impl TVMContext {
     /// Checks whether the context exists or not.
     pub fn exist(&self) -> bool {
-        let func = function::Function::get("_GetDeviceAttr", true /* is_global */)
-            .expect("API function always exists");
+        let func = function::Function::get("_GetDeviceAttr").expect("API function always exists");
         let dt = self.device_type.0 as usize;
         // `unwrap` is ok here because if there is any error,
         // if would occure inside `call_packed!`
-        let ret = call_packed!(func, &dt, &self.device_id, &0)
+        let ret: u64 = call_packed!(func, &dt, &self.device_id, &0)
             .unwrap()
-            .prim_value;
+            .try_into()
+            .unwrap();
         ret != 0
     }
 
     /// Synchronize the context stream.
-    pub fn sync(&self) -> Result<()> {
-        check_call!(ts::TVMSynchronize(
+    pub fn sync(&self) -> Result<(), Error> {
+        check_call!(ffi::TVMSynchronize(
             self.device_type.0 as i32,
             self.device_id as i32,
             ptr::null_mut() as *mut c_void
@@ -212,16 +232,17 @@ macro_rules! impl_device_attrs {
         $(
             impl TVMContext {
                 pub fn $attr_name(&self) -> usize {
-                    let func = function::Function::get("_GetDeviceAttr", true /* is_global */)
+                    let func = function::Function::get("_GetDeviceAttr")
                         .expect("API function always exists");
                     let dt = self.device_type.0 as usize;
                     // `unwrap` is ok here because if there is any error,
                     // if would occur in function call.
-                    let ret = function::Builder::from(func)
-                        .args(&[dt, self.device_id, $attr_kind])
+                    function::Builder::from(func)
+                        .args(&[dt, self.device_id as usize, $attr_kind])
                         .invoke()
-                        .unwrap();
-                    ret.prim_value as usize
+                        .unwrap()
+                        .try_into()
+                        .unwrap()
                 }
             }
         )+
@@ -237,18 +258,18 @@ impl_device_attrs!((max_threads_per_block, 1);
                 (multi_processor_count, 7);
                 (max_thread_dimensions, 8));
 
-impl From<ts::DLContext> for TVMContext {
-    fn from(ctx: ts::DLContext) -> Self {
+impl From<ffi::DLContext> for TVMContext {
+    fn from(ctx: ffi::DLContext) -> Self {
         TVMContext {
             device_type: TVMDeviceType::from(ctx.device_type),
-            device_id: ctx.device_id as usize,
+            device_id: ctx.device_id,
         }
     }
 }
 
-impl From<TVMContext> for ts::DLContext {
+impl From<TVMContext> for ffi::DLContext {
     fn from(ctx: TVMContext) -> Self {
-        ts::DLContext {
+        ffi::DLContext {
             device_type: ctx.device_type.into(),
             device_id: ctx.device_id as i32,
         }

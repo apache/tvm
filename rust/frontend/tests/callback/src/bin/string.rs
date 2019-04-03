@@ -1,31 +1,32 @@
-#![feature(extern_crate_item_prelude, try_from)]
 #![allow(unused_imports)]
 
 #[macro_use]
 extern crate tvm_frontend as tvm;
 use std::convert::TryInto;
-use tvm::*;
+use tvm::{errors::Error, *};
 
 // FIXME
 fn main() {
     register_global_func! {
-        fn concate_str(args: &[TVMArgValue]) -> Result<TVMRetValue> {
+        fn concate_str(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
             let mut ret = "".to_string();
             for arg in args.iter() {
-                let val: String = arg.try_into()?;
-                ret += val.as_str();
+                let val: &str = arg.try_into()?;
+                ret += val;
             }
             Ok(TVMRetValue::from(ret))
         }
     }
+    let a = std::ffi::CString::new("a").unwrap();
+    let b = std::ffi::CString::new("b").unwrap();
+    let c = std::ffi::CString::new("c").unwrap();
     let mut registered = function::Builder::default();
-    registered.get_function("concate_str", true);
+    registered.get_function("concate_str");
     assert!(registered.func.is_some());
-    let a = "a".to_string();
-    let b = "b".to_string();
-    let c = "c".to_string();
     let ret: String = registered
-        .args(&[a, b, c])
+        .arg(&a)
+        .arg(&b)
+        .arg(&c)
         .invoke()
         .unwrap()
         .try_into()
