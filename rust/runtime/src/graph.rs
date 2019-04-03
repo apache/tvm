@@ -22,7 +22,7 @@ const _NDARRAY_LIST_MAGIC: u64 = 0xF7E58D4F05049CB7;
 /// # Examples
 ///
 /// ```
-/// let graph_json = fs::read_to_string("graph.json")).unwrap();
+/// let graph_json = fs::read_to_string("graph.json").unwrap();
 /// let graph = Graph::try_from(&graph_json).unwrap();
 /// ```
 #[derive(Serialize, Deserialize, Debug)]
