@@ -673,10 +673,13 @@ def _square():
         return _op.multiply(inputs[0], inputs[0])
     return _impl
 
-def _gather_v2():
-    "Tensorflow now support only gatherv2"
+def _gather():
+    "GatherV2, Gather"
     def _impl(inputs, attr, params):
-        axis = params[inputs.pop(2).name_hint].asnumpy()[0]
+
+        axis = 0
+        if len(inputs) > 2:
+            axis = params[inputs.pop(2).name_hint].asnumpy()[0]
         new_input = []
         new_input.append(inputs.pop(0))
         new_input.append(inputs.pop(0))
@@ -1013,7 +1016,8 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Fill'                              : _fill(),
-    'GatherV2'                          : _gather_v2(),
+    'GatherV2'                          : _gather(),
+    'Gather'                            : _gather(),
     'StridedSlice'                      : _stridedSlice(),
     'LRN'                               : _lrn(),
     'Pad'                               : _pad('Pad'),
