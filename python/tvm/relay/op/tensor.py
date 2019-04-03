@@ -66,6 +66,9 @@ def sqrt(data):
 def rsqrt(data):
     """Compute elementwise rsqrt of data.
 
+    .. math::
+      1/sqrt(x)
+
     Parameters
     ----------
     data : relay.Expr

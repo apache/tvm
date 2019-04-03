@@ -42,11 +42,11 @@ def rsqrt(x):
 
     Parameters
     ----------
-    x: a real number
+    x: Tensor
 
     Returns
     -------
-    res: a real number
+    res: Tensor
         The result of reciprocal of square root of x
     """
     return numpy.ones_like(x) / numpy.sqrt(x)
