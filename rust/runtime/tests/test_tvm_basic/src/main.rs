@@ -17,6 +17,6 @@ fn main() {
     let mut a_dl: DLTensor = (&mut a).into();
     let mut b_dl: DLTensor = (&mut b).into();
     let mut c_dl: DLTensor = (&mut c).into();
-    call_packed!(add, &mut a_dl, &mut b_dl, &mut c_dl);
+    call_packed!(add, &mut a_dl, &mut b_dl, &mut c_dl).unwrap();
     assert!(c.all_close(&e, 1e-8f32));
 }

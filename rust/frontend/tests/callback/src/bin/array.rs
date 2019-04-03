@@ -1,4 +1,3 @@
-#![feature(extern_crate_item_prelude, try_from)]
 #![allow(unused_imports)]
 
 extern crate ndarray as rust_ndarray;
@@ -6,17 +5,23 @@ extern crate ndarray as rust_ndarray;
 extern crate tvm_frontend as tvm;
 
 use rust_ndarray::ArrayD;
-use std::convert::{TryFrom, TryInto};
+use std::{
+    convert::{TryFrom, TryInto},
+    str::FromStr,
+};
 
-use tvm::*;
+use tvm::{errors::Error, *};
 
 fn main() {
     register_global_func! {
-        fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue> {
+        fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
             let mut ret = 0f32;
             let shape = &mut [2];
             for arg in args.iter() {
-                let e = NDArray::empty(shape, TVMContext::cpu(0), TVMType::from("float32"));
+                let e = NDArray::empty(
+                    shape, TVMContext::cpu(0),
+                    TVMType::from_str("float32").unwrap()
+                );
                 let arg: NDArray = arg.try_into()?;
                 let arr = arg.copy_to_ndarray(e)?;
                 let rnd: ArrayD<f32> = ArrayD::try_from(&arr)?;
@@ -28,12 +33,16 @@ fn main() {
 
     let shape = &mut [2];
     let mut data = vec![3f32, 4.0];
-    let mut arr = NDArray::empty(shape, TVMContext::cpu(0), TVMType::from("float32"));
+    let mut arr = NDArray::empty(
+        shape,
+        TVMContext::cpu(0),
+        TVMType::from_str("float32").unwrap(),
+    );
     arr.copy_from_buffer(data.as_mut_slice());
 
     let mut registered = function::Builder::default();
     let ret: f32 = registered
-        .get_function("sum", true)
+        .get_function("sum")
         .arg(&arr)
         .arg(&arr)
         .invoke()

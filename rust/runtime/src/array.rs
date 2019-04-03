@@ -1,22 +1,16 @@
-use std::{
-    any::TypeId,
-    convert::TryFrom,
-    mem,
-    ops::{Deref, DerefMut},
-    os::raw::{c_int, c_void},
-    ptr, slice,
-};
+use std::{convert::TryFrom, mem, os::raw::c_void, ptr, slice};
 
+use failure::Error;
 use ndarray;
-
-use crate::{
-    allocator::Allocation,
-    errors::*,
-    ffi::runtime::{
+use tvm_common::{
+    array::{DataType, TVMContext},
+    ffi::{
         DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt,
-        DLDataTypeCode_kDLUInt, DLDeviceType_kDLCPU, DLTensor as _DLTensor,
+        DLDataTypeCode_kDLUInt, DLTensor,
     },
 };
+
+use crate::allocator::Allocation;
 
 /// A `Storage` is a container which holds `Tensor` data.
 #[derive(PartialEq)]
@@ -29,7 +23,7 @@ pub enum Storage<'a> {
 }
 
 impl<'a> Storage<'a> {
-    pub fn new(size: usize, align: Option<usize>) -> Result<Storage<'static>> {
+    pub fn new(size: usize, align: Option<usize>) -> Result<Storage<'static>, Error> {
         Ok(Storage::Owned(Allocation::new(size, align)?))
     }
 
@@ -237,6 +231,27 @@ impl<'a> Tensor<'a> {
             byte_offset: 0,
         }
     }
+
+    pub(crate) fn as_dltensor(&self, flatten: bool) -> DLTensor {
+        assert!(!flatten || self.is_contiguous());
+        DLTensor {
+            data: unsafe { self.data.as_mut_ptr().offset(self.byte_offset) } as *mut c_void,
+            ctx: DLContext::from(&self.ctx),
+            ndim: if flatten { 1 } else { self.shape.len() } as i32,
+            dtype: DLDataType::from(&self.dtype),
+            shape: if flatten {
+                &self.size as *const _ as *mut i64
+            } else {
+                self.shape.as_ptr()
+            } as *mut i64,
+            strides: if flatten || self.is_contiguous() {
+                ptr::null_mut()
+            } else {
+                self.strides.as_ref().unwrap().as_ptr()
+            } as *mut i64,
+            byte_offset: 0,
+        }
+    }
 }
 
 /// Conversions to `ndarray::Array` from `Tensor`, if the types match.
@@ -244,7 +259,7 @@ macro_rules! impl_ndarray_try_from_tensor {
     ($type:ty, $dtype:expr) => {
         impl<'a, 't> TryFrom<&'a Tensor<'t>> for ndarray::ArrayD<$type> {
             type Error = Error;
-            fn try_from(tensor: &'a Tensor) -> Result<ndarray::ArrayD<$type>> {
+            fn try_from(tensor: &'a Tensor) -> Result<ndarray::ArrayD<$type>, Error> {
                 ensure!(
                     tensor.dtype == $dtype,
                     "Cannot convert Tensor with dtype {:?} to ndarray",
@@ -263,120 +278,9 @@ macro_rules! impl_ndarray_try_from_tensor {
     };
 }
 
-impl_ndarray_try_from_tensor!(i32, DTYPE_INT32);
-impl_ndarray_try_from_tensor!(u32, DTYPE_UINT32);
-impl_ndarray_try_from_tensor!(f32, DTYPE_FLOAT32);
-impl_ndarray_try_from_tensor!(f64, DTYPE_FLOAT64);
-
-pub struct DLTensor {
-    pub(crate) inner: _DLTensor,
-}
-
-impl Deref for DLTensor {
-    type Target = _DLTensor;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl DerefMut for DLTensor {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
-impl DLTensor {
-    pub(crate) fn new(raw: _DLTensor) -> Self {
-        Self { inner: raw }
-    }
-
-    pub(crate) fn from_tensor<'a>(tensor: &'a Tensor, flatten: bool) -> Self {
-        assert!(!flatten || tensor.is_contiguous());
-        Self {
-            inner: _DLTensor {
-                data: unsafe { tensor.data.as_mut_ptr().offset(tensor.byte_offset) } as *mut c_void,
-                ctx: DLContext::from(&tensor.ctx),
-                ndim: if flatten { 1 } else { tensor.shape.len() } as i32,
-                dtype: DLDataType::from(&tensor.dtype),
-                shape: if flatten {
-                    &tensor.size as *const _ as *mut i64
-                } else {
-                    tensor.shape.as_ptr()
-                } as *mut i64,
-                strides: if flatten || tensor.is_contiguous() {
-                    ptr::null_mut()
-                } else {
-                    tensor.strides.as_ref().unwrap().as_ptr()
-                } as *mut i64,
-                byte_offset: 0,
-            },
-        }
-    }
-}
-
-impl<'a, 't> From<&'a Tensor<'t>> for DLTensor {
-    fn from(tensor: &'a Tensor<'t>) -> Self {
-        DLTensor::from_tensor(tensor, false /* flatten */)
-    }
-}
-
-impl<'a, 't> From<&'a mut Tensor<'t>> for DLTensor {
-    fn from(tensor: &'a mut Tensor<'t>) -> Self {
-        DLTensor::from_tensor(tensor, false /* flatten */)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DataType {
-    pub(crate) code: usize,
-    pub(crate) bits: usize,
-    pub(crate) lanes: usize,
-}
-
-impl DataType {
-    /// Returns the number of bytes occupied by an element of this `DataType`.
-    pub fn itemsize(&self) -> usize {
-        (self.bits * self.lanes) >> 3
-    }
-
-    /// Returns whether this `DataType` represents primitive type `T`.
-    pub fn is_type<T: 'static>(&self) -> bool {
-        if self.lanes != 1 {
-            return false;
-        }
-        let typ = TypeId::of::<T>();
-        (typ == TypeId::of::<i32>() && self.code == 0 && self.bits == 32)
-            || (typ == TypeId::of::<i64>() && self.code == 0 && self.bits == 64)
-            || (typ == TypeId::of::<u32>() && self.code == 1 && self.bits == 32)
-            || (typ == TypeId::of::<u64>() && self.code == 1 && self.bits == 64)
-            || (typ == TypeId::of::<f32>() && self.code == 2 && self.bits == 32)
-            || (typ == TypeId::of::<f64>() && self.code == 2 && self.bits == 64)
-    }
-}
-
-impl<'a> From<&'a DataType> for DLDataType {
-    fn from(dtype: &'a DataType) -> Self {
-        Self {
-            code: dtype.code as u8,
-            bits: dtype.bits as u8,
-            lanes: dtype.lanes as u16,
-        }
-    }
-}
-
-impl From<DLDataType> for DataType {
-    fn from(dtype: DLDataType) -> Self {
-        Self {
-            code: dtype.code as usize,
-            bits: dtype.bits as usize,
-            lanes: dtype.lanes as usize,
-        }
-    }
-}
-
 macro_rules! make_dtype_const {
     ($name: ident, $code: ident, $bits: expr, $lanes: expr) => {
-        const $name: DataType = DataType {
+        pub const $name: DataType = DataType {
             code: $code as usize,
             bits: $bits,
             lanes: $lanes,
@@ -389,28 +293,20 @@ make_dtype_const!(DTYPE_UINT32, DLDataTypeCode_kDLUInt, 32, 1);
 // make_dtype_const!(DTYPE_FLOAT16, DLDataTypeCode_kDLFloat, 16, 1);
 make_dtype_const!(DTYPE_FLOAT32, DLDataTypeCode_kDLFloat, 32, 1);
 make_dtype_const!(DTYPE_FLOAT64, DLDataTypeCode_kDLFloat, 64, 1);
+impl_ndarray_try_from_tensor!(i32, DTYPE_INT32);
+impl_ndarray_try_from_tensor!(u32, DTYPE_UINT32);
+impl_ndarray_try_from_tensor!(f32, DTYPE_FLOAT32);
+impl_ndarray_try_from_tensor!(f64, DTYPE_FLOAT64);
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TVMContext {
-    pub(crate) device_type: usize,
-    pub(crate) device_id: usize,
-}
-
-impl<'a> From<&'a TVMContext> for DLContext {
-    fn from(ctx: &'a TVMContext) -> Self {
-        Self {
-            device_type: ctx.device_type as u32,
-            device_id: ctx.device_id as i32,
-        }
+impl<'a, 't> From<&'a Tensor<'t>> for DLTensor {
+    fn from(tensor: &'a Tensor<'t>) -> Self {
+        Tensor::as_dltensor(tensor, false /* flatten */)
     }
 }
 
-impl Default for TVMContext {
-    fn default() -> Self {
-        Self {
-            device_type: DLDeviceType_kDLCPU as usize,
-            device_id: 0,
-        }
+impl<'a, 't> From<&'a mut Tensor<'t>> for DLTensor {
+    fn from(tensor: &'a mut Tensor<'t>) -> Self {
+        Tensor::as_dltensor(tensor, false /* flatten */)
     }
 }
 
@@ -462,42 +358,6 @@ macro_rules! impl_tensor_from_ndarray {
         }
     };
 }
-
-/// `From` conversions to `DLTensor` for `ndarray::Array`.
-/// Takes a reference to the `ndarray` since `DLTensor` is not owned.
-macro_rules! impl_dltensor_from_ndarray {
-    ($type:ty, $typecode:expr) => {
-        impl<'a, D: ndarray::Dimension> From<&'a mut ndarray::Array<$type, D>> for DLTensor {
-            fn from(arr: &'a mut ndarray::Array<$type, D>) -> Self {
-                DLTensor {
-                    inner: _DLTensor {
-                        data: arr.as_mut_ptr() as *mut c_void,
-                        ctx: DLContext {
-                            device_type: DLDeviceType_kDLCPU,
-                            device_id: 0,
-                        },
-                        ndim: arr.ndim() as c_int,
-                        dtype: DLDataType {
-                            code: $typecode as u8,
-                            bits: 8 * mem::size_of::<$type>() as u8,
-                            lanes: 1,
-                        },
-                        shape: arr.shape().as_ptr() as *const i64 as *mut i64,
-                        strides: arr.strides().as_ptr() as *const isize as *mut i64,
-                        byte_offset: 0,
-                    },
-                }
-            }
-        }
-    };
-}
-
-impl_dltensor_from_ndarray!(f32, DLDataTypeCode_kDLFloat);
-impl_dltensor_from_ndarray!(f64, DLDataTypeCode_kDLFloat);
-impl_dltensor_from_ndarray!(i32, DLDataTypeCode_kDLInt);
-impl_dltensor_from_ndarray!(i64, DLDataTypeCode_kDLInt);
-impl_dltensor_from_ndarray!(u32, DLDataTypeCode_kDLUInt);
-impl_dltensor_from_ndarray!(u64, DLDataTypeCode_kDLUInt);
 
 impl_tensor_from_ndarray!(f32, DLDataTypeCode_kDLFloat);
 impl_tensor_from_ndarray!(f64, DLDataTypeCode_kDLFloat);
