@@ -46,7 +46,8 @@ class OperatorConverter(object):
             'SOFTMAX': self.convert_softmax,
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
-            "CONCATENATION": self.convert_concatenation
+            'CONCATENATION': self.convert_concatenation,
+            'ADD': self.convert_add
         }
 
     def check_unsupported_ops(self):
@@ -290,6 +291,49 @@ class OperatorConverter(object):
         # if we have activation fn
         if fused_activation_fn != ActivationFunctionType.NONE:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
+        return out
+
+    def convert_add(self, op):
+        """Convert TFLite add"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        lhs_tensor = input_tensors[0]
+        lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
+
+        rhs_tensor = input_tensors[1]
+        if self.has_expr(rhs_tensor.tensor_idx):
+            # In most cases, we can assume that TOCO fuses ADD operators
+            # with constants - it means both will be tensors.
+            rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
+        else:
+            # However, in some corner cases, the ADD operator is not fused,
+            # we can receive as constant.
+            rhs_type_str = self.get_tensor_type_str(rhs_tensor.tensor.Type())
+            rhs_expr = self.exp_tab.new_const(self.get_tensor_value(rhs_tensor),
+                                              dtype=rhs_type_str)
+
+            # In this case, we have to be careful about formatting.
+            input_shape_length = len(rhs_tensor.tensor.ShapeAsNumpy())
+            if input_shape_length in (1, 2):
+                pass
+            elif input_shape_length == 3:
+                # N H*W C to N C H*W
+                rhs_expr = _op.transpose(rhs_expr, axes=(0, 2, 1))
+            elif input_shape_length == 4:
+                # N H W C to N C H W
+                rhs_expr = _op.transpose(rhs_expr, axes=(0, 3, 1, 2))
+            else:
+                msg = 'Input shape length {} for operator ADD is not valid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(input_shape_length))
+
+        out = _op.add(lhs_expr, rhs_expr)
         return out
 
     def convert_squeeze(self, op):
@@ -553,6 +597,9 @@ class OperatorConverter(object):
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
+
+    def has_expr(self, input_tensor_idx):
+        return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
 def build_str_map(obj):
     """Build string map of TFLite enum int value

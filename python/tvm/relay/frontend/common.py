@@ -258,6 +258,9 @@ class ExprTable(object):
         if name not in self.exprs:
             self.exprs[name] = expr
 
+    def has_expr(self, name):
+        return True if name in self.exprs else False
+
     def set_padding(self, paddings):
         self.paddings = paddings
         self.in_padding = True
