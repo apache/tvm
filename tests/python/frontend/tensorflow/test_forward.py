@@ -108,7 +108,6 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
     in_node = [0]*len(in_name)
     for i in range(len(in_name)):
         in_node[i] = in_name[i].split(':')[0] if ":" in in_name[i] else in_name[i]
-
     with tf.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
@@ -477,7 +476,7 @@ def test_forward_stridedslice():
 # ----------------
 
 def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
-    """ One iteration of a GatherV2"""
+    """ One iteration of a GatherV2 """
 
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
@@ -500,14 +499,14 @@ def test_forward_gather():
     '''test GatherV2 layer'''
     _test_gather((4,), (1,), 1, 0, 'int32')
     _test_gather((4,), (1,), 1, 0, 'float32')
-    _test_gather((1,4), (1,), [0], 0, 'int32')
-    _test_gather((4,), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
-    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'int32')
-    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 1, 'int32')
-    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
-    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 0, 'int32')
-    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 2, 'int32')
-    _test_gather((4,3,5,6), (1,4), [[2,1,0,0]], 0, 'float32')
+    _test_gather((1, 4), (1,), [0], 0, 'int32')
+    _test_gather((4,), (1, 2, 2), [[[1, 0],[0, 1]]], 0, 'float32')
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0],[0, 1]]], 0, 'int32')
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0],[0, 1]]], 1, 'int32')
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0],[0, 1]]], 0, 'float32')
+    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, 'int32')
+    _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, 'int32')
+    _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, 'float32')
 
 
 def _test_gather_v1(ip_shape, indice_shape, indice_value, dtype):
@@ -620,10 +619,10 @@ def _test_unstack(ip_shape, axis, dtype):
 def test_forward_unstack():
     '''test unstack layer'''
     _test_unstack((6,), 0, 'int32')
-    _test_unstack((2,6), 1, 'float64')
+    _test_unstack((2, 6), 1, 'float64')
     # negative axis
-    _test_unstack((1,4), -1, 'int32')
-    _test_unstack((3,6,4), -2, 'float32')
+    _test_unstack((1, 4), -1, 'int32')
+    _test_unstack((3, 6, 4), -2, 'float32')
 
 
 #######################################################################
@@ -865,7 +864,7 @@ def test_forward_logical():
 
 #######################################################################
 # Where, Select
-# --------------------
+# -------------
 def test_where():
     ''' Where: return elements depending on conditions'''
     with tf.Graph().as_default():
