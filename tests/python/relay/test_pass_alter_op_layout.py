@@ -472,6 +472,48 @@ def test_alter_layout_nchw_upsamping_op():
     assert(alpha_equal(a, b))
 
 
+def test_alter_layout_strided_slice():
+    """Test rewriting strided_slice during alter_iop_layout"""
+    def before():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var('weight', shape=(32, 32, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.strided_slice(y, begin=[0, 16], end=[None, None])
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    @register_alter_op_layout("nn.conv2d", level=109)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW4c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var("weight")
+        x = relay.layout_transform(x, "NCHW", "NCHW4c")
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout="NCHW4c")
+        y = relay.strided_slice(y, begin=[0, 4], end=[None, 8])
+        y = relay.layout_transform(y, "NCHW4c", "NCHW")
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = canonicalize_ops(a)
+    a = infer_type(a)
+
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
+    assert(alpha_equal(a, b))
+
+
 if __name__ == "__main__":
     test_alter_op()
     test_alter_return_none()
@@ -482,3 +524,4 @@ if __name__ == "__main__":
     test_alter_layout_scalar()
     test_alter_layout_concatenate()
     test_alter_layout_nchw_upsamping_op()
+    test_alter_layout_strided_slice()

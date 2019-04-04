@@ -162,7 +162,9 @@ class ParallelConv2DCombiner {
   Expr Combine(const Expr& expr) {
     auto groups = BranchGroupFinder().Find(expr);
     for (const Group& group : groups) {
-      if (group.size() < 2) continue;
+      if (group.size() <= 2) {
+        continue;
+      }
       CombineBranches(group);
     }
     return ExprSubst(expr, std::move(subst_map_));
