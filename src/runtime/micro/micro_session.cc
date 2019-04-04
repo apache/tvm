@@ -115,6 +115,7 @@ void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
 
 void MicroSession::LoadInitStub() {
   // TODO: this is the utvm device binary, probably alright to hard code (need path)
+  // TODO: add compilation via python
   std::string binary = "utvm_runtime.o";
   init_text_size_ = GetSectionSize(binary, kText);
   init_data_size_ = GetSectionSize(binary, kData);
@@ -139,22 +140,13 @@ void MicroSession::LoadInitStub() {
   init_symbol_map_ = GetSymbolMap(relocated_bin);
 }
 
-// TODO: make target aware write functions for everything
-// TODO: these need to be device-based sizeof
-// TODO: what about kBytes, kHandle, kNull, kNodeHandle, kArrayHandle, kTVMType, kFuncHandle, kModuleHandle?
 void MicroSession::TargetAwareWrite(int64_t val, AllocatorStream* stream) {
-}
-
-void MicroSession::TargetAwareWrite(uint64_t val, AllocatorStream* stream) {
 }
 
 void MicroSession::TargetAwareWrite(double val, AllocatorStream* stream) {
 }
 
 void MicroSession::TargetAwareWrite(const char* val, AllocatorStream* stream) {
-}
-
-void MicroSession::TargetAwareWrite(TVMType val, AllocatorStream* stream) {
 }
 
 void MicroSession::TargetAwareWrite(TVMContext* val, AllocatorStream* stream) {
@@ -211,14 +203,9 @@ void MicroSession::AllocateTVMArgs(TVMArgs args) {
   stream->Seek(args_offset + sizeof(TVMValue*) * num_args);
   stream->Write(type_codes, sizeof(const int*) * num_args);
   stream->Write(&num_args, sizeof(int));
-  // TODO: implement all cases
   for (int i = 0; i < num_args; i++) {
     switch(type_codes[i]) {
       case kDLInt:
-        TargetAwareWrite(values[i].v_int64, stream);
-        break;
-      case kDLUInt:
-        // TODO: is this fine? (how is uint passed?)
         TargetAwareWrite(values[i].v_int64, stream);
         break;
       case kDLFloat:
@@ -227,45 +214,18 @@ void MicroSession::AllocateTVMArgs(TVMArgs args) {
       case kStr:
         TargetAwareWrite(values[i].v_str, stream);
         break;
-      case kBytes:
-        printf("was bytes\n");
-        break;
-      case kHandle:
-        printf("was handle\n");
-        break;
-      case kNull:
-        printf("was null\n");
-        break;
-      case kNodeHandle:
-        printf("was nodehandle\n");
-        break;
-      case kArrayHandle:
-        printf("was arrayhandle\n");
-        break;
-      case kTVMType:
-        TargetAwareWrite(values[i].v_type, stream);
-        break;
-      case kTVMContext:
-        TargetAwareWrite(values[i].v_ctx, stream);
-        break;
-      case kFuncHandle:
-        printf("was funchandle\n");
-        break;
-      case kModuleHandle:
-        printf("was modulehandle\n");
-        break;
       case kNDArrayContainer:
         TargetAwareWrite((TVMArray*) values[i].v_handle, stream);
         break;
       default:
-        LOG(FATAL) << "Could not process type code: " << type_codes[i];
+        LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
         break;
     }
   }
 }
 
 // initializes micro session and low-level device from Python frontend
-TVM_REGISTER_GLOBAL("micro.init")
+TVM_REGISTER_GLOBAL("micro_init")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   std::shared_ptr<MicroSession> session = MicroSession::Global();
   session->InitSession(args);

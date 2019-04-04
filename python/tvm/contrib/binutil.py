@@ -151,3 +151,40 @@ def tvm_callback_get_symbol_map(binary):
         map_str += line[2] + "\n"
         map_str += line[0] + "\n"
     return map_str
+
+@register_func("tvm_callback_compile_micro")
+def tvm_callback_compile_binary(code_path="reasonable_default", cc="gcc"):
+    """Compiles code into a binary
+
+    Parameters
+    ----------
+    code_path : str
+        path to code file
+
+    cc : str
+        compiler to be used
+
+    Return
+    ------
+    binary_path : bytearray
+        compiled binary filename
+    """
+    tmp_dir = util.tempdir()
+    tmp_obj = tmp_dir.relpath("tmp_obj.bin")
+    with open(tmp_obj, "wb") as out_file:
+        out_file.write(bytes(binary))
+    p1 = subprocess.Popen([cc, "-c", "", tmp_obj],
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT)
+    (out, _) = p1.communicate()
+    if p1.returncode != 0:
+        msg = "Error in using nm:\n"
+        msg += py_str(out)
+        raise RuntimeError(msg)
+    out = out.splitlines()
+    map_str = ""
+    for line in out:
+        line = line.split()
+        map_str += line[2] + "\n"
+        map_str += line[0] + "\n"
+    return map_str

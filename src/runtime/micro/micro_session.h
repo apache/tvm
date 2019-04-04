@@ -33,8 +33,6 @@ class MicroSectionAllocator {
       section_max_(section_start) {
   }
 
-  MicroSectionAllocator() {}
-
   /*!
    * \brief destructor
    */
