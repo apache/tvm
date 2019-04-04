@@ -6,7 +6,7 @@ from .._ffi.base import py_str
 from ..api import register_func, convert
 
 
-@register_func("tvm_get_section_size")
+@register_func("tvm_callback_get_section_size")
 def tvm_callback_get_section_size(binary_path, section):
     """Finds size of the section in the binary.
     Assumes "size" shell command exists (typically works only on Linux machines)
@@ -39,7 +39,7 @@ def tvm_callback_get_section_size(binary_path, section):
     return int(out)
 
 
-@register_func("tvm_relocate_binary")
+@register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(binary_path, text, data, bss):
     """Relocates sections in the binary to new addresses
 
@@ -80,7 +80,7 @@ def tvm_callback_relocate_binary(binary_path, text, data, bss):
     return rel_bin
 
 
-@register_func("tvm_read_binary_section")
+@register_func("tvm_callback_read_binary_section")
 def tvm_callback_read_binary_section(binary_path, section):
     """Returns the contents of the specified section in the binary file
 
@@ -118,7 +118,7 @@ def tvm_callback_read_binary_section(binary_path, section):
     return section_bin
 
 
-@register_func("tvm_get_symbol_map")
+@register_func("tvm_callback_get_symbol_map")
 def tvm_callback_get_symbol_map(binary):
     """Obtains a map of symbols to addresses in the passed binary
 
@@ -151,6 +151,7 @@ def tvm_callback_get_symbol_map(binary):
         map_str += line[2] + "\n"
         map_str += line[0] + "\n"
     return map_str
+
 
 @register_func("tvm_callback_compile_micro")
 def tvm_callback_compile_binary(code_path="reasonable_default", cc="gcc"):

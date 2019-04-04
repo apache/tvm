@@ -16,6 +16,7 @@ namespace runtime {
  */
 class MicroDeviceAPI final : public DeviceAPI {
  public:
+  /*! \brief constructor */
   MicroDeviceAPI() {
     session_ = MicroSession::Global();
   }
@@ -64,6 +65,7 @@ class MicroDeviceAPI final : public DeviceAPI {
       to_lld->Write(
           const_cast<uint8_t*>(static_cast<const uint8_t*>(to)) + to_offset,
           const_cast<char*>(&buffer[0]), size);
+
     } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
       const std::shared_ptr<LowLevelDevice>& from_lld = session_->low_level_device();
       from_lld->Read(
@@ -82,17 +84,14 @@ class MicroDeviceAPI final : public DeviceAPI {
     }
   }
 
-  // TODO(): ignore this?
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
   }
 
-  // TODO: what about ctx?
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
     void* alloc_ptr = session_->AllocateInSection(kWorkspace, size);
     return alloc_ptr;
   }
 
-  // TODO: what about ctx?
   void FreeWorkspace(TVMContext ctx, void* data) final {
     session_->FreeInSection(kWorkspace, data);
   }
@@ -109,7 +108,7 @@ class MicroDeviceAPI final : public DeviceAPI {
 
  private:
   /*! \brief pointer to global session */
-  MicroSession* session_;
+  std::shared_ptr<MicroSession>& session_;
 };
 
 // register device that can be obtained from Python frontend

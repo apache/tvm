@@ -66,7 +66,7 @@ std::string ReadSection(std::string binary_name, SectionKind section) {
   const auto* f = Registry::Get("tvm_callback_read_binary_section");
   CHECK(f != nullptr)
     << "Require tvm_callback_read_binary_section to exist in registry";
-  std::string section_contents = (*f)(binary_name, SectionToString(section));
+  std::string section_contents = (*f)(binary, SectionToString(section));
   return section_contents;
 }
 
