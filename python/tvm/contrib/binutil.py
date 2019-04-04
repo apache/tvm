@@ -81,13 +81,13 @@ def tvm_relocate_binary(binary_name, text, data, bss):
 
 
 @register_func("tvm_read_binary_section")
-def tvm_read_binary_section(binary_name, section):
+def tvm_read_binary_section(binary, section):
     """Returns the contents of the specified section in the binary file
 
     Parameters
     ----------
-    binary_name : string 
-        name of the binary file
+    binary : bytearray
+        contents of the binary
 
     section : string
         type of section
@@ -98,10 +98,13 @@ def tvm_read_binary_section(binary_name, section):
         contents of the read section
     """
     tmp_dir = util.tempdir()
+    tmp_bin = tmp_dir.relpath("temp.bin")
     tmp_section = tmp_dir.relpath("tmp_section.bin")
+    with open(tmp_bin, "wb") as out_file:
+        out_file.write(bytes(binary))
     p1 = subprocess.Popen(["objcopy", "--dump-section",
                            "." + section + "=" + tmp_section,
-                           binary_name],
+                           tmp_bin],
                           stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT)
     (out, _) = p1.communicate()

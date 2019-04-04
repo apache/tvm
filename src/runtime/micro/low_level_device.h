@@ -3,8 +3,8 @@
  * \file low_level_device.h
  * \brief Abstract low-level micro device management
  */
-#ifndef TVM_RUNTIME_LOW_LEVEL_DEVICE_H_
-#define TVM_RUNTIME_LOW_LEVEL_DEVICE_H_
+#ifndef TVM_RUNTIME_MICRO_LOW_LEVEL_DEVICE_H_
+#define TVM_RUNTIME_MICRO_LOW_LEVEL_DEVICE_H_
 
 #include <cstddef>
 #include <memory>
@@ -64,6 +64,6 @@ const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes)
  * \param port port of the OpenOCD server to connect to
  */
 const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(int port);
-} // namespace runtime
-} // namespace tvm
-#endif // TVM_RUNTIME_LOW_LEVEL_DEVICE_H_
+}  // namespace runtime
+}  // namespace tvm
+#endif  // TVM_RUNTIME_MICRO_LOW_LEVEL_DEVICE_H_

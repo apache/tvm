@@ -29,13 +29,13 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t alignment,
                        TVMType type_hint) final {
     // TODO: can make this a private member, but where to best init it?
-    MicroSession* session = MicroSession::Global();
+    std::shared_ptr<MicroSession> session = MicroSession::Global();
     void* alloc_ptr = session->AllocateInSection(kHeap, nbytes);
     return alloc_ptr;
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    MicroSession* session = MicroSession::Global();
+    std::shared_ptr<MicroSession> session = MicroSession::Global();
     session->FreeInSection(kHeap, ptr);
   }
 
@@ -48,7 +48,7 @@ class MicroDeviceAPI final : public DeviceAPI {
                       TVMContext ctx_to,
                       TVMType type_hint,
                       TVMStreamHandle stream) final {
-    MicroSession* session = MicroSession::Global();
+    std::shared_ptr<MicroSession> session = MicroSession::Global();
     uint8_t buffer[size];
     constexpr int micro_devtype = kDLMicroDev;
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
@@ -75,20 +75,20 @@ class MicroDeviceAPI final : public DeviceAPI {
     }
   }
 
-  // TODO: ignore this?
+  // TODO(): ignore this?
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
   }
 
   // TODO: what about ctx?
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
-    MicroSession* session = MicroSession::Global();
+    std::shared_ptr<MicroSession> session = MicroSession::Global();
     void* alloc_ptr = session->AllocateInSection(kWorkspace, size);
     return alloc_ptr;
   }
 
   // TODO: what about ctx?
   void FreeWorkspace(TVMContext ctx, void* data) final {
-    MicroSession* session = MicroSession::Global();
+    std::shared_ptr<MicroSession> session = MicroSession::Global();
     session->FreeInSection(kWorkspace, data);
   }
 
@@ -109,5 +109,5 @@ TVM_REGISTER_GLOBAL("device_api.micro_dev")
     DeviceAPI* ptr = MicroDeviceAPI::Global().get();
     *rv = static_cast<void*>(ptr);
   });
-} // namespace runtime
-} // namespace tvm
+}  // namespace runtime
+}  // namespace tvm

@@ -28,21 +28,46 @@ class MicroSectionAllocator {
    * \param section_start start address of the section
    * \param section_end end address of the section (non inclusive)
    */
-  MicroSectionAllocator(void* section_start, void* section_end);
+  MicroSectionAllocator(void* section_start, void* section_end) 
+    : section_start_(section_start), section_end_(section_end),
+      section_max_(section_start) {
+  }
+
+  MicroSectionAllocator() {}
+
+  /*!
+   * \brief destructor
+   */
+  ~MicroSectionAllocator() {
+  }
 
   /*!
    * \brief memory allocator
    * \param size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  void* Allocate(size_t size);
+  void* Allocate(size_t size) {
+    void* alloc_ptr = nullptr;
+    if ((uint8_t*) section_max_ + size  < (uint8_t *) section_end_) {
+      alloc_ptr = section_max_;
+      section_max_ = (uint8_t*) section_max_ + size;
+      alloc_map_[alloc_ptr] = size;
+    }
+    return alloc_ptr;
+  }
 
   /*!
    * \brief free prior allocation from section
    * \param type type of section to allocate in
    * \param ptr pointer to allocated memory
+   * \note simple allocator scheme, more complex versions will be implemented later
    */
-  void Free(void* ptr);
+  void Free(void* ptr) {
+    alloc_map_.erase(ptr);
+    if (alloc_map_.empty()) {
+      section_max_ = section_start_;
+    }
+  }
 
  private:
   /*! \brief start address of the section */
@@ -58,6 +83,11 @@ class MicroSectionAllocator {
 class MicroSession {
  public:
   /*!
+   * \brief constructor
+   */
+  MicroSession();
+
+  /*!
    * \brief destructor
    */
   ~MicroSession();
@@ -66,7 +96,17 @@ class MicroSession {
    * \brief get MicroSession global singleton
    * \return pointer to the micro session global singleton
    */
-  static const MicroSession* Global();
+  static std::shared_ptr<MicroSession>& Global() {
+    static std::shared_ptr<MicroSession> inst = std::make_shared<MicroSession>();
+    return inst;
+  }
+
+  /*!
+   * \brief initializes session by setting up low_level_device_
+   * \param args TVMArgs passed into the micro.init packedfunc
+   * \note must be called upon first call to Global()
+   */
+  void InitSession(TVMArgs args);
 
   /*!
    * \brief allocate memory in section
@@ -102,31 +142,57 @@ class MicroSession {
   /*! \brief low-level device pointer */
   std::shared_ptr<LowLevelDevice> low_level_device_;
   /*! \brief text section allocator */
-  MicroSectionAllocator text_allocator_;
+  MicroSectionAllocator* text_allocator_;
   /*! \brief data section allocator */
-  MicroSectionAllocator data_allocator_;
+  MicroSectionAllocator* data_allocator_;
   /*! \brief bss section allocator */
-  MicroSectionAllocator bss_allocator_;
+  MicroSectionAllocator* bss_allocator_;
   /*! \brief args section allocator */
-  MicroSectionAllocator args_allocator_;
+  MicroSectionAllocator* args_allocator_;
   /*! \brief stack section allocator */
-  MicroSectionAllocator stack_allocator_;
+  MicroSectionAllocator* stack_allocator_;
   /*! \brief heap section allocator */
-  MicroSectionAllocator heap_allocator_;
+  MicroSectionAllocator* heap_allocator_;
   /*! \brief workspace section allocator */
-  MicroSectionAllocator workspace_allocator_;
+  MicroSectionAllocator* workspace_allocator_;
+  /*! \brief init text start address */
+  void* init_text_start_;
+  /*! \brief init data start address */
+  void* init_data_start_;
+  /*! \brief init bss start address */
+  void* init_bss_start_;
+  /*! \brief size of init text section */
+  size_t init_text_size_;
+  /*! \brief size of init data section */
+  size_t init_data_size_;
+  /*! \brief size of init bss section */
+  size_t init_bss_size_;
   /*! \brief symbol map for init stub */
   std::unordered_map<std::string, void*> init_symbol_map_;
 
   /*!
    * \brief sets up and loads init stub into the low-level device memory
    */
-  void SetupInitStub();
+  void LoadInitStub();
 
   /*!
    * \brief writes arguments to args section using allocator_stream
    */
   void AllocateTVMArgs(TVMArgs args);
+
+  void TargetAwareWrite(int64_t val, AllocatorStream* stream);
+  
+  void TargetAwareWrite(uint64_t val, AllocatorStream* stream);
+  
+  void TargetAwareWrite(double val, AllocatorStream* stream);
+  
+  void TargetAwareWrite(const char* val, AllocatorStream* stream);
+  
+  void TargetAwareWrite(TVMType val, AllocatorStream* stream);
+  
+  void TargetAwareWrite(TVMContext* val, AllocatorStream* stream);
+  
+  void TargetAwareWrite(TVMArray* val, AllocatorStream* stream);
 };
 }  // namespace runtime
 }  // namespace tvm

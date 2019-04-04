@@ -12,8 +12,7 @@ UTVMTask task;
 void UTVMDone() {}
 
 // init stub
-int UTVMMain()
-{
+int UTVMMain() {
   task.func(task.args, task.arg_type_ids, *task.num_args);
   UTVMDone();
   return 0;

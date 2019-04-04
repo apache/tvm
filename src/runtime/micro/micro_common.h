@@ -88,7 +88,7 @@ const char* SectionToString(SectionKind section);
  */
 void* GetSymbol(std::unordered_map<std::string, void*> symbol_map,
                 std::string name,
-                void* base_addr);
+                const void* base_addr);
 
 /*!
  * \brief links binary by repositioning section addresses
@@ -104,12 +104,12 @@ std::string RelocateBinarySections(std::string binary_name,
                                    void* bss);
 
 /*!
- * \brief reads section from binary file
- * \param binary_name input binary filename
+ * \brief reads section from binary
+ * \param binary input binary contents
  * \param section section type to be read
  * \return contents of the section
  */
-std::string ReadSection(std::string binary_name, SectionKind section);
+std::string ReadSection(std::string binary, SectionKind section);
 
 /*!
  * \brief finds size of the section in the binary

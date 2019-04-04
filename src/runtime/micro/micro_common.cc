@@ -31,7 +31,7 @@ const char* SectionToString(SectionKind section) {
 
 void* GetSymbol(std::unordered_map<std::string, void*> symbol_map,
                 std::string name,
-                void* base_addr) {
+                const void* base_addr) {
   void* symbol_addr = symbol_map[name];
   return (void*)((uint8_t*) symbol_addr - (uint8_t*) base_addr);
 }
@@ -59,12 +59,12 @@ std::string RelocateBinarySections(std::string binary_name,
   return relocated_bin;
 }
 
-std::string ReadSection(std::string binary_name, SectionKind section) {
+std::string ReadSection(std::string binary, SectionKind section) {
   CHECK(section == kText || section == kData || section == kBss)
     << "ReadSection requires section to be one of text, data or bss.";
   const auto* f = Registry::Get("tvm_read_binary_section");
   CHECK(f != nullptr) << "Require tvm_read_binary_section to exist in registry";
-  std::string section_contents = (*f)(binary_name, SectionToString(section));
+  std::string section_contents = (*f)(binary, SectionToString(section));
   return section_contents;
 }
 
