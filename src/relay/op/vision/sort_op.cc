@@ -35,7 +35,7 @@ Expr MakeArgsort(Expr data,
   auto attrs = make_node<ArgsortAttrs>();
   attrs->axis = axis;
   attrs->is_ascend = is_ascend;
-  CHECK(dtype != "bool");
+  CHECK_NE(dtype, "bool");
   attrs->dtype = dtype;
   static const Op& op = Op::Get("vision.argsort");
   return CallNode::make(op, {data}, Attrs(attrs), {});
