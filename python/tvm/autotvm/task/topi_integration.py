@@ -68,6 +68,8 @@ class TaskExtractEnv:
             topi.nn.group_conv2d_nchw: "topi_nn_group_conv2d_nchw",
             topi.nn.conv2d_transpose_nchw: "topi_nn_conv2d_transpose_nchw",
             topi.nn.dense: "topi_nn_dense",
+            topi.nn.bitserial_conv2d_nchw: "topi_nn_bitserial_conv2d_nchw",
+            topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
             topi.nn.deformable_conv2d_nchw: "topi_nn_deformable_conv2d_nchw",
         }
 
@@ -79,6 +81,8 @@ class TaskExtractEnv:
             topi.nn.group_conv2d_nchw: [topi.generic.schedule_group_conv2d_nchw],
             topi.nn.conv2d_transpose_nchw: [topi.generic.schedule_conv2d_transpose_nchw],
             topi.nn.dense: [topi.generic.schedule_dense],
+            topi.nn.bitserial_conv2d_nchw: [topi.generic.schedule_bitserial_conv2d_nchw],
+            topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
         }
 
@@ -173,6 +177,24 @@ class TaskExtractEnv:
             if bias is not None:
                 return s, [data, weight, bias, C]
             return s, [data, weight, C]
+
+        @register("topi_nn_bitserial_conv2d_nhwc")
+        def _topi_bitserial_conv2d_nhwc(*args, **kwargs):
+            args = deserialize_args(args)
+            C = topi.nn.bitserial_conv2d_nhwc(*args, **kwargs)
+            s = topi.generic.nn.schedule_bitserial_conv2d_nhwc([C])
+            data = args[0]
+            kernel = args[1]
+            return s, [data, kernel, C]
+
+        @register("topi_nn_bitserial_conv2d_nchw")
+        def _topi_bitserial_conv2d_nchw(*args, **kwargs):
+            args = deserialize_args(args)
+            C = topi.nn.bitserial_conv2d_nchw(*args, **kwargs)
+            s = topi.generic.nn.schedule_bitserial_conv2d_nchw([C])
+            data = args[0]
+            kernel = args[1]
+            return s, [data, kernel, C]
 
         @register("topi_nn_deformable_conv2d_nchw")
         def _topi_nn_deformable_conv2d_nchw(*args, **kwargs):

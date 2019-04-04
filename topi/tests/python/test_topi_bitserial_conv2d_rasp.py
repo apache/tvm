@@ -4,6 +4,7 @@ import numpy as np
 import tvm
 import topi
 import topi.testing
+from topi.util import get_const_tuple
 
 def generate_quantized_np(shape, bits, out_dtype):
     np.random.seed(0)
@@ -13,19 +14,20 @@ def generate_quantized_np(shape, bits, out_dtype):
 
 # Verify that certain special instructions from the tensorize pass exist
 def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel, stride, padding, 
-                                 activation_bits, weight_bits, dorefa):
+                                 activation_bits, weight_bits, unipolar):
     in_height = in_width = in_size
     input_type = 'uint32'
-    out_dtype = 'int32'
+    out_dtype = 'int16'
 
-    with tvm.target.arm_cpu('rasp3b'):
+    device = 'llvm -device=arm_cpu -model=bcm2837 -target=armv7l-linux-gnueabihf -mattr=+neon'
+    with tvm.target.create(device):
         A = tvm.placeholder((batch, in_height, in_width, in_channel), dtype=input_type, name='A')
         W = tvm.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_type, name='W')
-        B = topi.nn.bitserial_conv2d(A, W, stride, padding, activation_bits, weight_bits, out_dtype=out_dtype, 
-                                     layout="NHWC", dorefa=dorefa)
+        B = topi.nn.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits, 
+                                          pack_dtype='uint8', out_dtype='int16', unipolar=unipolar)
         s = topi.generic.schedule_bitserial_conv2d_nhwc([B])
 
-    func = tvm.build(s, [A, W, B], tvm.target.arm_cpu('rasp3b'))
+    func = tvm.build(s, [A, W, B], device)
    
     assembly = func.get_source('asm')
     matches = re.findall("vpadal", assembly)
@@ -34,6 +36,33 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     assert (len(matches) > 0)
     matches = re.findall("vpadd", assembly)
     assert (len(matches) > 0)
+
+    ctx = tvm.context(device, 0)
+    if 'arm' not in os.uname()[4]:
+        print ("Skipped running code, not an arm device")
+        return
+
+    print("Running on target: %s" % device)
+
+    def get_ref_data():
+        a_np = generate_quantized_np(get_const_tuple(A.shape), activation_bits, input_type)
+        w_np = generate_quantized_np(get_const_tuple(W.shape), weight_bits, input_type)
+        if unipolar:
+            w_ = np.copy(w_np).astype(out_dtype)
+            for x in np.nditer(w_, op_flags=['readwrite']):
+                x[...] = 1 if x == 1 else -1
+            b_np = topi.testing.conv2d_nhwc_python(a_np, w_, stride, padding).astype(out_dtype)
+        else:
+            b_np = topi.testing.conv2d_nhwc_python(a_np, w_np, stride, padding).astype(out_dtype)
+        return a_np, w_np, b_np
+    a_np, w_np, b_np = get_ref_data()
+    a = tvm.nd.array(a_np, ctx)
+    w = tvm.nd.array(w_np, ctx)
+    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
+    func = tvm.build(s, [A, W, B], device)
+
+    func(a, w, b)
+    np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 def test_bitserial_conv2d():
     in_size = 56
@@ -44,6 +73,9 @@ def test_bitserial_conv2d():
 
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 1, 1, False)
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, False)
+
+    verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 1, 1, True)
+    verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, True)
 
 if __name__ == "__main__":
     test_bitserial_conv2d()

@@ -205,7 +205,7 @@ def args_to_workload(x, topi_compute_func=None):
         workload = tuple([args_to_workload(a) for a in x])
     elif isinstance(x, (str, int, float, np.int, np.float)):
         workload = x
-    elif isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
+    elif isinstance(x, (expr.StringImm, expr.UIntImm, expr.IntImm, expr.FloatImm)):
         workload = x.value
     elif x is None:
         workload = 0
