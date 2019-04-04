@@ -431,7 +431,7 @@ inline runtime::TVMRetValue GenericFunc::operator()(Args&& ...args) const {
   const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
   TVMValue values[kArraySize];
   int type_codes[kArraySize];
-  runtime::detail::for_each(TVMArgsSetter(values, type_codes),
+  runtime::detail::for_each(runtime::TVMArgsSetter(values, type_codes),
     std::forward<Args>(args)...);
   runtime::TVMRetValue rv;
   CallPacked(TVMArgs(values, type_codes, kNumArgs), &rv);
