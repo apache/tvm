@@ -417,10 +417,10 @@ def test_argsort():
 
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype="int32"), ctx)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype="float32"), ctx)
         f = tvm.build(s, [data, valid_count, out], device)
         f(tvm_data, tvm_valid_count, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e0)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result.astype("float32"), rtol=1e0)
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
