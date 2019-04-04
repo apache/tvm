@@ -44,7 +44,7 @@ class TransformMemorizerNode : public Node {
  public:
   // map from (Expr, src_layout, dst_layout) to transformed Expr
   using TransformKey = std::tuple<const Node*, std::string, std::string>;
-  struct key_hash : public std::unary_function<TransformKey , std::size_t> {
+struct key_hash : public std::function<std::size_t(TransformKey)> {
     std::size_t operator()(const TransformKey& k) const {
       return dmlc::HashCombine<std::string>(dmlc::HashCombine<std::string>(
               std::hash<const Node*>()(std::get<0>(k)), std::get<1>(k)), (std::get<2>(k)));
