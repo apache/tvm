@@ -16,6 +16,10 @@ namespace runtime {
  */
 class MicroDeviceAPI final : public DeviceAPI {
  public:
+  MicroDeviceAPI() {
+    session_ = MicroSession::Global();
+  }
+
   void SetDevice(TVMContext ctx) final {}
 
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
@@ -28,15 +32,12 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        TVMType type_hint) final {
-    // TODO: can make this a private member, but where to best init it?
-    std::shared_ptr<MicroSession> session = MicroSession::Global();
-    void* alloc_ptr = session->AllocateInSection(kHeap, nbytes);
+    void* alloc_ptr = session_->AllocateInSection(kHeap, nbytes);
     return alloc_ptr;
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    std::shared_ptr<MicroSession> session = MicroSession::Global();
-    session->FreeInSection(kHeap, ptr);
+    session_->FreeInSection(kHeap, ptr);
   }
 
   void CopyDataFromTo(const void* from,
@@ -48,27 +49,33 @@ class MicroDeviceAPI final : public DeviceAPI {
                       TVMContext ctx_to,
                       TVMType type_hint,
                       TVMStreamHandle stream) final {
-    std::shared_ptr<MicroSession> session = MicroSession::Global();
-    uint8_t buffer[size];
     constexpr int micro_devtype = kDLMicroDev;
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
 
     if (type_from_to == std::make_tuple(micro_devtype, micro_devtype)) {
-      // TODO: ignored ctx because we assume only one low-level micro_dev - is ok?
-      std::shared_ptr<LowLevelDevice> from_lld = session->low_level_device();
-      std::shared_ptr<LowLevelDevice> to_lld = session->low_level_device();
-      from_lld->Read((uint8_t*)(from) + from_offset, buffer, size);
-      to_lld->Write((uint8_t*)(to) + to_offset, buffer, size);
+      CHECK(ctx_from.device_id == ctx_to.device_id)
+        << "can only copy between the same micro device";
+      std::string buffer;
+      const std::shared_ptr<LowLevelDevice>& from_lld = session_->low_level_device();
+      const std::shared_ptr<LowLevelDevice>& to_lld = session_->low_level_device();
+      from_lld->Read(
+          const_cast<uint8_t*>(static_cast<const uint8_t*>(from)) + from_offset,
+          const_cast<char*>(&buffer[0]), size);
+      to_lld->Write(
+          const_cast<uint8_t*>(static_cast<const uint8_t*>(to)) + to_offset,
+          const_cast<char*>(&buffer[0]), size);
+    } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
+      const std::shared_ptr<LowLevelDevice>& from_lld = session_->low_level_device();
+      from_lld->Read(
+          const_cast<uint8_t*>(static_cast<const uint8_t*>(from)) + from_offset,
+          const_cast<uint8_t*>(static_cast<const uint8_t*>(to)), size);
 
     } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
-      std::shared_ptr<LowLevelDevice> from_lld = session->low_level_device();
-      from_lld->Read((uint8_t*)(from) + from_offset, buffer, size);
-      memcpy(static_cast<uint8_t*>(to) + to_offset, buffer, size);
-
-    } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
-      std::shared_ptr<LowLevelDevice> to_lld = session->low_level_device();
-      to_lld->Write((uint8_t*)(to) + to_offset,
-                    (uint8_t*)(from) + from_offset, size);
+      const std::shared_ptr<LowLevelDevice>& to_lld = session_->low_level_device();
+      to_lld->Write(
+          const_cast<uint8_t*>(static_cast<const uint8_t*>(to)) + to_offset,
+          const_cast<uint8_t*>(static_cast<const uint8_t*>(from)) + from_offset,
+          size);
 
     } else {
       LOG(FATAL) << "Expect copy from/to micro_dev or between micro_dev\n";
@@ -81,15 +88,13 @@ class MicroDeviceAPI final : public DeviceAPI {
 
   // TODO: what about ctx?
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
-    std::shared_ptr<MicroSession> session = MicroSession::Global();
-    void* alloc_ptr = session->AllocateInSection(kWorkspace, size);
+    void* alloc_ptr = session_->AllocateInSection(kWorkspace, size);
     return alloc_ptr;
   }
 
   // TODO: what about ctx?
   void FreeWorkspace(TVMContext ctx, void* data) final {
-    std::shared_ptr<MicroSession> session = MicroSession::Global();
-    session->FreeInSection(kWorkspace, data);
+    session_->FreeInSection(kWorkspace, data);
   }
 
   /*!
@@ -101,6 +106,10 @@ class MicroDeviceAPI final : public DeviceAPI {
         std::make_shared<MicroDeviceAPI>();
     return inst;
   }
+
+ private:
+  /*! \brief pointer to global session */
+  MicroSession* session_;
 };
 
 // register device that can be obtained from Python frontend

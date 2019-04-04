@@ -7,25 +7,25 @@ from ..api import register_func, convert
 
 
 @register_func("tvm_get_section_size")
-def tvm_get_section_size(binary_name, section):
+def tvm_callback_get_section_size(binary_path, section):
     """Finds size of the section in the binary.
     Assumes "size" shell command exists (typically works only on Linux machines)
 
     Parameters
     ----------
-    binary_name : string
-        name of the binary file
+    binary_path : str
+        path of the binary file
 
-    section : string
+    section : str
         type of section
 
     Return
     ------
-    size : integer 
+    size : integer
         size of the section in bytes
     """
     section_map = {"text": "1", "data": "2", "bss": "3"}
-    p1 = subprocess.Popen(["size", binary_name], stdout=subprocess.PIPE)
+    p1 = subprocess.Popen(["size", binary_path], stdout=subprocess.PIPE)
     p2 = subprocess.Popen(["awk", "{print $" + section_map[section] + "}"],
                            stdin=p1.stdout, stdout=subprocess.PIPE)
     p3 = subprocess.Popen(["tail", "-1"], stdin=p2.stdout, stdout=subprocess.PIPE)
@@ -40,21 +40,21 @@ def tvm_get_section_size(binary_name, section):
 
 
 @register_func("tvm_relocate_binary")
-def tvm_relocate_binary(binary_name, text, data, bss):
+def tvm_callback_relocate_binary(binary_path, text, data, bss):
     """Relocates sections in the binary to new addresses
 
     Parameters
     ----------
-    binary_name : string
-        name of the binary file
+    binary_path : str
+        path of the binary file
 
-    text : string
+    text : str
         text section address
 
-    data : string
+    data : str
         data section address
 
-    bss : string
+    bss : str
         bss section address
 
     Return
@@ -64,7 +64,7 @@ def tvm_relocate_binary(binary_name, text, data, bss):
     """
     tmp_dir = util.tempdir()
     rel_obj = tmp_dir.relpath("relocated.o")
-    p1 = subprocess.Popen(["ld", binary_name,
+    p1 = subprocess.Popen(["ld", binary_path,
                            "-Ttext", text,
                            "-Tdata", data,
                            "-Tbss", bss,
@@ -81,15 +81,15 @@ def tvm_relocate_binary(binary_name, text, data, bss):
 
 
 @register_func("tvm_read_binary_section")
-def tvm_read_binary_section(binary, section):
+def tvm_callback_read_binary_section(binary_path, section):
     """Returns the contents of the specified section in the binary file
 
     Parameters
     ----------
-    binary : bytearray
-        contents of the binary
+    binary_path : str
+        path of the binary file
 
-    section : string
+    section : str
         type of section
 
     Return
@@ -98,13 +98,10 @@ def tvm_read_binary_section(binary, section):
         contents of the read section
     """
     tmp_dir = util.tempdir()
-    tmp_bin = tmp_dir.relpath("temp.bin")
     tmp_section = tmp_dir.relpath("tmp_section.bin")
-    with open(tmp_bin, "wb") as out_file:
-        out_file.write(bytes(binary))
     p1 = subprocess.Popen(["objcopy", "--dump-section",
                            "." + section + "=" + tmp_section,
-                           tmp_bin],
+                           binary_path],
                           stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT)
     (out, _) = p1.communicate()
@@ -122,7 +119,7 @@ def tvm_read_binary_section(binary, section):
 
 
 @register_func("tvm_get_symbol_map")
-def tvm_get_symbol_map(binary):
+def tvm_callback_get_symbol_map(binary):
     """Obtains a map of symbols to addresses in the passed binary
 
     Parameters

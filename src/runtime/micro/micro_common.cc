@@ -31,7 +31,7 @@ const char* SectionToString(SectionKind section) {
 
 void* GetSymbol(std::unordered_map<std::string, void*> symbol_map,
                 std::string name,
-                const void* base_addr) {
+                void* base_addr) {
   void* symbol_addr = symbol_map[name];
   return (void*)((uint8_t*) symbol_addr - (uint8_t*) base_addr);
 }
@@ -50,8 +50,9 @@ std::string RelocateBinarySections(std::string binary_name,
                                    void* text,
                                    void* data,
                                    void* bss) {
-  const auto* f = Registry::Get("tvm_relocate_binary");
-  CHECK(f != nullptr) << "Require tvm_relocate_binary to exist in registry";
+  const auto* f = Registry::Get("tvm_callback_relocate_binary");
+  CHECK(f != nullptr)
+    << "Require tvm_callback_relocate_binary to exist in registry";
   std::string relocated_bin = (*f)(binary_name,
                                    AddrToString(text),
                                    AddrToString(data),
@@ -59,27 +60,29 @@ std::string RelocateBinarySections(std::string binary_name,
   return relocated_bin;
 }
 
-std::string ReadSection(std::string binary, SectionKind section) {
+std::string ReadSection(std::string binary_name, SectionKind section) {
   CHECK(section == kText || section == kData || section == kBss)
     << "ReadSection requires section to be one of text, data or bss.";
-  const auto* f = Registry::Get("tvm_read_binary_section");
-  CHECK(f != nullptr) << "Require tvm_read_binary_section to exist in registry";
-  std::string section_contents = (*f)(binary, SectionToString(section));
+  const auto* f = Registry::Get("tvm_callback_read_binary_section");
+  CHECK(f != nullptr)
+    << "Require tvm_callback_read_binary_section to exist in registry";
+  std::string section_contents = (*f)(binary_name, SectionToString(section));
   return section_contents;
 }
 
 size_t GetSectionSize(std::string binary_name, SectionKind section) {
   CHECK(section == kText || section == kData || section == kBss)
     << "GetSectionSize requires section to be one of text, data or bss.";
-  const auto* f = Registry::Get("tvm_get_section_size");
-  CHECK(f != nullptr) << "Require tvm_get_section_size to exist in registry";
+  const auto* f = Registry::Get("tvm_callback_get_section_size");
+  CHECK(f != nullptr)
+    << "Require tvm_callback_get_section_size to exist in registry";
   size_t size = (*f)(binary_name, SectionToString(section));
   return size;
 }
 
 std::unordered_map<std::string, void*> GetSymbolMap(std::string binary) {
-  const auto* f = Registry::Get("tvm_get_symbol_map");
-  CHECK(f != nullptr) << "Require tvm_get_symbol_map to exist in registry";
+  const auto* f = Registry::Get("tvm_callback_get_symbol_map");
+  CHECK(f != nullptr) << "Require tvm_callback_get_symbol_map to exist in registry";
   TVMByteArray arr;
   arr.data = &binary[0];
   arr.size = binary.length();

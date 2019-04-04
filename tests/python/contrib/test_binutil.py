@@ -60,10 +60,14 @@ def test_tvm_relocate_binary(binary):
 
 
 def test_tvm_read_binary_section(binary):
+    tmp_dir = util.tempdir()
+    tmp_bin = tmp_dir.relpath("obj.bin")
+    with open(tmp_bin, "wb") as f:
+        f.write(binary)
     def verify():
-        text_bin = tvm_read_binary_section(binary, "text")
-        data_bin = tvm_read_binary_section(binary, "data")
-        bss_bin = tvm_read_binary_section(binary, "bss")
+        text_bin = tvm_read_binary_section(tmp_bin, "text")
+        data_bin = tvm_read_binary_section(tmp_bin, "data")
+        bss_bin = tvm_read_binary_section(tmp_bin, "bss")
         print("Read text section part of binary? %r" % (text_bin in binary))
         print("Read data section part of binary? %r" % (data_bin in binary))
         print("Read bss section part of binary? %r" % (bss_bin in binary))

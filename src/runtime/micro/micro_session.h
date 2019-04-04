@@ -28,7 +28,7 @@ class MicroSectionAllocator {
    * \param section_start start address of the section
    * \param section_end end address of the section (non inclusive)
    */
-  MicroSectionAllocator(void* section_start, void* section_end) 
+  MicroSectionAllocator(void* section_start, void* section_end)
     : section_start_(section_start), section_end_(section_end),
       section_max_(section_start) {
   }
@@ -96,17 +96,7 @@ class MicroSession {
    * \brief get MicroSession global singleton
    * \return pointer to the micro session global singleton
    */
-  static std::shared_ptr<MicroSession>& Global() {
-    static std::shared_ptr<MicroSession> inst = std::make_shared<MicroSession>();
-    return inst;
-  }
-
-  /*!
-   * \brief initializes session by setting up low_level_device_
-   * \param args TVMArgs passed into the micro.init packedfunc
-   * \note must be called upon first call to Global()
-   */
-  void InitSession(TVMArgs args);
+  static MicroSession* Global();
 
   /*!
    * \brief allocate memory in section
@@ -134,7 +124,7 @@ class MicroSession {
    * \brief returns low-level device pointer
    * \note assumes low_level_device_ is initialized
    */
-  const std::shared_ptr<LowLevelDevice> low_level_device() const {
+  const std::shared_ptr<LowLevelDevice>& low_level_device() const {
     return low_level_device_;
   }
 
@@ -181,17 +171,17 @@ class MicroSession {
   void AllocateTVMArgs(TVMArgs args);
 
   void TargetAwareWrite(int64_t val, AllocatorStream* stream);
-  
+
   void TargetAwareWrite(uint64_t val, AllocatorStream* stream);
-  
+
   void TargetAwareWrite(double val, AllocatorStream* stream);
-  
+
   void TargetAwareWrite(const char* val, AllocatorStream* stream);
-  
+
   void TargetAwareWrite(TVMType val, AllocatorStream* stream);
-  
+
   void TargetAwareWrite(TVMContext* val, AllocatorStream* stream);
-  
+
   void TargetAwareWrite(TVMArray* val, AllocatorStream* stream);
 };
 }  // namespace runtime
