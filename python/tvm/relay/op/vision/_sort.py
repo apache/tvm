@@ -19,8 +19,9 @@ def compute_argsort(attrs, inputs, _, target):
     """Compute definition of argsort"""
     axis = get_const_int(attrs.axis)
     is_ascend = bool(get_const_int(attrs.is_ascend))
+    dtype = str(attrs.dtype)
     return [
-        topi.vision.argsort(inputs[0], None, axis, is_ascend, flag=False)
+        topi.vision.argsort(inputs[0], None, axis=axis, is_ascend=is_ascend, dtype=dtype, flag=False)
     ]
 
 

@@ -51,7 +51,7 @@ def sort_ir(data, output, axis, is_ascend):
     ib.scope_attr(bx, "virtual_thread", nthread_bx)
     tid = bx * nthread_tx + tx
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
-    temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
+    temp_index = ib.allocate("float32", (1,), name="temp_index", scope="local")
     is_ascend = tvm.make.node("IntImm", dtype="int32", value=is_ascend)
 
     with ib.for_range(0, axis_mul_before) as i:
@@ -59,7 +59,7 @@ def sort_ir(data, output, axis, is_ascend):
             current_sort_num = shape[axis]
             base_idx = i * shape[axis] * axis_mul_after + j
             with ib.if_scope(tid < shape[axis]):
-                output[base_idx + tid * axis_mul_after] = tid
+                output[base_idx + tid * axis_mul_after] = tid.astype("float32")
             # OddEvenTransposeSort
             with ib.for_range(0, current_sort_num) as k:
                 with ib.if_scope(tid < (current_sort_num + 1) // 2):
@@ -179,7 +179,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     return ib.get()
 
 @argsort.register(["cuda", "gpu"])
-def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
+def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
 
@@ -203,10 +203,10 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
         The output of this function.
     """
     data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=4)
     if flag:
         valid_count_buf = api.decl_buffer(valid_count.shape, valid_count.dtype,
                                           "valid_count_buf", data_alignment=4)
+        out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=4)
         out = tvm.extern([data.shape],
                          [data, valid_count],
                          lambda ins, outs: sort_nms_ir(
@@ -217,11 +217,12 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, flag=0):
                          name="argsort_nms_gpu",
                          tag="argsort_nms_gpu")
     else:
+        out_buf = api.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
         out = tvm.extern([data.shape],
                          [data],
                          lambda ins, outs: sort_ir(
                              ins[0], outs[0], axis, is_ascend),
-                         dtype="int32",
+                         dtype=dtype,
                          in_buffers=[data_buf],
                          out_buffers=[out_buf],
                          name="argsort_gpu",

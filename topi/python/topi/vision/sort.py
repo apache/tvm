@@ -3,7 +3,7 @@ import tvm
 from tvm import api
 
 @tvm.target.generic_func
-def argsort(data, valid_count, axis=-1, is_ascend=1, flag=0):
+def argsort(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0):
     """Performs sorting along the given axis and returns an array
     of indices having the same shape as an input array that index
     data in sorted order.
@@ -22,6 +22,9 @@ def argsort(data, valid_count, axis=-1, is_ascend=1, flag=0):
 
     is_ascend : optional, boolean
         Whether to sort in ascending or descending order.
+
+    dtype : optional, string
+        DType of the output indices.
 
     flag : optional, boolean
         Whether valid_count is valid.
@@ -54,10 +57,10 @@ def argsort(data, valid_count, axis=-1, is_ascend=1, flag=0):
         f(tvm_data, tvm_valid_count, tvm_out)
     """
     data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
-    out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=8)
     if flag:
         valid_count_buf = api.decl_buffer(valid_count.shape, valid_count.dtype,
                                           "valid_count_buf", data_alignment=4)
+        out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=8)
         out = \
             tvm.extern(data.shape,
                        [data, valid_count],
@@ -68,15 +71,16 @@ def argsort(data, valid_count, axis=-1, is_ascend=1, flag=0):
                        in_buffers=[data_buf, valid_count_buf],
                        out_buffers=out_buf,
                        name="argsort_nms_cpu",
-                       tag="argsort_nms_)cpu")
+                       tag="argsort_nms_cpu")
     else:
+        out_buf = api.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
         out = \
             tvm.extern(data.shape,
                        [data],
                        lambda ins, outs: tvm.call_packed(
                            "tvm.contrib.sort.argsort", ins[0],
-                           outs[0], axis, is_ascend),
-                       dtype="int32",
+                           outs[0], axis, is_ascend, dtype),
+                       dtype=dtype,
                        in_buffers=[data_buf],
                        out_buffers=out_buf,
                        name="argsort_cpu",

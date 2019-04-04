@@ -127,7 +127,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
 
   auto dtype = input->dtype;
   auto data_ptr = static_cast<float *>(input->data);
-  std::vector<std::pair<int32_t, float>> sorter;
+  std::vector<std::pair<float, float>> sorter;
   int64_t axis_mul_before = 1;
   int64_t axis_mul_after = 1;
 
@@ -166,8 +166,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
         std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<float>);
       }
       for (int32_t k = 0; k < input->shape[axis]; ++k) {
-        *(static_cast<int32_t *>(output->data) + base_idx + k * axis_mul_after)
-            = k < static_cast<int32_t>(sorter.size()) ? sorter[k].first : k;
+        *(static_cast<float *>(output->data) + base_idx + k * axis_mul_after)
+            = k < static_cast<float>(sorter.size()) ? sorter[k].first : k;
       }
     }
   }

@@ -584,7 +584,7 @@ def test_argsort():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.astype("float"), rtol=1e-5)
     verify_argsort((2, 3, 4), axis=0, is_ascend=False)
     verify_argsort((1, 4, 6), axis=1, is_ascend=True)
     verify_argsort((3, 5, 6), axis=-1, is_ascend=False)

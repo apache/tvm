@@ -24,16 +24,19 @@ bool ArgsortRel(const Array<Type>& types,
         << types[0];
     return false;
   }
-  reporter->Assign(types[1], TensorTypeNode::make(data->shape, Int(32)));
+  reporter->Assign(types[1], TensorTypeNode::make(data->shape, data->dtype));
   return true;
 }
 
 Expr MakeArgsort(Expr data,
                  int axis,
-                 bool is_ascend) {
+                 bool is_ascend,
+                 std::string dtype) {
   auto attrs = make_node<ArgsortAttrs>();
   attrs->axis = axis;
   attrs->is_ascend = is_ascend;
+  CHECK(dtype != "bool");
+  attrs->dtype = dtype;
   static const Op& op = Op::Get("vision.argsort");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -41,7 +44,7 @@ Expr MakeArgsort(Expr data,
 
 TVM_REGISTER_API("relay.op.vision._make.argsort")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 3>(MakeArgsort, args, rv);
+  runtime::detail::unpack_call<Expr, 4>(MakeArgsort, args, rv);
 });
 
 

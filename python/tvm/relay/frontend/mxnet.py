@@ -653,6 +653,7 @@ def _mx_argsort(inputs, attrs):
     new_attrs = {}
     new_attrs["axis"] = attrs.get_int("axis", -1)
     new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
+    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
     return _op.vision.argsort(inputs[0], **new_attrs)
 
 
