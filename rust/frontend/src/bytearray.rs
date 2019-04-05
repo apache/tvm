@@ -3,9 +3,9 @@
 //!
 //! For more detail, please see the example `resnet` in `examples` repository.
 
-use std::os::raw::{c_char, c_void};
+use std::os::raw::c_char;
 
-use tvm_common::{ffi, TVMArgValue};
+use tvm_common::ffi;
 
 /// A struct holding TVM byte-array.
 ///
@@ -44,25 +44,14 @@ impl TVMByteArray {
     }
 }
 
-impl<'a> From<&'a Vec<u8>> for TVMByteArray {
-    fn from(arg: &Vec<u8>) -> Self {
+impl<'a, T: AsRef<[u8]>> From<T> for TVMByteArray {
+    fn from(arg: T) -> Self {
+        let arg = arg.as_ref();
         let barr = ffi::TVMByteArray {
             data: arg.as_ptr() as *const c_char,
             size: arg.len(),
         };
         TVMByteArray::new(barr)
-    }
-}
-
-impl<'a> From<&TVMByteArray> for TVMArgValue<'a> {
-    fn from(arr: &TVMByteArray) -> Self {
-        Self {
-            value: ffi::TVMValue {
-                v_handle: &arr.inner as *const ffi::TVMByteArray as *const c_void as *mut c_void,
-            },
-            type_code: ffi::TVMTypeCode_kBytes as i64,
-            _lifetime: std::marker::PhantomData,
-        }
     }
 }
 

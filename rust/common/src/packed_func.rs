@@ -161,6 +161,7 @@ TVMPODValue! {
     }
 }
 
+#[macro_export]
 macro_rules! try_downcast {
     ($val:ident, |$pat:pat|: $into:ty { $converter:expr }) => {
         match $val {
@@ -177,14 +178,14 @@ macro_rules! try_downcast {
 macro_rules! impl_pod_value {
     ($variant:ident, $inner_ty:ty, [ $( $type:ty ),+ ] ) => {
         $(
-            impl From<$type> for TVMArgValue<'static> {
+            impl<'a> From<$type> for TVMArgValue<'a> {
                 fn from(val: $type) -> Self {
                     Self::$variant(val as $inner_ty)
                 }
             }
 
             impl<'a> TryFrom<TVMArgValue<'a>> for $type {
-              type Error = $crate::errors::ValueDowncastError;
+                type Error = $crate::errors::ValueDowncastError;
                 fn try_from(val: TVMArgValue<'a>) -> Result<Self, Self::Error> {
                     try_downcast!(val, |TVMArgValue::$variant(val)|: $type { val as $type })
                 }
@@ -207,6 +208,7 @@ macro_rules! impl_pod_value {
 }
 
 impl_pod_value!(Int, i64, [i8, i16, i32, i64, isize]);
+impl_pod_value!(UInt, i64, [u8, u16, u32, u64, usize]);
 impl_pod_value!(Float, f64, [f32, f64]);
 impl_pod_value!(Type, TVMType, [TVMType]);
 impl_pod_value!(Context, TVMContext, [TVMContext]);
@@ -214,6 +216,12 @@ impl_pod_value!(Context, TVMContext, [TVMContext]);
 impl<'a> From<&'a str> for TVMArgValue<'a> {
     fn from(s: &'a str) -> Self {
         Self::String(CString::new(s).unwrap())
+    }
+}
+
+impl<'a> From<&'a CStr> for TVMArgValue<'a> {
+    fn from(s: &'a CStr) -> Self {
+        Self::Str(s)
     }
 }
 
@@ -262,6 +270,37 @@ impl From<String> for TVMRetValue {
         Self::String(std::ffi::CString::new(s).unwrap())
     }
 }
+
+impl From<TVMByteArray> for TVMRetValue {
+    fn from(arr: TVMByteArray) -> Self {
+        Self::Bytes(arr)
+    }
+}
+
+impl TryFrom<TVMRetValue> for TVMByteArray {
+    type Error = ValueDowncastError;
+    fn try_from(val: TVMRetValue) -> Result<Self, Self::Error> {
+        try_downcast!(val, |TVMRetValue::Bytes(val)|: TVMByteArray { val })
+    }
+}
+
+// impl From<Vec<u8>> for TVMRetValue {
+//     fn from(bytes: Vec<u8>) -> Self {
+//         Self::Bytes()
+//     }
+// }
+//
+// impl Drop for TVMRetValue {
+//     fn drop(&mut self) {
+//         use TVMRetValue::*;
+//         match self {
+//             Bytes(bytearr) => {
+//                 unsafe { Vec::from_raw_parts(bytearr.data, bytearr.len, bytearr.len) };
+//             }
+//             _ => (),
+//         }
+//     }
+// }
 
 impl Default for TVMRetValue {
     fn default() -> Self {
