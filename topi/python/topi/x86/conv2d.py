@@ -20,7 +20,7 @@ from . import conv2d_avx_1x1, conv2d_avx_common
 
 logger = logging.getLogger('topi')
 
-def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
+def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False, layout='NCHW'):
     """
     Get default schedule config for the workload
     """
@@ -29,7 +29,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
         from .depthwise_conv2d import _fallback_schedule
         _fallback_schedule(cfg, wkl)
     else:
-        wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
+        wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype, layout)
         is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
         if is_kernel_1x1:
             conv2d_avx_1x1._fallback_schedule(cfg, wkl)
@@ -43,6 +43,9 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     kshape = get_const_tuple(kernel.shape)
     if layout == 'NCHW':
         n, ic, h, w = dshape
+        oc, _, kh, kw = kshape
+    elif layout == 'NHWC':
+        n, h, w, ic = dshape
         oc, _, kh, kw = kshape
     else:
         raise ValueError("Not support this layout {} with "
@@ -63,12 +66,14 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
         cfg.define_knob("unroll_kw", [True, False])
 
 
-@autotvm.register_topi_compute(conv2d, 'cpu', 'direct')
+@autotvm.register_topi_compute(conv2d, 'cpu', ['direct'])
 def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     padding = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     dilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+
+    _, _, kh, kw = get_const_tuple(kernel.shape)
     if layout == 'NCHW':
         _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
         if cfg.is_fallback:
@@ -77,7 +82,13 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
                                       padding, dilation, layout, out_dtype)
     if layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
-    if layout == 'NHWC':
+    elif layout == 'NHWC' and kh == 1 and kw == 1 and kernel.dtype == "int8":
+        if cfg.is_fallback:
+            _get_default_config(cfg, data, kernel, strides, padding, out_dtype, False, layout)
+        # specialize for INT8 1X1 conv on X86
+        return conv2d_avx_1x1._declaration_conv_nhwc_pack(cfg, data, kernel, strides,
+                                                          padding, dilation, out_dtype)
+    elif layout == 'NHWC':
         return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
 
@@ -196,8 +207,9 @@ def schedule_conv2d(cfg, outs):
     return s
 
 
-@generic.schedule_conv2d_nhwc.register("cpu")
-def schedule_conv2d_nhwc(outs):
+# @generic.schedule_conv2d_nhwc.register("cpu")
+@autotvm.register_topi_schedule(generic.schedule_conv2d_nhwc, 'cpu', ['direct'])
+def schedule_conv2d_nhwc(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     output_op = outs[0].op
@@ -219,7 +231,31 @@ def schedule_conv2d_nhwc(outs):
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
-        if 'conv2d_nhwc' in op.tag:
+        if 'conv2d_nhwc_pack_int8' in op.tag:
+            conv_out = op.output(0)
+            kernel = conv_out.op.input_tensors[1]
+            data_vec = conv_out.op.input_tensors[0]
+            data = data_vec.op.input_tensors[0] \
+                if isinstance(data_vec.op, tvm.tensor.ComputeOp) and "pad" not in data_vec.op.tag \
+                else data_vec
+            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+                data_pad = data
+                data = data_pad.op.input_tensors[0]
+
+            args = [s, cfg, data_vec, conv_out, outs[0]]
+            if data.dtype == 'uint8':
+                # int8 conv kernel is 7-dim
+                kh, kw, _, _, _ = get_const_tuple(kernel.shape)
+                if kh == 1 and kw == 1:
+                    conv2d_avx_1x1._schedule_conv_nhwc_pack_int8(*args)
+                else:
+                    raise ValueError("Only support 1x1 kernel with "
+                             "schedule template.")
+            else:
+                raise ValueError("Not support this data type {} with "
+                         "schedule template.".format(data.dtype))
+
+        elif 'conv2d_nhwc' in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
