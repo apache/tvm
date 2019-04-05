@@ -8,7 +8,7 @@ pub use crate::ffi::TVMValue;
 use crate::{errors::ValueDowncastError, ffi::*};
 
 pub trait PackedFunc =
-    Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync;
+    Fn(Vec<TVMArgValue>) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync;
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
@@ -260,5 +260,11 @@ impl TryFrom<TVMRetValue> for String {
 impl From<String> for TVMRetValue {
     fn from(s: String) -> Self {
         Self::String(std::ffi::CString::new(s).unwrap())
+    }
+}
+
+impl Default for TVMRetValue {
+    fn default() -> Self {
+        Self::Int(0)
     }
 }
