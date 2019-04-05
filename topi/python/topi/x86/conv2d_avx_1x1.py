@@ -20,8 +20,9 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
-from ..nn.util import infer_pad
-from ..util import get_const_tuple
+from ..nn.pad import pad
+from ..nn.util import infer_pad, get_pad_tuple
+from ..util import get_const_tuple, simplify
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .check_targets import check_skylake
 from .util import get_fp32_len
@@ -249,5 +250,106 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
         s[C].compute_at(s[O], parallel_axis)
         s[O].vectorize(oc_block)
         s[O].parallel(parallel_axis)
+
+    return s
+
+
+def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, out_dtype):
+    # more assertion for the shapes
+    assert isinstance(stride, int) or len(stride) == 2
+    assert isinstance(dilation, int) or len(dilation) == 2
+    if isinstance(stride, int):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    batch, in_height, in_width, in_channel = Input.shape
+    kernel_h, kernel_w, num_filter, channel = Filter.shape
+
+    # compute the output shape
+    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
+    out_channel = num_filter
+    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
+    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
+    pad_before = [0, pad_top, pad_left, 0]
+    pad_after = [0, pad_down, pad_right, 0]
+    PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
+    # todo: padding filter to accomodate the intrinsic
+
+    # packing the Filter to let memory access be consecutive for AVX512 intrinsic
+    # Done in pre-compute stage
+    packw_shape = (kernel_h, kernel_w, num_filter/16, 16*(channel/4), 4)
+    PackW = tvm.compute(packw_shape, lambda a, b, c, d, e: Filter[a][b][c*16+d%16][d/16*4+e],
+                        name="packed_filter")
+
+    rc = tvm.reduce_axis((0, in_channel), name='rc')
+    ry = tvm.reduce_axis((0, kernel_h), name='ry')
+    rx = tvm.reduce_axis((0, kernel_w), name='rx')
+    Output = tvm.compute(
+        (batch, out_height, out_width, out_channel),
+        lambda nn, yy, xx, ff: tvm.sum(
+            PaddedInput[nn, yy * stride_h + ry * dilation_h,
+                        xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
+            PackW[ry, rx, ff/16, (rc/4)*16+ff%16, rc%4].astype(out_dtype), axis=[ry, rx, rc]),
+        name="Conv2d_1x1_Output_int8", tag="conv2d_nhwc_pack_int8")
+    return Output
+
+
+def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
+    """
+    Defines the schedule for the int8 nhwc layout. For 1x1 conv, it
+    is a matrix-multiply operation by using nhwc layout. We will do
+    packing of weight to make the address access be friendly to int8
+    intrinsic
+    """
+    target = tvm.target.current_target(allow_none=False)
+    int32_lanes = -1
+    if check_skylake(target):
+        int32_lanes = 16
+    else:
+        return s
+    assert int32_lanes != -1
+
+    # assertion to fail the unhandled case
+    _, _, _, ic_num = get_const_tuple(data.shape)
+    _, _, _, oc_num = get_const_tuple(conv_out.shape)
+    assert ic_num % 4 == 0
+    assert oc_num % 16 == 0
+
+    ic_factor, oc_factor = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    # schedule data
+    A = data
+    if isinstance(s[A].op, tvm.tensor.ComputeOp):
+        batch, ih, iw, ic = s[A].op.axis
+        d_ic_chunk, d_ic_block = s[A].split(ic, factor=4)
+        s[A].vectorize(d_ic_block)
+
+    C, O = conv_out, last
+
+    batch, oh, ow, oc = s[C].op.axis
+    kh, kw, ic = s[C].op.reduce_axis
+    # match the x86 intrinsic
+    ic_outer, ic_inner = s[C].split(ic, factor=4)
+    oc_outer, oc_inner = s[C].split(oc, factor=int32_lanes)
+
+    ic_f_outer, ic_s_outer = s[C].split(ic_outer, factor=ic_factor)
+    s[C].reorder(oc_outer, oh, ow, ic_f_outer, ic_s_outer, kh, kw, oc_inner, ic_inner)
+
+    pc = dot_16x1x16_int8_int8_int32()
+    s[C].tensorize(oc_inner, pc)
+
+    if C != O:
+        batch, last_oh, last_ow, last_oc = s[O].op.axis
+        oc_chunk, oc_block = s[O].split(ochannel, 16)
+        # not saw perf improvement to split oh/ow here
+        s[O].vectorize(oc_block)
 
     return s
