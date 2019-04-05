@@ -8,6 +8,7 @@ readme = "README.md"
 keywords = ["tvm", "nnvm"]
 categories = ["api-bindings", "science"]
 authors = ["TVM Contributors"]
+edition = "2018"
 
 [features]
 default = ["nom/std"]
