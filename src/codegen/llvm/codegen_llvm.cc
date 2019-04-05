@@ -868,7 +868,14 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Max* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const EQ* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
-  if (op->a.type().is_int() || op->a.type().is_uint()) {
+
+  if (op->a.type().is_handle() && op->b.type().is_handle()) {
+  	return builder_->CreateICmpEQ(a, b);
+  } else if (op->a.type().is_handle() || op->b.type().is_handle()) {
+  	LOG(FATAL) << "Both or none of the operands should be pointers."
+               << "\n";
+    return nullptr;
+  } else if (op->a.type().is_int() || op->a.type().is_uint()) {
     return builder_->CreateICmpEQ(a, b);
   } else {
     return builder_->CreateFCmpOEQ(a, b);
@@ -878,7 +885,14 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const EQ* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const NE* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
-  if (op->a.type().is_int() || op->a.type().is_uint()) {
+
+  if (op->a.type().is_handle() && op->b.type().is_handle()) {
+  	return builder_->CreateICmpEQ(a, b);
+  } else if (op->a.type().is_handle() || op->b.type().is_handle()) {
+  	LOG(FATAL) << "Both or none of the operands should be pointers."
+               << "\n";
+    return nullptr;
+  } else if (op->a.type().is_int() || op->a.type().is_uint()) {
     return builder_->CreateICmpNE(a, b);
   } else {
     return builder_->CreateFCmpONE(a, b);
