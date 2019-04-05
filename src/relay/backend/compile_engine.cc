@@ -127,7 +127,9 @@ class ScheduleGetter :
       schedule =
           fschedule[master_op_](master_attrs_, tensor_outs, target_);
       for (const auto& scalar : scalars_) {
-        schedule[scalar].compute_inline();
+        if (schedule->Contain(scalar)) {
+          schedule[scalar].compute_inline();
+        }
       }
     }
     return std::make_pair(schedule, cfunc);
