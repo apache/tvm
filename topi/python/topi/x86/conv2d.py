@@ -2,6 +2,7 @@
 """Conv2D schedule on x86"""
 
 import logging
+import re
 
 import tvm
 from tvm import autotvm
@@ -41,9 +42,22 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
+    pat = re.compile(r'NCHW.+(\d+)c')
     if layout == 'NCHW':
         n, ic, h, w = dshape
         oc, _, kh, kw = kshape
+    elif pat.match(layout) is not None:
+        n, ic_chunk, h, w, ic_bn = dshape
+        if data.dtype == 'uint8':
+            oc_chunk, k_ic, kh, kw, k_ic_f, oc_bn, k_ic_s = kshape
+            ic = ic_chunk*ic_bn
+            assert ic == k_ic*k_ic_f*kic_s
+        else:
+            oc_chunk, k_ic_chunk, kh, kw, k_ic_bn, oc_bn = kshape
+            assert ic_chunk == k_ic_chunk
+            assert ic_bn == k_ic_bn
+            ic = ic_chunk*ic_bn
+        oc = oc_chunk*oc_bn
     else:
         raise ValueError("Not support this layout {} with "
                          "schedule template.".format(layout))
@@ -258,7 +272,14 @@ def schedule_conv2d_nhwc(outs):
 @autotvm.task.register("topi_x86_conv2d_NCHWc")
 def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
-    data, kernel, strides, padding, dilation, origin_layout, dtype = deserialize_args(args)
+    args = deserialize_args(args)
+
+    if len(args) == 7:
+        data, kernel, strides, padding, dilation, origin_layout, dtype = args
+    else:
+        assert len(args) == 8
+        data, kernel, strides, padding, dilation, origin_layout, out_layout, dtype = args
+
     raw_data_shape = get_const_tuple(data.shape)
     raw_kernel_shape = get_const_tuple(kernel.shape)
 
