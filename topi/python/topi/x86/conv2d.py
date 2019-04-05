@@ -64,7 +64,10 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
         oc, _, kh, kw = kshape
     elif layout == 'NHWC':
         n, h, w, ic = dshape
+<<<<<<< HEAD
         oc, _, kh, kw = kshape
+=======
+>>>>>>> Support the 1x1 int8 conv with NHWC layout and weight packing
     elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
         if data.dtype == 'uint8':
