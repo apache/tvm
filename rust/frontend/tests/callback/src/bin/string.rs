@@ -24,9 +24,9 @@ fn main() {
     registered.get_function("concate_str");
     assert!(registered.func.is_some());
     let ret: String = registered
-        .arg(&a)
-        .arg(&b)
-        .arg(&c)
+        .arg(a.as_c_str())
+        .arg(b.as_c_str())
+        .arg(c.as_c_str())
         .invoke()
         .unwrap()
         .try_into()

@@ -8,7 +8,7 @@ pub use crate::ffi::TVMValue;
 use crate::{errors::ValueDowncastError, ffi::*};
 
 pub trait PackedFunc =
-    Fn(Vec<TVMArgValue>) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync;
+    Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync;
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
@@ -46,6 +46,7 @@ macro_rules! TVMPODValue {
             Int(i64),
             UInt(i64),
             Float(f64),
+            Null,
             Type(TVMType),
             String(CString),
             Context(TVMContext),
@@ -67,6 +68,7 @@ macro_rules! TVMPODValue {
                         DLDataTypeCode_kDLInt => Int($value.v_int64),
                         DLDataTypeCode_kDLUInt => UInt($value.v_int64),
                         DLDataTypeCode_kDLFloat => Float($value.v_float64),
+                        TVMTypeCode_kNull => Null,
                         TVMTypeCode_kTVMType => Type($value.v_type),
                         TVMTypeCode_kTVMContext => Context($value.v_ctx),
                         TVMTypeCode_kHandle => Handle($value.v_handle),
@@ -76,7 +78,7 @@ macro_rules! TVMPODValue {
                         TVMTypeCode_kFuncHandle => FuncHandle($value.v_handle),
                         TVMTypeCode_kNDArrayContainer => NDArrayContainer($value.v_handle),
                         $( $tvm_type => { $from_tvm_type } ),+
-                        _ => unimplemented!(),
+                        _ => unimplemented!("{}", type_code),
                     }
                 }
             }
@@ -87,6 +89,7 @@ macro_rules! TVMPODValue {
                     Int(val) => (TVMValue { v_int64: val }, DLDataTypeCode_kDLInt),
                     UInt(val) => (TVMValue { v_int64: val as i64 }, DLDataTypeCode_kDLUInt),
                     Float(val) => (TVMValue { v_float64: val }, DLDataTypeCode_kDLFloat),
+                    Null => (TVMValue{ v_int64: 0 },TVMTypeCode_kNull),
                     Type(val) => (TVMValue { v_type: val }, TVMTypeCode_kTVMType),
                     Context(val) => (TVMValue { v_ctx: val }, TVMTypeCode_kTVMContext),
                     String(val) => {
@@ -124,6 +127,7 @@ TVMPODValue! {
     },
     match value {
         TVMTypeCode_kBytes => { Bytes(&*(value.v_handle as *const TVMByteArray)) }
+        TVMTypeCode_kStr => { Str(CStr::from_ptr(value.v_handle as *const i8)) }
     },
     match self {
         Bytes(val) => {
@@ -132,8 +136,6 @@ TVMPODValue! {
         Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMTypeCode_kStr)}
     }
 }
-
-impl<'a> TVMArgValue<'a> {}
 
 TVMPODValue! {
     /// An owned TVMPODValue. Can be converted from a variety of primitive and object types.
@@ -151,21 +153,25 @@ TVMPODValue! {
     /// ```
     TVMRetValue {
         Bytes(TVMByteArray),
+        Str(&'static CStr),
     },
     match value {
         TVMTypeCode_kBytes => { Bytes(*(value.v_handle as *const TVMByteArray)) }
+        TVMTypeCode_kStr => { Str(CStr::from_ptr(value.v_handle as *mut i8)) }
     },
     match self {
         Bytes(val) =>
             { (TVMValue { v_handle: &val as *const _ as *mut c_void }, TVMTypeCode_kBytes ) }
+        Str(val) =>
+            { (TVMValue { v_str: val.as_ptr() }, TVMTypeCode_kStr ) }
     }
 }
 
 #[macro_export]
 macro_rules! try_downcast {
-    ($val:ident, |$pat:pat|: $into:ty { $converter:expr }) => {
+    ($val:ident -> $into:ty, $( |$pat:pat| { $converter:expr } ),+ ) => {
         match $val {
-            $pat => Ok($converter),
+            $( $pat => { Ok($converter) } )+
             _ => Err($crate::errors::ValueDowncastError {
                 actual_type: format!("{:?}", $val),
                 expected_type: stringify!($into),
@@ -184,10 +190,23 @@ macro_rules! impl_pod_value {
                 }
             }
 
+            impl<'a, 'v> From<&'a $type> for TVMArgValue<'v> {
+                fn from(val: &'a $type) -> Self {
+                    Self::$variant(*val as $inner_ty)
+                }
+            }
+
             impl<'a> TryFrom<TVMArgValue<'a>> for $type {
                 type Error = $crate::errors::ValueDowncastError;
                 fn try_from(val: TVMArgValue<'a>) -> Result<Self, Self::Error> {
-                    try_downcast!(val, |TVMArgValue::$variant(val)|: $type { val as $type })
+                    try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { val as $type })
+                }
+            }
+
+            impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for $type {
+                type Error = $crate::errors::ValueDowncastError;
+                fn try_from(val: &'a TVMArgValue<'v>) -> Result<Self, Self::Error> {
+                    try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { *val as $type })
                 }
             }
 
@@ -200,7 +219,7 @@ macro_rules! impl_pod_value {
             impl TryFrom<TVMRetValue> for $type {
               type Error = $crate::errors::ValueDowncastError;
                 fn try_from(val: TVMRetValue) -> Result<Self, Self::Error> {
-                    try_downcast!(val, |TVMRetValue::$variant(val)|: $type { val as $type })
+                    try_downcast!(val -> $type, |TVMRetValue::$variant(val)| { val as $type })
                 }
             }
         )+
@@ -228,7 +247,14 @@ impl<'a> From<&'a CStr> for TVMArgValue<'a> {
 impl<'a> TryFrom<TVMArgValue<'a>> for &'a str {
     type Error = ValueDowncastError;
     fn try_from(val: TVMArgValue<'a>) -> Result<Self, Self::Error> {
-        try_downcast!(val, |TVMArgValue::Str(s)|: &str { s.to_str().unwrap() })
+        try_downcast!(val -> &str, |TVMArgValue::Str(s)| { s.to_str().unwrap() })
+    }
+}
+
+impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for &'v str {
+    type Error = ValueDowncastError;
+    fn try_from(val: &'a TVMArgValue<'v>) -> Result<Self, Self::Error> {
+        try_downcast!(val -> &str, |TVMArgValue::Str(s)| { s.to_str().unwrap() })
     }
 }
 
@@ -261,7 +287,11 @@ impl<'a> From<&'a DLTensor> for TVMArgValue<'a> {
 impl TryFrom<TVMRetValue> for String {
     type Error = ValueDowncastError;
     fn try_from(val: TVMRetValue) -> Result<String, Self::Error> {
-        try_downcast!(val, |TVMRetValue::String(s)|: String { s.into_string().unwrap() })
+        try_downcast!(
+            val -> String,
+            |TVMRetValue::String(s)| { s.into_string().unwrap() },
+            |TVMRetValue::Str(s)| { s.to_str().unwrap().to_string() }
+        )
     }
 }
 
@@ -280,27 +310,9 @@ impl From<TVMByteArray> for TVMRetValue {
 impl TryFrom<TVMRetValue> for TVMByteArray {
     type Error = ValueDowncastError;
     fn try_from(val: TVMRetValue) -> Result<Self, Self::Error> {
-        try_downcast!(val, |TVMRetValue::Bytes(val)|: TVMByteArray { val })
+        try_downcast!(val -> TVMByteArray, |TVMRetValue::Bytes(val)| { val })
     }
 }
-
-// impl From<Vec<u8>> for TVMRetValue {
-//     fn from(bytes: Vec<u8>) -> Self {
-//         Self::Bytes()
-//     }
-// }
-//
-// impl Drop for TVMRetValue {
-//     fn drop(&mut self) {
-//         use TVMRetValue::*;
-//         match self {
-//             Bytes(bytearr) => {
-//                 unsafe { Vec::from_raw_parts(bytearr.data, bytearr.len, bytearr.len) };
-//             }
-//             _ => (),
-//         }
-//     }
-// }
 
 impl Default for TVMRetValue {
     fn default() -> Self {

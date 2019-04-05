@@ -265,7 +265,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                     .iter()
                     .map(|t| t.into())
                     .collect::<Vec<TVMArgValue>>();
-                func(args).unwrap();
+                func(&args).unwrap();
             };
             op_execs.push(op);
         }

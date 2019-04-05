@@ -29,7 +29,14 @@ macro_rules! impl_handle_val {
         impl<'a> TryFrom<TVMArgValue<'a>> for $type {
             type Error = ValueDowncastError;
             fn try_from(val: TVMArgValue<'a>) -> Result<$type, Self::Error> {
-                try_downcast!(val, |TVMArgValue::$variant(val)|: $type { $ctor(val) })
+                try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { $ctor(val) })
+            }
+        }
+
+        impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for $type {
+            type Error = ValueDowncastError;
+            fn try_from(val: &'a TVMArgValue<'v>) -> Result<$type, Self::Error> {
+                try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { $ctor(*val) })
             }
         }
 
@@ -42,7 +49,7 @@ macro_rules! impl_handle_val {
         impl TryFrom<TVMRetValue> for $type {
             type Error = ValueDowncastError;
             fn try_from(val: TVMRetValue) -> Result<$type, Self::Error> {
-                try_downcast!(val, |TVMRetValue::$variant(val)|: $type { $ctor(val) })
+                try_downcast!(val -> $type, |TVMRetValue::$variant(val)| { $ctor(val) })
             }
         }
     };
