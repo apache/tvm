@@ -192,11 +192,8 @@ impl<'a, 'm> Builder<'a, 'm> {
         ensure!(self.func.is_some(), errors::FunctionNotFoundError);
 
         let num_args = self.arg_buf.len();
-        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) = self
-            .arg_buf
-            .iter()
-            .map(|arg| arg.clone().into_tvm_value())
-            .unzip();
+        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) =
+            self.arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
 
         let mut ret_val = unsafe { std::mem::uninitialized::<TVMValue>() };
         let mut ret_type_code = 0i32;
@@ -265,7 +262,7 @@ unsafe extern "C" fn tvm_callback(
         }
     };
 
-    let (mut ret_val, ret_tcode) = rv.into_tvm_value();
+    let (mut ret_val, ret_tcode) = rv.to_tvm_value();
     let mut ret_type_code = ret_tcode as c_int;
     check_call!(ffi::TVMCFuncSetReturn(
         ret,

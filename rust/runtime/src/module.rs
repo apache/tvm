@@ -43,7 +43,7 @@ pub(super) fn wrap_backend_packed_func(
         let (values, type_codes): (Vec<TVMValue>, Vec<i32>) = args
             .into_iter()
             .map(|arg| {
-                let (val, code) = arg.clone().into_tvm_value();
+                let (val, code) = arg.to_tvm_value();
                 (val, code as i32)
             })
             .unzip();

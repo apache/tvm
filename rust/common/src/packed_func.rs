@@ -35,7 +35,7 @@ macro_rules! TVMPODValue {
         match $value:ident {
             $($tvm_type:ident => { $from_tvm_type:expr })+
         },
-        match self {
+        match &self {
             $($self_type:ident ( $val:ident ) => { $from_self_type:expr })+
         }
         $(,)?
@@ -83,34 +83,37 @@ macro_rules! TVMPODValue {
                 }
             }
 
-            pub fn into_tvm_value(self) -> (TVMValue, TVMTypeCode) {
+            pub fn to_tvm_value(&self) -> (TVMValue, TVMTypeCode) {
                 use $name::*;
                 match self {
-                    Int(val) => (TVMValue { v_int64: val }, DLDataTypeCode_kDLInt),
-                    UInt(val) => (TVMValue { v_int64: val as i64 }, DLDataTypeCode_kDLUInt),
-                    Float(val) => (TVMValue { v_float64: val }, DLDataTypeCode_kDLFloat),
+                    Int(val) => (TVMValue { v_int64: *val }, DLDataTypeCode_kDLInt),
+                    UInt(val) => (TVMValue { v_int64: *val as i64 }, DLDataTypeCode_kDLUInt),
+                    Float(val) => (TVMValue { v_float64: *val }, DLDataTypeCode_kDLFloat),
                     Null => (TVMValue{ v_int64: 0 },TVMTypeCode_kNull),
-                    Type(val) => (TVMValue { v_type: val }, TVMTypeCode_kTVMType),
-                    Context(val) => (TVMValue { v_ctx: val }, TVMTypeCode_kTVMContext),
+                    Type(val) => (TVMValue { v_type: *val }, TVMTypeCode_kTVMType),
+                    Context(val) => (TVMValue { v_ctx: val.clone() }, TVMTypeCode_kTVMContext),
                     String(val) => {
                         (
-                            TVMValue { v_handle: val.into_raw() as *mut c_void },
+                            TVMValue { v_handle: val.as_ptr() as *mut c_void },
                             TVMTypeCode_kStr,
                         )
                     }
-                    Handle(val) => (TVMValue { v_handle: val }, TVMTypeCode_kHandle),
+                    Handle(val) => (TVMValue { v_handle: *val }, TVMTypeCode_kHandle),
                     ArrayHandle(val) => {
                         (
-                            TVMValue { v_handle: val as *const _ as *mut c_void },
+                            TVMValue { v_handle: *val as *const _ as *mut c_void },
                             TVMTypeCode_kArrayHandle,
                         )
                     },
-                    NodeHandle(val) => (TVMValue { v_handle: val }, TVMTypeCode_kNodeHandle),
+                    NodeHandle(val) => (TVMValue { v_handle: *val }, TVMTypeCode_kNodeHandle),
                     ModuleHandle(val) =>
-                        (TVMValue { v_handle: val }, TVMTypeCode_kModuleHandle),
-                    FuncHandle(val) => (TVMValue { v_handle: val }, TVMTypeCode_kFuncHandle),
+                        (TVMValue { v_handle: *val }, TVMTypeCode_kModuleHandle),
+                    FuncHandle(val) => (
+                        TVMValue { v_handle: *val },
+                        TVMTypeCode_kFuncHandle
+                    ),
                     NDArrayContainer(val) =>
-                        (TVMValue { v_handle: val }, TVMTypeCode_kNDArrayContainer),
+                        (TVMValue { v_handle: *val }, TVMTypeCode_kNDArrayContainer),
                     $( $self_type($val) => { $from_self_type } ),+
                 }
             }
@@ -129,9 +132,9 @@ TVMPODValue! {
         TVMTypeCode_kBytes => { Bytes(&*(value.v_handle as *const TVMByteArray)) }
         TVMTypeCode_kStr => { Str(CStr::from_ptr(value.v_handle as *const i8)) }
     },
-    match self {
+    match &self {
         Bytes(val) => {
-            (TVMValue { v_handle: val as *const _ as *mut c_void }, TVMTypeCode_kBytes)
+            (TVMValue { v_handle: val.clone() as *const _ as *mut c_void }, TVMTypeCode_kBytes)
         }
         Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMTypeCode_kStr)}
     }
@@ -159,9 +162,9 @@ TVMPODValue! {
         TVMTypeCode_kBytes => { Bytes(*(value.v_handle as *const TVMByteArray)) }
         TVMTypeCode_kStr => { Str(CStr::from_ptr(value.v_handle as *mut i8)) }
     },
-    match self {
+    match &self {
         Bytes(val) =>
-            { (TVMValue { v_handle: &val as *const _ as *mut c_void }, TVMTypeCode_kBytes ) }
+            { (TVMValue { v_handle: val as *const _ as *mut c_void }, TVMTypeCode_kBytes ) }
         Str(val) =>
             { (TVMValue { v_str: val.as_ptr() }, TVMTypeCode_kStr ) }
     }
