@@ -178,6 +178,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
   int ret = TVMFuncCall(reinterpret_cast<TVMFunctionHandle>(jhandle),
     &argValues[0], &argTypes[0], numArgs, &retVal, &retTypeCode);
 
+  if (ret != 0) {
+    return ret;
+  }
+
   for (auto iter = pushedStrs.cbegin(); iter != pushedStrs.cend(); iter++) {
     env->ReleaseStringUTFChars(iter->first, iter->second);
     env->DeleteGlobalRef(iter->first);
