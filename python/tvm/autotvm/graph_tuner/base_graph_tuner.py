@@ -11,7 +11,6 @@ from tvm.autotvm.task import get_config
 from tvm.autotvm.task.topi_integration import deserialize_args, serialize_args
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
-from tvm.relay.expr import Call, Var, Constant
 
 from .utils import is_input_node, shape2layout, get_in_nodes, get_out_nodes, \
     has_multiple_inputs, get_wkl_map, bind_inputs, expr2graph
@@ -153,19 +152,6 @@ class BaseGraphTuner(object):
             node_dict = {}
             graph = bind_inputs(graph, input_shapes, dtype)
             expr2graph(graph, node_dict, self._node_list)
-            for node_entry in self._node_list:
-                node = node_entry["node"]
-                if isinstance(node, Var):
-                    node_entry["oshape"] = node.type_annotation.shape
-                elif isinstance(node, Call):
-                    for i, input_idx in enumerate(node_entry["inputs"]):
-                        input_node = self._node_list[input_idx[0]]
-                        input_node["oshape"] = node.type_args[i].shape
-                elif isinstance(node, Constant):
-                    pass
-                else:
-                    raise RuntimeError("Not supported relay node type in graph tuning: %s"
-                                       % str(type(node)))
         else:
             raise RuntimeError("Unsupported graph type: %s" % str(type(graph)))
 
@@ -178,6 +164,7 @@ class BaseGraphTuner(object):
         self._node_map = get_wkl_map(self._node_list, workload_list, target_op,
                                      graph_workload_list)
 
+        input_names = self._input_shapes.keys()
         for key in sorted(self._in_nodes_dict):
             node_name = self._node_list[key]["name"]
             if node_name in self._input_shapes.keys():
@@ -192,7 +179,7 @@ class BaseGraphTuner(object):
             else:
                 pivot_input_idx = -1
                 for idx in self._in_nodes_dict[key]:
-                    if not is_input_node(self._node_list, idx):
+                    if not is_input_node(self._node_list[idx], input_names):
                         pivot_input_idx = idx
                         break
                 self._wkl_dict[key] = self._wkl_dict[pivot_input_idx]
@@ -259,13 +246,13 @@ class BaseGraphTuner(object):
             target_input_pos = -1
             if has_multiple_inputs(self._node_list, key, input_names):
                 for i, item in enumerate(val):
-                    if not is_input_node(self._node_list, item):
+                    if not is_input_node(self._node_list[item], input_names):
                         target_input_idx = item
                         target_input_pos = i
                         break
 
             for i, item in enumerate(val):
-                if is_input_node(self._node_list, item):
+                if is_input_node(self._node_list[item], input_names):
                     continue
 
                 c_idx = item

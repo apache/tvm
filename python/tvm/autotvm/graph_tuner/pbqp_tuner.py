@@ -15,8 +15,9 @@ class PBQPTuner(BaseGraphTuner):
         super(PBQPTuner, self).__init__(*args, **kwargs)
 
         # Remove input nodes
+        input_names = self._input_shapes.keys()
         for node_idx in self._out_nodes_dict:
-            if is_input_node(self._node_list, node_idx):
+            if is_input_node(self._node_list[node_idx], input_names):
                 for out_node_idx in self._out_nodes_dict[node_idx]:
                     self._in_nodes_dict[out_node_idx].remove(node_idx)
 
@@ -226,7 +227,7 @@ class PBQPTuner(BaseGraphTuner):
             target_input_pos = -1
             if has_multiple_inputs(self._node_list, key, input_names):
                 for i, item in enumerate(val):
-                    if not is_input_node(self._node_list, item):
+                    if not is_input_node(self._node_list[item], input_names):
                         target_input_idx = item
                         target_input_pos = i
                         break
@@ -239,7 +240,7 @@ class PBQPTuner(BaseGraphTuner):
 
                 for j in range(target_input_pos + 1, len(val)):
                     input_idx = val[j]
-                    if is_input_node(self._node_list, input_idx):
+                    if is_input_node(self._node_list[input_idx], input_names):
                         continue
                     self._layout_transform_matrix_dict[(input_idx, key)] = \
                         self._layout_transform_matrix_dict[(input_idx, target_input_idx)]

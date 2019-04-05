@@ -29,29 +29,29 @@ def has_multiple_inputs(node_list, node_idx, input_names):
         in_idx = in_idx[0]
         in_node = node_list[in_idx]
         # Exclude parameter nodes
-        if in_node["op"] != "null" or ("name" in in_node and
-                                       in_node["name"] in input_names):
+        if in_node["op"] != "null" or is_input_node(in_node,
+                                                    input_names):
             num_inputs += 1
     return num_inputs > 1
 
 
-def is_input_node(node_list, node_idx):
+def is_input_node(node_entry, input_names):
     """Whether a node is an input node.
 
     Parameters
     ----------
-    node_list : list of dict of str to object
-        List of all nodes in a graph.
+    node_entry : dict
+        Node entry.
 
-    node_idx : int
-        Node index to be checked.
+    input_names : list of str
+        List of input names of graph.
 
     Returns
     -------
     out : bool
         whether node is a input node.
     """
-    return node_list[node_idx]["op"] == "null"
+    return "name" in node_entry and node_entry["name"] in input_names
 
 
 def shape2layout(shape, layout_template):

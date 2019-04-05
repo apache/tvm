@@ -97,13 +97,13 @@ class DPTuner(BaseGraphTuner):
         while not bfs_q.empty():
             node_idx = bfs_q.get()
             visited.add(node_idx)
-            if is_input_node(self._node_list, node_idx):
+            if is_input_node(self._node_list[node_idx], input_names):
                 continue
             optimal_sch_idx = optimal_sch_dict[node_idx]
             full_states = self._stage_dict[node_idx].full_states
             if not has_multiple_inputs(self._node_list, node_idx, input_names):
                 input_idx = self._in_nodes_dict[node_idx][0]
-                if is_input_node(self._node_list, input_idx):
+                if is_input_node(self._node_list[input_idx], input_names):
                     continue
                 if input_idx not in visited:
                     bfs_q.put(input_idx)

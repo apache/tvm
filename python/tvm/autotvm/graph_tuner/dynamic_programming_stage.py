@@ -71,6 +71,7 @@ class DPStage(object):
         self._global_wkl_dict = wkl_dict
         self._global_sch_dict = sch_dict
         self._global_input_shapes = input_shapes
+        self._global_input_names = input_shapes.keys()
         self._global_node_list = node_list
         self._global_counted_nodes_set = counted_nodes_set
         self._global_layout_time_matrix_dict = layout_time_matrix_dict
@@ -106,10 +107,12 @@ class DPStage(object):
         input_idx = -1
         for index in self._global_in_nodes_dict[self._idx]:
             input_idx = index
-            if not is_input_node(self._global_node_list, input_idx):
+            if not is_input_node(self._global_node_list[input_idx],
+                                 self._global_input_names):
                 break
 
-        if is_input_node(self._global_node_list, input_idx):
+        if is_input_node(self._global_node_list[input_idx],
+                         self._global_input_names):
             self._full_states = np.array([sch["cost"] for sch in self._sch_list])
             self._states = self._full_states
         else:
@@ -181,7 +184,8 @@ class DPStage(object):
         input_node_list = []
         # Remove input and parameter nodes
         for input_idx in full_input_node_list:
-            if not is_input_node(self._global_node_list, input_idx):
+            if not is_input_node(self._global_node_list[input_idx],
+                                 self._global_input_names):
                 input_node_list.append(input_idx)
 
         # Generate new states
