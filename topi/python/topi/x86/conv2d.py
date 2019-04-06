@@ -416,10 +416,11 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
     if data.dtype == 'uint8':
-        oc_chunk, _, kernel_height, kernel_width, _, oc_bn, _ = get_const_tuple(kernel.shape)
+        oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn, _ = get_const_tuple(kernel.shape)
     else:
-        oc_chunk, _, kernel_height, kernel_width, _, oc_bn = get_const_tuple(kernel.shape)
+        oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = get_const_tuple(kernel.shape)
     num_filter = oc_chunk * oc_bn
+    groups = ic_chunk // ic_chunk_group
 
     if cfg.is_fallback:
         _get_default_config(cfg, tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
@@ -443,7 +444,7 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     kh = tvm.reduce_axis((0, kernel_height), name='kh')
     kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
-    if data.dtype == 'uint8':
+    if data.dtype == 'uint8' and groups == 1:
         assert out_dtype == "int32", \
             "INT8 convolution requires input dtype = uint8 and output dtype=int32"
         # Intel performs dot product of 2 "4" Int8 values
@@ -462,6 +463,22 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
                                           oc_block, ic_s_inner].astype(out_dtype),
                                    axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
                            name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
+    elif data.dtype == 'uint8':
+    	# for int8 group conv support
+        n_elems = 4
+        ic_chunk = in_channel//ic_bn
+        ic_outer = tvm.reduce_axis((0, ic_chunk//groups), name='ic_outer')
+        ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
+        ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
+        oshape = (n, oc_chunk, out_height, out_width, oc_bn)
+        return tvm.compute(oshape, lambda n, occ, oh, ow, oc_block:
+                           tvm.sum(data_pad[n, (occ*oc_bn//(oc_chunk*oc_bn//groups))*(ic_chunk//groups)+ic_outer, oh*HSTR+kh, ow*WSTR+kw,
+                                            ic_f_inner * n_elems +  ic_s_inner].astype(out_dtype) *
+                                   kernel[occ, ic_outer, kh, kw, ic_f_inner,
+                                          oc_block, ic_s_inner].astype(out_dtype),
+                                   axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
+                           name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")    
+
     # else: fp implementation
     return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                        tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
