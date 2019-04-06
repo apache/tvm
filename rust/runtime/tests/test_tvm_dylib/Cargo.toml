@@ -1,0 +1,9 @@
+[package]
+name = "test-tvm-dylib"
+version = "0.0.0"
+license = "Apache-2.0"
+authors = ["TVM Contributors"]
+
+[dependencies]
+ndarray="0.12.1"
+tvm-runtime = { path = "../../" }

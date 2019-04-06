@@ -45,3 +45,6 @@ tvm-common = { version = "0.1.0", path = "../common/" }
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 num_cpus = "1.8.0"
+
+[target.'cfg(not(any(target_arch = "wasm32", target_env = "sgx")))'.dependencies]
+libloading = "0.5"
