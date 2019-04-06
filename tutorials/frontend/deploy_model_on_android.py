@@ -11,6 +11,7 @@ This is an example of using Relay to compile a keras model and deploy it on Andr
 import os
 import numpy as np
 from PIL import Image
+import keras
 from keras.applications.mobilenet_v2 import MobileNetV2
 import tvm
 import tvm.relay as relay
@@ -169,6 +170,7 @@ from tvm.contrib.download import download_testdata
 # Load pretrained keras model
 # ----------------------------
 # We load a pretrained MobileNetV2(alpha=0.5) classification model provided by keras.
+keras.backend.clear_session()  # Destroys the current TF graph and creates a new one.
 weights_url = ''.join(['https://github.com/JonathanCMitchell/',
                        'mobilenet_v2_keras/releases/download/v1.1/',
                        'mobilenet_v2_weights_tf_dim_ordering_tf_kernels_0.5_224.h5'])
