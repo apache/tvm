@@ -19,3 +19,4 @@ docs/doxygen/*
 .*edl
 .gitignore
 __init__.py
+pylintrc
