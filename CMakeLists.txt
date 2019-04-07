@@ -223,21 +223,25 @@ target_include_directories(
 # Tests
 set(TEST_EXECS "")
 file(GLOB TEST_SRCS tests/cpp/*.cc)
-find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
 
-if(GTEST_LIB)
-  foreach(__srcpath ${TEST_SRCS})
-    get_filename_component(__srcname ${__srcpath} NAME)
-    string(REPLACE ".cc" "" __execname ${__srcname})
-    add_executable(${__execname} ${__srcpath})
-    list(APPEND TEST_EXECS ${__execname})
-    target_link_libraries(${__execname}
-      tvm ${GTEST_LIB} pthread dl)
-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-  endforeach()
-  add_custom_target(cpptest DEPENDS ${TEST_EXECS})
-endif()
+add_subdirectory(3rdparty/gtest)
+set_target_properties(gtest PROPERTIES EXCLUDE_FROM_ALL 1)
+set_target_properties(gtest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+set_target_properties(gtest_main PROPERTIES EXCLUDE_FROM_ALL 1)
+set_target_properties(gtest_main PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+
+foreach(__srcpath ${TEST_SRCS})
+  get_filename_component(__srcname ${__srcpath} NAME)
+  string(REPLACE ".cc" "" __execname ${__srcname})
+  add_executable(${__execname} ${__srcpath})
+  list(APPEND TEST_EXECS ${__execname})
+  target_link_libraries(${__execname}
+    tvm gtest pthread dl)
+  set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
+  set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  target_include_directories(${__execname} PRIVATE 3rdparty/gtest/include)
+endforeach()
+add_custom_target(cpptest DEPENDS ${TEST_EXECS})
 
 # Custom targets
 add_custom_target(runtime DEPENDS tvm_runtime)

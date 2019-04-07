@@ -61,17 +61,8 @@ C++
   # assume you are in tvm source root
   TVM_ROOT=`pwd`
 
-  # you need to install google test first, gtest will be installed to $TVM_ROOT/lib
-  apt-get install -y libgtest-dev
-  CACHE_PREFIX=. make -f 3rdparty/dmlc-core/scripts/packages.mk gtest
-
-  mkdir build
-  cd build
-  GTEST_LIB=$TVM_ROOT/lib cmake -DUSE_LLVM=ON ..
-  make cpptest -j$(nproc)
-  for test in *_test; do
-    ./$test
-  done
+  # build + run all cpp tests
+  ./tests/scripts/task_cpp_unittest.sh
 
 Python
 ^^^^^^
