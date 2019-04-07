@@ -1,5 +1,3 @@
-#![feature(try_from)]
-
 #[macro_use]
 extern crate ndarray;
 extern crate serde;

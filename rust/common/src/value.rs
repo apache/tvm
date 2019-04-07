@@ -137,3 +137,18 @@ impl_tvm_context!(
     DLDeviceType_kDLROCM: [rocm],
     DLDeviceType_kDLExtDev: [ext_dev]
 );
+
+impl TVMByteArray {
+    pub fn data(&self) -> &'static [u8] {
+        unsafe { std::slice::from_raw_parts(self.data as *const u8, self.size) }
+    }
+}
+
+impl<'a> From<&'a [u8]> for TVMByteArray {
+    fn from(bytes: &[u8]) -> Self {
+        Self {
+            data: bytes.as_ptr() as *const i8,
+            size: bytes.len(),
+        }
+    }
+}
