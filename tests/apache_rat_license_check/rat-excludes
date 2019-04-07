@@ -9,6 +9,8 @@ docs/_build/*
 .*json
 .*txt
 .*svg
+.*lst
+package-list
 MANIFEST
 Changes
 .*csv
