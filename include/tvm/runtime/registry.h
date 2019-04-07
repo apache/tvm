@@ -90,6 +90,22 @@ class Registry {
     return set_body(TypedPackedFunc<R(Args...)>(f));
   }
 
+  /*!
+   * \brief set the body of the function to be the passed method pointer.
+   *
+   * \code
+   * 
+   * // node subclass:
+   * struct Example {
+   *    int doThing(int x);
+   * }
+   * TVM_REGISTER_API("Example_doThing")
+   * .set_body_method(&Example::doThing); // will have type int(Example, int)
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   */
   template<typename T, typename R, typename ...Args>
   Registry& set_body_method(R (T::*f)(Args...)) {
     return set_body_typed<R(T, Args...)>([f](T target, Args... params) -> R {
@@ -98,6 +114,22 @@ class Registry {
     });
   }
 
+  /*!
+   * \brief set the body of the function to be the passed const method pointer.
+   *
+   * \code
+   * 
+   * // node subclass:
+   * struct Example {
+   *    int doThing(int x) const;
+   * }
+   * TVM_REGISTER_API("Example_doThing")
+   * .set_body_method(&Example::doThing); // will have type int(Example, int)
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   */
   template<typename T, typename R, typename ...Args>
   Registry& set_body_method(R (T::*f)(Args...) const) {
     return set_body_typed<R(T, Args...)>([f](const T target, Args... params) -> R {
@@ -106,10 +138,9 @@ class Registry {
     });
   }
 
-
   /*!
    * \brief set the body of the function to be the passed method pointer.
-   *        used when calling a method on a Node subclass through a NodeRef subclass.
+   *        Used when calling a method on a Node subclass through a NodeRef subclass.
    *
    * \code
    * 
@@ -138,6 +169,28 @@ class Registry {
     });
   }
 
+  /*!
+   * \brief set the body of the function to be the passed const method pointer.
+   *        Used when calling a const method on a Node subclass through a NodeRef subclass.
+   *
+   * \code
+   * 
+   * // node subclass:
+   * struct ExampleNode: BaseNode {
+   *    int doThing(int x) const;
+   * }
+   * 
+   * // noderef subclass
+   * struct Example; 
+   *
+   * TVM_REGISTER_API("Example_doThing")
+   * .set_body_node_method<Example>(&ExampleNode::doThing); // will have type int(Example, int)
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   * \tparam NodeRef the node reference type to call the method on
+   */
   template<typename NodeRef, typename Node, typename R, typename ...Args>
   Registry& set_body_node_method(R (Node::*f)(Args...) const) {
     return set_body_typed<R(NodeRef, Args...)>([f](NodeRef ref, Args... params) {
