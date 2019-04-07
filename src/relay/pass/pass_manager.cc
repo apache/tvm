@@ -407,12 +407,7 @@ Pass CreateSequentialPass(const tvm::Array<Pass>& passes,
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_API("relay._ir_pass.PassInfo")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  int opt_level = args[0];
-  std::string name = args[1];
-  tvm::Array<tvm::Expr> required = args[2];
-  *ret = PassInfoNode::make(opt_level, name, required);
-});
+.set_body_simple(PassInfoNode::make);
 
 TVM_REGISTER_API("relay._ir_pass.Info")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -437,13 +432,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  PackedFunc pass_func = args[0];
-  int opt_level = args[1];
-  std::string name = args[2];
-  tvm::Array<tvm::Expr> required = args[3];
-  *ret = CreateModulePass(pass_func, opt_level, name, required);
-});
+.set_body_simple(CreateModulePass);
 
 TVM_REGISTER_API("relay._ir_pass.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -468,13 +457,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
 TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  PackedFunc pass_func = args[0];
-  int opt_level = args[1];
-  std::string name = args[2];
-  tvm::Array<tvm::Expr> required = args[3];
-  *ret = CreateFunctionPass(pass_func, opt_level, name, required);
-});
+.set_body_simple(CreateFunctionPass);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
@@ -522,9 +505,7 @@ TVM_REGISTER_API("relay._ir_pass.SetContext")
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_REGISTER_API("relay._ir_pass.PassContext")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = PassContextNode::make();
-});
+.set_body_simple(PassContextNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PassContextNode>([](const PassContextNode* node,

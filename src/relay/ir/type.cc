@@ -37,10 +37,7 @@ IndexExpr TensorTypeNode::Size() const {
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
 TVM_REGISTER_API("relay._make.TensorType")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  Array<IndexExpr> shape = args[0];
-  *ret = TensorTypeNode::make(shape, args[1]);
-});
+.set_body_simple(TensorTypeNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TensorTypeNode>([](const TensorTypeNode* node,
@@ -58,10 +55,8 @@ TypeVar TypeVarNode::make(std::string name, Kind kind) {
 TVM_REGISTER_NODE_TYPE(TypeVarNode);
 
 TVM_REGISTER_API("relay._make.TypeVar")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  int kind = args[1];
-  *ret =
-    TypeVarNode::make(args[0], static_cast<Kind>(kind));
+.set_body_typed<TypeVar(std::string, int)>([](std::string name, int kind) {
+    return TypeVarNode::make(name, static_cast<Kind>(kind));
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -81,10 +76,9 @@ GlobalTypeVar GlobalTypeVarNode::make(std::string name, Kind kind) {
 TVM_REGISTER_NODE_TYPE(GlobalTypeVarNode);
 
 TVM_REGISTER_API("relay._make.GlobalTypeVar")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  int kind = args[1];
-  *ret = GlobalTypeVarNode::make(args[0], static_cast<Kind>(kind));
-});
+.set_body_typed<GlobalTypeVar(std::string, int)>([](std::string name, int kind) {
+    return GlobalTypeVarNode::make(name, static_cast<Kind>(kind));
+    });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<GlobalTypeVarNode>([](const GlobalTypeVarNode *node,
@@ -121,9 +115,8 @@ IncompleteType IncompleteTypeNode::make(Kind kind) {
 TVM_REGISTER_NODE_TYPE(IncompleteTypeNode);
 
 TVM_REGISTER_API("relay._make.IncompleteType")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    int kind = args[0];
-    *ret = IncompleteTypeNode::make(static_cast<Kind>(kind));
+.set_body_typed<IncompleteType(int)>([](int kind) {
+    return IncompleteTypeNode::make(static_cast<Kind>(kind));
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)

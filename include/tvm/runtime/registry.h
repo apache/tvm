@@ -67,9 +67,9 @@ class Registry {
   }
 
   /*!
-   * \brief Directly forward to the passed function pointer.
+   * \brief set the body of the function to the given function pointer.
    *        Note that this method doesn't work with lambdas, you need to
-   *        Explicitly give a type for those.
+   *        explicitly give a type for those.
    *
    * \code
    * 
@@ -88,6 +88,36 @@ class Registry {
   template<typename R, typename ...Args>
   Registry& set_body_simple(R (*f)(Args...)) {
     return set_body(TypedPackedFunc<R(Args...)>(f));
+  }
+
+  /*!
+   * \brief set the body of the function to be the passed method pointer.
+   *
+   * \code
+   * 
+   * // node subclass:
+   * struct ExampleNode: BaseNode {
+   *    int doThing(int x);
+   * }
+   * 
+   * // noderef subclass
+   * struct Example; 
+   *
+   * TVM_REGISTER_API("Example_doThing")
+   * .set_body_node_method<Example>(&ExampleNode::doThing); // will have type int(Example, int)
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   * \tparam NodeRef the node reference type to call the method on
+   */
+  template<typename NodeRef, typename Node, typename R, typename ...Args>
+  Registry& set_body_method(R (Node::*f)(Args...)) {
+    return set_body_typed<R(NodeRef, Args...)>([f](NodeRef ref, Args... params) {
+      Node* target = ref.operator->();
+      // call method pointer
+      return (target->*f)(params...);
+    });
   }
 
   /*!

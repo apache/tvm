@@ -68,11 +68,9 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(IdNode);
 
 TVM_REGISTER_API("relay._base.set_span")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    NodeRef node_ref = args[0];
+.set_body_typed<void(NodeRef, Span)>([](NodeRef node_ref, Span sp) {
     auto rn = node_ref.as_derived<RelayNode>();
     CHECK(rn);
-    Span sp = args[1];
     rn->span = sp;
 });
 

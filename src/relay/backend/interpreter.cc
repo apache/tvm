@@ -32,9 +32,7 @@ Closure ClosureNode::make(tvm::Map<Var, Value> env, Function func) {
 }
 
 TVM_REGISTER_API("relay._make.Closure")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ClosureNode::make(args[0], args[1]);
-  });
+.set_body_simple(ClosureNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ClosureNode>([](const ClosureNode* node, tvm::IRPrinter* p) {
@@ -48,9 +46,7 @@ TupleValue TupleValueNode::make(tvm::Array<Value> value) {
 }
 
 TVM_REGISTER_API("relay._make.TupleValue")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = TupleValueNode::make(args[0]);
-  });
+.set_body_simple(TupleValueNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TupleValueNode>([](const TupleValueNode* node, tvm::IRPrinter* p) {
@@ -71,10 +67,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   });
 
 TVM_REGISTER_API("relay._make.TensorValue")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    runtime::NDArray data = args[0];
-    *ret = TensorValueNode::make(data);
-  });
+.set_body_simple(TensorValueNode::make);
 
 RefValue RefValueNode::make(Value value) {
   NodePtr<RefValueNode> n = make_node<RefValueNode>();
@@ -83,9 +76,7 @@ RefValue RefValueNode::make(Value value) {
 }
 
 TVM_REGISTER_API("relay._make.RefValue")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = RefValueNode::make(args[0]);
-  });
+.set_body_simple(RefValueNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<RefValueNode>([](const RefValueNode* node,
@@ -102,9 +93,7 @@ ConstructorValue ConstructorValueNode::make(Constructor constructor,
 }
 
 TVM_REGISTER_API("relay._make.ConstructorValue")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ConstructorValueNode::make(args[0], args[1]);
-  });
+.set_body_simple(ConstructorValueNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ConstructorValueNode>([](const ConstructorValueNode* node,
