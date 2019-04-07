@@ -10,3 +10,6 @@
 [submodule "3rdparty/rang"]
 	path = 3rdparty/rang
 	url = https://github.com/agauniyal/rang
+[submodule "3rdparty/gtest"]
+	path = 3rdparty/gtest
+	url = https://github.com/google/googletest
