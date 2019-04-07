@@ -16,6 +16,8 @@ Changes
 .*~
 .*mk
 .*log
+rat-excludes
+.*generated\\.cu
 docs/doxygen/*
 .*edl
 .gitignore
