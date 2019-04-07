@@ -17,3 +17,5 @@ Changes
 .*mk
 docs/doxygen/*
 .*edl
+.gitignore
+__init__.py
