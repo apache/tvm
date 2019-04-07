@@ -80,7 +80,7 @@ impl Module {
             CString::new(path.as_ref().to_str().ok_or_else(|| {
                 format_err!("Bad module load path: `{}`.", path.as_ref().display())
             })?)?;
-        let ret: Module = call_packed!(func, &cpath, &ext)?.try_into()?;
+        let ret: Module = call_packed!(func, cpath.as_c_str(), ext.as_c_str())?.try_into()?;
         Ok(ret)
     }
 
@@ -90,7 +90,10 @@ impl Module {
         // `unwrap` is safe here because if there is any error during the
         // function call, it would occur in `call_packed!`.
         let tgt = CString::new(target).unwrap();
-        let ret: i64 = call_packed!(func, &tgt).unwrap().try_into().unwrap();
+        let ret: i64 = call_packed!(func, tgt.as_c_str())
+            .unwrap()
+            .try_into()
+            .unwrap();
         ret != 0
     }
 

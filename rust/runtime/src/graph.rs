@@ -265,7 +265,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                     .iter()
                     .map(|t| t.into())
                     .collect::<Vec<TVMArgValue>>();
-                func(args.as_slice()).unwrap();
+                func(&args).unwrap();
             };
             op_execs.push(op);
         }
@@ -283,7 +283,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
             // TODO: consider `new_with_params` to avoid ever allocating
             let ptr = self.tensors[idx].data.as_ptr();
             let mut to_replace = self.tensors.iter_mut().filter(|t| t.data.as_ptr() == ptr);
-            let mut owner = to_replace.nth(0).unwrap();
+            let owner = to_replace.nth(0).unwrap();
             if value.data.is_owned() {
                 // FIXME: for no-copy, need setup_op_execs to not capture tensor ptr
                 // mem::replace(&mut (*owner), value);

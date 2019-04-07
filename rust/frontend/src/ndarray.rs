@@ -161,7 +161,7 @@ impl NDArray {
     /// Converts the NDArray to [`TVMByteArray`].
     pub fn to_bytearray(&self) -> Result<TVMByteArray, Error> {
         let v = self.to_vec::<u8>()?;
-        Ok(TVMByteArray::from(&v))
+        Ok(TVMByteArray::from(v))
     }
 
     /// Creates an NDArray from a mutable buffer of types i32, u32 or f32 in cpu.

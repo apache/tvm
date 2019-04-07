@@ -156,9 +156,9 @@ impl<'a, 'm> Builder<'a, 'm> {
     }
 
     /// Pushes a [`TVMArgValue`] into the function argument buffer.
-    pub fn arg<T: 'a>(&mut self, arg: &'a T) -> &mut Self
+    pub fn arg<T: 'a>(&mut self, arg: T) -> &mut Self
     where
-        TVMArgValue<'a>: From<&'a T>,
+        TVMArgValue<'a>: From<T>,
     {
         self.arg_buf.push(arg.into());
         self
@@ -192,14 +192,11 @@ impl<'a, 'm> Builder<'a, 'm> {
         ensure!(self.func.is_some(), errors::FunctionNotFoundError);
 
         let num_args = self.arg_buf.len();
-        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) = self
-            .arg_buf
-            .iter()
-            .map(|tvm_arg| (tvm_arg.value, tvm_arg.type_code as ffi::TVMTypeCode))
-            .unzip();
+        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) =
+            self.arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
 
         let mut ret_val = unsafe { std::mem::uninitialized::<TVMValue>() };
-        let mut ret_type_code = 0;
+        let mut ret_type_code = 0i32;
         check_call!(ffi::TVMFuncCall(
             self.func.ok_or(errors::FunctionNotFoundError)?.handle,
             values.as_mut_ptr(),
@@ -209,7 +206,7 @@ impl<'a, 'm> Builder<'a, 'm> {
             &mut ret_type_code as *mut _
         ));
 
-        Ok(unsafe { TVMRetValue::from_tvm_value(ret_val, ret_type_code as i64) })
+        Ok(unsafe { TVMRetValue::from_tvm_value(ret_val, ret_type_code as u32) })
     }
 }
 
@@ -254,7 +251,7 @@ unsafe extern "C" fn tvm_callback(
         {
             check_call!(ffi::TVMCbArgToReturn(&mut value as *mut _, tcode));
         }
-        local_args.push(TVMArgValue::new(value.into(), (tcode as i64).into()));
+        local_args.push(TVMArgValue::from_tvm_value(value.into(), tcode as u32));
     }
 
     let rv = match rust_fn(local_args.as_slice()) {
@@ -265,7 +262,7 @@ unsafe extern "C" fn tvm_callback(
         }
     };
 
-    let (mut ret_val, ret_tcode) = rv.into_tvm_value();
+    let (mut ret_val, ret_tcode) = rv.to_tvm_value();
     let mut ret_type_code = ret_tcode as c_int;
     check_call!(ffi::TVMCFuncSetReturn(
         ret,
@@ -437,8 +434,9 @@ mod tests {
         let str_arg = CString::new("test").unwrap();
         let mut func = Builder::default();
         func.get_function("tvm.graph_runtime.remote_create")
-            .args(&[10, 20])
-            .arg(&str_arg);
+            .arg(10)
+            .arg(20)
+            .arg(str_arg.as_c_str());
         assert_eq!(func.arg_buf.len(), 3);
     }
 }
