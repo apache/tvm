@@ -191,9 +191,7 @@ Expr FoldConstant(const Expr& expr) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.FoldConstant")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = FoldConstant(args[0]);
-});
+.set_body_simple(FoldConstant);
 
 }  // namespace relay
 }  // namespace tvm

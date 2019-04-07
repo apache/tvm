@@ -17,39 +17,25 @@ TVM_REGISTER_API("_Var")
   });
 
 TVM_REGISTER_API("make.abs")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = tvm::abs(args[0]);
-  });
+.set_body_simple(tvm::abs);
 
 TVM_REGISTER_API("make.floor")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = tvm::floor(args[0]);
-  });
+.set_body_simple(tvm::floor);
 
 TVM_REGISTER_API("make.ceil")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = tvm::ceil(args[0]);
-  });
+.set_body_simple(tvm::ceil);
 
 TVM_REGISTER_API("make.round")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = tvm::round(args[0]);
-  });
+.set_body_simple(tvm::round);
 
 TVM_REGISTER_API("make.trunc")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = tvm::trunc(args[0]);
-  });
+.set_body_simple(tvm::trunc);
 
 TVM_REGISTER_API("make._cast")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = tvm::cast(args[0], args[1]);
-  });
+.set_body_simple(tvm::cast);
 
 TVM_REGISTER_API("make._range_by_min_extent")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = Range::make_by_min_extent(args[0], args[1]);
-  });
+.set_body_simple(Range::make_by_min_extent);
 
 TVM_REGISTER_API("make.For")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
@@ -82,15 +68,7 @@ TVM_REGISTER_API("make.Store")
   });
 
 TVM_REGISTER_API("make.Realize")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = Realize::make(args[0],
-                         args[1],
-                         args[2],
-                         args[3],
-                         args[4],
-                         args[5]);
-  });
-
+.set_body_simple(Realize::make);
 
 TVM_REGISTER_API("make.Call")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
@@ -111,78 +89,54 @@ TVM_REGISTER_API("make.CommReducer")
   });
 
 // make from two arguments
-#define REGISTER_MAKE1(Node)                                 \
+#define REGISTER_MAKE(Node)                                  \
   TVM_REGISTER_API("make."#Node)                             \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
-      *ret = Node::make(args[0]);                            \
-    })                                                       \
+  .set_body_simple(Node::make);                              \
 
-#define REGISTER_MAKE2(Node)                                 \
-  TVM_REGISTER_API("make."#Node)                             \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
-      *ret = Node::make(args[0], args[1]);                   \
-    })                                                       \
+REGISTER_MAKE(Reduce);
+REGISTER_MAKE(AttrStmt);
 
-#define REGISTER_MAKE3(Node)                                 \
-  TVM_REGISTER_API("make."#Node)                             \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
-      *ret = Node::make(args[0], args[1], args[2]);          \
-    })                                                       \
+REGISTER_MAKE(IntImm);
+REGISTER_MAKE(UIntImm);
+REGISTER_MAKE(FloatImm);
+REGISTER_MAKE(StringImm);
 
-#define REGISTER_MAKE4(Node)                                            \
-  TVM_REGISTER_API("make."#Node)                                        \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      *ret = Node::make(args[0], args[1], args[2], args[3]);            \
-    })                                                                  \
+REGISTER_MAKE(Add);
+REGISTER_MAKE(Sub);
+REGISTER_MAKE(Mul);
+REGISTER_MAKE(Div);
+REGISTER_MAKE(Mod);
+REGISTER_MAKE(Min);
+REGISTER_MAKE(Max);
+REGISTER_MAKE(EQ);
+REGISTER_MAKE(NE);
+REGISTER_MAKE(LT);
+REGISTER_MAKE(LE);
+REGISTER_MAKE(GT);
+REGISTER_MAKE(GE);
+REGISTER_MAKE(And);
+REGISTER_MAKE(Or);
 
-#define REGISTER_MAKE5(Node)                                            \
-  TVM_REGISTER_API("make."#Node)                                        \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      *ret = Node::make(args[0], args[1], args[2], args[3], args[4]);   \
-    })                                                                  \
+REGISTER_MAKE(Not);
+REGISTER_MAKE(Select);
+REGISTER_MAKE(Ramp);
+REGISTER_MAKE(Cast);
+REGISTER_MAKE(Broadcast);
+REGISTER_MAKE(Shuffle);
+REGISTER_MAKE(Let);
+REGISTER_MAKE(LetStmt);
+REGISTER_MAKE(AssertStmt);
+REGISTER_MAKE(ProducerConsumer);
+REGISTER_MAKE(Allocate);
+REGISTER_MAKE(Provide);
+REGISTER_MAKE(Prefetch);
+REGISTER_MAKE(Free);
+REGISTER_MAKE(IfThenElse);
+REGISTER_MAKE(Evaluate);
 
-
-REGISTER_MAKE5(Reduce);
-REGISTER_MAKE4(AttrStmt);
-
-REGISTER_MAKE2(IntImm);
-REGISTER_MAKE2(UIntImm);
-REGISTER_MAKE2(FloatImm);
-REGISTER_MAKE1(StringImm);
-
-REGISTER_MAKE2(Add);
-REGISTER_MAKE2(Sub);
-REGISTER_MAKE2(Mul);
-REGISTER_MAKE2(Div);
-REGISTER_MAKE2(Mod);
-REGISTER_MAKE2(Min);
-REGISTER_MAKE2(Max);
-REGISTER_MAKE2(EQ);
-REGISTER_MAKE2(NE);
-REGISTER_MAKE2(LT);
-REGISTER_MAKE2(LE);
-REGISTER_MAKE2(GT);
-REGISTER_MAKE2(GE);
-REGISTER_MAKE2(And);
-REGISTER_MAKE2(Or);
-
-REGISTER_MAKE1(Not);
-REGISTER_MAKE3(Select);
-REGISTER_MAKE3(Ramp);
-REGISTER_MAKE2(Cast);
-REGISTER_MAKE2(Broadcast);
-REGISTER_MAKE2(Shuffle);
-REGISTER_MAKE3(Let);
-REGISTER_MAKE3(LetStmt);
-REGISTER_MAKE3(AssertStmt);
-REGISTER_MAKE3(ProducerConsumer);
-REGISTER_MAKE5(Allocate);
-REGISTER_MAKE4(Provide);
-REGISTER_MAKE4(Prefetch);
-REGISTER_MAKE1(Free);
-REGISTER_MAKE2(Block);
-REGISTER_MAKE3(IfThenElse);
-REGISTER_MAKE1(Evaluate);
+// overloaded, needs special handling
+TVM_REGISTER_API("make.Block")
+  .set_body_simple(static_cast<Stmt (*)(Stmt, Stmt)>(Block::make));
 
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                  \

@@ -110,9 +110,7 @@ Expr DeadCodeElimination(const Expr& e) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.dead_code_elimination")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = DeadCodeElimination(args[0]);
-  });
+.set_body_simple(DeadCodeElimination);
 
 }  // namespace relay
 }  // namespace tvm

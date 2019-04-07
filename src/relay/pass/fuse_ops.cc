@@ -893,8 +893,6 @@ Expr FuseOps(const Expr& expr, int fuse_opt_level) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.FuseOps")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = FuseOps(args[0], args[1]);
-});
+.set_body_simple(FuseOps);
 }  // namespace relay
 }  // namespace tvm

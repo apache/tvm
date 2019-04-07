@@ -242,19 +242,13 @@ tvm::Array<Var> AllVars(const Expr& expr) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.free_vars")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = FreeVars(args[0]);
-  });
+.set_body_simple(FreeVars);
 
 TVM_REGISTER_API("relay._ir_pass.bound_vars")
-  .set_body([](TVMArgs args, TVMRetValue* ret) {
-      *ret = BoundVars(args[0]);
-    });
+.set_body_simple(BoundVars);
 
 TVM_REGISTER_API("relay._ir_pass.all_vars")
-  .set_body([](TVMArgs args, TVMRetValue* ret) {
-      *ret = AllVars(args[0]);
-    });
+.set_body_simple(AllVars);
 
 TVM_REGISTER_API("relay._ir_pass.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {

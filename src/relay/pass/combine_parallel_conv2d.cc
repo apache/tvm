@@ -327,9 +327,7 @@ class ParallelConv2DCombiner {
 Expr CombineParallelConv2D(const Expr& expr) { return ParallelConv2DCombiner().Combine(expr); }
 
 TVM_REGISTER_API("relay._ir_pass.CombineParallelConv2D")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = CombineParallelConv2D(args[0]);
-});
+.set_body_simple(CombineParallelConv2D);
 
 }  // namespace relay
 }  // namespace tvm

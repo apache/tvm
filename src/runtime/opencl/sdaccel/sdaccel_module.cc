@@ -61,13 +61,9 @@ Module SDAccelModuleLoadBinary(void* strm) {
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_xclbin")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = SDAccelModuleLoadFile(args[0], args[1]);
-  });
+.set_body_simple(SDAccelModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadfile_awsxclbin")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = SDAccelModuleLoadFile(args[0], args[1]);
-  });
+.set_body_simple(SDAccelModuleLoadFile);
 }  // namespace runtime
 }  // namespace tvm

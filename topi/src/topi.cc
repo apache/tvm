@@ -73,9 +73,7 @@ inline bool IsTensorType(TVMArgValue arg) {
 
 
 TVM_REGISTER_GLOBAL("topi.TEST_create_target")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = tvm::Target::create(args[0]);
-  });
+.set_body_simple(tvm::Target::create);
 
 /* Ops from broadcast.h */
 #define TOPI_REGISTER_BCAST_OP(OpName, Op)                              \
@@ -99,9 +97,7 @@ TVM_REGISTER_GLOBAL("topi.TEST_create_target")
     });                                                                 \
 
 TVM_REGISTER_GLOBAL("topi.broadcast_to")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = broadcast_to(args[0], args[1]);
-  });
+.set_body_simple(broadcast_to);
 
 TOPI_REGISTER_BCAST_OP("topi.add", topi::add);
 TOPI_REGISTER_BCAST_OP("topi.subtract", topi::subtract);
@@ -124,90 +120,58 @@ TOPI_REGISTER_BCAST_OP("topi.less_equal", topi::less_equal);
 
 /* Ops from elemwise.h */
 TVM_REGISTER_GLOBAL("topi.exp")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = exp(args[0]);
-  });
+.set_body_simple(exp);
 
 TVM_REGISTER_GLOBAL("topi.tanh")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = tanh(args[0]);
-  });
+.set_body_simple(tanh);
 
 TVM_REGISTER_GLOBAL("topi.sigmoid")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = sigmoid(args[0]);
-  });
+.set_body_simple(sigmoid);
 
 TVM_REGISTER_GLOBAL("topi.sqrt")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = sqrt(args[0]);
-  });
+.set_body_simple(sqrt);
 
 TVM_REGISTER_GLOBAL("topi.log")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = log(args[0]);
-  });
+.set_body_simple(log);
 
 TVM_REGISTER_GLOBAL("topi.identity")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = identity(args[0]);
-  });
+.set_body_simple(identity);
 
 TVM_REGISTER_GLOBAL("topi.negative")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = negative(args[0]);
-  });
+.set_body_simple(negative);
 
 TVM_REGISTER_GLOBAL("topi.clip")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = clip(args[0], args[1], args[2]);
-  });
+.set_body_simple(clip);
 
 TVM_REGISTER_GLOBAL("topi.cast")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = cast(args[0], args[1]);
-  });
+.set_body_simple(cast);
 
 TVM_REGISTER_GLOBAL("topi.elemwise_sum")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = elemwise_sum(args[0]);
-  });
+.set_body_simple(elemwise_sum);
 
 TVM_REGISTER_GLOBAL("topi.sign")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = sign(args[0]);
-  });
+.set_body_simple(sign);
 
 TVM_REGISTER_GLOBAL("topi.full")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = full(args[0], args[1], args[2]);
-  });
+.set_body_simple(full);
 
 TVM_REGISTER_GLOBAL("topi.full_like")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = full_like(args[0], args[1]);
-  });
+.set_body_simple(full_like);
 
 /* Ops from nn.h */
 TVM_REGISTER_GLOBAL("topi.nn.relu")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = relu<float>(args[0]);
-  });
+.set_body_typed<tvm::Tensor(const tvm::Tensor&)>([](const tvm::Tensor& t) {
+  return relu<float>(t);
+});
 
 TVM_REGISTER_GLOBAL("topi.nn.leaky_relu")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = leaky_relu(args[0], args[1]);
-  });
+.set_body_simple(leaky_relu);
 
 TVM_REGISTER_GLOBAL("topi.nn.prelu")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = prelu(args[0], args[1], args[2]);
-  });
+.set_body_simple(prelu);
 
 TVM_REGISTER_GLOBAL("topi.nn.pad")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = pad(args[0], args[1], args[2], args[3]);
-  });
+.set_body_simple(pad);
 
 /* Ops from reduction.h */
 TVM_REGISTER_GLOBAL("topi.sum")
@@ -242,24 +206,16 @@ TVM_REGISTER_GLOBAL("topi.prod")
 
 /* Ops from transform.h */
 TVM_REGISTER_GLOBAL("topi.expand_dims")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = expand_dims(args[0], args[1], args[2]);
-  });
+.set_body_simple(expand_dims);
 
 TVM_REGISTER_GLOBAL("topi.transpose")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = transpose(args[0], args[1]);
-  });
+.set_body_simple(transpose);
 
 TVM_REGISTER_GLOBAL("topi.flip")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = flip(args[0], args[1]);
-  });
+.set_body_simple(flip);
 
 TVM_REGISTER_GLOBAL("topi.reshape")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = reshape(args[0], args[1]);
-  });
+.set_body_simple(reshape);
 
 TVM_REGISTER_GLOBAL("topi.squeeze")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -267,19 +223,13 @@ TVM_REGISTER_GLOBAL("topi.squeeze")
   });
 
 TVM_REGISTER_GLOBAL("topi.concatenate")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = concatenate(args[0], args[1]);
-  });
+.set_body_simple(concatenate);
 
 TVM_REGISTER_GLOBAL("topi.stack")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = stack(args[0], args[1]);
-});
+.set_body_simple(stack);
 
 TVM_REGISTER_GLOBAL("topi.shape")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = shape(args[0], args[1]);
-});
+.set_body_simple(shape);
 
 TVM_REGISTER_GLOBAL("topi.split")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -291,9 +241,7 @@ TVM_REGISTER_GLOBAL("topi.split")
 });
 
 TVM_REGISTER_GLOBAL("topi.layout_transform")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = layout_transform(args[0], args[1], args[2]);
-});
+.set_body_simple(layout_transform);
 
 TVM_REGISTER_GLOBAL("topi.take")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -308,29 +256,19 @@ TVM_REGISTER_GLOBAL("topi.take")
   });
 
 TVM_REGISTER_GLOBAL("topi.where")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = where(args[0], args[1], args[2]);
-});
+.set_body_simple(where);
 
 TVM_REGISTER_GLOBAL("topi.arange")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = arange(args[0], args[1], args[2], args[3]);
-});
+.set_body_simple(arange);
 
 TVM_REGISTER_GLOBAL("topi.repeat")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = repeat(args[0], args[1], args[2]);
-});
+.set_body_simple(repeat);
 
 TVM_REGISTER_GLOBAL("topi.tile")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = tile(args[0], args[1]);
-});
+.set_body_simple(tile);
 
 TVM_REGISTER_GLOBAL("topi.gather_nd")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = gather_nd(args[0], args[1]);
-});
+.set_body_simple(gather_nd);
 
 TVM_REGISTER_GLOBAL("topi.matmul")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -354,61 +292,41 @@ TVM_REGISTER_GLOBAL("topi.tensordot")
   });
 
 TVM_REGISTER_GLOBAL("topi.strided_slice")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = strided_slice(args[0], args[1], args[2], args[3]);
-  });
+.set_body_simple(strided_slice);
 
 /* Ops from nn/upsampling.h */
 TVM_REGISTER_GLOBAL("topi.nn.upsampling")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::upsampling(args[0], args[1], args[2], args[3]);
-  });
+.set_body_simple(nn::upsampling);
 
 /* Ops from nn/bnn.h */
 TVM_REGISTER_GLOBAL("topi.nn.binarize_pack")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::binarize_pack(args[0], args[1]);
-  });
+.set_body_simple(nn::binarize_pack);
 
 TVM_REGISTER_GLOBAL("topi.nn.binary_dense")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::binary_dense(args[0], args[1]);
-  });
+.set_body_simple(nn::binary_dense);
 
 /* Ops from nn/dense.h */
 TVM_REGISTER_GLOBAL("topi.nn.dense")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::dense(args[0], args[1], args[2]);
-  });
+.set_body_simple(nn::dense);
 
 /* Ops from nn/batch_matmul.h */
 TVM_REGISTER_GLOBAL("topi.nn.batch_matmul")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::batch_matmul(args[0], args[1]);
-  });
+.set_body_simple(nn::batch_matmul);
 
 /* Ops from nn/dilate.h */
 TVM_REGISTER_GLOBAL("topi.nn.dilate")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::dilate(args[0], args[1]);
-  });
+.set_body_simple(nn::dilate);
 
 /* Ops from nn/flatten.h */
 TVM_REGISTER_GLOBAL("topi.nn.flatten")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::flatten(args[0]);
-  });
+.set_body_simple(nn::flatten);
 
 /* Ops from nn/mapping.h */
 TVM_REGISTER_GLOBAL("topi.nn.scale_shift_nchw")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::scale_shift_nchw(args[0], args[1], args[2]);
-  });
+.set_body_simple(nn::scale_shift_nchw);
 
 TVM_REGISTER_GLOBAL("topi.nn.scale_shift_nhwc")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::scale_shift_nhwc(args[0], args[1], args[2]);
-  });
+.set_body_simple(nn::scale_shift_nhwc);
 
 /* Ops from nn/pooling.h */
 TVM_REGISTER_GLOBAL("topi.nn.pool")
@@ -426,14 +344,10 @@ TVM_REGISTER_GLOBAL("topi.nn.global_pool")
 
 /* Ops from nn/softmax.h */
 TVM_REGISTER_GLOBAL("topi.nn.softmax")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::softmax(args[0], args[1]);
-  });
+.set_body_simple(nn::softmax);
 
 TVM_REGISTER_GLOBAL("topi.nn.log_softmax")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::log_softmax(args[0]);
-  });
+.set_body_simple(nn::log_softmax);
 
 /* Ops from nn/l2_normalize.h */
 TVM_REGISTER_GLOBAL("topi.nn.l2_normalize")
@@ -450,20 +364,14 @@ TVM_REGISTER_GLOBAL("topi.nn.lrn")
   });
 
 TVM_REGISTER_GLOBAL("topi.vision.reorg")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = vision::reorg(args[0], args[1]);
-  });
+.set_body_simple(vision::reorg);
 
 /* Ops from image/resize.h */
 TVM_REGISTER_GLOBAL("topi.image.bilinear_sample_nchw")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = image::bilinear_sample_nchw(args[0], args[1], args[2], args[3]);
-  });
+.set_body_simple(image::bilinear_sample_nchw);
 
 TVM_REGISTER_GLOBAL("topi.image.resize")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = image::resize(args[0], args[1], args[2], args[3], args[4]);
-  });
+.set_body_simple(image::resize);
 
 /* Generic schedules */
 TVM_REGISTER_GLOBAL("topi.generic.default_schedule")
@@ -476,25 +384,17 @@ TVM_REGISTER_GLOBAL("topi.generic.default_schedule")
   });
 
 TVM_REGISTER_GLOBAL("topi.generic.schedule_extern")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::generic::schedule_extern(args[0], args[1]);
-  });
+.set_body_simple(topi::generic::schedule_extern);
 
 TVM_REGISTER_GLOBAL("topi.generic.schedule_injective")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::generic::schedule_injective(args[0], args[1]);
-  });
+.set_body_simple(topi::generic::schedule_injective);
 
 /* x86 schedules */
 TVM_REGISTER_GLOBAL("topi.x86.schedule_binarize_pack")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::x86::schedule_binarize_pack(args[0], args[1]);
-  });
+.set_body_simple(topi::x86::schedule_binarize_pack);
 
 TVM_REGISTER_GLOBAL("topi.x86.schedule_binary_dense")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::x86::schedule_binary_dense(args[0], args[1]);
-  });
+.set_body_simple(topi::x86::schedule_binary_dense);
 
 TVM_REGISTER_GLOBAL("topi.x86.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -506,81 +406,51 @@ TVM_REGISTER_GLOBAL("topi.x86.default_schedule")
   });
 
 TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::x86::schedule_injective(args[0], args[1]);
-  });
+.set_body_simple(topi::x86::schedule_injective);
 
 /* ROCm schedules */
 TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = rocm::dense_rocm(args[0], args[1], args[2], args[3]);
-  });
+.set_body_simple(rocm::dense_rocm);
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::rocm::schedule_dense(args[0], args[1]);
-  });
+.set_body_simple(topi::rocm::schedule_dense);
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_lrn")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::rocm::schedule_lrn(args[0], args[1]);
-  });
+.set_body_simple(topi::rocm::schedule_lrn);
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_l2_normalize")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::rocm::schedule_l2_normalize(args[0], args[1]);
-  });
+.set_body_simple(topi::rocm::schedule_l2_normalize);
 
 /* CUDA schedules */
 TVM_REGISTER_GLOBAL("topi.cuda.dense_cuda")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = cuda::dense_cuda(args[0], args[1], args[2], args[3]);
-  });
+.set_body_simple(cuda::dense_cuda);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_dense")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_dense(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_dense);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_extern")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_extern(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_extern);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_injective")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_injective(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_injective);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_pool")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_pool(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_pool);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_global_pool")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_global_pool(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_global_pool);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_reduce")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_reduce(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_reduce);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_softmax")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_softmax(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_softmax);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_lrn")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_lrn(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_lrn);
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_l2_normalize")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_l2_normalize(args[0], args[1]);
-  });
+.set_body_simple(topi::cuda::schedule_l2_normalize);
 
 /*! \brief Builder function for instantiating schedules. */
 using FTVMScheduleBuilder = std::function<

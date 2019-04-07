@@ -289,18 +289,12 @@ Module CUDAModuleLoadBinary(void* strm) {
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_cubin")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = CUDAModuleLoadFile(args[0], args[1]);
-  });
+.set_body_simple(CUDAModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadfile_ptx")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = CUDAModuleLoadFile(args[0], args[1]);
-  });
+.set_body_simple(CUDAModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadbinary_cuda")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = CUDAModuleLoadBinary(args[0]);
-  });
+.set_body_simple(CUDAModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

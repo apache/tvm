@@ -169,8 +169,6 @@ runtime::Module DeviceSourceModuleCreate(
 }
 
 TVM_REGISTER_GLOBAL("module.source_module_create")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = SourceModuleCreate(args[0], args[1]);
-  });
+.set_body_simple(SourceModuleCreate);
 }  // namespace codegen
 }  // namespace tvm

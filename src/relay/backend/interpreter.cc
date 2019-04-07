@@ -595,9 +595,7 @@ CreateInterpreter(
 }
 
 TVM_REGISTER_API("relay.backend.CreateInterpreter")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = CreateInterpreter(args[0], args[1], args[2]);
-  });
+.set_body_simple(CreateInterpreter);
 
 TVM_REGISTER_NODE_TYPE(ClosureNode);
 TVM_REGISTER_NODE_TYPE(TupleValueNode);

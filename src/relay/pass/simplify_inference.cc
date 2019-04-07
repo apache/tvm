@@ -84,9 +84,7 @@ Expr SimplifyInference(const Expr& e) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.simplify_inference")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = SimplifyInference(args[0]);
-  });
+.set_body_simple(SimplifyInference);
 
 }  // namespace relay
 }  // namespace tvm

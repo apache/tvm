@@ -220,6 +220,7 @@ class TypedPackedFunc<R(Args...)> {
   TypedPackedFunc(const FLambda& typed_lambda) {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda);
   }
+
   /*!
    * \brief copy assignment operator from typed lambda
    *

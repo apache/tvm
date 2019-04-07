@@ -162,9 +162,7 @@ Module ModuleNode::FromExpr(
 TVM_REGISTER_NODE_TYPE(ModuleNode);
 
 TVM_REGISTER_API("relay._make.Module")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = ModuleNode::make(args[0], args[1]);
-  });
+.set_body_simple(ModuleNode::make);
 
 TVM_REGISTER_API("relay._make.Module_Add")
 .set_body([](TVMArgs args, TVMRetValue *ret) {

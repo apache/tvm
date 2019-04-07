@@ -58,9 +58,7 @@ Expr ToGraphNormalForm(const Expr& e) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.to_graph_normal_form")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = ToGraphNormalForm(args[0]);
-});
+.set_body_simple(ToGraphNormalForm);
 
 }  // namespace relay
 }  // namespace tvm

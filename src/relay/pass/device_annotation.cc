@@ -474,19 +474,13 @@ Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.CollectDeviceInfo")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  *ret = CollectDeviceInfo(args[0]);
-});
+.set_body_simple(CollectDeviceInfo);
 
 TVM_REGISTER_API("relay._ir_pass.RewriteDeviceAnnotation")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  *ret = RewriteAnnotatedOps(args[0], args[1]);
-});
+.set_body_simple(RewriteAnnotatedOps);
 
 TVM_REGISTER_API("relay._ir_pass.CollectDeviceAnnotationOps")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  *ret = CollectDeviceAnnotationOps(args[0]);
-});
+.set_body_simple(CollectDeviceAnnotationOps);
 
 }  // namespace relay
 }  // namespace tvm

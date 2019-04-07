@@ -65,6 +65,31 @@ class Registry {
   Registry& set_body_typed(FLambda f) {
     return set_body(TypedPackedFunc<FType>(f).packed());
   }
+
+  /*!
+   * \brief Directly forward to the passed function pointer.
+   *        Note that this method doesn't work with lambdas, you need to
+   *        Explicitly give a type for those.
+   *
+   * \code
+   * 
+   * int multiply(int x, int y) {
+   *   return x * y;
+   * }
+   *
+   * TVM_REGISTER_API("multiply")
+   * .set_body_simple(multiply); // will have type int(int, int)
+   *
+   * \endcode
+   *
+   * \param f The function to forward to.
+   * \tparam FType the signature of the function.
+   */
+  template<typename R, typename ...Args>
+  Registry& set_body_simple(R (*f)(Args...)) {
+    return set_body(TypedPackedFunc<R(Args...)>(f));
+  }
+
   /*!
    * \brief Register a function with given name
    * \param name The name of the function.
