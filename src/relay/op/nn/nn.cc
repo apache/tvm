@@ -59,9 +59,7 @@ Expr MakeBiasAdd(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.bias_add")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeBiasAdd, args, rv);
-  });
+.set_body_simple(MakeBiasAdd);
 
 
 RELAY_REGISTER_OP("nn.bias_add")
@@ -126,9 +124,7 @@ Expr MakeDense(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.dense")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeDense, args, rv);
-  });
+.set_body_simple(MakeDense);
 
 
 RELAY_REGISTER_OP("nn.dense")
@@ -160,9 +156,7 @@ Expr MakeLeakyRelu(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.leaky_relu")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeLeakyRelu, args, rv);
-  });
+.set_body_simple(MakeLeakyRelu);
 
 
 RELAY_REGISTER_OP("nn.leaky_relu")
@@ -225,9 +219,7 @@ Expr MakePRelu(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.prelu")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakePRelu, args, rv);
-  });
+.set_body_simple(MakePRelu);
 
 
 RELAY_REGISTER_OP("nn.prelu")
@@ -257,16 +249,13 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
 TVM_REGISTER_API("relay.op.nn._make.softmax")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  auto make_func = [](Expr data, int axis) {
-    auto attrs = make_node<SoftmaxAttrs>();
-    attrs->axis = axis;
-    static const Op& op = Op::Get("nn.softmax");
-    return CallNode::make(op, {data}, Attrs(attrs), {});
-  };
-
-  runtime::detail::unpack_call<Expr, 2>(make_func, args, rv);
+.set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
+  auto attrs = make_node<SoftmaxAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("nn.softmax");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
 });
+
 
 RELAY_REGISTER_OP("nn.softmax")
     .describe(R"code(Softmax layer.
@@ -295,15 +284,11 @@ RELAY_REGISTER_OP("nn.softmax")
 
 // relay.nn.log_softmax
 TVM_REGISTER_API("relay.op.nn._make.log_softmax")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  auto make_func = [](Expr data, int axis) {
-    auto attrs = make_node<SoftmaxAttrs>();
-    attrs->axis = axis;
-    static const Op& op = Op::Get("nn.log_softmax");
-    return CallNode::make(op, {data}, Attrs(attrs), {});
-  };
-
-  runtime::detail::unpack_call<Expr, 2>(make_func, args, rv);
+.set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
+  auto attrs = make_node<SoftmaxAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("nn.log_softmax");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("nn.log_softmax")
@@ -363,9 +348,7 @@ Expr MakeBatchFlatten(Expr data) {
 
 
 TVM_REGISTER_API("relay.op.nn._make.batch_flatten")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 1>(MakeBatchFlatten, args, rv);
-  });
+.set_body_simple(MakeBatchFlatten);
 
 
 RELAY_REGISTER_OP("nn.batch_flatten")
@@ -405,7 +388,7 @@ Example::
 
 // relu
 TVM_REGISTER_API("relay.op.nn._make.relu")
-.set_body_typed<Expr(Expr)>([](Expr data) {
+.set_body_typed<Call(Expr)>([](Expr data) {
     static const Op& op = Op::Get("nn.relu");
     return CallNode::make(op, {data}, Attrs(), {});
   });
@@ -450,9 +433,7 @@ Expr MakeLRN(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.lrn")
-  .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 6>(MakeLRN, args, rv);
-  });
+.set_body_simple(MakeLRN);
 
 RELAY_REGISTER_OP("nn.lrn")
 .describe(R"code(LRN layer.
@@ -490,9 +471,7 @@ Expr MakeL2Normalize(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.l2_normalize")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeL2Normalize, args, rv);
-  });
+.set_body_simple(MakeL2Normalize);
 
 RELAY_REGISTER_OP("nn.l2_normalize")
 .describe(R"code(L2 Normalization layer.
@@ -537,9 +516,7 @@ Expr MakeDropout(Expr data, double rate) {
 }
 
 TVM_REGISTER_API("relay.op.nn._make.dropout")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeDropout, args, rv);
-  });
+.set_body_simple(MakeDropout);
 
 RELAY_REGISTER_OP("nn.dropout")
 .describe(R"code(Applies the dropout operation to the input array.
@@ -603,9 +580,7 @@ Expr MakeBatchNorm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr movi
 }
 
 TVM_REGISTER_API("relay.op.nn._make.batch_norm")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 9>(MakeBatchNorm, args, rv);
-  });
+.set_body_simple(MakeBatchNorm);
 
 RELAY_REGISTER_OP("nn.batch_norm")
 .describe(R"code(Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -692,9 +667,7 @@ Expr MakeBatchMatmul(Expr x,
 
 
 TVM_REGISTER_API("relay.op.nn._make.batch_matmul")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeBatchMatmul, args, rv);
-  });
+.set_body_simple(MakeBatchMatmul);
 
 
 RELAY_REGISTER_OP("nn.batch_matmul")

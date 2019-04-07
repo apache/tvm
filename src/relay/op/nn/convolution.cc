@@ -151,9 +151,7 @@ Expr MakeConv2D(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.conv2d")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 12>(MakeConv2D, args, rv);
-  });
+.set_body_simple(MakeConv2D);
 
 
 RELAY_REGISTER_OP("nn.conv2d")
@@ -305,9 +303,7 @@ Expr MakeConv2DTranspose(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.conv2d_transpose")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 12>(MakeConv2DTranspose, args, rv);
-  });
+.set_body_simple(MakeConv2DTranspose);
 
 RELAY_REGISTER_OP("nn.conv2d_transpose")
 .describe(R"code(Transposed 2D convolution layer (sometimes called Deconvolution).
@@ -446,9 +442,7 @@ Expr MakeConv2DWinograd(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 13>(MakeConv2DWinograd, args, rv);
-  });
+.set_body_simple(MakeConv2DWinograd);
 
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
@@ -511,9 +505,7 @@ Expr MakeConv2DWinogradWeightTransform(Expr weight,
 
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 2>(MakeConv2DWinogradWeightTransform, args, rv);
-});
+.set_body_simple(MakeConv2DWinogradWeightTransform);
 
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_weight_transform")
@@ -561,9 +553,7 @@ Expr MakeConv2DWinogradNNPACK(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 12>(MakeConv2DWinogradNNPACK, args, rv);
-});
+.set_body_simple(MakeConv2DWinogradNNPACK);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
 .describe(R"code(Compute conv2d with winograd nnpack. Only supports NCHW layout.
@@ -630,9 +620,7 @@ Expr MakeConv2DWinogradNNPACKWeightTransform(Expr weight,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 3>(MakeConv2DWinogradNNPACKWeightTransform, args, rv);
-});
+.set_body_simple(MakeConv2DWinogradNNPACKWeightTransform);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_weight_transform")
 .describe(R"code(Weight transformation of winograd fast convolution algorithm with NNPACK.
@@ -679,9 +667,7 @@ Expr MakeConv2DNCHWc(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_NCHWc")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 12>(MakeConv2DNCHWc, args, rv);
-  });
+.set_body_simple(MakeConv2DNCHWc);
 
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
@@ -731,9 +717,7 @@ Expr MakeDepthwiseConv2DNCHWc(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 12>(MakeDepthwiseConv2DNCHWc, args, rv);
-  });
+.set_body_simple(MakeDepthwiseConv2DNCHWc);
 
 
 RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
@@ -891,9 +875,7 @@ Expr MakeDeformableConv2D(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.deformable_conv2d")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 14>(MakeDeformableConv2D, args, rv);
-  });
+.set_body_simple(MakeDeformableConv2D);
 
 
 }  // namespace relay

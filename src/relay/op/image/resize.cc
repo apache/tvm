@@ -86,9 +86,7 @@ Expr MakeResize(Expr data,
 
 
 TVM_REGISTER_API("relay.op.image._make.resize")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 5>(MakeResize, args, rv);
-  });
+.set_body_simple(MakeResize);
 
 
 RELAY_REGISTER_OP("image.resize")

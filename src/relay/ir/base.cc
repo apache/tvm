@@ -33,9 +33,7 @@ SourceName SourceName::Get(const std::string& name) {
 }
 
 TVM_REGISTER_API("relay._make.SourceName")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = SourceName::Get(args[0]);
-  });
+.set_body_simple(SourceName::Get);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<SourceNameNode>([](const SourceNameNode* node, tvm::IRPrinter* p) {
@@ -59,9 +57,7 @@ Span SpanNode::make(SourceName source, int lineno, int col_offset) {
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
 TVM_REGISTER_API("relay._make.Span")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = SpanNode::make(args[0], args[1], args[2]);
-  });
+.set_body_simple(SpanNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<SpanNode>([](const SpanNode* node, tvm::IRPrinter* p) {

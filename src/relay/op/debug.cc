@@ -45,9 +45,7 @@ Expr MakeDebug(Expr expr, std::string name) {
 }
 
 TVM_REGISTER_API("relay.op._make.debug")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeDebug, args, rv);
-  });
+.set_body_simple(MakeDebug);
 
 }  // namespace relay
 }  // namespace tvm

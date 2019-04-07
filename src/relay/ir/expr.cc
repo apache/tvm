@@ -76,9 +76,7 @@ Var VarNode::make(std::string name_hint, Type type_annotation) {
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 TVM_REGISTER_API("relay._make.Var")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = VarNode::make(args[0].operator std::string(), args[1]);
-  });
+.set_body_simple(static_cast<Var (*)(std::string, Type)>(VarNode::make));
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<VarNode>([](const VarNode* node, tvm::IRPrinter* p) {
@@ -306,9 +304,8 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 TVM_REGISTER_API("relay._expr.TempExprRealize")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  TempExpr temp = args[0];
-  *ret = temp->Realize();
+.set_body_typed<Expr(TempExpr)>([](TempExpr temp) {
+  return temp->Realize();
 });
 
 }  // namespace relay

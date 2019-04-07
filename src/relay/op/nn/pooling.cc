@@ -167,9 +167,7 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.max_pool2d")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 6>(MakeMaxPool2D, args, rv);
-  });
+.set_body_simple(MakeMaxPool2D);
 
 
 RELAY_REGISTER_OP("nn.max_pool2d")
@@ -223,9 +221,7 @@ Expr MakeAvgPool2D(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.avg_pool2d")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 7>(MakeAvgPool2D, args, rv);
-  });
+.set_body_simple(MakeAvgPool2D);
 
 
 RELAY_REGISTER_OP("nn.avg_pool2d")
@@ -326,9 +322,7 @@ Expr MakeGlobalAvgPool2D(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.global_avg_pool2d")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeGlobalAvgPool2D, args, rv);
-  });
+.set_body_simple(MakeGlobalAvgPool2D);
 
 // GlobalAvgPool
 RELAY_REGISTER_OP("nn.global_avg_pool2d")
@@ -359,9 +353,7 @@ Expr MakeGlobalMaxPool2D(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.global_max_pool2d")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeGlobalMaxPool2D, args, rv);
-  });
+.set_body_simple(MakeGlobalMaxPool2D);
 
 
 RELAY_REGISTER_OP("nn.global_max_pool2d")
