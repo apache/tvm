@@ -15,6 +15,7 @@ Changes
 .*names
 .*~
 .*mk
+.*log
 docs/doxygen/*
 .*edl
 .gitignore
