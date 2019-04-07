@@ -5,9 +5,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -42,7 +42,7 @@ and Firefly-RK3399 for opencl example.
 #   All instructions in both this section and next section should be
 #   executed on the target device, e.g. Raspberry Pi. And we assume it
 #   has Linux running.
-# 
+#
 # Since we do compilation on local machine, the remote device is only used
 # for running the generated code. We only need to build tvm runtime on
 # the remote device.
@@ -201,7 +201,7 @@ print('%g secs/op' % cost)
 # Run OpenCL Kernel Remotely by RPC
 # ---------------------------------
 # As for remote OpenCL devices, the workflow is almost the same as above.
-# You can define the kernel, upload files, and run by RPC. 
+# You can define the kernel, upload files, and run by RPC.
 #
 # .. note::
 #

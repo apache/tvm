@@ -5,9 +5,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -355,9 +355,9 @@ def test_bind():
             for k in const_range(len_j):
                 total[0] += a[i, k]
             c[i] = total[0]
-    
+
         return c
-    
+
     a = tvm.placeholder((8, 4), 'float32')
     c = foo(a)
     s = tvm.create_schedule(c.op)
@@ -538,7 +538,7 @@ def test_downstream():
             b[i] = a[i] * i
         return b
 
-    
+
     a = tvm.placeholder((20, ), 'float32')
     b = downstream(a)
     c = tvm.compute((20, ), lambda x: b[x] + 1.0)

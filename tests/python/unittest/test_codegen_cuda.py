@@ -5,9 +5,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,7 +44,7 @@ def test_cuda_vectorize_add():
         c = tvm.nd.empty((n,), B.dtype, ctx)
         fun(a, c)
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
-        
+
     check_cuda("float32", 64, 2)
     check_cuda("float16", 64, 2)
 
@@ -60,7 +60,7 @@ def test_cuda_multiply_add():
             return
         A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
         B = tvm.placeholder((n,), name='B', dtype="%sx%d" % (dtype, lanes))
-        C = tvm.placeholder((n,), name='C', dtype="int32")        
+        C = tvm.placeholder((n,), name='C', dtype="int32")
         D = tvm.compute((n,),
                         lambda i: tvm.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name='D')
         s = tvm.create_schedule(D.op)

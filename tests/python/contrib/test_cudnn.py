@@ -5,9 +5,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -58,7 +58,7 @@ def test_conv2d():
                              algo=1)
     yshape = [x.value for x in Y.shape]
     s =  tvm.create_schedule(Y.op)
-    
+
     def verify():
         ctx = tvm.gpu(0)
         f = tvm.build(s, [X, W, Y], "cuda", target_host="llvm", name="conv2d")
@@ -69,9 +69,9 @@ def test_conv2d():
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32),
                          ctx)
         f(x, w, y)
-    
+
     verify()
 
-    
+
 if __name__ == "__main__":
     test_conv2d()

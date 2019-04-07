@@ -5,9 +5,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -45,7 +45,7 @@ from tvm.contrib.download import download_testdata
 #   All instructions in both this section and next section should be
 #   executed on the target device, e.g. Raspberry Pi. And we assume it
 #   has Linux running.
-# 
+#
 # Since we do compilation on local machine, the remote device is only used
 # for running the generated code. We only need to build tvm runtime on
 # the remote device.
@@ -62,7 +62,7 @@ from tvm.contrib.download import download_testdata
 #
 # After building runtime successfully, we need to set environment varibles
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`
-# using :code:`vi ~/.bashrc` and add the line below (Assuming your TVM 
+# using :code:`vi ~/.bashrc` and add the line below (Assuming your TVM
 # directory is in :code:`~/tvm`):
 #
 # .. code-block:: bash
@@ -93,7 +93,7 @@ from tvm.contrib.download import download_testdata
 # Prepare the Pre-trained Model
 # -----------------------------
 # Back to the host machine, which should have a full TVM installed (with LLVM).
-# 
+#
 # We will use pre-trained model from
 # `MXNet Gluon model zoo <https://mxnet.incubator.apache.org/api/python/gluon/model_zoo.html>`_.
 # You can found more details about this part at tutorial :ref:`tutorial-from-mxnet`.

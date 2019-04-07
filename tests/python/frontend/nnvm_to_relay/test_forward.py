@@ -5,9 +5,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -34,7 +34,7 @@ def verify_nnvm_to_relay(nnvm_sym, params, data_shape=(1, 3, 224, 224)):
         m.set_input(**params)
         m.run()
         return m.get_output(0).asnumpy()
-    
+
     def get_relay_output(sym, x, params, target, ctx, dtype='float32'):
         shape_dict = {'data': x.shape}
         func, params = to_relay(sym, shape_dict, dtype, params)

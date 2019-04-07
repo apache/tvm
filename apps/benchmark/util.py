@@ -5,7 +5,7 @@ import nnvm
 
 def get_network(name, batch_size, dtype='float32'):
     """Get the symbol definition and random weight of a network
-    
+
     Parameters
     ----------
     name: str
@@ -69,7 +69,7 @@ def get_network(name, batch_size, dtype='float32'):
 
 def print_progress(msg):
     """print progress message
-    
+
     Parameters
     ----------
     msg: str

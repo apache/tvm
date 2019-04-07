@@ -196,9 +196,9 @@ def cli():
               num_confs += 1
               cmd = get_make_command(job, build_dir, conf, b, args.mode, args.slurm)
               sb_file = job+".sb"
-              file = open(sb_file,"w") 
+              file = open(sb_file,"w")
               file.write(cmd)
-              file.close() 
+              file.close()
               call(["echo", cmd])
               if args.slurm:
                 call(["sbatch", sb_file])

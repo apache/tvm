@@ -5,9 +5,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -116,7 +116,7 @@ def test_coproc_sync3():
     with ib.new_scope():
         ib.scope_attr(cp, "coproc_scope", 3)
         A[0] = 0.0
-   
+
     stmt = ib.get()
     stmt = tvm.ir_pass.CoProcSync(stmt)
     slist = tvm.make.stmt_list(stmt.first.body.body)
@@ -128,7 +128,7 @@ def test_coproc_sync3():
     assert(__check_list(push_st.value.args, [2,3]))
     assert(pop_st.value.name == "cop.coproc_dep_pop")
     assert(__check_list(pop_st.value.args, [2,3]))
-    
+
 
 if __name__ == "__main__":
     test_coproc_sync()

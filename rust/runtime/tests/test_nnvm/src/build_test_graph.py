@@ -58,7 +58,7 @@ def main():
     lib.save(osp.join(sys.argv[1], 'graph.o'))
     with open(osp.join(out_dir, 'graph.json'), 'w') as f_resnet:
         f_resnet.write(graph.json())
-        
+
     with open(osp.join(out_dir, 'graph.params'), 'wb') as f_params:
         f_params.write(nnvm.compiler.save_param_dict(params))
 
