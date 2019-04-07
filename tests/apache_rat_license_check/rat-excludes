@@ -10,6 +10,15 @@ docs/_build/*
 .*txt
 .*svg
 .*lst
+.*toml
+.*xcodeproj
+.*lproj
+.*plist
+.*lds
+.*in
+.*diff
+.*edl
+.*gradle
 package-list
 MANIFEST
 Changes
@@ -21,7 +30,6 @@ Changes
 rat-excludes
 .*generated\\.cu
 docs/doxygen/*
-.*edl
 .gitignore
 __init__.py
 pylintrc
