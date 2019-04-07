@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Helper tool to add ASF header to files that are not recognized by Rat."""
+import os
 import sys
 
 
@@ -39,7 +40,7 @@ header_cstyle = """
  */
 """.strip()
 
-header_mdsyle = """
+header_mdstyle = """
 <!--- Licensed to the Apache Software Foundation (ASF) under one -->
 <!--- or more contributor license agreements.  See the NOTICE file -->
 <!--- distributed with this work for additional information -->
@@ -79,13 +80,13 @@ header_pystyle = """
 
 FMT_MAP = {
     "toml" : header_pystyle,
-    "yml", header_pystyle,
+    "yml": header_pystyle,
     "rs" : header_cstyle,
+    "md" : header_mdstyle,
 }
 
 def add_header(fname, header):
     """Add header to file"""
-    print("Add header to %s" % fname)
     if not os.path.exists(fname):
         print("Cannot find %s ..." % fname)
         return
@@ -95,9 +96,10 @@ def add_header(fname, header):
         print("Skip file %s ..." % fname)
         return
 
-    with open(fname, "w"): as outfile:
+    with open(fname, "w") as outfile:
         outfile.write(header + "\n\n")
         outfile.write(orig)
+    print("Add header to %s" % fname)
 
 
 def main(args):
