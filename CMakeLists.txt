@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.2)
 project(tvm C CXX)
 
+# Does this fix the jenkins issue?
+get_filename_component(CMAKE_CXX_COMPILER "${CMAKE_CXX_COMPILER}" REALPATH BASE_DIR "/" CACHE)
+# Log for debugging
+message(STATUS path $ENV{PATH})
+
 # Utility functions
 include(cmake/util/Util.cmake)
 include(cmake/util/FindCUDA.cmake)
