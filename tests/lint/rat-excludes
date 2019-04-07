@@ -19,6 +19,9 @@ docs/_build/*
 .*diff
 .*edl
 .*gradle
+.*md5
+.*gen_modules/*
+.*doxygen/*
 package-list
 MANIFEST
 Changes
@@ -33,3 +36,4 @@ docs/doxygen/*
 .gitignore
 __init__.py
 pylintrc
+config.cmake

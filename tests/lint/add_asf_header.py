@@ -83,6 +83,7 @@ FMT_MAP = {
     "yml": header_pystyle,
     "rs" : header_cstyle,
     "md" : header_mdstyle,
+    "cmake" : header_pystyle,
 }
 
 def add_header(fname, header):
