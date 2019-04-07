@@ -10,7 +10,6 @@ docs/_build/*
 .*txt
 .*svg
 .*lst
-.*toml
 .*xcodeproj
 .*lproj
 .*plist
@@ -20,8 +19,12 @@ docs/_build/*
 .*edl
 .*gradle
 .*md5
+
+# Generated modules
 .*gen_modules/*
-.*doxygen/*
+.*doxygen
+core.cpp
+
 package-list
 MANIFEST
 Changes
@@ -33,6 +36,7 @@ Changes
 rat-excludes
 .*generated\\.cu
 .gitignore
+.gitmodules
 .clang-format
 __init__.py
 pylintrc
