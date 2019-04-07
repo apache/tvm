@@ -90,8 +90,26 @@ class Registry {
     return set_body(TypedPackedFunc<R(Args...)>(f));
   }
 
+  template<typename T, typename R, typename ...Args>
+  Registry& set_body_method(R (T::*f)(Args...)) {
+    return set_body_typed<R(T, Args...)>([f](T target, Args... params) -> R {
+      // call method pointer
+      return (target.*f)(params...);
+    });
+  }
+
+  template<typename T, typename R, typename ...Args>
+  Registry& set_body_method(R (T::*f)(Args...) const) {
+    return set_body_typed<R(T, Args...)>([f](const T target, Args... params) -> R {
+      // call method pointer
+      return (target.*f)(params...);
+    });
+  }
+
+
   /*!
    * \brief set the body of the function to be the passed method pointer.
+   *        used when calling a method on a Node subclass through a NodeRef subclass.
    *
    * \code
    * 
@@ -112,9 +130,18 @@ class Registry {
    * \tparam NodeRef the node reference type to call the method on
    */
   template<typename NodeRef, typename Node, typename R, typename ...Args>
-  Registry& set_body_method(R (Node::*f)(Args...)) {
+  Registry& set_body_node_method(R (Node::*f)(Args...)) {
     return set_body_typed<R(NodeRef, Args...)>([f](NodeRef ref, Args... params) {
       Node* target = ref.operator->();
+      // call method pointer
+      return (target->*f)(params...);
+    });
+  }
+
+  template<typename NodeRef, typename Node, typename R, typename ...Args>
+  Registry& set_body_node_method(R (Node::*f)(Args...) const) {
+    return set_body_typed<R(NodeRef, Args...)>([f](NodeRef ref, Args... params) {
+      const Node* target = ref.operator->();
       // call method pointer
       return (target->*f)(params...);
     });
