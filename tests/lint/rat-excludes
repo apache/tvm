@@ -17,7 +17,6 @@ docs/_build/*
 .*in
 .*diff
 .*edl
-.*gradle
 .*md5
 
 # Generated modules
