@@ -30,7 +30,6 @@ if [ ${TASK} == "verilog_test" ] || [ ${TASK} == "all_test" ]; then
 fi
 
 if [ ${TASK} == "cpp_test" ] || [ ${TASK} == "all_test" ]; then
-    make -f dmlc-core/scripts/packages.mk gtest
     ./tests/scripts/task_cpp_unittest.sh || exit -1
 fi
 
