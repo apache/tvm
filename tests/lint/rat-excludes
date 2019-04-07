@@ -32,8 +32,8 @@ Changes
 .*log
 rat-excludes
 .*generated\\.cu
-docs/doxygen/*
 .gitignore
+.clang-format
 __init__.py
 pylintrc
 config.cmake
