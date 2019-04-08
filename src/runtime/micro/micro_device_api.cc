@@ -17,8 +17,8 @@ namespace runtime {
 class MicroDeviceAPI final : public DeviceAPI {
  public:
   /*! \brief constructor */
-  MicroDeviceAPI() {
-    session_ = MicroSession::Global();
+  MicroDeviceAPI()
+    : session_(MicroSession::Global()) {
   }
 
   void SetDevice(TVMContext ctx) final {}
@@ -72,7 +72,7 @@ class MicroDeviceAPI final : public DeviceAPI {
           const_cast<uint8_t*>(static_cast<const uint8_t*>(from)) + from_offset,
           const_cast<uint8_t*>(static_cast<const uint8_t*>(to)), size);
 
-    } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
+    } else if (type_from_to == std::make_tuple(kDLCPU, micro_devtype)) {
       const std::shared_ptr<LowLevelDevice>& to_lld = session_->low_level_device();
       to_lld->Write(
           const_cast<uint8_t*>(static_cast<const uint8_t*>(to)) + to_offset,

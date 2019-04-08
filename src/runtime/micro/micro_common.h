@@ -115,9 +115,10 @@ std::string ReadSection(std::string binary, SectionKind section);
  * \brief finds size of the section in the binary
  * \param binary input binary contents
  * \param section section type
+ * \param align alignment of the returned size
  * \return size of the section if it exists, 0 otherwise
  */
-size_t GetSectionSize(std::string binary_name, SectionKind section);
+size_t GetSectionSize(std::string binary_name, SectionKind section, int align = 8);
 
 /*!
  * \brief builds a map of symbol to address

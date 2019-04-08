@@ -46,14 +46,14 @@ static std::string AddrToString(void* addr) {
   return string_addr;
 }
 
-std::string RelocateBinarySections(std::string binary_name,
+std::string RelocateBinarySections(std::string binary_path,
                                    void* text,
                                    void* data,
                                    void* bss) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
-  std::string relocated_bin = (*f)(binary_name,
+  std::string relocated_bin = (*f)(binary_path,
                                    AddrToString(text),
                                    AddrToString(data),
                                    AddrToString(bss));
@@ -66,17 +66,21 @@ std::string ReadSection(std::string binary_name, SectionKind section) {
   const auto* f = Registry::Get("tvm_callback_read_binary_section");
   CHECK(f != nullptr)
     << "Require tvm_callback_read_binary_section to exist in registry";
-  std::string section_contents = (*f)(binary, SectionToString(section));
+  TVMByteArray arr;
+  arr.data = &binary[0];
+  arr.size = binary.length();
+  std::string section_contents = (*f)(arr, SectionToString(section));
   return section_contents;
 }
 
-size_t GetSectionSize(std::string binary_name, SectionKind section) {
+size_t GetSectionSize(std::string binary_path, SectionKind section, int align) {
   CHECK(section == kText || section == kData || section == kBss)
     << "GetSectionSize requires section to be one of text, data or bss.";
   const auto* f = Registry::Get("tvm_callback_get_section_size");
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
-  size_t size = (*f)(binary_name, SectionToString(section));
+  size_t size = (*f)(binary_path, SectionToString(section));
+  while (size % align) size++;
   return size;
 }
 

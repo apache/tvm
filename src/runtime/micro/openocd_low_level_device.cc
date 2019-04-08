@@ -36,6 +36,10 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
 
   const void* base_addr() const final;
 
+  const char* device_type() const final {
+    return "openocd";
+  }
+
  private:
   /*! \brief base address of the micro device memory region */
   void* base_addr_;

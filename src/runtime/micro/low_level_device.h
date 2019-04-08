@@ -51,6 +51,12 @@ class LowLevelDevice {
    * \return the base address of the device memory region
    */
   virtual const void* base_addr() const = 0;
+
+  /*!
+   * \brief getter function for low-level device type
+   * \return string containing device type
+   */
+  virtual const char* device_type() const = 0;
 };
 
 /*!

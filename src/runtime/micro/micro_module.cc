@@ -20,7 +20,9 @@ namespace runtime {
  */
 class MicroModuleNode final : public ModuleNode {
  public:
-  ~MicroModuleNode();
+  MicroModuleNode() {}
+
+  ~MicroModuleNode() {}
 
   const char* type_key() const final {
     return "micro";
@@ -34,9 +36,9 @@ class MicroModuleNode final : public ModuleNode {
    * \param binary name of the binary to be loaded
    */
   void InitMicroModule(const std::string binary) {
-    // TODO: if first MicroModule, then load init section in MicroSession 
+    // TODO: if first MicroModule, then load init section in MicroSession
+    // this will be handled by micro_init that loads MicroSession
     session_ = MicroSession::Global();
-    // TODO: ensure low_level_device_ is initialized in MicroSession
     lldevice_ = session_->low_level_device();
     binary_ = binary;
     LoadBinary();
@@ -83,8 +85,11 @@ class MicroModuleNode final : public ModuleNode {
     bss_start_ = session_->AllocateInSection(kBss, bss_size_);
     CHECK(text_start_ != nullptr && data_start_ != nullptr && bss_start_ != nullptr)
       << "Not enough space to load module on device";
-    std::string relocated_bin = RelocateBinarySections(binary_, text_start_,
-                                                       data_start_, bss_start_);
+    std::string relocated_bin = RelocateBinarySections(
+        binary_,
+        GetAddr(text_start_, lldevice_->base_addr()),
+        GetAddr(data_start_, lldevice_->base_addr()),
+        GetAddr(bss_start_, lldevice_->base_addr()));
     std::string text_contents = ReadSection(relocated_bin, kText);
     std::string data_contents = ReadSection(relocated_bin, kData);
     std::string bss_contents = ReadSection(relocated_bin, kBss);

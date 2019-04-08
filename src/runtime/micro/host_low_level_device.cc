@@ -59,6 +59,10 @@ class HostLowLevelDevice final : public LowLevelDevice {
     return base_addr_;
   }
 
+  const char* device_type() const final {
+    return "host";
+  }
+
  private:
   /*! \brief base address of the micro device memory region */
   void* base_addr_;

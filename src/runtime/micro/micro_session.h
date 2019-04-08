@@ -67,6 +67,14 @@ class MicroSectionAllocator {
     }
   }
 
+  /*!
+   * \brief obtain the end address of the last allocation
+   * \return pointer immediately following the last allocation
+   */
+  void* section_max() {
+    return section_max_;
+  }
+
  private:
   /*! \brief start address of the section */
   void* section_start_;
@@ -157,6 +165,12 @@ class MicroSession {
   size_t init_bss_size_;
   /*! \brief symbol map for init stub */
   std::unordered_map<std::string, void*> init_symbol_map_;
+  /*! \brief path to init stub source code */
+  std::string init_source_;
+  /*! \brief address of the init stub entry function */
+  void* utvm_main_symbol_addr_;
+  /*! \brief address of the init stub exit breakpoint */
+  void* utvm_done_symbol_addr_;
 
   /*!
    * \brief sets up and loads init stub into the low-level device memory
@@ -165,22 +179,11 @@ class MicroSession {
 
   /*!
    * \brief writes arguments to args section using allocator_stream
+   * \return start address of the allocated args
    */
-  void AllocateTVMArgs(TVMArgs args);
+  void* AllocateTVMArgs(TVMArgs args);
 
-  void TargetAwareWrite(int64_t val, AllocatorStream* stream);
-
-  void TargetAwareWrite(uint64_t val, AllocatorStream* stream);
-
-  void TargetAwareWrite(double val, AllocatorStream* stream);
-
-  void TargetAwareWrite(const char* val, AllocatorStream* stream);
-
-  void TargetAwareWrite(TVMType val, AllocatorStream* stream);
-
-  void TargetAwareWrite(TVMContext* val, AllocatorStream* stream);
-
-  void TargetAwareWrite(TVMArray* val, AllocatorStream* stream);
+  void TargetAwareWrite(TVMArray* val, AllocatorStream* stream, size_t as, int i);
 };
 }  // namespace runtime
 }  // namespace tvm

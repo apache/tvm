@@ -81,7 +81,7 @@ def tvm_callback_relocate_binary(binary_path, text, data, bss):
 
 
 @register_func("tvm_callback_read_binary_section")
-def tvm_callback_read_binary_section(binary_path, section):
+def tvm_callback_read_binary_section(binary, section):
     """Returns the contents of the specified section in the binary file
 
     Parameters
@@ -154,38 +154,40 @@ def tvm_callback_get_symbol_map(binary):
 
 
 @register_func("tvm_callback_compile_micro")
-def tvm_callback_compile_binary(code_path="reasonable_default", cc="gcc"):
+def tvm_callback_compile_micro(source_path, device_type="", cc="gcc"):
     """Compiles code into a binary
 
     Parameters
     ----------
-    code_path : str
-        path to code file
+    source_path : str
+        path to source file
+
+    device_type : str
+        type of low-level device
 
     cc : str
         compiler to be used
 
     Return
     ------
-    binary_path : bytearray
-        compiled binary filename
+    obj_path : bytearray
+        compiled binary file path
     """
-    tmp_dir = util.tempdir()
-    tmp_obj = tmp_dir.relpath("tmp_obj.bin")
-    with open(tmp_obj, "wb") as out_file:
-        out_file.write(bytes(binary))
-    p1 = subprocess.Popen([cc, "-c", "", tmp_obj],
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT)
+    if device_type == "host":
+        cc = "gcc"
+    elif device_type == "openocd":
+        cc = "riscv-gcc"
+    obj_path = "/home/pratyush/utvm/tvm-riscv/src/runtime/micro/device/utvm_runtime.o"
+    includes = ["-I/home/pratyush/utvm/tvm-riscv/include",
+                "-I/home/pratyush/utvm/tvm-riscv/3rdparty/dlpack/include"]
+    options = ["-fno-stack-protector"]
+    cmd = [cc, "-x", "c", "-c", "-o", obj_path, source_path]
+    cmd += includes
+    cmd += options
+    p1 = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = p1.communicate()
     if p1.returncode != 0:
-        msg = "Error in using nm:\n"
+        msg = "Error in compilation:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
-    out = out.splitlines()
-    map_str = ""
-    for line in out:
-        line = line.split()
-        map_str += line[2] + "\n"
-        map_str += line[0] + "\n"
-    return map_str
+    return obj_path
