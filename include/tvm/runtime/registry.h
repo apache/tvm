@@ -70,6 +70,7 @@ class Registry {
    * \brief set the body of the function to the given function pointer.
    *        Note that this method doesn't work with lambdas, you need to
    *        explicitly give a type for those.
+   *        Note that this helper will ignore default arg values and always require all arguments to be provided.
    *
    * \code
    * 
@@ -92,6 +93,7 @@ class Registry {
 
   /*!
    * \brief set the body of the function to be the passed method pointer.
+   *        Note that this helper will ignore default arg values and always require all arguments to be provided.
    *
    * \code
    * 
@@ -116,6 +118,7 @@ class Registry {
 
   /*!
    * \brief set the body of the function to be the passed const method pointer.
+   *        Note that this helper will ignore default arg values and always require all arguments to be provided.
    *
    * \code
    * 
@@ -141,6 +144,7 @@ class Registry {
   /*!
    * \brief set the body of the function to be the passed method pointer.
    *        Used when calling a method on a Node subclass through a NodeRef subclass.
+   *        Note that this helper will ignore default arg values and always require all arguments to be provided.
    *
    * \code
    * 
@@ -172,6 +176,7 @@ class Registry {
   /*!
    * \brief set the body of the function to be the passed const method pointer.
    *        Used when calling a const method on a Node subclass through a NodeRef subclass.
+   *        Note that this helper will ignore default arg values and always require all arguments to be provided.
    *
    * \code
    * 

@@ -12,8 +12,8 @@ namespace tvm {
 namespace ir {
 
 TVM_REGISTER_API("_Var")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = Variable::make(args[1], args[0]);
+.set_body_typed<VarExpr(std::string, Type)>([](std::string s, Type t) {
+    return Variable::make(t, s);
   });
 
 TVM_REGISTER_API("make.abs")
@@ -81,12 +81,7 @@ TVM_REGISTER_API("make.Call")
   });
 
 TVM_REGISTER_API("make.CommReducer")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = CommReducerNode::make(args[0],
-                                 args[1],
-                                 args[2],
-                                 args[3]);
-  });
+.set_body_simple(CommReducerNode::make);
 
 // make from two arguments
 #define REGISTER_MAKE(Node)                                  \
@@ -127,7 +122,6 @@ REGISTER_MAKE(Let);
 REGISTER_MAKE(LetStmt);
 REGISTER_MAKE(AssertStmt);
 REGISTER_MAKE(ProducerConsumer);
-REGISTER_MAKE(Allocate);
 REGISTER_MAKE(Provide);
 REGISTER_MAKE(Prefetch);
 REGISTER_MAKE(Free);
@@ -138,12 +132,19 @@ REGISTER_MAKE(Evaluate);
 TVM_REGISTER_API("make.Block")
   .set_body_simple(static_cast<Stmt (*)(Stmt, Stmt)>(Block::make));
 
+// has default args
+TVM_REGISTER_API("make.Allocate")
+  .set_body_typed<Stmt(VarExpr, Type, Array<Expr>, Expr, Stmt)>([](
+    VarExpr buffer_var, Type type, Array<Expr> extents, Expr condition, Stmt body
+  ){
+    return Allocate::make(buffer_var, type, extents, condition, body);
+  });
+
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                  \
   TVM_REGISTER_API("make."#Node)                             \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
-      Expr a = args[0], b = args[1];                         \
-      *ret = (Func(a, b));                                   \
+  .set_body_typed<Expr(Expr, Expr)>([](Expr a, Expr b) {     \
+      return (Func(a, b));                                   \
     })
 
 #define REGISTER_MAKE_BIT_OP(Node, Func)                                \
