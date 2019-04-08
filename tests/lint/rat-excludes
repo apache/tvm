@@ -1,0 +1,45 @@
+# subdirectories
+3rdparty/*
+.github/*
+
+# Binary or data files
+.*\.css
+.*\.ipynb
+.*\.html
+.*\.pyc
+.*\.so
+.*\.json
+.*\.txt
+.*\.svg
+.*\.lst
+.*\.xcodeproj
+.*\.lproj
+.*\.plist
+.*\.lds
+.*\.in
+.*\.diff
+.*\.edl
+.*\.md5
+.*\.csv
+.*\.mk
+.*\.log
+
+# Generated modules
+.*gen_modules/*
+.*doxygen
+core.cpp
+build
+_static
+_build
+.*~
+
+# Specific files
+package-list
+MANIFEST
+.gitignore
+.gitmodules
+.clang-format
+rat-excludes
+__init__.py
+pylintrc
+config.cmake

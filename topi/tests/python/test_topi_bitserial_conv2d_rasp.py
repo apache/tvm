@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import os
 import re
 import numpy as np
@@ -13,7 +29,7 @@ def generate_quantized_np(shape, bits, out_dtype):
     return np.random.randint(min_val, max_val, size=shape).astype(out_dtype)
 
 # Verify that certain special instructions from the tensorize pass exist
-def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel, stride, padding, 
+def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel, stride, padding,
                                  activation_bits, weight_bits, unipolar):
     in_height = in_width = in_size
     input_type = 'uint32'
@@ -23,12 +39,12 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     with tvm.target.create(device):
         A = tvm.placeholder((batch, in_height, in_width, in_channel), dtype=input_type, name='A')
         W = tvm.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_type, name='W')
-        B = topi.nn.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits, 
+        B = topi.nn.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits,
                                           pack_dtype='uint8', out_dtype='int16', unipolar=unipolar)
         s = topi.generic.schedule_bitserial_conv2d_nhwc([B])
 
     func = tvm.build(s, [A, W, B], device)
-   
+
     assembly = func.get_source('asm')
     matches = re.findall("vpadal", assembly)
     assert (len(matches) > 0)
