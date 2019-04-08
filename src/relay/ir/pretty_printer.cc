@@ -725,7 +725,7 @@ std::string PassDebugPrint(const NodeRef& node,
 TVM_REGISTER_API("relay._expr.AsText")
 .set_body_typed<std::string(const NodeRef&,
                             bool,
-                            runtime::TypedPackedFunc<std::string(Expr)>)>(RelayPrint);
+                            runtime::TypedPackedFunc<std::string(Expr)>)>(AsText);
 
 TVM_REGISTER_API("relay._ir_pass.pass_debug_print")
 .set_body_typed<std::string(const NodeRef&,
