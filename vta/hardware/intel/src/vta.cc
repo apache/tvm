@@ -113,14 +113,14 @@ component void load(
       // _memcpy((unsigned char*)&inp_mem[sram_idx][0],
       //        (const unsigned char*)&inputs[dram_idx * VTA_BATCH],
       //        x_size * VTA_INP_ELEM_BYTES);
-      for (uint16 x = 0; x < x_size; x++) {
+      for (uint16 x = 0; x < x_size * VTA_BATCH; x++) {
         inp_mem[sram_idx * VTA_BATCH + x] = inputs[int(dram_idx) * VTA_BATCH + x]; // inputs.read();
       }
     } else {
       // _memcpy((unsigned char*)&wgt_mem[sram_idx][0],
       //        (const unsigned char*) &weights[dram_idx * VTA_BLOCK_OUT],
       //        x_size * VTA_WGT_ELEM_BYTES);
-      for (uint16 x = 0; x < x_size; x++) {
+      for (uint16 x = 0; x < x_size * VTA_BLOCK_OUT; x++) {
         wgt_mem[sram_idx * VTA_BLOCK_OUT + x] = weights[int(dram_idx) * VTA_BLOCK_OUT + x]; // weights.read();
       }
     }
