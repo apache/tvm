@@ -84,9 +84,6 @@ def get_valid_counts_pre(data, flag, idx, score_threshold):
         with ib.for_range(0, num_anchors) as k:
             with ib.if_scope(k > 0):
                 idx[tid * num_anchors + k] += idx[tid * num_anchors + k - 1]
-            ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                                  tvm.convert(['shared']),
-                                  tvm.expr.Call.Intrinsic, None, 0))
 
     return ib.get()
 
