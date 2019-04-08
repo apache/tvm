@@ -78,7 +78,7 @@ class RelayNode(NodeBase):
         text : str
             The text format of the expression.
         """
-        return _expr.RelayPrint(self, show_meta_data, annotate)
+        return _expr.AsText(self, show_meta_data, annotate)
 
     def set_span(self, span):
         _base.set_span(self, span)

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -709,9 +709,9 @@ std::string PrettyPrint_(const NodeRef& node,
   return doc.str();
 }
 
-std::string RelayPrint(const NodeRef& node,
-                       bool show_meta_data,
-                       runtime::TypedPackedFunc<std::string(Expr)> annotate) {
+std::string AsText(const NodeRef& node,
+                    bool show_meta_data,
+                    runtime::TypedPackedFunc<std::string(Expr)> annotate) {
   return PrettyPrint_(node, show_meta_data, annotate, true);
 }
 
@@ -722,10 +722,10 @@ std::string PassDebugPrint(const NodeRef& node,
   return PrettyPrint_(node, show_meta_data, annotate, gnf);
 }
 
-TVM_REGISTER_API("relay._expr.RelayPrint")
+TVM_REGISTER_API("relay._expr.AsText")
 .set_body_typed<std::string(const NodeRef&,
                             bool,
-                            runtime::TypedPackedFunc<std::string(Expr)>)>(RelayPrint);
+                            runtime::TypedPackedFunc<std::string(Expr)>)>(AsText);
 
 TVM_REGISTER_API("relay._ir_pass.pass_debug_print")
 .set_body_typed<std::string(const NodeRef&,
