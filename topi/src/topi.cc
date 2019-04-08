@@ -153,10 +153,21 @@ TVM_REGISTER_GLOBAL("topi.sign")
 .set_body_simple(sign);
 
 TVM_REGISTER_GLOBAL("topi.full")
-.set_body_simple(full);
+.set_body_typed<Tensor(Array<Expr>, Type, Expr)>([](
+  const Array<Expr> shape,
+  Type dtype,
+  const Expr fill_value
+) {
+  return full(shape, dtype, fill_value);
+});
 
 TVM_REGISTER_GLOBAL("topi.full_like")
-.set_body_simple(full_like);
+.set_body_typed<Tensor(Tensor, Expr)>([](
+  const Tensor x,
+  const Expr fill_value
+) {
+  return full_like(x, fill_value);
+});
 
 /* Ops from nn.h */
 TVM_REGISTER_GLOBAL("topi.nn.relu")
@@ -206,7 +217,11 @@ TVM_REGISTER_GLOBAL("topi.prod")
 
 /* Ops from transform.h */
 TVM_REGISTER_GLOBAL("topi.expand_dims")
-.set_body_simple(expand_dims);
+.set_body_typed<Tensor(Tensor, int, int)>([](const Tensor x,
+                          int axis,
+                          int num_newaxis) {
+  return topi::expand_dims(x, axis, num_newaxis);
+  });
 
 TVM_REGISTER_GLOBAL("topi.transpose")
 .set_body_simple(transpose);
