@@ -1,141 +1,100 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 //! This module implements [`TVMArgValue`] and [`TVMRetValue`] types
 //! and their conversions needed for the types used in frontend crate.
 //! `TVMRetValue` is the owned version of `TVMPODValue`.
 
-use std::{convert::TryFrom, os::raw::c_void};
+use std::convert::TryFrom;
 
-use failure::Error;
 use tvm_common::{
-    ensure_type,
-    ffi::{self, TVMValue},
+    errors::ValueDowncastError,
+    ffi::{TVMArrayHandle, TVMFunctionHandle, TVMModuleHandle},
+    try_downcast,
 };
 
-use crate::{
-    common_errors::*, context::TVMContext, Function, Module, NDArray, TVMArgValue, TVMByteArray,
-    TVMRetValue,
-};
+use crate::{Function, Module, NDArray, TVMArgValue, TVMRetValue};
 
-macro_rules! impl_tvm_val_from_handle {
-    ($ty:ident, $type_code:expr, $handle:ty) => {
-        impl<'a> From<&'a $ty> for TVMArgValue<'a> {
-            fn from(arg: &$ty) -> Self {
-                TVMArgValue {
-                    value: TVMValue {
-                        v_handle: arg.handle as *mut _ as *mut c_void,
-                    },
-                    type_code: $type_code as i64,
-                    _lifetime: std::marker::PhantomData,
-                }
+macro_rules! impl_handle_val {
+    ($type:ty, $variant:ident, $inner_type:ty, $ctor:path) => {
+        impl<'a> From<&'a $type> for TVMArgValue<'a> {
+            fn from(arg: &'a $type) -> Self {
+                TVMArgValue::$variant(arg.handle() as $inner_type)
             }
         }
 
-        impl<'a> From<&'a mut $ty> for TVMArgValue<'a> {
-            fn from(arg: &mut $ty) -> Self {
-                TVMArgValue {
-                    value: TVMValue {
-                        v_handle: arg.handle as *mut _ as *mut c_void,
-                    },
-                    type_code: $type_code as i64,
-                    _lifetime: std::marker::PhantomData,
-                }
+        impl<'a> From<&'a mut $type> for TVMArgValue<'a> {
+            fn from(arg: &'a mut $type) -> Self {
+                TVMArgValue::$variant(arg.handle() as $inner_type)
             }
         }
 
-        impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for $ty {
-            type Error = Error;
-            fn try_from(arg: &TVMArgValue<'v>) -> Result<$ty, Self::Error> {
-                ensure_type!(arg, $type_code);
-                Ok($ty::new(unsafe { arg.value.v_handle as $handle }))
+        impl<'a> TryFrom<TVMArgValue<'a>> for $type {
+            type Error = ValueDowncastError;
+            fn try_from(val: TVMArgValue<'a>) -> Result<$type, Self::Error> {
+                try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { $ctor(val) })
             }
         }
 
-        impl From<$ty> for TVMRetValue {
-            fn from(val: $ty) -> TVMRetValue {
-                TVMRetValue {
-                    value: TVMValue {
-                        v_handle: val.handle() as *mut c_void,
-                    },
-                    box_value: box val,
-                    type_code: $type_code as i64,
-                }
+        impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for $type {
+            type Error = ValueDowncastError;
+            fn try_from(val: &'a TVMArgValue<'v>) -> Result<$type, Self::Error> {
+                try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { $ctor(*val) })
             }
         }
 
-        impl TryFrom<TVMRetValue> for $ty {
-            type Error = Error;
-            fn try_from(ret: TVMRetValue) -> Result<$ty, Self::Error> {
-                ensure_type!(ret, $type_code);
-                Ok($ty::new(unsafe { ret.value.v_handle as $handle }))
-            }
-        }
-    };
-}
-
-impl_tvm_val_from_handle!(
-    Function,
-    ffi::TVMTypeCode_kFuncHandle,
-    ffi::TVMFunctionHandle
-);
-impl_tvm_val_from_handle!(Module, ffi::TVMTypeCode_kModuleHandle, ffi::TVMModuleHandle);
-impl_tvm_val_from_handle!(NDArray, ffi::TVMTypeCode_kArrayHandle, ffi::TVMArrayHandle);
-
-impl<'a> From<&'a TVMByteArray> for TVMValue {
-    fn from(barr: &TVMByteArray) -> Self {
-        TVMValue {
-            v_handle: &barr.inner as *const ffi::TVMByteArray as *mut c_void,
-        }
-    }
-}
-
-macro_rules! impl_boxed_ret_value {
-    ($type:ty, $code:expr) => {
         impl From<$type> for TVMRetValue {
-            fn from(val: $type) -> Self {
-                TVMRetValue {
-                    value: TVMValue { v_int64: 0 },
-                    box_value: box val,
-                    type_code: $code as i64,
-                }
+            fn from(val: $type) -> TVMRetValue {
+                TVMRetValue::$variant(val.handle() as $inner_type)
             }
         }
+
         impl TryFrom<TVMRetValue> for $type {
-            type Error = Error;
-            fn try_from(ret: TVMRetValue) -> Result<$type, Self::Error> {
-                if let Ok(val) = ret.box_value.downcast::<$type>() {
-                    Ok(*val)
-                } else {
-                    bail!(ValueDowncastError::new($code as i64, ret.type_code as i64))
-                }
+            type Error = ValueDowncastError;
+            fn try_from(val: TVMRetValue) -> Result<$type, Self::Error> {
+                try_downcast!(val -> $type, |TVMRetValue::$variant(val)| { $ctor(val) })
             }
         }
     };
 }
 
-impl_boxed_ret_value!(TVMContext, ffi::TVMTypeCode_kTVMContext);
-impl_boxed_ret_value!(TVMByteArray, ffi::TVMTypeCode_kBytes);
-
-impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for TVMByteArray {
-    type Error = Error;
-    fn try_from(arg: &TVMArgValue<'v>) -> Result<Self, Self::Error> {
-        ensure_type!(arg, ffi::TVMTypeCode_kBytes);
-        Ok(TVMByteArray::new(unsafe {
-            *(arg.value.v_handle as *mut ffi::TVMByteArray)
-        }))
-    }
-}
+impl_handle_val!(Function, FuncHandle, TVMFunctionHandle, Function::new);
+impl_handle_val!(Module, ModuleHandle, TVMModuleHandle, Module::new);
+impl_handle_val!(NDArray, ArrayHandle, TVMArrayHandle, NDArray::new);
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::{convert::TryInto, str::FromStr};
-    use tvm_common::ffi::TVMType;
+
+    use tvm_common::{TVMByteArray, TVMContext, TVMType};
+
+    use super::*;
 
     #[test]
     fn bytearray() {
         let w = vec![1u8, 2, 3, 4, 5];
-        let v = TVMByteArray::from(&w);
+        let v = TVMByteArray::from(w.as_slice());
         let tvm: TVMByteArray = TVMRetValue::from(v).try_into().unwrap();
-        assert_eq!(tvm.data(), w.iter().map(|e| *e as i8).collect::<Vec<i8>>());
+        assert_eq!(
+            tvm.data(),
+            w.iter().map(|e| *e).collect::<Vec<u8>>().as_slice()
+        );
     }
 
     #[test]
@@ -147,7 +106,7 @@ mod tests {
 
     #[test]
     fn ctx() {
-        let c = TVMContext::from("gpu");
+        let c = TVMContext::from_str("gpu").unwrap();
         let tvm: TVMContext = TVMRetValue::from(c).try_into().unwrap();
         assert_eq!(tvm, c);
     }

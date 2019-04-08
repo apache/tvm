@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 //! Provides the [`Module`] type and methods for working with runtime TVM modules.
 
 use std::{
@@ -80,7 +99,7 @@ impl Module {
             CString::new(path.as_ref().to_str().ok_or_else(|| {
                 format_err!("Bad module load path: `{}`.", path.as_ref().display())
             })?)?;
-        let ret: Module = call_packed!(func, &cpath, &ext)?.try_into()?;
+        let ret: Module = call_packed!(func, cpath.as_c_str(), ext.as_c_str())?.try_into()?;
         Ok(ret)
     }
 
@@ -90,7 +109,10 @@ impl Module {
         // `unwrap` is safe here because if there is any error during the
         // function call, it would occur in `call_packed!`.
         let tgt = CString::new(target).unwrap();
-        let ret: i64 = call_packed!(func, &tgt).unwrap().try_into().unwrap();
+        let ret: i64 = call_packed!(func, tgt.as_c_str())
+            .unwrap()
+            .try_into()
+            .unwrap();
         ret != 0
     }
 

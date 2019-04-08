@@ -1,47 +1,30 @@
-use std::fmt;
-
-static TYPE_CODE_STRS: [&str; 15] = [
-    "int",
-    "uint",
-    "float",
-    "handle",
-    "null",
-    "TVMType",
-    "TVMContext",
-    "ArrayHandle",
-    "NodeHandle",
-    "ModuleHandle",
-    "FuncHandle",
-    "str",
-    "bytes",
-    "NDArrayContainer",
-    "ExtBegin",
-];
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 #[derive(Debug, Fail)]
+#[fail(
+    display = "Could not downcast `{}` into `{}`",
+    expected_type, actual_type
+)]
 pub struct ValueDowncastError {
-    actual_type_code: i64,
-    expected_type_code: i64,
-}
-
-impl ValueDowncastError {
-    pub fn new(actual_type_code: i64, expected_type_code: i64) -> Self {
-        Self {
-            actual_type_code,
-            expected_type_code,
-        }
-    }
-}
-
-impl fmt::Display for ValueDowncastError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            formatter,
-            "Could not downcast TVMValue: expected `{}` but was {}",
-            TYPE_CODE_STRS[self.actual_type_code as usize],
-            TYPE_CODE_STRS[self.expected_type_code as usize]
-        )
-    }
+    pub actual_type: String,
+    pub expected_type: &'static str,
 }
 
 #[derive(Debug, Fail)]
@@ -62,18 +45,3 @@ impl FuncCallError {
         }
     }
 }
-
-// error_chain! {
-//     errors {
-//         TryFromTVMRetValueError(expected_type: String, actual_type_code: i64) {
-//             description("mismatched types while downcasting TVMRetValue")
-//             display("invalid downcast: expected `{}` but was `{}`",
-//                     expected_type, type_code_to_string(actual_type_code))
-//         }
-//     }
-//     foreign_links {
-//         IntoString(std::ffi::IntoStringError);
-//         ParseInt(std::num::ParseIntError);
-//         Utf8(std::str::Utf8Error);
-//     }
-// }

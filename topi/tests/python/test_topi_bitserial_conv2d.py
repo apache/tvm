@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 import tvm
 import topi
@@ -10,7 +26,7 @@ def generate_quantized_np(shape, bits, out_dtype):
     max_val = 1 << bits
     return np.random.randint(min_val, max_val, size=shape).astype(out_dtype)
 
-def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel, stride, padding, 
+def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel, stride, padding,
                                  activation_bits, weight_bits, unipolar):
     in_height = in_width = in_size
     input_dtype = 'uint32'
@@ -19,7 +35,7 @@ def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel,
     with tvm.target.create('llvm'):
         A = tvm.placeholder((batch, in_channel, in_height, in_width), dtype=input_dtype, name='A')
         W = tvm.placeholder((num_filter, in_channel, kernel, kernel), dtype=input_dtype, name='W')
-        B = topi.nn.bitserial_conv2d_nchw(A, W, stride, padding, activation_bits, weight_bits, 
+        B = topi.nn.bitserial_conv2d_nchw(A, W, stride, padding, activation_bits, weight_bits,
                                           out_dtype=out_dtype, unipolar=unipolar)
         s = topi.generic.schedule_bitserial_conv2d_nchw([B])
 
@@ -48,7 +64,7 @@ def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel,
     func(a, w, b)
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel, stride, padding, 
+def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel, stride, padding,
                                  activation_bits, weight_bits, unipolar):
     in_height = in_width = in_size
     input_dtype='uint32'
@@ -57,7 +73,7 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     with tvm.target.create('llvm'):
         A = tvm.placeholder((batch, in_height, in_width, in_channel), dtype=input_dtype, name='A')
         W = tvm.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_dtype, name='W')
-        B = topi.nn.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits, 
+        B = topi.nn.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits,
                                           out_dtype=out_dtype, unipolar=unipolar)
         s = topi.generic.schedule_bitserial_conv2d_nhwc([B])
 

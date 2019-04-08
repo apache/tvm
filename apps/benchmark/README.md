@@ -1,3 +1,21 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
+
 # Performance Benchmark
 
 ## Results
@@ -55,7 +73,7 @@ python3 -m tvm.exec.rpc_tracker
   python3 -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=[DEVICE_KEY]
   ```
   replace `[HOST_IP]` with the IP address of the host machine, `[DEVICE_KEY]` with the name of device.
-  
+
   E.g. Here is an example command for RK3399,
   `python3 -m tvm.exec.rpc_server --tracker=10.77.1.123:9190 --key=rk3399`, where 10.77.1.123 is the IP address of the tracker.
 
@@ -63,34 +81,34 @@ python3 -m tvm.exec.rpc_tracker
    * Build and install tvm RPC apk on your device [Help](https://github.com/dmlc/tvm/tree/master/apps/android_rpc).
      Make sure you can pass the android rpc test. Then you have alreadly known how to register.
 
-3. Verify the device registration  
+3. Verify the device registration
   We can query all registered devices by
   ```bash
   python3 -m tvm.exec.query_rpc_tracker
   ```
   You should be able to find your devices in `Queue Status`. Make sure the registration is correct before going ahead.
 
-  For our test environment, one sample output can be 
+  For our test environment, one sample output can be
   ```bash
-  Queue Status                
+  Queue Status
   ----------------------------------
-  key          total  free  pending    
+  key          total  free  pending
   ----------------------------------
   mate10pro    1      1     0
-  p20pro       2      2     0 
+  p20pro       2      2     0
   pixel2       2      2     0
   rk3399       2      2     0
   rasp3b       8      8     0
   ```
 
-4. Run benchmark  
+4. Run benchmark
   ```bash
   # ARM CPU
   python3 arm_cpu_imagenet_bench.py --model rasp3b --rpc-key rasp3b
   python3 arm_cpu_imagenet_bench.py --model rk3399 --rpc-key rk3399
   python3 arm_cpu_imagenet_bench.py --model pixel2 --rpc-key pixel2
   python3 arm_cpu_imagenet_bench.py --model p20pro --rpc-key p20pro
-  python3 arm_cpu_imagenet_bench.py --model mate10pro --rpc-key mate10pro  
+  python3 arm_cpu_imagenet_bench.py --model mate10pro --rpc-key mate10pro
   ```
 
   ```bash
