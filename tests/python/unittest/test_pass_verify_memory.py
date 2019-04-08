@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 
 # The following DLDeviceType/TVMDeviceExtType values
@@ -26,7 +42,7 @@ def lower(sch, args):
     return func
 
 
-# All computations are bound. 
+# All computations are bound.
 # So VerifyMemory pass is expected to succeed.
 #
 def test_verify_memory_all_bind():
@@ -41,12 +57,12 @@ def test_verify_memory_all_bind():
   s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
 
   func = lower(s, [A, B])
-  
+
   for dev_type in gpu_devices + other_devices:
     assert tvm.ir_pass.VerifyMemory(func, dev_type)
 
 
-# Computations are not bound. 
+# Computations are not bound.
 # So VerifyMemory pass fails when device type is GPU.
 #
 def test_verify_memory_not_bind():
@@ -57,7 +73,7 @@ def test_verify_memory_not_bind():
   # B is not bound to threads.
   s = tvm.create_schedule(B.op)
 
-  func = lower(s, [A, B])  
+  func = lower(s, [A, B])
 
   for dev_type in gpu_devices:
     assert not tvm.ir_pass.VerifyMemory(func, dev_type)
@@ -65,7 +81,7 @@ def test_verify_memory_not_bind():
     assert tvm.ir_pass.VerifyMemory(func, dev_type)
 
 
-# Computations are partially bound. 
+# Computations are partially bound.
 # So VerifyMemory pass fails when device type is GPU.
 #
 def test_verify_memory_partially_bind():
@@ -81,7 +97,7 @@ def test_verify_memory_partially_bind():
   s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
   s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-  func = lower(s, [A, B, C, D])  
+  func = lower(s, [A, B, C, D])
 
   for dev_type in gpu_devices:
     assert not tvm.ir_pass.VerifyMemory(func, dev_type)
@@ -93,4 +109,4 @@ if __name__ == "__main__":
   test_verify_memory_all_bind()
   test_verify_memory_not_bind()
   test_verify_memory_partially_bind()
-  
+
