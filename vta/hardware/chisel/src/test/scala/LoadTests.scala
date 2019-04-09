@@ -39,6 +39,10 @@ class LoadTests(c: Load)(implicit val p: freechips.rocketchip.config.Parameters)
   for (j <- 0 to valid_counts(0) - 1){
 
   expect(c.io.weights.address, j << 4)
+  if (j >= 1) {
+    expect(c.io.wgt_mem.address, (j - 1) << 4)
+    expect(c.io.wgt_mem.writedata, inputs((j - 1) % 4))
+  }
   poke(c.io.weights.readdata, 0.U)
   poke(c.io.weights.waitrequest, 1.U)
   poke(c.io.load_queue.valid, 0.U)
@@ -82,6 +86,10 @@ class LoadTests(c: Load)(implicit val p: freechips.rocketchip.config.Parameters)
   for (j <- 0 to valid_counts(1) - 1){
 
   expect(c.io.inputs.address, j << 4)
+  if (j >= 1) {
+    expect(c.io.inp_mem.address, (j - 1) << 4)
+    expect(c.io.inp_mem.writedata, inputs((j - 1) % 4))
+  }
   poke(c.io.inputs.readdata, 0.U)
   poke(c.io.inputs.waitrequest, 1.U)
   poke(c.io.load_queue.valid, 0.U)
