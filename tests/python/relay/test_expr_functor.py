@@ -16,33 +16,41 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay import ExprFunctor, ExprMutator
+from tvm.relay import ExprFunctor, ExprMutator, ExprVisitor
 
 def check_visit(expr):
-    ef = ExprFunctor()
     try:
+        ef = ExprFunctor()
         ef.visit(expr)
         assert False
     except NotImplementedError:
         pass
 
+    ev = ExprVisitor()
+    ev.visit(expr)
+
     em = ExprMutator()
     assert em.visit(expr)
 
+
 def test_constant():
     check_visit(relay.const(1.0))
+
 
 def test_tuple():
     t = relay.Tuple([relay.var('x', shape=())])
     check_visit(t)
 
+
 def test_var():
     v = relay.var('x', shape=())
     check_visit(v)
 
+
 def test_global():
     v = relay.GlobalVar('f')
     check_visit(v)
+
 
 def test_function():
     x = relay.var('x', shape=())
@@ -61,11 +69,13 @@ def test_function():
     )
     check_visit(f)
 
+
 def test_call():
     x = relay.var('x', shape=())
     y = relay.var('y', shape=())
     call = relay.op.add(x, y)
     check_visit(call)
+
 
 def test_let():
     x = relay.var('x', shape=())
@@ -74,29 +84,42 @@ def test_let():
     l = relay.Let(x, value, body)
     check_visit(l)
 
+
 def test_ite():
     cond = relay.var('x', shape=(), dtype='bool')
     ite = relay.If(cond, cond, cond)
     check_visit(ite)
+
 
 def test_get_item():
     t = relay.Tuple([relay.var('x', shape=())])
     t = relay.TupleGetItem(t, 0)
     check_visit(t)
 
+
 def test_ref_create():
     r = relay.expr.RefCreate(relay.const(1.0))
     check_visit(r)
+
 
 def test_ref_read():
     ref = relay.expr.RefCreate(relay.const(1.0))
     r = relay.expr.RefRead(ref)
     check_visit(r)
 
+
 def test_ref_write():
     ref = relay.expr.RefCreate(relay.const(1.0))
     r = relay.expr.RefWrite(ref, relay.const(2.0))
     check_visit(r)
+
+
+def test_memo():
+    expr = relay.const(1)
+    for _ in range(100):
+        expr = expr + expr
+    check_visit(expr)
+
 
 if __name__ == "__main__":
     test_constant()
@@ -110,3 +133,4 @@ if __name__ == "__main__":
     test_ref_create()
     test_ref_read()
     test_ref_write()
+    test_memo()

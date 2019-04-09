@@ -101,6 +101,7 @@ sequential_pass = ir_pass.sequential_pass
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
+ExprVisitor = expr_functor.ExprVisitor
 ExprMutator = expr_functor.ExprMutator
 
 # Parser
