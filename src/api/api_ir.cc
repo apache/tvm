@@ -93,7 +93,7 @@ TVM_REGISTER_API("make.Realize")
 .set_body_simple(Realize::make);
 
 TVM_REGISTER_API("make.Call")
-.set_body_typed<Expr (Type, std::string, Array<Expr>, int, FunctionRef, int)>([](
+.set_body_typed<Expr(Type, std::string, Array<Expr>, int, FunctionRef, int)>([](
   Type type, std::string name,
   Array<Expr> args, int call_type,
   FunctionRef func, int value_index
