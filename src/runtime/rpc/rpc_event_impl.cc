@@ -44,8 +44,6 @@ PackedFunc CreateEventDrivenServer(PackedFunc fsend,
     });
 }
 
-std::function<PackedFunc(PackedFunc, std::string, std::string)> q = CreateEventDrivenServer;
-
 TVM_REGISTER_GLOBAL("rpc._CreateEventDrivenServer")
 .set_body_simple(CreateEventDrivenServer);
 }  // namespace runtime

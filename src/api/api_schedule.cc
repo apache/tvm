@@ -14,15 +14,11 @@ namespace tvm {
 namespace schedule {
 
 TVM_REGISTER_API("schedule.AutoInlineElemWise")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    AutoInlineElemWise(args[0]);
-  });
+.set_body_simple(AutoInlineElemWise);
 
 
 TVM_REGISTER_API("schedule.AutoInlineInjective")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    AutoInlineInjective(args[0]);
-  });
+.set_body_simple(AutoInlineInjective);
 
 TVM_REGISTER_API("schedule.ScheduleOps")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
