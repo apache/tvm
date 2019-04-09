@@ -38,14 +38,17 @@ TVM_REGISTER_API("make._range_by_min_extent")
 .set_body_simple(Range::make_by_min_extent);
 
 TVM_REGISTER_API("make.For")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = For::make(args[0],
-                     args[1],
-                     args[2],
-                     static_cast<ForType>(args[3].operator int()),
-                     static_cast<HalideIR::DeviceAPI>(args[4].operator int()),
-                     args[5]);
-  });
+.set_body_typed<Stmt(VarExpr, Expr, Expr, int, int, Stmt)>([](
+  VarExpr loop_var, Expr min, Expr extent,
+  int for_type, int device_api, Stmt body
+) {
+  return For::make(loop_var,
+                    min,
+                    extent,
+                    static_cast<ForType>(for_type),
+                    static_cast<HalideIR::DeviceAPI>(device_api),
+                    body);
+});
 
 TVM_REGISTER_API("make.Load")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
@@ -71,14 +74,18 @@ TVM_REGISTER_API("make.Realize")
 .set_body_simple(Realize::make);
 
 TVM_REGISTER_API("make.Call")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = Call::make(args[0],
-                      args[1],
-                      args[2],
-                      static_cast<Call::CallType>(args[3].operator int()),
-                      args[4],
-                      args[5]);
-  });
+.set_body_typed<Expr (Type, std::string, Array<Expr>, int, FunctionRef, int)>([](
+  Type type, std::string name,
+  Array<Expr> args, int call_type,
+  FunctionRef func, int value_index
+) {
+  return Call::make(type,
+                    name,
+                    args,
+                    static_cast<Call::CallType>(call_type),
+                    func,
+                    value_index);
+});
 
 TVM_REGISTER_API("make.CommReducer")
 .set_body_simple(CommReducerNode::make);

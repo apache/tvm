@@ -203,26 +203,24 @@ TVM_REGISTER_API("_Layout")
 .set_body_simple(LayoutNode::make);
 
 TVM_REGISTER_API("_LayoutIndexOf")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = args[0].operator Layout()
-      .IndexOf(LayoutAxis::make(args[1]));
+.set_body_typed<int(Layout, std::string)>([](Layout layout, std::string axis) {
+  return layout.IndexOf(LayoutAxis::make(axis));
 });
 
 TVM_REGISTER_API("_LayoutFactorOf")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = args[0].operator Layout()
-      .FactorOf(LayoutAxis::make(args[1]));
+.set_body_typed<int(Layout, std::string)>([](Layout layout, std::string axis) {
+  return layout.FactorOf(LayoutAxis::make(axis));
 });
 
 TVM_REGISTER_API("_LayoutNdim")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-  *ret = static_cast<int64_t>(args[0].operator Layout().ndim());
+.set_body_typed<int(Layout)>([](Layout layout) {
+  return layout.ndim();
 });
 
 TVM_REGISTER_API("_LayoutGetItem")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-  const LayoutAxis& axis = args[0].operator Layout()[args[1]];
-  *ret = axis.name();
+.set_body_typed<std::string(Layout, int)>([](Layout layout, int idx) {
+  const LayoutAxis& axis = layout[idx];
+  return axis.name();
 });
 
 TVM_REGISTER_API("_BijectiveLayout")
@@ -250,22 +248,19 @@ TVM_REGISTER_API("_TensorIntrinCall")
 .set_body_simple(TensorIntrinCallNode::make);
 
 TVM_REGISTER_API("_TensorEqual")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-    *ret = args[0].operator Tensor() == args[1].operator Tensor();
-  });
+.set_body_method(&Tensor::operator==);
 
 TVM_REGISTER_API("_TensorHash")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-    *ret = static_cast<int64_t>(
-        std::hash<Tensor>()(args[0].operator Tensor()));
+.set_body_typed<int64_t(Tensor)>([](Tensor tensor) {
+    return static_cast<int64_t>(std::hash<Tensor>()(tensor));
   });
 
 TVM_REGISTER_API("_Placeholder")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-    *ret = placeholder(args[0],
-                       args[1],
-                       args[2]);
-  });
+.set_body_typed<Tensor(Array<Expr>, Type, std::string)>([](
+  Array<Expr> shape, Type dtype, std::string name
+) {
+  return placeholder(shape, dtype, name);
+});
 
 TVM_REGISTER_API("_ComputeOp")
 .set_body_simple(ComputeOpNode::make);
@@ -283,26 +278,25 @@ TVM_REGISTER_API("_HybridOp")
 .set_body_simple(HybridOpNode::make);
 
 TVM_REGISTER_API("_OpGetOutput")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-    *ret = args[0].operator Operation().output(
-        static_cast<size_t>(args[1].operator int64_t()));
-  });
-
+.set_body_typed<Tensor(Operation, int64_t)>([](Operation op, int64_t output) {
+  return op.output(static_cast<size_t>(output));
+});
 
 TVM_REGISTER_API("_OpNumOutputs")
 .set_body_node_method<Operation>(&OperationNode::num_outputs);
-
 
 TVM_REGISTER_API("_OpInputTensors")
 .set_body_node_method<Operation>(&OperationNode::InputTensors);
 
 TVM_REGISTER_API("_IterVar")
-.set_body([](TVMArgs args,  TVMRetValue* ret) {
-    *ret = IterVarNode::make(
-        args[0], args[1],
-        static_cast<IterVarType>(args[2].operator int()),
-        args[3]);
-  });
+.set_body_typed<IterVar(Range, Var, int, std::string)>([](
+  Range dom, Var var, int iter_type, std::string thread_tag
+) {
+  return IterVarNode::make(
+      dom, var,
+      static_cast<IterVarType>(iter_type),
+      thread_tag);
+});
 
 TVM_REGISTER_API("_CreateSchedule")
 .set_body_simple(create_schedule);
@@ -314,27 +308,28 @@ TVM_REGISTER_API("_StageBind")
 .set_body_method(&Stage::bind);
 
 TVM_REGISTER_API("_StageSplitByFactor")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    IterVar outer, inner;
-    args[0].operator Stage()
-        .split(args[1], args[2], &outer, &inner);
-    *ret = Array<IterVar>({outer, inner});
-  });
+.set_body_typed<Array<IterVar>(Stage, IterVar, Expr)>([](
+  Stage stage, IterVar parent, Expr factor
+) {
+  IterVar outer, inner;
+  stage.split(parent, factor, &outer, &inner);
+  return Array<IterVar>({outer, inner});
+});
 
 TVM_REGISTER_API("_StageSplitByNParts")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    IterVar outer, inner;
-    args[0].operator Stage()
-        .split_by_nparts(args[1], args[2], &outer, &inner);
-    *ret = Array<IterVar>({outer, inner});
-  });
+.set_body_typed<Array<IterVar>(Stage, IterVar, Expr)>([](
+  Stage stage, IterVar parent, Expr nparts
+) {
+  IterVar outer, inner;
+  stage.split_by_nparts(parent, nparts, &outer, &inner);
+  return Array<IterVar>({outer, inner});
+});
 
 TVM_REGISTER_API("_StageFuse")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
+.set_body_typed<IterVar(Stage, Array<IterVar>)>([](Stage stage, Array<IterVar> axes) {
     IterVar fused;
-    args[0].operator Stage()
-        .fuse(args[1], &fused);
-    *ret = fused;
+    stage.fuse(axes, &fused);
+    return fused;
   });
 
 TVM_REGISTER_API("_StageComputeAt")
@@ -350,16 +345,18 @@ TVM_REGISTER_API("_StageReorder")
 .set_body_method(&Stage::reorder);
 
 TVM_REGISTER_API("_StageTile")
-  .set_body([](TVMArgs args, TVMRetValue* ret) {
+.set_body_typed<Array<IterVar>(Stage, IterVar, IterVar, Expr, Expr)>([](
+  Stage stage,
+  IterVar x_parent, IterVar y_parent,
+  Expr x_factor, Expr y_factor
+) {
     IterVar x_outer, y_outer, x_inner, y_inner;
-    args[0].operator Stage()
-        .tile(args[1], args[2],
-              args[3], args[4],
-              &x_outer, &y_outer,
-              &x_inner, &y_inner);
-    *ret = Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
+    stage.tile(x_parent, y_parent,
+               x_factor, y_factor,
+               &x_outer, &y_outer,
+               &x_inner, &y_inner);
+    return Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
   });
-
 
 TVM_REGISTER_API("_StageEnvThreads")
 .set_body_method(&Stage::env_threads);
