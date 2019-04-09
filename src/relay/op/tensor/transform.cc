@@ -1745,7 +1745,10 @@ Array<Array<Layout> > StridedSliceInferCorrectLayout(
 
     for (size_t i = 0; i < params->begin.size(); i++) {
       const LayoutAxis& axis = layout[i];
-      CHECK(axis.IsPrimal());
+      if (!axis.IsPrimal()) {
+        // original layout that contains splitted axes is not supported
+        return {{Layout::Undef()}, {Layout::Undef()}};
+      }
       auto factor = new_layout.FactorOf(axis);
       if (factor == -1) {
         new_begin.push_back(params->begin[i]);
