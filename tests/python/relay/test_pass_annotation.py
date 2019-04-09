@@ -231,7 +231,7 @@ def test_conv_network():
     check_storage_and_device_types()
 
 
-def test_fusible_network(dev, tgt):
+def run_fusible_network(dev, tgt):
     R""" The network is as following:
                x     y
                 \   /
@@ -419,7 +419,7 @@ def test_fusible_network(dev, tgt):
     test_fallback_exp(dev, tgt)
     test_fallback_all_operators(dev, tgt)
 
-def test_unpropagatable_graph(dev, tgt):
+def run_unpropagatable_graph(dev, tgt):
     R""" The network is as following:
             a     b  c     d
              \   /    \   /
@@ -490,11 +490,7 @@ def test_unpropagatable_graph(dev, tgt):
         res = mod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
         
-if __name__ == "__main__":
-    test_redundant_annotation()
-    test_annotate_all()
-    test_annotate_none()
-    test_conv_network()
+def test_check_run()
     for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
                  ("opencl", str(tvm.target.intel_graphics()))]:
         if not tvm.module.enabled(dev):
@@ -502,3 +498,11 @@ if __name__ == "__main__":
             continue
         test_fusible_network(dev, tgt)
         test_unpropagatable_graph(dev, tgt)
+
+ 
+if __name__ == "__main__":
+    test_redundant_annotation()
+    test_annotate_all()
+    test_annotate_none()
+    test_conv_network()
+    test_check_run()
