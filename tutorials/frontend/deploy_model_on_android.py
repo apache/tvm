@@ -245,7 +245,7 @@ input_name = 'input_1'
 shape_dict = {input_name: x.shape}
 func, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
 
-with relay.build_config(opt_level=1):
+with relay.build_config(opt_level=3):
     graph, lib, params = relay.build(func, target=target,
                                      target_host=target_host, params=params)
 
@@ -329,14 +329,14 @@ print('Mean inference time (std dev): %.2f ms (%.2f ms)' % (np.mean(prof_res),
 #    # cpu
 #    TVM prediction top-1: tiger cat
 #    Evaluate inference time cost...
-#    Mean inference time (std dev): 38.89 ms (6.48 ms)
+#    Mean inference time (std dev): 37.92 ms (19.67 ms)
 #
 #    # opencl
 #    TVM prediction top-1: tiger cat
 #    Evaluate inference time cost...
-#    Mean inference time (std dev): 418.82 ms (3.65 ms)
+#    Mean inference time (std dev): 419.83 ms (7.49 ms)
 #
 #    # vulkan
 #    TVM prediction top-1: tiger cat
 #    Evaluate inference time cost...
-#    Mean inference time (std dev): 511.98 ms (4.53 ms)
+#    Mean inference time (std dev): 465.80 ms (4.52 ms)
