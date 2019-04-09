@@ -490,7 +490,7 @@ def run_unpropagatable_graph(dev, tgt):
         res = mod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
         
-def test_check_run()
+def test_check_run():
     for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
                  ("opencl", str(tvm.target.intel_graphics()))]:
         if not tvm.module.enabled(dev):
