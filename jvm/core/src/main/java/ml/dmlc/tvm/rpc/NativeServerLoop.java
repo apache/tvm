@@ -31,7 +31,7 @@ public class NativeServerLoop implements Runnable {
   private final int sockFd;
 
   /**
-   * Constructor for NativeServerLoop
+   * Constructor for NativeServerLoop.
    * @param nativeSockFd native socket file descriptor.
    */
   public NativeServerLoop(final int nativeSockFd) {

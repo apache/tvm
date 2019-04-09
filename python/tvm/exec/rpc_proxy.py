@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=redefined-outer-name, invalid-name
 """RPC web proxy, allows redirect to websocket based RPC servers(browsers)"""
 from __future__ import absolute_import
@@ -12,13 +28,13 @@ from ..rpc.proxy import Proxy
 
 def find_example_resource():
     """Find resource examples."""
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     base_path = os.path.join(curr_path, "../../../")
     index_page = os.path.join(base_path, "web/example_rpc.html")
     js_files = [
         os.path.join(base_path, "web/tvm_runtime.js"),
-        os.path.join(base_path, "lib/libtvm_web_runtime.js"),
-        os.path.join(base_path, "lib/libtvm_web_runtime.js.mem")
+        os.path.join(base_path, "build/libtvm_web_runtime.js"),
+        os.path.join(base_path, "build/libtvm_web_runtime.js.mem")
     ]
     for fname in [index_page] + js_files:
         if not os.path.exists(fname):
@@ -56,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument('--host', type=str, default="0.0.0.0",
                         help='the hostname of the server')
     parser.add_argument('--port', type=int, default=9090,
-                        help='The port of the PRC')
+                        help='The port of the RPC')
     parser.add_argument('--web-port', type=int, default=8888,
                         help='The port of the http/websocket server')
     parser.add_argument('--example-rpc', type=bool, default=False,

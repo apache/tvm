@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 import numpy as np
 from tvm.contrib.nvcc import have_fp16, have_int8
@@ -27,8 +43,8 @@ def test_cuda_vectorize_add():
             np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), B.dtype, ctx)
         fun(a, c)
-        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
-        
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+
     check_cuda("float32", 64, 2)
     check_cuda("float16", 64, 2)
 
@@ -44,7 +60,7 @@ def test_cuda_multiply_add():
             return
         A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
         B = tvm.placeholder((n,), name='B', dtype="%sx%d" % (dtype, lanes))
-        C = tvm.placeholder((n,), name='C', dtype="int32")        
+        C = tvm.placeholder((n,), name='C', dtype="int32")
         D = tvm.compute((n,),
                         lambda i: tvm.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name='D')
         s = tvm.create_schedule(D.op)
@@ -62,7 +78,7 @@ def test_cuda_multiply_add():
         c = tvm.nd.empty((n,), C.dtype, ctx).copyfrom(np_c)
         d = tvm.nd.empty((n,), D.dtype, ctx)
         fun(a, b, c, d)
-        np.testing.assert_allclose(d.asnumpy(), np_d)
+        tvm.testing.assert_allclose(d.asnumpy(), np_d)
     check_cuda("int8", 64, 4)
 
 def test_cuda_vectorize_load():
@@ -83,11 +99,34 @@ def test_cuda_vectorize_load():
         a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np_a)
         b = tvm.nd.empty((n,), B.dtype, ctx)
         fun(a,b)
-        np.testing.assert_allclose(a.asnumpy(), b.asnumpy())
+        tvm.testing.assert_allclose(a.asnumpy(), b.asnumpy())
     check_cuda("int8", 64, 8)
     check_cuda("int8", 64, 16)
+
+def test_cuda_make_int8x4():
+    def check_cuda(n, value):
+        if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+        lanes = 4
+        dtype = 'int8'
+        ctx = tvm.gpu(0)
+        A = tvm.compute((n, lanes), lambda i,j: tvm.const(value, dtype=dtype))
+        s = tvm.create_schedule(A.op)
+        y, x = s[A].op.axis
+        s[A].vectorize(x)
+        s[A].bind(y, tvm.thread_axis("blockIdx.x"))
+        fun = tvm.build(s, [A], "cuda", name="make_int8x4")
+        np_a = np.full((n, lanes), value, dtype=dtype)
+        a = tvm.nd.empty(np_a.shape, dtype, ctx)
+        fun(a)
+        np.testing.assert_equal(a.asnumpy(), np_a)
+    check_cuda(64, 0xAB)
+    check_cuda(64, 0)
+    check_cuda(64, -3)
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
     test_cuda_vectorize_load()
+    test_cuda_make_int8x4()

@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Common runtime ctypes."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import
@@ -48,6 +64,13 @@ class TVMType(ctypes.Structure):
         super(TVMType, self).__init__()
         if isinstance(type_str, np.dtype):
             type_str = str(type_str)
+
+        if type_str == "bool":
+            self.bits = 1
+            self.type_code = 1
+            self.lanes = 1
+            return
+
         arr = type_str.split("x")
         head = arr[0]
         self.lanes = int(arr[1]) if len(arr) > 1 else 1
@@ -67,12 +90,14 @@ class TVMType(ctypes.Structure):
             bits = 64
             head = ""
         else:
-            raise ValueError("Donot know how to handle type %s" % type_str)
+            raise ValueError("Do not know how to handle type %s" % type_str)
         bits = int(head) if head else bits
         self.bits = bits
 
 
     def __repr__(self):
+        if self.bits == 1 and self.lanes == 1:
+            return "bool"
         x = "%s%d" % (TVMType.CODE2STR[self.type_code], self.bits)
         if self.lanes != 1:
             x += "x%d" % self.lanes
@@ -109,6 +134,7 @@ class TVMContext(ctypes.Structure):
         'llvm': 1,
         'stackvm': 1,
         'cpu': 1,
+        'c': 1,
         'gpu': 2,
         'cuda': 2,
         'nvptx': 2,
@@ -230,3 +256,12 @@ class TVMArray(ctypes.Structure):
                 ("byte_offset", ctypes.c_uint64)]
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)
+
+class TVMNDArrayContainer(ctypes.Structure):
+    """TVM NDArray::Container"""
+    _fields_ = [("dl_tensor", TVMArray),
+                ("manager_ctx", ctypes.c_void_p),
+                ("deleter", ctypes.c_void_p),
+                ("array_type_info", ctypes.c_int32)]
+
+TVMNDArrayContainerHandle = ctypes.POINTER(TVMNDArrayContainer)

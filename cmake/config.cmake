@@ -27,7 +27,7 @@
 #
 # Possible values:
 # - ON: enable CUDA with cmake's auto search
-# - OFF: disbale CUDA
+# - OFF: disable CUDA
 # - /path/to/cuda: use specific path to cuda toolkit
 set(USE_CUDA OFF)
 
@@ -35,7 +35,7 @@ set(USE_CUDA OFF)
 #
 # Possible values:
 # - ON: enable ROCM with cmake's auto search
-# - OFF: disbale ROCM
+# - OFF: disable ROCM
 # - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
 
@@ -55,12 +55,23 @@ set(USE_METAL OFF)
 #
 # Possible values:
 # - ON: enable Vulkan with cmake's auto search
-# - OFF: disbale vulkan
+# - OFF: disable vulkan
 # - /path/to/vulkan-sdk: use specific path to vulkan-sdk
 set(USE_VULKAN OFF)
 
 # Whether enable OpenGL runtime
 set(USE_OPENGL OFF)
+
+# Whether to enable SGX runtime
+#
+# Possible values for USE_SGX:
+# - /path/to/sgxsdk: path to Intel SGX SDK
+# - OFF: disable SGX
+#
+# SGX_MODE := HW|SIM
+set(USE_SGX OFF)
+set(SGX_MODE "SIM")
+set(RUST_SGX_SDK "/path/to/rust-sgx-sdk")
 
 # Whether enable RPC runtime
 set(USE_RPC ON)
@@ -79,7 +90,7 @@ set(USE_GRAPH_RUNTIME_DEBUG OFF)
 #
 # Possible values:
 # - ON: enable llvm with cmake's find search
-# - OFF: disbale llvm
+# - OFF: disable llvm
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
 set(USE_LLVM OFF)
 
@@ -116,4 +127,7 @@ set(USE_MPS OFF)
 set(USE_ROCBLAS OFF)
 
 # Whether use contrib sort
-set(USE_SORT OFF)
+set(USE_SORT ON)
+
+# Build ANTLR parser for Relay text format
+set(USE_ANTLR OFF)

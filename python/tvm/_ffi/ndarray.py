@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, unused-import
 """Runtime NDArray api"""
 from __future__ import absolute_import
@@ -17,15 +33,18 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     if sys.version_info >= (3, 0):
-        from ._cy3.core import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
+        from ._cy3.core import _set_class_ndarray, _make_array, _from_dlpack
         from ._cy3.core import NDArrayBase as _NDArrayBase
+        from ._cy3.core import _reg_extension, _reg_ndarray
     else:
-        from ._cy2.core import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
+        from ._cy2.core import _set_class_ndarray, _make_array, _from_dlpack
         from ._cy2.core import NDArrayBase as _NDArrayBase
+        from ._cy2.core import _reg_extension, _reg_ndarray
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
-    from ._ctypes.ndarray import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
+    from ._ctypes.ndarray import _set_class_ndarray, _make_array, _from_dlpack
     from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
+    from ._ctypes.ndarray import _reg_extension, _reg_ndarray
 
 
 def context(dev_type, dev_id=0):
@@ -111,7 +130,7 @@ def empty(shape, dtype="float32", ctx=context(1, 0)):
         ctx.device_type,
         ctx.device_id,
         ctypes.byref(handle)))
-    return _make_array(handle, False)
+    return _make_array(handle, False, False)
 
 
 def from_dlpack(dltensor):
@@ -295,6 +314,7 @@ def free_extension_handle(handle, type_code):
     """
     check_call(_LIB.TVMExtTypeFree(handle, ctypes.c_int(type_code)))
 
+
 def register_extension(cls, fcreate=None):
     """Register a extension class to TVM.
 
@@ -306,20 +326,25 @@ def register_extension(cls, fcreate=None):
     cls : class
         The class object to be registered as extension.
 
+    fcreate : function, optional
+        The creation function to create a class object given handle value.
+
     Note
     ----
-    The registered class is requires one property: _tvm_handle and a class attribute _tvm_tcode.
+    The registered class is requires one property: _tvm_handle.
+
+    If the registered class is a subclass of NDArray,
+    it is required to have a class attribute _array_type_code.
+    Otherwise, it is required to have a class attribute _tvm_tcode.
 
     - ```_tvm_handle``` returns integer represents the address of the handle.
-    - ```_tvm_tcode``` gives integer represents type code of the class.
+    - ```_tvm_tcode``` or ```_array_type_code``` gives integer represents type
+      code of the class.
 
     Returns
     -------
     cls : class
         The class being registered.
-
-    fcreate : function, optional
-        The creation function to create a class object given handle value.
 
     Example
     -------
@@ -339,7 +364,13 @@ def register_extension(cls, fcreate=None):
            def _tvm_handle(self):
                return self.handle.value
     """
-    if fcreate and cls._tvm_tcode < TypeCode.EXT_BEGIN:
-        raise ValueError("Cannot register create when extension tcode is same as buildin")
-    _reg_extension(cls, fcreate)
+    if issubclass(cls, _NDArrayBase):
+        assert fcreate is not None
+        assert hasattr(cls, "_array_type_code")
+        _reg_ndarray(cls, fcreate)
+    else:
+        assert hasattr(cls, "_tvm_tcode")
+        if fcreate and cls._tvm_tcode < TypeCode.EXT_BEGIN:
+            raise ValueError("Cannot register create when extension tcode is same as buildin")
+        _reg_extension(cls, fcreate)
     return cls

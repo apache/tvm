@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """The computation schedule api of TVM."""
 from __future__ import absolute_import as _abs
 from ._ffi.base import string_types
@@ -143,19 +159,16 @@ class Buffer(NodeBase):
 @register_node
 class Split(NodeBase):
     """Split operation on axis."""
-    pass
 
 
 @register_node
 class Fuse(NodeBase):
     """Fuse operation on axis."""
-    pass
 
 
 @register_node
 class Singleton(NodeBase):
     """Singleton axis."""
-    pass
 
 
 @register_node
@@ -362,7 +375,7 @@ class Stage(NodeBase):
         """
         if nparts is not None:
             if factor is not None:
-                raise ValueError("Donot need to provide both outer and nparts")
+                raise ValueError("Do not need to provide both outer and nparts")
             outer, inner = _api_internal._StageSplitByNParts(self, parent, nparts)
         else:
             if factor is None:

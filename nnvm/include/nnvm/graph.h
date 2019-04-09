@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file nnvm/graph.h
@@ -10,6 +29,7 @@
 #include <string>
 #include <utility>
 #include <algorithm>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include "base.h"
@@ -229,7 +249,7 @@ inline const T& Graph::GetAttr(const std::string& attr_name) const {
   auto it = attrs.find(attr_name);
   CHECK(it != attrs.end())
       << "Cannot find attribute " << attr_name << " in the graph";
-  return nnvm::get<T>(*it->second);
+  return nnvm::unsafe_get<T>(*it->second);
 }
 
 inline bool Graph::HasAttr(const std::string& attr_name) const {

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file nnvm/top/nn.h
@@ -181,6 +200,26 @@ struct WinogradWeightTransformParam : public dmlc::Parameter<WinogradWeightTrans
     }
 
     static const constexpr int kWeight = 0;
+};
+
+struct WinogradNNPACKWeightTransformParam
+    : public dmlc::Parameter<WinogradNNPACKWeightTransformParam> {
+  int convolution_algorithm;
+  int out_dtype;
+
+  DMLC_DECLARE_PARAMETER(WinogradNNPACKWeightTransformParam) {
+    DMLC_DECLARE_FIELD(convolution_algorithm)
+        .describe(
+            "The convolution algorithm for Winograd NNPACK. "
+            "E.g. tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8 for WT_8x8, "
+            "tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8_FP16 for WT_8x8_FP16");
+    DMLC_DECLARE_DTYPE_FIELD(out_dtype)
+        .add_enum("same", -1)
+        .set_default(-1)
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+
+  static const constexpr int kWeight = 0;
 };
 
 struct WinogradConv2DParam : public dmlc::Parameter<WinogradConv2DParam> {
@@ -443,17 +482,30 @@ struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocPa
   }
 };
 
-struct NMSParam : public dmlc::Parameter<NMSParam> {
-  float nms_threshold;
+struct NonMaximumSuppressionParam : public dmlc::Parameter<NonMaximumSuppressionParam> {
+  bool return_indices;
+  float iou_threshold;
   bool force_suppress;
-  int nms_topk;
-  DMLC_DECLARE_PARAMETER(NMSParam) {
-    DMLC_DECLARE_FIELD(nms_threshold).set_default(0.5)
+  int top_k;
+  int id_index;
+  int max_output_size;
+  bool invalid_to_bottom;
+  DMLC_DECLARE_PARAMETER(NonMaximumSuppressionParam) {
+    DMLC_DECLARE_FIELD(max_output_size).set_default(-1)
+      .describe("Max number of output valid boxes for each instance."
+                "By default all valid boxes are returned.");
+    DMLC_DECLARE_FIELD(iou_threshold).set_default(0.5)
       .describe("Non-maximum suppression threshold.");
     DMLC_DECLARE_FIELD(force_suppress).set_default(false)
-    .describe("Suppress all detections regardless of class_id.");
-    DMLC_DECLARE_FIELD(nms_topk).set_default(-1)
-    .describe("Keep maximum top k detections before nms, -1 for no limit.");
+      .describe("Suppress all detections regardless of class_id.");
+    DMLC_DECLARE_FIELD(top_k).set_default(-1)
+      .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    DMLC_DECLARE_FIELD(id_index).set_default(0)
+      .describe("Axis index of id.");
+    DMLC_DECLARE_FIELD(return_indices).set_default(true)
+      .describe("Whether to return box indices in input data.");
+    DMLC_DECLARE_FIELD(invalid_to_bottom).set_default(false)
+      .describe("Whether to move all invalid bounding boxes to the bottom.");
   }
 };
 

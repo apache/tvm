@@ -1,10 +1,26 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name
 """Runtime NDArray api"""
 from __future__ import absolute_import
 
 import ctypes
 from ..base import _LIB, check_call, c_str
-from ..runtime_ctypes import TVMArrayHandle
+from ..runtime_ctypes import TVMArrayHandle, TVMNDArrayContainerHandle
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _return_handle
 
 
@@ -24,11 +40,13 @@ def _from_dlpack(dltensor):
     dltensor = ctypes.py_object(dltensor)
     if ctypes.pythonapi.PyCapsule_IsValid(dltensor, _c_str_dltensor):
         ptr = ctypes.pythonapi.PyCapsule_GetPointer(dltensor, _c_str_dltensor)
+        # enforce type to make sure it works for all ctypes
+        ptr = ctypes.cast(ptr, ctypes.c_void_p)
         handle = TVMArrayHandle()
         check_call(_LIB.TVMArrayFromDLPack(ptr, ctypes.byref(handle)))
         ctypes.pythonapi.PyCapsule_SetName(dltensor, _c_str_used_dltensor)
         ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
-        return _make_array(handle, False)
+        return _make_array(handle, False, False)
     raise ValueError("Expect a dltensor field, PyCapsule can only be consumed once")
 
 
@@ -36,6 +54,8 @@ def _dlpack_deleter(pycapsule):
     pycapsule = ctypes.cast(pycapsule, ctypes.py_object)
     if ctypes.pythonapi.PyCapsule_IsValid(pycapsule, _c_str_dltensor):
         ptr = ctypes.pythonapi.PyCapsule_GetPointer(pycapsule, _c_str_dltensor)
+        # enforce type to make sure it works for all ctypes
+        ptr = ctypes.cast(ctypes.c_void_p, ptr)
         _LIB.TVMDLManagedTensorCallDeleter(ptr)
         ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
 
@@ -77,9 +97,15 @@ class NDArrayBase(object):
         return ctypes.pythonapi.PyCapsule_New(handle, _c_str_dltensor, _c_dlpack_deleter)
 
 
-def _make_array(handle, is_view):
+def _make_array(handle, is_view, is_container):
+    global _TVM_ND_CLS
     handle = ctypes.cast(handle, TVMArrayHandle)
-    return _CLASS_NDARRAY(handle, is_view)
+    fcreate = _CLASS_NDARRAY
+    if is_container and _TVM_ND_CLS:
+        array_type_info = ctypes.cast(handle, TVMNDArrayContainerHandle).array_type_info.value
+        if array_type_info > 0:
+            fcreate = _TVM_ND_CLS[array_type_info]
+    return fcreate(handle, is_view)
 
 _TVM_COMPATS = ()
 
@@ -91,6 +117,11 @@ def _reg_extension(cls, fcreate):
         RETURN_SWITCH[cls._tvm_tcode] = fret
         C_TO_PY_ARG_SWITCH[cls._tvm_tcode] = _wrap_arg_func(fret, cls._tvm_tcode)
 
+_TVM_ND_CLS = {}
+
+def _reg_ndarray(cls, fcreate):
+    global _TVM_ND_CLS
+    _TVM_ND_CLS[cls._array_type_code] = fcreate
 
 _CLASS_NDARRAY = None
 

@@ -386,8 +386,8 @@
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
 					../../include,
-					../../dlpack/include,
-					"../../dmlc-core/include",
+					../../3rdparty/dlpack/include,
+					"../../3rdparty/dmlc-core/include",
 				);
 				INFOPLIST_FILE = tvmrpc/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
@@ -406,8 +406,8 @@
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				HEADER_SEARCH_PATHS = (
 					../../include,
-					../../dlpack/include,
-					"../../dmlc-core/include",
+					../../3rdparty/dlpack/include,
+					"../../3rdparty/dmlc-core/include",
 				);
 				INFOPLIST_FILE = tvmrpc/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
@@ -422,9 +422,9 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				DEVELOPMENT_TEAM = 3FR42MXLK9;
 				HEADER_SEARCH_PATHS = (
-					../../dlpack/include,
+					../../3rdparty/dlpack/include,
 					../../include,
-					"../../dmlc-core/include",
+					"../../3rdparty/dmlc-core/include",
 				);
 				INFOPLIST_FILE = tvmrpcLauncher/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
@@ -440,9 +440,9 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				DEVELOPMENT_TEAM = 3FR42MXLK9;
 				HEADER_SEARCH_PATHS = (
-					../../dlpack/include,
+					../../3rdparty/dlpack/include,
 					../../include,
-					"../../dmlc-core/include",
+					"../../3rdparty/dmlc-core/include",
 				);
 				INFOPLIST_FILE = tvmrpcLauncher/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";

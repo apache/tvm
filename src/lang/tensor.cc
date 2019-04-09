@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file tensor.cc
@@ -9,6 +28,8 @@
 #include <memory>
 
 namespace tvm {
+
+// Tensor
 
 Expr Tensor::operator()(Array<Var> indices) const {
   Array<Expr> arr(indices.begin(), indices.end());
@@ -26,11 +47,20 @@ Expr Tensor::operator()(Array<Expr> indices) const {
   return n;
 }
 
+Tensor Operation::output(size_t i) const {
+  auto node = make_node<TensorNode>();
+  node->op = *this;
+  node->value_index = i;
+  node->dtype = (*this)->output_dtype(i);
+  node->shape = (*this)->output_shape(i);
+  return Tensor(node);
+}
+
 Tensor TensorNode::make(Array<Expr> shape,
                         Type dtype,
                         Operation op,
                         int value_index) {
-  auto n = std::make_shared<TensorNode>();
+  auto n = make_node<TensorNode>();
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->op = op;
@@ -46,14 +76,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(TensorNode);
 
-Tensor Operation::output(size_t i) const {
-  auto node = std::make_shared<TensorNode>();
-  node->op = *this;
-  node->value_index = i;
-  node->dtype = (*this)->output_dtype(i);
-  node->shape = (*this)->output_shape(i);
-  return Tensor(node);
-}
+
+// TensorIntrin
 
 TensorIntrin TensorIntrinNode::make(std::string name,
                                     Operation op,
@@ -62,7 +86,7 @@ TensorIntrin TensorIntrinNode::make(std::string name,
                                     Stmt body,
                                     Stmt reduce_init,
                                     Stmt reduce_update) {
-  auto n = std::make_shared<TensorIntrinNode>();
+  auto n = make_node<TensorIntrinNode>();
   n->name = std::move(name);
   n->op = std::move(op);
   n->inputs = std::move(inputs);
@@ -79,4 +103,27 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
+
+
+// TensorIntrinCall
+
+TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
+                                            Array<Tensor> tensors,
+                                            Array<Region> regions,
+                                            Array<IterVar> reduce_axis) {
+  auto n = make_node<TensorIntrinCallNode>();
+  n->intrin = std::move(intrin);
+  n->tensors = std::move(tensors);
+  n->regions = std::move(regions);
+  n->reduce_axis = std::move(reduce_axis);
+  return TensorIntrinCall(n);
+}
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<TensorIntrinCallNode>([](const TensorIntrinCallNode *n, IRPrinter *p) {
+    p->stream << "TensorIntrinCall(intrin=" << n->intrin << ", " << n << ")";
+  });
+
+TVM_REGISTER_NODE_TYPE(TensorIntrinCallNode);
+
 }  // namespace tvm

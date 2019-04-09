@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument
 """HLS nn operators"""
 from __future__ import absolute_import as _abs
@@ -73,30 +89,11 @@ def schedule_conv2d_nhwc(outs):
 
 
 @generic.schedule_conv2d_NCHWc.register(["hls"])
-def schedule_conv2d_NCHWc(num_filter, kernel_size, strides,
-                          padding, layout, out_layout, outs):
+def schedule_conv2d_NCHWc(outs):
     """Schedule for conv2d_NCHW[x]c
 
     Parameters
     ----------
-    num_filter : int
-        The number of filter, i.e., the output channel.
-
-    kernel_size : tuple of int
-        (kernel_height, kernel_width)
-
-    strides : tuple of int
-        (stride_of_height, stride_of_width)
-
-    padding : tuple of int
-        (pad_of_height, pad_of_width)
-
-    layout : str
-        Input data layout
-
-    out_layout : str
-        Output data layout
-
     outs : Array of Tensor
         The computation graph description of conv2d_NCHWc
         in the format of an array of tensors.

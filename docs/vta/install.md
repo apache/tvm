@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 VTA Installation Guide
 ======================
 
@@ -67,7 +84,7 @@ This guide covers the following themes:
 
 Setup your Pynq board based on the [Pynq board getting started tutorial](http://pynq.readthedocs.io/en/latest/getting_started.html).
 You should follow the instructions up to and including the *Turning On the PYNQ-Z1* step (no need to pursue the tutorial beyond this point).
-* Make sure that you've downloaded the latest Pynq image, [PYNQ-Z1 v2.1](http://pynq-testing.readthedocs.io/en/image_v2.2/getting_started/pynq_image.html) (released 21 Feb 2018), and have imaged your SD card with it (we recommend the free [Etcher](https://etcher.io/) program).
+* Make sure that you've downloaded the latest Pynq image, [PYNQ-Z1 v2.3](http://www.pynq.io/board.html) (released October 3rd 2018), and have imaged your SD card with it (we recommend the free [Etcher](https://etcher.io/) program).
 * For this test setup, follow the ["Connect to a Computer"](http://pynq.readthedocs.io/en/latest/getting_started.html#connect-to-a-computer) Ethernet setup instructions. To be able to talk to the board, make sure to [assign your computer a static IP address](http://pynq.readthedocs.io/en/latest/appendix.html#assign-your-computer-a-static-ip)
 
 Once the board is powered on and connected to your development machine, try connecting to it to make sure you've properly set up your Pynq board:

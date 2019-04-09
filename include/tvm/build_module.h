@@ -1,20 +1,39 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
-*  Copyright (c) 2017 by Contributors
-* \file tvm/build_module.h
-* \brief Functions for compiling ops.
-*/
+ * \file tvm/build_module.h
+ * \brief Functions for compiling ops.
+ */
 #ifndef TVM_BUILD_MODULE_H_
 #define TVM_BUILD_MODULE_H_
 
 #include <string>
 #include <vector>
 #include <utility>
+#include <unordered_map>
+#include <unordered_set>
 #include "runtime/packed_func.h"
 #include "schedule_pass.h"
 #include "lowered_func.h"
 
 namespace tvm {
-using namespace tvm::runtime;
 
 /*!
 * \brief Container for target device information.
@@ -40,7 +59,7 @@ class TargetNode : public Node {
   Array<Expr> libs_array;
 
   /*! \return the full device string to pass to codegen::Build */
-  EXPORT std::string str() const;
+  TVM_DLL const std::string& str() const;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("target_name", &target_name);
@@ -54,41 +73,45 @@ class TargetNode : public Node {
   }
 
   /*! \brief Get the keys for this target as a vector of string */
-  EXPORT std::vector<std::string> keys() const;
+  TVM_DLL std::vector<std::string> keys() const;
 
   /*! \brief Get the options for this target as a vector of string */
-  EXPORT std::vector<std::string> options() const;
+  TVM_DLL std::vector<std::string> options() const;
 
   /*! \brief Get the keys for this target as an unordered_set of string */
-  EXPORT std::unordered_set<std::string> libs() const;
+  TVM_DLL std::unordered_set<std::string> libs() const;
 
   static constexpr const char* _type_key = "Target";
   TVM_DECLARE_NODE_TYPE_INFO(TargetNode, Node);
+
+ private:
+  /*! \brief Internal string repr. */
+  mutable std::string str_repr_;
 };
 
 class Target : public NodeRef {
  public:
   Target() {}
-  explicit Target(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit Target(NodePtr<Node> n) : NodeRef(n) {}
 
   /*!
   * \brief Create a Target given a string
   * \param target_str the string to parse
   */
-  EXPORT static Target create(const std::string& target_str);
+  TVM_DLL static Target create(const std::string& target_str);
 
   /*!
   * \brief Push a new target context onto the thread local stack. The Target on top of
   * the stack is used to determine which specialization to use when invoking a GenericFunc.
   * \param target The target to set as the current context.
   */
-  EXPORT static void EnterTargetScope(const tvm::Target& target);
+  TVM_DLL static void EnterTargetScope(const tvm::Target& target);
 
   /*!
   * \brief Pop a target off the thread local context stack, restoring the previous target
   * as the current context.
   */
-  EXPORT static void ExitTargetScope();
+  TVM_DLL static void ExitTargetScope();
 
   /*!
   * \brief Get the current target context from thread local storage.
@@ -98,7 +121,7 @@ class Target : public NodeRef {
   * \return The target that is the current context. The target may not be defined if
   * allow_not_defined is true.
   */
-  EXPORT static tvm::Target current_target(bool allow_not_defined = true);
+  TVM_DLL static tvm::Target current_target(bool allow_not_defined = true);
 
   inline const TargetNode* operator->() const {
       return static_cast<const TargetNode*>(node_.get());
@@ -130,39 +153,39 @@ struct TargetContext {
 /*! \brief This namespace provides functions to construct Target instances */
 namespace target {
 /*! \return A target for LLVM */
-EXPORT Target llvm(const std::vector<std::string>& options =
+TVM_DLL Target llvm(const std::vector<std::string>& options =
                    std::vector<std::string>());
 
 /*! \return A target for CUDA */
-EXPORT Target cuda(const std::vector<std::string>& options =
+TVM_DLL Target cuda(const std::vector<std::string>& options =
                    std::vector<std::string>());
 
 /*! \return A target for ROCm */
-EXPORT Target rocm(const std::vector<std::string>& options =
+TVM_DLL Target rocm(const std::vector<std::string>& options =
                    std::vector<std::string>());
 
 /*! \return A target for OpenCL */
-EXPORT Target opencl(const std::vector<std::string>& options =
+TVM_DLL Target opencl(const std::vector<std::string>& options =
                      std::vector<std::string>());
 
 /*! \return A target for Metal */
-EXPORT Target metal(const std::vector<std::string>& options =
+TVM_DLL Target metal(const std::vector<std::string>& options =
                     std::vector<std::string>());
 
 /*! \return A target for rasp */
-EXPORT Target rasp(const std::vector<std::string>& options =
+TVM_DLL Target rasp(const std::vector<std::string>& options =
                    std::vector<std::string>());
 
 /*! \return A target for Mali */
-EXPORT Target mali(const std::vector<std::string>& options =
+TVM_DLL Target mali(const std::vector<std::string>& options =
                    std::vector<std::string>());
 
 /*! \return A target for Intel Graphics */
-EXPORT Target intel_graphics(const std::vector<std::string>& options =
+TVM_DLL Target intel_graphics(const std::vector<std::string>& options =
                              std::vector<std::string>());
 
 /*! \return A target for stackvm */
-EXPORT Target stackvm(const std::vector<std::string>& options =
+TVM_DLL Target stackvm(const std::vector<std::string>& options =
                       std::vector<std::string>());
 
 }  // namespace target
@@ -212,10 +235,16 @@ class BuildConfigNode : public Node {
   bool partition_const_loop = false;
 
   /*! \brief Whether to dump the IR of each pass (only when building from python) */
-  std::vector< std::pair<int, PackedFunc> > add_lower_pass;
+  std::vector< std::pair<int, runtime::PackedFunc> > add_lower_pass;
 
   /*! \brief Whether to dump the IR of each pass (only when building from python) */
   bool dump_pass_ir = false;
+
+  /*! \brief Whether to instrument loads and stores with check for out of the bounds. */
+  bool instrument_bound_checkers = false;
+
+  /*! \brief Whether to disable select rewriting. */
+  bool disable_select_rewriting = false;
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("data_alignment", &data_alignment);
@@ -229,6 +258,8 @@ class BuildConfigNode : public Node {
     v->Visit("detect_global_barrier", &detect_global_barrier);
     v->Visit("partition_const_loop", &partition_const_loop);
     v->Visit("dump_pass_ir", &dump_pass_ir);
+    v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
+    v->Visit("disable_select_rewriting", &disable_select_rewriting);
   }
 
   static constexpr const char* _type_key = "BuildConfig";
@@ -241,7 +272,7 @@ class BuildConfigNode : public Node {
 class BuildConfig : public ::tvm::NodeRef {
  public:
   BuildConfig() {}
-  explicit BuildConfig(std::shared_ptr<::tvm::Node> n) : NodeRef(n) {}
+  explicit BuildConfig(NodePtr<::tvm::Node> n) : NodeRef(n) {}
 
   const BuildConfigNode* operator->() const {
     return static_cast<const BuildConfigNode*>(node_.get());
@@ -255,20 +286,20 @@ class BuildConfig : public ::tvm::NodeRef {
    * \brief Push a new BuildConfig context onto the thread local stack.
    * \param build_config The configuration to set as the current context.
    */
-  EXPORT static void EnterBuildConfigScope(const tvm::BuildConfig& build_config);
+  TVM_DLL static void EnterBuildConfigScope(const tvm::BuildConfig& build_config);
 
   /*!
    * \brief Pop a build config off the thread local context stack, restoring the previous
    * configuration as the current context.
    */
-  EXPORT static void ExitBuildConfigScope();
+  TVM_DLL static void ExitBuildConfigScope();
 
   /*!
    * \brief Get the current BuildConfig context from thread local storage, or a default
    * configuration if a BuildConfig scope has not been entered.
    * \return The configuration that is the current context.
    */
-  EXPORT static tvm::BuildConfig Current();
+  TVM_DLL static tvm::BuildConfig Current();
 
   using ContainerType = BuildConfigNode;
 };
@@ -297,7 +328,7 @@ struct BuildConfigContext {
 * \brief Construct a BuildConfig containing a new BuildConfigNode
 * \return The new BuildConfig
 */
-EXPORT BuildConfig build_config();
+TVM_DLL BuildConfig build_config();
 
 /*!
 * \brief Build a LoweredFunc given a schedule, args and binds
@@ -308,11 +339,11 @@ EXPORT BuildConfig build_config();
 * \param config The build configuration.
 * \return The lowered function.
 */
-EXPORT Array<LoweredFunc> lower(Schedule sch,
-                                const Array<Tensor>& args,
-                                const std::string& name,
-                                const std::unordered_map<Tensor, Buffer>& binds,
-                                const BuildConfig& config);
+TVM_DLL Array<LoweredFunc> lower(Schedule sch,
+                                 const Array<Tensor>& args,
+                                 const std::string& name,
+                                 const std::unordered_map<Tensor, Buffer>& binds,
+                                 const BuildConfig& config);
 
 /*!
 * \brief Build a device and host module for a specific target from an array of lowered functions.
@@ -322,10 +353,10 @@ EXPORT Array<LoweredFunc> lower(Schedule sch,
 * \param config The build configuration.
 * \return The built module.
 */
-EXPORT runtime::Module build(const Array<LoweredFunc>& funcs,
-                             const Target& target,
-                             const Target& target_host,
-                             const BuildConfig& config);
+TVM_DLL runtime::Module build(const Array<LoweredFunc>& funcs,
+                              const Target& target,
+                              const Target& target_host,
+                              const BuildConfig& config);
 
 class GenericFuncNode;
 
@@ -335,7 +366,7 @@ class GenericFuncNode;
 class GenericFunc : public NodeRef {
  public:
   GenericFunc() {}
-  explicit GenericFunc(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit GenericFunc(NodePtr<Node> n) : NodeRef(n) {}
 
   /*!
    * \brief Set the default function implementaiton.
@@ -344,7 +375,7 @@ class GenericFunc : public NodeRef {
    * false, an error will be logged if the call would override a previously registered function.
    * \return reference to self.
    */
-  TVM_DLL GenericFunc& set_default(const PackedFunc value,
+  TVM_DLL GenericFunc& set_default(const runtime::PackedFunc value,
                                    bool allow_override = false);
   /*!
    * \brief Register a specialized function
@@ -355,7 +386,7 @@ class GenericFunc : public NodeRef {
    * \return reference to self.
    */
   TVM_DLL GenericFunc& register_func(const std::vector<std::string>& tags,
-                                     const PackedFunc value,
+                                     const runtime::PackedFunc value,
                                      bool allow_override = false);
   /*!
    * \brief Call generic function by directly passing in unpacked format.
@@ -372,14 +403,15 @@ class GenericFunc : public NodeRef {
    * \endcode
    */
   template<typename... Args>
-  inline TVMRetValue operator()(Args&& ...args) const;
+  inline runtime::TVMRetValue operator()(Args&& ...args) const;
   /*!
    * \brief Invoke the relevant function for the current target context, set by set_target_context.
    * Arguments are passed in packed format.
    * \param args The arguments to pass to the function.
    * \param ret The return value
    */
-  TVM_DLL void CallPacked(TVMArgs args, TVMRetValue* ret) const;
+  TVM_DLL void CallPacked(runtime::TVMArgs args,
+                          runtime::TVMRetValue* ret) const;
 
   /*!
    * \brief Find or register the GenericFunc instance corresponding to the give name
@@ -412,14 +444,14 @@ class GenericFunc : public NodeRef {
 };
 
 template<typename... Args>
-inline TVMRetValue GenericFunc::operator()(Args&& ...args) const {
+inline runtime::TVMRetValue GenericFunc::operator()(Args&& ...args) const {
   const int kNumArgs = sizeof...(Args);
   const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
   TVMValue values[kArraySize];
   int type_codes[kArraySize];
-  detail::for_each(TVMArgsSetter(values, type_codes),
+  runtime::detail::for_each(runtime::TVMArgsSetter(values, type_codes),
     std::forward<Args>(args)...);
-  TVMRetValue rv;
+  runtime::TVMRetValue rv;
   CallPacked(TVMArgs(values, type_codes, kNumArgs), &rv);
   return rv;
 }
@@ -432,9 +464,9 @@ class GenericFuncNode : public Node {
   /*! \brief name of the function */
   std::string name_;
   /* \brief the generic builder */
-  PackedFunc generic_func_;
+  runtime::PackedFunc generic_func_;
   /* \brief map from keys to registered functions */
-  std::unordered_map<std::string, PackedFunc> dispatch_dict_;
+  std::unordered_map<std::string, runtime::PackedFunc> dispatch_dict_;
 
   static constexpr const char* _type_key = "GenericFunc";
   TVM_DECLARE_NODE_TYPE_INFO(GenericFuncNode, Node);

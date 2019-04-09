@@ -1,4 +1,21 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
+from topi.nn.pooling import pool
 
 def test_tensor():
     m = tvm.var('m')
@@ -84,6 +101,78 @@ def test_tensor_reduce():
     assert(isinstance(C_loaded, tvm.tensor.Tensor))
     assert(str(C_loaded) == str(C))
 
+def test_tensor_compute1():
+    m = 1024
+    factor = 16
+    dtype = 'float32'
+
+    def intrin_vadd(n):
+        x = tvm.placeholder((n,))
+        y = tvm.placeholder((n,))
+        z = tvm.compute(x.shape, lambda i: x[i] + y[i])
+
+        def intrin_func(ins, outs):
+            ib = tvm.ir_builder.create()
+            ib.emit(tvm.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
+            return ib.get()
+
+        with tvm.build_config(offset_factor=n):
+            return tvm.decl_tensor_intrin(z.op, intrin_func)
+
+    vadd = intrin_vadd(factor)
+
+    A = tvm.placeholder((m//factor, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((m//factor, factor), name="B", dtype=dtype)
+    C = tvm.compute((m//factor, factor),
+          lambda i: vadd(A[i, 0:factor], B[i, 0:factor]))
+
+    s = tvm.create_schedule(C.op)
+    stmt = tvm.lower(s, [A, B, C], simple_mode=True)
+    assert isinstance(stmt.body.body, tvm.stmt.Evaluate)
+
+def test_tensor_compute2():
+    M = 2048
+    N = 1024
+    L = 1024
+    factor = 16
+    factor1 = 32
+    factor2 = 32
+    dtype = 'float32'
+
+    def intrin_gemm(m, n, l):
+        k = tvm.reduce_axis((0, l))
+        x = tvm.placeholder((m, l))
+        y = tvm.placeholder((n, l))
+        # in theory, no relation
+        z = tvm.compute((m, n), lambda i, j: tvm.sum(x[i][k] * y[j][k], axis=k))
+
+        def intrin_func(ins, outs):
+            x_ptr = ins[0].access_ptr("r")
+            y_ptr = ins[1].access_ptr("r")
+            z_ptr = outs[0].access_ptr("w")
+            body = tvm.call_packed(
+                "gemv", x_ptr, y_ptr, z_ptr, m, n, l)
+            reset = tvm.call_packed(
+                "fill_zero", z_ptr, m, n)
+            update = tvm.call_packed(
+                "gemv_add", x_ptr, y_ptr, z_ptr, m, n, l)
+            return body, reset, update
+
+        with tvm.build_config(offset_factor=n):
+            return tvm.decl_tensor_intrin(z.op, intrin_func)
+
+    vgemm = intrin_gemm(factor1, factor2, factor)
+
+    A = tvm.placeholder((M//factor1, L//factor, factor1, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((N//factor2, L//factor, factor2, factor), name="B", dtype=dtype)
+    k = tvm.reduce_axis((0, L//factor), name='k')
+    C = tvm.compute((M//factor1, N//factor2, factor1, factor2),
+          lambda i, j: vgemm(A[i, k, 0:factor1, 0:factor], B[j, k, 0:factor2, 0:factor], reduce_axis=k))
+
+    s = tvm.create_schedule(C.op)
+    stmt = tvm.lower(s, [A, B, C], simple_mode=True)
+    assert isinstance(stmt.body.body.body.first, tvm.stmt.Evaluate)
+    assert isinstance(stmt.body.body.body.rest.body, tvm.stmt.Evaluate)
 
 def test_tensor_scan():
     m = tvm.var("m")
@@ -185,6 +274,34 @@ def test_tensor_inputs():
     assert tuple(y.op.input_tensors) == (x,)
 
 
+def test_tensor_pool():
+    def intrin_pool():
+        A = tvm.placeholder((64, 16, 16), name='A')
+        kh = tvm.reduce_axis((0, 3), name='kh')
+        kw = tvm.reduce_axis((0, 3), name='kw')
+        P = tvm.compute((64, 14, 14),
+                        lambda c, oh, ow: tvm.max(A[c, oh + kh, ow + kw],
+                                                  axis=[kh, kw]),
+                        name='p')
+
+        def intrin_func(ins, outs):
+            dinp = ins[0]
+            dout = outs[0]
+            return tvm.call_packed("op", dinp, dout)
+
+        with tvm.build_config(offset_factor=1):
+            return tvm.decl_tensor_intrin(P.op, intrin_func)
+
+    A = tvm.placeholder((1, 64, 16, 16), name='A')
+    P = pool(data=A, kernel=(3, 3), stride=(1, 1), padding=(0, 0, 0, 0),
+             pool_type='max')
+    s = tvm.create_schedule(P.op)
+    _, oh, _, _ = P.op.axis
+    intrin = intrin_pool()
+    s[P].tensorize(oh, intrin)
+    tvm.lower(s, [A, P])
+
+
 if __name__ == "__main__":
     test_rank_zero()
     test_tensor_inputs()
@@ -192,6 +309,8 @@ if __name__ == "__main__":
     test_conv1d()
     test_tensor_slice()
     test_tensor()
+    test_tensor_compute1()
+    test_tensor_compute2()
     test_tensor_reduce()
     test_tensor_scan()
     test_scan_multi_out()
@@ -199,3 +318,4 @@ if __name__ == "__main__":
     test_extern_multi_out()
     test_tuple_inputs()
     test_tuple_with_different_deps()
+    test_tensor_pool()

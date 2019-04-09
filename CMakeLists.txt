@@ -32,6 +32,7 @@ tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" O
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
+tvm_option(USE_SGX "Build with SGX" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
@@ -46,21 +47,26 @@ tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
 tvm_option(USE_SORT "Build with sort support" OFF)
 tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
+tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 
 # include directories
 include_directories("include")
-include_directories("dlpack/include")
-include_directories("dmlc-core/include")
+include_directories("3rdparty/dlpack/include")
+include_directories("3rdparty/dmlc-core/include")
+include_directories("3rdparty/rang/include")
+include_directories("3rdparty/compiler-rt")
 
 # initial variables
 set(TVM_LINKER_LIBS "")
-set(TVM_RUNTIME_LINKER_LIBS "")
+set(TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Generic compilation options
 if(MSVC)
   add_definitions(-DWIN32_LEAN_AND_MEAN)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   add_definitions(-D_SCL_SECURE_NO_WARNINGS)
+  add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
   add_definitions(-DHalide_SHARED)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
@@ -77,8 +83,12 @@ if(MSVC)
 else(MSVC)
   include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
-  set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
-  set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS}")
+  if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    add_compile_options(-O0 -Wall -fPIC -fvisibility=hidden -std=c++11)
+  else()
+    set(CMAKE_C_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden -std=c++11 ${CMAKE_CXX_FLAGS}")
+  endif ()
   if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
       CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
     set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
@@ -86,8 +96,8 @@ else(MSVC)
 endif(MSVC)
 
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp" "nnvm/src/*.cc")
-FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h" "HalideIR/src/*.h"
+FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "3rdparty/HalideIR/src/*.cpp" "nnvm/src/*.cc")
+FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h" "3rdparty/HalideIR/src/*.h"
                                 "nnvm/src/*.h" "nnvm/include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
@@ -103,6 +113,12 @@ file(GLOB COMPILER_SRCS
     src/op/*.cc
     src/schedule/*.cc
     )
+
+file(GLOB_RECURSE RELAY_SRCS
+    src/relay/*.cc
+    )
+list(APPEND COMPILER_SRCS ${RELAY_SRCS})
+
 
 if(NOT MSVC)
   file(GLOB COMPILER_VERILOG_SRCS src/codegen/verilog/*.cc)
@@ -120,7 +136,7 @@ file(GLOB_RECURSE NNVM_COMPILER_SRCS
 file(GLOB TOPI_SRCS
     topi/src/*.cc
 )
-file(GLOB_RECURSE HALIDEIR_SRCS HalideIR/src/*.cpp)
+file(GLOB_RECURSE HALIDEIR_SRCS 3rdparty/HalideIR/src/*.cpp)
 list(APPEND COMPILER_SRCS ${HALIDEIR_SRCS})
 file(GLOB RUNTIME_SRCS src/runtime/*.cc)
 
@@ -151,6 +167,9 @@ if(USE_GRAPH_RUNTIME)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_SRCS})
 
   if(USE_GRAPH_RUNTIME_DEBUG)
+    message(STATUS "Build with Graph runtime debug support...")
+    file(GLOB RUNTIME_GRAPH_DEBUG_SRCS src/runtime/graph/debug/*.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_DEBUG_SRCS})
     set_source_files_properties(${RUNTIME_GRAPH_SRCS}
       PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
   endif(USE_GRAPH_RUNTIME_DEBUG)
@@ -164,15 +183,23 @@ include(cmake/modules/OpenGL.cmake)
 include(cmake/modules/Vulkan.cmake)
 include(cmake/modules/Metal.cmake)
 include(cmake/modules/ROCM.cmake)
+include(cmake/modules/SGX.cmake)
 include(cmake/modules/LLVM.cmake)
+include(cmake/modules/ANTLR.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/Random.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
+include(cmake/modules/contrib/HybridDump.cmake)
 
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
+if(NOT USE_SGX STREQUAL "OFF")
+  add_dependencies(tvm sgx_edl)
+  add_dependencies(tvm_runtime sgx_edl tvm_t)
+  install(TARGETS tvm_t ARCHIVE DESTINATION lib${LIB_SUFFIX})
+endif()
 add_library(nnvm_compiler SHARED ${NNVM_COMPILER_SRCS})
 
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
@@ -183,7 +210,7 @@ target_link_libraries(nnvm_compiler tvm)
 # Related headers
 target_include_directories(
   tvm
-  PUBLIC "HalideIR/src"
+  PUBLIC "3rdparty/HalideIR/src"
   PUBLIC "topi/include")
 target_include_directories(
   tvm_topi
@@ -196,7 +223,7 @@ target_include_directories(
 # Tests
 set(TEST_EXECS "")
 file(GLOB TEST_SRCS tests/cpp/*.cc)
-find_library(GTEST_LIB gtest)
+find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
 
 if(GTEST_LIB)
   foreach(__srcpath ${TEST_SRCS})
@@ -205,7 +232,7 @@ if(GTEST_LIB)
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
     target_link_libraries(${__execname}
-      tvm ${GTEST_LIB} pthread)
+      tvm ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   endforeach()
@@ -233,12 +260,12 @@ if (INSTALL_DEV)
     PATTERN "*.h"
   )
   install(
-    DIRECTORY "HalideIR/src/." DESTINATION "include/HalideIR"
+    DIRECTORY "3rdparty/HalideIR/src/." DESTINATION "include/HalideIR"
     FILES_MATCHING
     PATTERN "*.h"
   )
   install(
-    DIRECTORY "dlpack/include/." DESTINATION "include"
+    DIRECTORY "3rdparty/dlpack/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )

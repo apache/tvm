@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file verify_gpu_code.cc
@@ -73,9 +92,10 @@ class GPUCodeVerifier : public IRVisitor {
 
   void Visit_(const AttrStmt *op) {
     if (op->attr_key == attr::storage_scope) {
-      if (op->value.as<StringImm>()->value == "local") {
+      std::string op_value = op->value.as<StringImm>()->value;
+      if (op_value == "local") {
         visited_local_buffers_.insert(op->node.as<tvm::Variable>());
-      } else if (op->value.as<StringImm>()->value == "shared") {
+      } else if (op_value == "shared") {
         visited_shared_buffers_.insert(op->node.as<tvm::Variable>());
       }
     } else if (op->attr_key == attr::thread_extent) {
@@ -159,18 +179,19 @@ bool VerifyGPUCode(Stmt stmt,
   int64_t max_thread_z = INT64_MAX;
 
   for (auto iter : constraints) {
+    const IntImm* val = iter.second.as<IntImm>();
     if (iter.first == "max_local_memory_per_block")
-      max_local_memory_per_block = (iter.second).as<IntImm>()->value;
+      max_local_memory_per_block = val->value;
     else if (iter.first == "max_shared_memory_per_block")
-      max_shared_memory_per_block = (iter.second).as<IntImm>()->value;
+      max_shared_memory_per_block = val->value;
     else if (iter.first == "max_threads_per_block")
-      max_threads_per_block = (iter.second).as<IntImm>()->value;
+      max_threads_per_block = val->value;
     else if (iter.first == "max_thread_x")
-      max_thread_x = (iter.second).as<IntImm>()->value;
+      max_thread_x = val->value;
     else if (iter.first == "max_thread_y")
-      max_thread_y = (iter.second).as<IntImm>()->value;
+      max_thread_y = val->value;
     else if (iter.first == "max_thread_z")
-      max_thread_z = (iter.second).as<IntImm>()->value;
+      max_thread_z = val->value;
     else
       LOG(FATAL) << "Invalid check item: " << iter.first;
   }

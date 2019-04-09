@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 from tvm.schedule import Buffer
 
@@ -41,6 +57,26 @@ def test_buffer_access_ptr_offset():
     assert tvm.ir_pass.Equal(offset, tvm.call_extern('int32', "test_call", 200 + v))
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
 
+def test_buffer_access_ptr_extent():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((m, n), tvm.float32)
+    aptr = Ab.access_ptr("rw")
+    assert tvm.ir_pass.Equal(aptr.args[3], m * n)
+    aptr = Ab.access_ptr("rw", offset=100)
+    assert tvm.ir_pass.Equal(aptr.args[3], m * n - 100)
+    Ab = tvm.decl_buffer((m, n), tvm.float32, strides=[n + 1 , 1])
+    aptr = Ab.access_ptr("rw", offset=100)
+    assert tvm.ir_pass.Equal(aptr.args[3], Ab.strides[0] * m - 100)
+
+def test_buffer_vload():
+    m = tvm.var('m')
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((m, n), tvm.float32, elem_offset=100)
+    load = Ab.vload([2, 3])
+    offset = tvm.ir_pass.Simplify(load.index)
+    assert tvm.ir_pass.Equal(offset, n * 2 + 103)
+
 def test_buffer_index_merge_mult_mod():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -76,4 +112,6 @@ if __name__ == "__main__":
     test_buffer()
     test_buffer_access_ptr()
     test_buffer_access_ptr_offset()
+    test_buffer_access_ptr_extent()
+    test_buffer_vload()
     test_buffer_index_merge_mult_mod()

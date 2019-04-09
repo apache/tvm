@@ -1,4 +1,21 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Unittest cases for fold_axis"""
+import tvm
 import nnvm
 import nnvm.testing.resnet
 import numpy as np
@@ -6,6 +23,7 @@ from nnvm import symbol as sym
 from nnvm.compiler import graph_util, graph_attr
 
 def test_fold_axis_conv():
+    # Before simplify
     def before(x, conv_weight, conv_bias, in_scale, out_scale, channels):
         x = x * sym.expand_dims(in_scale, axis=1, num_newaxis=2)
         y = sym.conv2d(x, conv_weight, conv_bias,
@@ -31,7 +49,6 @@ def test_fold_axis_conv():
         y = sym.relu(y)
         return y
 
-    # Before simplify
     def check(shape, channels):
         x = sym.Variable("x") + 1
         weight = sym.Variable("weight")
@@ -50,8 +67,55 @@ def test_fold_axis_conv():
 
     check((2, 4, 10, 10), 2)
 
+def test_fold_axis_depthwise_conv():
+    # Before simplify
+    def before(x, conv_weight, conv_bias, in_scale, out_scale, channels):
+        x = x * sym.expand_dims(in_scale, axis=1, num_newaxis=2)
+        y = sym.conv2d(x, conv_weight, conv_bias,
+                       channels=channels,
+                       kernel_size=(3, 3),
+                       padding=(1, 1),
+                       groups=54,
+                       name="depthiwise_conv")
+        y = sym.relu(y)
+        y = y * sym.expand_dims(out_scale, axis=1, num_newaxis=2)
+        return y
+
+    def expected(x, conv_weight, conv_bias, in_scale, out_scale, channels):
+        conv_weight = conv_weight * sym.expand_dims(out_scale, axis=1, num_newaxis=3)
+        conv_weight = conv_weight * sym.expand_dims(in_scale, axis=1, num_newaxis=3)
+        conv_bias = conv_bias * out_scale
+        y = sym.conv2d(x,
+                       conv_weight,
+                       conv_bias,
+                       channels=channels,
+                       kernel_size=(3, 3),
+                       padding=(1, 1),
+                       groups=54,
+                       name="depthiwise_conv")
+        y = sym.relu(y)
+        return y
+
+    def check(shape, channels):
+        x = sym.Variable("x") + 1
+        weight = sym.Variable("weight")
+        bias = sym.Variable("bias")
+        in_scale = sym.Variable("in_scale")
+        out_scale = sym.Variable("out_scale")
+        y1 = before(x, weight, bias, in_scale, out_scale, channels)
+        y2 = expected(x, weight, bias, in_scale, out_scale, channels)
+        ishape = {"x": shape, "out_scale": (channels,), "in_scale": (shape[1],)}
+        g1 = nnvm.graph.create(y1)
+        g2 = nnvm.graph.create(y2)
+        graph_attr.set_shape_inputs(g1, ishape)
+        g1 = g1.apply("InferShape").apply("FoldScaleAxis")
+        # assert graph equals as expected
+        graph_util.check_graph_equal(g1, g2)
+
+    check((1, 54, 63, 127), 54)
 
 def test_fold_fail():
+    # Before simplify
     def before(x, scale, channels):
         y = sym.conv2d(x,
                        channels=channels,
@@ -61,7 +125,6 @@ def test_fold_fail():
         y = y * sym.expand_dims(scale, axis=1, num_newaxis=1)
         return y
 
-    # Before simplify
     def check(shape, channels):
         x = sym.Variable("x")
         bias = sym.Variable("bias")
@@ -101,10 +164,11 @@ def test_fold_resnet():
 
     x = run_prune(graph, params, 0)
     y = run_prune(graph, params, 3)
-    np.testing.assert_allclose(y[0].asnumpy(), x[0].asnumpy())
+    tvm.testing.assert_allclose(y[0].asnumpy(), x[0].asnumpy())
 
 
 if __name__ == "__main__":
     test_fold_resnet()
     test_fold_axis_conv()
     test_fold_fail()
+    test_fold_axis_depthwise_conv()

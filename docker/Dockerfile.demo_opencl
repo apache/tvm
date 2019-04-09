@@ -1,0 +1,82 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# USAGE: sudo docker build libs/tvm -f libs/tvm/docker/Dockerfile.ocl -t l4b/tvm:ocl
+
+# REFERENCE: https://docs.docker.com/engine/reference/builder
+
+FROM ubuntu:18.04
+
+RUN echo "Labelling this image"
+LABEL Description="Docker image for TVM built with OpenCL & OpenGL support"
+
+RUN echo "Preparing to install dependencies"
+RUN apt-get update
+# ENV DEBIAN_FRONTEND noninteractive
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+RUN echo "Installing utility libraries"
+RUN apt-get install -y apt-utils sudo
+RUN apt-get install -y cmake g++ llvm
+RUN apt-get install -y git
+# make wget unzip libtinfo-dev libz-dev libcurl4-openssl-dev
+RUN apt-get install -y libopenblas-dev
+
+# RUN echo "Installing gtest"
+# RUN apt-get install -y libgtest-dev
+# RUN cd /usr/src/gtest && cmake CMakeLists.txt && make && cp *.a /usr/lib
+
+RUN echo "Installing Python"
+RUN apt-get install -y python3-dev python3-pip
+RUN pip3 install setuptools numpy nose-timer cython decorator scipy tornado psutil xgboost
+
+RUN echo "Installing Jupyter notebook"
+RUN pip3 install matplotlib Image Pillow jupyter[notebook]
+
+RUN echo "Installing OpenCL libraries"
+RUN apt-get install -y libviennacl-dev mesa-opencl-icd ocl-icd-opencl-dev clinfo
+RUN apt-get install -y libclblas-dev libclfft-dev libclsparse-dev
+
+RUN echo "Installing OpenGL libraries"
+RUN apt-get install -y libcogl-dev libegl1 libgles1 libglfw3-dev
+# libglew-dev
+
+RUN echo "Upgrading dependencies"
+RUN apt-get upgrade -y
+
+RUN echo "Cloning TVM source & submodules"
+ENV TVM_PAR_DIR="/usr"
+RUN mkdir -p TVM_PAR_DIR && \
+	cd ${TVM_PAR_DIR} && \
+	git clone --depth=1 https://github.com/dmlc/tvm --recursive
+#RUN git submodule update --init --recursive
+
+
+RUN echo "Building TVM"
+#USE_BLAS: "openblas" | "mkl" | "atlas" | "apple" | "none"
+ENV TVM_HOME="/usr/tvm"
+ENV TVM_BUILD_DIR="${TVM_HOME}/build"
+RUN mkdir -p ${TVM_BUILD_DIR} && \
+	cd ${TVM_BUILD_DIR} && \
+	cmake .. -DUSE_BLAS=openblas -DUSE_LLVM=ON -DUSE_OPENCL=ON -DUSE_OPENGL=ON && \
+	make -j6
+
+RUN echo "Building Python package"
+ENV PYTHONPATH=${TVM_HOME}/python:${TVM_HOME}/topi/python:${TVM_HOME}/nnvm/python:${PYTHONPATH}
+RUN cd ${TVM_HOME}/python && python3 setup.py install --user
+RUN cd ${TVM_HOME}/topi/python && python3 setup.py install --user
+RUN cd ${TVM_HOME}/nnvm/python && python3 setup.py install --user

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file schedule_lang.cc
@@ -70,7 +89,7 @@ void Split(StageNode* self,
 }  // namespace
 
 Stage::Stage(Operation op) {
-  auto n = std::make_shared<StageNode>();
+  auto n = make_node<StageNode>();
   n->op = op;
   n->origin_op = op;
   n->all_iter_vars = op->root_iter_vars();
@@ -164,16 +183,16 @@ Stage& Stage::bind(IterVar ivar, IterVar thread_ivar) {   // NOLINT(*)
   FindLeafVar(all_vars, leaf_vars, ivar);
 
   auto it = self->iter_var_attrs.find(ivar);
-  std::shared_ptr<IterVarAttrNode> n;
+  NodePtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = std::make_shared<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
     if (n->bind_thread.defined() &&
         !n->bind_thread.same_as(thread_ivar)) {
       LOG(WARNING) << "Axis " << ivar
                    << " is already bind to another thread " << n->bind_thread;
     }
   } else {
-    n = std::make_shared<IterVarAttrNode>();
+    n = make_node<IterVarAttrNode>();
   }
   n->bind_thread = thread_ivar;
   self->iter_var_attrs.Set(ivar, IterVarAttr(n));
@@ -188,7 +207,7 @@ Stage& Stage::env_threads(Array<IterVar> threads) {
       << "Already set env_threads";
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
-  std::vector<std::shared_ptr<Node> > temp;
+  std::vector<NodePtr<Node> > temp;
   for (IterVar iv : threads) {
     temp.push_back(iv.node_);
   }
@@ -303,7 +322,7 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   for (size_t i = 0; i < order.size(); ++i) {
     pos.push_back(FindLeafVar(all_vars, leaf_vars, order[i]));
   }
-  std::vector<std::shared_ptr<Node> > temp;
+  std::vector<NodePtr<Node> > temp;
   for (size_t i = 0; i < pos.size(); ++i) {
     temp.emplace_back(leaf_vars->data[pos[i]]);
   }
@@ -335,11 +354,11 @@ inline void UpdateIterVarAttr(StageNode* self,
     FindLeafVar(all_vars, leaf_vars, var);
   }
   auto it = self->iter_var_attrs.find(var);
-  std::shared_ptr<IterVarAttrNode> n;
+  NodePtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = std::make_shared<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
   } else {
-    n = std::make_shared<IterVarAttrNode>();
+    n = make_node<IterVarAttrNode>();
   }
   fupdate(n.get());
   self->iter_var_attrs.Set(var, IterVarAttr(n));
@@ -352,6 +371,13 @@ inline void SetAttrIterType(StageNode* self, IterVar var, IterVarType iter_type)
 }
 
 Stage& Stage::vectorize(IterVar var) {   // NOLINT(*)
+  CHECK(var->iter_type == kDataPar ||
+        var->iter_type == kOpaque ||
+        var->iter_type == kUnrolled ||
+        var->iter_type == kVectorized ||
+        var->iter_type == kTensorized ||
+        var->iter_type == kParallelized)
+      << "Cannot vectorize on " << IterVarType2String(var->iter_type);
   SetAttrIterType(operator->(), var, kVectorized);
   return *this;
 }
@@ -397,11 +423,11 @@ Stage& Stage::prefetch(const Tensor &tensor, IterVar var, Expr offset) {
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   FindLeafVar(all_vars, leaf_vars, var);
   auto it = self->iter_var_attrs.find(var);
-  std::shared_ptr<IterVarAttrNode> n;
+  NodePtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = std::make_shared<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
   } else {
-    n = std::make_shared<IterVarAttrNode>();
+    n = make_node<IterVarAttrNode>();
   }
   n->prefetch_data.push_back(tensor);
   n->prefetch_offset.push_back(offset);
@@ -468,8 +494,8 @@ Stage& Stage::opengl() {
 }
 
 Stage CopyStage(const Stage& s) {
-  std::shared_ptr<StageNode> n =
-      std::make_shared<StageNode>(*s.operator->());
+  NodePtr<StageNode> n =
+      make_node<StageNode>(*s.operator->());
   return Stage(n);
 }
 
@@ -477,7 +503,7 @@ Schedule Schedule::copy() const {
   // map of stages.
   const ScheduleNode* self = operator->();
   std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
-  std::shared_ptr<ScheduleNode> n = std::make_shared<ScheduleNode>();
+  NodePtr<ScheduleNode> n = make_node<ScheduleNode>();
   n->outputs = self->outputs;
   // Copy the stages.
   for (Stage s : self->stages) {
@@ -599,7 +625,7 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
     }
   }
   // Create the new group stage.
-  Stage gstage(std::make_shared<StageNode>());
+  Stage gstage(make_node<StageNode>());
   gstage->group = parent_group;
   if (parent_group.defined()) {
     ++parent_group->num_child_stages;
@@ -687,7 +713,7 @@ void ScheduleNode::InitCache() {
 }
 
 Schedule ScheduleNode::make(Array<Operation> ops) {
-  auto n = std::make_shared<ScheduleNode>();
+  auto n = make_node<ScheduleNode>();
   Schedule sch(n);
   n->outputs = ops;
   auto g = schedule::CreateReadGraph(n->outputs);
@@ -703,8 +729,7 @@ Schedule ScheduleNode::make(Array<Operation> ops) {
     n->stages.push_back(stage);
     n->stage_map.Set(op, stage);
     // mark scan updates.
-    if (op.as<ScanOpNode>()) {
-      const ScanOpNode* scan = op.as<ScanOpNode>();
+    if (const ScanOpNode* scan = op.as<ScanOpNode>()) {
       Array<Tensor> inputs;
       for (Tensor t : scan->state_placeholder) {
         inputs.push_back(t);
@@ -731,7 +756,7 @@ IterVarRelation SplitNode::make(IterVar parent,
                                 IterVar inner,
                                 Expr factor,
                                 Expr nparts) {
-  auto n = std::make_shared<SplitNode>();
+  auto n = make_node<SplitNode>();
   n->parent = parent;
   n->outer = outer;
   n->inner = inner;
@@ -742,7 +767,7 @@ IterVarRelation SplitNode::make(IterVar parent,
 
 IterVarRelation FuseNode::make(
     IterVar outer, IterVar inner, IterVar fused) {
-  auto n = std::make_shared<FuseNode>();
+  auto n = make_node<FuseNode>();
   n->outer = outer;
   n->inner = inner;
   n->fused = fused;
@@ -750,14 +775,14 @@ IterVarRelation FuseNode::make(
 }
 
 IterVarRelation RebaseNode::make(IterVar parent, IterVar rebased) {
-  auto n = std::make_shared<RebaseNode>();
+  auto n = make_node<RebaseNode>();
   n->parent = parent;
   n->rebased = rebased;
   return IterVarRelation(n);
 }
 
 IterVarRelation SingletonNode::make(IterVar iter) {
-  auto n = std::make_shared<SingletonNode>();
+  auto n = make_node<SingletonNode>();
   n->iter = iter;
   return IterVarRelation(n);
 }

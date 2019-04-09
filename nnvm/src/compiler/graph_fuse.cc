@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file graph_fuse.cc
@@ -14,7 +33,10 @@
 #include <nnvm/tuple.h>
 #include <tvm/lowered_func.h>
 #include <tvm/runtime/packed_func.h>
+#include <memory>
+#include <utility>
 #include <limits>
+#include <unordered_map>
 
 #include "graph_fuse.h"
 #include "graph_runtime.h"
@@ -136,11 +158,15 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
 
   // Point to the group root id of each node.
   GroupVec group_vec(idx.num_nodes(), -1);
+  std::vector<std::vector<uint32_t> > node_ids_per_group(idx.num_nodes());
   for (uint32_t i = idx.num_nodes(); i != 0; --i) {
     uint32_t nid = i - 1;
     const auto& inode = idx[nid];
+    bool is_root = false;
     if (group_vec[nid] == -1) {
       group_vec[nid] = nid;
+      node_ids_per_group[nid].push_back(nid);
+      is_root = true;
     }
 
     // Check if injective op and out_ewise_fusable op (e.g. conv2d) are in the same group.
@@ -156,7 +182,15 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
       }
     }
     // Change the master node from out_ewise_fusable op to itself
-    if (parent_injective && parent_out_ewise) master_vec[nid] = nid;
+    if (parent_injective && parent_out_ewise) {
+      master_vec[nid] = nid;
+      if (!is_root) {
+        // Children nodes in the same group might be pointing to a master node in a different group.
+        for (uint32_t j : node_ids_per_group[group_vec[nid]]) {
+          master_vec[j] = nid;
+        }
+      }
+    }
 
     // Propagate the group id.
     for (const auto& e : inode.inputs) {
@@ -172,6 +206,7 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
         CHECK(group_vec[e.node_id] == -1||
               group_vec[e.node_id] == group_vec[nid]);
         group_vec[e.node_id] = group_vec[nid];
+        node_ids_per_group[group_vec[nid]].push_back(e.node_id);
       }
     }
   }
@@ -223,12 +258,10 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
   */
   if (opt_level >= 1) {
     std::vector<std::vector<uint32_t> > children_group_ids(idx.num_nodes());
-    std::vector<std::vector<uint32_t> > node_ids_per_group(idx.num_nodes());
     for (uint32_t nid = idx.num_nodes() - 1; nid != 0; --nid) {
       const auto& inode = idx[nid];
       if (inode.source->is_variable()) continue;
       CHECK_NE(group_vec[nid], -1);
-      node_ids_per_group[group_vec[nid]].push_back(nid);
       if (inode.inputs.size() != 1) continue;
       const uint32_t parent_nid = inode.inputs[0].node_id;
       // if parent node has more than one child, record each child's group id.

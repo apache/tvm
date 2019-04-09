@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=cell-var-from-loop,no-else-return
 """Helper utilities to check functions and their gradients."""
 from __future__ import absolute_import as _abs
@@ -7,10 +23,13 @@ import numpy as np
 
 import tvm
 from tvm.contrib import graph_runtime
+from tvm.testing import check_numerical_grads
+from tvm import relay
 
 import nnvm
 from nnvm.compiler import graph_util
 from nnvm.compiler.graph_attr import TCODE_TO_DTYPE, DTYPE_TO_TCODE
+from nnvm.to_relay import to_relay
 from .config import ctx_list
 
 def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
@@ -55,84 +74,84 @@ def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
     """
     # Preprocess input parameters
     if shape is None:
-        shape = {}
+        provided_shapes = {}
+    elif isinstance(shape, dict):
+        provided_shapes = shape
+    else:
+        provided_shapes = {x: shape for x in graph.symbol.list_input_variables()}
 
     if dtype is None:
-        dtype = {}
+        provided_dtypes = {}
+    elif isinstance(dtype, dict):
+        provided_dtypes = dtype
+    else:
+        provided_dtypes = {x: dtype for x in graph.symbol.list_input_variables()}
 
-    if not isinstance(shape, dict):
-        shape = {x: shape for x in graph.symbol.list_input_variables()}
-
-    if not isinstance(dtype, dict):
-        dtype = {x: dtype for x in graph.symbol.list_input_variables()}
-
-    shape = _dict_var_to_dict_str(shape)
-    dtype = _dict_var_to_dict_str(dtype)
+    provided_shapes = _dict_var_to_dict_str(provided_shapes)
+    provided_dtypes = _dict_var_to_dict_str(provided_dtypes)
 
     # The graph may already contain shape and dtype info, so extract it and merge with
     # the user-specified shapes and dtypes (use the user-specified one on contradiction)
-    all_initial_shapes = graph.json_attr('shape')
-    all_initial_dtypes = graph.json_attr('dtype')
+    preexisting_shapes = graph.json_attr('shape')
+    preexisting_dtypes = graph.json_attr('dtype')
 
-    if all_initial_shapes:
+    if preexisting_shapes:
         for x in graph.index.input_names:
-            if x not in shape:
-                x_shape = tuple(all_initial_shapes[graph.index.entry_id(x)])
-                shape[x] = x_shape
+            if x not in provided_shapes:
+                x_shape = tuple(preexisting_shapes[graph.index.entry_id(x)])
+                provided_shapes[x] = x_shape
 
-    if all_initial_dtypes:
+    if preexisting_dtypes:
         for x in graph.index.input_names:
-            if x not in dtype:
-                x_dtype = TCODE_TO_DTYPE[all_initial_dtypes[graph.index.entry_id(x)]]
-                dtype[x] = x_dtype
+            if x not in provided_dtypes:
+                x_dtype = TCODE_TO_DTYPE[preexisting_dtypes[graph.index.entry_id(x)]]
+                provided_dtypes[x] = x_dtype
 
     # Perform inference
-    nnvm.compiler.graph_attr.set_shape_inputs(graph, shape)
-    nnvm.compiler.graph_attr.set_dtype_inputs(graph, dtype)
+    nnvm.compiler.graph_attr.set_shape_inputs(graph, provided_shapes)
+    nnvm.compiler.graph_attr.set_dtype_inputs(graph, provided_dtypes)
 
     graph = graph.apply('InferShape').apply('InferType')
 
-    shapes = graph.json_attr('shape')
-    dtypes = graph.json_attr('dtype')
-
-    out_len = len(graph.symbol.list_output_names())
+    inferred_shapes = graph.json_attr('shape')
+    inferred_dtypes = graph.json_attr('dtype')
 
     index = graph.index
 
-    output_shapes = \
-        [tuple(shapes[index.entry_id(index.output_entries[i])]) for i in range(out_len)]
-    output_dtypes = \
-        [TCODE_TO_DTYPE[dtypes[index.entry_id(index.output_entries[i])]] for i in range(out_len)]
+    output_shapes = [tuple(inferred_shapes[index.entry_id(entry)])
+                     for entry in index.output_entries]
+    output_dtypes = [TCODE_TO_DTYPE[inferred_dtypes[index.entry_id(entry)]]
+                     for entry in index.output_entries]
 
     # Postprocess the results
-    input_shapes = shape.copy()
-    input_dtypes = dtype.copy()
+    input_shapes = provided_shapes.copy()
+    input_dtypes = provided_dtypes.copy()
 
     for x in graph.symbol.list_input_variables():
         x_name = x.attr('name')
-        x_node_id = graph.index.node_id(x_name)
-        input_shapes[x_name] = tuple(shapes[x_node_id])
-        input_dtypes[x_name] = TCODE_TO_DTYPE[dtypes[x_node_id]]
+        x_entry_id = graph.index.entry_id(x_name)
+        input_shapes[x_name] = tuple(inferred_shapes[x_entry_id])
+        input_dtypes[x_name] = TCODE_TO_DTYPE[inferred_dtypes[x_entry_id]]
 
     # Merge the original user-specified shapes in case some of them are specified for non-existing
     # variables
-    for x_name, x_shape in shape.items():
+    for x_name, x_shape in provided_shapes.items():
         x_shape = tuple(x_shape)
         if input_shapes.get(x_name, x_shape) != x_shape:
             raise RuntimeError("Inferred shape differs from the provided shape.\n"
                                "Provided shapes: {}\nInferred shapes: {}"
-                               .format(shapes, input_shapes))
+                               .format(provided_shapes, input_shapes))
         else:
             input_shapes[x_name] = x_shape
 
     # Merge the original user-specified dtypes
-    for x_name, x_dtype in dtype.items():
+    for x_name, x_dtype in provided_dtypes.items():
         if not isinstance(x_dtype, str):
             x_dtype = TCODE_TO_DTYPE[x_dtype]
         if input_dtypes.get(x_name, x_dtype) != x_dtype:
             raise RuntimeError("Inferred dtype differs from the provided dtype.\n"
                                "Provided dtypes: {}\nInferred dtypes: {}"
-                               .format(dtypes, input_dtypes))
+                               .format(provided_dtypes, input_dtypes))
         else:
             input_dtypes[x_name] = x_dtype
 
@@ -281,10 +300,10 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
         Additional parameters for `check_numerical_grads`.
 
     atol : float, optional
-        Absolute tolerance for `np.testing.assert_allclose`. NOT used for numerical gradients.
+        Absolute tolerance for `tvm.testing.assert_allclose`. NOT used for numerical gradients.
 
     rtol : float, optional
-        Relative tolerance for `np.testing.assert_allclose`. NOT used for numerical gradients.
+        Relative tolerance for `tvm.testing.assert_allclose`. NOT used for numerical gradients.
 
     quiet : bool, optional
         Don't dump additional information to stdout on failure.
@@ -440,6 +459,23 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
             debug_stage = "running"
             nnvm_res = main_function(**np_inputs)
 
+            try:
+                logging.debug("checking to_relay conversion")
+                inputs = np_inputs_without_head_grads.copy()
+                func, inputs = to_relay(main_graph, shape, dtype, params=inputs)
+                with relay.build_config(opt_level=3):
+                    graph, lib, params = relay.build(func, target=target)
+                m = graph_runtime.create(graph, lib, ctx)
+                m.set_input(**inputs)
+                m.set_input(**params)
+                m.run()
+                for i in range(out_len):
+                    relay_out = m.get_output(i).asnumpy()
+                    tvm.testing.assert_allclose(nnvm_res[i], relay_out, atol=atol, rtol=rtol)
+            except NotImplementedError as err:
+                # the NNVM operator is not supported yet
+                logging.warning(err)
+
             if backward_graph is not None:
                 grad_var_names = [x.attr('name') for x in grad_input_vars]
                 nnvm_grads = {x: v for x, v in zip(grad_var_names, nnvm_res[out_len:])}
@@ -466,7 +502,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                                      .format(len(numpy_res), out_len))
 
                 for i in range(out_len):
-                    np.testing.assert_allclose(nnvm_res[i], numpy_res[i], atol=atol, rtol=rtol)
+                    tvm.testing.assert_allclose(nnvm_res[i], numpy_res[i], atol=atol, rtol=rtol)
 
             if backward is not None:
                 nothing_was_done = False
@@ -495,8 +531,8 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                                          .format(set(grad_var_names) - set(numpy_grads)))
 
                 for x_name in numpy_grads:
-                    np.testing.assert_allclose(nnvm_grads[x_name], numpy_grads[x_name],
-                                               atol=atol, rtol=rtol)
+                    tvm.testing.assert_allclose(nnvm_grads[x_name], numpy_grads[x_name],
+                                                atol=atol, rtol=rtol)
 
             if numerical_grads:
                 nothing_was_done = False
@@ -535,107 +571,3 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
 
     if nothing_was_done:
         logging.warning("Nothing was done in check_function. Check ctx_list().")
-
-
-def check_numerical_grads(function, input_values, grad_values, function_value=None,
-                          delta=1e-3, atol=1e-2, rtol=0.1):
-    """A helper function that checks that numerical gradients of a function are equal to
-    gradients computed in some different way (analytical gradients).
-
-    Numerical gradients are computed using finite difference approximation. To reduce the number of
-    function evaluations, the number of points used is gradually increased if the error value is
-    too high (up to 5 points).
-
-    Parameters
-    ----------
-    function
-        A function that takes inputs as keyword arguments (like `function(**input_values)`) and
-        returns a scalar result. Should accept numpy ndarrays.
-
-    input_values : Dict[str, numpy.ndarray]
-        A dict assigning values to variables. Represents the point at which gradients should be
-        computed.
-
-    grad_values : Dict[str, numpy.ndarray]
-        Gradients computed using a different method.
-
-    function_value : float, optional
-        Should be equal to `function(**input_values)`.
-
-    delta : float, optional
-        A small number used for numerical computation of partial derivatives. The default 1e-3 is a
-        good choice for float32.
-
-    atol : float, optional
-        Absolute tolerance.
-
-    rtol : float, optional
-        Relative tolerance.
-    """
-
-    if function_value is None:
-        function_value = function(**input_values)
-
-    # a helper to modify j-th element of val by a_delta
-    def modify(val, j, a_delta):
-        val = val.copy()
-        val.reshape(-1)[j] = val.reshape(-1)[j] + a_delta
-        return val
-
-    # numerically compute a partial derivative with respect to j-th element of the var `name`
-    def derivative(x_name, j, a_delta):
-        modified_values = {n: modify(val, j, a_delta) if n == x_name else val
-                           for n, val in input_values.items()}
-        return (function(**modified_values) - function_value)/a_delta
-
-    def compare_derivative(j, n_der, grad):
-        der = grad.reshape(-1)[j]
-        return np.abs(n_der - der) < atol + rtol*np.abs(n_der)
-
-    for x_name, grad in grad_values.items():
-        if grad.shape != input_values[x_name].shape:
-            raise AssertionError(
-                "Gradient wrt '{}' has unexpected shape {}, expected {} "
-                .format(x_name, grad.shape, input_values[x_name].shape))
-
-        ngrad = np.zeros_like(grad)
-
-        # compute partial derivatives for each position in this variable
-        for j in range(np.prod(grad.shape)):
-            # forward difference approximation
-            nder = derivative(x_name, j, delta)
-
-            # if the derivative is not equal to the analytical one, try to use more
-            # precise and expensive methods
-            if not compare_derivative(j, nder, grad):
-                # central difference approximation
-                nder = (derivative(x_name, j, -delta) + nder)/2
-
-                if not compare_derivative(j, nder, grad):
-                    # central difference approximation using h = delta/2
-                    cnder2 = (derivative(x_name, j, delta/2) + derivative(x_name, j, -delta/2))/2
-                    # five-point derivative
-                    nder = (4*cnder2 - nder)/3
-
-            ngrad.reshape(-1)[j] = nder
-
-        dist = np.sqrt(np.sum((ngrad - grad)**2))
-        grad_norm = np.sqrt(np.sum(ngrad**2))
-
-        # we multiple atol by this number to make it more universal for different sizes
-        sqrt_n = np.sqrt(float(np.prod(grad.shape)))
-
-        if dist > atol*sqrt_n + rtol*grad_norm:
-            raise AssertionError(
-                "Analytical and numerical grads wrt {} differ too much\n"
-                "analytical grad = {}\n numerical grad = {}\n"
-                "distance > atol*sqrt(n) + rtol*grad_norm\n"
-                "distance {} > {}*{} + {}*{}"
-                .format(x_name, grad, ngrad,
-                        dist, atol, sqrt_n, rtol, grad_norm))
-
-        max_diff = np.max(np.abs(ngrad - grad))
-        avg_diff = np.mean(np.abs(ngrad - grad))
-        logging.info("Numerical grad test wrt %s of shape %s passes, "
-                     "dist = %f, max_diff = %f, avg_diff = %f",
-                     x_name, grad.shape, dist, max_diff, avg_diff)

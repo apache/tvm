@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file codegen_stackvm.cc
@@ -5,6 +24,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <limits>
+#include <utility>
 #include "codegen_stackvm.h"
 #include "../../runtime/stackvm/stackvm_module.h"
 
@@ -470,8 +490,8 @@ void CodeGenStackVM::VisitExpr_(const Select *op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const AssertStmt *op) {
-  if (op->message.as<StringImm>()) {
-    int sid = this->GetStrID(op->message.as<StringImm>()->value);
+  if (const auto* str = op->message.as<StringImm>()) {
+    int sid = this->GetStrID(str->value);
     this->Push(op->condition);
     this->PushOp(StackVM::ASSERT, sid);
   }

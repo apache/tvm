@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import math
 import numpy as np
 import tvm
@@ -24,22 +40,29 @@ def verify_transpose(dshape, axes):
         m.run(x=data)
         out_np = np.transpose(data.asnumpy(), axes=axes) + 1
         out = m.get_output(0, tvm.nd.empty(out_np.shape))
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 def verify_reduce_explicit(dshape, data, result, fsym, oshape=None, otype='float32', **kwargs):
     """ Verify reduce operations by comparign its result with `result` """
     x = sym.Variable("x")
     y = fsym(x + 0, **kwargs)
     for target, ctx in ctx_list():
+        # TODO(yuruofei): remove when cuda reduce schedule is done
+        if target == 'cuda' and fsym == sym.mean:
+            continue
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = graph_runtime.create(graph, lib, ctx)
         # set input
         m.run(x=data)
         # oshape set to None means do not test the shape-correctness
-        oshape = result.shape if oshape is None else oshape
+        oshape = result.shape if isinstance(result, np.ndarray) else (1,) if oshape is None else oshape
         out = m.get_output(0, tvm.nd.empty(oshape, dtype=otype))
-        np.testing.assert_equal(out.asnumpy().shape, result.shape)
-        np.testing.assert_allclose(out.asnumpy(), result, atol=1e-5, rtol=1e-5)
+        if isinstance(result, np.ndarray):
+            np.testing.assert_equal(out.asnumpy().shape, result.shape)
+            tvm.testing.assert_allclose(out.asnumpy(), result, atol=1e-5, rtol=1e-5)
+        else:
+            tvm_out = out.asnumpy()
+            assert abs(result - tvm_out) <= (1e-5 + 1e-5 * abs(tvm_out))
 
 def verify_reduce(dshape, fnp, fsym, oshape=None, otype='float32', **kwargs):
     """ Verify reduce operations by generating data at random and calling numpy
@@ -61,7 +84,7 @@ def verify_collapse(dshape, target_shape, fnp):
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(target_shape))
         out_np = fnp(data)
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 
 def test_transpose():
@@ -89,6 +112,13 @@ def test_reduce():
     verify_reduce((4, 4, 3), np.min, sym.min, keepdims=True)
     verify_reduce((4, 4, 3), np.sum, sym.sum, axis=(0, 2))
     verify_reduce((4, 4, 3), np.sum, sym.sum)
+    verify_reduce((128, 24, 128), np.mean, sym.mean, axis=(0, 1), keepdims=False)
+    verify_reduce((128, 24, 128), np.mean, sym.mean, axis=(0, 2), keepdims=False)
+    verify_reduce((128, 24, 128), np.mean, sym.mean, axis=(0, 1), keepdims=True)
+    verify_reduce((128, 24, 128), np.mean, sym.mean, axis=(0, 2), keepdims=True)
+    verify_reduce((128, 24, 128), np.mean, sym.mean, keepdims=True)
+    verify_reduce((128, 24, 128), np.mean, sym.mean, keepdims=False)
+    verify_reduce((128, 24, 128), np.mean, sym.mean, axis=(0, 1, 2), keepdims=True)
 
     data = np.array([[[1,2],[3,4]],[[3,44],[5,6]]], dtype=np.float32)
     verify_reduce_explicit([2,2,2], data, np.array([[1,1],[1,0]]), sym.argmax, otype='int32', axis=[0,2], exclude=True)
@@ -99,7 +129,7 @@ def test_reduce():
             kwargs = { 'keepdims':keepdims }
             if axis is None:
                 # FIXME: NNVM doesn't support setting `axis=None` explicitly.
-                kwargs.update({'oshape': [1,1,1] if keepdims else [] })
+                kwargs.update({'oshape': [1,1,1] if keepdims else [1] })
             else:
                 kwargs.update({'axis': axis})
                 kwargs.update({'oshape': shape[:axis]+[1]+shape[axis+1:] if keepdims else shape[:axis]+shape[axis+1:]})
@@ -135,7 +165,7 @@ def verify_flip(ishape, axis):
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(res.shape))
-        np.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
 
 
 def test_flip():
@@ -160,7 +190,7 @@ def verify_reshape(dshape, oshape):
         m.run(x=data)
         out_np = data.asnumpy().reshape(oshape) + 1
         out = m.get_output(0, tvm.nd.empty(out_np.shape))
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 
 def test_reshape():
@@ -421,7 +451,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run(data=np.random.uniform(size=shape).astype(dtype))
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=value, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -431,7 +461,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run(data=np.random.uniform(size=shape).astype(dtype))
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=1, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -441,7 +471,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run(data=np.random.uniform(size=shape).astype(dtype))
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=0, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -451,7 +481,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run()
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=value, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -461,7 +491,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run()
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=1, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -471,7 +501,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run()
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=0, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -520,7 +550,7 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1),
     m.set_input("data", np.random.uniform(size=dshape).astype(dtype))
     m.run()
     out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
-    np.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
 
 def test_multibox_prior():
     verify_multibox_prior((1, 3, 50, 50))
@@ -536,7 +566,7 @@ def test_multibox_transform_loc():
     anchors = sym.Variable("anchors")
     transform_loc_data, valid_count = sym.multibox_transform_loc(cls_prob=cls_prob, loc_pred=loc_preds,
                                                                  anchor=anchors)
-    out = sym.nms(data=transform_loc_data, valid_count=valid_count)
+    out = sym.non_max_suppression(data=transform_loc_data, valid_count=valid_count, return_indices=False)
 
     # Manually create test case
     np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
@@ -557,24 +587,24 @@ def test_multibox_transform_loc():
     m.set_input(**{"cls_prob": np_cls_prob.astype(dtype), "loc_preds": np_loc_preds.astype(dtype), "anchors": np_anchors.astype(dtype)})
     m.run()
     out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
-    np.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
 
-def test_nms():
+def test_non_max_suppression():
     dshape = (1, 5, 6)
     data = sym.Variable("data")
     valid_count = sym.Variable("valid_count", dtype="int32")
-    nms_threshold = 0.7
+    iou_threshold = 0.7
     force_suppress = True
-    nms_topk = 2
-    out = sym.nms(data=data, valid_count=valid_count, nms_threshold=nms_threshold,
-                  force_suppress=force_suppress, nms_topk=nms_topk)
+    top_k = 2
+    out = sym.non_max_suppression(data=data, valid_count=valid_count, return_indices=False,
+                                  iou_threshold=iou_threshold, force_suppress=force_suppress, top_k=top_k)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
                          [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [0, 0.4, 4, 21, 19, 40], [-1, 0.9, 35, 61, 52, 79],
+                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
 
     target = "llvm"
@@ -585,7 +615,7 @@ def test_nms():
     m.set_input(**{"data": np_data, "valid_count": np_valid_count})
     m.run()
     out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
-    np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
 def np_slice_like(np_data, np_shape_like, axis=[]):
     begin_idx = [0 for _ in np_data.shape]
@@ -620,7 +650,7 @@ def verify_slice_like(np_data, np_shape_like, axis=[]):
         m.set_input(**{"data1": np_data, "data2": np_shape_like})
         m.run()
         out = m.get_output(0, tvm.nd.empty(np_result.shape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
 def test_slice_like():
     np_data = np.random.uniform(size=(3, 4, 5))
@@ -659,7 +689,7 @@ def verify_where(condition, x, y):
         m.set_input(**{"condition": condition, "x": x, "y": y})
         m.run()
         out = m.get_output(0, tvm.nd.empty(x.shape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
 
 def test_where():
     shape = (13, 8, 224, 224, 6)
@@ -672,6 +702,28 @@ def test_where():
     y = np.random.uniform(size=shape).astype("float32")
     verify_where(condition, x, y)
 
+def test_argmax():
+    dshape = (204800, 2)
+    oshape = (1, 320, 640)
+
+    dtype = "float32"
+    x = sym.Variable("x", shape=dshape, dtype=dtype)
+    x = sym.reshape(x, shape=(1, 320, 640, 2))
+    x = sym.transpose(x, axes=(0, 3, 1, 2))
+    y = sym.argmax(x, axis=1)
+    target_str = "llvm"
+    target = tvm.target.create(target_str)
+    ctx = tvm.context(target_str, 0)
+    with nnvm.compiler.build_config(opt_level=2):
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
+    m = graph_runtime.create(graph, lib, ctx)
+    data = np.random.uniform(size=dshape).astype(dtype)
+    m.run(x=data)
+    np_reshape = np.reshape(data, (1, 320, 640, 2))
+    np_transpose = np.transpose(np_reshape, axes=(0, 3, 1, 2))
+    np_argmax = np.argmax(np_transpose, axis=1)
+    out = m.get_output(0)
+    np.testing.assert_allclose(out.asnumpy(), np_argmax, atol=1e-5, rtol=1e-5)
 
 if __name__ == "__main__":
     test_reshape()
@@ -690,7 +742,8 @@ if __name__ == "__main__":
     test_flip()
     test_multibox_prior()
     test_multibox_transform_loc()
-    test_nms()
+    test_non_max_suppression()
     test_slice_like()
     test_where()
+    test_argmax()
     print(nnvm.compiler.engine.dump())

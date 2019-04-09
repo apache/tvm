@@ -45,7 +45,7 @@ public class NDArrayBase extends TVMValue {
   }
 
   /**
-   * Copy array to target
+   * Copy array to target.
    * @param target The target array to be copied, must have same shape as this array.
    * @return target
    */

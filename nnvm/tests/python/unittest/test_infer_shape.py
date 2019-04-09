@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import json
 import nnvm.symbol as sym
 import nnvm.graph as graph
@@ -84,6 +100,10 @@ def test_split():
     sdict = infer_shape(z)
     assert(sdict["y"][0] == [10, 10])
     assert(sdict["y"][1] == [10, 10])
+    z = sym.split(x1, indices_or_sections=[6], axis=-1, name="y")
+    sdict = infer_shape(z)
+    assert(sdict["y"][0] == [10, 6])
+    assert(sdict["y"][1] == [10, 14])
 
 
 def test_batchnorm():
@@ -352,6 +372,26 @@ def test_reduce():
     check((4, 5, 10), (1, 5, 1), axis=(0, 2), keepdims=True)
 
 
+def test_gather_nd():
+    def check(data_shape, indices_shape, out_shape):
+        x = sym.Variable("x", shape=data_shape)
+        indices = sym.Variable("indices", shape=indices_shape)
+        y = sym.gather_nd(x, indices, name="y")
+        sdict = infer_shape(y)
+        assert(tuple(sdict["y"][0]) == tuple(out_shape))
+
+    check((4,), (1, 1), (1,))
+    check((4,), (1, 3), (3,))
+    check((2, 3), (1, 1), (1, 3))
+    check((2, 3), (2, 1), (1,))
+    check((2, 3), (2, 5, 6), (5, 6))
+    check((2, 3, 4), (1, 1), (1, 3, 4))
+    check((2, 3, 4), (2, 1), (1, 4))
+    check((2, 3, 4), (2, 5), (5, 4))
+    check((2, 3, 4), (2, 5, 6), (5, 6, 4))
+    check((2, 3, 4, 5), (2, 6, 7), (6, 7, 4, 5))
+
+
 if __name__ == "__main__":
     test_conv2d_packed()
     test_expand_dims()
@@ -372,3 +412,4 @@ if __name__ == "__main__":
     test_transpose()
     test_prelu()
     test_squeeze()
+    test_gather_nd()

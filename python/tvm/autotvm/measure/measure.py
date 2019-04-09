@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=pointless-string-statement,consider-using-enumerate,invalid-name
 """User facing API for specifying how to measure the generated code"""
 import multiprocessing
@@ -164,6 +180,33 @@ def measure_option(builder, runner):
         Specify how to build programs
     runner: Runner
         Specify how to run programs
+
+    Examples
+    --------
+    # example setting for using local devices
+    >>> measure_option = autotvm.measure_option(
+    >>>     builder=autotvm.LocalBuilder(),      # use all local cpu cores for compilation
+    >>>     runner=autotvm.LocalRunner(          # measure them sequentially
+    >>>         number=10,
+    >>>         timeout=5)
+    >>> )
+
+    # example setting for using remote devices
+    >>> measure_option = autotvm.measure_option(
+    >>>    builder=autotvm.LocalBuilder(),  # use all local cpu cores for compilation
+    >>>    runner=autotvm.RPCRunner(
+    >>>        'rasp3b', 'locahost', 9190, # device key, host and port of the rpc tracker
+    >>>        number=4,
+    >>>        timeout=4) # timeout of a run on the device. RPC request waiting time is excluded.
+    >>>)
+
+    Note
+    ----
+    To make measurement results accurate, you should pick the correct value for the argument
+    `number` and `repeat` in Runner(). Some devices need a certain minimum running time to
+    "warm up," such as GPUs that need time to reach a performance power state.
+    Using `min_repeat_ms` can dynamically adjusts `number`, so it is recommended.
+    The typical value for NVIDIA GPU is 150 ms.
     """
     from .measure_methods import LocalBuilder, LocalRunner
 

@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Test code for broadcasting operators."""
 from common import get_all_backend
 import numpy as np
@@ -23,7 +39,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), ctx)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for target in get_all_backend():
         check_device(target)
@@ -77,7 +93,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
         out_npy = fnumpy(lhs_npy, rhs_npy)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
         foo(lhs_nd, rhs_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
     for target in get_all_backend():
         check_device(target)

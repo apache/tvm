@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief External computation rule.
@@ -43,7 +62,10 @@ Operation ExternOpNode::make(std::string name,
                              Array<Buffer> input_placeholders,
                              Array<Buffer> output_placeholders,
                              Stmt body) {
-  auto n = std::make_shared<ExternOpNode>();
+  if (!attrs.defined()) {
+    attrs = Map<std::string, NodeRef>();
+  }
+  auto n = make_node<ExternOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -68,7 +90,7 @@ Operation ExternOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = std::make_shared<ExternOpNode>(*this);
+  auto n = make_node<ExternOpNode>(*this);
   n->body = op::ReplaceTensor(this->body, rmap);
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];

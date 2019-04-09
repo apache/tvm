@@ -1,47 +1,31 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 "Example code to perform int8 GEMM"
 import logging
 import sys
 import numpy as np
 import tvm
 from tvm import autotvm
+from topi.cuda.tensor_intrin import dp4a
 
 DO_TUNING = True
 PRETUNED_INDEX = 75333
 
-def intrin_dot():
-    n = 4  # dp4a requires operands packed by 4
-    x = tvm.placeholder((n,), name='x', dtype='int8')
-    y = tvm.placeholder((n,), name='y', dtype='int8')
-    k = tvm.reduce_axis((0, n), name='k')
-
-    z = tvm.compute(
-        (1,), lambda _: tvm.sum(
-            x[k].astype('int32') * y[k].astype('int32'), axis=k))
-
-    def intrin_func(ins, outs):
-        xx, yy = ins
-        zz = outs[0]
-        ib = tvm.ir_builder.create()
-
-        dp4a = zz.vstore(0, tvm.call_pure_extern('int32', '__dp4a',
-                                                 xx.vload(0, dtype='int8x4'),
-                                                 yy.vload(0, dtype='int8x4'),
-                                                 zz.vload(0)))
-        ib.emit(dp4a)
-
-        body = ib.get()
-        return body, zz.vstore(0, 0), body
-
-    with tvm.build_config(data_alignment=4, offset_factor=1) as cfg:
-        binds = {t: tvm.decl_buffer(t.shape, t.dtype, t.op.name,
-                                    data_alignment=cfg.data_alignment,
-                                    offset_factor=cfg.offset_factor,
-                                    scope='local') for t in [x, y, z]}
-        return tvm.decl_tensor_intrin(z.op, intrin_func, binds=binds)
-
-
-dot = intrin_dot()
-
+intrin_dp4a = dp4a('local', 'local', 'local')
 
 @autotvm.template
 def gemm_int8(n, m, l):
@@ -70,7 +54,7 @@ def gemm_int8(n, m, l):
 
     ko, kt, ki = cfg['tile_k'].apply(s, CC, k)
 
-    s[CC].tensorize(ki, dot)
+    s[CC].tensorize(ki, intrin_dp4a)
 
     block_x = tvm.thread_axis('blockIdx.x')
     block_y = tvm.thread_axis('blockIdx.y')
@@ -172,7 +156,7 @@ if __name__ == '__main__':
     c = tvm.nd.array(np.zeros((n, m), dtype='int32'), ctx)
     f(a, b, c)
 
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         c.asnumpy(),
         np.dot(
             a_np.astype('int32'),

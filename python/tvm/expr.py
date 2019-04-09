@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Expression AST Node in TVM.
 
 User do not need to deal with expression AST node directly.
@@ -60,7 +76,7 @@ class ExprOp(object):
         return self.__rdiv__(other)
 
     def __mod__(self, other):
-        return _make.Mod(self, other)
+        return _make._OpMod(self, other)
 
     def __neg__(self):
         neg_one = _api_internal._const(-1, self.dtype)
@@ -85,10 +101,10 @@ class ExprOp(object):
         return _make.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
 
     def __lt__(self, other):
-        return _make.LT(self, other)
+        return _make._OpLT(self, other)
 
     def __le__(self, other):
-        return _make.LE(self, other)
+        return _make._OpLE(self, other)
 
     def __eq__(self, other):
         return EqualOp(self, other)
@@ -97,10 +113,10 @@ class ExprOp(object):
         return NotEqualOp(self, other)
 
     def __gt__(self, other):
-        return _make.GT(self, other)
+        return _make._OpGT(self, other)
 
     def __ge__(self, other):
-        return _make.GE(self, other)
+        return _make._OpGE(self, other)
 
     def __nonzero__(self):
         raise ValueError("Cannot use and / or / not operator to Expr, hint: " +
@@ -122,7 +138,7 @@ class ExprOp(object):
         ret : Expr
             The equality expression.
         """
-        return _make.EQ(self, other)
+        return _make._OpEQ(self, other)
 
     def astype(self, dtype):
         """Cast the expression to other type.
@@ -169,7 +185,7 @@ class EqualOp(NodeGeneric, ExprOp):
 
     def asnode(self):
         """Convert node."""
-        return _make.EQ(self.a, self.b)
+        return _make._OpEQ(self.a, self.b)
 
 
 class NotEqualOp(NodeGeneric, ExprOp):
@@ -201,7 +217,7 @@ class NotEqualOp(NodeGeneric, ExprOp):
 
     def asnode(self):
         """Convert node."""
-        return _make.NE(self.a, self.b)
+        return _make._OpNE(self.a, self.b)
 
 
 class Expr(ExprOp, NodeBase):
@@ -298,6 +314,9 @@ class IntImm(ConstExpr):
     def __init__(self, dtype, value):
         self.__init_handle_by_constructor__(
             _make.IntImm, dtype, value)
+
+    def __int__(self):
+        return self.value
 
 
 @register_node
@@ -621,6 +640,13 @@ class Not(LogicalExpr):
 class Select(Expr):
     """Select node.
 
+    Note
+    ----
+    Select may compute both true_value and false_value.
+    Use :any:`tvm.if_then_else` instead if you want to
+    get a conditional expression that only evaluates
+    the correct branch.
+
     Parameters
     ----------
     condition : Expr
@@ -631,6 +657,7 @@ class Select(Expr):
 
     false_value : Expr
         The value to take when condition is false.
+
     """
     def __init__(self, condition, true_value, false_value):
         self.__init_handle_by_constructor__(

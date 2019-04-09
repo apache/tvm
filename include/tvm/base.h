@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tvm/base.h
  * \brief Defines the base data structure
  */
@@ -8,10 +26,11 @@
 
 #include <dmlc/logging.h>
 #include <dmlc/registry.h>
-#include <tvm/node.h>
+#include <tvm/node/node.h>
 #include <string>
 #include <memory>
 #include <functional>
+#include <utility>
 #include "runtime/registry.h"
 
 namespace tvm {
@@ -25,12 +44,50 @@ using ::tvm::AttrVisitor;
   class TypeName : public ::tvm::NodeRef {                       \
    public:                                                       \
     TypeName() {}                                                 \
-    explicit TypeName(std::shared_ptr<::tvm::Node> n) : NodeRef(n) {}   \
+    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {}     \
     const NodeName* operator->() const {                          \
       return static_cast<const NodeName*>(node_.get());           \
     }                                                             \
     using ContainerType = NodeName;                               \
   };                                                              \
+
+/*!
+ * \brief Macro to make it easy to define node ref type that
+ *  has a CopyOnWrite member function.
+ *
+ *  CopyOnWrite will generate a unique copy of the internal node.
+ *  The node will be copied if it is referenced by multiple places.
+ *  The function returns the raw pointer to the node to allow modification
+ *  of the content.
+ *
+ * \code
+ *
+ *  MyCOWNodeRef ref, ref2;
+ *  ref2 = ref;
+ *  ref.CopyOnWrite()->value = new_value;
+ *  assert(ref2->value == old_value);
+ *  assert(ref->value == new_value);
+ *
+ * \endcode
+ */
+#define TVM_DEFINE_COW_NODE_REF(TypeName, BaseType, NodeName)           \
+  class TypeName : public BaseType {                                    \
+   public:                                                              \
+    TypeName() {}                                                       \
+    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : BaseType(n) {}   \
+    const NodeName* operator->() const {                                \
+      return static_cast<const NodeName*>(node_.get());                 \
+    }                                                                   \
+    inline NodeName* CopyOnWrite() {                                    \
+      CHECK(node_ != nullptr);                                          \
+      if (!node_.unique())  {                                           \
+        NodePtr<NodeName> n = make_node<NodeName>(*(operator->()));     \
+        NodePtr<Node>(std::move(n)).swap(node_);                        \
+      }                                                                 \
+      return static_cast<NodeName*>(node_.get());                       \
+    }                                                                   \
+    using ContainerType = NodeName;                                     \
+  };
 
 
 /*!
@@ -48,7 +105,7 @@ std::string SaveJSON(const NodeRef& node);
  *
  * \return The shared_ptr of the Node.
  */
-std::shared_ptr<Node> LoadJSON_(std::string json_str);
+NodePtr<Node> LoadJSON_(std::string json_str);
 
 /*!
  * \brief Load the node from json string.
@@ -85,7 +142,7 @@ struct NodeFactoryReg {
    *        If this is not empty then FGlobalKey
    * \return The created function.
    */
-  using FCreate = std::function<std::shared_ptr<Node>(const std::string& global_key)>;
+  using FCreate = std::function<NodePtr<Node>(const std::string& global_key)>;
   /*!
    * \brief Global key function, only needed by global objects.
    * \param node The node pointer.
@@ -123,7 +180,7 @@ struct NodeFactoryReg {
 #define TVM_REGISTER_NODE_TYPE(TypeName)                                \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::NodeFactoryReg & __make_Node ## _ ## TypeName ## __ = \
       ::tvm::NodeFactoryReg::Registry()->__REGISTER__(TypeName::_type_key) \
-      .set_creator([](const std::string&) { return std::make_shared<TypeName>(); })
+      .set_creator([](const std::string&) { return ::tvm::make_node<TypeName>(); })
 
 
 #define TVM_STRINGIZE_DETAIL(x) #x

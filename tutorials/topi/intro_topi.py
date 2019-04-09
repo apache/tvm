@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 Introduction to TOPI
 ====================
@@ -89,7 +105,7 @@ a_nd = tvm.nd.array(a_np, ctx)
 b_nd = tvm.nd.array(b_np, ctx)
 g_nd = tvm.nd.array(np.zeros(g_np.shape, dtype=g_np.dtype), ctx)
 func(a_nd, b_nd, g_nd)
-np.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-5)
+tvm.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-5)
 
 ######################################################################
 # TOPI also provides common neural nets operations such as _softmax_ with optimized schedule
@@ -103,13 +119,22 @@ with tvm.target.create("cuda"):
 ######################################################################
 # Fusing convolutions
 # -------------------
-# We can fuse :code:`topi.nn.conv2d` and :code:`topi.nn.relu` together
+# We can fuse :code:`topi.nn.conv2d` and :code:`topi.nn.relu` together.
 #
+# .. note::
+#
+#    TOPI functions are all generic functions. They have different implementations
+#    for different backends to optimize for performance.
+#    For each backend, it is necessary to call them under a target scope for both
+#    compute declaration and schedule. TVM will choose the right function to call with
+#    the target information.
+
 data = tvm.placeholder((1, 3, 224, 224))
 kernel = tvm.placeholder((10, 3, 5, 5))
-conv = topi.nn.conv2d(data, kernel, strides=1, padding=2)
-out = topi.nn.relu(conv)
+
 with tvm.target.create("cuda"):
+    conv = topi.nn.conv2d(data, kernel, strides=1, padding=2, dilation=1)
+    out = topi.nn.relu(conv)
     sconv = topi.generic.nn.schedule_conv2d_nchw(out)
     print(tvm.lower(sconv, [data, kernel], simple_mode=True))
 

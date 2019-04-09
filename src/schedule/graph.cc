@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file graph.cc
@@ -6,6 +25,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/operation.h>
+#include <utility>
 #include <unordered_set>
 #include <unordered_map>
 #include "graph.h"
@@ -223,9 +243,9 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
   }
 
   for (Operation op : ops) {
-    if (op.as<ScanOpNode>()) {
-      const auto& update = op.as<ScanOpNode>()->update;
-      const auto& init = op.as<ScanOpNode>()->init;
+    if (const auto* scan_op = op.as<ScanOpNode>()) {
+      const auto& update = scan_op->update;
+      const auto& init = scan_op->init;
       for (size_t i = 0; i < update.size(); ++i) {
         Tensor t = op.output(i);
         for (int k = 1; k < static_cast<int>(update[i]->shape.size()); ++k) {
@@ -235,9 +255,9 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
               TensorDimKey(init[i], k));
         }
       }
-    } else if (op.as<ComputeOpNode>()) {
+    } else if (const auto* compute_op = op.as<ComputeOpNode>()) {
       std::unordered_map<const Node*, TensorDimKey> vmap;
-      const auto& axis = op.as<ComputeOpNode>()->axis;
+      const auto& axis = compute_op->axis;
       Tensor t = op.output(0);
       for (size_t i = 0; i < axis.size(); ++i) {
         vmap[axis[i]->var.get()] = TensorDimKey(t, i);
@@ -260,7 +280,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
           }
         }
       };
-      for (auto& e : op.as<ComputeOpNode>()->body) {
+      for (auto& e : compute_op->body) {
         ir::PostOrderVisit(e, fvisit);
       }
     }
@@ -312,19 +332,19 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
   // prop exact reach back.
   for (size_t i = 0; i < body.size(); ++i) {
     const Operation& op = body[i];
-    if (op.as<ScanOpNode>()) {
-      const auto& update = op.as<ScanOpNode>()->update;
-      const auto& init = op.as<ScanOpNode>()->init;
+    if (const auto* scan_op = op.as<ScanOpNode>()) {
+      const auto& update = scan_op->update;
+      const auto& init = scan_op->init;
       for (size_t i = 0; i < update.size(); ++i) {
         Tensor t = op.output(i);
-        for (size_t k = 1; i < update[i]->shape.size(); ++k) {
+        for (size_t k = 1; k < update[i]->shape.size(); ++k) {
           f_merge_key(TensorDimKey(t, k), TensorDimKey(update[i], k));
           f_merge_key(TensorDimKey(t, k), TensorDimKey(init[i], k));
         }
       }
-    } else if (op.as<ComputeOpNode>()) {
+    } else if (const auto* compute_op = op.as<ComputeOpNode>()) {
       std::unordered_map<const Node*, std::vector<TensorDimKey> > vmap;
-      const auto& axis = op.as<ComputeOpNode>()->axis;
+      const auto& axis = compute_op->axis;
       for (size_t i = 0; i < axis.size(); ++i) {
         std::vector<TensorDimKey> keys;
         for (int j = 0; j < op->num_outputs(); ++j) {
@@ -352,7 +372,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
           }
         }
       };
-      for (auto& e : op.as<ComputeOpNode>()->body) {
+      for (auto& e : compute_op->body) {
         ir::PostOrderVisit(e, fvisit);
       }
     }

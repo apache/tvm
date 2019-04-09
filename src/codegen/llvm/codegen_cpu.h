@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file codegen_llvm_cpu.h
@@ -9,6 +28,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <unordered_map>
 #include "codegen_llvm.h"
 
 namespace tvm {
@@ -79,8 +99,15 @@ class CodeGenCPU : public CodeGenLLVM {
   void UnpackClosureData(llvm::Value*cdata,
                          const Array<Var>& fields,
                          std::unordered_map<const Variable*, llvm::Value*>* vmap);
+  // Make packed call.
+  llvm::BasicBlock *MakeCallPacked(const Array<Expr> &args,
+                                   llvm::Value **rvalue,
+                                   llvm::Value **ret_tcode, const Type &r_type,
+                                   const int64_t begin, const int64_t end);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const Call* op);
+  // Create trace call into tvm packed function.
+  llvm::Value* CreateCallTracePacked(const Call *op);
   // Create static initialization
   void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch

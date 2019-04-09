@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import nnvm
 import numpy as np
 import tvm
@@ -22,7 +38,7 @@ def test_ewise_injective():
         x_np = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty((10, 6)))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),  x_np.reshape(out.shape) * 2 + 1,
             atol=1e-5, rtol=1e-5)
 
@@ -54,7 +70,7 @@ def test_conv_ewise_injective():
             data.asnumpy(), kernel.asnumpy(), (1,1), 'SAME')
         c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1) + 1
         c_np = c_np.reshape(c_np.shape[0], np.prod(c_np.shape[1:])) + 1
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_injective_reduce_injective():
@@ -74,7 +90,7 @@ def test_injective_reduce_injective():
         c_np = np.sum(data.reshape(32, 18 * 18) + 1, axis=1)
         # get output
         out = m.get_output(0, tvm.nd.empty(c_np.shape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_injective_conv2d():
@@ -107,7 +123,7 @@ def test_injective_conv2d():
             data.asnumpy(), kernel.asnumpy(), (1,1), 'SAME')
         weight = np.mean(data.asnumpy(), axis=(2, 3))
         c_np = weight[:, :, np.newaxis, np.newaxis] * data.asnumpy() + residual
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_concatenate_conv2d():
@@ -140,7 +156,45 @@ def test_concatenate_conv2d():
         conv = topi.testing.conv2d_nchw_python(
             concat, kernel.asnumpy(), (1,1), 'SAME')
         ref = concat + conv
-        np.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
+
+
+def test_residual_block_layout_transform():
+    ch = 16
+    size = 32
+    data = sym.Variable(name="data")
+    conv1 = sym.conv2d(data=data, kernel_size=(3,3), channels=ch, padding = (1, 1), use_bias=False, name="conv1")
+    layout_transform1 = sym.__layout_transform__(data=conv1, src_layout="NCHW", dst_layout="NCHW8c")
+    layout_transform2 = sym.__layout_transform__(data=layout_transform1, src_layout="NCHW8c", dst_layout="NCHW")
+    conv2 = sym.conv2d(data=conv1, kernel_size=(3,3), channels=ch, padding = (1, 1), use_bias=False, name="conv2")
+    elemwise_sum = sym.elemwise_add(layout_transform2, conv2)
+    out = sym.relu(elemwise_sum)
+
+    dtype="float32"
+    dshape = (1, ch, size, size)
+    kshape = (ch, ch, 3, 3)
+    oshape = (1, ch, size, size)
+    shape_dict = {"data": dshape}
+
+    target = "llvm" # only test on llvm since it involves NCHW8c layout
+    ctx = tvm.context(target, 0)
+    graph, lib, _ = nnvm.compiler.build(out, target, shape_dict)
+    # data, conv1 weight, conv1, layout transform + elemwise add + relu, conv2 weight, conv2 op
+    assert graph.index.num_nodes == 6
+
+    data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
+    kernel1 = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
+    kernel2 = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
+    m = graph_runtime.create(graph, lib, ctx)
+    m.run(data=data, conv1_weight=kernel1, conv2_weight=kernel2)
+    out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+
+    conv1 = topi.testing.conv2d_nchw_python(
+        data.asnumpy(), kernel1.asnumpy(), (1,1), 'SAME')
+    conv2 = topi.testing.conv2d_nchw_python(
+        conv1, kernel2.asnumpy(), (1,1), 'SAME')
+    ref = np.maximum(conv1 + conv2, 0)
+    tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
 
 
 def build_and_run(sym, params, data, out_shape, target, ctx, opt_level=2):
@@ -180,7 +234,7 @@ def test_fuse_conv2d_elu():
         _, params2 = utils.create_workload(sym2, 1, dshape[1:], seed=0)
         output1, g1 = build_and_run(sym1, params1, data, oshape, target, ctx, opt_level=2)
         output2, g2 = build_and_run(sym2, params2, data, oshape, target, ctx, opt_level=0)
-        np.testing.assert_allclose(output1, output2, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(output1, output2, rtol=1e-5, atol=1e-5)
         # data, conv weight, bias, batch norm gamma, batch norm beta, conv op
         assert g1.index.num_nodes == 6
 
@@ -191,3 +245,4 @@ if __name__ == "__main__":
     test_fuse_conv2d_elu()
     test_injective_conv2d()
     test_concatenate_conv2d()
+    test_residual_block_layout_transform()

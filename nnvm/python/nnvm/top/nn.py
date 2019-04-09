@@ -1,10 +1,26 @@
-# pylint: disable=invalid-name, unused-argument
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name, unused-argument, missing-docstring, no-else-return
 """Definition of nn ops"""
 from __future__ import absolute_import
 
 import tvm
 import topi
-from topi.util import get_const_int
+from topi.util import get_const_int, get_const_tuple
 from .tensor import _fschedule_broadcast, _fschedule_injective
 from . import registry as reg
 from .registry import OpPattern
@@ -90,37 +106,39 @@ def compute_conv2d(attrs, inputs, _):
     kernel_layout = attrs["kernel_layout"]
     out_dtype = attrs["out_dtype"]
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
-    assert layout == "NCHW" or layout == "NHWC"
+    assert layout in ["NCHW", "NHWC", "NCHW4c"]
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
-    elif dilation == (1, 1):
-        kernel = inputs[1]
-    elif layout == "NCHW":
-        kernel = topi.nn.dilate(inputs[1], [1, 1, dilation_h, dilation_w])
-    else: #layout == NHWC
-        kernel = topi.nn.dilate(inputs[1], [1, dilation_h, dilation_w, 1])
 
-    if groups == 1:
+    if groups == 1 and layout == 'NCHW4c' and inputs[0].dtype == 'int8':
+        # pylint: disable=assignment-from-no-return
+        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding,
+                             dilation, layout, out_dtype=out_dtype)
+        # pylint: enable=assignment-from-no-return
+    elif groups == 1:
         out = topi.nn.conv2d(
-            inputs[0], kernel, strides, padding, layout, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype=out_dtype)
     elif layout == "NCHW" and \
          groups == get_const_int(inputs[0].shape[1]) and \
          groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(
-            inputs[0], kernel, strides, padding, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
+    elif layout in ["NCHW", "NCHW4c"]:
+        out = topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups,
+                                        out_dtype=out_dtype)
     elif layout == "NHWC" and \
          kernel_layout == "HWOI" and \
          groups == get_const_int(inputs[0].shape[3]) and \
          groups == channels:
         out = topi.nn.depthwise_conv2d_nhwc(
-            inputs[0], kernel, strides, padding, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
     else:
         raise ValueError("not support arbitrary group number for now")
 
     if attrs.get_bool("use_bias"):
         bias = inputs[2]
-        expand_axis = 1 if layout == "NCHW" else 0
+        expand_axis = 1 if layout in ["NCHW", "NCHW4c"] else 0
         bias = topi.expand_dims(bias, axis=expand_axis, num_newaxis=2)
         out = topi.add(out, bias)
     return out
@@ -136,18 +154,44 @@ def schedule_conv2d(attrs, outs, target):
     with tvm.target.create(target):
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
+        elif groups == 1 and layout == "NCHW4c":
+            return topi.generic.schedule_conv2d_nchw(outs)
         elif groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
         elif groups == channels and layout == "NCHW":
             return topi.generic.schedule_depthwise_conv2d_nchw(outs)
         elif groups == channels and layout == "NHWC" and kernel_layout == "HWOI":
             return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
+        elif layout in ["NCHW", "NCHW4c"]:
+            return topi.generic.schedule_group_conv2d_nchw(outs)
         else:
             raise ValueError("No compatible schedule")
 
 @reg.register_alter_op_layout("conv2d")
 def alter_conv2d_layout(attrs, inputs, tinfos):
-    return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos)
+    """Replace conv2d op with other layouts or algorithms"""
+    import nnvm.symbol as sym
+
+    # map relay op names to nnvm op names
+    sym.contrib_conv2d_winograd_without_weight_transform = \
+            sym.contrib.conv2d_winograd_without_weight_transform
+    sym.contrib_conv2d_winograd_weight_transform = \
+            sym.contrib.conv2d_winograd_weight_transform
+    sym.contrib_conv2d_winograd_nnpack_without_weight_transform = \
+            sym.contrib.conv2d_winograd_nnpack_without_weight_transform
+    sym.contrib_conv2d_winograd_nnpack_weight_transform = \
+            sym.contrib.conv2d_winograd_nnpack_weight_transform
+    sym.nn = sym
+
+    # map relay argument names to nnvm argument names
+    raw_reshape = sym.reshape
+    def _reshape(*args, **kwargs):
+        if "newshape" in kwargs:
+            kwargs['shape'] = kwargs.pop('newshape')
+        return raw_reshape(*args, **kwargs)
+    sym.reshape = _reshape
+
+    return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, sym)
 
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -158,16 +202,27 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
-    kh, kw = attrs.get_int_tuple('kernel_size')
+    out_channel = attrs.get_int("channels")
     groups = attrs.get_int("groups")
-    channels = attrs.get_int("channels")
-    layout = attrs.get_string("layout")
-    out_layout = attrs.get_string("out_layout")
+    layout = attrs.get_str("layout")
+    out_layout = attrs.get_str("out_layout")
+    out_dtype = attrs.get_str("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
+    if layout == "NCHW":
+        _, in_channel, _, _ = get_const_tuple(inputs[0].shape)
+    else:
+        _, in_channel_chunk, _, _, in_channel_block = get_const_tuple(inputs[0].shape)
+        in_channel = in_channel_chunk * in_channel_block
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
         # pylint: disable=assignment-from-no-return
-        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], channels, (kh, kw),
-                                   strides, padding, layout, out_layout)
+        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding, dilation,
+                                   layout, out_layout, out_dtype)
+        # pylint: enable=assignment-from-no-return
+    elif groups == in_channel and groups == out_channel:
+        # pylint: disable=assignment-from-no-return
+        out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
+                                             dilation, layout, out_layout, out_dtype)
         # pylint: enable=assignment-from-no-return
     else:
         raise ValueError("not support arbitrary group number > 1 for now")
@@ -181,16 +236,12 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
 def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
     """Schedule definition of conv2d NCHWc"""
     groups = attrs.get_int("groups")
-    kh, kw = attrs.get_int_tuple('kernel_size')
-    oc = attrs.get_int("channels")
-    padding = attrs.get_int_tuple("padding")
-    strides = attrs.get_int_tuple("strides")
-    layout = attrs.get_string("layout")
-    out_layout = attrs.get_string("out_layout")
+    out_channel = attrs.get_int("channels")
     with tvm.target.create(target):
         if groups == 1:
-            return topi.generic.schedule_conv2d_NCHWc(oc, (kh, kw), strides, padding,
-                                                      layout, out_layout, outs)
+            return topi.generic.schedule_conv2d_NCHWc(outs)
+        elif groups == out_channel:
+            return topi.generic.schedule_depthwise_conv2d_NCHWc(outs)
         else:
             raise ValueError("not support group number > 1 for now")
 
@@ -216,8 +267,8 @@ def compute_contrib_conv2d_winograd_without_weight_transform(attrs, inputs, _):
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
-    layout = attrs.get_string("layout")
-    out_dtype = attrs.get_string("out_dtype")
+    layout = attrs.get_str("layout")
+    out_dtype = attrs.get_str("out_dtype")
     tile_size = attrs.get_int("tile_size")
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
     assert dilation == (1, 1), "Do not support dilate now"
@@ -225,7 +276,7 @@ def compute_contrib_conv2d_winograd_without_weight_transform(attrs, inputs, _):
 
     # pylint: disable=assignment-from-no-return
     out = topi.nn.conv2d_winograd_without_weight_transform(
-        inputs[0], inputs[1], strides, padding, layout, out_dtype,
+        inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype,
         tile_size)
 
     if attrs.get_bool("use_bias"):
@@ -243,6 +294,49 @@ reg.register_pattern("_contrib_conv2d_winograd_without_weight_transform",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_compute("_contrib_conv2d_winograd_nnpack_weight_transform")
+def compute_contrib_conv2d_winograd_nnpack_weight_transform(attrs, inputs, _):
+    convolution_algorithm = attrs.get_int('convolution_algorithm')
+    out_dype = attrs.get_str('out_dtype')
+    return topi.nn.conv2d_winograd_nnpack_weight_transform(
+        inputs[0], convolution_algorithm, out_dype)
+
+
+@reg.register_schedule("_contrib_conv2d_winograd_nnpack_weight_transform")
+def schedule_contrib_conv2d_winograd_nnpack_weight_transform(attrs, outs, target):
+    with tvm.target.create(target):
+        return topi.generic.schedule_conv2d_winograd_nnpack_weight_transform(outs)
+
+reg.register_pattern("_contrib_conv2d_winograd_nnpack_weight_transform", OpPattern.OPAQUE)
+
+
+@reg.register_compute("_contrib_conv2d_winograd_nnpack_without_weight_transform")
+def compute_contrib_conv2d_winograd_nnpack_without_weight_transform(attrs, inputs, _):
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.get_str("layout")
+    out_dtype = attrs.get_str("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
+    assert dilation == (1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+
+    # pylint: disable=assignment-from-no-return
+    out = topi.nn.conv2d_winograd_nnpack_without_weight_transform(
+        inputs[0], inputs[1], inputs[2] if attrs.get_bool("use_bias") else None,
+        strides, padding, dilation, layout, out_dtype)
+    return out
+
+@reg.register_schedule("_contrib_conv2d_winograd_nnpack_without_weight_transform")
+def schedule_contrib_conv2d_winograd_nnpack_without_weight_transform(attrs, outs, target):
+    with tvm.target.create(target):
+        return topi.generic.schedule_conv2d_winograd_nnpack_without_weight_transform(outs)
+
+reg.register_pattern("_contrib_conv2d_winograd_nnpack_without_weight_transform",
+                     OpPattern.OPAQUE)
+
+
 # conv2d_transpose
 @reg.register_compute("conv2d_transpose")
 def compute_conv2d_transpose(attrs, inputs, _):
@@ -251,7 +345,7 @@ def compute_conv2d_transpose(attrs, inputs, _):
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
-    out_dtype = attrs.get_string("out_dtype")
+    out_dtype = attrs.get_str("out_dtype")
     layout = attrs["layout"]
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
 

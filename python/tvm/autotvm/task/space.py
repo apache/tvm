@@ -1,5 +1,21 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=too-few-public-methods,invalid-name,unused-argument,arguments-differ
-# pylint: disable=consider-using-enumerate
+# pylint: disable=consider-using-enumerate,too-many-lines
 """
 Template configuration space.
 
@@ -32,7 +48,6 @@ class InstantiationError(ValueError):
      raised by cfg.raise_error
      e.g. too many unrolling, too many threads in a block
     """
-    pass
 
 
 class TransformSpace(object):
@@ -321,17 +336,17 @@ class ReorderSpace(TransformSpace):
         if np.sum(tmp_pt) == size:
             merged.append(list(tmp_stack))
             return
-        else:
-            for i in range(len(chains)):
-                # use i == np.argmax(....) here to take spatial order into consideration
-                # if we don't want to consider spatial order, we can use tmp_pt[i] == np.max(....)
-                if (tmp_pt[i] < len(chains[i]) and
-                        (i == np.argmax([len(chains[x]) - tmp_pt[x] for x in range(len(chains))]))):
-                    tmp_stack.append(chains[i][tmp_pt[i]])
-                    tmp_pt[i] += 1
-                    self._merge_dfs(chains, size, tmp_pt, tmp_stack, merged)
-                    tmp_pt[i] -= 1
-                    tmp_stack.pop()
+
+        for i in range(len(chains)):
+            # use i == np.argmax(....) here to take spatial order into consideration
+            # if we don't want to consider spatial order, we can use tmp_pt[i] == np.max(....)
+            if (tmp_pt[i] < len(chains[i]) and
+                    (i == np.argmax([len(chains[x]) - tmp_pt[x] for x in range(len(chains))]))):
+                tmp_stack.append(chains[i][tmp_pt[i]])
+                tmp_pt[i] += 1
+                self._merge_dfs(chains, size, tmp_pt, tmp_stack, merged)
+                tmp_pt[i] -= 1
+                tmp_stack.pop()
 
 
 class ReorderEntity(object):
@@ -423,7 +438,7 @@ class AnnotateSpace(TransformSpace):
         elif policy == 'locate_cache':
             self.num_axis = len(axes)
             num_anchor = kwargs["num_anchor"]
-            self.anns = list(itertools.combinations(np.arange(self.num_axis), num_anchor))
+            self.anns = list(itertools.combinations(range(self.num_axis), num_anchor))
             self.entities = [AnnotateEntity(x) for x in self.anns]
         else:  # none, vec, unroll, try_vec, try_unroll, try_vec_unroll, ...
             anns = policy.replace('try', 'none').split('_')
@@ -441,7 +456,7 @@ class AnnotateSpace(TransformSpace):
         if now == self.num_axis:
             # only vectorize inner most dimension
             vec_ct = tmp_stack.count('vec')
-            if vec_ct == 0 or vec_ct == 1:
+            if vec_ct in (0, 1):
                 self.entities.append(AnnotateEntity(list(tmp_stack)))
         else:
             for ann in self.anns[now]:
@@ -900,6 +915,7 @@ class ConfigEntity(ConfigSpace):
         return "%s,%s,%s,%d" % (str(self._entity_map)[12:-1], self.template_key,
                                 self.code_hash, self.index)
 
+
 class FallbackConfigEntity(ConfigSpace):
     """The config entity created to support fallback"""
 
@@ -926,18 +942,86 @@ class FallbackConfigEntity(ConfigSpace):
         Then cfg.fallback_split('tile_0', [-1, 8, 4]) will give you cfg['tile_0'].size = [7, 7, 1]
         """
         space = self.space_map[name]
+        assert isinstance(space, SplitSpace)
         assert len(constraints) == space.num_outputs
-        indices = np.arange(space.num_outputs)
 
         # '-1' means no constraint
         constraints = [x if x != -1 else 1e10 for x in constraints]
 
-        for entity in reversed(space.entities):
-            if all([entity.size[i] <= constraints[i] for i in indices]):
-                self._entity_map[name] = entity
-                return
+        entity = self._entity_map[name]
+        now = space.product
 
-        raise RuntimeError("Cannot find feasible fallback split entity for node: " + name)
+        for i in reversed(range(space.num_outputs)):
+            factors = get_factors(now)
+
+            find = len(factors) - 1
+            for j, f in enumerate(factors):
+                if f > constraints[i]:
+                    find = j - 1
+                    break
+
+            if find >= 0:
+                entity.size[i] = factors[find]
+                now //= factors[find]
+            else:
+                raise RuntimeError("Cannot find feasible fallback split entity for node: " + name)
+
+    def fallback_with_reference_log(self, ref_log):
+        """A data driven fallback mechanism.
+        We use tuned parameters from TopHub as reference data.
+        For an unseen shape, we find the most similar tuned one from TopHub and
+        mimic its parameters.
+
+        Parameters
+        ----------
+        ref_log: List of (MeasureInput, MeasureResult)
+            The reference log
+        """
+        knob_names = [x for x in self.space_map.keys() if
+                      isinstance(self.space_map[x], SplitSpace)]
+
+        # find best match config in reference data by matching tiling factors
+        factor_list = []
+        for knob_name in knob_names:
+            factor_list.append(get_factors(self.space_map[knob_name].product))
+
+        best_match_cfg = None
+        best_match_score = 0
+        for inp, _ in ref_log:
+            match_score = 0
+            for i, knob_name in enumerate(knob_names):
+                factors = get_factors(int(np.prod(inp.config[knob_name].size)))
+                match_score += (float(len(set(factor_list[i]).intersection(factors))) /
+                                len(factor_list[i]))
+
+                if match_score > best_match_score:
+                    best_match_score, best_match_cfg = match_score, inp.config
+
+        if best_match_cfg is None:
+            return
+
+        # mimic its tiling strategy
+        for knob_name in knob_names:
+            constraint = list(best_match_cfg[knob_name].size)
+            constraint[0] = -1
+            self.fallback_split(knob_name, constraint)
+
+        # copy other knobs
+        for knob_name in self.space_map.keys():
+            if not isinstance(self.space_map[knob_name], SplitSpace):
+                self._entity_map[knob_name] = best_match_cfg[knob_name]
+
+    def __setitem__(self, name, entity):
+        """set the entity(knob) of by name
+
+        Parameters
+        ----------
+        name: str
+            name of the entity
+        entity: SplitEntity, ReorderEntity, AnnotateEntity, OtherOptionEntity
+            value of the entity
+        """
+        self._entity_map[name] = entity
 
     def __repr__(self):
         return "%s,%s,%s" % (str(self._entity_map)[12:-1], self.template_key, self.code_hash)

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file transform.cc
@@ -171,7 +190,7 @@ Example::
    y = [[3,3],[4,4],[5,5]]
    z = [[6,6], [7,7],[8,8]]
 
-   concatenate(x,y,z,dim=0) = [[ 1.,  1.],
+   concatenate(x,y,z,axis=0) = [[ 1.,  1.],
                                [ 2.,  2.],
                                [ 3.,  3.],
                                [ 4.,  4.],
@@ -183,7 +202,7 @@ Example::
    Note that you cannot concat x,y,z along dimension 1 since dimension
    0 is not the same for all the input arrays.
 
-   concatenate(y,z,dim=1) = [[ 3.,  3.,  6.,  6.],
+   concatenate(y,z,axis=1) = [[ 3.,  3.,  6.,  6.],
                              [ 4.,  4.,  7.,  7.],
                              [ 5.,  5.,  8.,  8.]]
 
@@ -344,14 +363,23 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
   const TShape& dshape = (*in_shape)[0];
   if (dshape.ndim() == 0) return false;
 
+  auto axis = param.axis;
+  if (axis < 0) {
+    axis += dshape.ndim();
+  }
+  CHECK_LT(axis, dshape.ndim())
+    << "axis should be within input dimension range but got " <<  axis;
+  CHECK_GT(axis, -1)
+    << "axis should be within input dimension range but got " <<  axis;
+
   if (param.equal_split) {
     int num_outputs = param.indices_or_sections[0];
     CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
-    CHECK_LT(param.axis, dshape.ndim());
     TShape oshape = dshape;
-    CHECK_EQ(oshape[param.axis] % num_outputs, 0)
-        << "indices_or_sections need to be able to divide input.shape[axis]";
-    oshape[param.axis] /= num_outputs;
+    CHECK_EQ(oshape[axis] % num_outputs, 0)
+        << "indices_or_sections need to be able to divide input.shape[axis] got sections "
+        << num_outputs << " and dimension " << oshape[axis];
+    oshape[axis] /= num_outputs;
 
     for (size_t i = 0; i < out_shape->size(); ++i) {
       NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
@@ -359,19 +387,19 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
   } else {
     dim_t num_outputs = param.indices_or_sections.ndim() + 1;
     CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
-    CHECK_LT(param.axis, dshape.ndim());
     TShape oshape = dshape;
     dim_t begin = 0;
     for (dim_t i = 0; i < num_outputs - 1; ++i) {
       CHECK_GT(param.indices_or_sections[i], begin)
-          << "indices_or_sections need to be a sorted ascending list";
-      oshape[param.axis] = param.indices_or_sections[i] - begin;
+          << "indices_or_sections need to be a sorted ascending list got "
+          << param.indices_or_sections;
+      oshape[axis] = param.indices_or_sections[i] - begin;
       begin = param.indices_or_sections[i];
       NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
     }
-    CHECK_LT(begin, dshape[param.axis])
+    CHECK_LT(begin, dshape[axis])
         << "The sum of sections must match the input.shape[axis]";
-    oshape[param.axis] = dshape[param.axis] - begin;
+    oshape[axis] = dshape[axis] - begin;
     NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, num_outputs - 1, oshape);
   }
   return true;
@@ -411,14 +439,14 @@ along which to split the array.
       return Array<Tensor>{
         topi::split_sections(inputs[0], param.indices_or_sections[0], param.axis) };
     } else {
-      Array<Expr> indices;
+      Array<Integer> indices;
       for (auto i : param.indices_or_sections) {
-        indices.push_back(tvm::make_const(tvm::Int(32), i));
+        indices.push_back(static_cast<int>(i));
       }
       return Array<Tensor>{ topi::split(inputs[0], indices, param.axis) };
     }
 })
-.set_support_level(1);
+.set_support_level(3);
 
 // cast
 DMLC_REGISTER_PARAMETER(CastParam);
@@ -622,6 +650,15 @@ The significance of each is explained below:
 })
 .set_support_level(3);
 
+inline bool ReshapeLikeInferType(const NodeAttrs &attrs,
+                                 std::vector<int> *in_attrs,
+                                 std::vector<int> *out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, (*in_attrs)[0]);
+  return true;
+}
+
 NNVM_REGISTER_OP(reshape_like)
   .describe(R"code(Reshapes the input array by the size of another array.
 For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
@@ -642,7 +679,7 @@ the input array into an output array with the same shape as the second input arr
     NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, in_attrs->at(1));
     return true;
 })
-.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
+.set_attr<FInferType>("FInferType", ReshapeLikeInferType)
 // never transform layout of the second input array.
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_attr<FGradient>(
@@ -738,8 +775,8 @@ Examples::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const SqueezeParam& param = nnvm::get<SqueezeParam>(attrs.parsed);
-    auto axis = ShapeToArray(param.axis);
-    return Array<Tensor>{ topi::squeeze(inputs[0], axis) };
+    auto axis = ShapeToIntArray(param.axis);
+    return Array<Tensor>{ topi::squeeze(inputs[0], axis, true) };
 })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
@@ -856,7 +893,7 @@ Examples::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const TransposeParam& param = nnvm::get<TransposeParam>(attrs.parsed);
-    auto axes = ShapeToArray(param.axes);
+    auto axes = ShapeToIntArray(param.axes);
     return Array<Tensor>{ topi::transpose(inputs[0], axes) };
 })
 .set_attr<FGradient>(
@@ -962,23 +999,25 @@ Examples::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const StridedSliceParam& param = nnvm::get<StridedSliceParam>(attrs.parsed);
-    Array<Expr> begin;
-    Array<Expr> end;
-    Array<Expr> stride;
+    Array<Integer> begin;
+    Array<Integer> end;
+    Array<Integer> stride;
 
     for (int64_t i : param.begin) {
-        begin.push_back(tvm::make_const(tvm::Int(32), i));
+      begin.push_back(static_cast<int>(i));
     }
 
     for (int64_t i : param.end) {
-        end.push_back(tvm::make_const(tvm::Int(32), i));
+      end.push_back(static_cast<int>(i));
     }
 
     for (int64_t i : param.stride) {
-        stride.push_back(tvm::make_const(tvm::Int(32), i));
+      stride.push_back(static_cast<int>(i));
     }
 
-    return Array<Tensor>{ topi::strided_slice(inputs[0], begin, end, stride) };
+    return Array<Tensor>{
+      topi::strided_slice(inputs[0], begin, end, stride)
+    };
 })
 .set_support_level(1);
 
@@ -994,7 +1033,7 @@ Examples::
        [ 3, 4]]
 
   flip(x) = [[ 3.,  4.],
-                  [ 1.,  2.]]
+             [ 1.,  2.]]
 
   x = [[[ 1.,  2.],
         [ 3.,  4.]],
@@ -1003,16 +1042,16 @@ Examples::
         [ 7.,  8.]]]
 
   flip(x) = [[[ 5.,  6.],
-                   [ 7.,  8.]],
+              [ 7.,  8.]],
 
-                  [[ 1.,  2.],
-                   [ 3.,  4.]]]
+             [[ 1.,  2.],
+              [ 3.,  4.]]]
 
   flip(x, axis=1) = [[[ 3.,  4.],
-                                 [ 1.,  2.]],
+                      [ 1.,  2.]],
 
-                                [[ 7.,  8.],
-                                 [ 5.,  6.]]]
+                     [[ 7.,  8.],
+                      [ 5.,  6.]]]
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Source input")
 .add_arguments(FlipParam::__FIELDS__())
@@ -1135,7 +1174,7 @@ Examples::
 .set_attr<FCorrectLayout>("FCorrectLayout", TakeCorrectLayout)
 .set_num_inputs(2)
 .set_num_outputs(1)
-.set_support_level(1)
+.set_support_level(3)
 .set_attr<FTVMCompute>(
     "FTVMCompute", [](const NodeAttrs& attrs,
                       const Array<Tensor>& inputs,
@@ -1192,6 +1231,15 @@ inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+// Adapter function to make int array.
+Array<Integer> GetIntArray(Array<Expr> arr) {
+  for (size_t i = 0; i < arr.size(); ++i) {
+    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
+        << "Expect an int array";
+  }
+  return Array<Integer>(arr.node_);
+}
+
 NNVM_REGISTER_OP(slice_like)
 .describe(R"code(Slice the first input respect to the second input.
 )code" NNVM_ADD_FILELINE)
@@ -1243,7 +1291,10 @@ NNVM_REGISTER_OP(slice_like)
       }
     }
     return Array<Tensor>{
-      topi::strided_slice(inputs[0], begin_idx, end_idx, strides)
+      topi::strided_slice(inputs[0],
+                          GetIntArray(begin_idx),
+                          GetIntArray(end_idx),
+                          GetIntArray(strides))
     };
 })
 .set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
@@ -1343,6 +1394,108 @@ Examples::
   return std::vector<std::string>{"condition", "x", "y"};
 })
 .set_support_level(4);
+
+// gather_nd
+inline bool GatherNDInferShape(const nnvm::NodeAttrs& attrs,
+                               std::vector<TShape>* in_attrs,
+                               std::vector<TShape>* out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  const TShape& data_shape = in_attrs->at(0);
+  const TShape& indices_shape = in_attrs->at(1);
+  CHECK_GT(indices_shape.ndim(), 1) << "indices must have at least 2 dimensions";
+  CHECK_LE(indices_shape[0], data_shape.ndim()) <<
+      "dim 0 of indices must be no more than rank of data";
+  std::vector<dim_t> oshape;
+  for (size_t i = 1; i < indices_shape.ndim(); ++i) {
+    oshape.push_back(indices_shape[i]);
+  }
+  for (size_t i = indices_shape[0]; i < data_shape.ndim(); ++i) {
+    oshape.push_back(data_shape[i]);
+  }
+  if (oshape.size() == 0) {
+    oshape.push_back(1);
+  }
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0,
+                           TShape(oshape.begin(), oshape.end()));
+  return true;
+}
+
+inline bool GatherNDInferType(const NodeAttrs &attrs,
+                              std::vector<int> *in_attrs,
+                              std::vector<int> *out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, (*in_attrs)[0]);
+  return true;
+}
+
+inline bool GatherNDCorrectLayout(const NodeAttrs& attrs,
+                                  std::vector<Layout> *ilayouts,
+                                  const std::vector<Layout> *last_ilayouts,
+                                  std::vector<Layout> *olayouts) {
+  CHECK_EQ(ilayouts->size(), last_ilayouts->size());
+  CHECK_EQ(olayouts->size(), 1U);
+
+  for (size_t i = 0; i < ilayouts->size(); ++i) {
+    const Layout& input = last_ilayouts->at(i).defined() ?
+                          last_ilayouts->at(i) : ilayouts->at(i);
+    NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
+  }
+
+  return true;
+}
+
+NNVM_REGISTER_OP(gather_nd)
+.describe(R"code(
+Gather elements or slices from ``data`` into a tensor specified by ``indices``.
+
+The shape of output tensor is inferred from ``indices``. Given ``data`` with
+shape ``(X0, X1, ..., X_{N-1})`` and ``indices`` with shape ``(Y_0, ...,
+Y_{M-1})``, the output will have shape ``(Y_1, ..., Y_{M-1}, X_{Y_0}, ...,
+X_{N-1})`` when ``Y_0 < N``, or ``(Y_1, ..., Y_{M-1})`` when ``Y_0 == N``. The
+operator is invalid when ``Y_0 > N``.
+
+The element in output is defined as follows::
+
+  output[y_1, ..., y_{M-1}, x_{Y_0}, ..., x_{N-1}] = data[indices[0, y_1, ..., y_{M-1}],
+                                                     ...,
+                                                     indices[Y_0-1, y_1, ..., y_{M-1}],
+                                                     x_{Y_0}, ..., x_{N-1}]
+
+Examples::
+
+  data = [[0, 1], [2, 3]]
+  indices = [[1], [0]]
+  gather_nd(data, indices) = [2]
+
+  data = [[0, 1], [2, 3]]
+  indices = [[1, 1, 0], [0, 1, 0]]
+  gather_nd(data, indices) = [2, 3, 0]
+
+  data = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
+  indices = [[0, 1], [1, 0]]
+  gather_nd(data, indices) = [[3, 4], [5, 6]]
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data.")
+.add_argument("indices", "Tensor", "Indices of data")
+.set_num_inputs(2)
+.set_num_outputs(1)
+.set_attr<FInferShape>("FInferShape", GatherNDInferShape)
+.set_attr<FInferType>("FInferType", GatherNDInferType)
+.set_attr<FCorrectLayout>("FCorrectLayout", GatherNDCorrectLayout)
+.set_attr<FTVMCompute>(
+    "FTVMCompute", [](const NodeAttrs& attrs,
+                      const Array<Tensor>& inputs,
+                      const Array<Tensor>& out_info) {
+      return Array<Tensor>{
+        topi::gather_nd(inputs[0], inputs[1]) };
+  })
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+  return std::vector<std::string>{"data", "indices"};
+})
+.set_support_level(3);
 
 }  // namespace top
 }  // namespace nnvm

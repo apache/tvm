@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 
 from coremltools.models.neural_network import NeuralNetworkBuilder
@@ -15,9 +31,9 @@ import coremltools as cm
 import model_zoo
 
 def get_tvm_output(symbol, x, params, target, ctx,
-                   out_shape=(1000,), input_name='image', dtype='float32'):
+                   out_shape=(1, 1000), input_name='image', dtype='float32'):
     shape_dict = {input_name : x.shape}
-    with nnvm.compiler.build_config(opt_level=3):
+    with nnvm.compiler.build_config(opt_level=2):
         graph, lib, params = nnvm.compiler.build(symbol, target, shape_dict, params=params)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
@@ -28,7 +44,7 @@ def get_tvm_output(symbol, x, params, target, ctx,
     out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
     return out.asnumpy()
 
-def test_model_checkonly(model_file, model_name=''):
+def run_model_checkonly(model_file, model_name=''):
     model = cm.models.MLModel(model_file)
     sym, params = nnvm.frontend.from_coreml(model)
     x = model_zoo.get_cat_image()
@@ -38,11 +54,11 @@ def test_model_checkonly(model_file, model_name=''):
 
 def test_mobilenet_checkonly():
     model_file = model_zoo.get_mobilenet()
-    test_model_checkonly(model_file, 'mobilenet')
+    run_model_checkonly(model_file, 'mobilenet')
 
 def test_resnet50_checkonly():
     model_file = model_zoo.get_resnet50()
-    test_model_checkonly(model_file, 'resnet50')
+    run_model_checkonly(model_file, 'resnet50')
 
 def run_tvm_graph(graph_def, input_data, input_name, output_shape, output_dtype='float32'):
     """ Generic function to compile on nnvm and execute on tvm """
@@ -109,7 +125,7 @@ def verify_AddLayerParams(input_dim, alpha=2):
                            ['input1', 'input2'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_AddLayerParams():
     verify_AddLayerParams((1, 2, 2), 0)
@@ -139,7 +155,7 @@ def verify_MultiplyLayerParams(input_dim, alpha):
                            ['input1', 'input2'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_MultiplyLayerParams():
     verify_MultiplyLayerParams((1, 2, 2), 0)
@@ -168,7 +184,7 @@ def verify_ConcatLayerParams(input1_dim, input2_dim):
                            ['input1', 'input2'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_ConcatLayerParams():
     verify_ConcatLayerParams((1, 1, 2, 2), (1, 2, 2, 2))
@@ -198,7 +214,7 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
         out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_UpsampleLayerParams():
     verify_UpsampleLayerParams((1, 16, 32, 32), 2, 'NN')
@@ -218,7 +234,7 @@ def verify_l2_normalize(input_dim, eps):
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
         out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_l2_normalize():
     verify_l2_normalize((1, 3, 20, 20), 0.001)
@@ -243,7 +259,7 @@ def verify_lrn(input_dim, size, bias, alpha, beta):
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
         out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_lrn():
     verify_lrn((1, 3, 10, 20), 3, 1.0, 1.0, 0.5)
@@ -271,7 +287,7 @@ def verify_average(input_dim1, input_dim2, axis=0):
                            ['input1', 'input2'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_average():
     verify_average((1, 3, 20, 20), (1, 3, 20, 20))
@@ -303,7 +319,7 @@ def verify_max(input_dim):
                            ['input1', 'input2', 'input3'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_max():
     verify_max((1, 3, 20, 20))
@@ -334,7 +350,7 @@ def verify_min(input_dim):
                            ['input1', 'input2', 'input3'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_min():
     verify_min((1, 3, 20, 20))

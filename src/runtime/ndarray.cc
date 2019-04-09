@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file ndarray.cc
@@ -20,18 +39,11 @@ inline void VerifyDataType(DLDataType dtype) {
   if (dtype.code == kDLFloat) {
     CHECK_EQ(dtype.bits % 8, 0);
   } else {
+    // allow uint1 as a special flag for bool.
+    if (dtype.bits == 1 && dtype.code == kDLUInt) return;
     CHECK_EQ(dtype.bits % 8, 0);
   }
   CHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
-}
-
-inline size_t GetDataSize(const DLTensor& arr) {
-  size_t size = 1;
-  for (tvm_index_t i = 0; i < arr.ndim; ++i) {
-    size *= arr.shape[i];
-  }
-  size *= (arr.dtype.bits * arr.dtype.lanes + 7) / 8;
-  return size;
 }
 
 inline size_t GetDataAlignment(const DLTensor& arr) {
@@ -129,8 +141,8 @@ DLManagedTensor* NDArray::ToDLPack() const {
 }
 
 NDArray NDArray::Empty(std::vector<int64_t> shape,
-                        DLDataType dtype,
-                        DLContext ctx) {
+                       DLDataType dtype,
+                       DLContext ctx) {
   NDArray ret = Internal::Create(shape, dtype, ctx);
   // setup memory content
   size_t size = GetDataSize(ret.data_->dl_tensor);

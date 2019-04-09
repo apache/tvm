@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=unused-argument, no-self-use, invalid-name
 """Base class of tuner"""
 import logging
@@ -34,6 +50,7 @@ class Tuner(object):
         # time to leave
         self.ttl = None
         self.n_trial = None
+        self.early_stopping = None
 
     def has_next(self):
         """Whether has next untried config in the space
@@ -68,7 +85,7 @@ class Tuner(object):
         results: Array of autotvm.measure.MeasureResult
             result for measurement
         """
-        pass
+
 
     def tune(self, n_trial, measure_option, early_stopping=None, callbacks=()):
         """Begin tuning
@@ -92,6 +109,7 @@ class Tuner(object):
         n_parallel = getattr(measure_batch, 'n_parallel', 1)
         early_stopping = early_stopping or 1e9
         self.n_trial = n_trial
+        self.early_stopping = early_stopping
 
         old_level = logger.level
 
@@ -127,18 +145,18 @@ class Tuner(object):
                              res, config)
 
             i += len(results)
+            self.ttl = min(early_stopping + self.best_iter, n_trial) - i
 
             self.update(inputs, results)
-
             for callback in callbacks:
                 callback(self, inputs, results)
 
-            self.ttl = min(early_stopping + self.best_iter, n_trial) - i
             if i >= self.best_iter + early_stopping:
                 logger.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
 
             if error_ct > 150:
+                logging.basicConfig()
                 logger.warning("Too many errors happen in the tuning. Now is in debug mode")
                 logger.setLevel(logging.DEBUG)
             else:

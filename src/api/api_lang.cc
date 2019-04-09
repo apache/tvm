@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  *  Implementation of API functions related to Higher DSL build.
@@ -11,6 +30,7 @@
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>
 #include <tvm/build_module.h>
+#include <tvm/data_layout.h>
 
 namespace tvm {
 
@@ -45,11 +65,15 @@ TVM_REGISTER_API("_str")
 
 TVM_REGISTER_API("_Array")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    std::vector<std::shared_ptr<Node> > data;
+    std::vector<NodePtr<Node> > data;
     for (int i = 0; i < args.size(); ++i) {
-      data.push_back(args[i].node_sptr());
+      if (args[i].type_code() != kNull) {
+        data.push_back(args[i].node_sptr());
+      } else {
+        data.push_back(NodePtr<Node>(nullptr));
+      }
     }
-    auto node = std::make_shared<ArrayNode>();
+    auto node = make_node<ArrayNode>();
     node->data = std::move(data);
     *ret = node;
   });
@@ -87,7 +111,7 @@ TVM_REGISTER_API("_Map")
         data.emplace(std::make_pair(args[i].operator std::string(),
                                     args[i + 1].node_sptr()));
       }
-      auto node = std::make_shared<StrMapNode>();
+      auto node = make_node<StrMapNode>();
       node->data = std::move(data);
       *ret = node;
     } else {
@@ -101,7 +125,7 @@ TVM_REGISTER_API("_Map")
         data.emplace(std::make_pair(args[i].node_sptr(),
                                     args[i + 1].node_sptr()));
       }
-      auto node = std::make_shared<MapNode>();
+      auto node = make_node<MapNode>();
       node->data = std::move(data);
       *ret = node;
     }
@@ -163,7 +187,7 @@ TVM_REGISTER_API("_MapItems")
     auto& sptr = args[0].node_sptr();
     if (sptr->is_type<MapNode>()) {
       auto* n = static_cast<const MapNode*>(sptr.get());
-      auto rkvs = std::make_shared<ArrayNode>();
+      auto rkvs = make_node<ArrayNode>();
       for (const auto& kv : n->data) {
         rkvs->data.push_back(kv.first);
         rkvs->data.push_back(kv.second);
@@ -171,7 +195,7 @@ TVM_REGISTER_API("_MapItems")
       *ret = rkvs;
     } else {
       auto* n = static_cast<const StrMapNode*>(sptr.get());
-      auto rkvs = std::make_shared<ArrayNode>();
+      auto rkvs = make_node<ArrayNode>();
       for (const auto& kv : n->data) {
         rkvs->data.push_back(ir::StringImm::make(kv.first).node_);
         rkvs->data.push_back(kv.second);
@@ -220,6 +244,63 @@ TVM_REGISTER_API("_BufferVStore")
         .vstore(args[1], args[2]);
   });
 
+TVM_REGISTER_API("_Layout")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = LayoutNode::make(args[0]);
+  });
+
+TVM_REGISTER_API("_LayoutIndexOf")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator Layout()
+      .IndexOf(LayoutAxis::make(args[1]));
+});
+
+TVM_REGISTER_API("_LayoutFactorOf")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator Layout()
+      .FactorOf(LayoutAxis::make(args[1]));
+});
+
+TVM_REGISTER_API("_LayoutNdim")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = static_cast<int64_t>(args[0].operator Layout().ndim());
+});
+
+TVM_REGISTER_API("_LayoutGetItem")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  const LayoutAxis& axis = args[0].operator Layout()[args[1]];
+  *ret = axis.name();
+});
+
+TVM_REGISTER_API("_BijectiveLayout")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = BijectiveLayoutNode::make(args[0], args[1]);
+  });
+
+TVM_REGISTER_API("_BijectiveLayoutForwardIndex")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator BijectiveLayout()
+        .ForwardIndex(args[1]);
+  });
+
+TVM_REGISTER_API("_BijectiveLayoutBackwardIndex")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator BijectiveLayout()
+        .BackwardIndex(args[1]);
+  });
+
+TVM_REGISTER_API("_BijectiveLayoutForwardShape")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator BijectiveLayout()
+        .ForwardShape(args[1]);
+  });
+
+TVM_REGISTER_API("_BijectiveLayoutBackwardShape")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator BijectiveLayout()
+        .BackwardShape(args[1]);
+  });
+
 TVM_REGISTER_API("_Tensor")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = TensorNode::make(args[0],
@@ -237,6 +318,14 @@ TVM_REGISTER_API("_TensorIntrin")
                                   args[4],
                                   args[5],
                                   args[6]);
+  });
+
+TVM_REGISTER_API("_TensorIntrinCall")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = TensorIntrinCallNode::make(args[0],
+                                      args[1],
+                                      args[2],
+                                      args[3]);
   });
 
 TVM_REGISTER_API("_TensorEqual")
@@ -278,6 +367,18 @@ TVM_REGISTER_API("_ScanOp")
                             args[7]);
   });
 
+TVM_REGISTER_API("_TensorComputeOp")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = TensorComputeOpNode::make(args[0],
+                                     args[1],
+                                     args[2],
+                                     args[3],
+                                     args[4],
+                                     args[5],
+                                     args[6],
+                                     args[7]);
+  });
+
 TVM_REGISTER_API("_ExternOp")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = ExternOpNode::make(args[0],
@@ -287,6 +388,16 @@ TVM_REGISTER_API("_ExternOp")
                               args[4],
                               args[5],
                               args[6]);
+  });
+
+TVM_REGISTER_API("_HybridOp")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = HybridOpNode::make(args[0],
+                              args[1],
+                              args[2],
+                              args[3],
+                              args[4],
+                              args[5]);
   });
 
 TVM_REGISTER_API("_OpGetOutput")

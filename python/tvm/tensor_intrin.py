@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Tensor intrinsics"""
 from __future__ import absolute_import as _abs
 from . import _api_internal
@@ -6,8 +22,24 @@ from . import expr as _expr
 from . import stmt as _stmt
 from . import make as _make
 from . import tensor as _tensor
+from . import schedule as _schedule
 from .build_module import current_build_config
 from ._ffi.node import NodeBase, register_node
+
+
+def _get_region(tslice):
+    region = []
+    for idx in tslice.indices:
+        if isinstance(idx, slice):
+            assert idx.step is None
+            region.append(_api.Range(idx.start, idx.stop))
+        else:
+            if isinstance(idx, _schedule.IterVar):
+                begin = idx.var
+            else:
+                begin = idx
+            region.append(_make.range_by_min_extent(begin, 1))
+    return region
 
 @register_node
 class TensorIntrin(NodeBase):
@@ -17,8 +49,16 @@ class TensorIntrin(NodeBase):
     --------
     decl_tensor_intrin: Construct a TensorIntrin
     """
-    pass
-
+    def __call__(self, *args, **kwargs):
+        tensors = [x.tensor for x in args]
+        regions = [_get_region(x) for x in args]
+        reduce_axis = []
+        if "reduce_axis" in kwargs:
+            reduce_axis = kwargs["reduce_axis"]
+            if not isinstance(reduce_axis, (list, tuple)):
+                reduce_axis = [reduce_axis]
+            reduce_axis = _api.convert(reduce_axis)
+        return _api_internal._TensorIntrinCall(self, tensors, regions, reduce_axis)
 
 def decl_tensor_intrin(op,
                        fcompute,
@@ -72,7 +112,7 @@ def decl_tensor_intrin(op,
     binds_list = []
     for t in inputs:
         if not isinstance(t.op, _tensor.PlaceholderOp):
-            raise ValueError("Donot yet support composition op")
+            raise ValueError("Do not yet support composition op")
 
     cfg = current_build_config()
     for t in tensors:

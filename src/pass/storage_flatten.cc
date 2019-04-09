@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file storage_flatten.cc
@@ -8,7 +27,7 @@
 #include <tvm/expr.h>
 #include <tvm/operation.h>
 #include <tvm/ir_mutator.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
 #include <tvm/target_info.h>
@@ -31,7 +50,8 @@ using intrinsic::tvm_address_of;
 class StorageFlattener : public IRMutator {
  public:
   explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
-                            int cache_line_size) {
+                            int cache_line_size, bool create_bound_attributes)
+      : create_bound_attributes_(create_bound_attributes) {
     for (auto kv : extern_buffer) {
       BufferEntry e;
       e.buffer = kv.second;
@@ -59,7 +79,8 @@ class StorageFlattener : public IRMutator {
     if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
-    } else if (op->attr_key == attr::double_buffer_scope) {
+    } else if (op->attr_key == attr::double_buffer_scope &&
+               op->node.node_->derived_from<OperationNode>()) {
       Operation func(op->node.node_);
       Stmt body = Mutate(op->body);
       for (int i = 0; i < func->num_outputs(); ++i) {
@@ -100,6 +121,8 @@ class StorageFlattener : public IRMutator {
   }
 
   Stmt Mutate_(const Provide* op, const Stmt& s) final {
+    if (create_bound_attributes_)
+      shape_collector_.clear();
     Stmt stmt = IRMutator::Mutate_(op, s);
     op = stmt.as<Provide>();
     TensorKey key{op->func, op->value_index};
@@ -116,7 +139,20 @@ class StorageFlattener : public IRMutator {
           {e.buffer->data, op->value},
           Call::Intrinsic));
     } else {
-      return e.buffer.vstore(e.RelIndex(op->args), op->value);
+      Stmt body = e.buffer.vstore(e.RelIndex(op->args), op->value);
+      if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
+        shape_collector_.push_back(
+            std::make_pair(e.buffer->data, e.buffer->shape));
+      }
+      // To create bound attribute collector should has at least one item.
+      if (create_bound_attributes_ && shape_collector_.size()) {
+        for (size_t i = 0; i < shape_collector_.size(); ++i) {
+          body = AttrStmt::make(
+              shape_collector_[i].first, ir::attr::buffer_bound,
+              MakeBound(e.buffer->dtype, shape_collector_[i].second), body);
+        }
+      }
+      return body;
     }
   }
 
@@ -191,10 +227,16 @@ class StorageFlattener : public IRMutator {
       buf_map_[key].released = true;
       Stmt ret;
 
+      Type storage_type = e.buffer->dtype;
+      // specially handle bool, lower its storage
+      // type to be Int(8)(byte)
+      if (storage_type == Bool()) {
+        storage_type = Int(8);
+      }
       if (strides.size() != 0) {
         int first_dim = 0;
         ret = Allocate::make(
-            e.buffer->data, e.buffer->dtype,
+            e.buffer->data, storage_type,
             {arith::ComputeExpr<Mul>(e.buffer->strides[first_dim], e.buffer->shape[first_dim])},
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       } else {
@@ -203,12 +245,17 @@ class StorageFlattener : public IRMutator {
           shape.push_back(make_const(Int(32), 1));
         }
         ret = Allocate::make(
-            e.buffer->data, e.buffer->dtype, shape,
+            e.buffer->data, storage_type, shape,
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       }
       ret = AttrStmt::make(
           e.buffer->data, attr::storage_scope,
           StringImm::make(e.buffer->scope), ret);
+
+      if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
+        ret = AttrStmt::make(e.buffer->data, ir::attr::buffer_bound,
+                             MakeBound(e.buffer->dtype, e.buffer->shape), ret);
+      }
       return ret;
     }
   }
@@ -247,6 +294,11 @@ class StorageFlattener : public IRMutator {
       const BufferEntry& e = it->second;
       CHECK(!e.released)
           << "Read a buffer that is already out of scope";
+
+      if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
+        shape_collector_.push_back(
+            std::make_pair(e.buffer->data, e.buffer->shape));
+      }
       return e.buffer.vload(e.RelIndex(op->args), e.buffer->dtype);
     } else {
       return expr;
@@ -422,6 +474,31 @@ class StorageFlattener : public IRMutator {
       }
     }
   };
+
+  bool ShapeIsValid(const Array<Expr> &shape) {
+    // Zero-dimensional tensor does not need boundary check.
+    if (!shape.size())
+      return false;
+
+    for (size_t i = 0; i < shape.size(); ++i) {
+      if (!shape[i].defined() || !shape[i].type().is_scalar() ||
+          is_negative_const(shape[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Expr MakeBound(const Type &type, const Array<Expr> &shape) {
+    // We have already checked the shape size to be greater then 0.
+    Expr bound = Mul::make(make_const(shape[0].type(), type.lanes()), shape[0]);
+    for (size_t i = 1; i < shape.size(); ++i) {
+      bound = Mul::make(
+          bound, Mul::make(make_const(bound.type(), type.lanes()), shape[i]));
+    }
+    return bound;
+  }
+
   // The buffer assignment map
   // Variable remap
   std::unordered_map<const Variable*, Expr> var_remap_;
@@ -433,16 +510,21 @@ class StorageFlattener : public IRMutator {
   std::unordered_map<const Node*, std::string> storage_scope_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
+  // Collects shapes.
+  std::vector<std::pair<VarExpr, Array<Expr>>> shape_collector_;
   // The size of cacheline
   int cache_line_size_;
   // The current stage is an OpenGL shader.
   bool is_opengl_{false};
+  // Whether to mark load/store with theirs bounds.
+  bool create_bound_attributes_{false};
 };
 
-Stmt StorageFlatten(Stmt stmt,
-                    Map<Tensor, Buffer> extern_buffer,
-                    int cache_line_size) {
-  stmt = StorageFlattener(extern_buffer, cache_line_size).Mutate(stmt);
+Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
+                    int cache_line_size, bool create_bound_attributes) {
+  stmt =
+      StorageFlattener(extern_buffer, cache_line_size, create_bound_attributes)
+          .Mutate(stmt);
   return stmt;
 }
 

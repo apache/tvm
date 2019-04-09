@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Test code for reduce."""
 import os
 import numpy as np
@@ -87,16 +103,20 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
                 sel_indices = other_indices[0:axis] + (out_tvm_indices,) + other_indices[axis:]
                 out_tvm_val = in_npy_map[sel_indices]
             if type == "argmax":
-                np.testing.assert_allclose(out_tvm_val, in_npy_map.max(axis=axis), 1E-3, 1E-3)
+                tvm.testing.assert_allclose(out_tvm_val, in_npy_map.max(axis=axis), 1E-3, 1E-3)
             elif type == "argmin":
-                np.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1E-3, 1E-3)
+                tvm.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1E-3, 1E-3)
         else:
-            np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
+            tvm.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
     for device in get_all_backend():
         check_device(device)
 
 
 def test_reduce_map():
+    verify_reduce_map_ele(in_shape=(32,),
+                          axis=0,
+                          keepdims=False,
+                          type="argmax")
     verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
                         axis=(1, 2, 3),
                         keepdims=True,

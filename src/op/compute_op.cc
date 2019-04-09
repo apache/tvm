@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief Compute Op.
@@ -10,9 +29,11 @@
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include <string>
+#include <utility>
 #include "compute_op.h"
 #include "op_util.h"
 #include "../schedule/message_passing.h"
+#include "../arithmetic/compute_expr.h"
 
 namespace tvm {
 
@@ -39,7 +60,7 @@ int ComputeOpNode::num_outputs() const {
   return body.size();
 }
 
-Array<IterVar> ComputeOpNode::root_iter_vars() const {
+Array<IterVar> BaseComputeOpNode::root_iter_vars() const {
   if (reduce_axis.size() == 0) return axis;
   Array<IterVar> ret = axis;
   for (IterVar iv : reduce_axis) {
@@ -53,15 +74,15 @@ Type ComputeOpNode::output_dtype(size_t idx) const {
   return body[idx].type();
 }
 
-Array<Expr> ComputeOpNode::output_shape(size_t idx) const {
+Array<Expr> BaseComputeOpNode::output_shape(size_t idx) const {
   CHECK_LT(idx, num_outputs());
-  // for now, all outputs of ComputeOp have the same shape
-  std::vector<Expr> shape;
-  for (size_t i = 0; i < axis.size(); ++i) {
-    const Range& r = axis[i]->dom;
+  // for now, all outputs of a BaseComputeOp have the same shape
+  Array<Expr> shape;
+  for (const auto& ivar : this->axis) {
+    const Range& r = ivar->dom;
     shape.push_back(r->extent);
   }
-  return Array<Expr>(shape);
+  return shape;
 }
 
 Tensor compute(Array<Expr> shape,
@@ -69,7 +90,7 @@ Tensor compute(Array<Expr> shape,
                std::string name,
                std::string tag,
                Map<std::string, NodeRef> attrs) {
-  auto op_node = std::make_shared<ComputeOpNode>();
+  auto op_node = make_node<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -91,7 +112,7 @@ Array<Tensor> compute(Array<Expr> shape,
                       std::string name,
                       std::string tag,
                       Map<std::string, NodeRef> attrs) {
-  auto op_node = std::make_shared<ComputeOpNode>();
+  auto op_node = make_node<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -117,7 +138,10 @@ Operation ComputeOpNode::make(std::string name,
                               Map<std::string, NodeRef> attrs,
                               Array<IterVar> axis,
                               Array<Expr> body) {
-  auto n = std::make_shared<ComputeOpNode>();
+  if (!attrs.defined()) {
+    attrs = Map<std::string, NodeRef>();
+  }
+  auto n = make_node<ComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -163,7 +187,7 @@ Operation ComputeOpNode::ReplaceInputs(
     if (!new_reduce.same_as(this->body[0])) {
       const ir::Reduce* r = new_reduce.as<ir::Reduce>();
       for (size_t k = 0; k < this->body.size(); ++k) {
-        std::shared_ptr<ir::Reduce> n = std::make_shared<ir::Reduce>(*r);
+        auto n = make_node<ir::Reduce>(*r);
         n->value_index = static_cast<int>(k);
         n->type = r->source[k].type();
         arr.push_back(Expr(n));
@@ -204,10 +228,11 @@ void ComputeOpNode::PropBoundToInputs(
   for (auto& e : body) ir::PostOrderVisit(e, fvisit);
 }
 
-void ComputeOpNode::GatherBound(
+void BaseComputeOpNode::GatherBound(
     const Operation& self,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
+  CHECK_EQ(self.operator->(), this);
   const TensorDom& tdom = tensor_dom.at(self.output(0));
   for (size_t i = 0; i < this->axis.size(); ++i) {
     Range r = arith::Union(tdom.data.at(i)).cover_range(this->axis[i]->dom);
@@ -220,22 +245,22 @@ void ComputeOpNode::GatherBound(
   }
 }
 
-Stmt ComputeOpNode::BuildRealize(
+Stmt BaseComputeOpNode::BuildRealize(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& realize_map,
-    const Stmt& realize_body) const {
+    const Stmt& body) const {
   CHECK_EQ(stage->op.get(), this);
   HalideIR::Internal::Region bounds;
   for (IterVar iv : this->axis) {
     bounds.push_back(realize_map.at(iv));
   }
-  Stmt realize = realize_body;
+  Stmt realize = body;
   for (int i = this->num_outputs(); i > 0; --i) {
     Tensor t = stage->op.output(i-1);
     realize = ir::Realize::make(t->op, t->value_index,
       t->dtype, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
-    for (size_t i = 0; i < this->axis.size(); ++i) {
+    for (size_t i = 0; i < num_schedulable_dims(); ++i) {
       auto it = stage->iter_var_attrs.find(this->axis[i]);
       if (it != stage->iter_var_attrs.end()) {
         IterVarAttr attr = (*it).second;
@@ -252,6 +277,10 @@ Stmt ComputeOpNode::BuildRealize(
     }
   }
   return realize;
+}
+
+size_t ComputeOpNode::num_schedulable_dims() const {
+  return axis.size();
 }
 
 // Build a reduction body.
@@ -317,27 +346,32 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
       source.push_back(stage->op.output(i));
     }
     MakeReduction(self, source, &init, &provide);
-    init = op::Substitute(init, n.init_vmap);
     init = MergeNest(n.init_nest, init);
+    init = op::Substitute(init, n.init_vmap);
     // common nest
     std::vector<std::vector<Stmt> > common(
         n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
     std::vector<std::vector<Stmt> > reduce(
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.end());
-    provide = op::Substitute(provide, n.main_vmap);
     provide = MergeNest(reduce, provide);
     if (debug_keep_trivial_loop) {
-      return MergeNest(common, provide);
+      provide = MergeNest(common, provide);
     } else {
-      return MergeNest(common, Block::make(init, provide));
+      provide = MergeNest(common, Block::make(init, provide));
     }
+    // run substitution in the on the full nest, because  loop condition
+    // could depend on outer loops.
+    return op::Substitute(provide, n.main_vmap);
   } else {
     std::vector<Stmt> provides;
     for (size_t i = 0; i < self->body.size(); ++i) {
       provides.emplace_back(MakeProvide(self, stage->op.output(i)));
     }
-    Stmt provide = op::Substitute(Block::make(provides), n.main_vmap);
-    return MergeNest(n.main_nest, provide);
+    Stmt provide = Block::make(provides);
+    provide = MergeNest(n.main_nest, provide);
+    // run substitution in the on the full nest, because  loop condition
+    // could depend on outer loops.
+    return op::Substitute(provide, n.main_vmap);
   }
 }
 
@@ -404,7 +438,7 @@ Stmt ComputeOpNode::BuildProvide(
 }
 
 ComputeLoopNest ComputeLoopNest::make(
-    const ComputeOpNode* self,
+    const BaseComputeOpNode* self,
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) {
@@ -430,8 +464,8 @@ ComputeLoopNest ComputeLoopNest::make(
     for (IterVar iv : self->reduce_axis) {
       update_state[iv] = 2;
     }
-    for (IterVar iv : self->axis) {
-      update_state[iv] = 1;
+    for (size_t i = 0; i < self->num_schedulable_dims(); ++i) {
+      update_state[self->axis[i]] = 1;
     }
     // find which iter var is related to reduction and which is related to axis.
     schedule::PassDownBitMaskOr(stage, &update_state);
@@ -447,11 +481,11 @@ ComputeLoopNest ComputeLoopNest::make(
       ret.init_vmap[iv] = ret.main_vmap.at(iv);
     }
     ret.num_common_loop = begin_loop;
-    // skip loops that does not relates to axis.
+    // skip loops that are related to reduction and are unrelated to axis.
     std::unordered_set<IterVar> skip_iter;
     for (auto kv : update_state) {
       int flag = kv.second;
-      if ((flag & 1) == 0) skip_iter.insert(kv.first);
+      if (flag == 2) skip_iter.insert(kv.first);
     }
     ret.init_nest = op::MakeLoopNest(
         stage, dom_map, begin_loop, true,
@@ -542,4 +576,38 @@ static void VerifyComputeOp(const ComputeOpNode* op) {
   v.Run();
 }
 
+Stmt TransformUpdate(const Stage& stage,
+                     const std::unordered_map<IterVar, Range>& dom_map,
+                     const ComputeLoopNest& n,
+                     Stmt body,
+                     Stmt update) {
+  Array<Expr> conds;
+  std::unordered_set<const Variable*> banned;
+  for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
+    IterVar iv = stage->leaf_iter_vars[i];
+    auto iit = stage->iter_var_attrs.find(iv);
+    if (iit != stage->iter_var_attrs.end()) {
+      const IterVarAttr& attr = (*iit).second;
+      if (attr->iter_type == kTensorized) {
+        break;
+      }
+    }
+    if (iv->iter_type == kCommReduce) {
+      auto vit = dom_map.find(iv);
+      CHECK(vit != dom_map.end());
+      const Range& vrange = vit->second;
+      conds.push_back(likely(iv->var > vrange->min));
+      banned.insert(iv->var.get());
+    }
+  }
+  for (const Expr& pred : n.main_predicates) {
+    if (ir::ExprUseVar(pred, banned)) {
+      LOG(FATAL) << "Tensorize update transform failed, the condition "
+                 << pred << " has a conflict with the reset condition";
+    }
+  }
+
+  return IfThenElse::make(arith::ComputeReduce<ir::Or>(conds, const_true(1)),
+                          update, body);
+}
 }  // namespace tvm
