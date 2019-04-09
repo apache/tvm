@@ -722,20 +722,23 @@ def fuse_ops(expr, opt_level=1):
     return _ir_pass.FuseOps(expr, opt_level)
 
 
-def combine_parallel_conv2d(expr):
-    """Fold multiple conv2d into one.
+def combine_parallel_conv2d(expr, min_num_branches=3):
+    """Combine multiple conv2d into one.
 
     Parameters
     ----------
     expr : tvm.relay.Expr
         The input expression.
 
+    min_num_branches : int
+        The minimum number of parallel branches when the transformation should be applied.
+
     Returns
     -------
     transformed_expr : tvm.relay.Expr
         Transformed expression
     """
-    return _ir_pass.CombineParallelConv2D(expr)
+    return _ir_pass.CombineParallelConv2D(expr, min_num_branches)
 
 
 def alter_op_layout(expr):

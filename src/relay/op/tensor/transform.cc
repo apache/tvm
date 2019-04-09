@@ -1722,6 +1722,64 @@ bool StridedSliceRel(const Array<Type>& types,
 }
 
 
+Array<Array<Layout> > StridedSliceInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>>& old_in_shapes) {
+  CHECK(old_in_layouts.defined());
+  CHECK_EQ(old_in_layouts.size(), 1);
+  CHECK(old_in_shapes.defined());
+  CHECK_EQ(old_in_shapes.size(), 1);
+
+  auto layout = old_in_layouts[0];
+  if (layout.defined() && new_in_layouts.defined()) {
+    CHECK_EQ(new_in_layouts.size(), 1);
+    auto new_layout = new_in_layouts[0];
+    auto shape = old_in_shapes[0];
+
+    // NOTE: Discard "const" qualifier here.
+    auto *params = const_cast<StridedSliceAttrs*>(attrs.as<StridedSliceAttrs>());
+
+    Array<Integer> new_begin, new_end;
+
+    for (size_t i = 0; i < params->begin.size(); i++) {
+      const LayoutAxis& axis = layout[i];
+      if (!axis.IsPrimal()) {
+        // original layout that contains splitted axes is not supported
+        return {{Layout::Undef()}, {Layout::Undef()}};
+      }
+      auto factor = new_layout.FactorOf(axis);
+      if (factor == -1) {
+        new_begin.push_back(params->begin[i]);
+        new_end.push_back(params->end[i]);
+      } else {
+        if (params->strides.defined() && i < params->strides.size()) {
+          auto stride = params->strides[i];
+          // arbitrary stride is not supported
+          if (stride.defined() && stride->value != 1) {
+            return {{Layout::Undef()}, {Layout::Undef()}};
+          }
+        }
+        int64_t begin = params->begin[i].defined() ? params->begin[i]->value : 0;
+        int64_t end = params->end[i].defined() ? params->end[i]->value :
+            shape[i].as<IntImm>()->value;
+        if (begin % factor || end % factor) {
+          // transform to original layout
+          return {{Layout::Undef()}, {Layout::Undef()}};
+        }
+        new_begin.push_back(tvm::Integer(begin / factor));
+        new_end.push_back(tvm::Integer(end / factor));
+      }
+    }
+    layout = new_layout;
+    params->begin = new_begin;
+    params->end = new_end;
+  }
+  return {{layout}, {layout}};
+}
+
+
 // Positional relay function to create StridedSlice operator used by frontend FFI.
 Expr MakeStridedSlice(Expr data,
                       Array<Integer> begin,
@@ -1783,7 +1841,8 @@ Examples::
 .set_attrs_type_key("relay.attrs.StridedSliceAttrs")
 .add_type_rel("StridedSlice", StridedSliceRel)
 .set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
-.set_attr<TOpPattern>("TOpPattern", kInjective);
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
 
 
 // relay.split
