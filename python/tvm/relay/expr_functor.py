@@ -126,6 +126,11 @@ class ExprFunctor:
 
 
 class ExprVisitor(ExprFunctor):
+    """
+    A visitor over Expr.
+
+    The default behavior recursively traverses the AST.
+    """
     def visit_tuple(self, t):
         for x in t.fields:
             self.visit(x)
