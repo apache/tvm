@@ -13,6 +13,11 @@ object Launcher {
           (c) => new FetchTests(c)
         }
       },
+      "Load" -> { (manager: TesterOptionsManager) =>
+        Driver.execute(() => new Load(), manager) {
+          (c) => new LoadTests(c)
+        }
+      },
       "VTA" -> { (manager: TesterOptionsManager) =>
         Driver.execute(() => new VTA(), manager) {
           (c) => new VTATests(c)

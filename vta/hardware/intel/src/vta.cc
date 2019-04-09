@@ -19,16 +19,22 @@ void stream_copy(
   }
 }
 
+void stream_copy(
+  ihc::stream_in<bool> &__src,
+  ihc::stream_out<bool> &__dst) {
+  while (!__src.empty()) {
+    __dst.write(__src.read());
+  }
+}
+
 component void fetch(
   uint32_t insn_count,
   ihc::mm_master<insn_T, ihc::aspace<4>, ihc::dwidth<VTA_INS_WIDTH>, ihc::awidth<32> > &insns,
-  // ihc::stream_in<insn_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &insns,
   ihc::stream_out<insn_T> &load_queue,
   ihc::stream_out<insn_T> &gemm_queue,
   ihc::stream_out<insn_T> &store_queue) {
   for (uint16 pc = 0; pc < insn_count; pc++) {
     // Read instruction fields
-    // insn_T insn = insns.read();
     insn_T insn = insns[pc];
     // Do some partial decoding
     opcode_T opcode = insn.slc<VTA_INSN_MEM_0_1-VTA_INSN_MEM_0_0+1>(VTA_INSN_MEM_0_0);
@@ -46,17 +52,11 @@ component void fetch(
 }
 
 component void load(
-  // ihc::stream_in<inp_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &inputs,
-  // ihc::stream_in<wgt_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &weights,
   ihc::mm_master<inp_vec_T, ihc::aspace<8>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & inputs,
   ihc::mm_master<wgt_vec_T, ihc::aspace<9>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & weights,
   ihc::stream_in<insn_T> &load_queue,
   ihc::stream_in<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
-  // inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
-  // wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]
-  // ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_ELEM_BYTES>, ihc::awidth<32> > & inp_mem,
-  // ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_ELEM_BYTES>, ihc::awidth<32> > & wgt_mem
   ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & inp_mem,
   ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & wgt_mem
   ) {
@@ -102,18 +102,12 @@ component void load(
     sram_idx += x_pad_0;
     // Perform data transfer
     if (memory_type == VTA_MEM_ID_INP) {
-      // _memcpy((unsigned char*)&inp_mem[sram_idx][0],
-      //        (const unsigned char*)&inputs[dram_idx * VTA_BATCH],
-      //        x_size * VTA_INP_ELEM_BYTES);
-      for (uint16 x = 0; x < x_size; x++) {
-        inp_mem[sram_idx][x] = inputs[int(dram_idx) * VTA_BATCH + x]; // inputs.read();
+      for (uint16 x = 0; x < x_size * VTA_BATCH; x++) {
+        inp_mem[sram_idx * VTA_BATCH + x] = inputs[int(dram_idx) * VTA_BATCH + x];
       }
     } else {
-      // _memcpy((unsigned char*)&wgt_mem[sram_idx][0],
-      //        (const unsigned char*) &weights[dram_idx * VTA_BLOCK_OUT],
-      //        x_size * VTA_WGT_ELEM_BYTES);
-      for (uint16 x = 0; x < x_size; x++) {
-        wgt_mem[sram_idx][x] = weights[int(dram_idx) * VTA_BLOCK_OUT + x]; // weights.read();
+      for (uint16 x = 0; x < x_size * VTA_BLOCK_OUT; x++) {
+        wgt_mem[sram_idx * VTA_BLOCK_OUT + x] = weights[int(dram_idx) * VTA_BLOCK_OUT + x];
       }
     }
     sram_idx += x_size;
@@ -130,12 +124,12 @@ component void load(
       for (uint16 x = 0; x < x_size_total; x++) {
         if (memory_type == VTA_MEM_ID_INP) {
           for (uint16 i = 0; i < VTA_BATCH; i++) {
-            inp_mem[sram_idx][i] = 0;
+            inp_mem[sram_idx * VTA_BATCH + i] = 0;
           }
         } else {
 #pragma unroll 4
           for (uint16 i = 0; i < VTA_BLOCK_OUT; i++) {
-            wgt_mem[sram_idx][i] = 0;
+            wgt_mem[sram_idx * VTA_BLOCK_OUT + i] = 0;
           }
         }
         sram_idx++;
@@ -144,12 +138,12 @@ component void load(
       for (uint16 x = 0; x < x_pad_0; x++) {
         if (memory_type == VTA_MEM_ID_INP) {
           for (uint16 i = 0; i < VTA_BATCH; i++) {
-            inp_mem[sram_idx][i] = 0;
+            inp_mem[sram_idx * VTA_BATCH + i] = 0;
           }
         } else {
 #pragma unroll 4
           for (uint16 i = 0; i < VTA_BLOCK_OUT; i++) {
-            wgt_mem[sram_idx][i] = 0;
+            wgt_mem[sram_idx * VTA_BLOCK_OUT + i] = 0;
           }
         }
         sram_idx++;
@@ -158,12 +152,12 @@ component void load(
       for (uint16 x = 0; x < x_pad_1; x++) {
         if (memory_type == VTA_MEM_ID_INP) {
           for (uint16 i = 0; i < VTA_BATCH; i++) {
-            inp_mem[sram_idx][i] = 0;
+            inp_mem[sram_idx * VTA_BATCH + i] = 0;
           }
         } else {
 #pragma unroll 4
           for (uint16 i = 0; i < VTA_BLOCK_OUT; i++) {
-            wgt_mem[sram_idx][i] = 0;
+            wgt_mem[sram_idx * VTA_BLOCK_OUT + i] = 0;
           }
         }
         sram_idx++;
@@ -179,8 +173,6 @@ component void load(
 
 component void compute(
   hls_avalon_slave_memory_argument(1*sizeof(uint32_t)) uint32_t * done0,
-  // ihc::stream_in<uop_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & uops,
-  // ihc::stream_in<acc_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & biases,
   ihc::mm_master<uop_T    , ihc::aspace<5>, ihc::dwidth<VTA_UOP_WIDTH>, ihc::awidth<32> > & uops,
   ihc::mm_master<acc_vec_T, ihc::aspace<6>, ihc::dwidth<VTA_ACC_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > & biases,
   ihc::stream_in<insn_T> &gemm_queue,
@@ -188,19 +180,14 @@ component void compute(
   ihc::stream_in<bool> &s2g_dep_queue,
   ihc::stream_out<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &g2s_dep_queue,
-  // inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
-  // wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
-  // out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
   ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & inp_mem,
   ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > & wgt_mem,
   ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > & out_mem
-  // ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_ACC_ELEM_BYTES>, ihc::awidth<32> > & out_mem
   ) {
   // Micro-op storage
   static uop_T uop_mem[VTA_UOP_BUFF_DEPTH];
 
   // Accumulator storage
-  // static acc_vec_T acc_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH];
   static acc_vec_T acc_mem[VTA_ACC_BUFF_DEPTH * VTA_BATCH];
 
   // Pop GEMM instruction
@@ -252,9 +239,6 @@ component void compute(
 
     if (memory_type == VTA_MEM_ID_UOP) {
       // Perform data transfer
-      // _memcpy((unsigned char*)&uop_mem[sram_base],
-      //        (const unsigned char*) &uops[dram_base],
-      //        x_size * VTA_UOP_ELEM_BYTES);
       for (uint16 x = 0; x < x_size; x++) {
         uop_mem[sram_base+x] = uops[dram_base+x];
       }
@@ -266,9 +250,6 @@ component void compute(
         // Skip padding along x dimension
         sram_idx += x_pad_0;
         // Perform data transfer
-        // _memcpy((unsigned char*) &acc_mem[sram_idx][0],
-        //        (const unsigned char*) &biases[dram_idx * VTA_BATCH],
-        //        x_size*VTA_ACC_ELEM_BYTES);
         for (int x = 0; x < x_size; x++) {
           acc_mem[sram_idx * VTA_BATCH + x] = biases[int(dram_idx) * VTA_BATCH + x]; // biases.read();
         }
@@ -469,15 +450,10 @@ component void compute(
 }
 
 component void store(
-  // hls_avalon_slave_memory_argument(VTA_ACC_BUFF_DEPTH*VTA_BATCH*VTA_ACC_ELEM_BYTES) out_vec_T * outputs,
-  // ihc::mm_master<out_vec_T, ihc::aspace<6>, ihc::dwidth<64>, ihc::waitrequest<true>,
-  //                ihc::align<8*sizeof(uint64_t)>, ihc::latency<0> >& outputs,
   ihc::mm_master<out_vec_T, ihc::aspace<7>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > &outputs,
-  // ihc::stream_out<out_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & outputs,
   ihc::stream_in<insn_T> &store_queue,
   ihc::stream_in<bool> &g2s_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
-  // out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
   ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > & out_mem
   ) {
   // Load buffer
@@ -520,11 +496,7 @@ component void store(
     // Skip padding along x dimension
     sram_idx += x_pad_0;
     // Perform data transfer
-    // _memcpy((unsigned char*)(&outputs[dram_idx*VTA_BATCH]),
-    //         (const unsigned char*) &out_mem[sram_idx][0],
-    //   x_size * VTA_INP_ELEM_BYTES);
     for (uint16 x = 0; x < x_size; x++) {
-      // outputs.write(out_mem[sram_idx * VTA_BATCH + x]);
       outputs[int(dram_idx) * VTA_BATCH + x] = out_mem[sram_idx * VTA_BATCH + x];
     }
     sram_idx += x_size;
@@ -572,16 +544,16 @@ void vta(
   inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH * VTA_BATCH];
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH * VTA_BLOCK_OUT];
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH * VTA_BATCH];
-  ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > inp_mm_master(inp_mem);
-  ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > wgt_mm_master(wgt_mem);
-  ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > out_mm_master(out_mem);
+  ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > inp_mem_master(inp_mem);
+  ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > wgt_mem_master(wgt_mem);
+  ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > out_mem_master(out_mem);
 
   ihc::mm_master<insn_T   , ihc::aspace<4>, ihc::dwidth<VTA_INS_WIDTH>, ihc::awidth<32> >   insns_mm_master(insns);
   ihc::mm_master<uop_T    , ihc::aspace<5>, ihc::dwidth<VTA_UOP_WIDTH>, ihc::awidth<32> >    uops_mm_master(uops);
   ihc::mm_master<acc_vec_T, ihc::aspace<6>, ihc::dwidth<VTA_ACC_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> >  biases_mm_master(biases);
   ihc::mm_master<out_vec_T, ihc::aspace<7>, ihc::dwidth<VTA_OUT_WIDTH*VTA_BLOCK_OUT>, ihc::awidth<32> > outputs_mm_master(outputs);
-  ihc::mm_master<inp_vec_T, ihc::aspace<8>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > inputs_mm_master(outputs);
-  ihc::mm_master<wgt_vec_T, ihc::aspace<9>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > weights_mm_master(outputs);
+  ihc::mm_master<inp_vec_T, ihc::aspace<8>, ihc::dwidth<VTA_INP_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > inputs_mm_master(inputs);
+  ihc::mm_master<wgt_vec_T, ihc::aspace<9>, ihc::dwidth<VTA_WGT_WIDTH*VTA_BLOCK_IN>, ihc::awidth<32> > weights_mm_master(weights);
 
   // Push all instructions into the queues
   fetch(insn_count, insns_mm_master, tmp_load_queue, tmp_gemm_queue, tmp_store_queue);
@@ -616,7 +588,7 @@ void vta(
         // Push the instruction in the load queue
         load_queue.write(tmp_load);
         tmp_load_popped = false;
-        load(inputs_mm_master, weights_mm_master, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mm_master, wgt_mm_master);
+        load(inputs_mm_master, weights_mm_master, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mem_master, wgt_mem_master);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
@@ -647,9 +619,11 @@ void vta(
         stream_copy(l2g_dep_queue, l2g_dep_queue_cmp);
         stream_copy(s2g_dep_queue, s2g_dep_queue_cmp);
         compute(&done, uops_mm_master, biases_mm_master, gemm_queue, l2g_dep_queue_cmp, s2g_dep_queue_cmp,
-                g2l_dep_queue_cmp, g2s_dep_queue_cmp, inp_mm_master, wgt_mm_master, out_mm_master);
+                g2l_dep_queue_cmp, g2s_dep_queue_cmp, inp_mem_master, wgt_mem_master, out_mem_master);
         stream_copy(g2l_dep_queue_cmp, g2l_dep_queue);
         stream_copy(g2s_dep_queue_cmp, g2s_dep_queue);
+        stream_copy(l2g_dep_queue_cmp, l2g_dep_queue); // if it's not taken, it should still be there.
+        stream_copy(s2g_dep_queue_cmp, s2g_dep_queue);
       } else {
         // Execution of load stage pending on completion of other stages,
         // so break here...
@@ -670,7 +644,7 @@ void vta(
         // Push the instruction in the load queue
         store_queue.write(tmp_store);
         tmp_store_popped = false;
-        store(outputs_mm_master, store_queue, g2s_dep_queue, s2g_dep_queue, out_mm_master);
+        store(outputs_mm_master, store_queue, g2s_dep_queue, s2g_dep_queue, out_mem_master);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
