@@ -496,8 +496,8 @@ def test_check_run():
         if not tvm.module.enabled(dev):
             print("Skip test because %s is not enabled." % dev)
             continue
-        test_fusible_network(dev, tgt)
-        test_unpropagatable_graph(dev, tgt)
+        run_fusible_network(dev, tgt)
+        run_unpropagatable_graph(dev, tgt)
 
  
 if __name__ == "__main__":
