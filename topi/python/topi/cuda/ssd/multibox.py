@@ -380,8 +380,6 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
 
     valid_count_buf = api.decl_buffer((batch_size,), valid_count_dtype,
                                       "valid_count_buf", data_alignment=4)
-    out_loc_buf = api.decl_buffer(
-        oshape, out_loc_dtype, "out_loc_buf", data_alignment=8)
 
     temp_valid_count_buf = api.decl_buffer(
         (batch_size, num_anchors,), valid_count_dtype, "temp_valid_count", data_alignment=8)
@@ -407,7 +405,6 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
                        ins[0], ins[1], ins[2], ins[3], ins[4], outs[0], clip, variances, \
                        batch_size, num_anchors),
                    dtype=[out_loc_dtype],
-                   out_buffers=[out_loc_buf],
                    tag="multibox_transform_loc")
 
     return [out_loc, valid_count]
