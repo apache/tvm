@@ -64,6 +64,7 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
         oc, _, kh, kw = kshape
     elif layout == 'NHWC':
         n, h, w, ic = dshape
+        oc, _, kh, kw = kshape
     elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
         if data.dtype == 'uint8':
@@ -513,7 +514,7 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
                                    kernel[occ, ic_outer, kh, kw, ic_f_inner,
                                           oc_block, ic_s_inner].astype(out_dtype),
                                    axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
-                           name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")    
+                           name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
 
     # else: fp implementation
     return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
