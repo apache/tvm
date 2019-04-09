@@ -26,7 +26,7 @@ def dense_default(data, weight, bias=None):
     ----------
     data : tvm.Tensor
         Tensor with shape [batch0, batch1, batch2..., in_dim]
-    
+
     weight : tvm.Tensor
         2-D with shape [out_dim, in_dim]
 
