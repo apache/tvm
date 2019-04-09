@@ -25,8 +25,8 @@ def dense_default(data, weight, bias=None):
     Parameters
     ----------
     data : tvm.Tensor
-        2-D with shape [batch, in_dim]
-
+        Tensor with shape [batch0, batch1, batch2..., in_dim]
+    
     weight : tvm.Tensor
         2-D with shape [out_dim, in_dim]
 
@@ -36,22 +36,28 @@ def dense_default(data, weight, bias=None):
     Returns
     -------
     output : tvm.Tensor
-        2-D with shape [batch, out_dim]
+        Tensor with shape [batch0, batch1, batch2..., out_dim]
     """
-    assert len(data.shape) == 2 and len(weight.shape) == 2, \
-        "only support 2-dim dense"
+    assert len(data.shape) > 0 and len(weight.shape) == 2, \
+        "bad shape"
     if bias is not None:
         assert len(bias.shape) == 1
-    batch, in_dim = data.shape
-    out_dim, _ = weight.shape
+    batch = data.shape[:-1]
+    in_dim = data.shape[-1]
+    out_dim = weight.shape[0]
     k = tvm.reduce_axis((0, in_dim), name='k')
-    matmul = tvm.compute((batch, out_dim), \
-                         lambda i, j: tvm.sum(data[i, k] * weight[j, k], axis=k), \
-                         tag='dense')
+    out_shape = batch + [out_dim]
+    def matmul_func(*idx):
+        batch_idx = idx[:-1]
+        out_idx = idx[-1]
+        return tvm.sum(data[tuple(batch_idx + (k,))] * weight[out_idx, k], axis=k)
+    matmul = tvm.compute(out_shape, matmul_func, tag='dense')
     if bias is not None:
-        matmul = tvm.compute((batch, out_dim), \
-                             lambda i, j: matmul[i, j] + bias[j], \
-                             tag=tag.BROADCAST)
+        def matmul_func(*idx):
+            batch_idx = idx[:-1]
+            out_idx = idx[-1]
+            return matmul[tuple(batch_idx + (k,))] + bias[out_idx]
+        matmul = tvm.compute(out_shape, matmul_func, tag=tag.BROADCAST)
     return matmul
 
 
@@ -62,7 +68,7 @@ def dense(data, weight, bias=None):
     Parameters
     ----------
     data : tvm.Tensor
-        2-D with shape [batch, in_dim]
+        Tensor with shape [batch0, batch1, batch2..., in_dim]
 
     weight : tvm.Tensor
         2-D with shape [out_dim, in_dim]
@@ -73,6 +79,6 @@ def dense(data, weight, bias=None):
     Returns
     -------
     output : tvm.Tensor
-        2-D with shape [batch, out_dim]
+        Tensor with shape [batch0, batch1, batch2..., out_dim]
     """
     return dense_default(data, weight, bias)
