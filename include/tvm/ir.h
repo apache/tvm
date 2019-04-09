@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tvm/ir.h
  * \brief Additional high level nodes in the IR
  */
@@ -17,6 +35,7 @@
 namespace tvm {
 namespace ir {
 
+using HalideIR::Internal::BaseExprNode;
 using HalideIR::Internal::ExprNode;
 using HalideIR::Internal::StmtNode;
 using HalideIR::Internal::IRNodeType;
@@ -206,6 +225,8 @@ constexpr const char* scan_init_scope = "scan_init_scope";
  *  This gives hint to require stride of dim to be k * align + offset.
  */
 constexpr const char* buffer_dim_align = "buffer_dim_align";
+/*! \brief Mark stores/loads with theirs bounds.  */
+constexpr const char* buffer_bound = "buffer_bound";
 /*!
  * \brief Bind the buffer specification to the region of the op
  *  When this scope occurs, the stmt.node is a Array<NodeRef> = [buffer, tensor]
@@ -393,6 +414,17 @@ constexpr const char* tvm_stack_make_array = "tvm_stack_make_array";
 constexpr const char* tvm_call_packed = "tvm_call_packed";
 /*!
  * \brief See pesudo code
+ *
+ *  int tvm_call_trace_packed(name, TVMValue* args) {
+ *     ModuleNode* env = GetCurrentEnv();
+ *     const PackedFunc* f = env->GetFuncFromEnv(name);
+ *     (*f)(args, type_code_of(args), len(args));
+ *     return 0;
+ *  }
+ */
+constexpr const char *tvm_call_trace_packed = "tvm_call_trace_packed";
+/*!
+ * \brief See pesudo code
  *  Mark the content as thread local context, can get optimized
  *  by only call the call once at thread start.
  *
@@ -420,6 +452,25 @@ constexpr const char* tvm_thread_context = "tvm_thread_context";
  *  }
  */
 constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
+/*!
+ * \brief Lowered version of trace intrinsic, the space of value and
+ *  type codes are explicitly allocated. The return value is the
+ *  (end - 1) value on the stack.
+ *
+ *  int tvm_call_trace_packed_lowered(name,
+ *                                    TVMValue* value_stack,
+ *                                    int* tcode_stack,
+ *                                    int begin,
+ *                                    int end) {
+ *     ModuleNode* env = GetCurrentEnv();
+ *     const PackedFunc* f = env->GetFuncFromEnv(name);
+ *     f->CallPacked(TVMArgs(value_stack[begin:end],
+ *                           tcode_stack[begin:end]),
+ *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *  }
+ */
+constexpr const char *tvm_call_trace_packed_lowered =
+    "tvm_call_trace_packed_lowered";
 /*!
  * \brief See pseudo code
  *

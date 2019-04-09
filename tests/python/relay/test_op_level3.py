@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """ Support level3 operator test cases.
 """
 import tvm
@@ -25,7 +41,8 @@ def test_unary_identity():
                (relay.round, np.round),
                (relay.abs, np.abs),
                (relay.copy, None), # np.copy
-               (relay.negative, np.negative)]:
+               (relay.negative, np.negative),
+               (relay.sign, np.sign)]:
         shape = (8, 9, 4)
         x = relay.var("x", relay.TensorType(shape, "float32"))
         y = op(x)
@@ -46,6 +63,11 @@ def test_cast():
     assert "dtype=" in yy.astext()
     assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
 
+    x = relay.var("x", relay.TensorType((8, 9, 4), "float32"))
+    y = relay.cast(x, "int32")
+    yy = relay.ir_pass.infer_type(y)
+    assert "dtype=" in yy.astext()
+    assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
 
 def test_clip():
     a = relay.var("a", relay.TensorType((10, 4), "float32"))
@@ -82,10 +104,33 @@ def test_transpose_infer_type():
     n, t, d = tvm.var("n"), tvm.var("t"), 100
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
     y = relay.transpose(x, axes=(1, 0, 2))
-    "axes=" in y.astext()
+    assert "axes=" in y.astext()
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType(
         (t, n, 100), "float32")
+
+    y = relay.transpose(x)
+    assert "axes=" in y.astext()
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType(
+        (100, t, n), "float32")
+
+
+def test_transpose():
+    def verify_transpose(dshape, axes):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.transpose(x, axes=axes)
+
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
+        ref_res = np.transpose(x_data, axes=axes)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_transpose((2, 3, 4), (0, 2, 1))
 
 
 def test_squeeze_infer_type():
@@ -124,25 +169,36 @@ def test_reshape_infer_type():
         (n, t, 2000), "float32")
 
 def test_reshape():
-    def verify_reshape(shape, oshape):
-        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
-        ref_res = np.reshape(x_data, oshape)
-
+    def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
-        z = relay.reshape(x, newshape=ref_res.shape)
+        z = relay.reshape(x, newshape=newshape)
         zz = relay.ir_pass.infer_type(z)
         assert "newshape=" in z.astext()
         assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
 
         func = relay.Function([x], z)
-
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        ref_res = np.reshape(x_data, oshape)
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    verify_reshape((2, 3, 4), (8, 3))
-    verify_reshape((4, 7), (2, 7, 2))
+    verify_reshape((2, 3, 4), (8, 3), (8, 3))
+    verify_reshape((4, 7), (2, 7, 2), (2, 7, 2))
+    verify_reshape((2, 3, 4), (4, 0, 2), (4, 3, 2))
+    verify_reshape((2, 3, 4), (2, 0, 0), (2, 3, 4))
+    verify_reshape((2, 3, 4), (0, -1), (2, 12))
+    verify_reshape((2, 3, 4), (-1, 0), (8, 3))
+    verify_reshape((2, 3, 4), (2, -2), (2, 3, 4))
+    verify_reshape((2, 3, 4), (-2, 1, 1), (2, 3, 4, 1, 1))
+    verify_reshape((2, 3, 4), (-3, 4), (6, 4))
+    verify_reshape((2, 3, 4, 5), (-3, -3), (6, 20))
+    verify_reshape((2, 3, 4), (0, -3), (2, 12))
+    verify_reshape((2, 3, 4), (-3, -2), (6, 4))
+    verify_reshape((2, 3, 4), (-4, 1, 2, -2), (1, 2, 3, 4))
+    verify_reshape((2, 3, 4), (2, -4, -1, 3, -2), (2, 1, 3, 4))
+
 
 def test_reshape_like_infer_type():
     # concrete shape
@@ -202,6 +258,41 @@ def test_take_infer_type():
     verify_take((d1, d2), (d3, d4, d5), (d1, d3, d4, d5), 1)
     verify_take((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2)
 
+def test_take():
+    def verify_take(src_shape, indices_src, axis=None, mode="clip"):
+        src_dtype = "float32"
+        indices_dtype = "int32"
+        indices_src = np.array(indices_src, dtype=indices_dtype)
+        x = relay.var("x", relay.TensorType(src_shape, src_dtype))
+        indices = relay.var("indices", relay.TensorType(indices_src.shape, indices_dtype))
+        z = relay.take(x, indices, axis=axis, mode=mode)
+
+        func = relay.Function([x, indices], z)
+        x_data = np.random.uniform(low=-1, high=1, size=src_shape).astype(src_dtype)
+        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=mode)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, indices_src)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_take((4,), [1])
+    verify_take((4,), [[0,1,2,3]])
+    verify_take((3,3,3), [[11,25]])
+    verify_take((4,), [[0,1],[2,3]])
+    verify_take((4,), [1], 0)
+    verify_take((2,2), [[[1,0],[0,1]]], 0)
+    verify_take((2,2), [[[1,0],[0,1]]], 1)
+    verify_take((4,3,5,6), [[2,1,0,0]], -2)
+    verify_take((3,4), [-5, 20])
+    verify_take((3,4), [-5, 20], mode="wrap")
+    verify_take((3,4), [-1, 2], axis=0)
+    verify_take((3,4), [-1, 2], axis=0, mode="wrap")
+    verify_take((3,4), [-1, 2], axis=1)
+    verify_take((3,4), [-1, 2], axis=1, mode="wrap")
+
+
 def test_split_infer_type():
     def verify_split(dshape, indices_or_sections, ret_type, axis=None):
         x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
@@ -248,7 +339,7 @@ def test_split_infer_type():
                      relay.ty.TensorType((d1, (d2-7), d3, d4), "float32")])),
                   axis=1)
 
-def test_full():
+def test_full_infer_type():
     # default settings: match input dtype
     x = relay.var("x", relay.TensorType((), "int8"))
     y = relay.full(x, ())
@@ -263,7 +354,22 @@ def test_full():
     assert yy.checked_type == relay.TensorType((1, 2), "int8")
 
 
-def test_full_like():
+def test_full():
+    def verify_full(fill_value, src_shape, dtype):
+        x = relay.var("x", relay.scalar_type(dtype))
+        z = relay.full(x, src_shape, dtype)
+        func = relay.Function([x], z)
+        ref_res = np.full(src_shape, fill_value)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(np.array(fill_value, dtype))
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_full(4, (1, 3, 4, 4), "int32")
+    verify_full(4.0, (1, 4), "float32")
+
+
+def test_full_like_infer_type():
     # concrete shape
     base = relay.var("base", relay.TensorType((1, 2, 3), "float32"))
     fill = relay.var("fill", relay.TensorType((), "float32"))
@@ -278,6 +384,26 @@ def test_full_like():
     y = relay.full_like(base, fill)
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
+
+
+def test_full_like():
+    def verify_full_like(base, fill_value, dtype):
+        x_data = np.random.uniform(low=-1, high=1, size=base).astype(dtype)
+        x = relay.var("x", relay.TensorType(base, dtype))
+        y = relay.var("y", relay.scalar_type(dtype))
+        z = relay.full_like(x, y)
+
+        func = relay.Function([x, y], z)
+        ref_res = np.full_like(x_data, fill_value)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, np.array(fill_value, dtype))
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_full_like((1, 3, 4, 4), 4, "int32")
+    verify_full_like((1, 1), 44.0, "float32")
+
 
 def test_infer_type_leaky_relu():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -354,18 +480,149 @@ def test_infer_type_prelu():
     verify_infer_type_prelu((1, 3, 2, 2), None, 1, (1, 3, 2, 2))
     verify_infer_type_prelu((1, 2, 2, 3), None, 3, (1, 2, 2, 3))
 
+
+def test_arange():
+    def verify_arange(start, stop, step):
+        dtype = "float32"
+        if start is None and step is None:
+            x = relay.arange(stop)
+            ref_res = np.arange(stop)
+        elif start is None:
+            x = relay.arange(stop, step=step)
+            ref_res = np.arange(stop, step=step)
+        elif step is None:
+            x = relay.arange(start, stop)
+            ref_res = np.arange(start, stop)
+        else:
+            x = relay.arange(start, stop, step)
+            ref_res = np.arange(start, stop, step)
+
+        func = relay.Function([], x)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)()
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_arange(None, 20, None)
+    verify_arange(None, 20, 2)
+    verify_arange(1, 20, None)
+    verify_arange(1, 20, 2)
+    verify_arange(1, 20, 1.5)
+    verify_arange(1, 20.5, None)
+    verify_arange(1, 20, 3)
+    verify_arange(20, 1, -1)
+    verify_arange(20, 1, -1.5)
+
+def test_tile():
+    def verify_tile(dshape, reps):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.tile(x, reps=reps)
+
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
+        ref_res = np.tile(x_data, reps=reps)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_tile((2, 3, 4), (3, 2, 1))
+    verify_tile((2, 3, 4), (1, 2))
+    verify_tile((2, 3), (3, 2, 1))
+
+def test_repeat():
+    def verify_repeat(dshape, repeats, axis):
+        x = relay.Var("x", relay.TensorType(dshape, "float32"))
+        func = relay.Function([x], relay.repeat(x, repeats, axis))
+        data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = np.repeat(data, repeats, axis)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_repeat((3,), 2, 0)
+    verify_repeat((3, 10), 2, -1)
+    verify_repeat((3, 2, 4), 3, 1)
+
+def test_stack():
+    def verify_stack(dshapes, axis):
+        y = []
+        for shape in dshapes:
+            y.append(relay.var("input", relay.TensorType(shape, "float32")))
+        x = relay.Tuple(y)
+        z = relay.stack(x, axis=axis)
+
+        func = relay.Function(y, z)
+        x_data = [np.random.normal(size=shape).astype("float32") for shape in dshapes]
+        ref_res = np.stack(x_data, axis=axis)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(*x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_stack([(2,), (2,), (2,)], -1)
+    verify_stack([(2,), (2,), (2,)], 0)
+    verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
+    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
+
+
+def test_reverse():
+    def verify_reverse(dshape, axis):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.reverse(x, axis=axis)
+        zz = relay.ir_pass.infer_type(z)
+
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
+        ref_res = np.flip(x_data, axis)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_reverse((2, 3, 4), 1)
+    verify_reverse((4, 7), 0)
+    verify_reverse((2, 3, 4), -1)
+
+
+def test_gather_nd():
+    def verify_gather_nd(xshape, yshape, y_data):
+        x = relay.var("x", relay.TensorType(xshape, "float32"))
+        y = relay.var("y", relay.TensorType(yshape, "int32"))
+        z = relay.gather_nd(x, y)
+
+        func = relay.Function([x, y], z)
+        x_data = np.random.uniform(size=xshape).astype("float32")
+        ref_res = x_data[y_data]
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_gather_nd((2, 2), (2, 3), [[1, 1, 0], [0, 1, 0]])
+    verify_gather_nd((2, 2, 2), (2, 2), [[0, 1], [1, 0]])
+
+
 if __name__ == "__main__":
     test_cast()
     test_zeros_ones()
     test_unary_identity()
     test_clip()
     test_transpose_infer_type()
+    test_transpose()
     test_reshape_infer_type()
     test_reshape()
     test_reshape_like_infer_type()
     test_reshape_like()
     test_take_infer_type()
+    test_take()
+    test_full_infer_type()
     test_full()
+    test_full_like_infer_type()
     test_full_like()
     test_infer_type_leaky_relu()
     test_infer_type_prelu()
@@ -373,3 +630,9 @@ if __name__ == "__main__":
     test_squeeze_infer_type()
     test_squeeze_bad_axes_infer_type()
     test_split_infer_type()
+    test_arange()
+    test_reverse()
+    test_stack()
+    test_tile()
+    test_repeat()
+    test_gather_nd()

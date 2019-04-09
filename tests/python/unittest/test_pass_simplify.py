@@ -1,5 +1,23 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 import numpy
+from tvm import comm_reducer
+from tvm.ir_pass import Simplify, CanonicalSimplify, Equal
 
 def test_simplify():
     """Not yet working, mock design"""
@@ -29,31 +47,12 @@ def test_basic():
 
 def test_bound():
     m = tvm.var('m')
-    vrange = tvm.convert({m: tvm.Range(tvm.const(0), tvm.const(10))})
+    vrange = tvm.convert({m: tvm.Range(tvm.const(0, "int32"), tvm.const(10, "int32"))})
     ret = tvm.ir_pass.Simplify(m % 10, vrange)
     assert ret == m
 
-def test_canonical():
-    x = tvm.var("x")
-    z = tvm.const(3)
-    ret = tvm.ir_pass.CanonicalSimplify(x / (z*z) - x / (z*z))
-    assert(tvm.ir_pass.Equal(ret, 0))
-
-    ret = tvm.ir_pass.CanonicalSimplify(x / (z+z) - x / (z+z))
-    assert(tvm.ir_pass.Equal(ret, 0))
-
-    #make sure terms are ordered based on their top operators (e.g., / always precedes %)
-    ret1 = tvm.ir_pass.CanonicalSimplify(x % 3 + x / 3)
-    ret2 = tvm.ir_pass.CanonicalSimplify(x / 3 + x % 3)
-    assert(tvm.ir_pass.Equal(ret1, ret2))
-
-    #when top operators match, compare string representation of terms
-    ret1 = tvm.ir_pass.CanonicalSimplify(x % 4 + x % 3)
-    ret2 = tvm.ir_pass.CanonicalSimplify(x % 3 + x % 4)
-    assert (tvm.ir_pass.Equal(ret1, ret2))
 
 if __name__ == "__main__":
     test_bound()
     test_basic()
     test_simplify()
-    test_canonical()

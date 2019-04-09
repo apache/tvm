@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file plan_memory.cc
@@ -218,10 +237,14 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
         bool ignore_all_inputs = (fignore_inputs.count(inode.source->op()) != 0 &&
                                   fignore_inputs[inode.source->op()](
                                       inode.source->attrs).size() == inode.source->num_inputs());
+        // Identity should only be true if shape.Size() and types match
+        bool real_identity = identity[ipair] &&
+                             shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
+                             dtype_vec[eid_out] == dtype_vec[eid_in];
         if (taken[kv.first] == false &&
             sid_out == GraphAllocator::kBadStorageID &&
             sid_in >= 0 &&
-            ((storage_ref_count[sid_in] == 1 && !ignore_all_inputs) || identity[ipair]) &&
+            ((storage_ref_count[sid_in] == 1 && !ignore_all_inputs) || real_identity) &&
             entry_ref_count[eid_out] > 0 &&
             shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
              (dtype_vec[eid_out] == dtype_vec[eid_in] ||
@@ -274,7 +297,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
       auto sid = storage[eid];
       // storage_ref_count == 0 means it is taken by inplace op
       if (sid < 0) continue;
-      // if we decrease it to zero, means we are ready to relase
+      // if we decrease it to zero, we are ready to relase
       --storage_ref_count[sid];
       if (storage_ref_count[sid] == 0) {
         allocator->Release(sid, nid);

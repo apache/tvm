@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors.
  *
@@ -8,15 +27,56 @@
 #ifndef TVM_RELAY_PASS_PATTERN_UTIL_H_
 #define TVM_RELAY_PASS_PATTERN_UTIL_H_
 
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/attrs/nn.h>
 #include <string>
-#include "../op/layout.h"
 
 
 namespace tvm {
 namespace relay {
+
+/*!
+ * \brief Dispatch DataType to the C++ data type
+ *  during runtime.
+ */
+#define TVM_DTYPE_DISPATCH(type, DType, ...)            \
+  if (type == Float(64)) {                              \
+    typedef double DType;                               \
+    {__VA_ARGS__}                                       \
+  } else if (type == Float(32)) {                       \
+    typedef float DType;                                \
+    {__VA_ARGS__}                                       \
+  } else if (type == Int(64)) {                         \
+    typedef int64_t DType;                              \
+    {__VA_ARGS__}                                       \
+  } else if (type == Int(32)) {                         \
+    typedef int32_t DType;                              \
+    {__VA_ARGS__}                                       \
+  } else if (type == Int(16)) {                         \
+    typedef int16_t DType;                              \
+    {__VA_ARGS__}                                       \
+  } else if (type == Int(8)) {                          \
+    typedef int8_t DType;                               \
+    {__VA_ARGS__}                                       \
+  } else if (type == UInt(64)) {                        \
+    typedef uint64_t DType;                             \
+    {__VA_ARGS__}                                       \
+  } else if (type == UInt(32)) {                        \
+    typedef uint32_t DType;                             \
+    {__VA_ARGS__}                                       \
+  } else if (type == UInt(16)) {                        \
+    typedef uint16_t DType;                             \
+    {__VA_ARGS__}                                       \
+  } else if (type == UInt(8)) {                         \
+    typedef uint8_t DType;                              \
+    {__VA_ARGS__}                                       \
+  } else {                                              \
+    LOG(FATAL) << "unknown data type " << type;         \
+  }
 
 /*!
  * \brief Try to match lhs and rhs via broadcasting rule, such that:
@@ -73,7 +133,7 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
  * the target Tensor on the specified axis via broadcasting rule.
  *
  * \param bias The bias.
- * \param target_ndim target dimension.
+ * \param target_ndim Target dimension.
  * \param axes The axis on the output we want to match on.
  */
 inline Expr ExpandBiasToMatchAxis(Expr bias,
@@ -112,11 +172,10 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
  */
 inline bool IsDepthwiseConv2D(const Call& call,
                               const Conv2DAttrs* param,
-                              const Layout& weight_layout) {
+                              const Layout& kernel_layout) {
   static const Layout kOIHW("OIHW");
-  auto wshape = ConvertLayout(
-      call->args[1]->type_as<TensorTypeNode>()->shape,
-      weight_layout, kOIHW);
+  const auto bilayout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
+  auto wshape = bilayout.ForwardShape(call->args[1]->type_as<TensorTypeNode>()->shape);
   return is_const_int(wshape[0], param->groups) &&
       is_const_int(wshape[1], 1);
 }
@@ -129,7 +188,7 @@ inline bool IsDepthwiseConv2D(const Call& call,
 inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
     auto param = call->attrs.as<Conv2DAttrs>();
     auto tweight = call->args[1]->type_as<TensorTypeNode>();
-    auto index = param->weight_layout.find('O');
+    auto index = param->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
     auto channels = as_const_int(tweight->shape[index]);
     return *channels;
@@ -144,12 +203,64 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
  */
 template<typename T>
 inline Constant MakeConstantScalar(DataType dtype, T value) {
-  CHECK_EQ(sizeof(T) * 8, dtype.bits()) << "data type mismatch";
   runtime::NDArray arr = runtime::NDArray::Empty({}, Type2TVMType(dtype), {kDLCPU, 0});
-  *static_cast<T*>(arr->data) = value;
+  TVM_DTYPE_DISPATCH(dtype, DType, {
+    *static_cast<DType*>(arr->data) = value;
+  })
   return ConstantNode::make(arr);
 }
 
+/*!
+ * \brief Check if two expressions are equal scalars.
+ * \param a The expression to be checked.
+ * \param b The expression to be checked
+ * \return Whether two expressions are equal scalars.
+ */
+inline bool IsEqualScalar(const Expr& a, const Expr& b) {
+  const auto* constant_a = a.as<ConstantNode>();
+  const auto* constant_b = b.as<ConstantNode>();
+  if (!constant_a || !constant_b || !constant_a->is_scalar() || !constant_b->is_scalar()) {
+    return false;
+  }
+  return AlphaEqual(a, b);
+}
+
+inline Expr GetField(Expr t, size_t i) {
+  return TupleGetItemNode::make(t, i);
+}
+
+inline Expr Pair(Expr l, Expr r) {
+  return TupleNode::make({l, r});
+}
+
+inline Expr Exp(Expr e) {
+  static const Op& op = Op::Get("exp");
+  return CallNode::make(op, {e});
+}
+
+inline Expr Log(Expr e) {
+  static const Op& op = Op::Get("log");
+  return CallNode::make(op, {e});
+}
+/*!
+ * \brief Get an immediate scalar from a Constant expr.
+ *
+ * \param expr The Constant expr.
+ * \return A scalar with type T.
+ */
+template <typename T>
+T GetScalarFromConstant(Expr expr) {
+  const auto* n = expr.as<ConstantNode>();
+  CHECK(n->is_scalar());
+  return static_cast<T*>(n->data->data)[0];
+}
+
+inline Expr Cast(Expr x, DataType dtype) {
+  static const Op& op = Op::Get("cast");
+  auto attrs = make_node<CastAttrs>();
+  attrs->dtype = dtype;
+  return CallNode::make(op, {x}, Attrs(attrs), {});
+}
 
 inline Expr Negative(Expr x) {
   static const Op& op = Op::Get("negative");
@@ -163,8 +274,35 @@ inline Expr Sqrt(Expr x) {
 }
 
 
+inline Expr Relu(Expr x) {
+  static const Op& op = Op::Get("nn.relu");
+  return CallNode::make(op, {x}, Attrs(), {});
+}
+
+
+inline Expr Round(Expr x) {
+  static const Op& op = Op::Get("round");
+  return CallNode::make(op, {x}, Attrs(), {});
+}
+
+
+inline Expr Clip(Expr x, double a_min, double a_max) {
+  static const Op& op = Op::Get("clip");
+  auto attrs = make_node<ClipAttrs>();
+  attrs->a_min = a_min;
+  attrs->a_max = a_max;
+  return CallNode::make(op, {x}, Attrs(attrs), {});
+}
+
+
 inline Expr Add(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("add");
+  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+}
+
+
+inline Expr Substract(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("subtract");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
@@ -180,15 +318,51 @@ inline Expr Divide(Expr lhs, Expr rhs) {
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
+inline Expr ZerosLike(Expr e) {
+  static const Op& op = Op::Get("zeros_like");
+  return CallNode::make(op, {e});
+}
+
+inline Expr OnesLike(Expr e) {
+  static const Op& op = Op::Get("ones_like");
+  return CallNode::make(op, {e});
+}
+
+inline Expr Power(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("power");
+  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+}
+
+
+inline Expr RightShift(Expr x, Expr nbit) {
+  static const Op& op = Op::Get("right_shift");
+  return CallNode::make(op, {x, nbit}, Attrs(), {});
+}
+
+
+inline Expr LeftShift(Expr x, Expr nbit) {
+  static const Op& op = Op::Get("left_shift");
+  return CallNode::make(op, {x, nbit}, Attrs(), {});
+}
+
 
 inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
+
+inline Expr Copy(Expr data) {
+  static const Op& op = Op::Get("copy");
+  return CallNode::make(op, {data}, Attrs(), {});
+}
+
+
 Expr MakeConcatenate(Expr data, int axis);
 
 Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
+
+Expr StopFusion(Expr data);
 
 }  // namespace relay
 }  // namespace tvm

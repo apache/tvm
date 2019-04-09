@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/ir/hash.cc
@@ -5,6 +24,7 @@
  */
 #include <tvm/ir_pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/pass.h>
 #include <tvm/attrs.h>
@@ -16,9 +36,10 @@ namespace relay {
 
 // Hash handler for Relay.
 class RelayHashHandler:
-      public AttrsHashHandler,
-      public TypeFunctor<size_t(const Type&)>,
-      public ExprFunctor<size_t(const Expr&)> {
+    public AttrsHashHandler,
+    public TypeFunctor<size_t(const Type&)>,
+    public ExprFunctor<size_t(const Expr&)>,
+    public PatternFunctor<size_t(const Pattern&)> {
  public:
   explicit RelayHashHandler() {}
 
@@ -175,6 +196,12 @@ class RelayHashHandler:
     return hash;
   }
 
+  size_t VisitType_(const RefTypeNode* rtn) final {
+    size_t hash = std::hash<std::string>()(RefTypeNode::_type_key);
+    hash = Combine(hash, TypeHash(rtn->value));
+    return hash;
+  }
+
   // Expr hashing.
   size_t NDArrayHash(const runtime::NDArray& array) {
     size_t hash = std::hash<uint8_t>()(array->dtype.code);
@@ -195,14 +222,15 @@ class RelayHashHandler:
     hash_map_[var] = hash;
 
     const auto* ty_param = var.as<TypeVarNode>();
-    if (ty_param && ty_param->kind == TypeVarNode::Kind::kShapeVar) {
+    if (ty_param && ty_param->kind == Kind::kShapeVar) {
       hash_map_[ty_param->var] = hash;
     }
     return hash;
   }
 
   size_t VisitExpr_(const VarNode* var) final {
-    size_t name_hash = std::hash<std::string>()(var->name_hint);
+    // hash free variable
+    size_t name_hash = std::hash<const Node*>()(var->vid.get());
     return Combine(name_hash, TypeHash(var->type_annotation));
   }
 
@@ -229,7 +257,7 @@ class RelayHashHandler:
     }
 
     hash = Combine(hash, TypeHash(func->ret_type));
-    hash =  Combine(hash, ExprHash(func->body));
+    hash = Combine(hash, ExprHash(func->body));
 
     return hash;
   }
@@ -240,6 +268,10 @@ class RelayHashHandler:
 
     for (auto arg : call->args) {
       hash = Combine(hash, ExprHash(arg));
+    }
+
+    for (auto t : call->type_args) {
+      hash = Combine(hash, TypeHash(t));
     }
 
     hash = Combine(hash, AttrHash(call->attrs));
@@ -276,6 +308,90 @@ class RelayHashHandler:
     size_t hash = std::hash<std::string>()(TupleGetItemNode::_type_key);
     hash = Combine(hash, ExprHash(get_item->tuple));
     hash = Combine(hash, std::hash<int>()(get_item->index));
+    return hash;
+  }
+
+  size_t VisitExpr_(const RefCreateNode* rn) final {
+    size_t hash = std::hash<std::string>()(RefCreateNode::_type_key);
+    hash = Combine(hash, ExprHash(rn->value));
+    return hash;
+  }
+
+  size_t VisitExpr_(const RefReadNode* rn) final {
+    size_t hash = std::hash<std::string>()(RefReadNode::_type_key);
+    hash = Combine(hash, ExprHash(rn->ref));
+    return hash;
+  }
+
+  size_t VisitExpr_(const RefWriteNode* rn) final {
+    size_t hash = std::hash<std::string>()(RefWriteNode::_type_key);
+    hash = Combine(hash, ExprHash(rn->ref));
+    hash = Combine(hash, ExprHash(rn->value));
+    return hash;
+  }
+
+  size_t VisitExpr_(const MatchNode* mn) final {
+    size_t hash = std::hash<std::string>()(MatchNode::_type_key);
+    hash = Combine(hash, ExprHash(mn->data));
+    for (const auto& c : mn->clauses) {
+      hash = Combine(hash, PatternHash(c->lhs));
+      hash = Combine(hash, ExprHash(c->rhs));
+    }
+    return hash;
+  }
+
+  size_t VisitExpr_(const ConstructorNode* cn) final {
+    size_t hash = std::hash<std::string>()(ConstructorNode::_type_key);
+    hash = Combine(hash, std::hash<std::string>()(cn->name_hint));
+    return hash;
+  }
+
+  size_t VisitType_(const TypeCallNode* tcn) final {
+    size_t hash = std::hash<std::string>()(TypeCallNode::_type_key);
+    hash = Combine(hash, TypeHash(tcn->func));
+    for (const auto& t : tcn->args) {
+      hash = Combine(hash, TypeHash(t));
+    }
+    return hash;
+  }
+
+  size_t VisitType_(const TypeDataNode* tdn) final {
+    size_t hash = std::hash<std::string>()(TypeDataNode::_type_key);
+    hash = Combine(hash, TypeHash(tdn->header));
+    for (const auto& tv : tdn->type_vars) {
+      hash = Combine(hash, TypeHash(tv));
+    }
+    for (const auto& cn : tdn->constructors) {
+      hash = Combine(hash, ExprHash(cn));
+    }
+    return hash;
+  }
+
+  size_t VisitType_(const GlobalTypeVarNode* tvn) final {
+    return BindVar(GetRef<GlobalTypeVar>(tvn));
+  }
+
+  size_t PatternHash(const Pattern& p) {
+    return VisitPattern(p);
+  }
+
+  size_t VisitPattern_(const PatternConstructorNode* pcn) final {
+    size_t hash = std::hash<std::string>()(PatternConstructorNode::_type_key);
+    hash = Combine(hash, ExprHash(pcn->constructor));
+    for (const auto& p : pcn->patterns) {
+      hash = Combine(hash, PatternHash(p));
+    }
+    return hash;
+  }
+
+  size_t VisitPattern_(const PatternVarNode* pvn) final {
+    size_t hash = std::hash<std::string>()(PatternVarNode::_type_key);
+    hash = Combine(hash, BindVar(pvn->var));
+    return hash;
+  }
+
+  size_t VisitPattern_(const PatternWildcardNode* pwn) final {
+    size_t hash = std::hash<std::string>()(PatternWildcardNode::_type_key);
     return hash;
   }
 

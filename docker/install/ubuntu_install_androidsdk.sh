@@ -1,13 +1,32 @@
+#!/bin/bash
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 . /etc/profile
 
 set -o errexit -o nounset
+set -o pipefail
 
 ANDROID_HOME=/opt/android-sdk-linux
 ASDKTOOLS_HOME=/opt/android-sdk-tools
 ASDKTOOLS_VERSION=3859397
 ASDKTOOLS_SHA256=444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0
 
-wget http://dl.google.com/android/repository/sdk-tools-linux-${ASDKTOOLS_VERSION}.zip -O sdk-tools-linux.zip
+wget -q http://dl.google.com/android/repository/sdk-tools-linux-${ASDKTOOLS_VERSION}.zip -O sdk-tools-linux.zip
 echo "${ASDKTOOLS_SHA256} *sdk-tools-linux.zip" | sha256sum --check -
 unzip sdk-tools-linux.zip
 rm sdk-tools-linux.zip
@@ -58,7 +77,7 @@ EOF
 
 mkdir /root/.android 2>/dev/null || true
 touch /root/.android/repositories.cfg
-yes | sdkmanager --licenses --sdk_root="$ANDROID_HOME"
+(yes || true) | sdkmanager --licenses --sdk_root="$ANDROID_HOME"
 sdkmanager --verbose --package_file=/install/package-list-minimal.txt --sdk_root="$ANDROID_HOME"
 test -d "${ANDROID_HOME}/build-tools/27.0.3"
 test -d "${ANDROID_HOME}/ndk-bundle"

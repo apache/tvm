@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2017 by Contributors
  * \file storage_rewrite.cc
@@ -550,8 +569,10 @@ class StoragePlanRewriter : public IRMutator {
         }
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
+          Expr sz = arith::ComputeReduce<Mul>(e->allocs[0]->extents,
+                                              make_const(Int(32), 1));
           e->new_alloc = Allocate::make(
-              e->alloc_var, alloc_type, e->allocs[0]->extents,
+              e->alloc_var, alloc_type, {sz},
               e->allocs[0]->condition, Evaluate::make(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
@@ -564,8 +585,19 @@ class StoragePlanRewriter : public IRMutator {
           Expr combo_size;
           for (const Allocate* op : e->allocs) {
             Expr sz = arith::ComputeReduce<Mul>(op->extents, make_const(Int(32), 1));
+            auto nbits = op->type.bits() * op->type.lanes();
+            if (const auto* imm = sz.as<IntImm>()) {
+              if (imm->value > std::numeric_limits<int>::max() / nbits) {
+                LOG(WARNING) << "The allocation requires : " << imm->value
+                             << " * " << nbits
+                             << " bits, which is greater than the maximum of"
+                                " int32. The size is cast to int64."
+                             << "\n";
+                sz = make_const(Int(64), imm->value);
+              }
+            }
             // transform to bits
-            auto sz_nbits = sz * (op->type.bits() * op->type.lanes());
+            auto sz_nbits = sz * nbits;
             if (combo_size.defined()) {
               combo_size = max(combo_size, sz_nbits);
             } else {
@@ -578,7 +610,7 @@ class StoragePlanRewriter : public IRMutator {
           combo_size = combo_size / type_bits;
           // round up for can not divided
           if (!divided) {
-             combo_size = combo_size + make_const(Int(32), 1);
+            combo_size = combo_size + make_const(Int(32), 1);
           }
           combo_size = ir::Simplify(combo_size);
           e->new_alloc = Allocate::make(
@@ -718,10 +750,10 @@ class StoragePlanRewriter : public IRMutator {
                     src_entry->attach_scope_ == thread_scope_ &&
                     src_entry->elem_type == ae.alloc->type.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
-                  uint64_t const_nbits = static_cast<uint64_t>(
-                      ae.alloc->constant_allocation_size() *
+                  uint64_t const_nbits =
+                      static_cast<uint64_t>(ae.alloc->constant_allocation_size()) *
                       ae.alloc->type.bits() *
-                      ae.alloc->type.lanes());
+                      ae.alloc->type.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
@@ -923,10 +955,8 @@ class VectorAllocRewriter : public IRMutator {
         tvec[0].lanes() != op->type.lanes()) {
       int factor = tvec[0].lanes() / op->type.lanes();
       Array<Expr> extents = op->extents;
-      arith::ModularEntry me = EvalModular(
-          extents[extents.size() - 1],
-          std::unordered_map<const Variable*, arith::ModularEntry>());
-      if (me.base % factor == 0 && me.coeff % factor == 0) {
+      arith::ModularSet me = analyzer_.modular_set(extents[extents.size() - 1]);
+      if (me->base % factor == 0 && me->coeff % factor == 0) {
         extents.Set(extents.size() - 1,
                     extents[extents.size() - 1] / make_const(extents[0].type(), factor));
         return Allocate::make(
@@ -946,6 +976,8 @@ class VectorAllocRewriter : public IRMutator {
 
   // Internal access map
   std::unordered_map<const Variable*, std::vector<Type> > acc_map_;
+  // internal analyzer
+  arith::Analyzer analyzer_;
 };
 
 

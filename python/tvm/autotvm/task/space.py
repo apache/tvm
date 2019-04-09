@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=too-few-public-methods,invalid-name,unused-argument,arguments-differ
 # pylint: disable=consider-using-enumerate,too-many-lines
 """
@@ -32,7 +48,6 @@ class InstantiationError(ValueError):
      raised by cfg.raise_error
      e.g. too many unrolling, too many threads in a block
     """
-    pass
 
 
 class TransformSpace(object):
@@ -321,17 +336,17 @@ class ReorderSpace(TransformSpace):
         if np.sum(tmp_pt) == size:
             merged.append(list(tmp_stack))
             return
-        else:
-            for i in range(len(chains)):
-                # use i == np.argmax(....) here to take spatial order into consideration
-                # if we don't want to consider spatial order, we can use tmp_pt[i] == np.max(....)
-                if (tmp_pt[i] < len(chains[i]) and
-                        (i == np.argmax([len(chains[x]) - tmp_pt[x] for x in range(len(chains))]))):
-                    tmp_stack.append(chains[i][tmp_pt[i]])
-                    tmp_pt[i] += 1
-                    self._merge_dfs(chains, size, tmp_pt, tmp_stack, merged)
-                    tmp_pt[i] -= 1
-                    tmp_stack.pop()
+
+        for i in range(len(chains)):
+            # use i == np.argmax(....) here to take spatial order into consideration
+            # if we don't want to consider spatial order, we can use tmp_pt[i] == np.max(....)
+            if (tmp_pt[i] < len(chains[i]) and
+                    (i == np.argmax([len(chains[x]) - tmp_pt[x] for x in range(len(chains))]))):
+                tmp_stack.append(chains[i][tmp_pt[i]])
+                tmp_pt[i] += 1
+                self._merge_dfs(chains, size, tmp_pt, tmp_stack, merged)
+                tmp_pt[i] -= 1
+                tmp_stack.pop()
 
 
 class ReorderEntity(object):
@@ -423,7 +438,7 @@ class AnnotateSpace(TransformSpace):
         elif policy == 'locate_cache':
             self.num_axis = len(axes)
             num_anchor = kwargs["num_anchor"]
-            self.anns = list(itertools.combinations(np.arange(self.num_axis), num_anchor))
+            self.anns = list(itertools.combinations(range(self.num_axis), num_anchor))
             self.entities = [AnnotateEntity(x) for x in self.anns]
         else:  # none, vec, unroll, try_vec, try_unroll, try_vec_unroll, ...
             anns = policy.replace('try', 'none').split('_')
@@ -441,7 +456,7 @@ class AnnotateSpace(TransformSpace):
         if now == self.num_axis:
             # only vectorize inner most dimension
             vec_ct = tmp_stack.count('vec')
-            if vec_ct == 0 or vec_ct == 1:
+            if vec_ct in (0, 1):
                 self.entities.append(AnnotateEntity(list(tmp_stack)))
         else:
             for ann in self.anns[now]:

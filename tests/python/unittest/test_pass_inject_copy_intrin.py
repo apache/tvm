@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 
 def test_copy2d():
@@ -25,8 +41,8 @@ def test_copy_pad():
     l = tvm.var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.compute((m + 2, l), lambda i, j:
-                    tvm.select(tvm.all(i >= 1, i < m + 1),
-                                       A[i - 1, j], 1.0), name='B')
+                    tvm.if_then_else(tvm.all(i >= 1, i < m + 1),
+                                     A[i - 1, j], 1.0), name='B')
     s = tvm.create_schedule(B.op)
     s[B].pragma(B.op.axis[0], "memcpy")
     bounds = tvm.schedule.InferBound(s)
@@ -71,8 +87,8 @@ def test_copy_pad_split():
     m = 4 * 3
     A = tvm.placeholder((m, ), name="A")
     Apad = tvm.compute((m + 2,), lambda i:
-                       tvm.select(tvm.all(i >= 1, i <= m),
-                                  A[i - 1], 0.0), "Apad")
+                       tvm.if_then_else(tvm.all(i >= 1, i <= m),
+                                        A[i - 1], 0.0), "Apad")
     B = tvm.compute((m,), lambda i: Apad[i] + Apad[i + 1] + Apad[i + 2])
     s = tvm.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=4)

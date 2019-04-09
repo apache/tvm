@@ -1,14 +1,34 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
-*  Copyright (c) 2017 by Contributors
-* \file tvm/build_module.h
-* \brief Functions for compiling ops.
-*/
+ * \file tvm/build_module.h
+ * \brief Functions for compiling ops.
+ */
 #ifndef TVM_BUILD_MODULE_H_
 #define TVM_BUILD_MODULE_H_
 
 #include <string>
 #include <vector>
 #include <utility>
+#include <unordered_map>
+#include <unordered_set>
 #include "runtime/packed_func.h"
 #include "schedule_pass.h"
 #include "lowered_func.h"
@@ -220,6 +240,12 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to dump the IR of each pass (only when building from python) */
   bool dump_pass_ir = false;
 
+  /*! \brief Whether to instrument loads and stores with check for out of the bounds. */
+  bool instrument_bound_checkers = false;
+
+  /*! \brief Whether to disable select rewriting. */
+  bool disable_select_rewriting = false;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
@@ -232,6 +258,8 @@ class BuildConfigNode : public Node {
     v->Visit("detect_global_barrier", &detect_global_barrier);
     v->Visit("partition_const_loop", &partition_const_loop);
     v->Visit("dump_pass_ir", &dump_pass_ir);
+    v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
+    v->Visit("disable_select_rewriting", &disable_select_rewriting);
   }
 
   static constexpr const char* _type_key = "BuildConfig";
@@ -421,7 +449,7 @@ inline runtime::TVMRetValue GenericFunc::operator()(Args&& ...args) const {
   const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
   TVMValue values[kArraySize];
   int type_codes[kArraySize];
-  runtime::detail::for_each(TVMArgsSetter(values, type_codes),
+  runtime::detail::for_each(runtime::TVMArgsSetter(values, type_codes),
     std::forward<Args>(args)...);
   runtime::TVMRetValue rv;
   CallPacked(TVMArgs(values, type_codes, kNumArgs), &rv);

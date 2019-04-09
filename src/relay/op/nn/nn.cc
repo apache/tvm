@@ -1,9 +1,29 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file nn.cc
  * \brief Property def of nn operators.
  */
 
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/image.h>
@@ -12,12 +32,13 @@
 #include <topi/nn/flatten.h>
 #include <vector>
 #include "../type_relations.h"
+#include "../../pass/alter_op_layout.h"
 #include "../op_common.h"
-#include "../layout.h"
 
 namespace tvm {
 namespace relay {
 
+// relay.nn.bias_add
 TVM_REGISTER_NODE_TYPE(BiasAddAttrs);
 
 bool BiasAddRel(const Array<Type>& types,
@@ -74,6 +95,7 @@ RELAY_REGISTER_OP("nn.bias_add")
 .add_type_rel("BiasAdd", BiasAddRel);
 
 
+// relay.nn.dense
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
 
@@ -143,6 +165,8 @@ RELAY_REGISTER_OP("nn.dense")
 .set_support_level(1)
 .add_type_rel("Dense", DenseRel);
 
+// relay.leaky_relu
+TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 
 // Positional relay function to create leaky relu operator used by frontend FFI.
 Expr MakeLeakyRelu(Expr data,
@@ -171,6 +195,7 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(3)
 .add_type_rel("Identity", IdentityRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
                     const Array<Tensor>& inputs,
@@ -181,6 +206,7 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 });
 
 
+// relay.prelu
 TVM_REGISTER_NODE_TYPE(PReluAttrs);
 
 bool PReluRel(const Array<Type>& types,
@@ -235,6 +261,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 .add_argument("alpha", "Tensor", "Input channelwise alpha.")
 .set_support_level(3)
 .add_type_rel("PRelu", PReluRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
                     const Array<Tensor>& inputs,
@@ -244,6 +271,9 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
     return Array<Tensor>{ topi::prelu(inputs[0], inputs[1], param->axis)};
 });
 
+
+// relay.softmax
+TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
 TVM_REGISTER_API("relay.op.nn._make.softmax")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
@@ -282,6 +312,7 @@ RELAY_REGISTER_OP("nn.softmax")
 });
 
 
+// relay.nn.log_softmax
 TVM_REGISTER_API("relay.op.nn._make.log_softmax")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
   auto make_func = [](Expr data, int axis) {
@@ -321,8 +352,7 @@ RELAY_REGISTER_OP("nn.log_softmax")
 });
 
 
-
-// BatchFlatten
+// relay.nn.batch_flatten
 bool BatchFlattenRel(const Array<Type>& types,
                      int num_inputs,
                      const Attrs& attrs,
@@ -410,6 +440,7 @@ RELAY_REGISTER_OP("nn.relu")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
                                          const Array<Tensor>& inputs,
                                          const Type& out_type,
@@ -460,6 +491,7 @@ centered at that value (zero padding is added where necessary).
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .add_type_rel("Identity", IdentityRel);
 
 
@@ -495,6 +527,7 @@ Normalizes along dimension axis using an L2 norm
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .add_type_rel("Identity", IdentityRel);
 
 // Dropout
@@ -538,6 +571,7 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input to which dropout will be applied.")
 .set_support_level(1)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .add_type_rel("Dropout", DropoutRel);
 
 // batch_norm
@@ -638,6 +672,69 @@ axis to be the last item in the input shape.
 .add_argument("moving_var", "Tensor", "Running variance of input.")
 .set_support_level(1)
 .add_type_rel("BatchNorm", BatchNormRel);
+
+
+// relay.nn.batch_matmul
+bool BatchMatmulRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* x = types[0].as<TensorTypeNode>();
+  const auto* y = types[1].as<TensorTypeNode>();
+  if (x == nullptr || y == nullptr) return false;
+  if (x->shape.size() != 3 || y->shape.size() != 3) return false;
+  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+      << "BatchDot: batch dimension doesn't match, "
+      << " x shape=" << x->shape
+      << ", y shape=" << y->shape;
+  CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
+      << "BatchDot: shapes of x and y is inconsistent, "
+      << " x shape=" << x->shape
+      << ", y shape=" << y->shape;
+
+  Array<tvm::Expr> oshape = x->shape;
+  oshape.Set(2, y->shape[1]);
+
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, x->dtype));
+  return true;
+}
+
+
+// Positional relay function to create batch_matmul operator used by frontend FFI.
+Expr MakeBatchMatmul(Expr x,
+                     Expr y) {
+  static const Op& op = Op::Get("nn.batch_matmul");
+  return CallNode::make(op, {x, y}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.batch_matmul")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeBatchMatmul, args, rv);
+  });
+
+
+RELAY_REGISTER_OP("nn.batch_matmul")
+.describe(R"code(Computes matrix multiplication of `x` and `y` when `x` and `y`
+are data in batch.
+
+.. math::
+
+  batch\_matmul(x, y)[i, :, :] = matmul(x[i, :, :], y[i, :, :]^T)
+
+- **x**: `(b, m, k)`
+- **y**: `(b, n, k)`
+- **out**: `(b, m, n)`.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("x", "3D Tensor", "First input.")
+.add_argument("y", "3D Tensor", "Second input.")
+.set_support_level(10)
+.add_type_rel("BatchMatmul", BatchMatmulRel);
+
 
 }  // namespace relay
 }  // namespace tvm

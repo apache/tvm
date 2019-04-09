@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file saveload_json.cc
@@ -209,10 +228,12 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
   for (const JSONNode &n : jgraph.nodes) {
     n.node->inputs.reserve(n.inputs.size());
     for (const JSONNode::Entry &e : n.inputs) {
+      CHECK(e.node_id < jgraph.nodes.size());
       n.node->inputs.emplace_back(NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
     }
     n.node->control_deps.reserve(n.control_deps.size());
     for (uint32_t nid : n.control_deps) {
+      CHECK(nid < jgraph.nodes.size());
       n.node->control_deps.push_back(jgraph.nodes[nid].node);
     }
     for (const JSONGraph &subgraph : n.subgraphs) {
@@ -233,11 +254,13 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
   }
   // consistency check
   for (uint32_t nid : jgraph.arg_nodes) {
+    CHECK(nid < jgraph.nodes.size());
     CHECK(jgraph.nodes[nid].node->is_variable());
   }
   std::shared_ptr<Symbol> symbol = std::make_shared<Symbol>();
   symbol->outputs.reserve(jgraph.heads.size());
   for (const JSONNode::Entry &e : jgraph.heads) {
+    CHECK(e.node_id < jgraph.nodes.size());
     symbol->outputs.emplace_back(NodeEntry{jgraph.nodes[e.node_id].node, e.index, e.version});
   }
   return symbol;

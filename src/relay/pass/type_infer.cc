@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file type_infer.cc
@@ -22,7 +41,9 @@
 
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/pass.h>
+#include "./pass_util.h"
 #include "type_solver.h"
 #include "../ir/type_functor.h"
 
@@ -51,24 +72,8 @@ bool TupleGetItemRel(const Array<Type>& types,
   const auto* param = attrs.as<TupleGetItemAttrs>();
   CHECK(param != nullptr);
   CHECK_GE(param->index, 0);
-  CHECK_LT(param->index,  data->fields.size());
+  CHECK_LT(param->index, data->fields.size());
   reporter->Assign(types[1], data->fields[param->index]);
-  return true;
-}
-
-bool MakeTupleRel(const Array<Type>& types,
-                  int num_inputs,
-                  const Attrs& attrs,
-                  const TypeReporter& reporter) {
-  CHECK_EQ(static_cast<size_t>(num_inputs + 1), types.size());
-  for (int i = 0; i < num_inputs; ++i) {
-    if (types[i].as<IncompleteTypeNode>()) return false;
-  }
-  Array<Type> fields;
-  for (int i = 0; i < num_inputs; ++i) {
-    fields.push_back(types[i]);
-  }
-  reporter->Assign(types[num_inputs], TupleTypeNode::make(fields));
   return true;
 }
 
@@ -76,10 +81,6 @@ TVM_REGISTER_NODE_TYPE(TupleGetItemAttrs);
 TVM_REGISTER_API("tvm.relay.type_relation.TupleGetItem")
 .set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
     TupleGetItemRel);
-
-TVM_REGISTER_API("tvm.relay.type_relation.MakeTuple")
-.set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
-    MakeTupleRel);
 
 struct ResolvedTypeInfo {
   explicit ResolvedTypeInfo(Type checked_type, Array<Type> type_args)
@@ -99,13 +100,14 @@ struct ResolvedTypeInfo {
 // - Solve the constraints (solver_.Solve)
 // - Recreate expression with the resolved checked_type (Resolver.VisitExpr)
 //
-class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
+class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
+                       private PatternFunctor<void(const Pattern&, const Type&)> {
  public:
   // constructors
-  TypeInferencer() {
-  }
-  explicit TypeInferencer(Module mod)
-      : mod_(mod) {
+
+  explicit TypeInferencer(Module mod, GlobalVar current_func)
+      : mod_(mod), current_func_(current_func),
+        err_reporter(), solver_(current_func, &this->err_reporter) {
   }
 
   // inference the type of expr.
@@ -116,6 +118,13 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   class Resolver;
   // internal environment
   Module mod_;
+
+  // The current function being type checked.
+  GlobalVar current_func_;
+
+  // The error reporter.
+  ErrorReporter err_reporter;
+
   // map from expression to checked type
   // type inferencer will populate it up
   std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
@@ -125,47 +134,73 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // relation function
   TypeRelationFn tuple_getitem_rel_;
   TypeRelationFn make_tuple_rel_;
-  // Unify two types
-  Type Unify(const Type& t1, const Type& t2, const Span& span) {
+
+  // Perform unification on two types and report the error at the expression
+  // or the span of the expression.
+  Type Unify(const Type& t1, const Type& t2, const NodeRef& expr) {
     // TODO(tqchen, jroesch): propagate span to solver
     try {
-      return solver_.Unify(t1, t2);
+      // instantiate higher-order func types when unifying because
+      // we only allow polymorphism at the top level
+      Type first = t1;
+      Type second = t2;
+      if (auto* ft1 = t1.as<FuncTypeNode>()) {
+        first = InstantiateFuncType(ft1);
+      }
+      if (auto* ft2 = t2.as<FuncTypeNode>()) {
+        second = InstantiateFuncType(ft2);
+      }
+      return solver_.Unify(first, second, expr);
     } catch (const dmlc::Error &e) {
-      LOG(FATAL)
-          << "Error unifying `"
+      this->ReportFatalError(
+        expr,
+        RELAY_ERROR("Error unifying `"
           << t1
           << "` and `"
           << t2
-          << "`: " << e.what();
+          << "`: " << e.what()));
       return Type();
     }
   }
+
   // Lazily get type for expr
-  // will call visit to deduce it if it is not in the type_map_
+  // expression, we will populate it now, and return the result.
   Type GetType(const Expr &expr) {
     auto it = type_map_.find(expr);
     if (it != type_map_.end() && it->second.checked_type.defined()) {
       return it->second.checked_type;
     }
     Type ret = this->VisitExpr(expr);
+    KindCheck(ret, mod_);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
     return ret;
   }
 
-  // Visitor logics
+  void ReportFatalError(const NodeRef& expr, const Error& err) {
+    CHECK(this->current_func_.defined());
+    this->err_reporter.ReportAt(this->current_func_, expr, err);
+    this->err_reporter.RenderErrors(this->mod_);
+  }
+
+  // Visitor Logic
   Type VisitExpr_(const VarNode* op) final {
     if (op->type_annotation.defined()) {
       return op->type_annotation;
     } else {
-      return IncompleteTypeNode::make(TypeVarNode::kType);
+      return IncompleteTypeNode::make(Kind::kType);
     }
   }
 
   Type VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = GetRef<GlobalVar>(op);
-    CHECK(mod_.defined())
-        << "Cannot do type inference without a global variable";
+    if (!mod_.defined()) {
+      this->ReportFatalError(
+        GetRef<GlobalVar>(op),
+        RELAY_ERROR(
+          "Cannot do type inference on global variables " \
+          "without a module"));
+    }
     Expr e = mod_->Lookup(var);
     return e->checked_type();
   }
@@ -175,19 +210,11 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   Type VisitExpr_(const TupleNode* op) final {
-    if (!make_tuple_rel_.defined())  {
-      make_tuple_rel_ = TypeRelationFn(
-          EnvFunc::Get("tvm.relay.type_relation.MakeTuple").node_);
-    }
     Array<Type> types;
     for (Expr field : op->fields) {
       types.push_back(GetType(field));
     }
-    Type rtype = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
-    types.push_back(rtype);
-    solver_.AddConstraint(TypeRelationNode::make(
-        make_tuple_rel_, types, op->fields.size(), Attrs()));
-    return rtype;
+    return TupleTypeNode::make(types);
   }
 
   Type VisitExpr_(const TupleGetItemNode* op) final {
@@ -196,11 +223,75 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
           EnvFunc::Get("tvm.relay.type_relation.TupleGetItem").node_);
     }
     Type tuple_type = GetType(op->tuple);
-    Type rtype = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    Type rtype = IncompleteTypeNode::make(Kind::kType);
     auto attrs = make_node<TupleGetItemAttrs>();
     attrs->index = op->index;
     solver_.AddConstraint(TypeRelationNode::make(
-        tuple_getitem_rel_, {tuple_type, rtype}, 1, Attrs(attrs)));
+        tuple_getitem_rel_, {tuple_type, rtype}, 1, Attrs(attrs)), GetRef<TupleGetItem>(op));
+    return rtype;
+  }
+
+  void VisitPattern_(const PatternConstructorNode* con, const Type& t) {
+    CHECK(mod_.defined())
+      << "Cannot do type inference without a environment:"
+      << con->constructor->name_hint;
+    TypeData td = mod_->type_definitions.at(con->constructor->belong_to);
+    auto pc = GetRef<PatternConstructor>(con);
+
+    // we can expect a certain number of arguments
+    Array<Type> unknown_args;
+    for (size_t i = 0; i < td->type_vars.size(); i++) {
+      unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
+    }
+    Type expected = TypeCallNode::make(con->constructor->belong_to, unknown_args);
+    Type unified = Unify(t, expected, GetRef<NodeRef>(con));
+
+    auto* tc = unified.as<TypeCallNode>();
+    if (!tc) {
+      this->ReportFatalError(pc, RELAY_ERROR("Expected a type call, got " << unified));
+    }
+    if (td->header != tc->func) {
+      this->ReportFatalError(pc, RELAY_ERROR("ADT headers must match, but we have "
+                                             << td->header << " and " << tc->func));
+    }
+    if (td->type_vars.size() != tc->args.size()) {
+      this->ReportFatalError(pc, RELAY_ERROR("The number of type args must match"
+                                             << "the number of type vars in the type data: "
+                                             << td->type_vars.size() << " != " << tc->args.size()));
+    }
+    std::unordered_map<TypeVar, Type, NodeHash, NodeEqual> type_var_map_;
+    for (size_t i = 0; i < td->type_vars.size(); ++i) {
+      type_var_map_[td->type_vars[i]] = tc->args[i];
+    }
+    CHECK(con->constructor->inputs.size() == con->patterns.size()) << "not enough pattern";
+    if (con->constructor->inputs.size() != con->patterns.size()) {
+      this->ReportFatalError(pc, RELAY_ERROR("Not enough inputs for the constructor; "
+                                             << "expected " << con->constructor->inputs.size()
+                                             << ", got " << con->patterns.size()));
+    }
+    for (size_t i = 0; i < con->constructor->inputs.size(); ++i) {
+      VisitPattern(con->patterns[i], Bind(con->constructor->inputs[i], type_var_map_));
+    }
+  }
+
+  void VisitPattern_(const PatternVarNode* pv, const Type& t) {
+    Type vt = GetType(pv->var);
+    Unify(vt, t, pv->span);
+  }
+
+  void VisitPattern_(const PatternWildcardNode* wc, const Type& t) { }
+
+  Type VisitExpr_(const MatchNode* op) final {
+    Type dtype = GetType(op->data);
+    for (const auto& c : op->clauses) {
+      VisitPattern(c->lhs, dtype);
+    }
+    Type rtype = IncompleteTypeNode::make(Kind::kType);
+    for (const auto& c : op->clauses) {
+      rtype = this->Unify(rtype,
+                          GetType(c->rhs),
+                          op->span);
+    }
     return rtype;
   }
 
@@ -208,34 +299,43 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     return op->op_type;
   }
 
-  Type VisitExpr_(const LetNode* op) final {
-    Type vtype = GetType(op->value);
-    if (op->var->type_annotation.defined()) {
-      vtype = Unify(vtype, op->var->type_annotation, op->span);
+  Type VisitExpr_(const LetNode* let) final {
+    // if the definition is a function literal, permit recursion
+    bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;
+    if (is_functional_literal) {
+      type_map_[let->var].checked_type = IncompleteTypeNode::make(Kind::kType);
     }
-    CHECK(!type_map_.count(op->var));
+
+    Type vtype = GetType(let->value);
+    if (let->var->type_annotation.defined()) {
+      vtype = Unify(vtype, let->var->type_annotation, GetRef<Let>(let));
+    }
+    CHECK(is_functional_literal || !type_map_.count(let->var));
     // NOTE: no scoping is necessary because var are unique in program
-    type_map_[op->var].checked_type = vtype;
-    return GetType(op->body);
+    type_map_[let->var].checked_type = vtype;
+    return GetType(let->body);
   }
 
-  Type VisitExpr_(const IfNode* op) final {
+  Type VisitExpr_(const IfNode* ite) final {
     // Ensure the type of the guard is of Tensor[Bool, ()],
     // that is a rank-0 boolean tensor.
-    Type cond_type = this->GetType(op->cond);
+    Type cond_type = this->GetType(ite->cond);
     this->Unify(cond_type,
                 TensorTypeNode::Scalar(tvm::Bool()),
-                op->cond->span);
-    Type checked_true = this->GetType(op->true_branch);
-    Type checked_false = this->GetType(op->false_branch);
-    return this->Unify(checked_true, checked_false, op->span);
+                ite->cond);
+    Type checked_true = this->GetType(ite->true_branch);
+    Type checked_false = this->GetType(ite->false_branch);
+    return this->Unify(checked_true, checked_false, GetRef<If>(ite));
   }
 
-  // Handle special case basic primitive operator,
-  // if successful return the return type
+  // This code is special-cased for primitive operators,
+  // which are registered in the style defined in src/relay/op/*.
+  //
+  // The result will be the return type of the operator.
   Type PrimitiveCall(const FuncTypeNode* op,
                      Array<Type> arg_types,
-                     const Attrs& attrs) {
+                     const Attrs& attrs,
+                     const NodeRef& loc) {
     if (op->type_params.size() != arg_types.size() + 1) return Type();
     if (op->type_constraints.size() != 1) return Type();
     const TypeRelationNode* rel = op->type_constraints[0].as<TypeRelationNode>();
@@ -244,24 +344,22 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     for (size_t i = 0; i < op->type_params.size(); ++i) {
       if (!op->type_params[i].same_as(rel->args[i])) return Type();
     }
-    Type rtype = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    Type rtype = IncompleteTypeNode::make(Kind::kType);
     arg_types.push_back(rtype);
     // we can do simple replacement here
     solver_.AddConstraint(TypeRelationNode::make(
-        rel->func, arg_types, arg_types.size() - 1, attrs));
+        rel->func, arg_types, arg_types.size() - 1, attrs), loc);
     return rtype;
   }
 
-  // instantiate the function type with fresh
-  FuncType Instantiate(const FuncTypeNode* fn_ty, Array<Type>* ty_args) {
+  // substitute the type args in the function type
+  FuncType InstantiateFuncType(const FuncTypeNode* fn_ty, const Array<Type>& ty_args) {
     tvm::Map<TypeVar, Type> subst_map;
 
     // Build a subsitituion map up from the function type and type arguments.
     // Eventually allow the type vars to be passed in.
-    for (auto ty_param : fn_ty->type_params) {
-      IncompleteType fresh = IncompleteTypeNode::make(ty_param->kind);
-      subst_map.Set(ty_param, fresh);
-      ty_args->push_back(fresh);
+    for (size_t i = 0; i < fn_ty->type_params.size(); i++) {
+      subst_map.Set(fn_ty->type_params[i], ty_args[i]);
     }
 
     Type ret_type = fn_ty->ret_type;
@@ -272,7 +370,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     // This is a temporary work around to check recursive functions whose
     // return type is not yet known.
     if (!ret_type.defined()) {
-      ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+      ret_type = IncompleteTypeNode::make(Kind::kType);
     }
 
     Type inst_ty = FuncTypeNode::make(fn_ty->arg_types,
@@ -281,6 +379,20 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     inst_ty = Bind(inst_ty, subst_map);
     return Downcast<FuncType>(inst_ty);
   }
+
+  // instantiates starting from incompletes
+  FuncType InstantiateFuncType(const FuncTypeNode* fn_ty) {
+    if (fn_ty->type_params.size() == 0) {
+      return GetRef<FuncType>(fn_ty);
+    }
+
+    Array<Type> type_args;
+    for (size_t i = 0; i < fn_ty->type_params.size(); i++) {
+      type_args.push_back(IncompleteTypeNode::make(Kind::kType));
+    }
+    return InstantiateFuncType(fn_ty, type_args);
+  }
+
 
   void AddTypeArgs(const Expr& expr, Array<Type> type_args) {
     auto type_info = type_map_.find(expr);
@@ -296,13 +408,41 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   Type GeneralCall(const CallNode* call, Array<Type> arg_types) {
     Type ftype = GetType(call->op);
     auto* fn_ty_node = ftype.as<FuncTypeNode>();
+    auto* inc_ty_node = ftype.as<IncompleteTypeNode>();
 
-    CHECK(fn_ty_node != nullptr)
-        << "only expressions with function types can be called, found "
-        << ftype << " at " << call->span;
+    if (fn_ty_node == nullptr && inc_ty_node == nullptr) {
+      this->ReportFatalError(
+        GetRef<Call>(call),
+        RELAY_ERROR("only expressions with function types can be called, found "
+        << ftype));
+    }
 
-    Array<Type> type_args;
-    FuncType fn_ty = Instantiate(fn_ty_node, &type_args);
+    // incomplete type => it must be a function taking the arg types
+    // with an unknown return type
+    if (inc_ty_node != nullptr) {
+      Type ret_type = IncompleteTypeNode::make(Kind::kType);
+      Type func_type = FuncTypeNode::make(arg_types, ret_type, {}, {});
+      Type unified = this->Unify(ftype, func_type, GetRef<Call>(call));
+      fn_ty_node = unified.as<FuncTypeNode>();
+    }
+
+    Array<Type> type_args = call->type_args;
+    if (type_args.size() == 0) {
+      for (size_t i = 0; i < fn_ty_node->type_params.size(); i++) {
+        type_args.push_back(IncompleteTypeNode::make(Kind::kType));
+      }
+    }
+
+    if (type_args.size() != fn_ty_node->type_params.size()) {
+      this->ReportFatalError(GetRef<Call>(call),
+        RELAY_ERROR("Incorrect number of type args in "
+          << call->span << ": "
+          << "Expected "
+          << fn_ty_node->type_params.size()
+          << "but got " << type_args.size()));
+    }
+
+    FuncType fn_ty = InstantiateFuncType(fn_ty_node, type_args);
 
     AddTypeArgs(GetRef<Call>(call), type_args);
 
@@ -311,22 +451,29 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
     if (type_arity != number_of_args) {
       if (type_arity < number_of_args) {
-        LOG(FATAL) << "the function is provided too many arguments " << call->span;
+        this->ReportFatalError(
+          GetRef<Call>(call),
+          RELAY_ERROR("the function is provided too many arguments "
+          << "expected " << type_arity << ", found " << number_of_args));
       } else {
-        LOG(FATAL) << "the function is provided too few arguments" << call->span;
+        this->ReportFatalError(
+          GetRef<Call>(call),
+          RELAY_ERROR("the function is provided too few arguments "
+          << "expected " << type_arity << ", found " << number_of_args));
       }
     }
 
     for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
-      this->Unify(fn_ty->arg_types[i], arg_types[i], call->args[i]->span);
+      this->Unify(fn_ty->arg_types[i], arg_types[i], call->args[i]);
     }
 
     for (auto cs : fn_ty->type_constraints) {
-      if (auto tr = cs.as<TypeRelationNode>()) {
+      if (const auto* tr = cs.as<TypeRelationNode>()) {
         solver_.AddConstraint(
-          TypeRelationNode::make(tr->func, tr->args, tr->num_inputs, call->attrs));
+          TypeRelationNode::make(tr->func, tr->args, tr->num_inputs, call->attrs),
+          GetRef<Call>(call));
       } else {
-        solver_.AddConstraint(cs);
+        solver_.AddConstraint(cs, GetRef<Call>(call));
       }
     }
 
@@ -342,7 +489,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     if (const OpNode* opnode = call->op.as<OpNode>()) {
       Type rtype = PrimitiveCall(opnode->op_type.as<FuncTypeNode>(),
                                  arg_types,
-                                 call->attrs);
+                                 call->attrs,
+                                 GetRef<Call>(call));
       if (rtype.defined()) {
         AddTypeArgs(GetRef<Call>(call), arg_types);
         return rtype;
@@ -353,38 +501,63 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   Type VisitExpr_(const FunctionNode* f) final {
+    solver_.Solve();
+    Array<Type> arg_types;
     for (auto param : f->params) {
-      GetType(param);
+      arg_types.push_back(GetType(param));
     }
     Type rtype = GetType(f->body);
-    // Run solver using the currently known information
-    solver_.Solve();
-    // Trying to resolve
-    Array<Type> arg_types;
-    for (size_t i = 0; i < f->params.size(); ++i) {
-      Type atype = solver_.Resolve(GetType(f->params[i]));
-      CHECK(atype.as<IncompleteTypeNode>() == nullptr)
-          << "Cannot resolve type of " << i
-          << "-th parameter of function at" << f->span;
-      arg_types.push_back(atype);
+    if (auto* ft = rtype.as<FuncTypeNode>()) {
+      rtype = InstantiateFuncType(ft);
     }
-    rtype = solver_.Resolve(rtype);
-    CHECK(rtype.as<IncompleteTypeNode>() == nullptr)
-        << "Cannot resolve return type of function at" << f->span;
-    // do not support constraint lifting for now.
-    return FuncTypeNode::make(arg_types, rtype, f->type_params, {});
+    if (f->ret_type.defined()) {
+      rtype = this->Unify(f->ret_type, rtype, GetRef<Function>(f));
+    }
+    CHECK(rtype.defined());
+    auto ret = FuncTypeNode::make(arg_types, rtype, f->type_params, {});
+    return solver_.Resolve(ret);
+  }
+
+  Type VisitExpr_(const RefCreateNode* op) final {
+    return RefTypeNode::make(GetType(op->value));
+  }
+
+  Type VisitExpr_(const RefReadNode* op) final {
+    Type it = IncompleteTypeNode::make(Kind::kType);
+    this->Unify(GetType(op->ref), RefTypeNode::make(it), GetRef<RefRead>(op));
+    return it;
+  }
+
+  Type VisitExpr_(const RefWriteNode* op) final {
+    Type it = IncompleteTypeNode::make(Kind::kType);
+    this->Unify(GetType(op->ref), RefTypeNode::make(it), GetRef<RefWrite>(op));
+    this->Unify(GetType(op->value), it, GetRef<RefWrite>(op));
+    return TupleTypeNode::make({});
+  }
+
+  Type VisitExpr_(const ConstructorNode* c) final {
+    CHECK(mod_.defined())
+      << "Cannot do type inference without a environment:"
+      << c->name_hint;
+    TypeData td = mod_->LookupDef(c->belong_to);
+    std::vector<Type> types;
+    for (const auto & t : td->type_vars) {
+      types.push_back(t);
+    }
+    return FuncTypeNode::make(c->inputs, TypeCallNode::make(c->belong_to, types),
+                              td->type_vars, {});
   }
 };
 
-class TypeInferencer::Resolver : public ExprMutator {
+class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
  public:
   Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap,
            TypeSolver* solver)
-      : tmap_(tmap), solver_(solver) {
+    : tmap_(tmap), solver_(solver) {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
-    return AttachCheckedType(op);
+    return VisitVar(GetRef<Var>(op));
   }
 
   Expr VisitExpr_(const ConstantNode* op) final {
@@ -423,12 +596,46 @@ class TypeInferencer::Resolver : public ExprMutator {
     return AttachCheckedType(op);
   }
 
+  Expr VisitExpr_(const RefCreateNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Expr VisitExpr_(const RefReadNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Expr VisitExpr_(const RefWriteNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Expr VisitExpr_(const ConstructorNode* op) final {
+    return GetRef<Constructor>(op);
+  }
+
+  Expr VisitExpr_(const MatchNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Pattern VisitPattern(const Pattern& p) final {
+    return PatternMutator::VisitPattern(p);
+  }
+
+  Var VisitVar(const Var& v) final {
+    if (vmap_.count(v) == 0) {
+      vmap_[v] = GetRef<Var>(AttachCheckedType(v.as<VarNode>()).as<VarNode>());
+    }
+    return vmap_.at(v);
+  }
+
   // attach checked type to the mutated node.
   template<typename T>
   Expr AttachCheckedType(const T* op) {
     auto it = tmap_.find(GetRef<Expr>(op));
     CHECK(it != tmap_.end());
     Type checked_type = solver_->Resolve(it->second.checked_type);
+
+    // TODO(@jroesch): it would be nice if we would report resolution
+    // errors directly on the program.
     CHECK(checked_type.as<IncompleteTypeNode>() == nullptr)
         << "Cannot resolve type of " << GetRef<Expr>(op)
         << " at " << op->span;
@@ -512,6 +719,7 @@ class TypeInferencer::Resolver : public ExprMutator {
   }
 
  private:
+  std::unordered_map<Var, Var, NodeHash, NodeEqual> vmap_;
   const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap_;
   TypeSolver* solver_;
   // whether attach the checked type as type_annotation
@@ -525,17 +733,56 @@ Expr TypeInferencer::Infer(Expr expr) {
   GetType(expr);
   // Step 1: Solve the constraints.
   solver_.Solve();
+
+  if (err_reporter.AnyErrors()) {
+    err_reporter.RenderErrors(mod_);
+  }
+
   // Step 2: Attach resolved types to checked_type field.
   auto resolved_expr = Resolver(type_map_, &solver_).VisitExpr(expr);
   CHECK(WellFormed(resolved_expr));
   return resolved_expr;
 }
 
+struct AllCheckTypePopulated : ExprVisitor {
+  void VisitExpr(const Expr& e) {
+    if (e.as<OpNode>()) { return; }
+    if (e.as<GlobalVarNode>()) { return; }
+    if (e.as<ConstructorNode>()) { return; }
+    CHECK(e->checked_type_.defined()) << "Expression: " << e;
+    return ExprVisitor::VisitExpr(e);
+  }
+};
 
-Expr InferType(const Expr& expr, const Module& mod) {
-  auto e = TypeInferencer(mod).Infer(expr);
-  CHECK(WellFormed(e));
-  return e;
+void EnsureCheckedType(const Expr& e) {
+  AllCheckTypePopulated().VisitExpr(e);
+}
+
+Expr InferType(const Expr& expr, const Module& mod_ref) {
+  if (!mod_ref.defined()) {
+    Module mod = ModuleNode::FromExpr(expr);
+    // NB(@jroesch): By adding the expression to the module we will
+    // type check it anyway; afterwards we can just recover type
+    // from the type-checked function to avoid doing unnecessary work.
+
+    Function func = mod->Lookup(mod->entry_func);
+
+    // FromExpr wraps a naked expression as a function, we will unbox
+    // it here.
+    if (expr.as<FunctionNode>()) {
+      return std::move(func);
+    } else {
+      return func->body;
+    }
+  } else {
+    auto e = TypeInferencer(mod_ref, mod_ref->entry_func).Infer(expr);
+    CHECK(WellFormed(e));
+    auto free_tvars = FreeTypeVars(e, mod_ref);
+    CHECK(free_tvars.size() == 0)
+      << "Found unbound type variables in " << e << ": " << free_tvars;
+    EnsureCheckedType(e);
+    return e;
+  }
 }
 
 Function InferType(const Function& func,
@@ -543,11 +790,13 @@ Function InferType(const Function& func,
                    const GlobalVar& var) {
   Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
   func_copy->checked_type_ = func_copy->func_type_annotation();
-  mod->functions.Set(var, func_copy);
-  Expr func_ret = TypeInferencer(mod).Infer(func_copy);
-  auto map_node = mod->functions.CopyOnWrite();
-  map_node->data.erase(var.node_);
+  mod->AddUnchecked(var, func_copy);
+  Expr func_ret = TypeInferencer(mod, var).Infer(func_copy);
+  mod->Remove(var);
   CHECK(WellFormed(func_ret));
+  auto free_tvars = FreeTypeVars(func_ret, mod);
+  CHECK(free_tvars.size() == 0)
+    << "Found unbound type variables in " << func << ": " << free_tvars;
   return Downcast<Function>(func_ret);
 }
 

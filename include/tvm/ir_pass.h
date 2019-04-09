@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tvm/ir_pass.h
  * \brief Collection of IR pass functions
  *
@@ -11,6 +29,7 @@
 
 #include <arithmetic/Simplify.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 #include "expr.h"
@@ -27,7 +46,7 @@ namespace ir {
  * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-EXPORT Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
+TVM_DLL Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify the statement.
@@ -52,7 +71,7 @@ Stmt CanonicalSimplify(Stmt stmt,
  * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-EXPORT Expr CanonicalSimplify(Expr expr,
+TVM_DLL Expr CanonicalSimplify(Expr expr,
                               Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
@@ -61,7 +80,7 @@ EXPORT Expr CanonicalSimplify(Expr expr,
  * \param rhs The right operand
  * \return The comparison result.
  */
-EXPORT bool Equal(const Expr& lhs, const Expr& rhs);
+TVM_DLL bool Equal(const Expr& lhs, const Expr& rhs);
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -92,13 +111,13 @@ int Compare(const Expr& lhs, const Expr& rhs);
  * \return Whether IR is in SSA form.
  * \note All the passes in this file uses SSA form and outputs SSA form.
  */
-bool VerifySSA(const Stmt& ir);
+TVM_DLL bool VerifySSA(const Stmt& ir);
 
 /*!
  * \brief Whether the expression have side effect.
  * \return whether expression have side effect
  */
-bool HasSideEffect(const Expr& e);
+TVM_DLL bool HasSideEffect(const Expr& e);
 
 /*!
  * \brief Whether e expression used var.
@@ -121,7 +140,7 @@ bool ExprUseVar(const Expr& e, const std::unordered_set<const Variable*>& vset);
  * \param stmt The source statement to be converted.
  * \return The converted form.
  */
-Stmt ConvertSSA(Stmt stmt);
+TVM_DLL Stmt ConvertSSA(Stmt stmt);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.
@@ -181,11 +200,13 @@ Stmt Inline(Stmt stmt,
  * \param extern_buffer Map specifies external
  *    buffer assignment of input and outputs.
  * \param cache_line_size The size of CPU cache line.
+ * \param create_bound_attribute Whether to create bound attributes.
  * \return Transformed stmt.
  */
 Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer,
-                    int cache_line_size);
+                    int cache_line_size,
+                    bool create_bound_attribute = false);
 
 /*!
  * \brief Remove No Op from the Stmt.
@@ -233,6 +254,13 @@ Stmt UnrollLoop(Stmt stmt,
  * \return Transformed stmt.
  */
 Stmt VectorizeLoop(Stmt stmt);
+
+/*!
+* \brief instruments bound checkers.
+* \param stmt The statment to be instrumented.
+* \return Instrumented Stmt.
+*/
+Stmt InstrumentBoundCheckers(Stmt stmt);
 
 /*!
  * \brief Inject virtual thread loops into stmt.
@@ -327,7 +355,7 @@ Stmt RewriteUnsafeSelect(Stmt stmt);
 Stmt LowerStorageAccessInfo(Stmt stmt);
 
 /*!
- * \brief Decorate the stmt with a device scope, this is helpful for 
+ * \brief Decorate the stmt with a device scope, this is helpful for
  * hardware accelerator without thread blocks.
  *
  * \param stmt The stmt to be trasnformed

@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, unused-import, protected-access
 """Symbolic graph construction API.
 
@@ -36,7 +52,7 @@ except IMPORT_EXCEPT:
 
 
 class Symbol(SymbolBase):
-    """Symbol is basic operation unit for symbolic graph compostion."""
+    """Symbol is basic operation unit for symbolic graph composition."""
     # disable dictionary storage, also do not have parent type.
     __slots__ = []
 
@@ -50,10 +66,9 @@ class Symbol(SymbolBase):
         """x.__add__(y) <=> x+y"""
         if isinstance(other, Symbol):
             return __add_symbol__(self, other)
-        elif isinstance(other, _Number):
+        if isinstance(other, _Number):
             return __add_scalar__(self, scalar=other)
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
+        raise TypeError("type %s not supported" % str(type(other)))
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -64,14 +79,12 @@ class Symbol(SymbolBase):
             return __sub_symbol__(self, other)
         if isinstance(other, _Number):
             return __sub_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __rsub__(self, other):
         if isinstance(other, _Number):
             return __rsub_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __mul__(self, other):
         """x.__mul__(y) <=> x*y"""
@@ -79,8 +92,7 @@ class Symbol(SymbolBase):
             return __mul_symbol__(self, other)
         if isinstance(other, _Number):
             return __mul_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -91,28 +103,24 @@ class Symbol(SymbolBase):
             return __div_symbol__(self, other)
         if isinstance(other, _Number):
             return __div_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __rdiv__(self, other):
         if isinstance(other, _Number):
             return __rdiv_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __lshift__(self, other):
         """x.__lshift__(y) <=> x << y"""
         if isinstance(other, _Number):
             return __lshift_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __rshift__(self, other):
         """x.__rshift__(y) <=> x >> y"""
         if isinstance(other, _Number):
             return __rshift_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __truediv__(self, other):
         return self.__div__(other)
@@ -126,14 +134,12 @@ class Symbol(SymbolBase):
             return __pow_symbol__(self, other)
         if isinstance(other, _Number):
             return __pow_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __rpow__(self, other):
         if isinstance(other, _Number):
             return __rpow_scalar__(self, scalar=other)
-        else:
-            raise TypeError('type %s not supported' % str(type(other)))
+        raise TypeError('type %s not supported' % str(type(other)))
 
     def __neg__(self):
         """x.__neg__() <=> -x"""
@@ -238,12 +244,11 @@ class Symbol(SymbolBase):
         """internal function to get list option"""
         if option == 'all':
             return _ctypes.c_int(0)
-        elif option == 'read_only':
+        if option == 'read_only':
             return _ctypes.c_int(1)
-        elif option == 'aux_state':
+        if option == 'aux_state':
             return _ctypes.c_int(2)
-        else:
-            raise ValueError("option need to be in {'all', 'read_only, 'aux_state'}")
+        raise ValueError("option need to be in {'all', 'read_only, 'aux_state'}")
 
     def list_input_variables(self, option='all'):
         """List all the input variables in the symbol.

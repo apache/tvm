@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file llvm_common.cc
@@ -5,7 +24,9 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/base.h>
+#include <atomic>
 #include <mutex>
+#include <memory>
 #include "llvm_common.h"
 
 namespace tvm {
@@ -13,7 +34,7 @@ namespace codegen {
 
 struct LLVMEnv {
   std::mutex mu;
-  bool all_initialized{false};
+  std::atomic<bool> all_initialized{false};
 
   static LLVMEnv* Global() {
     static LLVMEnv inst;
@@ -23,15 +44,15 @@ struct LLVMEnv {
 
 void InitializeLLVM() {
   LLVMEnv* e = LLVMEnv::Global();
-  if (!e->all_initialized) {
+  if (!e->all_initialized.load(std::memory_order::memory_order_acquire)) {
     std::lock_guard<std::mutex> lock(e->mu);
-    if (!e->all_initialized) {
-      e->all_initialized = true;
+    if (!e->all_initialized.load(std::memory_order::memory_order_acquire)) {
       llvm::InitializeAllTargetInfos();
       llvm::InitializeAllTargets();
       llvm::InitializeAllTargetMCs();
       llvm::InitializeAllAsmParsers();
       llvm::InitializeAllAsmPrinters();
+      e->all_initialized.store(true, std::memory_order::memory_order_release);
     }
   }
 }
@@ -103,8 +124,8 @@ void ParseLLVMTargetOptions(const std::string& target_str,
   opt.LessPreciseFPMADOption = true;
   #endif
   opt.AllowFPOpFusion = llvm::FPOpFusion::Fast;
-  opt.UnsafeFPMath = true;
-  opt.NoInfsFPMath = true;
+  opt.UnsafeFPMath = false;
+  opt.NoInfsFPMath = false;
   opt.NoNaNsFPMath = true;
   if (soft_float_abi) {
     opt.FloatABIType = llvm::FloatABI::Soft;

@@ -1,15 +1,35 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file codegen_llvm.cc
  */
 #ifdef TVM_LLVM_VERSION
 // Part of the code are adapted from Halide's CodeGen_LLVM
-
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
+
+#include <algorithm>
+
 #include "codegen_llvm.h"
 #include "codegen_cpu.h"
-#include "../codegen_common.h"
 #include "../../pass/ir_util.h"
 #include "../../arithmetic/compute_expr.h"
 
@@ -84,9 +104,9 @@ void CodeGenLLVM::AddFunction(const LoweredFunc& f) {
 void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
   alias_var_set_.clear();
-  align_map_.clear();
   alloc_storage_info_.clear();
   volatile_buf_.clear();
+  analyzer_.reset(new arith::Analyzer());
 }
 
 void CodeGenLLVM::AddFunctionInternal(const LoweredFunc& f, bool ret_void) {
@@ -235,6 +255,16 @@ void CodeGenLLVM::InitPassManagerBuilder(llvm::PassManagerBuilder* builder) {
 }
 
 void CodeGenLLVM::Optimize() {
+  // pass manager
+  FPassManager fpass(module_.get());
+  MPassManager mpass;
+  mpass.add(llvm::createTargetTransformInfoWrapperPass(
+              target_machine_ ? target_machine_->getTargetIRAnalysis() :
+                                llvm::TargetIRAnalysis()));
+  fpass.add(llvm::createTargetTransformInfoWrapperPass(
+              target_machine_ ? target_machine_->getTargetIRAnalysis() :
+              llvm::TargetIRAnalysis()));
+
   // place optimization pass
   llvm::PassManagerBuilder builder;
   builder.OptLevel = 3;
@@ -252,9 +282,6 @@ void CodeGenLLVM::Optimize() {
   target_machine_->adjustPassManager(builder);
 #endif
 
-  // pass manager
-  FPassManager fpass(module_.get());
-  MPassManager mpass;
   builder.populateFunctionPassManager(fpass);
   builder.populateModulePassManager(mpass);
 
@@ -374,14 +401,16 @@ void CodeGenLLVM::GetAlignment(Type t,
     *p_native_bits = native_vector_bits_;
   }
 
-  arith::ModularEntry me = arith::EvalModular(index, align_map_);
+  arith::ModularSet me = analyzer_->modular_set(index);
+  int64_t base = me->base;
+  int64_t coeff = me->coeff;
 
   int align_bits = t.bits();
   while (align_bits < max_align_bits &&
-         me.base % 2  == 0 &&
-         me.coeff % 2 == 0) {
-    me.base =  me.base / 2;
-    me.coeff =  me.coeff / 2;
+         base % 2  == 0 &&
+         coeff % 2 == 0) {
+    base =  base / 2;
+    coeff =  coeff / 2;
     align_bits *= 2;
   }
   if (align_bits < 8) {
@@ -402,12 +431,16 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
 llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent) {
   int num_elems = static_cast<int>(vec->getType()->getVectorNumElements());
   if (extent == num_elems && begin == 0) return vec;
-  CHECK_LE(begin + extent, num_elems);
-  std::vector<unsigned> indices;
+  std::vector<llvm::Constant*> indices;
+  indices.reserve(extent);
   for (int i = 0; i < extent; ++i) {
-    indices.push_back(begin + i);
+    if (begin + i >= 0 && begin + i < num_elems) {
+      indices.push_back(llvm::ConstantInt::get(t_int32_, begin + i));
+    } else {
+      indices.push_back(llvm::UndefValue::get(t_int32_));
+    }
   }
-  return builder_->CreateShuffleVector(vec, vec, indices);
+  return builder_->CreateShuffleVector(vec, vec, llvm::ConstantVector::get(indices));
 }
 
 llvm::Value* CodeGenLLVM::CreateVecFlip(llvm::Value* vec) {
@@ -438,24 +471,31 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
         v->getType()->getVectorNumElements());
   }
   while (vecs.size() > 1) {
-    for (size_t i = 0; i < vecs.size(); i+=2) {
-      if (i + 1 >= vecs.size()) {
-        vecs[i / 2] = vecs[i]; continue;
-      }
+    std::vector<llvm::Value*> new_vecs;
+    for (size_t i = 0; i < vecs.size() - 1; i += 2) {
       llvm::Value* lhs = vecs[i];
       llvm::Value* rhs = vecs[i + 1];
-      int lanes = static_cast<int>(std::max(
-          lhs->getType()->getVectorNumElements(),
-          rhs->getType()->getVectorNumElements()));
-      lhs = CreateVecPad(lhs, lanes);
-      rhs = CreateVecPad(lhs, lanes);
+      const size_t lhs_lanes = lhs->getType()->getVectorNumElements();
+      const size_t rhs_lanes = rhs->getType()->getVectorNumElements();
+      if (lhs_lanes < rhs_lanes) {
+        lhs = CreateVecPad(lhs, rhs_lanes);
+      } else if (rhs_lanes < lhs_lanes) {
+        rhs = CreateVecPad(rhs, lhs_lanes);
+      }
+      const size_t shared_lanes = std::max(lhs_lanes, rhs_lanes);
       std::vector<unsigned> mask;
-      for (int i = 0; i < lanes * 2; ++i) {
+      for (size_t i = 0; i < lhs_lanes; ++i) {
         mask.push_back(i);
       }
-      vecs[i / 2] = builder_->CreateShuffleVector(lhs, rhs, mask);
+      for (size_t i = 0; i < rhs_lanes; ++i) {
+        mask.push_back(shared_lanes + i);
+      }
+      new_vecs.push_back(builder_->CreateShuffleVector(lhs, rhs, mask));
     }
-    vecs.resize((vecs.size() + 1) / 2);
+    if (vecs.size() % 2 != 0) {
+      new_vecs.push_back(vecs.back());
+    }
+    vecs.swap(new_vecs);
   }
   return CreateVecSlice(vecs[0], 0, total_lanes);
 }
@@ -647,6 +687,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     return builder_->CreateIsNull(MakeValue(op->args[0]));
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    CHECK_EQ(op->args[0].type().lanes(), 1)
+        << "if_then_else can only take scalar condition";
     using llvm::BasicBlock;
     BasicBlock* then_block = BasicBlock::Create(
         *ctx_, "if_then", function_);
@@ -788,11 +830,7 @@ DEFINE_CODEGEN_CMP_OP(GE);
 llvm::Value* CodeGenLLVM::VisitExpr_(const Div* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
-  int shift;
-  if ((op->type.is_int() || op->type.is_uint()) &&
-      is_const_power_of_two_integer(op->b, &shift)) {
-    return builder_->CreateAShr(a, shift);
-  } else if (op->type.is_int()) {
+  if (op->type.is_int()) {
     return builder_->CreateSDiv(a, b);
   } else if (op->type.is_uint()) {
     return builder_->CreateUDiv(a, b);
@@ -869,7 +907,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Select* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const Let* op) {
   CHECK(!var_map_.count(op->var.get()));
   var_map_[op->var.get()] = MakeValue(op->value);
-  align_map_[op->var.get()] = EvalModular(op->value, align_map_);
+  analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
 
@@ -993,6 +1031,7 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
 
 void CodeGenLLVM::VisitStmt_(const For* op) {
   CHECK(is_zero(op->min));
+  analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
   if (op->for_type == ForType::Unrolled) {
     LOG(WARNING) << "Unroll hint get ignore at CodeGenLLVM backend, "
                  << " consider set unroll_explicit=True";
@@ -1073,6 +1112,7 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv);
+        analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
       }
     }
   } else if (op->attr_key == ir::attr::storage_scope) {
@@ -1094,21 +1134,19 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
 }
 
 void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
-  VisitAssert(op, &align_map_, [this](const Stmt& body) {
-      this->VisitStmt(body);
-    });
+  arith::ConstraintContext cctx(analyzer_.get(), op->condition);
+  this->VisitStmt(op->body);
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmt* op) {
   CHECK(!var_map_.count(op->var.get()));
-  CHECK(!align_map_.count(op->var.get()));
   if (op->var.type().is_handle()) {
     if (!is_restricted_) {
       alias_var_set_.insert(op->var.get());
     }
   }
   var_map_[op->var.get()] = MakeValue(op->value);
-  align_map_[op->var.get()] = EvalModular(op->value, align_map_);
+  analyzer_->Bind(op->var, op->value);
   this->VisitStmt(op->body);
 }
 

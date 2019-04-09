@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file nnvm/node.h
@@ -9,6 +28,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <utility>
 #include <unordered_map>
 #include "base.h"
 #include "op.h"
@@ -30,6 +50,18 @@ using NodePtr = std::shared_ptr<Node>;
 
 /*! \brief an entry that represents output data from a node */
 struct NodeEntry {
+  NodeEntry(NodePtr node, uint32_t index, uint32_t version):
+    node(std::move(node)),
+    index(index),
+    version(version)
+  {}
+
+  NodeEntry():
+    node(),
+    index(),
+    version()
+  {}
+
   /*! \brief the source node of this data */
   NodePtr node;
   /*! \brief index of output from the source. */
@@ -113,6 +145,11 @@ struct NodeAttrs {
  */
 class NNVM_DLL Node {
  public:
+  Node() = default;
+  Node(const Op* op, const std::string& name) {
+    this->attrs.op = op;
+    this->attrs.name = name;
+  }
   /*! \brief The attributes in the node. */
   NodeAttrs attrs;
   /*! \brief inputs to this node */
@@ -142,7 +179,10 @@ class NNVM_DLL Node {
    * \brief create a new empty shared_ptr of Node.
    * \return a created empty node.
    */
-  static NodePtr Create();
+  template<class ...Args>
+  static NodePtr Create(Args&&... args) {
+    return std::make_shared<Node>(std::forward<Args>(args)...);
+  }
 };
 
 /*!
@@ -167,13 +207,14 @@ inline NodeEntry MakeNode(
     p->attrs.op->attr_parser(&(p->attrs));
   }
   p->inputs = std::move(inputs);
-  return NodeEntry{p, 0, 0};
+  return NodeEntry(p, 0, 0);
 }
 
 // implementation of functions.
 inline const Op* Node::op() const {
   return this->attrs.op;
 }
+
 inline bool Node::is_variable() const {
   return this->op() == nullptr;
 }

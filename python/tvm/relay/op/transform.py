@@ -1,7 +1,43 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Transform operators."""
 
 from . import _make
 from ..expr import TupleWrapper
+
+
+def cast(data, dtype):
+    """Cast input tensor to data type.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    dtype: str
+        The target data type
+
+    Returns
+    -------
+    result : relay.Expr
+        The casted result.
+    """
+    from .. import _make as _relay_make
+    return _relay_make.cast(data, dtype)
 
 
 def expand_dims(data, axis, num_newaxis=1):
@@ -45,8 +81,10 @@ def transpose(data, axes=None):
     result : relay.Expr
         The transposed result.
     """
-    axes = axes or []
-    return _make.transpose(data, list(axes))
+
+    if axes is not None:
+        axes = list(axes)
+    return _make.transpose(data, axes)
 
 
 def squeeze(data, axis=None):
@@ -119,7 +157,7 @@ def reshape(data, newshape):
 
     Example::
 
-    - data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape =(1,2,3,4)
+    - data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape = (1,2,3,4)
     - data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
 
     Parameters
@@ -144,8 +182,9 @@ def reshape_like(data, shape_like):
     """Reshapes the input array by the size of another array.
     For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
     the input array into an output array with the same shape as the second input array.
+
     .. note::
-    Sizes for both array should be compatible.
+        Sizes for both array should be compatible.
 
     Parameters
     ----------
@@ -163,7 +202,7 @@ def reshape_like(data, shape_like):
     return _make.reshape_like(data, shape_like)
 
 
-def take(data, indices, axis=None):
+def take(data, indices, axis=None, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -178,12 +217,17 @@ def take(data, indices, axis=None):
         The axis over which to select values. By default,
         the flattened input array is used.
 
+    mode : str, optional
+        Specifies how out-of-bound indices will behave.
+        clip - clip to the range (default)
+        wrap - wrap around the indices
+
     Returns
     -------
     ret : relay.Expr
         The computed result.
     """
-    return _make.take(data, indices, axis)
+    return _make.take(data, indices, axis, mode)
 
 
 def full(fill_value, shape=(), dtype=""):
@@ -209,7 +253,7 @@ def full(fill_value, shape=(), dtype=""):
 
 
 def full_like(data, fill_value):
-    """Return an scalar value array with the same shape and type as the input array.
+    """Return a scalar value array with the same shape and type as the input array.
 
     Parameters
     ----------
@@ -227,9 +271,176 @@ def full_like(data, fill_value):
     return _make.full_like(data, fill_value)
 
 
+def arange(start, stop=None, step=1, dtype="float32"):
+    """Return evenly spaced values within a given interval.
+
+    .. note::
+        Similar to ``numpy.arange``, when only one argument is given, it is used
+        as `stop` instead of `start` while `start` takes default value 0.
+
+        Warning: Undefined behavior when dtype is incompatible with start/stop/step.
+        It could lead to different results compared to numpy, MXNet, pytorch, etc.
+
+    Parameters
+    ----------
+    start : tvm.Expr, optional
+        Start of interval. The interval includes this value. The default start
+        value is 0.
+
+    stop : tvm.Expr
+        Stop of interval. The interval does not include this value.
+
+    step : tvm.Expr, optional
+        Spacing between values. The default step size is 1.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        relay.arange(5) = [0, 1, 2, 3, 4]
+        relay.arange(1, 5) = [1, 2, 3, 4]
+        relay.arange(1, 5, 1.5) = [1, 2.5, 4]
+    """
+    if stop is None:
+        stop = start
+        start = 0
+    return _make.arange(start, stop, step, dtype)
+
+
+def stack(data, axis):
+    """Join a sequence of arrays along a new axis.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis : int
+        The axis in the result array along which the input arrays are stacked.
+
+    .. note::
+        Each array in the input array sequence must have the same shape.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.stack(data, axis)
+
+
+def repeat(data, repeats, axis):
+    """Repeats elements of an array.
+    By default, repeat flattens the input array into 1-D and then repeats the elements.
+
+    repeats : int
+        The number of repetitions for each element.
+
+    axis: int
+        The axis along which to repeat values. The negative numbers are interpreted
+        counting from the backward. By default, use the flattened input array, and
+        return a flat output array.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1, 2], [3, 4]]
+        relay.repeat(x, repeats=2) = [1., 1., 2., 2., 3., 3., 4., 4.]
+
+        relay.repeat(x, repeats=2, axis=1) = [[1., 1., 2., 2.],
+                                              [3., 3., 4., 4.]]
+    """
+    return _make.repeat(data, repeats, axis)
+
+
+def tile(data, reps):
+    """Repeats the whole array multiple times.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    reps : tuple of int
+        The number of times repeating the tensor data.
+
+    .. note::
+        Each dim size of reps must be a positive integer. If reps has length d,
+        the result will have dimension of max(d, data.ndim); If data.ndim < d,
+        data is promoted to be d-dimensional by prepending new axes.
+        If data.ndim >=  d, reps is promoted to a.ndim by pre-pending 1's to it.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1, 2], [3, 4]]
+        relay.tile(x, reps=(2,3)) = [[1., 2., 1., 2., 1., 2.],
+                                     [3., 4., 3., 4., 3., 4.],
+                                     [1., 2., 1., 2., 1., 2.],
+                                     [3., 4., 3., 4., 3., 4.]]
+
+        relay.tile(x, reps=(2,)) = [[1., 2., 1., 2.],
+                                    [3., 4., 3., 4.]]
+    """
+
+    return _make.tile(data, reps)
+
+
+def reverse(data, axis):
+    """Reverses the order of elements along given axis while preserving array shape.
+    By default, repeat flattens the input array into 1-D and then repeats the elements.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis: int
+        The axis along which to reverse elements.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1., 2.], [3., 4.]]
+        relay.reverse(x, axis=0) = [[3., 4.], [1., 2.]]
+
+        relay.reverse(x, axis=1) = [[2., 1.], [4., 3.]]
+    """
+    return _make.reverse(data, axis)
+
+
 def where(condition, x, y):
     """Selecting elements from either x or y depending on the value of the
     condition.
+
+    .. note::
+        The shape of condition, x, and y needs to be the same.
 
     Parameters
     ----------
@@ -260,14 +471,30 @@ def where(condition, x, y):
 
         condition = [1, 0]
         relay.where(conditon, x, y) = [[1, 2], [7, 8]]
-
-    Note that the shape of condition, x, and y needs to be the same.
     """
     return _make.where(condition, x, y)
 
+def broadcast_to(data, shape):
+    """Return a scalar value array with the same type, broadcast to
+    the provided shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    shape : shape
+        Provide the shape to broadcast to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.broadcast_to(data, shape)
 
 def broadcast_to_like(data, broadcast_type):
-    """Return an scalar value array with the same shape and type as the input array.
+    """Return a scalar value array with the same shape and type as the input array.
 
     Parameters
     ----------
@@ -286,7 +513,7 @@ def broadcast_to_like(data, broadcast_type):
 
 
 def collapse_sum_like(data, collapse_type):
-    """Return an scalar value array with the same shape and type as the input array.
+    """Return a scalar value array with the same shape and type as the input array.
 
     Parameters
     ----------
@@ -337,7 +564,7 @@ def split(data, indices_or_sections, axis=0):
 
 
 def strided_slice(data, begin, end, strides=None):
-    """Strided slice of an array..
+    """Strided slice of an array.
 
     Parameters
     ----------
@@ -348,7 +575,7 @@ def strided_slice(data, begin, end, strides=None):
         The indices to begin with in the slicing.
 
     end: list of int
-        Indicies indicating end of the slice.
+        Indices indicating end of the slice.
 
     strides: list of int, optional
         Specifies the stride values, it can be negative in that case,
@@ -387,3 +614,89 @@ def slice_like(data, shape_like, axes=None):
         The computed result.
     """
     return _make.slice_like(data, shape_like, axes)
+
+
+def layout_transform(data, src_layout, dst_layout):
+    """Transform the layout of a tensor
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source tensor to be transformed
+
+    src_layout: str
+        The source layout.  (e.g NCHW)
+
+    dst_layout: str
+        The destination layout.  (e.g. NCHW16c)
+
+    Returns
+    -------
+    ret : relay.Expr
+        The transformed tensor.
+    """
+    return _make.layout_transform(data, src_layout, dst_layout)
+
+
+def reverse_reshape(data, newshape):
+    """Reshapes the input array where the special values are inferred from
+    right to left.
+
+    Example::
+
+    The special values have the same semantics as :py:class:`tvm.relay.reshape`.
+    The difference is that special values are inferred from right to left. It
+    can be explained in the example below::
+
+    - data.shape = (10,5,4), newshape = (-1,0), reshape results in (40,5)
+    - data.shape = (10,5,4), newshape = (-1,0), reverse_reshape results in (40,5)
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    newshape : Union[int, Tuple[int], List[int]]
+        The new shape. Should be compatible with the original shape.
+
+    Returns
+    -------
+    result : relay.Expr
+        The reshaped result.
+    """
+    if isinstance(newshape, int):
+        newshape = [newshape]
+    return _make._contrib_reverse_reshape(data, list(newshape))
+
+
+def gather_nd(data, indices):
+    """Gather elements or slices from data and store to a tensor whose shape is
+    defined by indices.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    indices : relay.Expr
+        The shape of output tensor.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [[0, 1], [2, 3]]
+        indices = [[1, 1, 0], [0, 1, 0]]
+        relay.gather_nd(data, indices) = [2, 3, 0]
+
+        data = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
+        indices = [[0, 1], [1, 0]]
+        relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
+    """
+
+    return _make.gather_nd(data, indices)

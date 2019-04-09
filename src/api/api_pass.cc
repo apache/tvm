@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  *  Exposre of pass functions.
@@ -66,6 +85,14 @@ TVM_REGISTER_API("ir_pass.Equal")
     }
   });
 
+TVM_REGISTER_API("ir_pass.StorageFlatten")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args.size() <= 3) {
+      *ret = StorageFlatten(args[0], args[1], args[2]);
+    } else {
+      *ret = StorageFlatten(args[0], args[1], args[2], args[3]);
+    }
+  });
 
 TVM_REGISTER_API("ir_pass.AttrsEqual")
 .set_body_typed<bool(const NodeRef&, const NodeRef&)>([](const NodeRef& lhs, const NodeRef& rhs) {
@@ -126,7 +153,6 @@ REGISTER_PASS1(ConvertSSA);
 REGISTER_PASS1(VerifySSA);
 REGISTER_PASS1(RewriteUnsafeSelect);
 REGISTER_PASS4(Inline);
-REGISTER_PASS3(StorageFlatten);
 REGISTER_PASS4(IRTransform);
 REGISTER_PASS1(VectorizeLoop);
 REGISTER_PASS5(UnrollLoop);
@@ -155,5 +181,6 @@ REGISTER_PASS1(CombineContextCall);
 REGISTER_PASS2(VerifyMemory);
 REGISTER_PASS2(VerifyGPUCode);
 REGISTER_PASS1(DecorateDeviceScope);
+REGISTER_PASS1(InstrumentBoundCheckers);
 }  // namespace ir
 }  // namespace tvm

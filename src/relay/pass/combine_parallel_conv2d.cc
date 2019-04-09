@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2018 by Contributors
  *
@@ -37,7 +56,7 @@ using Group = std::vector<Branch>;
   Intermediate nodes have exactly one successor. It is possible that branches meet at a point,
   which should be handled in ParallelConv2DCombiner.
 
-          data
+         data
         /    \
     conv2d   conv2d
       |        |
@@ -47,17 +66,22 @@ using Group = std::vector<Branch>;
 class BranchGroupFinder : private ExprVisitor {
  public:
   std::vector<Group> Find(const Expr& expr) {
+    static const Op& conv2d = Op::Get("nn.conv2d");
+
     this->VisitExpr(expr);
 
     std::vector<Group> groups;
     for (const auto& root : conv_roots_) {
-      const auto& convs = children_map_.at(root);
-      for (const CallNode* conv : convs) {
-        auto&& branch = CreateBranch(conv);
+      const auto& children = children_map_.at(root);
+      size_t ngroups = groups.size();
+      for (const CallNode* child : children) {
+        if (!child->op.same_as(conv2d)) continue;
+
+        auto&& branch = CreateBranch(child);
         // add the branch to a group, or create a new group
-        auto it = std::find_if(groups.begin(), groups.end(), [&](const Group& group) {
+        auto it = std::find_if(groups.begin() + ngroups, groups.end(), [&](const Group& group) {
           CHECK(!group.empty() && !group[0].empty());
-          return IsCompatibleConv2D(conv, group[0][0]);
+          return IsCompatibleConv2D(child, group[0][0]);
         });
         if (it != groups.end()) {
           it->push_back(branch);
@@ -86,13 +110,15 @@ class BranchGroupFinder : private ExprVisitor {
     CHECK(attrs_b);
     const auto* tweight_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* tweight_b = b->args[1]->type_as<TensorTypeNode>();
-    const auto shape_a = ConvertLayout(tweight_a->shape, attrs_a->weight_layout, kOIHW);
-    const auto shape_b = ConvertLayout(tweight_b->shape, attrs_b->weight_layout, kOIHW);
+    const auto shape_a = BijectiveLayoutNode::make(
+      Layout(attrs_a->kernel_layout), kOIHW).ForwardShape(tweight_a->shape);
+    const auto shape_b = BijectiveLayoutNode::make(
+      Layout(attrs_b->kernel_layout), kOIHW).ForwardShape(tweight_b->shape);
 
     return eq(attrs_a->strides, attrs_b->strides) && eq(attrs_a->padding, attrs_b->padding) &&
            eq(attrs_a->dilation, attrs_b->dilation) && eq(attrs_a->groups, attrs_b->groups) &&
            eq(attrs_a->data_layout, attrs_b->data_layout) &&
-           eq(attrs_a->weight_layout, attrs_b->weight_layout) &&
+           eq(attrs_a->kernel_layout, attrs_b->kernel_layout) &&
            eq(attrs_a->out_dtype, attrs_b->out_dtype) &&
            eq(attrs_a->out_layout, attrs_b->out_layout) && eq(shape_a[2], shape_b[2]) &&
            eq(shape_a[3], shape_b[3]);
@@ -108,7 +134,7 @@ class BranchGroupFinder : private ExprVisitor {
       const CallNode* call = it->second[0];
       auto pattern = fpattern[Downcast<Op>(call->op)];
       if (pattern <= kBroadcast) {
-        branch.push_back(it->second[0]);
+        branch.push_back(call);
         it = children_map_.find(GetRef<Expr>(branch.back()));
       } else {
         break;
@@ -133,10 +159,15 @@ class BranchGroupFinder : private ExprVisitor {
 
 class ParallelConv2DCombiner {
  public:
+  explicit ParallelConv2DCombiner(uint64_t min_num_branches) : min_num_branches_(min_num_branches) {
+  }
+
   Expr Combine(const Expr& expr) {
     auto groups = BranchGroupFinder().Find(expr);
     for (const Group& group : groups) {
-      if (group.size() < 2) continue;
+      if (group.size() < min_num_branches_) {
+        continue;
+      }
       CombineBranches(group);
     }
     return ExprSubst(expr, std::move(subst_map_));
@@ -144,6 +175,7 @@ class ParallelConv2DCombiner {
 
  private:
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map_;
+  uint64_t min_num_branches_;
 
   std::tuple<Expr, IndexExpr> TransformWeight(const Group& branches) {
     int64_t num_filters = 0;  // number of filters of the transformed weight
@@ -154,7 +186,7 @@ class ParallelConv2DCombiner {
       auto channels = GetConv2DSuperChannelsDim(conv2d);
       num_filters += channels;
     }
-    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->weight_layout.find('O');
+    auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
     return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
                            MakeConstScalar(Int(32), num_filters));
@@ -177,7 +209,7 @@ class ParallelConv2DCombiner {
     new_attrs->groups = attrs->groups;
     new_attrs->kernel_size = attrs->kernel_size;
     new_attrs->data_layout = attrs->data_layout;
-    new_attrs->weight_layout = attrs->weight_layout;
+    new_attrs->kernel_layout = attrs->kernel_layout;
     new_attrs->out_layout = attrs->out_layout;
     new_attrs->out_dtype = attrs->out_dtype;
     new_attrs->channels = new_channels;
@@ -317,11 +349,14 @@ class ParallelConv2DCombiner {
   }
 };
 
-Expr CombineParallelConv2D(const Expr& expr) { return ParallelConv2DCombiner().Combine(expr); }
+/*! \brief Combine parallel conv2d if number of branches >= min_num_branches */
+Expr CombineParallelConv2D(const Expr& expr, uint64_t min_num_branches) {
+  return ParallelConv2DCombiner(min_num_branches).Combine(expr);
+}
 
 TVM_REGISTER_API("relay._ir_pass.CombineParallelConv2D")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = CombineParallelConv2D(args[0]);
+  *ret = CombineParallelConv2D(args[0], args[1]);
 });
 
 }  // namespace relay

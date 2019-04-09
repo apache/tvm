@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression nodes of Relay."""
 from __future__ import absolute_import
@@ -49,7 +65,10 @@ class Expr(RelayNode):
         result : tvm.relay.Expr
             The result expression.
         """
-        return _make.dtype_cast(self, dtype)
+        return _make.cast(self, dtype)
+
+    def __neg__(self):
+        return _op_make.negative(self)
 
     def __add__(self, other):
         if isinstance(other, Expr):
@@ -166,6 +185,26 @@ class Var(Expr):
         self.__init_handle_by_constructor__(
             _make.Var, name_hint, type_annotation)
 
+    @property
+    def name_hint(self):
+        """Get name hint of the current var."""
+        name = self.vid.name_hint
+        return name
+
+    def __call__(self, *args):
+        """Call the variable (if it represents a function).
+
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            The arguments to the call.
+
+        Returns
+        -------
+        call: Call
+            A call taking the variable as a function.
+        """
+        return Call(self, args)
 
 @register_relay_node
 class GlobalVar(Expr):
@@ -216,15 +255,16 @@ class Function(Expr):
                  params,
                  body,
                  ret_type=None,
-                 type_params=None):
+                 type_params=None,
+                 attrs=None):
         if type_params is None:
             type_params = convert([])
 
         self.__init_handle_by_constructor__(
-            _make.Function, params, body, ret_type, type_params)
+            _make.Function, params, body, ret_type, type_params, attrs)
 
     def __call__(self, *args):
-        """Invoke the gobal function.
+        """Invoke the global function.
 
         Parameters
         ----------
@@ -320,129 +360,61 @@ class TupleGetItem(Expr):
             _make.TupleGetItem, tuple_value, index)
 
 
-class ExprFunctor(object):
+@register_relay_node
+class RefCreate(Expr):
+    """Create a new reference from initial value.
+    Parameters
+    ----------
+    value: tvm.relay.Expr
+       The initial value.
     """
-    An abstract visitor defined over Expr.
+    def __init__(self, value):
+        self.__init_handle_by_constructor__(_make.RefCreate, value)
 
-    Defines the default dispatch over expressions, and
-    implements memoization.
+
+@register_relay_node
+class RefRead(Expr):
+    """Get the value inside the reference.
+    Parameters
+    ----------
+    ref: tvm.relay.Expr
+         The reference.
     """
-    def __init__(self):
-        self.memo_map = {}
-
-    # pylint: disable=no-else-return
-    def visit(self, expr):
-        """Apply the visitor to an expression."""
-        found = self.memo_map.get(expr)
-        if found:
-            return found
-
-        if isinstance(expr, Function):
-            res = self.visit_function(expr)
-        elif isinstance(expr, Call):
-            res = self.visit_call(expr)
-        elif isinstance(expr, Let):
-            res = self.visit_let(expr)
-        elif isinstance(expr, Var):
-            res = self.visit_var(expr)
-        elif isinstance(expr, GlobalVar):
-            res = self.visit_global_var(expr)
-        elif isinstance(expr, If):
-            res = self.visit_if(expr)
-        elif isinstance(expr, Tuple):
-            res = self.visit_tuple(expr)
-        elif isinstance(expr, TupleGetItem):
-            res = self.visit_tuple_getitem(expr)
-        elif isinstance(expr, Constant):
-            res = self.visit_constant(expr)
-        else:
-            raise Exception("warning unhandled case: {0}".format(type(expr)))
-
-        self.memo_map[expr] = res
-        return res
-
-    def visit_function(self, _):
-        raise NotImplementedError()
-
-    def visit_let(self, _):
-        raise NotImplementedError()
-
-    def visit_call(self, _):
-        raise NotImplementedError()
-
-    def visit_var(self, _):
-        raise NotImplementedError()
-
-    def visit_type(self, typ):
-        return typ
-
-    def visit_if(self, _):
-        raise NotImplementedError()
-
-    def visit_tuple(self, _):
-        raise NotImplementedError()
-
-    def visit_tuple_getitem(self, _):
-        raise NotImplementedError()
-
-    def visit_constant(self, _):
-        raise NotImplementedError()
-
-    def visit_global_var(self, _):
-        raise NotImplementedError()
+    def __init__(self, ref):
+        self.__init_handle_by_constructor__(_make.RefRead, ref)
 
 
-class ExprMutator(ExprFunctor):
+@register_relay_node
+class RefWrite(Expr):
     """
-    A functional visitor over Expr.
-
-    The default behavior recursively traverses the AST
-    and reconstructs the AST.
+    Update the value inside the reference.
+    The whole expression will evaluate to an empty tuple.
+    Parameters
+    ----------
+    ref: tvm.relay.Expr
+        The reference.
+    value: tvm.relay.Expr
+        The new value.
     """
-    def visit_function(self, fn):
-        new_body = self.visit(fn.body)
-        return Function(
-            list(fn.params),
-            fn.ret_type, new_body,
-            fn.type_params)
+    def __init__(self, ref, value):
+        self.__init_handle_by_constructor__(_make.RefWrite, ref, value)
 
-    def visit_let(self, let):
-        new_var = self.visit(let.var)
-        new_val = self.visit(let.value)
-        new_body = self.visit(let.body)
-        return Let(new_var, new_val, new_body)
 
-    def visit_call(self, call):
-        new_fn = self.visit(call.op)
-        new_args = [self.visit(arg) for arg in call.args]
-        return Call(new_fn, new_args, call.attrs)
+class TempExpr(Expr):
+    """Baseclass of all TempExpr.
 
-    def visit_var(self, rvar):
-        return rvar
+    TempExprs are pass specific expression that can be
+    useful to define intermediate result in the
+    rewriting pass such as layout or type transformation.
+    """
+    def realize(self):
+        """Convert the expression to a normal(non-temp) Expr.
 
-    def visit_global_id(self, global_var):
-        return global_var
-
-    def visit_if(self, ite):
-        return If(
-            self.visit(ite.guard),
-            self.visit(ite.true_b),
-            self.visit(ite.false_b))
-
-    def visit_tuple(self, tup):
-        return Tuple([self.visit(field) for field in tup.fields])
-
-    def visit_tuple_getitem(self, op):
-        tuple_value = self.visit(op.tuple_value)
-        if not tuple_value.same_as(op.tuple_value):
-            return TupleGetItem(tuple_value, op.index)
-        return op
-
-    def visit_global_var(self, gvar):
-        return gvar
-
-    def visit_constant(self, rconst):
-        return rconst
+        Returns
+        -------
+        The corresponding normal expression.
+        """
+        return _expr.TempExprRealize(self)
 
 
 class TupleWrapper(object):
@@ -566,12 +538,14 @@ def const(value, dtype=None):
     """
     if isinstance(value, (_base.numeric_types, (bool, list))):
         value = _np.array(value, dtype=dtype)
-        # convert default to int32 and float32
-        if dtype is None:
-            if value.dtype == "float64":
-                value = value.astype("float32")
-            elif value.dtype == "int64":
-                value = value.astype("int32")
+    if not dtype:
+        # when dtype is None: int maps to "int32", float maps to "float32"
+        map_dtype = {
+            _np.dtype('int64'): _np.int32,
+            _np.dtype('float64'): _np.float32
+            }.get(value.dtype, None)
+        if map_dtype:
+            value = value.astype(map_dtype)
     if isinstance(value, (_np.ndarray, _np.generic)):
         value = _nd.array(value)
 

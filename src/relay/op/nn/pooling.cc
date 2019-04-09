@@ -1,20 +1,66 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file pooling.cc
  * \brief Pooling operators
  */
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
 #include <topi/nn/pooling.h>
 #include <vector>
-#include "../layout.h"
+#include "../../pass/alter_op_layout.h"
 
 namespace tvm {
 namespace relay {
 
+// relay.nn.max_pool2d & relay.nn.avg_pool2d
 TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
+
+template <typename T>
+Array<Array<Layout> > Pool2DInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+  // NOTE: Discard "const" qualifier here.
+  T *params = const_cast<T*>(attrs.as<T>());
+
+  if (new_in_layouts.defined()) {
+    CHECK_EQ(new_in_layouts.size(), 1);
+
+    Layout raw_layout(params->layout);
+    Layout input = new_in_layouts[0];
+    if (input.IndexOf(LayoutAxis::Get('W')) == raw_layout.IndexOf(LayoutAxis::Get('W')) &&
+    input.IndexOf(LayoutAxis::Get('H')) == raw_layout.IndexOf(LayoutAxis::Get('H')) &&
+        !input.Contains(LayoutAxis::Get('w')) && !input.Contains(LayoutAxis::Get('h'))) {
+      params->layout = input.name();  // modify self to follow the input layout
+    }
+  }
+
+  Layout inferred_layout(params->layout);
+  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
+}
 
 template <typename AttrType>
 bool Pool2DRel(const Array<Type>& types,
@@ -33,13 +79,13 @@ bool Pool2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
-  CHECK(layout.Contains('H') && layout.Contains('W') &&
-        !layout.Contains('h') && !layout.Contains('w'))
+  CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
+        !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
     << "Invalid layout " << layout
     << ". Pool2D layout must have H and W, which cannot be split";
 
-  const auto hidx = layout.Indexof('H');
-  const auto widx = layout.Indexof('W');
+  const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
+  const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
 
   IndexExpr pad_h, pad_w;
   if (param->padding.size() == 1) {
@@ -57,7 +103,11 @@ bool Pool2DRel(const Array<Type>& types,
     return false;
   }
 
-  std::vector<IndexExpr> oshape({dshape[0], dshape[1], dshape[2], dshape[3]});
+  std::vector<IndexExpr> oshape;
+  for (const auto& e : dshape) {
+    oshape.push_back(e);
+  }
+
   if (param->ceil_mode) {
     oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0] +
                     param->strides[0] - 1) / param->strides[0]) + 1;
@@ -95,6 +145,7 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
                             const Array<Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
+  static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
   auto pool_size = param->pool_size;
@@ -102,10 +153,13 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   auto padding = param->padding;
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
-  CHECK(layout.Convertible(Layout("NCHW")))
+
+  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
       << "max_pool2d currently only supports layouts that are convertible from NCHW";
-  CHECK_EQ(layout.Indexof('h'), -1) << "max_pool2d does not support input split on height";
-  CHECK_EQ(layout.Indexof('w'), -1) << "max_pool2d does not support input split on width";
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
+      << "max_pool2d does not support input split on height";
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
+      << "max_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
       << "Pool2D only support 4-D input (e.g., NCHW)"
@@ -163,6 +217,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("MaxPool2D", Pool2DRel<MaxPool2DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Pool2DInferCorrectLayout<MaxPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 
@@ -219,9 +274,10 @@ Average pooling operation for one dimensional data.
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("AvgPool2D", Pool2DRel<AvgPool2DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Pool2DInferCorrectLayout<AvgPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
 
-// Global Pool
+// relay.nn.global_pool_2d & relay.nn.max_pool_2d
 TVM_REGISTER_NODE_TYPE(GlobalPool2DAttrs);
 
 bool GlobalPool2DRel(const Array<Type>& types,
@@ -230,8 +286,7 @@ bool GlobalPool2DRel(const Array<Type>& types,
                      const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-
-  CHECK(data != nullptr);
+  if (data == nullptr) { return false; }
   const auto dshape = data->shape;
   CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
@@ -240,15 +295,16 @@ bool GlobalPool2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
-  CHECK(layout.Contains('H') && layout.Contains('W') &&
-        !layout.Contains('h') && !layout.Contains('w'))
+  CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
+        !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
     << "Invalid layout " << layout
     << ". Pool2D layout must have H and W, which cannot be split";
 
-  const auto hidx = layout.Indexof('H');
-  const auto widx = layout.Indexof('W');
-  std::vector<IndexExpr> oshape({dshape[0], dshape[1], dshape[2], dshape[3]});
-  oshape[hidx] = oshape[widx] = 1;
+  const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
+  const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
+  Array<IndexExpr> oshape(dshape);
+  oshape.Set(hidx, 1);
+  oshape.Set(widx, 1);
 
   // assign output type
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
@@ -261,14 +317,15 @@ Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
                                   const Array<Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
+  static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
-  CHECK(layout.Convertible(Layout("NCHW")))
+  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
     << "global_avg_pool2d currently only supports layouts that are convertible from NCHW";
-  CHECK_EQ(layout.Indexof('h'), -1)
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
     << "global_avg_pool2d does not support input split on height";
-  CHECK_EQ(layout.Indexof('w'), -1)
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
     << "global_avg_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
@@ -307,6 +364,8 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("GlobalAvgPool2D", GlobalPool2DRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               Pool2DInferCorrectLayout<GlobalPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kAvgPool>);
 
 // GlobalMaxPool
@@ -338,6 +397,8 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("GlobalMaxPool2D", GlobalPool2DRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               Pool2DInferCorrectLayout<GlobalPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kMaxPool>);
 
 }  // namespace relay

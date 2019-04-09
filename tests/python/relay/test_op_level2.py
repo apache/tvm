@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """ Support level2 operator test cases.
 """
 import tvm
@@ -41,7 +57,7 @@ def test_conv2d_infer_type():
                         padding=(1, 1),
                         channels=16,
                         data_layout="NCHW4n4c",
-                        weight_layout="OIHW4o4i",
+                        kernel_layout="OIHW4o4i",
                         out_dtype="int32")
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type ==  relay.TensorType(
@@ -330,6 +346,21 @@ def test_pad_infer_type():
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
 
+def test_pad_run():
+    def _test_run(dtype):
+        dshape = (4, 10, 7, 7)
+        x = relay.var("x", shape=dshape)
+        y = relay.nn.pad(x, ((1, 1), (2, 2), (3, 3), (4, 4)))
+        func = relay.Function([x], y)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        ref_res = np.pad(data, ((1, 1), (2, 2), (3, 3), (4, 4)), 'constant')
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    _test_run('float32')
+    _test_run('int32')
 
 def test_lrn():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -412,6 +443,42 @@ def test_batch_flatten():
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 
+def _test_upsampling(layout, method):
+    n, c, h, w = tvm.var("n"), 16, 32, 32
+    scale = 2
+    dtype = "float32"
+    def get_shape():
+        if layout == "NCHW":
+            return (c, h, w), (c, h*scale, w*scale)
+        else:
+            return (h, w, c), (h*scale, w*scale, c)
+    ishape, oshape = get_shape()
+    x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
+    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
+    dshape = (1,) + ishape
+    x = relay.var("x", shape=dshape)
+    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    func = relay.Function([x], y)
+    data = np.random.uniform(size=dshape).astype(dtype)
+    if method == "NEAREST_NEIGHBOR":
+        ref = topi.testing.upsampling_python(data, scale, layout)
+    else:
+        ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
+    for target, ctx in ctx_list():
+        executor = relay.create_executor("graph", ctx=ctx, target=target)
+        out = executor.evaluate(func)(data)
+        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+
+
+def test_upsampling():
+    _test_upsampling("NCHW", "NEAREST_NEIGHBOR")
+    _test_upsampling("NCHW", "BILINEAR")
+    _test_upsampling("NHWC", "NEAREST_NEIGHBOR")
+    _test_upsampling("NHWC", "BILINEAR")
+
+
 if __name__ == "__main__":
     test_pool2d()
     test_avg_pool2d_no_count_pad()
@@ -421,7 +488,9 @@ if __name__ == "__main__":
     test_upsampling_infer_type()
     test_flatten_infer_type()
     test_pad_infer_type()
+    test_pad_run()
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_run()
     test_conv2d_run()
     test_batch_flatten()
+    test_upsampling()

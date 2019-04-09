@@ -1,3 +1,21 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
+
 # Android TVM RPC
 
 This folder contains Android RPC app that allows us to launch an RPC server on a Android device and connect to it through python script and do testing on the python side as normal TVM RPC.
@@ -85,19 +103,19 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 ### Cross Compile and Upload to the Android Device
 
-First start an RPC tracker using 
+First start an RPC tracker using
 
-```python -m tvm.exec.rpc_tracker --port [PORT]``` 
+```python -m tvm.exec.rpc_tracker --port [PORT]```
 
 and connect your Android device to this RPC tracker via the TVM RPC application. Open the app,
 set the `Address` and `Port` fields to the address and port of the RPC tracker respectively.
 The key should be set to "android" if you wish to avoid modifying the default test script.
 
-After pushing "START RPC" button on the app, you can check the connect by run 
+After pushing "START RPC" button on the app, you can check the connect by run
 
-```python -m tvm.exec.query_rpc_tracker --port [PORT]``` 
+```python -m tvm.exec.query_rpc_tracker --port [PORT]```
 
-on your host machine. 
+on your host machine.
 You are supposed to find a free "android" in the queue status.
 
 ```

@@ -1,8 +1,28 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file type_functor.cc
  * \brief Implementations of type functors.
  */
+#include <utility>
 #include "type_functor.h"
 
 namespace tvm {
@@ -38,12 +58,39 @@ void TypeVisitor::VisitType_(const TupleTypeNode* op) {
   }
 }
 
+void TypeVisitor::VisitType_(const RefTypeNode* op) {
+  this->VisitType(op->value);
+}
+
 void TypeVisitor::VisitType_(const TypeRelationNode* op) {
   for (const Type& t : op->args) {
     this->VisitType(t);
   }
 }
 
+void TypeVisitor::VisitType_(const GlobalTypeVarNode* op) {
+}
+
+void TypeVisitor::VisitType_(const TypeCallNode* op) {
+  this->VisitType(op->func);
+  for (const Type& t : op->args) {
+    this->VisitType(t);
+  }
+}
+
+void TypeVisitor::VisitType_(const TypeDataNode* op) {
+  this->VisitType(op->header);
+  for (const auto& v : op->type_vars) {
+    this->VisitType(v);
+  }
+
+  for (const auto& c : op->constructors) {
+    this->VisitType(c->belong_to);
+    for (const auto& t : c->inputs) {
+      this->VisitType(t);
+    }
+  }
+}
 
 // Type Mutator.
 Array<Type> TypeMutator::MutateArray(Array<Type> arr) {
@@ -119,6 +166,10 @@ Type TypeMutator::VisitType_(const TupleTypeNode* op) {
   }
 }
 
+Type TypeMutator::VisitType_(const RefTypeNode* op) {
+  return RefTypeNode::make(this->VisitType(op->value));
+}
+
 Type TypeMutator::VisitType_(const TypeRelationNode* type_rel) {
   Array<Type> new_args = MutateArray(type_rel->args);
   if (new_args.same_as(type_rel->args)) {
@@ -129,6 +180,24 @@ Type TypeMutator::VisitType_(const TypeRelationNode* type_rel) {
                                   type_rel->num_inputs,
                                   type_rel->attrs);
   }
+}
+
+Type TypeMutator::VisitType_(const GlobalTypeVarNode* op) {
+  return GetRef<Type>(op);
+}
+
+Type TypeMutator::VisitType_(const TypeCallNode* op) {
+  Type new_func = VisitType(op->func);
+  Array<Type> new_args = MutateArray(op->args);
+  if (new_args.same_as(op->args) && new_func.same_as(op->func)) {
+    return GetRef<TypeCall>(op);
+  } else {
+    return TypeCallNode::make(new_func, new_args);
+  }
+}
+
+Type TypeMutator::VisitType_(const TypeDataNode* op) {
+  return GetRef<Type>(op);
 }
 
 // Implements bind.
@@ -143,7 +212,7 @@ class TypeBinder : public TypeMutator {
     if (it != args_map_.end()) {
       return (*it).second;
     } else {
-      return id;
+      return std::move(id);
     }
   }
 

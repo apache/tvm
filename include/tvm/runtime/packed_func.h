@@ -1,11 +1,32 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file tvm/runtime/packed_func.h
  * \brief Type-erased function used across TVM API.
  */
 #ifndef TVM_RUNTIME_PACKED_FUNC_H_
 #define TVM_RUNTIME_PACKED_FUNC_H_
 
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
+#include <sstream>
+#endif
 #include <dmlc/logging.h>
 #include <functional>
 #include <tuple>
@@ -13,6 +34,7 @@
 #include <string>
 #include <limits>
 #include <memory>
+#include <utility>
 #include <type_traits>
 #include "c_runtime_api.h"
 #include "module.h"
@@ -359,7 +381,7 @@ inline std::string TVMType2String(TVMType t);
  * \tparam T the typename
  */
 template<typename T>
-struct extension_class_info {
+struct extension_type_info {
   static const int code = 0;
 };
 
@@ -451,6 +473,15 @@ class TVMPODValue_ {
   operator TVMContext() const {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
     return value_.v_ctx;
+  }
+  template<typename TNDArray,
+           typename = typename std::enable_if<
+           std::is_base_of<NDArray, TNDArray>::value>::type>
+  TNDArray AsNDArray() const {
+    if (type_code_ == kNull) return TNDArray(nullptr);
+    auto *container = static_cast<NDArray::Container*>(value_.v_handle);
+    CHECK_EQ(container->array_type_code_, array_type_info<TNDArray>::code);
+    return TNDArray(container);
   }
   template<typename TExtension>
   const TExtension& AsExtension() const {
@@ -558,7 +589,7 @@ class TVMArgValue : public TVMPODValue_ {
   inline TNodeRef AsNodeRef() const;
   template<typename T,
            typename = typename std::enable_if<
-             std::is_class<T>::value>::type>
+           std::is_class<T>::value>::type>
   inline operator T() const;
   template<typename TNodeRef,
            typename = typename std::enable_if<
@@ -606,7 +637,6 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator NDArray;
-  // Disable copy and assign from another value, but allow move.
   TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {
     this->Assign(other);
   }
@@ -725,10 +755,10 @@ class TVMRetValue : public TVMPODValue_ {
   }
   template<typename T,
            typename = typename std::enable_if<
-             extension_class_info<T>::code != 0>::type>
+             extension_type_info<T>::code != 0>::type>
   TVMRetValue& operator=(const T& other) {
     this->SwitchToClass<T>(
-        extension_class_info<T>::code, other);
+        extension_type_info<T>::code, other);
     return *this;
   }
   /*!
@@ -946,9 +976,11 @@ inline TVMType String2TVMType(std::string s) {
   char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
   uint8_t bits = static_cast<uint8_t>(strtoul(scan, &xdelim, 10));
   if (bits != 0) t.bits = bits;
+  char* endpt = xdelim;
   if (*xdelim == 'x') {
-    t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, nullptr, 10));
+    t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, &endpt, 10));
   }
+  CHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
   return t;
 }
 
@@ -1090,7 +1122,7 @@ class TVMArgsSetter {
   // extension
   template<typename T,
            typename = typename std::enable_if<
-             extension_class_info<T>::code != 0>::type>
+             extension_type_info<T>::code != 0>::type>
   inline void operator()(size_t i, const T& value) const;
   // NodeRef related extenstions: in tvm/packed_func_ext.h
   inline void operator()(size_t i, const NodeRef& other) const;  // NOLINT(*)
@@ -1208,40 +1240,53 @@ inline R TypedPackedFunc<R(Args...)>::operator()(Args... args) const {
 
 // extension and node type handling
 namespace detail {
-template<typename T, typename TSrc, bool is_ext>
+template<typename T, typename TSrc, bool is_ext, bool is_nd>
 struct TVMValueCast {
   static T Apply(const TSrc* self) {
+    static_assert(!is_ext && !is_nd, "The default case accepts only non-extensions");
     return self->template AsNodeRef<T>();
   }
 };
 
 template<typename T, typename TSrc>
-struct TVMValueCast<T, TSrc, true> {
+struct TVMValueCast<T, TSrc, true, false> {
   static T Apply(const TSrc* self) {
     return self->template AsExtension<T>();
   }
 };
+
+template<typename T, typename TSrc>
+struct TVMValueCast<T, TSrc, false, true> {
+  static T Apply(const TSrc* self) {
+    return self->template AsNDArray<T>();
+  }
+};
+
 }  // namespace detail
 
 template<typename T, typename>
 inline TVMArgValue::operator T() const {
   return detail::
-      TVMValueCast<T, TVMArgValue, extension_class_info<T>::code != 0>
+      TVMValueCast<T, TVMArgValue,
+                   (extension_type_info<T>::code != 0),
+                   (array_type_info<T>::code > 0)>
       ::Apply(this);
 }
 
 template<typename T, typename>
 inline TVMRetValue::operator T() const {
   return detail::
-      TVMValueCast<T, TVMRetValue, extension_class_info<T>::code != 0>
+      TVMValueCast<T, TVMRetValue,
+                   (extension_type_info<T>::code != 0),
+                   (array_type_info<T>::code > 0)>
       ::Apply(this);
 }
 
 template<typename T, typename>
 inline void TVMArgsSetter::operator()(size_t i, const T& value) const {
-  static_assert(extension_class_info<T>::code != 0,
+  static_assert(extension_type_info<T>::code != 0,
                 "Need to have extesion code");
-  type_codes_[i] = extension_class_info<T>::code;
+  type_codes_[i] = extension_type_info<T>::code;
   values_[i].v_handle = const_cast<T*>(&value);
 }
 
@@ -1258,9 +1303,9 @@ struct ExtTypeInfo {
 
 template<typename T>
 inline ExtTypeVTable* ExtTypeVTable::Register_() {
-  const int code = extension_class_info<T>::code;
+  const int code = extension_type_info<T>::code;
   static_assert(code != 0,
-                "require extension_class_info traits to be declared with non-zero code");
+                "require extension_type_info traits to be declared with non-zero code");
   ExtTypeVTable vt;
   vt.clone = ExtTypeInfo<T>::clone;
   vt.destroy = ExtTypeInfo<T>::destroy;

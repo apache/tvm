@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file nnvm/compiler/op_attr_types.h
  * \brief The Expr and related elements in DataFlow construction.
  */
@@ -49,6 +67,11 @@ using TOpPattern = int;
 using TOpIsStateful = bool;
 
 /*!
+ * \brief Mark the operator as non-computational.
+ */
+using TNonComputational = bool;
+
+/*!
  * \brief Computation description interface.
  *
  * \note This function have a special convention
@@ -87,6 +110,21 @@ using FTVMSchedule = runtime::TypedPackedFunc<
            const Target& target)>;
 
 /*!
+ * \brief Alternate the layout of operators or replace the
+ *  operator with other expressions. This function will be invoked
+ *  in AlterOpLayout pass.
+ * \param attrs The attribute of the original node.
+ * \param inputs The input symbols of the original node.
+ * \param tinfos An array of placeholders, use for getting the inferred shape
+ *               and dtype of the inputs.
+ * \return new_expr The modified expression.
+ */
+using FTVMAlterOpLayout = runtime::TypedPackedFunc<
+  Expr(const Attrs& attrs,
+       const Array<Expr>& args,
+       const Array<Tensor>& tinfos)>;
+
+/*!
  * \brief Forward rewriting rule for a specific op.
  *
  * \param ref_call The reference old call type to be rewritten.
@@ -104,6 +142,19 @@ using FForwardRewrite = runtime::TypedPackedFunc<
   Expr(const Call& ref_call,
        const Array<Expr>& new_args,
        const NodeRef& ctx)>;
+
+/*!
+ * \brief Gradient for a specific op.
+ *
+ * \param orig_call the original Expr.
+ *
+ * \param output_grad the gradient of the Expr.
+ *
+ * \return the gradient for each parameters.
+ */
+using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(const Expr& orig_call,
+                                                                  const Expr& output_grad)>;
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_ATTR_TYPES_H_

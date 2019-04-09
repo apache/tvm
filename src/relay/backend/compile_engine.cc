@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file relay/backend/compile_engine.cc
@@ -7,6 +26,7 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/operation.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
@@ -14,6 +34,7 @@
 #include <limits>
 #include <mutex>
 #include <functional>
+#include <unordered_map>
 #include "compile_engine.h"
 
 namespace tvm {
@@ -79,11 +100,36 @@ class ScheduleGetter :
     }
     readable_name_stream_ << "fused";
     cache_node->outputs = this->VisitExpr(prim_func->body);
-    cache_node->func_name = readable_name_stream_.str();
+    auto candidate_name = readable_name_stream_.str();
+    constexpr static size_t kMaxFuncNameLength = 80;
+    if (candidate_name.size() > kMaxFuncNameLength) {
+      std::stringstream truncated_name;
+      truncated_name <<  candidate_name.substr(0, kMaxFuncNameLength);
+      truncated_name << "_" << std::hash<std::string>{}(candidate_name) << "_";
+      candidate_name = truncated_name.str();
+    }
+    cache_node->func_name = candidate_name;
+
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
-    Schedule schedule = fschedule[master_op_](
-        master_attrs_, cache_node->outputs, target_);
+    // Fusion over tupled results may leave identity relationships
+    // between inputs and outputs, and those should not be scheduled.
+    // Hence schedule only non PlaceholderOp outputs.
+    tvm::Array<Tensor> tensor_outs;
+    for (const auto& tensor : cache_node->outputs) {
+      if (!tensor->op.as<PlaceholderOpNode>()) {
+        tensor_outs.push_back(tensor);
+      }
+    }
+    Schedule schedule;
+    // No need to register schedule for device copy op.
+    if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
+      schedule =
+          fschedule[master_op_](master_attrs_, tensor_outs, target_);
+      for (const auto& scalar : scalars_) {
+        schedule[scalar].compute_inline();
+      }
+    }
     return std::make_pair(schedule, cfunc);
   }
 
@@ -99,7 +145,7 @@ class ScheduleGetter :
   }
 
   Array<Tensor> VisitExpr_(const VarNode* op) final {
-    LOG(FATAL) << "Free variable " << op->name_hint;
+    LOG(FATAL) << "Free variable " << op->name_hint();
     return {};
   }
 
@@ -123,6 +169,7 @@ class ScheduleGetter :
           return tvm::Expr();
         }
       });
+    scalars_.push_back(value->op);
     return {value};
   }
 
@@ -149,22 +196,29 @@ class ScheduleGetter :
     CHECK(call_node->op.as<OpNode>())
         << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
-    Array<Tensor> outputs = fcompute[op](
-        call_node->attrs,
-        inputs,
-        call_node->checked_type(),
-        target_);
+    // Check if the op is a device copy op.
+    bool is_copy_op = op.same_as(Op::Get("device_copy"));
+    Array<Tensor> outputs;
+    // Skip fcompute for device copy operators as it is not registered.
+    if (is_copy_op) {
+      const auto* copy_input = inputs[0].operator->();
+      outputs.push_back(TensorNode::make(copy_input->shape, copy_input->dtype,
+                                         Operation(), 0));
+    } else {
+      outputs = fcompute[op](call_node->attrs, inputs,
+                             call_node->checked_type(), target_);
+    }
 
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
-      CHECK(!master_op_.defined() || master_op_patetrn_ < kCommReduce)
+      CHECK(!master_op_.defined() || master_op_pattern_ < kCommReduce)
           << "Two complicated op in a primitive function "
           << " master=" << master_op_ << " current=" << op;
     }
-    if (op_pattern >= master_op_patetrn_) {
+    if (op_pattern >= master_op_pattern_) {
       master_op_ = op;
       master_attrs_ = call_node->attrs;
-      master_op_patetrn_ = op_pattern;
+      master_op_pattern_ = op_pattern;
     }
     if (outputs.size() != 1) {
       const auto* tuple_type =
@@ -172,7 +226,14 @@ class ScheduleGetter :
       CHECK(tuple_type) << "Expect output to be a tuple type";
       CHECK_EQ(tuple_type->fields.size(), outputs.size());
     }
-    readable_name_stream_ << '_' << op->name;
+    // Set the name to `__copy`. It will be detected in graph runtime to perform
+    // data copy across devices.
+    if (is_copy_op) {
+      readable_name_stream_.str(std::string());
+      readable_name_stream_ << "__copy";
+    } else {
+      readable_name_stream_ << '_' << op->name;
+    }
     return outputs;
   }
 
@@ -213,15 +274,16 @@ class ScheduleGetter :
   tvm::Target target_;
   Op master_op_;
   Attrs master_attrs_;
-  int master_op_patetrn_{0};
+  int master_op_pattern_{0};
   std::ostringstream readable_name_stream_;
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
+  Array<Operation> scalars_;
 };
 
 
 class CompileEngineImpl : public CompileEngineNode {
  public:
-  // Lower the fucntion.
+  // Lower the function.
   CachedFunc Lower(const CCacheKey& key)  {
     return LowerInternal(key)->cached_func;
   }
@@ -286,7 +348,17 @@ class CompileEngineImpl : public CompileEngineNode {
     auto spair = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_node<CachedFuncNode>(
         *(spair.second.operator->()));
-    cache_node->func_name = GetUniqeName(cache_node->func_name);
+
+    // Skip lowering for device copy node.
+    const Expr body = (key->source_func)->body;
+    if (const CallNode* call_node = body.as<CallNode>()) {
+      if (call_node->attrs.as<DeviceCopyAttrs>()) {
+        value->cached_func = CachedFunc(cache_node);
+        return value;
+      }
+    }
+
+    cache_node->func_name = GetUniqueName(cache_node->func_name);
     // NOTE: array will copy on write.
     Array<Tensor> all_args = cache_node->inputs;
     for (Tensor arg : cache_node->outputs) {
@@ -297,7 +369,7 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_node->funcs = (*f)(
           spair.first, all_args, cache_node->func_name, key->source_func);
     } else {
-      LOG(FATAL) << "relay.backend._lower is not registred";
+      LOG(FATAL) << "relay.backend.lower is not registred";
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -307,7 +379,7 @@ class CompileEngineImpl : public CompileEngineNode {
    * \param name The orginal name.
    * \return Updated name which is unique.
    */
-  std::string GetUniqeName(std::string name) {
+  std::string GetUniqueName(std::string name) {
     for (size_t i = 0; i < name.length(); ++i) {
       if (name[i] == '.') name[i] = '_';
     }

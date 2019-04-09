@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  *  Implementation of API functions related to IR build
@@ -5,9 +24,8 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/ir_operator.h>
 #include <tvm/api_registry.h>
-#include <tvm/ir_operator.h>
+#include <tvm/expr_operator.h>
 
 namespace tvm {
 namespace ir {
@@ -20,6 +38,31 @@ TVM_REGISTER_API("_Var")
 TVM_REGISTER_API("make.abs")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = tvm::abs(args[0]);
+  });
+
+TVM_REGISTER_API("make.floor")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::floor(args[0]);
+  });
+
+TVM_REGISTER_API("make.ceil")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::ceil(args[0]);
+  });
+
+TVM_REGISTER_API("make.round")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::round(args[0]);
+  });
+
+TVM_REGISTER_API("make.trunc")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::trunc(args[0]);
+  });
+
+TVM_REGISTER_API("make._cast")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::cast(args[0], args[1]);
   });
 
 TVM_REGISTER_API("make._range_by_min_extent")

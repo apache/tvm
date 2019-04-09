@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 A compiler from a Relay expression to TVM's graph runtime.
 
@@ -20,12 +36,15 @@ contrib.graph_runtime or any other TVM runtime comptatible system.
 
 from __future__ import absolute_import
 import json
+from collections import defaultdict, OrderedDict
 import attr
 from . import _backend
 from . import compile_engine
 from ..op import Op
-from ..expr import Function, GlobalVar, ExprFunctor
+from ..expr import Function, GlobalVar
+from ..expr_functor import ExprFunctor
 from ..ty import TupleType, TensorType
+from ... import target as _target
 
 
 @attr.s
@@ -104,9 +123,9 @@ class GraphRuntimeCodegen(ExprFunctor):
         self.nodes = []
         self.var_map = {}
         self.params = {}
-        self.storage_map = None
+        self.storage_device_map = None
         self.compile_engine = compile_engine.get()
-        self.lowered_funcs = set()
+        self.lowered_funcs = defaultdict(set)
         self._name_map = {}
 
     def add_node(self, node, expr):
@@ -128,10 +147,20 @@ class GraphRuntimeCodegen(ExprFunctor):
         """
         checked_type = expr.checked_type
         # setup storage ids
-        assert expr in self.storage_map
-        node.attrs["storage_id"] = [
-            x.value for x in self.storage_map[expr]
-        ]
+        assert expr in self.storage_device_map
+        storage_device_info = self.storage_device_map[expr]
+        assert len(storage_device_info) == 2
+        node.attrs["storage_id"] = [x.value for x in storage_device_info[0]]
+        device_types = [x.value for x in storage_device_info[1]]
+        num_unknown_devices = device_types.count(0)
+        if num_unknown_devices != 0 and num_unknown_devices != len(device_types):
+            raise RuntimeError("The graph contains not annotated nodes for "
+                               "heterogeneous execution. All nodes must be "
+                               "annotated.")
+
+        # Add the `device_index` attribute when the graph is annotated.
+        if num_unknown_devices == 0:
+            node.attrs["device_index"] = device_types
 
         node_id = len(self.nodes)
         self.nodes.append(node)
@@ -231,9 +260,25 @@ class GraphRuntimeCodegen(ExprFunctor):
                 "TVM only support calls to primitive functions " +
                 "(i.e functions composed of fusable operator invocations)")
 
-        cached_func = self.compile_engine.lower(func, self.target)
+        assert call in self.storage_device_map
+        device_types = self.storage_device_map[call][1]
+        call_dev_type = device_types[0].value
+        if isinstance(self.target, (str, _target.Target)):
+            # homogeneous execution.
+            cached_func = self.compile_engine.lower(func, self.target)
+            self.target = {0: str(self.target)}
+        elif isinstance(self.target, dict):
+            # heterogeneous execution.
+            if call_dev_type not in self.target:
+                raise Exception("No target is provided for device " +
+                                "{0}".format(call_dev_type))
+            cached_func = self.compile_engine.lower(func,
+                                                    self.target[call_dev_type])
+        else:
+            raise ValueError("self.target must be the type of str," +
+                             "tvm.target.Target, or dict of int to str")
         for loweredf in cached_func.funcs:
-            self.lowered_funcs.add(loweredf)
+            self.lowered_funcs[self.target[call_dev_type]].add(loweredf)
 
         inputs = []
         # flatten tuple in the call.
@@ -250,6 +295,24 @@ class GraphRuntimeCodegen(ExprFunctor):
         op_node = OpNode(self._get_unique_name(op_name), {},
                          op_name, inputs, {})
         return self.add_node(op_node, call)
+
+    def visit_op(self, _):
+        raise Exception("can not compile op in non-eta expanded form")
+
+    def visit_ref_create(self, _):
+        raise RuntimeError("reference not supported")
+
+    def visit_ref_read(self, _):
+        raise RuntimeError("reference not supported")
+
+    def visit_ref_write(self, _):
+        raise RuntimeError("reference not supported")
+
+    def visit_constructor(self, _):
+        raise Exception("ADT constructor case not yet implemented")
+
+    def visit_match(self, _):
+        raise Exception("match case not yet implemented")
 
     def _get_json(self):
         """
@@ -280,6 +343,7 @@ class GraphRuntimeCodegen(ExprFunctor):
         num_entry = 0
         shapes = []
         storage_ids = []
+        device_types = []
         dltypes = []
         node_row_ptr = [0]
         for node in self.nodes:
@@ -287,6 +351,8 @@ class GraphRuntimeCodegen(ExprFunctor):
             shapes += node.attrs["shape"]
             dltypes += node.attrs["dtype"]
             storage_ids += node.attrs["storage_id"]
+            if "device_index" in node.attrs:
+                device_types += node.attrs["device_index"]
             num_entry += node.num_outputs
             node_row_ptr.append(num_entry)
 
@@ -294,25 +360,58 @@ class GraphRuntimeCodegen(ExprFunctor):
         attrs = {}
         attrs["shape"] = ["list_shape", shapes]
         attrs["storage_id"] = ["list_int", storage_ids]
+        if device_types:
+            attrs["device_index"] = ["list_int", device_types]
         attrs["dltype"] = ["list_str", dltypes]
 
-        json_dict = {
-            "nodes": nodes,
-            "arg_nodes": arg_nodes,
-            "heads": heads,
-            "attrs": attrs,
-            "node_row_ptr":  node_row_ptr
-        }
+        # Metadata definitions
+        def nested_defaultdict():
+            return defaultdict(nested_defaultdict)
+        metadata = nested_defaultdict()
+        for node_id in arg_nodes:
+            node_name = nodes[node_id]['name']
+            if node_name not in self.params:
+                metadata['signatures']['default']['inputs'][node_name]['id'] = node_id
+                metadata['signatures']['default']['inputs'][node_name]['dtype'] = dltypes[node_id]
+                metadata['signatures']['default']['inputs'][node_name]['shape'] = shapes[node_id]
+        for node_id in heads:
+            node_name = nodes[node_id[0]]['name']
+            metadata['signatures']['default']['outputs'][node_name]['id'] = node_id[0]
+            metadata['signatures']['default']['outputs'][node_name]['dtype'] = dltypes[node_id[0]]
+            metadata['signatures']['default']['outputs'][node_name]['shape'] = shapes[node_id[0]]
+
+        # Keep  'metadata' always at end
+        json_dict = OrderedDict([
+            ("nodes", nodes),
+            ("arg_nodes", arg_nodes),
+            ("heads", heads),
+            ("attrs", attrs),
+            ("node_row_ptr", node_row_ptr),
+            ("metadata", metadata),
+        ])
 
         return json.dumps(json_dict, indent=2)
 
     def debug_dump_memory_plan(self, func):
         """Debug function to dump memory plan."""
         def _annotate(expr):
-            if expr in self.storage_map:
-                return str(self.storage_map[expr])
+            if expr in self.storage_device_map:
+                storage_device_info = self.storage_device_map[expr]
+                assert len(storage_device_info) == 2
+                return str(storage_device_info[0])
             return ""
         return func.astext(show_meta_data=False, annotate=_annotate)
+
+    def debug_dump_device_annotation(self, func):
+        """Debug function to dump device annotation result."""
+        def _annotate(expr):
+            if expr in self.storage_device_map:
+                storage_device_info = self.storage_device_map[expr]
+                assert len(storage_device_info) == 2
+                return str(storage_device_info[1])
+            return ""
+        return func.astext(show_meta_data=False, annotate=_annotate)
+
 
     def codegen(self, func):
         """Compile a single function into a graph.
@@ -327,24 +426,31 @@ class GraphRuntimeCodegen(ExprFunctor):
         graph_json : str
             The graph json that can be consumed by runtime.
 
-        lowered_funcs : List[tvm.LoweredFunc]
+        lowered_funcs : List[tvm.LoweredFunc] or Dict[str, List[tvm.LoweredFunc]]
             The lowered functions.
 
         params : Dict[str, tvm.nd.NDArray]
             Additional constant parameters.
         """
-        self.storage_map = _backend.GraphPlanMemory(func)
+        self.storage_device_map = _backend.GraphPlanMemory(func)
         # First we convert all the parameters into input nodes.
         for param in func.params:
             node = InputNode(param.name_hint, {})
-            self.var_map[param] = self.add_node(
-                node, param)
+            self.var_map[param] = self.add_node(node, param)
 
         # Then we compile the body into a graph which can depend
         # on input variables.
         self.heads = self.visit(func.body)
         graph_json = self._get_json()
-        lowered_funcs = list(self.lowered_funcs)
+
+        # Return the lowered functions as a list for homogeneous compilation.
+        # Otherwise, for heterogeneous compilation, a dictionary containing
+        # the device id to a list of lowered functions is returned. Both forms
+        # are acceptable to tvm.build.
+        if not isinstance(self.target, dict):
+            lowered_funcs = list(list(self.lowered_funcs.values())[0])
+        else:
+            lowered_funcs = {k: list(v) for k, v in self.lowered_funcs.items()}
         return graph_json, lowered_funcs, self.params
 
     def _get_unique_name(self, name):

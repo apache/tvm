@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/op.h
  * \brief Primitive operator definition.
  */
@@ -422,7 +440,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   std::string input_name_prefix = "in";
   for (int i = 0; i < get()->num_inputs; i++) {
     auto name = input_name_prefix + std::to_string(i);
-    auto param = TypeVarNode::make(name, TypeVarNode::Kind::kType);
+    auto param = TypeVarNode::make(name, Kind::kType);
     type_params.push_back(param);
     arg_types.push_back(param);
   }
@@ -430,7 +448,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   Array<Type> ty_call_args = arg_types;
 
   // Add output type.
-  auto out_param = TypeVarNode::make("out", TypeVarNode::Kind::kType);
+  auto out_param = TypeVarNode::make("out", Kind::kType);
   type_params.push_back(out_param);
   // this will trigger copy on write.
   ty_call_args.push_back(out_param);
@@ -550,6 +568,7 @@ inline ValueType OpMap<ValueType>::get(const Expr& expr,
                                        ValueType def_value) const {
   return map_.get<ValueType>(expr, def_value);
 }
+
 
 /*!
  * \brief Check that an expression is a "primtive operator".

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/interpreter.cc
@@ -6,8 +25,10 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/attrs/debug.h>
 #include "compile_engine.h"
 
 namespace tvm {
@@ -74,6 +95,43 @@ TVM_REGISTER_API("relay._make.TensorValue")
     *ret = TensorValueNode::make(data);
   });
 
+RefValue RefValueNode::make(Value value) {
+  NodePtr<RefValueNode> n = make_node<RefValueNode>();
+  n->value = value;
+  return RefValue(n);
+}
+
+TVM_REGISTER_API("relay._make.RefValue")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = RefValueNode::make(args[0]);
+  });
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<RefValueNode>([](const RefValueNode* node,
+                               tvm::IRPrinter* p) {
+                              p->stream << "RefValueNode(" << node->value << ")";
+                            });
+
+ConstructorValue ConstructorValueNode::make(Constructor constructor,
+                                            tvm::Array<Value> fields) {
+  NodePtr<ConstructorValueNode> n = make_node<ConstructorValueNode>();
+  n->constructor = constructor;
+  n->fields = fields;
+  return ConstructorValue(n);
+}
+
+TVM_REGISTER_API("relay._make.ConstructorValue")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = ConstructorValueNode::make(args[0], args[1]);
+  });
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<ConstructorValueNode>([](const ConstructorValueNode* node,
+                                       tvm::IRPrinter* p) {
+  p->stream << "ConstructorValueNode(" << node->constructor
+            << node->fields << ")";
+});
+
 /*!
  * \brief A stack frame in the Relay interpreter.
  *
@@ -124,15 +182,51 @@ struct Stack {
   };
 };
 
+/*! \brief A representation of the interpreter state which can be passed back to Python. */
+class InterpreterState;
+
+/*! \brief A container capturing the state of the interpreter. */
+class InterpreterStateNode : public Node {
+ public:
+  using Frame = tvm::Map<Var, Value>;
+  using Stack = tvm::Array<Frame>;
+
+  /*! \brief The current expression under evaluation. */
+  Expr current_expr;
+
+  /*! \brief The call stack of the interpreter. */
+  Stack stack;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("current_expr", &current_expr);
+    v->Visit("stack", &stack);
+  }
+
+  static InterpreterState make(Expr current_expr, Stack stack);
+
+  static constexpr const char* _type_key = "relay.InterpreterState";
+  TVM_DECLARE_NODE_TYPE_INFO(InterpreterStateNode, Node);
+};
+
+RELAY_DEFINE_NODE_REF(InterpreterState, InterpreterStateNode, NodeRef);
+
+InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
+  NodePtr<InterpreterStateNode> n = make_node<InterpreterStateNode>();
+  n->current_expr = std::move(current_expr);
+  n->stack = std::move(stack);
+  return InterpreterState(n);
+}
+
 // NOTE: the current interpreter assumes A-normal form.
 // which is better for execution.
 //
 // It will run duplicated computations when taking program that
 // contains DAG in dataflow-form.
-// Conversion to ANF is recommended before running the interpretation.
 //
+// Conversion to ANF is recommended before running the interpretation.
 class Interpreter :
-      public ExprFunctor<Value(const Expr& n)> {
+      public ExprFunctor<Value(const Expr& n)>,
+             PatternFunctor<bool(const Pattern& p, const Value& v)> {
  public:
   Interpreter(Module mod,
               DLContext context,
@@ -156,7 +250,7 @@ class Interpreter :
   }
 
   Value Eval(const Expr& expr) {
-    return (*this)(expr);
+    return VisitExpr(expr);
   }
 
   Value VisitExpr(const Expr& expr) final {
@@ -195,20 +289,49 @@ class Interpreter :
     return TupleValueNode::make(values);
   }
 
-  Value VisitExpr_(const FunctionNode* func_node) final {
-    auto func = GetRef<Function>(func_node);
+  // TODO(@jroesch): this doesn't support mutual letrec.
+  Value MakeClosure(const Function& func, const Var& letrec_name = Var()) {
     tvm::Map<Var, Value> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
     for (const auto& var : free_vars) {
-      captured_mod.Set(var, Eval(var));
+      // Evaluate the free var (which could be a function call) if it hasn't
+      // shown up in a letting binding that has invoked the function.
+      if (!letrec_name.defined() || letrec_name != var) {
+        captured_mod.Set(var, Eval(var));
+      }
     }
 
-    return ClosureNode::make(captured_mod, func);
+    // We must use mutation here to build a self referential closure.
+    auto closure = ClosureNode::make(captured_mod, func);
+    auto mut_closure =
+        static_cast<ClosureNode*>(const_cast<Node*>(closure.get()));
+    mut_closure->env.Set(letrec_name, closure);
+    return closure;
+  }
+
+  Value VisitExpr_(const FunctionNode* func_node) final {
+    auto func = GetRef<Function>(func_node);
+    return MakeClosure(func);
   }
 
   Value InvokePrimitiveOp(Function func,
                           const Array<Value>& args) {
+    auto call_node = func->body.as<CallNode>();
+
+    if (call_node && call_node->op == Op::Get("debug")) {
+      auto dattrs = call_node->attrs.as<DebugAttrs>();
+      auto interp_state = this->get_state(call_node->args[0]);
+
+      if (dattrs->debug_func.defined()) {
+        dattrs->debug_func(interp_state);
+      } else {
+        RELAY_DEBUG(interp_state);
+      }
+
+      return args[0];
+    }
+
     // Marshal the arguments.
     // Handle tuple input/output by flattening them.
     size_t arg_len = 0;
@@ -292,17 +415,10 @@ class Interpreter :
     }
   }
 
-  // Check if function is a primitive function.
-  bool IsPrimitive(const Function& func) const {
-    NodeRef res = FunctionGetAttr(func, "Primitive");
-    const ir::IntImm* pval = res.as<ir::IntImm>();
-    return pval && pval->value != 0;
-  }
-
   // Invoke the closure
   Value Invoke(const Closure& closure, const tvm::Array<Value>& args) {
     // Get a reference to the function inside the closure.
-    if (IsPrimitive(closure->func)) {
+    if (closure->func->IsPrimitive()) {
       return InvokePrimitiveOp(closure->func, args);
     }
     auto func = closure->func;
@@ -335,10 +451,13 @@ class Interpreter :
     //
     // We have some functions cotaining chunks of operators
     // which will be loaded into operator map.
-    if (auto op_node = call->op.as<OpNode>()) {
+    if (const auto* op_node = call->op.as<OpNode>()) {
       LOG(FATAL) << "found " << op_node->name
                  << "; operators should be removed by future passes; try "
                     "fusing and lowering";
+    }
+    if (auto con = call->op.as<ConstructorNode>()) {
+      return ConstructorValueNode::make(GetRef<Constructor>(con), args);
     }
     // Now we just evaluate and expect to find a closure.
     Value fn_val = Eval(call->op);
@@ -352,10 +471,16 @@ class Interpreter :
     }
   }
 
-  Value VisitExpr_(const LetNode* op) final {
-    auto value = Eval(op->value);
-    this->extend(op->var, value);
-    return Eval(op->body);
+  Value VisitExpr_(const LetNode* let) final {
+    if (auto func = let->value.as<FunctionNode>()) {
+      auto clo = MakeClosure(GetRef<Function>(func), let->var);
+      this->extend(let->var, clo);
+    } else {
+      auto value = Eval(let->value);
+      this->extend(let->var, value);
+    }
+
+    return Eval(let->body);
   }
 
   Value VisitExpr_(const TupleGetItemNode* op) final {
@@ -388,15 +513,88 @@ class Interpreter :
     }
   }
 
+  Value VisitExpr_(const RefWriteNode* op) final {
+    Value r = Eval(op->ref);
+    if (const RefValueNode* rv = r.as<RefValueNode>()) {
+      rv->value = Eval(op->value);
+      return TupleValueNode::make({});
+    } else {
+      LOG(FATAL) << "type error, type system should have caught this";
+      return Value();
+    }
+  }
+
+  Value VisitExpr_(const RefCreateNode* op) final {
+    return RefValueNode::make(Eval(op->value));
+  }
+
+  Value VisitExpr_(const RefReadNode* op) final {
+    Value r = Eval(op->ref);
+    if (const RefValueNode* rv = r.as<RefValueNode>()) {
+      return rv->value;
+    } else {
+      LOG(FATAL) << "type error, type system should have caught this";
+      return Value();
+    }
+  }
+
+  Value VisitExpr_(const MatchNode* op) final {
+    Value v = Eval(op->data);
+    for (const Clause& c : op->clauses) {
+      if (VisitPattern(c->lhs, v)) {
+        return VisitExpr(c->rhs);
+      }
+    }
+    LOG(FATAL) << "did not find any match";
+    return Value();
+  }
+
+  bool VisitPattern_(const PatternConstructorNode* op, const Value& v) final {
+    const ConstructorValueNode* cvn = v.as<ConstructorValueNode>();
+    CHECK(cvn) << "need to be a constructor for match";
+    CHECK_NE(op->constructor->tag, -1);
+    CHECK_NE(cvn->constructor->tag, -1);
+    if (op->constructor->tag == cvn->constructor->tag) {
+      // todo(M.K.): should use ptr equality but it is broken
+      CHECK_EQ(op->patterns.size(), cvn->fields.size());
+      for (size_t i = 0; i < op->patterns.size(); ++i) {
+        if (!VisitPattern(op->patterns[i], cvn->fields[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  bool VisitPattern_(const PatternWildcardNode* op, const Value& v) final {
+    return true;
+  }
+
+  bool VisitPattern_(const PatternVarNode* op, const Value& v) final {
+    extend(op->var, v);
+    return true;
+  }
+
+  InterpreterState get_state(Expr e = Expr()) const {
+    InterpreterStateNode::Stack stack;
+    for (auto fr : this->stack_.frames) {
+      InterpreterStateNode::Frame frame = fr.locals;
+      stack.push_back(frame);
+    }
+    auto state = InterpreterStateNode::make(e, stack);
+    return state;
+  }
+
  private:
-  // module
+  // Module
   Module mod_;
   // For simplicity we only run the interpreter on a single context.
   // Context to run the interpreter on.
   DLContext context_;
   // Target parameter being used by the interpreter.
   Target target_;
-  // value stack.
+  // Value stack.
   Stack stack_;
   // Backend compile engine.
   CompileEngine engine_;
@@ -419,5 +617,10 @@ TVM_REGISTER_API("relay.backend.CreateInterpreter")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = CreateInterpreter(args[0], args[1], args[2]);
   });
+
+TVM_REGISTER_NODE_TYPE(ClosureNode);
+TVM_REGISTER_NODE_TYPE(TupleValueNode);
+TVM_REGISTER_NODE_TYPE(TensorValueNode);
+
 }  // namespace relay
 }  // namespace tvm

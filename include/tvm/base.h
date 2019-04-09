@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tvm/base.h
  * \brief Defines the base data structure
  */
@@ -12,6 +30,7 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <utility>
 #include "runtime/registry.h"
 
 namespace tvm {
@@ -31,6 +50,44 @@ using ::tvm::AttrVisitor;
     }                                                             \
     using ContainerType = NodeName;                               \
   };                                                              \
+
+/*!
+ * \brief Macro to make it easy to define node ref type that
+ *  has a CopyOnWrite member function.
+ *
+ *  CopyOnWrite will generate a unique copy of the internal node.
+ *  The node will be copied if it is referenced by multiple places.
+ *  The function returns the raw pointer to the node to allow modification
+ *  of the content.
+ *
+ * \code
+ *
+ *  MyCOWNodeRef ref, ref2;
+ *  ref2 = ref;
+ *  ref.CopyOnWrite()->value = new_value;
+ *  assert(ref2->value == old_value);
+ *  assert(ref->value == new_value);
+ *
+ * \endcode
+ */
+#define TVM_DEFINE_COW_NODE_REF(TypeName, BaseType, NodeName)           \
+  class TypeName : public BaseType {                                    \
+   public:                                                              \
+    TypeName() {}                                                       \
+    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : BaseType(n) {}   \
+    const NodeName* operator->() const {                                \
+      return static_cast<const NodeName*>(node_.get());                 \
+    }                                                                   \
+    inline NodeName* CopyOnWrite() {                                    \
+      CHECK(node_ != nullptr);                                          \
+      if (!node_.unique())  {                                           \
+        NodePtr<NodeName> n = make_node<NodeName>(*(operator->()));     \
+        NodePtr<Node>(std::move(n)).swap(node_);                        \
+      }                                                                 \
+      return static_cast<NodeName*>(node_.get());                       \
+    }                                                                   \
+    using ContainerType = NodeName;                                     \
+  };
 
 
 /*!

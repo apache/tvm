@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument
 """Winograd template for cuda backend"""
 
@@ -330,23 +346,40 @@ def schedule_conv2d_winograd_without_weight_transform_cuda(cfg, outs):
 
 ##### REGISTER ALTER OP LAYOUT #####
 @nn.conv2d_alter_layout.register(["cuda", "gpu"])
-def _alter_conv2d_layout(attrs, inputs, tinfos):
-    """Alter op layout for pre-computing kernel transformation"""
+def _alter_conv2d_layout(attrs, inputs, tinfos, F):
+    """Alter op layout for pre-computing kernel transformation
+
+    Parameters
+    ----------
+    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : nnvm.symbol or tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    F: symbol
+        The context, can be either nnvm.sym or relay.op
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level,
+    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    """
     if 'cudnn' in tvm.target.current_target().libs or 'miopen' in tvm.target.current_target().libs:
         return None
 
-    import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
-
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int('groups')
-    layout = attrs["layout"]
+    data_layout_key = "data_layout" if "data_layout" in new_attrs else "layout"
+    layout = attrs[data_layout_key]
     out_dtype = attrs["out_dtype"]
-    out_dtype = tinfos[0].dtype if out_dtype == "same" else out_dtype
+    if out_dtype in ("", "same"):
+        out_dtype = tinfos[0].dtype
 
     data, kernel = tinfos[0:2]
     N, CI, H, W = get_const_tuple(data.shape)
@@ -371,7 +404,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
         if cfg.template_key == 'int8':
             assert 'cuda' in target.keys
             new_layout = 'NCHW4c'
-            new_attrs['layout'] = new_layout
+            new_attrs[data_layout_key] = new_layout
             new_attrs['out_layout'] = new_layout
             new_attrs['kernel_layout'] = 'OIHW4o4i'
             ic_block_factor = oc_block_factor = 4
@@ -386,7 +419,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
                 conv2d
             )
             dispatch_ctx.update(target, new_workload, cfg)
-            return sym.conv2d(*copy_inputs, **new_attrs)
+            return F.nn.conv2d(*copy_inputs, **new_attrs)
 
         if attrs.get_int_tuple("dilation") != (1, 1):
             warnings.warn("Does not support weight pre-transform for dilated convolution.")
@@ -395,9 +428,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
         # pre-compute weight transformation in winograd
         tile_size = _infer_tile_size(tinfos[0], tinfos[1])
 
-        weight = sym.contrib.conv2d_winograd_weight_transform(copy_inputs[1],
-                                                              tile_size=tile_size)
-        weight = sym.transpose(weight, axes=[0, 1, 3, 2])
+        weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1],
+                                                               tile_size=tile_size)
+        weight = F.transpose(weight, axes=[0, 1, 3, 2])
         copy_inputs[1] = weight
         new_attrs['tile_size'] = tile_size
 
@@ -410,8 +443,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
             conv2d_winograd_without_weight_transform
         )
         dispatch_ctx.update(target, new_workload, cfg)
-        return sym.contrib.conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
-    elif groups != CI:
+        return F.nn.contrib_conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
+    if groups != CI:
         workload = autotvm.task.args_to_workload(
             [tinfos[0], tinfos[1], strides, padding, dilation, groups, out_dtype],
             group_conv2d_nchw)
@@ -424,7 +457,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
         if cfg.template_key == 'int8':
             assert 'cuda' in target.keys
             new_layout = 'NCHW4c'
-            new_attrs['layout'] = new_layout
+            new_attrs[data_layout_key] = new_layout
             new_attrs['out_layout'] = new_layout
             new_attrs['kernel_layout'] = 'OIHW4o4i'
             ic_block_factor = oc_block_factor = 4
@@ -440,7 +473,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
                 group_conv2d_nchw
             )
             dispatch_ctx.update(target, new_workload, cfg)
-            return sym.conv2d(*copy_inputs, **new_attrs)
+            return F.nn.conv2d(*copy_inputs, **new_attrs)
 
     # do nothing for depthwise convolution
     return None

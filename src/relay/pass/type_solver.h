@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file type_solver.h
@@ -6,10 +25,14 @@
 #ifndef TVM_RELAY_PASS_TYPE_SOLVER_H_
 #define TVM_RELAY_PASS_TYPE_SOLVER_H_
 
+#include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/error.h>
 #include <vector>
 #include <queue>
+#include <unordered_map>
+#include <unordered_set>
 #include "../../common/arena.h"
 
 
@@ -18,6 +41,7 @@ namespace relay {
 
 using common::LinkNode;
 using common::LinkedList;
+
 /*!
  * \brief Interface of type solver used in type inference.
  *
@@ -39,13 +63,14 @@ using common::LinkedList;
  */
 class TypeSolver {
  public:
-  TypeSolver();
+  TypeSolver(const GlobalVar& current_func, ErrorReporter* err_reporter);
   ~TypeSolver();
   /*!
    * \brief Add a type constraint to the solver.
    * \param constraint The constraint to be added.
+   * \param location The location at which the constraint was incurred.
    */
-  void AddConstraint(const TypeConstraint& constraint);
+  void AddConstraint(const TypeConstraint& constraint, const NodeRef& lcoation);
   /*!
    * \brief Resolve type to the solution type in the solver.
    * \param type The type to be resolved.
@@ -61,10 +86,23 @@ class TypeSolver {
    * \brief Unify lhs and rhs.
    * \param lhs The left operand.
    * \param rhs The right operand
+   * \param location The location at which the unification problem arose.
    */
-  Type Unify(const Type& lhs, const Type& rhs);
+  Type Unify(const Type& lhs, const Type& rhs, const NodeRef& location);
+
+  /*!
+   * \brief Report an error at the provided location.
+   * \param err The error to report.
+   * \param loc The location at which to report the error.
+   */
+  void ReportError(const Error& err, const NodeRef& location);
 
  private:
+  class OccursChecker;
+  class Unifier;
+  class Resolver;
+  class Propagator;
+  class Merger;
   class Reporter;
   struct TypeNode;
   struct RelationNode;
@@ -77,15 +115,15 @@ class TypeSolver {
    *  that can unifies the same types to the name resolved_type.
    *
    *  It also contains collection of links to related Relations,
-   *  which is stored in rel_list.
+   *  which is stored in rel_set.
    */
   struct TypeNode {
     /*! \brief The final resolved type */
     Type resolved_type;
     /*! \brief type node in the union find algorithm */
     TypeNode* parent{nullptr};
-    /*! \brief list of relations that is related to this type node */
-    LinkedList<RelationNode*> rel_list;
+    /*! \brief set of relations that is related to this type node */
+    std::unordered_set<RelationNode*> rel_set;
     /*!
      * \brief Find the root type node, perform path compression
      * \return The root type node.
@@ -106,6 +144,7 @@ class TypeSolver {
       return root;
     }
   };
+
   /*! \brief relation node */
   struct RelationNode {
     /*! \brief Whether the relation is in the queue to be solved */
@@ -116,7 +155,10 @@ class TypeSolver {
     TypeRelation rel;
     /*! \brief list types to this relation */
     LinkedList<TypeNode*> type_list;
+    /*! \brief The location this type relation originated from. */
+    NodeRef location;
   };
+
   /*! \brief List of all allocated type nodes */
   std::vector<TypeNode*> type_nodes_;
   /*! \brief List of all allocated relation nodes */
@@ -125,12 +167,17 @@ class TypeSolver {
   size_t num_resolved_rels_{0};
   /*! \brief map from type node to types. */
   std::unordered_map<Type, TypeNode*, NodeHash, NodeEqual> tmap_;
-  /*! \breif Internal queue to update the relation */
+  /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/
   common::Arena arena_;
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
+  /*! \brief The global representing the current function. */
+  GlobalVar current_func;
+  /*! \brief Error reporting. */
+  ErrorReporter* err_reporter_;
+
   /*!
    * \brief GetTypeNode that is corresponds to t.
    * if it do not exist, create a new one.
@@ -163,22 +210,7 @@ class TypeSolver {
    * \param src The source operand
    * \param dst The dst operand.
    */
-  void MergeFromTo(TypeNode* src, TypeNode* dst) {
-    if (src == dst) return;
-    src->parent = dst;
-    // move the link to the to dst
-    for (auto* rlink = src->rel_list.head; rlink != nullptr;) {
-      // store next pointer first before rlink get moved
-      auto* next = rlink->next;
-      // if the relation is not yet resolved
-      // send the relation to the new
-      if (!rlink->value->resolved) {
-        this->AddToQueue(rlink->value);
-        dst->rel_list.Push(rlink);
-      }
-      rlink = next;
-    }
-  }
+  void MergeFromTo(TypeNode* src, TypeNode* dst);
 };
 
 }  // namespace relay

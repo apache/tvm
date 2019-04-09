@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 from tvm import relay
 
@@ -26,8 +42,6 @@ def test_fuse_simple():
     zz = relay.ir_pass.infer_type(zz)
     after = relay.ir_pass.infer_type(expected())
     assert relay.ir_pass.alpha_equal(zz, after)
-
-
 
 
 def test_conv2d_fuse():
@@ -106,7 +120,270 @@ def test_conv2d_fuse():
     assert relay.ir_pass.alpha_equal(zz, after)
 
 
+def test_concatenate():
+    """Test fusion case involving concat op and Tuple node"""
+
+    def before(dshape):
+        x = relay.var("x", shape=dshape)
+        pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+        upsampled = relay.nn.upsampling(pooled, scale=2, layout="NCHW")
+        concat = relay.concatenate((upsampled, x), axis=1)
+        out = relay.add(concat, relay.const(1, "float32"))
+        return relay.Function(relay.ir_pass.free_vars(out), out)
+
+    def expected(dshape):
+        x = relay.var("x", shape=dshape)
+        pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+        f0 = relay.Function([x], pooled)
+
+        p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
+        p1 = relay.var("p1", shape=dshape)
+        upsampled = relay.nn.upsampling(p0, scale=2, layout="NCHW")
+        concat = relay.concatenate((upsampled, p1), axis=1)
+        out = relay.add(concat, relay.const(1, "float32"))
+        f1 = relay.Function([p0, p1], out)
+
+        x = relay.var("x", shape=dshape)
+        y = relay.Call(f0, [x])
+        z = relay.Call(f1, [y, x])
+        return relay.Function([x], z)
+
+    dshape = (1, 16, 64, 64)
+    z = before(dshape)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dshape))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
+def test_tuple_root():
+    """Test fusion case where Tuple node is the root in its group"""
+
+    def before(dshape):
+        x = relay.var("x", shape=dshape)
+        pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+        upsampled = relay.nn.upsampling(pooled, scale=2, layout="NCHW")
+        out = relay.Tuple((upsampled, x))
+        return relay.Function(relay.ir_pass.free_vars(out), out)
+
+    def expected(dshape):
+        x = relay.var("x", shape=dshape)
+        pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+        f0 = relay.Function([x], pooled)
+
+        p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
+        p1 = relay.var("p1", shape=(dshape[0], dshape[1], dshape[2], dshape[3]))
+        p1_copy = relay.copy(p1)
+        upsampled = relay.nn.upsampling(p0, scale=2, layout="NCHW")
+        out = relay.Tuple((upsampled, p1_copy))
+        f1 = relay.Function([p0, p1], out)
+
+        x = relay.var("x", shape=dshape)
+        y = relay.Call(f0, [x])
+        z = relay.Call(f1, [y, x])
+        return relay.Function([x], z)
+
+    dshape = (1, 16, 64, 64)
+    z = before(dshape)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dshape))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
+def test_tuple_strided_slice():
+    """
+    Test fusion case where the number of fields of tuple and
+    the number of parameters to the function containing the tuple are different
+    """
+
+    def before(dshape):
+        x = relay.var("x", shape=dshape)
+        slice1 = relay.strided_slice(x, begin=[0, 0], end=[dshape[1]//2, dshape[1]], strides=[1,1])
+        slice2 = relay.strided_slice(x, begin=[dshape[1]//2, 0], end=[dshape[0], dshape[1]], strides=[1,1])
+        out = relay.Tuple((slice1, slice2))
+        return relay.Function([x], out)
+
+    def expected(dshape):
+        x = relay.var("x", shape=dshape)
+        slice1 = relay.strided_slice(x, begin=[0, 0], end=[dshape[1]//2, dshape[1]], strides=[1,1])
+        slice2 = relay.strided_slice(x, begin=[dshape[1]//2, 0], end=[dshape[0], dshape[1]], strides=[1,1])
+        out = relay.Tuple((slice1, slice2))
+        f0 = relay.Function([x], out)
+
+        x = relay.var("x", shape=dshape)
+        y = relay.Call(f0, [x])
+        return relay.Function([x], y)
+
+    dshape = (64, 64)
+    z = before(dshape)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dshape))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
+def test_stop_fusion():
+    def before(dshape):
+        x = relay.var("x", shape=dshape)
+        y = relay.add(x, relay.const(1, "float32"))
+        y = relay.annotation.stop_fusion(y)
+        z = relay.exp(y)
+        return relay.Function([x], z)
+
+    def expected(dshape):
+        x = relay.var("p0", shape=dshape)
+        y = relay.add(x, relay.const(1, "float32"))
+        f1 = relay.Function([x], y)
+
+        x = relay.var("p01", shape=dshape)
+        y = relay.exp(x)
+        f2 = relay.Function([x], y)
+
+        x = relay.var("x", shape=dshape)
+        y = relay.Call(f1, [x])
+        z = relay.Call(f2, [y])
+        return relay.Function([x], z)
+
+    dshape = (10, 20)
+    z = before(dshape)
+    z = relay.ir_pass.infer_type(z)
+    z = relay.ir_pass.fuse_ops(z)
+    z = relay.ir_pass.infer_type(z)
+    after = relay.ir_pass.infer_type(expected(dshape))
+    assert relay.ir_pass.alpha_equal(z, after)
+
+
+def test_fuse_myia_regression():
+    def before(dshape, dtype):
+        x = relay.var('x', shape=dshape, dtype=dtype)
+        y = relay.var('y', shape=dshape, dtype=dtype)
+        sb = relay.ScopeBuilder()
+        with sb.if_scope(relay.op.greater(x, y)):
+            sb.ret(relay.Function([], x))
+        with sb.else_scope():
+            sb.ret(relay.Function([], y))
+        return relay.Function([x, y],
+            relay.Call(sb.get(), []))
+
+    def expected(dshape, dtype):
+        x = relay.var('x', shape=dshape, dtype=dtype)
+        y = relay.var('y', shape=dshape, dtype=dtype)
+        sb = relay.ScopeBuilder()
+        p1 = relay.var('p1', shape=dshape, dtype=dtype)
+        p2 = relay.var('p2', shape=dshape, dtype=dtype)
+        fused_gt = relay.Function([p1, p2],
+            relay.op.greater(p1, p2))
+        with sb.if_scope(fused_gt(x, y)):
+            sb.ret(relay.Function([], x))
+        with sb.else_scope():
+            sb.ret(relay.Function([], y))
+        return relay.Function([x, y],
+            relay.Call(sb.get(), []))
+
+    dshape = ()
+    dtype = 'int64'
+    f = before(dshape, dtype)
+    f = relay.ir_pass.infer_type(f)
+    f = relay.ir_pass.fuse_ops(f)
+    after = relay.ir_pass.infer_type(expected(dshape, dtype))
+    assert relay.ir_pass.alpha_equal(f, after)
+
+
+def test_fuse_tuple_get_elemwise():
+    def before(dim):
+        X = relay.var("X", shape=(1, dim))
+        W = relay.var("W", shape=(3 * dim, dim))
+        matmul = relay.nn.dense(X, W)
+        splitted = relay.split(matmul, indices_or_sections=3, axis=1)
+        out = relay.sigmoid(splitted[0]) + relay.tanh(splitted[1]) * relay.exp(splitted[2])
+        return relay.Function([X, W], out)
+
+    def expected(dim):
+        p0 = relay.var("p0", shape=(1, dim))
+        p1 = relay.var("p1", shape=(3 * dim, dim))
+        matmul = relay.nn.dense(p0, p1)
+        f0 = relay.Function([p0, p1], matmul)
+
+        p01 = relay.var("p01", shape=(1, 3 * dim))
+        splitted = relay.split(p01, indices_or_sections=3, axis=1)
+        out = relay.sigmoid(splitted[0]) + relay.tanh(splitted[1]) * relay.exp(splitted[2])
+        f1 = relay.Function([p01], out)
+
+        X = relay.var("X", shape=(1, dim))
+        W = relay.var("W", shape=(3 * dim, dim))
+        y = relay.Call(f0, [X, W])
+        z = relay.Call(f1, [y])
+        return relay.Function([X, W], z)
+
+    dim = 10
+    z = before(dim)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dim))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
+def test_tuple_get_root():
+    def before(dim):
+        X = relay.var("X", shape=(1, 3 * dim))
+        W = relay.var("W", shape=(dim, dim))
+        splitted = relay.split(X, indices_or_sections=3, axis=1)
+        out = relay.nn.dense(splitted[0], W)
+        return relay.Function([X, W], out)
+
+    def expected(dim):
+        p0 = relay.var("p0", shape=(1, 3 * dim))
+        splitted = relay.split(p0, indices_or_sections=3, axis=1)
+        out = splitted[0]
+        f0 = relay.Function([p0], out)
+
+        p01 = relay.var("p01", shape=(1, dim))
+        p1 = relay.var("p1", shape=(dim, dim))
+        out = relay.nn.dense(p01, p1)
+        f1 = relay.Function([p01, p1], out)
+
+        X = relay.var("X", shape=(1, 3 * dim))
+        W = relay.var("W", shape=(dim, dim))
+        y = relay.Call(f0, [X])
+        z = relay.Call(f1, [y, W])
+        return relay.Function([X, W], z)
+
+    dim = 10
+    z = before(dim)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dim))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
 
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
+    test_concatenate()
+    test_tuple_root()
+    test_tuple_strided_slice()
+    test_stop_fusion()
+    test_fuse_myia_regression()
+    test_fuse_tuple_get_elemwise()
+    test_tuple_get_root()

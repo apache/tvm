@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 
 import topi
@@ -158,7 +174,7 @@ def test_forward_ones():
     ones = mx.sym.ones(shape=(2, 3, 4), dtype='float32')
     mx_sym = mx.sym.elemwise_add(data, ones)
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
-    
+
 def test_forward_zeros():
     data = mx.sym.var('data')
     zeros = mx.sym.zeros(shape=(2, 3, 4), dtype='float32')
@@ -184,7 +200,112 @@ def test_forward_argmin():
     data = mx.sym.var('data')
     mx_sym = mx.sym.argmin(data, axis=0)
     verify_mxnet_frontend_impl(mx_sym, (5, 4), (4,))
-    
+
+def test_forward_where():
+    cond = mx.sym.var('cond')
+    x = mx.sym.var('x')
+    y = mx.sym.var('y')
+    dshape = (2, 2)
+    dtype = 'float32'
+    mx_sym = mx.sym.where(cond, x, y)
+    np_cond = np.array([[0, 1], [-1, 0]]).astype(dtype)
+    np_x = np.random.uniform(size=dshape).astype(dtype)
+    np_y = np.random.uniform(size=dshape).astype(dtype)
+    mx_cond = mx.nd.array(np_cond)
+    mx_x = mx.nd.array(np_x)
+    mx_y = mx.nd.array(np_y)
+    mod = mx.mod.Module(mx_sym, label_names=None, data_names=['cond', 'x', 'y'])
+    mod.bind(data_shapes=[('cond', dshape), ('x', dshape), ('y', dshape)], for_training=False)
+    mod.init_params()
+    args, auxs = mod.get_params()
+    mx_out = mx.nd.where(mx_cond, mx_x, mx_y).asnumpy()
+    out_shape = dshape
+    new_sym, params = frontend.from_mxnet(mx_sym, args, auxs)
+    shape_dict = {'cond': dshape, 'x': dshape, 'y': dshape}
+    for target, ctx in ctx_list():
+        with nnvm.compiler.build_config(opt_level=3):
+            graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, params=params)
+        m = graph_runtime.create(graph, lib, ctx)
+        # set inputs
+        m.set_input("cond", tvm.nd.array(np_cond))
+        m.set_input("x", tvm.nd.array(np_x))
+        m.set_input("y", tvm.nd.array(np_y))
+        m.set_input(**params)
+        m.run()
+        # get outputs
+        tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+        tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_forward_slice():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.slice(data, begin=(0, 1), end=(2, 4))
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 3))
+    mx_sym = mx.sym.slice(data, begin=(-1, 1), end=(-3, 4), step=(-1, 2))
+    verify_mxnet_frontend_impl(mx_sym, (3, 4), (2, 2))
+
+def test_forward_maximum():
+    a = mx.sym.var('a')
+    b = mx.sym.var('b')
+    dshape = (10, 20)
+    dtype = 'float32'
+    mx_sym = mx.sym._internal._maximum(a, b)
+    np_a = np.random.uniform(size=dshape).astype(dtype)
+    np_b = np.random.uniform(size=dshape).astype(dtype)
+    mx_a = mx.nd.array(np_a)
+    mx_b = mx.nd.array(np_b)
+    mod = mx.mod.Module(mx_sym, label_names=None, data_names=['a', 'b'])
+    mod.bind(data_shapes=[('a', dshape), ('b', dshape)], for_training=False)
+    mod.init_params()
+    args, auxs = mod.get_params()
+    mx_out = mx.nd._internal._maximum(mx_a, mx_b).asnumpy()
+    out_shape = dshape
+    new_sym, params = frontend.from_mxnet(mx_sym, args, auxs)
+    shape_dict = {'a': dshape, 'b': dshape}
+    for target, ctx in ctx_list():
+        with nnvm.compiler.build_config(opt_level=3):
+            graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, params=params)
+        m = graph_runtime.create(graph, lib, ctx)
+        # set inputs
+        m.set_input("a", tvm.nd.array(np_a))
+        m.set_input("b", tvm.nd.array(np_b))
+        m.set_input(**params)
+        m.run()
+        # get outputs
+        tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+        tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_forward_minimum():
+    a = mx.sym.var('a')
+    b = mx.sym.var('b')
+    dshape = (10, 20)
+    dtype = 'float32'
+    mx_sym = mx.sym._internal._minimum(a, b)
+    np_a = np.random.uniform(size=dshape).astype(dtype)
+    np_b = np.random.uniform(size=dshape).astype(dtype)
+    mx_a = mx.nd.array(np_a)
+    mx_b = mx.nd.array(np_b)
+    mod = mx.mod.Module(mx_sym, label_names=None, data_names=['a', 'b'])
+    mod.bind(data_shapes=[('a', dshape), ('b', dshape)], for_training=False)
+    mod.init_params()
+    args, auxs = mod.get_params()
+    mx_out = mx.nd._internal._minimum(mx_a, mx_b).asnumpy()
+    out_shape = dshape
+    new_sym, params = frontend.from_mxnet(mx_sym, args, auxs)
+    shape_dict = {'a': dshape, 'b': dshape}
+    for target, ctx in ctx_list():
+        with nnvm.compiler.build_config(opt_level=3):
+            graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, params=params)
+        m = graph_runtime.create(graph, lib, ctx)
+        # set inputs
+        m.set_input("a", tvm.nd.array(np_a))
+        m.set_input("b", tvm.nd.array(np_b))
+        m.set_input(**params)
+        m.run()
+        # get outputs
+        tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+        tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -206,4 +327,7 @@ if __name__ == '__main__':
     test_forward_zeros_like()
     test_forward_argmax()
     test_forward_argmin()
-    
+    test_forward_where()
+    test_forward_slice()
+    test_forward_maximum()
+    test_forward_minimum()

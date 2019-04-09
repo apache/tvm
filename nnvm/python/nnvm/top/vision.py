@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, unused-argument
 """Definition of nn ops"""
 from __future__ import absolute_import
@@ -19,24 +35,6 @@ def schedule_reorg(attrs, outs, target):
         return topi.generic.schedule_injective(outs)
 
 reg.register_pattern("yolo_reorg", OpPattern.INJECTIVE)
-
-@reg.register_compute("yolo_region")
-def compute_region(attrs, inputs, _):
-    """Compute definition of region"""
-    n = attrs.get_int("n")
-    classes = attrs.get_int("classes")
-    coords = attrs.get_int("coords")
-    background = attrs.get_int("background")
-    softmax = attrs.get_int("softmax")
-    return topi.vision.yolo.region(inputs[0], n, classes, coords, background, softmax)
-
-@reg.register_schedule("yolo_region")
-def schedule_region(attrs, outs, target):
-    """Schedule definition of region"""
-    with tvm.target.create(target):
-        return topi.generic.vision.schedule_region(outs)
-
-reg.register_pattern("yolo_region", OpPattern.OPAQUE)
 
 # multibox_prior
 @reg.register_schedule("multibox_prior")
@@ -79,20 +77,25 @@ def compute_multibox_transform_loc(attrs, inputs, _):
 reg.register_pattern("multibox_detection", OpPattern.OPAQUE)
 
 # non-maximum suppression
-@reg.register_schedule("nms")
+@reg.register_schedule("non_max_suppression")
 def schedule_nms(_, outs, target):
-    """Schedule definition of nms"""
+    """Schedule definition of non_max_suppression"""
     with tvm.target.create(target):
         return topi.generic.schedule_nms(outs)
 
-@reg.register_compute("nms")
+@reg.register_compute("non_max_suppression")
 def compute_nms(attrs, inputs, _):
-    """Compute definition of nms"""
-    nms_threshold = attrs.get_float('nms_threshold')
+    """Compute definition of non_max_suppression"""
+    return_indices = attrs.get_bool('return_indices')
+    max_output_size = attrs.get_int('max_output_size')
+    iou_threshold = attrs.get_float('iou_threshold')
     force_suppress = attrs.get_bool('force_suppress')
-    nms_topk = attrs.get_int('nms_topk')
+    top_k = attrs.get_int('top_k')
+    id_index = attrs.get_int('id_index')
+    invalid_to_bottom = attrs.get_bool('invalid_to_bottom')
 
-    return topi.vision.nms(inputs[0], inputs[1], nms_threshold,
-                           force_suppress, nms_topk)
+    return topi.vision.non_max_suppression(inputs[0], inputs[1], max_output_size,
+                                           iou_threshold, force_suppress, top_k,
+                                           id_index, return_indices, invalid_to_bottom)
 
-reg.register_pattern("nms", OpPattern.OPAQUE)
+reg.register_pattern("non_max_suppression", OpPattern.OPAQUE)

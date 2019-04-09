@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,too-many-function-args,too-many-nested-blocks
 """
 Functions that run on executor for measurement.
@@ -19,7 +35,7 @@ import numpy as np
 
 from ... import ir_pass, build, build_config, nd, TVMError, register_func, \
     rpc as _rpc, target as _target
-from ...contrib import nvcc, ndk
+from ...contrib import nvcc, ndk, tar
 
 from ..util import get_const_tuple
 from ..env import AutotvmGlobalScope
@@ -58,20 +74,20 @@ class LocalBuilder(Builder):
     build_func: callable or str
         If is 'default', use default build function
         If is 'ndk', use function for android ndk
-        If is callable, use it as custom build function
+        If is callable, use it as custom build function, expect lib_format field.
     """
     def __init__(self, timeout=10, n_parallel=None, build_func='default'):
         super(LocalBuilder, self).__init__(timeout, n_parallel)
 
         if isinstance(build_func, str):
             if build_func == 'default':
-                build_func = default_build_func
+                build_func = tar.tar
             elif build_func == 'ndk':
-                build_func = android_ndk_build_func
+                build_func = ndk.create_shared
             else:
                 raise ValueError("Invalid build_func" + build_func)
 
-        self.build_func = build_func
+        self.build_func = _wrap_build_func(build_func)
         self.executor = LocalExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
 
@@ -140,20 +156,22 @@ class RPCRunner(Runner):
         The host address of RPC Tracker
     port: int
         The port of RPC Tracker
-    number : int, optional
-        Number of times to do measurement for tasking average
+    number: int
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
     repeat : int, optional
-        Number of times to repeat the measurement.
+        The number of times to repeat the measurement.
         In total, the generated code will be run (1 + number x repeat) times,
-        where the first one is warm up. The returned result contains `repeat` costs,
-    min_repeat_ms : float, optional
-        Minimum duration of a timer measurement in milliseconds.
-        When the run time of a measurement trial falls below this time, the
-        `number` parameter will be automatically increased.
-        Set this to improve the accuracy of perf measurement, e.g., when timers
-        are not precise enough to capture short-running tasks. This parameter is
-        also critical when devices need a certain minimum running time to "warm
-        up," such as GPUs that need time to reach a performance power state.
+        where the first "1" is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms: int, optional
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
     cooldown_interval: float, optional
         The cool down interval between two measurements.
     check_correctness: bool, optional
@@ -177,7 +195,6 @@ class RPCRunner(Runner):
         self.number = number
         self.repeat = repeat
         self.min_repeat_ms = min_repeat_ms
-        self.cur_number = number
 
         self.ref_input = None
         self.ref_output = None
@@ -188,7 +205,6 @@ class RPCRunner(Runner):
 
     def set_task(self, task):
         self.task = task
-        self.cur_number = self.number
 
         if check_remote(task.target, self.key, self.host, self.port):
             logger.info("Get devices for measurement successfully!")
@@ -240,8 +256,9 @@ class RPCRunner(Runner):
                 ret = self.executor.submit(run_through_rpc,
                                            measure_inp,
                                            build_res,
-                                           self.cur_number,
+                                           self.number,
                                            self.repeat,
+                                           self.min_repeat_ms,
                                            self.cooldown_interval,
                                            remote_args,
                                            self.ref_input,
@@ -256,32 +273,6 @@ class RPCRunner(Runner):
                 else:
                     results.append(res)
 
-        # If some runs were too fast, do remeasure for them
-        # to meet the requirement of `min_repeat_ms`
-        remeasure = np.zeros((len(measure_inputs),), dtype=np.bool)
-        pre_number = next_number = self.cur_number
-        min_repeat_duration = self.min_repeat_ms / 1000.0
-        for i, res in enumerate(results):
-            if res.error_no == MeasureErrorNo.NO_ERROR:
-                if np.mean(res.costs) * pre_number <= min_repeat_duration:
-                    next_number = max(next_number,
-                                      int(np.ceil(min_repeat_duration / np.mean(res.costs))))
-                    remeasure[i] = True
-
-        if pre_number != next_number:
-            self.cur_number = next_number
-            msg = "increasing number to %d" % self.cur_number
-            logger.info(msg)
-
-            re_measure_inputs = [x for i, x in enumerate(measure_inputs) if remeasure[i]]
-            re_build_results = [x for i, x in enumerate(build_results) if remeasure[i]]
-            re_res = self.run(re_measure_inputs, re_build_results)
-            ct = 0
-            for i, rerun in enumerate(remeasure):
-                if rerun:
-                    results[i] = re_res[ct]
-                    ct += 1
-
         return results
 
 class LocalRunner(RPCRunner):
@@ -291,21 +282,22 @@ class LocalRunner(RPCRunner):
     ----------
     timeout: float
         The timeout of a compilation
-    number : int, optional
-        Number of times to do measurement for tasking average
+    number: int
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
     repeat : int, optional
-        Number of times to repeat the measurement.
+        The number of times to repeat the measurement.
         In total, the generated code will be run (1 + number x repeat) times,
-        where the first one is warm up. The returned result contains `repeat` costs,
-        each of which is the average of `number` test run.
-    min_repeat_ms : float, optional
-        Minimum duration of a timer measurement in milliseconds.
-        When the run time of a measurement trial falls below this time, the
-        `number` parameter will be automatically increased.
-        Set this to improve the accuracy of perf measurement, e.g., when timers
-        are not precise enough to capture short-running tasks. This parameter is
-        also critical when devices need a certain minimum running time to "warm
-        up," such as GPUs that need time to reach a performance power state.
+        where the first one is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms: int, optional
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
     cooldown_interval: float, optional
         The cool down interval between two measurements.
     check_correctness: bool, optional
@@ -337,9 +329,9 @@ class LocalRunner(RPCRunner):
         from ...rpc.tracker import Tracker
         from ...rpc.server import Server
 
-        tracker = Tracker('localhost', port=9000, port_end=10000, silent=True)
+        tracker = Tracker('0.0.0.0', port=9000, port_end=10000, silent=True)
         device_key = '$local$device$%d' % tracker.port
-        server = Server('localhost', port=9000, port_end=10000,
+        server = Server('0.0.0.0', port=9000, port_end=10000,
                         key=device_key,
                         use_popen=True, silent=True,
                         tracker_addr=(tracker.host, tracker.port))
@@ -373,50 +365,51 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
-def default_build_func(measure_input, tmp_dir, **kwargs):
+def _wrap_build_func(build_func):
     """
-    Default build func. This can work for cuda, opencl, llvm backend
+    Wrap build_func to a function that can be used in measure.
 
     Parameters
     ----------
-    measure_input: MeasureInput
-        The input of measurement
-    tmp_dir: str
-        The path of temporary directory to export generated library
-    """
-    tic = time.time()
-    try:
-        filename = os.path.join(tmp_dir, "tmp_func_%0x.tar" % getrandbits(64))
-        func, arg_info = _build_func_common(measure_input, **kwargs)
-        func.export_library(filename)
-    except Exception as e:  # pylint: disable=broad-except
-        return BuildResult(None, None, e, time.time() - tic)
-    return BuildResult(filename, arg_info, None, time.time() - tic)
+    build_func : The compilation function
+        We expect fcompile to contain an attr "output_format"
 
-
-def android_ndk_build_func(measure_input, tmp_dir, **kwargs):
+    Returns
+    -------
+    wrapped_build_func : function
+        The wrapped build function
     """
-    Build function for android device using ndk.
+    if not hasattr(build_func, "output_format"):
+        raise AttributeError("Expect build_func to have the attribute output_format.")
+    output_format = build_func.output_format
 
-    Parameters
-    ----------
-    measure_input: MeasureInput
-        The input of measurement
-    tmp_dir: str
-        The path of temporary directory to export generated library
-    """
-    tic = time.time()
-    try:
-        filename = os.path.join(tmp_dir, "tmp_func_%0x.so" % getrandbits(64))
-        func, arg_info = _build_func_common(measure_input, **kwargs)
-        func.export_library(filename, ndk.create_shared)
-    except Exception as e:  # pylint: disable=broad-except
-        return BuildResult(None, None, e, time.time() - tic)
-    return BuildResult(filename, arg_info, None, time.time() - tic)
+    def _wrapped(measure_input, tmp_dir, **kwargs):
+        """
+        Wrapped build func.
+
+        Parameters
+        ----------
+        measure_input: MeasureInput
+            The input of measurement
+
+        tmp_dir: str
+            The path of temporary directory to export generated library
+        """
+        tic = time.time()
+        try:
+            filename = os.path.join(tmp_dir, "tmp_func_%0x.%s" % (
+                getrandbits(64), output_format))
+            # TODO(tvm-team) consider linline _build_func_common
+            func, arg_info = _build_func_common(measure_input, **kwargs)
+            func.export_library(filename, build_func)
+        except Exception as e:  # pylint: disable=broad-except
+            return BuildResult(None, None, e, time.time() - tic)
+        return BuildResult(filename, arg_info, None, time.time() - tic)
+    return _wrapped
 
 
 def run_through_rpc(measure_input, build_result,
-                    number, repeat, cooldown_interval,
+                    number, repeat, min_repeat_ms, cooldown_interval,
                     remote_args, ref_input=None, ref_output=None):
     """Run a generated library through rpc
 
@@ -426,13 +419,22 @@ def run_through_rpc(measure_input, build_result,
         The raw measure input
     build_result: BuildResult
         The result returned from Builder. This contains the path to the generated library.
-    number : int, optional
-        Number of times to do measurement for tasking average
+    number: int
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
     repeat : int, optional
-        Number of times to repeat the measurement.
+        The number of times to repeat the measurement.
         In total, the generated code will be run (1 + number x repeat) times,
-        where the first one is warm up. The returned result contains `repeat` costs,
-        each of which is the average of `number` test run.
+        where the first one is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms: int, optional
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
     cooldown_interval: float
         The cool down interval between two measurements
     remote_args: Tuple
@@ -454,14 +456,14 @@ def run_through_rpc(measure_input, build_result,
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)
         time_f = func.time_evaluator(
-            func.entry_name, ctx, number=number, repeat=repeat)
+            func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
 
         # set input
         if ref_input:
             args = [nd.array(x, ctx=ctx) for x in ref_input]
         else:
             # create empty arrays on the remote device and copy them once.
-            # This can avoid some memory issues that make the measurment results unreliable.
+            # This can avoid some memory issues that make the measurement results unreliable.
             args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
             args = [nd.array(x, ctx=ctx) for x in args]
             ctx.sync()

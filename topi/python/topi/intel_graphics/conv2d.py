@@ -1,4 +1,20 @@
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return, too-many-arguments, too-many-locals, too-many-statements, no-member, too-many-branches
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return, too-many-arguments, too-many-locals, too-many-statements, no-member, too-many-branches, too-many-boolean-expressions
 """conv2d schedule on Intel Graphics"""
 
 from __future__ import absolute_import as _abs
@@ -37,16 +53,17 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     return xi, thread_z, thread_y, thread_x
 
 @conv2d_alter_layout.register(["intel_graphics"])
-def _alter_conv2d_layout(attrs, inputs, tinfos):
+def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     import nnvm.symbol as sym
+
     copy_inputs = [s for s in inputs]
 
     data = tinfos[0]
     kernel = tinfos[1]
 
     import ast
-    padding = ast.literal_eval(attrs['padding'])
-    stride = ast.literal_eval(attrs['strides'])
+    padding = ast.literal_eval(str(attrs['padding']))
+    stride = ast.literal_eval(str(attrs['strides']))
 
     wkl = _get_workload(data, kernel, stride, padding, data.dtype)
     oc_bn = 1
@@ -58,10 +75,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     new_attrs = {k: attrs[k] for k in attrs.keys()}
     new_attrs['kernel_layout'] = 'OIHW%do' % (oc_bn)
 
-    return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+    if F == sym:
+        out = F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+    else:
+        out = F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
+
+    return out
 
 @conv2d_NCHWc.register(["intel_graphics"])
-def _decl_conv2d(data, kernel, stride, padding, layout, out_layout, out_dtype='float32'):
+def _decl_conv2d(data, kernel, stride, padding, dilation, layout, out_layout, out_dtype='float32'):
     """Conv2D operator for Intel Graphics backend.
 
     Parameters
@@ -126,8 +148,7 @@ def schedule_conv2d_NCHWc(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag \
-           or "1_16" in op.tag:
+        if 'conv2d' in op.tag:
             _schedule_cl_spatialpack_NCHWc(s, op)
 
         scheduled_ops.append(op)
@@ -156,31 +177,30 @@ def _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype='float16
     ry = tvm.reduce_axis((0, kernel_h), name='ry')
     rx = tvm.reduce_axis((0, kernel_w), name='rx')
 
-    block_w = 0
-    block_h = 0
+    block_w = 1
+    block_h = 1
     if stride_h == 2:
         if num_filter + kernel_h == 515:
-            conv_tag = "4_4"
             block_h = 4
             block_w = 4
         else:
-            conv_tag = "4_5"
             block_h = 4
             block_w = 5
     elif kernel_h == 3:
         if num_filter == 512:
-            conv_tag = "2_7"
             block_h = 2
             block_w = 7
         else:
-            conv_tag = "2_14"
             block_h = 2
             block_w = 14
+    elif kernel_h == 7 and padding == 3 and stride == 1:
+        block_h = 3
+        block_w = 4
     else:
-        conv_tag = "1_16"
         block_h = 1
         block_w = 16
 
+    attrs = {'block_h': block_h, 'block_w' : block_w}
     c_h = out_height
     c_w = out_width
 
@@ -202,13 +222,13 @@ def _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype='float16
           tvm.sum(
               temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
               kernel[ff, rc, ry, rx, vc].astype(out_dtype),
-              axis=[rc, ry, rx]), tag=conv_tag, name='conv')
+              axis=[rc, ry, rx]), name='conv', attrs=attrs)
 
     output = tvm.compute(
         oshape,
         lambda nn, ff, yy, xx:
         conv[nn][ff//nv][yy][xx][ff%nv],
-        name='output_unpack', tag=conv_tag)
+        name='output_unpack', tag='conv2d')
 
     return output
 
@@ -224,21 +244,10 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
 
     kernel_L = s.cache_read(kernel, "local", [conv_L])
     _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
-    if "1_16" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 1
-        OUTPUT_BLOCK_WIDTH = 16
-    elif "2_14" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 14
-    elif "2_7" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 7
-    elif "4_5" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 5
-    elif "4_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 4
+
+    attrs = s[conv].op.attrs
+    OUTPUT_BLOCK_HEIGHT = attrs['block_h']
+    OUTPUT_BLOCK_WIDTH = attrs['block_w']
 
     # schedule conv
     z_factor = 1
@@ -308,7 +317,7 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
 
 
 @conv2d.register(["intel_graphics"])
-def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
+def decl_conv2d(data, kernel, stride, padding, dilation, layout='NCHW', out_dtype='float32'):
     """Conv2D operator for Intel Graphics backend.
 
     Parameters
@@ -368,8 +377,7 @@ def schedule_conv2d_nchw(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag \
-           or "1_16" in op.tag:
+        if 'conv2d' in op.tag:
             _schedule_cl_spatialpack(s, op)
 
         scheduled_ops.append(op)
@@ -396,31 +404,30 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
     ry = tvm.reduce_axis((0, kernel_h), name='ry')
     rx = tvm.reduce_axis((0, kernel_w), name='rx')
 
-    block_w = 0
-    block_h = 0
+    block_w = 1
+    block_h = 1
     if stride_h == 2:
         if num_filter + kernel_h == 515:
-            conv_tag = "4_4"
             block_h = 4
             block_w = 4
         else:
-            conv_tag = "4_5"
             block_h = 4
             block_w = 5
     elif kernel_h == 3:
         if num_filter == 512:
-            conv_tag = "2_7"
             block_h = 2
             block_w = 7
         else:
-            conv_tag = "2_14"
             block_h = 2
             block_w = 14
+    elif kernel_h == 7 and padding == 3 and stride == 1:
+        block_h = 3
+        block_w = 4
     else:
-        conv_tag = "1_16"
         block_h = 1
         block_w = 16
 
+    attrs = {'block_h': block_h, 'block_w' : block_w}
     c_h = out_height
     c_w = out_width
 
@@ -453,13 +460,13 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
           tvm.sum(
               temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
               kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
-              axis=[rc, ry, rx]), tag=conv_tag, name='conv')
+              axis=[rc, ry, rx]), name='conv', attrs=attrs)
 
     output = tvm.compute(
         oshape,
         lambda nn, ff, yy, xx:
         conv[nn][ff//nv][yy][xx][ff%nv],
-        name='output_unpack', tag=conv_tag)
+        name='output_unpack', tag='conv2d')
 
     return output
 
@@ -477,21 +484,9 @@ def _schedule_cl_spatialpack(s, op):
     kernel_L = s.cache_read(kernel_vec, "local", [conv_L])
     _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
 
-    if "1_16" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 1
-        OUTPUT_BLOCK_WIDTH = 16
-    elif "2_14" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 14
-    elif "2_7" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 7
-    elif "4_5" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 5
-    elif "4_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 4
+    attrs = s[conv].op.attrs
+    OUTPUT_BLOCK_HEIGHT = attrs['block_h']
+    OUTPUT_BLOCK_WIDTH = attrs['block_w']
 
     # schedule conv
     z_factor = 1

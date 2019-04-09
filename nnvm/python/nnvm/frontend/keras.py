@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, import-self
 """Keras frontend."""
 from __future__ import absolute_import as _abs
@@ -47,35 +63,35 @@ def _convert_activation(insym, keras_layer, _):
         beta = keras_layer.beta if hasattr(keras_layer, "beta") else 0
         return _sym.__add_scalar__(_sym.__mul_scalar__(insym, \
             scalar=alpha), scalar=beta)
-    elif act_type == 'softmax':
+    if act_type == 'softmax':
         return _sym.softmax(insym, axis=1)
-    elif act_type == 'sigmoid':
+    if act_type == 'sigmoid':
         return _sym.sigmoid(insym)
-    elif act_type == 'tanh':
+    if act_type == 'tanh':
         return _sym.tanh(insym)
-    elif act_type == 'relu':
+    if act_type == 'relu':
         return _sym.relu(insym)
-    elif act_type == 'softplus':
+    if act_type == 'softplus':
         return _sym.log(_sym.__add_scalar__(_sym.exp(insym), scalar=1))
-    elif act_type == 'elu':
+    if act_type == 'elu':
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
         return _get_elu(insym, alpha)
-    elif act_type == 'selu':
+    if act_type == 'selu':
         # Alpha, Gamma values, obtained from  https://arxiv.org/abs/1706.02515
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") \
             else 1.6732632423543772848170429916717
         gamma = keras_layer.gamma if hasattr(keras_layer, "gamma") \
             else 1.0507009873554804934193349852946
         return gamma * _get_elu(insym, alpha)
-    elif act_type == 'relu6':
+    if act_type == 'relu6':
         return _sym.clip(insym, a_min=0, a_max=6)
-    elif act_type == 'softsign':
+    if act_type == 'softsign':
         return insym / (1 + (_sym.relu(insym) + _sym.relu(_sym.negative(insym))))
-    elif act_type == 'hard_sigmoid':
+    if act_type == 'hard_sigmoid':
         transformX = (0.2 * insym) + 0.5
         return _sym.clip(transformX, a_min=0, a_max=1)
-    else:
-        raise TypeError("Unsupported activation type : {}".format(act_type))
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported in frontend Keras.'.format(act_type))
 
 
 def _convert_advanced_activation(insym, keras_layer, symtab):
@@ -84,12 +100,12 @@ def _convert_advanced_activation(insym, keras_layer, symtab):
         if keras_layer.max_value:
             return _sym.clip(insym, a_min=0, a_max=keras_layer.max_value)
         return _sym.relu(insym)
-    elif act_type == 'LeakyReLU':
+    if act_type == 'LeakyReLU':
         return _sym.leaky_relu(insym, alpha=keras_layer.alpha)
-    elif act_type == 'ELU':
+    if act_type == 'ELU':
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
         return _get_elu(insym, alpha)
-    elif act_type == 'PReLU':
+    if act_type == 'PReLU':
         assert hasattr(keras_layer, "alpha"), \
             "alpha required for PReLU."
         _check_data_format(keras_layer)
@@ -97,12 +113,12 @@ def _convert_advanced_activation(insym, keras_layer, symtab):
         return -symtab.new_const(keras_layer.get_weights()[0] \
                                  .transpose(np.roll(range(size), 1))) \
                                  * _sym.relu(-insym) + _sym.relu(insym)
-    elif act_type == 'ThresholdedReLU':
+    if act_type == 'ThresholdedReLU':
         theta = keras_layer.theta if hasattr(keras_layer, "theta") else 1.0
         theta_tensor = _sym.full_like(insym[0], fill_value=float(theta))
         return _sym.elemwise_mul(insym[0], _sym.greater(insym[0], theta_tensor, out_type="float32"))
-    else:
-        raise TypeError("Unsupported advanced activation type : {}".format(act_type))
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported in frontend Keras.'.format(act_type))
 
 
 def _convert_merge(insym, keras_layer, _):
@@ -115,12 +131,9 @@ def _convert_merge(insym, keras_layer, _):
             ret = _sym.elemwise_sub(ret, insym[i])
         elif merge_type == 'Multiply':
             ret = _sym.elemwise_mul(ret, insym[i])
-        elif merge_type == 'Average':
-            raise NotImplementedError('Average merge not implemented')
-        elif merge_type == 'Maximum':
-            raise NotImplementedError('Maximum merge not implemented')
         else:
-            raise TypeError("Unsupported merge type : {}".format(merge_type))
+            raise tvm.error.OpNotImplemented(
+                'Operator {} Merge is not supported in frontend Keras.'.format(merge_type))
     return ret
 
 
@@ -131,6 +144,15 @@ def _convert_dense(insym, keras_layer, symtab):
     if keras_layer.use_bias:
         params['use_bias'] = True
         params['bias'] = symtab.new_const(weightList[1])
+    input_shape = keras_layer.input_shape
+    input_dim = len(input_shape)
+    # In case of RNN dense, input shape will be (1, 1, n)
+    if input_dim > 2:
+        input_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
+        if input_dim != 3 or input_shape[0] != 1 or input_shape[1] != 1:
+            msg = 'Value {} in attribute "input_shape" of operator Dense is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(input_shape))
+        insym = _sym.squeeze(insym, axis=0)
     out = _sym.dense(data=insym, **params)
     # defuse activation
     if sys.version_info.major < 3:
@@ -139,6 +161,8 @@ def _convert_dense(insym, keras_layer, symtab):
         act_type = keras_layer.activation.__name__
     if act_type != 'linear':
         out = _convert_activation(out, act_type, symtab)
+    if input_dim > 2:
+        out = _sym.expand_dims(out, axis=0)
     return out
 
 
@@ -191,7 +215,8 @@ def _convert_convolution(insym, keras_layer, symtab):
         else:
             insym = _sym.pad(data=insym, pad_width=((0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
     else:
-        raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
+        msg = 'Value {} in attribute "padding" of operator Convolution is not valid.'
+        raise tvm.error.OpAttributeInvalid(msg.format(keras_layer.padding))
     if is_deconv:
         out = _sym.conv2d_transpose(data=insym, **params)
     else:
@@ -232,7 +257,8 @@ def _convert_separable_convolution(insym, keras_layer, symtab):
         insym = _sym.pad(data=insym, pad_width=(
             (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
     else:
-        raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
+        msg = 'Value {} in attribute "padding" of operator Separable Convolution is not valid.'
+        raise tvm.error.OpAttributeInvalid(msg.format(keras_layer.padding))
     depthconv = _sym.conv2d(data=insym, **params0)
     # pointwise conv
     weight1 = weightList[1].transpose([3, 2, 0, 1])
@@ -270,31 +296,31 @@ def _convert_pooling(insym, keras_layer, symtab):
     # global pool in keras = global pool + flatten in nnvm
     if pool_type == 'GlobalMaxPooling2D':
         return _convert_flatten(_sym.global_max_pool2d(insym), keras_layer, symtab)
-    elif pool_type == 'GlobalAveragePooling2D':
+    if pool_type == 'GlobalAveragePooling2D':
         return _convert_flatten(_sym.global_avg_pool2d(insym), keras_layer, symtab)
+    pool_h, pool_w = keras_layer.pool_size
+    stride_h, stride_w = keras_layer.strides
+    params = {'pool_size': [pool_h, pool_w],
+              'strides': [stride_h, stride_w],
+              'padding': [0, 0]}
+    if keras_layer.padding == 'valid':
+        pass
+    elif keras_layer.padding == 'same':
+        in_h = keras_layer.input_shape[1]
+        in_w = keras_layer.input_shape[2]
+        pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
+        pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
+        params['padding'] = [pad_t, pad_l, pad_b, pad_r]
     else:
-        pool_h, pool_w = keras_layer.pool_size
-        stride_h, stride_w = keras_layer.strides
-        params = {'pool_size': [pool_h, pool_w],
-                  'strides': [stride_h, stride_w],
-                  'padding': [0, 0]}
-        if keras_layer.padding == 'valid':
-            pass
-        elif keras_layer.padding == 'same':
-            in_h = keras_layer.input_shape[1]
-            in_w = keras_layer.input_shape[2]
-            pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
-            pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
-            params['padding'] = [pad_t, pad_l, pad_b, pad_r]
-        else:
-            raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
-        if pool_type == 'MaxPooling2D':
-            return _sym.max_pool2d(insym, **params)
-        elif pool_type == 'AveragePooling2D':
-            # TODO: in keras, padded zeros are not calculated
-            return _sym.avg_pool2d(insym, **params)
-        else:
-            raise TypeError("Unsupported pooling type : {}".format(keras_layer))
+        msg = 'Value {} in attribute "padding" of operator Pooling is not valid.'
+        raise tvm.error.OpAttributeInvalid(msg.format(keras_layer.padding))
+    if pool_type == 'MaxPooling2D':
+        return _sym.max_pool2d(insym, **params)
+    if pool_type == 'AveragePooling2D':
+        # TODO: in keras, padded zeros are not calculated
+        return _sym.avg_pool2d(insym, **params)
+    msg = 'Value {} in attribute "padding" of operator Pooling is not valid.'
+    raise tvm.error.OpAttributeInvalid(msg.format(keras_layer.padding))
 
 
 def _convert_upsample(insym, keras_layer, _):
@@ -306,30 +332,30 @@ def _convert_upsample(insym, keras_layer, _):
     elif upsample_type == "UpSampling2D":
         h, w = keras_layer.size
         if h != w:
-            raise TypeError("Unsupported upsampling type with different axes size : {}"
-                            .format(keras_layer.size))
+            raise tvm.error.OpAttributeInvalid(
+                'Upsample height ({}) must equal width ({})'.format(h, w))
         params = {'scale': h}
     elif upsample_type == "UpSampling3D":
         h, w, d = keras_layer.size
         if h != w or w != d:
-            raise TypeError("Unsupported upsampling type with different axes size : {}"
-                            .format(keras_layer.size))
+            raise tvm.error.OpAttributeInvalid(
+                'Upsample height ({}), width ({}), and depth ({}) must be equal.'.format(h, w, d))
         params = {'scale': h}
     else:
-        raise TypeError("Unsupported upsampling type : {}".format(upsample_type))
+        msg = 'Operator {} is not supported in frontend Keras.'
+        raise tvm.error.OpNotImplemented(msg.format(upsample_type))
     return _sym.upsampling(insym, **params)
 
 
 def _convert_cropping(insym, keras_layer, _):
     _check_data_format(keras_layer)
     crop_type = type(keras_layer).__name__
-    if crop_type == "Cropping1D":
-        raise NotImplementedError("Cropping1D not implemented")
-    elif crop_type == "Cropping2D":
+    if crop_type == "Cropping2D":
         (_, in_h, in_w, _) = keras_layer.input_shape
         ((crop_t, crop_b), (crop_l, crop_r)) = keras_layer.cropping
     else:
-        raise TypeError("Unrecognized cropping type : {}".format(crop_type))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend Keras.'.format(crop_type))
     int32_max = np.iinfo(np.int32).max
     return _sym.strided_slice(insym, begin=[0, 0, crop_t, crop_l],
                               end=[int32_max, int32_max, in_h-crop_b, in_w-crop_r])
@@ -373,13 +399,13 @@ def _convert_padding(insym, keras_layer, _):
                 top, bottom = padding[0]
                 left, right = padding[1]
             else:
-                raise ValueError("Unrecognized padding option: {}".format(str(padding)))
+                msg = 'Value {} in attribute "padding" of operator {} is not valid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(str(padding), padding_type))
         else:
-            raise ValueError("Unrecognized padding option: {}".format(str(padding)))
-    elif padding_type == 'ZeroPadding1D':
-        raise NotImplementedError("ZeroPadding1D not implemented")
+            msg = 'Value {} in attribute "padding" of operator {} is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(str(padding), padding_type))
     else:
-        raise ValueError("Unrecognized padding type: {}".format(padding_type))
+        raise tvm.error.OpNotImplemented('Operator {} is not supported in frontend Keras.')
     return _sym.pad(data=insym, pad_width=((0, 0), (0, 0), (top, bottom), (left, right)))
 
 
@@ -408,10 +434,11 @@ def _convert_lstm(insym, keras_layer, symtab):
         insym = [insym, h_sym, c_sym]
 
     in_data = insym[0]
-    in_state_h = insym[1]
-    in_state_c = insym[2]
+    next_h = insym[1]
+    next_c = insym[2]
 
     weightList = keras_layer.get_weights()
+    inp_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.input_shape)[0])
 
     kernel_wt = symtab.new_const(weightList[0].transpose([1, 0]))
     recurrent_wt = symtab.new_const(weightList[1].transpose([1, 0]))
@@ -419,16 +446,20 @@ def _convert_lstm(insym, keras_layer, symtab):
 
     units = list(weightList[0].shape)[1]
 
-    in_data = _sym.flatten(in_data)
-    ixh1 = _sym.dense(in_data, kernel_wt, use_bias=False, units=units)
-    ixh2 = _sym.dense(in_state_h, recurrent_wt, in_bias, use_bias=True, units=units)
-    gate = ixh1 + ixh2
-    gates = _sym.split(gate, indices_or_sections=4, axis=1)
-    in_gate = _convert_recurrent_activation(gates[0], keras_layer)
-    in_transform = _convert_recurrent_activation(gates[1], keras_layer)
-    next_c = in_transform * in_state_c + in_gate * _convert_activation(gates[2], keras_layer, None)
-    out_gate = _convert_recurrent_activation(gates[3], keras_layer)
-    next_h = out_gate * _convert_activation(next_c, keras_layer, None)
+    time_steps = inp_shape[1]
+    in_data = _sym.squeeze(in_data, axis=0)
+    in_data = _sym.split(in_data, indices_or_sections=time_steps, axis=0)
+    #loop for the number of time_steps
+    for data in in_data:
+        ixh1 = _sym.dense(data, kernel_wt, use_bias=False, units=units)
+        ixh2 = _sym.dense(next_h, recurrent_wt, in_bias, use_bias=True, units=units)
+        gate = ixh1 + ixh2
+        gates = _sym.split(gate, indices_or_sections=4, axis=1)
+        in_gate = _convert_recurrent_activation(gates[0], keras_layer)
+        in_transform = _convert_recurrent_activation(gates[1], keras_layer)
+        next_c = in_transform * next_c + in_gate * _convert_activation(gates[2], keras_layer, None)
+        out_gate = _convert_recurrent_activation(gates[3], keras_layer)
+        next_h = out_gate * _convert_activation(next_c, keras_layer, None)
 
     out_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.output_shape)[0])
     out = _sym.reshape(next_h, shape=out_shape)
@@ -581,8 +612,10 @@ _convert_map = {
 
 def _check_unsupported_layers(model):
     for layer in model.layers:
-        if type(layer).__name__ not in _convert_map:
-            raise ValueError("Keras layer {} not supported.".format(type(layer).__name__))
+        op_name = type(layer).__name__
+        if op_name not in _convert_map:
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported in frontend Keras.'.format(op_name))
 
 def _as_list(arr):
     """Force being a list, ignore if already is."""
@@ -607,9 +640,11 @@ def keras_op_to_nnvm(insym, keras_layer, outname, symtab):
     symtab : nnvm.frontend.common.SymbolTable
         The global symbol table to be updated
     """
-    if type(keras_layer).__name__ not in _convert_map:
-        raise NotImplementedError("{} is not supported".format((type(keras_layer).__name__)))
-    outs = _convert_map[type(keras_layer).__name__](insym, keras_layer, symtab)
+    op_name = type(keras_layer).__name__
+    if op_name not in _convert_map:
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend Keras.'.format(op_name))
+    outs = _convert_map[op_name](insym, keras_layer, symtab)
     outs = _as_list(outs)
 
     for t_idx, out in enumerate(outs):
@@ -656,6 +691,12 @@ def from_keras(model):
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
             for node_idx, node in enumerate(inbound_nodes):
+                # If some nodes in imported model is not relevant to the current model,
+                # skip such layers. model._network_nodes contains keys of all nodes relevant
+                # to the current model.
+                if not model._node_key(keras_layer, node_idx) in model._network_nodes:
+                    continue
+
                 insym = []
 
                 # Since Keras allows creating multiple layers from the same name instance,

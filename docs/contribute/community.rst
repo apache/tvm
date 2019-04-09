@@ -1,7 +1,27 @@
+..  Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+..    http://www.apache.org/licenses/LICENSE-2.0
+
+..  Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+.. _community_guide:
+
 TVM Community Guideline
 =======================
 
 TVM adopts the Apache style model and governs by merit. We believe that it is important to create an inclusive community where everyone can use, contribute to, and influence the direction of the project. See `CONTRIBUTORS.md <https://github.com/dmlc/tvm/blob/master/CONTRIBUTORS.md>`_ for the current list of contributors.
+
 
 
 General Development Process
@@ -22,7 +42,7 @@ Committers are individuals who are granted the write access to the project. A co
 - Quality of contributions: High-quality, readable code contributions indicated by pull requests that can be merged without a substantial code review.  History of creating clean, maintainable code and including good test cases. Informative code reviews to help other contributors that adhere to a good standard.
 - Community involvement: active participation in the discussion forum, promote the projects via tutorials, talks and outreach. We encourage committers to collaborate broadly, e.g. do code reviews and discuss designs with community members that they do not interact physically.
 
-The Project Management Committee(PMC) consists group of active committers that moderate the discussion, manage the project release, and proposes new committer/PMC members. Potential candidates are usually proposed via an internal discussion among PMCs, followed by a consensus approval, i.e. least 3 +1 votes, and no vetoes. Any veto must be accompanied by reasoning. PMCs should serve the community by upholding the community practices and guidelines TVM a better community for everyone. PMCs should strive to identify new candidates outside of their own organization.
+The Project Management Committee(PMC) consists group of active committers that moderate the discussion, manage the project release, and proposes new committer/PMC members. Potential candidates are usually proposed via an internal discussion among PMCs, followed by a consensus approval, i.e. least 3 +1 votes, and no vetoes. Any veto must be accompanied by reasoning. PMCs should serve the community by upholding the community practices and guidelines TVM a better community for everyone. PMCs should strive to only nominate new candidates outside of their own organization.
 
 
 Reviewers

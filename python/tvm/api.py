@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Functions defined in TVM."""
 # pylint: disable=invalid-name,unused-import,redefined-builtin
 from __future__ import absolute_import as _abs
@@ -26,22 +42,53 @@ handle = "handle"
 
 
 def min_value(dtype):
-    """minimum value of dtype"""
+    """minimum value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The minimum value of dtype.
+    """
     return _api_internal._min_value(dtype)
 
 
 def max_value(dtype):
-    """maximum value of dtype"""
+    """maximum value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The maximum value of dtype.
+    """
     return _api_internal._max_value(dtype)
 
 
-def const(value, dtype=None):
-    """construct a constant"""
-    if dtype is None:
-        if isinstance(value, _Integral):
-            dtype = 'int32'
-        else:
-            dtype = 'float32'
+def const(value, dtype):
+    """construct a constant
+
+    Parameters
+    ----------
+    value : number
+        The content of the constant number.
+
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    const_val: tvm.Expr
+        The result expression.
+    """
     return _api_internal._const(value, dtype)
 
 
@@ -105,7 +152,7 @@ def load_json(json_str):
 
 
 def save_json(node):
-    """Load tvm object as json string.
+    """Save tvm object as json string.
 
     Parameters
     ----------
@@ -484,7 +531,7 @@ def decl_buffer(shape,
                 scope="",
                 data_alignment=-1,
                 offset_factor=0):
-    """Decleare a new symbolic buffer.
+    """Declare a new symbolic buffer.
 
     Normally buffer is created automatically during lower and build.
     This is only needed if user want to specify their own buffer layout.
@@ -555,6 +602,49 @@ def decl_buffer(shape,
     return _api_internal._Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor)
+
+def layout(layout_str):
+    """Create a layout node from a string.
+
+    Parameters
+    ----------
+    layout_str : str
+        A layout representation is composed of upper cases, lower cases and numbers,
+        where upper case indicates a primal axis and
+        the corresponding lower case with factor size indicates the subordinate axis.
+        For example, NCHW16c can describe a 5-D tensor of
+        [batch_size, channel, height, width, channel_block].
+        Here subordinate axis channel_block=16 is the factor size of
+        the primal axis C (channel).
+
+    Returns
+    -------
+    layout : Layout
+        The created layout
+    """
+    return _api_internal._Layout(layout_str)
+
+def bijective_layout(src_layout, dst_layout):
+    """Create a bijective layout mapping.
+
+    Parameters
+    ----------
+    src_layout : str or Layout
+        source layout.
+
+    dst_layout : str or Layout
+        destination layout.
+
+    Returns
+    -------
+    bijective_layout : BijectiveLayout
+        The created bijective layout
+    """
+    if isinstance(src_layout, str):
+        src_layout = layout(src_layout)
+    if isinstance(dst_layout, str):
+        dst_layout = layout(dst_layout)
+    return _api_internal._BijectiveLayout(src_layout, dst_layout)
 
 def _IterVar(dom, name, iter_type, thread_tag=''):
     """Internal function to create IterVar
@@ -636,28 +726,6 @@ def reduce_axis(dom, name="rv"):
         An iteration variable representing the value.
     """
     return _IterVar(dom, name, 2)
-
-
-def select(cond, t, f):
-    """Construct a select branch.
-
-    Parameters
-    ----------
-    cond : Expr
-        The condition
-
-    t : Expr
-        The result expression if cond is true.
-
-    f : Expr
-        The result expression if cond is false.
-
-    Returns
-    -------
-    node : Node
-        The tvm.expr.Select node
-    """
-    return _expr.Select(convert(cond), convert(t), convert(f))
 
 
 def comm_reducer(fcombine, fidentity, name="reduce"):

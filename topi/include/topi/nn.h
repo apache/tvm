@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief NN op constructions
@@ -75,7 +94,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
     [&](const tvm::Array<tvm::Var>& i) {
       auto value = t(i);
       auto calpha = tvm::make_const(value.type(), alpha);
-      return tvm::select(value > 0, value, value * calpha);
+      return tvm::ir::Select::make(value > 0, value, value * calpha);
     },
     name,
     tag);
@@ -97,7 +116,6 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
                          const int axis = 1,
                          std::string name = "tensor",
                          std::string tag = kBroadcast) {
-  CHECK_EQ(4, x->shape.size());
   CHECK((size_t)axis < x->shape.size()) <<
         "Wrong axis ("  << axis << ")value. ";
   CHECK(topi::detail::GetConstInt(slope->shape[0]) ==
@@ -106,9 +124,11 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
 
   return tvm::compute(x->shape,
                      [&](const tvm::Array<tvm::Var> &indices) {
-                        return tvm::select(x(indices) > 0,
-                                           x(indices),
-                                           x(indices) * slope(indices[axis]));
+                        auto xval = x(indices);
+                        return tvm::ir::Select::make(
+                            xval > 0,
+                            xval,
+                            xval * slope(indices[axis]));
                       },
                       name,
                       tag);
@@ -193,7 +213,8 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
       }
     }
     if (sel.size() != 0) {
-      return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
+      return tvm::if_then_else(
+          detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
     }
     return t(indices);
   };
@@ -445,28 +466,6 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
         {i, kh, kw});
   };
   return tvm::compute(output_shape, l, name, tag);
-}
-
-using FLayoutIndicesTransform = std::function<Array<Expr>(const Array<Var>& indices)>;
-/*!
- * \brief Transform the layout according to the mapping function \p to_src_indices.
- * \param src the source input.
- * \param dst_shape the output shape.
- * \param to_src_indices the mapping function from input index to output index.
- * \param name output tensor name.
- * \param tag output tensor tag.
- * \return A tensor with shape \p dst_shape.
- */
-inline Tensor layout_transform(const Tensor& src,
-                               const Array<Expr>& dst_shape,
-                               const FLayoutIndicesTransform& to_src_indices,
-                               const std::string name = "layout_transform",
-                               const std::string tag = kInjective) {
-  auto src_shape = src->shape;
-  return compute(
-  dst_shape, [&](const Array<Var>& dst_indices) {
-    return src(to_src_indices(dst_indices));
-  }, name, tag);
 }
 
 }  // namespace topi

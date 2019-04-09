@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import math
 import numpy as np
 import tvm
@@ -550,7 +566,7 @@ def test_multibox_transform_loc():
     anchors = sym.Variable("anchors")
     transform_loc_data, valid_count = sym.multibox_transform_loc(cls_prob=cls_prob, loc_pred=loc_preds,
                                                                  anchor=anchors)
-    out = sym.nms(data=transform_loc_data, valid_count=valid_count)
+    out = sym.non_max_suppression(data=transform_loc_data, valid_count=valid_count, return_indices=False)
 
     # Manually create test case
     np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
@@ -573,22 +589,22 @@ def test_multibox_transform_loc():
     out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
     tvm.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
 
-def test_nms():
+def test_non_max_suppression():
     dshape = (1, 5, 6)
     data = sym.Variable("data")
     valid_count = sym.Variable("valid_count", dtype="int32")
-    nms_threshold = 0.7
+    iou_threshold = 0.7
     force_suppress = True
-    nms_topk = 2
-    out = sym.nms(data=data, valid_count=valid_count, nms_threshold=nms_threshold,
-                  force_suppress=force_suppress, nms_topk=nms_topk)
+    top_k = 2
+    out = sym.non_max_suppression(data=data, valid_count=valid_count, return_indices=False,
+                                  iou_threshold=iou_threshold, force_suppress=force_suppress, top_k=top_k)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
                          [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [0, 0.4, 4, 21, 19, 40], [-1, 0.9, 35, 61, 52, 79],
+                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
 
     target = "llvm"
@@ -686,6 +702,28 @@ def test_where():
     y = np.random.uniform(size=shape).astype("float32")
     verify_where(condition, x, y)
 
+def test_argmax():
+    dshape = (204800, 2)
+    oshape = (1, 320, 640)
+
+    dtype = "float32"
+    x = sym.Variable("x", shape=dshape, dtype=dtype)
+    x = sym.reshape(x, shape=(1, 320, 640, 2))
+    x = sym.transpose(x, axes=(0, 3, 1, 2))
+    y = sym.argmax(x, axis=1)
+    target_str = "llvm"
+    target = tvm.target.create(target_str)
+    ctx = tvm.context(target_str, 0)
+    with nnvm.compiler.build_config(opt_level=2):
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
+    m = graph_runtime.create(graph, lib, ctx)
+    data = np.random.uniform(size=dshape).astype(dtype)
+    m.run(x=data)
+    np_reshape = np.reshape(data, (1, 320, 640, 2))
+    np_transpose = np.transpose(np_reshape, axes=(0, 3, 1, 2))
+    np_argmax = np.argmax(np_transpose, axis=1)
+    out = m.get_output(0)
+    np.testing.assert_allclose(out.asnumpy(), np_argmax, atol=1e-5, rtol=1e-5)
 
 if __name__ == "__main__":
     test_reshape()
@@ -704,7 +742,8 @@ if __name__ == "__main__":
     test_flip()
     test_multibox_prior()
     test_multibox_transform_loc()
-    test_nms()
+    test_non_max_suppression()
     test_slice_like()
     test_where()
+    test_argmax()
     print(nnvm.compiler.engine.dump())

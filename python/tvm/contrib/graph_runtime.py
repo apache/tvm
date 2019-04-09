@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Minimum graph runtime that executes graph containing TVM PackedFunc."""
 import numpy as np
 
@@ -112,10 +128,6 @@ class GraphModule(object):
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
-        try:
-            self._debug_get_output = module["debug_get_output"]
-        except AttributeError:
-            pass
         self._load_params = module["load_params"]
 
     def set_input(self, key=None, value=None, **params):
@@ -209,12 +221,8 @@ class GraphModule(object):
         out : NDArray
             The output array container
         """
-        if hasattr(self, '_debug_get_output'):
-            self._debug_get_output(node, out)
-        else:
-            raise RuntimeError(
-                "Please compile runtime with USE_GRAPH_RUNTIME_DEBUG = 0")
-        return out
+        raise NotImplementedError(
+            "Please use debugger.debug_runtime as graph_runtime instead.")
 
     def load_params(self, params_bytes):
         """Load parameters from serialized byte array of parameter dict.

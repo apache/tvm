@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file message_passing.cc
@@ -419,8 +438,7 @@ void PassUpBoundCheck(const Stage& s,
   using HalideIR::Internal::can_prove;
   for (size_t i = s->relations.size(); i != 0; --i) {
     IterVarRelation rel = s->relations[i - 1];
-    if (rel.as<SplitNode>()) {
-      const SplitNode* s = rel.as<SplitNode>();
+    if (const SplitNode* s = rel.as<SplitNode>()) {
       bool outer = state.at(s->outer);
       bool inner = state.at(s->inner);
 
@@ -439,13 +457,11 @@ void PassUpBoundCheck(const Stage& s,
       } else {
         state[s->parent] = true;
       }
-    } else if (rel.as<FuseNode>()) {
-      const FuseNode* s = rel.as<FuseNode>();
+    } else if (const FuseNode* s = rel.as<FuseNode>()) {
       bool fused = state.at(s->fused);
       state[s->outer] = fused;
       state[s->inner] = fused;
-    } else if (rel.as<RebaseNode>()) {
-      const RebaseNode* s = rel.as<RebaseNode>();
+    } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
       state[s->parent] = state.at(s->rebased);
     } else if (rel.as<SingletonNode>()) {
       // nop
@@ -475,16 +491,20 @@ std::vector<Expr> MakeBoundCheck(
     iset_dmap[kv.first->var.get()] = IntSet::range(kv.second);
   }
 
-  for (IterVar iv : stage->op->root_iter_vars()) {
+  for (const IterVar& iv : stage->all_iter_vars) {
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;
-    Range dom = dom_map.at(iv);
     if (bound_state.at(iv)) {
+      Range dom = dom_map.at(iv);
       Expr value = ComputeExpr<Sub>(value_map.at(iv), dom->min);
       Expr vmax = EvalSet(value, iset_dmap).max();
       if (vmax.type() != value.type() || !can_prove(vmax < dom->extent)) {
         preds.emplace_back(value < dom->extent);
       }
     }
+  }
+  for (const IterVar& iv : stage->op->root_iter_vars()) {
+    if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;
+    Range dom = dom_map.at(iv);
     CHECK(iv->dom.defined());
     if (!skip_ivar_domain && !iv->dom.same_as(dom)) {
       Expr value = ComputeExpr<Sub>(value_map.at(iv), iv->dom->min);

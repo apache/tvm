@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tvm/runtime/device_api.h
  * \brief Abstract device memory management API
  */
@@ -37,10 +55,10 @@ constexpr int kTempAllocaAlignment = 64;
 constexpr int kMaxStackAlloca = 1024;
 
 /*!
- * \brief TVM Runtime Device API, abstracts the device
+ *  \brief TVM Runtime Device API, abstracts the device
  *  specific interface for memory management.
  */
-class DeviceAPI {
+class TVM_DLL DeviceAPI {
  public:
   /*! \brief virtual destructor */
   virtual ~DeviceAPI() {}
@@ -103,7 +121,7 @@ class DeviceAPI {
    *
    * \param ctx The context of allocation.
    */
-  TVM_DLL virtual TVMStreamHandle CreateStream(TVMContext ctx);
+  virtual TVMStreamHandle CreateStream(TVMContext ctx);
 
   /*!
    * \brief Free a stream of execution
@@ -111,7 +129,7 @@ class DeviceAPI {
    * \param ctx The context of the stream
    * \param stream The pointer to be freed.
    */
-  TVM_DLL virtual void FreeStream(TVMContext ctx, TVMStreamHandle stream);
+  virtual void FreeStream(TVMContext ctx, TVMStreamHandle stream);
 
   /*!
    * \brief Synchronize the stream
@@ -137,7 +155,7 @@ class DeviceAPI {
    * \param event_src The source stream to synchronize.
    * \param event_dst The destination stream to synchronize.
    */
-  TVM_DLL virtual void SyncStreamFromTo(TVMContext ctx,
+  virtual void SyncStreamFromTo(TVMContext ctx,
                                         TVMStreamHandle event_src,
                                         TVMStreamHandle event_dst);
   /*!
@@ -156,7 +174,7 @@ class DeviceAPI {
    * \param type_hint The type of elements. Only needed by certain backends such
    * as OpenGL, as nbytes is sufficient for most backends.
    */
-  TVM_DLL virtual void* AllocWorkspace(TVMContext ctx,
+  virtual void* AllocWorkspace(TVMContext ctx,
                                        size_t nbytes,
                                        TVMType type_hint = {});
   /*!
@@ -165,7 +183,7 @@ class DeviceAPI {
    * \param ctx The context of allocation.
    * \param ptr The pointer to be freed.
    */
-  TVM_DLL virtual void FreeWorkspace(TVMContext ctx, void* ptr);
+  virtual void FreeWorkspace(TVMContext ctx, void* ptr);
 
   /*!
    * \brief Get device API base don context.
@@ -173,7 +191,7 @@ class DeviceAPI {
    * \param allow_missing Whether allow missing
    * \return The corresponding device API.
    */
-  TVM_DLL static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
+  static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
 };
 
 /*! \brief The device type bigger than this is RPC device */

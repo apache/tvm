@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 
 from coremltools.models.neural_network import NeuralNetworkBuilder
@@ -15,9 +31,9 @@ import coremltools as cm
 import model_zoo
 
 def get_tvm_output(symbol, x, params, target, ctx,
-                   out_shape=(1000,), input_name='image', dtype='float32'):
+                   out_shape=(1, 1000), input_name='image', dtype='float32'):
     shape_dict = {input_name : x.shape}
-    with nnvm.compiler.build_config(opt_level=3):
+    with nnvm.compiler.build_config(opt_level=2):
         graph, lib, params = nnvm.compiler.build(symbol, target, shape_dict, params=params)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
@@ -28,7 +44,7 @@ def get_tvm_output(symbol, x, params, target, ctx,
     out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
     return out.asnumpy()
 
-def test_model_checkonly(model_file, model_name=''):
+def run_model_checkonly(model_file, model_name=''):
     model = cm.models.MLModel(model_file)
     sym, params = nnvm.frontend.from_coreml(model)
     x = model_zoo.get_cat_image()
@@ -38,11 +54,11 @@ def test_model_checkonly(model_file, model_name=''):
 
 def test_mobilenet_checkonly():
     model_file = model_zoo.get_mobilenet()
-    test_model_checkonly(model_file, 'mobilenet')
+    run_model_checkonly(model_file, 'mobilenet')
 
 def test_resnet50_checkonly():
     model_file = model_zoo.get_resnet50()
-    test_model_checkonly(model_file, 'resnet50')
+    run_model_checkonly(model_file, 'resnet50')
 
 def run_tvm_graph(graph_def, input_data, input_name, output_shape, output_dtype='float32'):
     """ Generic function to compile on nnvm and execute on tvm """

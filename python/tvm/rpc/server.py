@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """RPC server implementation.
 
 Note
@@ -201,7 +217,7 @@ def _connect_proxy_loop(addr, key, load_library):
     retry_period = 5
     while True:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(base.get_addr_family(addr), socket.SOCK_STREAM)
             sock.connect(addr)
             sock.sendall(struct.pack("<i", base.RPC_MAGIC))
             sock.sendall(struct.pack("<i", len(key)))
@@ -331,10 +347,19 @@ class Server(object):
             if silent:
                 cmd += ["--silent"]
 
+            # prexec_fn is not thread safe and may result in deadlock.
+            # python 3.2 introduced the start_new_session parameter as
+            # an alternative to the common use case of
+            # prexec_fn=os.setsid.  Once the minimum version of python
+            # supported by TVM reaches python 3.2 this code can be
+            # rewritten in favour of start_new_session.  In the
+            # interim, stop the pylint diagnostic.
+            #
+            # pylint: disable=subprocess-popen-preexec-fn
             self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
             self.port = None
             for my_port in range(port, port_end):
                 try:

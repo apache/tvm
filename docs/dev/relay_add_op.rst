@@ -1,3 +1,22 @@
+..  Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+..    http://www.apache.org/licenses/LICENSE-2.0
+
+..  Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+.. _relay-add-op:
+
 Adding an Operator to Relay
 ===========================
 
@@ -7,10 +26,8 @@ that they will be integrated into Relay's type system.
 
 Registering an operator requires three steps:
 
-- Using the ``RELAY_REGISTER_OP`` macro in C++ to
-register the operator's arity and type information
-- Defining a C++ function to produce a call node for the
-operator and registering a Python API hook for the function
+- Using the ``RELAY_REGISTER_OP`` macro in C++ to register the operator's arity and type information
+- Defining a C++ function to produce a call node for the operator and registering a Python API hook for the function
 - Wrapping the above Python API hook in a neater interface
 
 The file ``src/relay/op/tensor/binary.cc`` provides
@@ -48,9 +65,7 @@ to specify the following information about an operator in Relay:
 
 - Arity (number of arguments)
 - Names and descriptions for positional arguments
-- Support level (1 indicating an internal intrinsic, higher numbers
-indicating operators that are not as integral to the framework or are
-supported externally)
+- Support level (1 indicates an internal intrinsic; higher numbers indicate less integral or externally supported operators)
 - A type relation for the operator
 
 The below example is from ``binary.cc`` and uses a broadcasting
@@ -144,8 +159,6 @@ before producing the call node:
 Summary
 -------
 
-- A TVM operator can be registered in Relay using a relation to express
-the appropriate type information.
-- Using an operator in Relay requires a function to produce a
-call node for the operator.
+- A TVM operator can be registered in Relay using a relation to express the appropriate type information.
+- Using an operator in Relay requires a function to produce a call node for the operator.
 - It is best to have a simple Python wrapper for producing the call node.

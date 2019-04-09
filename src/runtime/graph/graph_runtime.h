@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  *
@@ -14,6 +33,8 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <memory>
+#include <utility>
 #include <vector>
 #include <string>
 
@@ -126,30 +147,6 @@ class GraphRuntime : public ModuleNode {
    * \param param_blob A binary blob of parameter.
    */
   void LoadParams(const std::string& param_blob);
-
-  /*!
-   * \brief Get the tensor vector pointer.
-   */
-  std::vector<NDArray>& data_entry() {
-      return data_entry_;
-  }
-
-  /*!
-   * \brief Get the execution function pointer.
-   */
-  std::vector<std::function<void()> >& op_execs() {
-        return op_execs_;
-  }
-
-  /*!
-   * \brief Get node entry index.
-   * \param nid Node id.
-   * \param index Index of the nodes.
-   */
-  uint32_t GetEntryId(uint32_t nid, uint32_t index) const {
-    return node_row_ptr_[nid] + index;
-  }
-
  /*!
   * \brief Get total number of nodes.
   * \return Total number of nodes.
@@ -163,7 +160,7 @@ class GraphRuntime : public ModuleNode {
   }
 
 
- private:
+ protected:
   // Memory pool entry.
   struct PoolEntry {
     size_t size;
@@ -340,6 +337,8 @@ class GraphRuntime : public ModuleNode {
         } else if (key == "attrs") {
           reader->Read(&attrs_);
           bitmask |= 16;
+        } else if (key == "metadata") {
+          break;
         } else {
           LOG(FATAL) << "key " << key << " is not supported";
         }
@@ -351,11 +350,10 @@ class GraphRuntime : public ModuleNode {
   /*! \brief Setup the executors. */
   void SetupOpExecs();
   /*!
-   * \brief Create a executtion function given input.
+   * \brief Create an execution function given input.
    * \param attrs The node attributes.
    * \param args The arguments to the functor, including inputs and outputs.
    * \param num_inputs Number of inputs.
-   * \param dev_type The device type of the tvm_op.
    * \return The created executor.
    */
   std::function<void()> CreateTVMOp(const TVMOpParam& attrs,

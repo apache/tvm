@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=superfluous-parens, redefined-outer-name, redefined-outer-name,pointless-string-statement
 # pylint: disable=consider-using-enumerate,invalid-name
 """Tuning record and serialization format"""
@@ -83,7 +99,7 @@ def encode(inp, result, protocol='json'):
             "v": AUTOTVM_LOG_VERSION
         }
         return json.dumps(json_dict)
-    elif protocol == 'pickle':
+    if protocol == 'pickle':
         row = (str(inp.target),
                str(base64.b64encode(pickle.dumps([inp.task.name,
                                                   inp.task.args,
@@ -92,8 +108,8 @@ def encode(inp, result, protocol='json'):
                str(base64.b64encode(pickle.dumps(inp.config)).decode()),
                str(base64.b64encode(pickle.dumps(tuple(result))).decode()))
         return '\t'.join(row)
-    else:
-        raise RuntimeError("Invalid log protocol: " + protocol)
+
+    raise RuntimeError("Invalid log protocol: " + protocol)
 
 
 def decode(row, protocol='json'):
@@ -136,7 +152,7 @@ def decode(row, protocol='json'):
         result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["r"]])
 
         return inp, result
-    elif protocol == 'pickle':
+    if protocol == 'pickle':
         items = row.split("\t")
         tgt = _target.create(items[0])
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
@@ -146,8 +162,8 @@ def decode(row, protocol='json'):
         tsk = task.Task(task_tuple[0], task_tuple[1])
         tsk.workload = task_tuple[3]
         return MeasureInput(tgt, tsk, config), MeasureResult(*result)
-    else:
-        raise RuntimeError("Invalid log protocol: " + protocol)
+
+    raise RuntimeError("Invalid log protocol: " + protocol)
 
 
 def load_from_file(filename):
@@ -271,7 +287,7 @@ if __name__ == '__main__':
     parser.add_argument("--code", action='store_true')
 
     args = parser.parse_args()
-    logging.basicConfig(level=logger.INFO)
+    logging.basicConfig(level=logging.INFO)
 
     if args.mode == 'pick':
         args.o = args.o or args.i + ".best.log"

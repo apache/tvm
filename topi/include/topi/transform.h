@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file topi/transform.h
@@ -11,11 +30,13 @@
 #include <iterator>
 #include <algorithm>
 #include <limits>
+#include <unordered_set>
 
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
+#include "tvm/data_layout.h"
 
 namespace topi {
 using namespace tvm;
@@ -86,42 +107,45 @@ inline Tensor expand_dims(const Tensor& x,
 * \return A Tensor whose op member is the transpose operation
 */
 inline Tensor transpose(const Tensor& x,
-                        Array<Expr> axes,
+                        Array<Integer> axes,
                         std::string name = "tensor",
                         std::string tag = kInjective) {
-  if (axes.size() == 0) {
-    axes = Array<Expr>();
+  if (!axes.defined() || axes.size() == 0) {
+    axes = Array<Integer>();
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
       axes.push_back(i);
     }
   }
 
-  auto axes_val = GetConstIntValues(axes, "axes");
-  for (size_t i = 0; i < axes_val.size(); ++i) {
-    int axis = axes_val[i];
-    if (axes_val[i] < 0) {
-      axes_val[i] = static_cast<int>(x->shape.size()) + axes_val[i];
+  Array<Expr> new_shape;
+  for (size_t i = 0; i < axes.size(); ++i) {
+    int axis = static_cast<int>(axes[i]->value);
+    int new_axis = axis;
+    if (axis < 0) {
+      new_axis = static_cast<int>(x->shape.size()) + axis;
+      axes.Set(i, new_axis);
     }
-    CHECK((0 <= axes_val[i]) && (axes_val[i] < static_cast<int>(x->shape.size())))
+    CHECK((new_axis >= 0) && (new_axis < static_cast<int>(x->shape.size())))
       << "axis=" << axis << " is invalid for the "
       << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
 
-    CHECK(1 == std::count(std::begin(axes_val), std::end(axes_val), axes_val[i]))
-      << "repeated axis in transpose";
+    for (size_t j = 0; j < axes.size(); ++j) {
+      if (i !=j) {
+        CHECK(new_axis != static_cast<int>(axes[j]->value)) << "repeated axis in transpose";
+      }
+    }
+    new_shape.push_back(x->shape[new_axis]);
   }
 
-  Array<Expr> new_shape;
-  for (size_t i = 0; i < axes_val.size(); ++i) {
-    new_shape.push_back(x->shape[axes_val[i]]);
-  }
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       std::vector<Expr> idx;
-      for (size_t i = 0; i < axes_val.size(); ++i) {
+      for (size_t i = 0; i < axes.size(); ++i) {
         idx.push_back(1);
       }
-      for (size_t i = 0; i < axes_val.size(); ++i) {
-        idx[axes_val[i]] = indices[i];
+      for (size_t i = 0; i < axes.size(); ++i) {
+        int axis = static_cast<int>(axes[i]->value);
+        idx[axis] = indices[i];
       }
       return x(idx);
     }, name, tag);
@@ -185,7 +209,7 @@ inline Tensor reshape(const Tensor& x,
   auto x_shape = x->shape;
   return compute(
     newshape, [&](const Array<Var>& indices) {
-      return x(UnavelIndex(RavelIndex(indices, newshape), x_shape));
+      return x(UnravelIndex(RavelIndex(indices, newshape), x_shape));
     }, name, tag);
 }
 
@@ -311,9 +335,59 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
           idx.push_back(indices[i]);
         }
 
-        ret = tvm::select(ind >= 0,
-                          inputs[i + 1](idx),
-                          ret);
+        ret = tvm::if_then_else(ind >= 0,
+                                inputs[i + 1](idx),
+                                ret);
+      }
+      return ret;
+    }, name, tag);
+}
+
+/*!
+* \brief Join a sequence of tensors along a new axis.
+*
+* \param inputs The input tensors
+* \param axis The axis along which the tensors will be stacked
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the stack operation
+*/
+inline Tensor stack(const Array<Tensor>& inputs,
+                    int axis = 0,
+                    std::string name = "tensor",
+                    std::string tag = kInjective) {
+  int ndim = static_cast<int>(inputs[0]->shape.size());
+  CHECK(-ndim - 1 <= axis && axis <= ndim)
+    << "stack only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
+  if (axis < 0) {
+    axis += ndim + 1;
+  }
+  CHECK_LT(axis, inputs[0]->shape.size() + 1) <<
+    "axis out of bounds";
+
+  const int stack_size = static_cast<int>(inputs.size());
+  Array<Expr> out_shape;
+  for (size_t i = 0; i < static_cast<size_t>(axis); ++i)
+    out_shape.push_back(inputs[0]->shape[i]);
+  out_shape.push_back(stack_size);
+  for (size_t i = static_cast<size_t>(axis); i < static_cast<size_t>(ndim); ++i)
+    out_shape.push_back(inputs[0]->shape[i]);
+
+  return compute(
+    out_shape, [&](const Array<Var>& indices) {
+      Array<Expr> idx;
+      for (size_t i = 0; i < indices.size(); ++i)
+        if (i != static_cast<size_t>(axis))
+          idx.push_back(indices[i]);
+      auto ind = indices[axis];
+      auto ret = inputs[0](idx);
+      for (int i = 0; i < static_cast<int>(inputs.size() - 1); ++i) {
+        ret = tvm::if_then_else(ind == i + 1,
+                                inputs[i + 1](idx),
+                                ret);
       }
       return ret;
     }, name, tag);
@@ -549,22 +623,29 @@ inline Array<Tensor> split_sections(const Tensor& x,
 */
 inline Tensor take(const Tensor& a,
                    const Tensor& indices,
+                   std::string mode = "clip",
                    std::string name = "tensor",
                    std::string tag = kInjective) {
   Array<Expr> a_shape = a->shape;
-  Array<Expr> out_shape;
-  for (size_t j = 0; j < indices->shape.size(); ++j) {
-    out_shape.push_back(indices->shape[j]);
+  Array<Expr> out_shape = indices->shape;
+  Expr a_size = 1;
+  for (size_t i = 0; i < a_shape.size(); ++i) {
+    a_size = a_size * a_shape[i];
   }
 
-  return compute(
+  if (mode == "clip") {
+    return compute(
         out_shape, [&](const Array<Var>& out_index) {
-          Array<Expr> indices_position;
-          for (size_t j = 0; j < indices->shape.size(); ++j) {
-            indices_position.push_back(out_index[j]);
-          }
-          return a(UnavelIndex(indices(indices_position), a_shape));
+          auto idx = tvm::min(tvm::max(0, indices(out_index)), a_size - 1);
+          return a(UnravelIndex(idx, a_shape));
         }, name, tag);
+  } else {  // mode == "wrap"
+    return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          auto idx = (indices(out_index) % a_size + a_size) % a_size;
+          return a(UnravelIndex(idx, a_shape));
+        }, name, tag);
+  }
 }
 
 /*!
@@ -582,12 +663,15 @@ inline Tensor take(const Tensor& a,
 inline Tensor take(const Tensor& a,
                    const Tensor& indices,
                    int axis,
+                   std::string mode = "clip",
                    std::string name = "tensor",
                    std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(a->shape.size());
   }
+  CHECK_GE(axis, 0) << "axis out of bounds";
   CHECK_LT(axis, a->shape.size()) << "axis out of bounds";
+  auto axis_dim = a->shape[axis];
 
   int indices_len = static_cast<int>(indices->shape.size());
   Array<Expr> out_shape;
@@ -600,7 +684,8 @@ inline Tensor take(const Tensor& a,
       out_shape.push_back(a->shape[i]);
     }
   }
-  return compute(
+  if (mode == "clip") {
+    return compute(
         out_shape, [&](const Array<Var>& out_index) {
           Array<Expr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis+indices_len); ++j) {
@@ -610,12 +695,33 @@ inline Tensor take(const Tensor& a,
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
-          real_indices.push_back(indices(indices_position));
+          auto idx = tvm::min(tvm::max(0, indices(indices_position)),
+                              axis_dim - 1);
+          real_indices.push_back(idx);
           for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
             real_indices.push_back(out_index[j]);
           }
           return a(real_indices);
         }, name, tag);
+  } else {  // mode == "wrap"
+    return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          Array<Expr> indices_position;
+          for (size_t j = axis; j < static_cast<size_t>(axis+indices_len); ++j) {
+            indices_position.push_back(out_index[j]);
+          }
+          Array<Expr> real_indices;
+          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
+            real_indices.push_back(out_index[j]);
+          }
+          auto idx = (indices(indices_position) % axis_dim + axis_dim) % axis_dim;
+          real_indices.push_back(idx);
+          for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
+            real_indices.push_back(out_index[j]);
+          }
+          return a(real_indices);
+        }, name, tag);
+  }
 }
 
 /*!
@@ -649,7 +755,7 @@ inline Tensor where(const Tensor& condition,
       << condition->shape.size() << " vs " << x->shape.size();
     out = compute(
       oshape, [&](const Array<Var>& indices) {
-        return tvm::select(condition(indices) != 0, x(indices), y(indices));
+        return tvm::ir::Select::make(condition(indices) != 0, x(indices), y(indices));
       }, name, tag);
   } else {
     CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
@@ -658,11 +764,120 @@ inline Tensor where(const Tensor& condition,
     out = compute(
       oshape, [&](const Array<Var>& indices) {
         Array<Expr> condition_idx{indices[0]};
-        return tvm::select(condition(condition_idx) != 0,
-                           x(indices), y(indices));
+        return tvm::ir::Select::make(condition(condition_idx) != 0,
+                                     x(indices), y(indices));
       }, name, tag);
   }
   return out;
+}
+
+/*!
+* \brief Creates an operation to repeat elements of an array
+*
+* \param x The input tensor
+* \param repeats The number of repetitions for each element
+* \param axis The axis along which to repeat values (allows
+* negative indices as offsets from the last dimension)
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the repeat operation
+*/
+inline Tensor repeat(const Tensor& x,
+                     int repeats,
+                     int axis,
+                     std::string name = "tensor",
+                     std::string tag = kBroadcast) {
+  int ndim = static_cast<int>(x->shape.size());
+  CHECK(-ndim - 1 <= axis && axis <= ndim)
+    << "repeat only accepts `axis` in [-data.ndim - 1, data.ndim]"
+    << ", but got axis = " << axis
+    << ", and data.ndim = " << ndim;
+  CHECK(repeats >= 1)
+    << "repeat only accepts `repeats >= 1`"
+    << ", but got repeats = " << repeats;
+  if (axis < 0) {
+    // Calculate offset from last dimension
+    axis += ndim;
+  }
+  Array<Expr> new_shape;
+  for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
+    new_shape.push_back(x->shape[i]);
+  }
+  new_shape.push_back(repeats * x->shape[axis]);
+  for (size_t i = axis + 1; i < x->shape.size(); ++i) {
+    new_shape.push_back(x->shape[i]);
+  }
+
+  return compute(
+    new_shape, [&](const Array<Var>& indices) {
+      Array<Expr> idx;
+      for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
+        idx.push_back(indices[i]);
+      }
+      idx.push_back(indices[axis] / repeats);
+      for (size_t i = axis + 1; i < indices.size(); ++i) {
+        idx.push_back(indices[i]);
+      }
+      return x(idx);
+    }, name, tag);
+}
+
+/*!
+* \brief Creates an operation to tile elements of an array
+*
+* \param x The input tensor
+* \param reps The number of times for repeating the tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the tile operation
+*/
+inline Tensor tile(const Tensor& x,
+                   Array<Integer> reps,
+                   std::string name = "tensor",
+                   std::string tag = kBroadcast) {
+  size_t ndim = x->shape.size();
+  size_t rdim = reps.size();
+  size_t tdim = (ndim > rdim) ? ndim : rdim;
+  Array<Expr> data_shape;
+  Array<Expr> reps_shape;
+  Array<Expr> new_shape;
+  if (ndim == rdim) {
+    for (size_t i = 0; i < ndim; ++i) {
+      data_shape.push_back(x->shape[i]);
+      reps_shape.push_back(reps[i]);
+    }
+  } else if (ndim > rdim) {
+    for (size_t i = 0; i < ndim; ++i)
+      data_shape.push_back(x->shape[i]);
+    for (size_t i = 0; i < (ndim - rdim); ++i)
+      reps_shape.push_back(1);
+    for (size_t i = 0; i < rdim; ++i)
+      reps_shape.push_back(reps[i]);
+  } else {
+    for (size_t i = 0; i < (rdim - ndim); ++i)
+      data_shape.push_back(1);
+    for (size_t i = 0; i < ndim; ++i)
+      data_shape.push_back(x->shape[i]);
+    for (size_t i = 0; i < rdim; ++i)
+      reps_shape.push_back(reps[i]);
+  }
+  for (size_t i = 0; i < tdim; ++i)
+    new_shape.push_back(data_shape[i] * reps_shape[i]);
+
+  return compute(
+    new_shape, [&](const Array<Var>& indices) {
+      Array<Expr> idx;
+      if (ndim >= rdim) {
+        for (size_t i = 0; i < ndim; ++i)
+          idx.push_back(indices[i] % x->shape[i]);
+      } else {
+        for (size_t i = 0; i < ndim; ++i)
+          idx.push_back(indices[rdim - ndim + i] % x->shape[i]);
+      }
+      return x(idx);
+    }, name, tag);
 }
 
 /*!
@@ -750,6 +965,196 @@ inline tvm::Tensor matmul(const tvm::Tensor& A,
   return tvm::compute(output_shape, l, name, tag);
 }
 
+/*!
+ * \brief A generalization of matrix multiplication to tensors.
+ *
+ * \param A The tensor A
+ * \param B The tensor B
+ * \param axes The number of the dimensions to reduce over
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor computing the result
+ */
+inline Tensor tensordot(const Tensor& A,
+                        const tvm::Tensor& B,
+                        int axes = 2,
+                        std::string name = "tensor",
+                        std::string tag = kMatMul) {
+  CHECK_GE(A->shape.size(), axes);
+  CHECK_GE(B->shape.size(), axes);
+
+  Array<Expr> output_shape(A->shape.begin(), A->shape.end() + (-axes));
+  for (auto it = B->shape.begin() + axes; it != B->shape.end(); ++it)
+    output_shape.push_back(*it);
+
+  Array<IterVar> iter_vars;
+  for (int i = 0; i < axes; ++i)
+    iter_vars.push_back(reduce_axis(Range(0, B->shape[i]), "k" + std::to_string(i)));
+
+  auto func =
+    [&A, &B, &iter_vars, axes]
+    (const Array<Var>& input_indices) {
+      Array<Expr> A_indices(
+          input_indices.begin(),
+          input_indices.begin() + (A->shape.size() - axes));
+      for (auto& v : iter_vars)
+        A_indices.push_back(v);
+
+      Array<Expr> B_indices;
+      for (auto& v : iter_vars)
+        B_indices.push_back(v);
+
+      auto it = input_indices.begin() + (A->shape.size() - axes);
+      for (; it != input_indices.end(); ++it)
+        B_indices.push_back(*it);
+
+      // Some passes don't like reductions with empty axis, so avoid it here
+      if (iter_vars.empty())
+        return A(A_indices) * B(B_indices);
+      else
+        return sum(A(A_indices) * B(B_indices), iter_vars);
+    };
+
+  return compute(output_shape, func, name, tag);
+}
+
+/*!
+ * \brief A generalization of matrix multiplication to tensors.
+ *
+ * \param A The tensor A
+ * \param B The tensor B
+ * \param A_axes The indices of the dimensions of tensor A to reduce over
+ * \param B_axes The indices of the dimensions of tensor B to reduce over
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor computing the result
+ */
+inline Tensor tensordot(const Tensor& A,
+                        const tvm::Tensor& B,
+                        Array<Expr> A_axes,
+                        Array<Expr> B_axes,
+                        std::string name = "tensor",
+                        std::string tag = kMatMul) {
+  CHECK_EQ(A_axes.size(), B_axes.size());
+
+  auto A_axes_val = GetConstIntValues(A_axes, "A_axes");
+  auto B_axes_val = GetConstIntValues(B_axes, "B_axes");
+
+  Array<Expr> output_shape;
+  for (unsigned i = 0; i < A->shape.size(); ++i)
+    if (std::find(A_axes_val.begin(), A_axes_val.end(), i) == A_axes_val.end())
+      output_shape.push_back(A->shape[i]);
+  for (unsigned i = 0; i < B->shape.size(); ++i)
+    if (std::find(B_axes_val.begin(), B_axes_val.end(), i) == B_axes_val.end())
+      output_shape.push_back(B->shape[i]);
+
+  Array<IterVar> iter_vars;
+    for (unsigned i = 0; i < B_axes_val.size(); ++i)
+      iter_vars.push_back(reduce_axis(Range(0, B->shape[B_axes_val[i]]), "k" + std::to_string(i)));
+
+  auto func =
+    [&A, &B, &iter_vars, A_axes_val, B_axes_val]
+    (const Array<Var>& input_indices) {
+      int idx_input = 0;
+      Array<Expr> A_indices;
+      for (unsigned i = 0; i < A->shape.size(); ++i) {
+        auto axes_pos = std::find(A_axes_val.begin(), A_axes_val.end(), i);
+        if (axes_pos == A_axes_val.end())
+          A_indices.push_back(input_indices[idx_input++]);
+        else
+          A_indices.push_back(iter_vars[axes_pos - A_axes_val.begin()]);
+      }
+
+      Array<Expr> B_indices;
+      for (unsigned i = 0; i < B->shape.size(); ++i) {
+        auto axes_pos = std::find(B_axes_val.begin(), B_axes_val.end(), i);
+        if (axes_pos == B_axes_val.end())
+          B_indices.push_back(input_indices[idx_input++]);
+        else
+          B_indices.push_back(iter_vars[axes_pos - B_axes_val.begin()]);
+      }
+      return sum(A(A_indices) * B(B_indices), iter_vars);
+    };
+  return compute(output_shape, func, name, tag);
+}
+
+inline Tensor arange(const Expr start,
+                     const Expr stop,
+                     const Expr step,
+                     Type dtype,
+                     std::string name = "tensor",
+                     std::string tag = kInjective) {
+  Expr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
+      tvm::cast(tvm::Float(32), stop - start) / step));
+  Array<Expr> shape;
+  return compute({num_elem}, [&](const Array<Var>& indices) {
+    return tvm::cast(dtype, start + step * indices[0]);
+  }, name, tag);
+}
+
+/*!
+ * \brief Transform the layout according to \p src_layout and \p dst_layout
+ * \param src the source input.
+ * \param src_layout the source layout.
+ * \param dst_layout the destination layout.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return A tensor with shape in \p dst_layout
+ */
+inline Tensor layout_transform(const Tensor& src,
+                               const std::string& src_layout,
+                               const std::string& dst_layout,
+                               const std::string name = "layout_transform",
+                               const std::string tag = kInjective) {
+  Layout src_layout_struct = LayoutNode::make(src_layout);
+  Layout dst_layout_struct = LayoutNode::make(dst_layout);
+
+  if (src_layout_struct.Equals(dst_layout_struct)) {
+    return src;
+  }
+
+  CHECK(src_layout_struct.defined() && dst_layout_struct.defined())
+    << "cannot convert from/to undefined layout";
+
+  auto layout_converter = BijectiveLayoutNode::make(src_layout_struct, dst_layout_struct);
+  CHECK(layout_converter.defined())
+    << "cannot convert from " << src_layout << " to " << dst_layout;
+
+  Array<Expr> dst_shape = layout_converter.ForwardShape(src->shape);
+
+  return compute(
+    dst_shape, [&](const Array<Var>& dst_indices) {
+      Array<Expr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+      Array<Expr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
+      return src(src_indices);
+  }, name, tag);
+}
+
+/*!
+ * \brief Get the shape of input tensor.
+ * \param src the input tensor.
+ * \param dtype the type of the elements in the tensor.
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Tensor of input shape.
+ */
+inline Tensor shape(const Tensor& src,
+                    Type dtype,
+                    const std::string name = "shape",
+                    const std::string tag = kInjective) {
+  int ndim = static_cast<int>(src->shape.size());
+  Array<Expr> out_shape{ndim};
+  return compute(out_shape, [&](const Array<Var>& indices) {
+    auto idx = indices[0];
+    Expr ret = 0;
+    for (int i = 0; i < ndim; ++i) {
+      ret = tvm::if_then_else(idx == i, src->shape[i], ret);
+    }
+    return tvm::cast(dtype, ret);
+  }, name, tag);
+}
 
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

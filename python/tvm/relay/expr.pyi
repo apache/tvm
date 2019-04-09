@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 from typing import List
 import tvm
 from .base import Span, NodeBase
@@ -22,7 +39,7 @@ class Constant(Expr):
 
 
 class Tuple(Expr):
-    fields = ..  # type: List[Expr]
+    fields = ...  # type: List[Expr]
 
     def __init__(self, fields):
         # type: (List[Expr]) -> None
@@ -77,10 +94,10 @@ class Call(Expr):
     """A function call in Relay, see tvm/relay/expr.h for more details."""
     op = ...  # type: Expr
     args = ...  # type: List[Expr]
-    # todo(@jroesch): add attrs
+    # todo(@jroesch): add attrs. revise attrs type in __init__
 
-    def __init__(self, op, args, attrs, ty_args=None):
-        # type: (Expr, List[Expr], Optional[List[Type]]) -> None
+    def __init__(self, op, args, attrs=None, ty_args=None):
+        # type: (Expr, List[Expr], Optional[List[Any]], Optional[List[Type]]) -> None
         if not ty_args:
             ty_args = []
 

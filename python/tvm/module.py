@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Container of compiled functions of TVM."""
 from __future__ import absolute_import as _abs
 
@@ -6,6 +22,7 @@ from collections import namedtuple
 
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
+from ._ffi.libinfo import find_include_path
 from .contrib import cc as _cc, tar as _tar, util as _util
 
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
@@ -97,17 +114,21 @@ class Module(ModuleBase):
             self.save(file_name)
             return
 
-        if self.type_key != "llvm":
-            raise ValueError("Module[%s]: Only llvm support export shared" % self.type_key)
+        if not (self.type_key == "llvm" or self.type_key == "c"):
+            raise ValueError("Module[%s]: Only llvm and c support export shared" % self.type_key)
         temp = _util.tempdir()
         if fcompile is not None and hasattr(fcompile, "object_format"):
             object_format = fcompile.object_format
         else:
-            object_format = "o"
+            if self.type_key == "llvm":
+                object_format = "o"
+            else:
+                assert self.type_key == "c"
+                object_format = "cc"
         path_obj = temp.relpath("lib." + object_format)
         self.save(path_obj)
         files = [path_obj]
-        is_system_lib = self.get_function("__tvm_is_system_module")()
+        is_system_lib = self.type_key == "llvm" and self.get_function("__tvm_is_system_module")()
         if self.imported_modules:
             path_cc = temp.relpath("devc.cc")
             with open(path_cc, "w") as f:
@@ -118,9 +139,11 @@ class Module(ModuleBase):
                 fcompile = _tar.tar
             else:
                 fcompile = _cc.create_shared
+        if self.type_key == "c":
+            kwargs.update({'options': ["-I" + path for path in find_include_path()]})
         fcompile(file_name, files, **kwargs)
 
-    def time_evaluator(self, func_name, ctx, number, repeat=1):
+    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -132,26 +155,38 @@ class Module(ModuleBase):
             The context we should run this function on.
 
         number: int
-            The number of steps used in measuring each time interval
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
 
         repeat: int, optional
-            Number of times to run the timer measurement
-            If repeat equals 3, then we will get 3 numbers in the ProfileResult.
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
+
+        min_repeat_ms: int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
 
         Note
         ----
-        The function will be invoked  repeat * number + 1 times,
+        The function will be invoked  (1 + number x repeat) times,
         with the first call discarded in case there is lazy initialization.
 
         Returns
         -------
         ftimer : Function
-            The function that takes same argument as func
-            and return a float representing seconds per function call.
+            The function that takes same argument as func and returns a ProfileResult.
+            The ProfileResult reports `repeat` time costs in seconds.
         """
         try:
             feval = _RPCTimeEvaluator(
-                self, func_name, ctx.device_type, ctx.device_id, number, repeat)
+                self, func_name, ctx.device_type, ctx.device_id, number, repeat, min_repeat_ms)
 
             def evaluator(*args):
                 """Internal wrapped evaluator."""

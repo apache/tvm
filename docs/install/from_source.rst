@@ -1,3 +1,20 @@
+..  Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+..    http://www.apache.org/licenses/LICENSE-2.0
+
+..  Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
 .. _install-from-source:
 
 Install from Source
@@ -5,7 +22,7 @@ Install from Source
 This page gives instructions on how to build and install the tvm package from
 scratch on various systems. It consists of two steps:
 
-1. First build the shared library from the C++ codes (`libtvm.so` for linux/osx and `libtvm.dll` for windows).
+1. First build the shared library from the C++ codes (`libtvm.so` for linux, `libtvm.dylib` for macOS and `libtvm.dll` for windows).
 2. Setup for the language packages (e.g. Python Package).
 
 To get started, clone tvm repo from github. It is important to clone the submodules along, with ``--recursive`` option.
@@ -28,28 +45,28 @@ Build the Shared Library
 Our goal is to build the shared libraries:
 
 - On Linux the target library are `libtvm.so, libtvm_topi.so`
-- On OSX the target library are `libtvm.dylib, libtvm_topi.dylib`
+- On macOS the target library are `libtvm.dylib, libtvm_topi.dylib`
 - On Windows the target library are `libtvm.dll, libtvm_topi.dll`
 
 
 .. code:: bash
 
     sudo apt-get update
-    sudo apt-get install -y python python-dev python-setuptools gcc libtinfo-dev zlib1g-dev
+    sudo apt-get install -y python python-dev python-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake
 
 The minimal building requirements are
 
 - A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
 - CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
-- It is possible to build TVM without the LLVM dependency if we only want to use CUDA/OpenCL
-- If we want to use the NNVM compiler, then LLVM is required
+- It is possible to build TVM without the LLVM dependency if you only want to use CUDA/OpenCL
+- If you want to use the NNVM compiler, then LLVM is required
 
 We use cmake to build the library.
 The configuration of tvm can be modified by `config.cmake`.
 
 
-- First, check the cmake in your system, you do not have cmake
+- First, check the cmake in your system. If you do not have cmake,
   you can obtain the latest version from `official website <https://cmake.org/download/>`_
 - First create a build directory, copy the ``cmake/config.cmake`` to the directory.
 
@@ -60,7 +77,7 @@ The configuration of tvm can be modified by `config.cmake`.
 
 - Edit ``build/config.cmake`` to customize the compilation options
 
-  - On macOS, for some versions of XCode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
+  - On macOS, for some versions of Xcode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
   - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. So do other backends and libraries
     (OpenCL, RCOM, METAL, VULKAN, ...).
 
@@ -162,7 +179,7 @@ Python dependencies
 
    .. code:: bash
 
-       pip install --user numpy decorator
+       pip install --user numpy decorator attrs
 
    * If you want to use RPC Tracker
 

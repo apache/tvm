@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/expr_functor.h
  * \brief A more powerful visitor which enables defining arbitrary function
  * signatures with type based dispatch on first argument.
@@ -9,7 +27,10 @@
 
 #include <tvm/node/ir_functor.h>
 #include <string>
+#include <utility>
+#include <unordered_map>
 #include "./expr.h"
+#include "./adt.h"
 #include "./op.h"
 #include "./error.h"
 
@@ -68,6 +89,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitExpr(const Expr& n, Args... args) {
+    CHECK(n.defined());
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -89,6 +111,11 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const OpNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RefCreateNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RefReadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RefWriteNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const ConstructorNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const MatchNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Node* op, Args...) {
     throw Error(std::string("Do not have a default for ") + op->type_key());
   }
@@ -108,6 +135,11 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAY_EXPR_FUNCTOR_DISPATCH(IfNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(OpNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(RefCreateNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(RefReadNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(RefWriteNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(ConstructorNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(MatchNode);
     return vtable;
   }
 };
@@ -133,7 +165,14 @@ class ExprVisitor
   void VisitExpr_(const IfNode* op) override;
   void VisitExpr_(const OpNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
+  void VisitExpr_(const RefCreateNode* op) override;
+  void VisitExpr_(const RefReadNode* op) override;
+  void VisitExpr_(const RefWriteNode* op) override;
+  void VisitExpr_(const ConstructorNode* op) override;
+  void VisitExpr_(const MatchNode* op) override;
   virtual void VisitType(const Type& t);
+  virtual void VisitClause(const Clause& c);
+  virtual void VisitPattern(const Pattern& c);
 
  protected:
   // Internal visiting counter
@@ -168,6 +207,12 @@ class ExprMutator
   Expr VisitExpr_(const LetNode* op) override;
   Expr VisitExpr_(const IfNode* op) override;
   Expr VisitExpr_(const TupleGetItemNode* op) override;
+  Expr VisitExpr_(const RefCreateNode* op) override;
+  Expr VisitExpr_(const RefReadNode* op) override;
+  Expr VisitExpr_(const RefWriteNode* op) override;
+  Expr VisitExpr_(const ConstructorNode* op) override;
+  Expr VisitExpr_(const MatchNode* op) override;
+
   /*!
    * \brief Used to visit the types inside of expressions.
    *
@@ -176,11 +221,21 @@ class ExprMutator
    * visitor for types which transform them appropriately.
    */
   virtual Type VisitType(const Type& t);
+  virtual Clause VisitClause(const Clause& c);
+  virtual Pattern VisitPattern(const Pattern& c);
 
  protected:
   /*! \brief Internal map used for memoization. */
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo_;
 };
+
+/*!
+ * \brief recursively visit the ir in post DFS order node, apply fvisit
+ * Each node is guaranteed to be visited only once.
+ * \param node The ir to be visited.
+ * \param fvisit The visitor function to be applied.
+ */
+void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit);
 
 /*
  * \brief Bind function parameters or free variables.

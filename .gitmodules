@@ -7,3 +7,6 @@
 [submodule "dlpack"]
 	path = 3rdparty/dlpack
 	url = https://github.com/dmlc/dlpack
+[submodule "3rdparty/rang"]
+	path = 3rdparty/rang
+	url = https://github.com/agauniyal/rang

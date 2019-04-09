@@ -1,8 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.relay.backend.interpreter import Value, TupleValue
+from tvm.relay.backend.interpreter import Value, TupleValue, TensorValue
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import testing, create_executor
 
@@ -37,7 +53,8 @@ def test_tuple_value():
 def test_id():
     x = relay.var('x', 'float32')
     ident = relay.Function([x], x)
-    check_eval(ident, [1.0], 1.0)
+    one = np.array(1.0, 'float32')
+    check_eval(ident, [one], one)
 
 
 def test_add_const():
@@ -60,8 +77,8 @@ def test_equal():
     j = relay.var('i', shape=[], dtype='int32')
     z = relay.equal(i, j)
     func = relay.Function([i, j], z, ret_type=relay.TensorType([], 'bool'))
-    i_data = relay.const(0)
-    j_data = relay.const(0)
+    i_data = relay.const(0, 'int32')
+    j_data = relay.const(0, 'int32')
     check_eval(func, [i_data, j_data], True)
 
 
@@ -96,10 +113,10 @@ def test_loop():
     i = relay.var('i', shape=[], dtype='int32')
     accum = relay.var('accum', shape=[], dtype='int32')
     sb = ScopeBuilder()
-    with sb.if_scope(relay.equal(i, relay.const(0))):
+    with sb.if_scope(relay.equal(i, relay.const(0, 'int32'))):
         sb.ret(accum)
     with sb.else_scope():
-        one_less = relay.subtract(i, relay.const(1))
+        one_less = relay.subtract(i, relay.const(1, 'int32'))
         new_accum = relay.add(accum, i)
         sb.ret(relay.Call(sum_up, [one_less, new_accum]))
     func = relay.Function([i, accum], sb.get())
@@ -107,6 +124,22 @@ def test_loop():
     i_data = np.array(10, dtype='int32')
     accum_data = np.array(0, dtype='int32')
     check_eval(sum_up, [i_data, accum_data], sum(range(1, 11)), mod=mod)
+
+
+def test_ref():
+    mod = relay.Module()
+    three_with_ref = relay.GlobalVar('three_with_ref')
+    i = relay.Var('i')
+    iv = relay.Var('iv')
+    u = relay.Var('u')
+    uv = relay.Var('uv')
+    body = relay.add(iv, uv)
+    body = relay.Let(uv, relay.RefRead(i), body)
+    body = relay.Let(u, relay.RefWrite(i, relay.const(2)), body)
+    body = relay.Let(iv, relay.RefRead(i), body)
+    body = relay.Let(i, relay.RefCreate(relay.const(1)), body)
+    mod[three_with_ref] = relay.Function([], body)
+    check_eval(three_with_ref, [], 3, mod=mod)
 
 
 def test_binds():
@@ -118,6 +151,25 @@ def test_binds():
     tvm.testing.assert_allclose(xx + xx, res)
 
 
+def test_tensor_value():
+    x = relay.var("x", shape=(1, 10))
+    xx = np.ones((1, 10)).astype("float32")
+    check_eval(relay.Function([x], x), [TensorValue(xx)], xx)
+
+def test_kwargs_params():
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.var("z", shape=(1, 10))
+    f = relay.Function([x, y, z], x + y + z)
+    x_data = np.random.rand(1, 10).astype('float32')
+    y_data = np.random.rand(1, 10).astype('float32')
+    z_data = np.random.rand(1, 10).astype('float32')
+    params = { 'y': y_data, 'z': z_data }
+    intrp = create_executor("debug")
+    res = intrp.evaluate(f)(x_data, **params).data
+    tvm.testing.assert_allclose(res.asnumpy(), x_data + y_data + z_data)
+
+
 if __name__ == "__main__":
     test_id()
     test_add_const()
@@ -126,3 +178,6 @@ if __name__ == "__main__":
     test_simple_loop()
     test_loop()
     test_binds()
+    test_kwargs_params()
+    test_ref()
+    test_tensor_value()

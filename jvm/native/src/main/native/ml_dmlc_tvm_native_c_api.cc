@@ -1,5 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file ml_dmlc_tvm_native_c_api.cc
  * \brief tvm4j jni source file
  */
@@ -177,6 +194,10 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncCall(
 
   int ret = TVMFuncCall(reinterpret_cast<TVMFunctionHandle>(jhandle),
     &argValues[0], &argTypes[0], numArgs, &retVal, &retTypeCode);
+
+  if (ret != 0) {
+    return ret;
+  }
 
   for (auto iter = pushedStrs.cbegin(); iter != pushedStrs.cend(); iter++) {
     env->ReleaseStringUTFChars(iter->first, iter->second);

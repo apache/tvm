@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  *  Implementation of API functions related to Higher DSL build.
@@ -11,6 +30,7 @@
 #include <tvm/schedule.h>
 #include <tvm/api_registry.h>
 #include <tvm/build_module.h>
+#include <tvm/data_layout.h>
 
 namespace tvm {
 
@@ -222,6 +242,63 @@ TVM_REGISTER_API("_BufferVStore")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Buffer()
         .vstore(args[1], args[2]);
+  });
+
+TVM_REGISTER_API("_Layout")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = LayoutNode::make(args[0]);
+  });
+
+TVM_REGISTER_API("_LayoutIndexOf")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator Layout()
+      .IndexOf(LayoutAxis::make(args[1]));
+});
+
+TVM_REGISTER_API("_LayoutFactorOf")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = args[0].operator Layout()
+      .FactorOf(LayoutAxis::make(args[1]));
+});
+
+TVM_REGISTER_API("_LayoutNdim")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = static_cast<int64_t>(args[0].operator Layout().ndim());
+});
+
+TVM_REGISTER_API("_LayoutGetItem")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  const LayoutAxis& axis = args[0].operator Layout()[args[1]];
+  *ret = axis.name();
+});
+
+TVM_REGISTER_API("_BijectiveLayout")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = BijectiveLayoutNode::make(args[0], args[1]);
+  });
+
+TVM_REGISTER_API("_BijectiveLayoutForwardIndex")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator BijectiveLayout()
+        .ForwardIndex(args[1]);
+  });
+
+TVM_REGISTER_API("_BijectiveLayoutBackwardIndex")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator BijectiveLayout()
+        .BackwardIndex(args[1]);
+  });
+
+TVM_REGISTER_API("_BijectiveLayoutForwardShape")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator BijectiveLayout()
+        .ForwardShape(args[1]);
+  });
+
+TVM_REGISTER_API("_BijectiveLayoutBackwardShape")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = args[0].operator BijectiveLayout()
+        .BackwardShape(args[1]);
   });
 
 TVM_REGISTER_API("_Tensor")

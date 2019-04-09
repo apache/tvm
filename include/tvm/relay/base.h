@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/base.h
  * \brief Base classes for the Relay IR.
  */
@@ -108,7 +126,9 @@ class SourceName : public NodeRef {
    * \brief access the internal node container
    * \return the pointer to the internal node container
    */
-  inline const SourceNameNode* operator->() const;
+  inline const SourceNameNode* operator->() const {
+    return static_cast<SourceNameNode*>(this->node_.get());
+  }
 
   /*!
    * \brief Get an SourceName for a given operator name.
@@ -164,6 +184,34 @@ class RelayNode : public Node {
   static constexpr const char* _type_key = "relay.Node";
   TVM_DECLARE_BASE_NODE_INFO(RelayNode, Node);
 };
+
+/*!
+ * \brief The unique identifier of variables.
+ *
+ * Id is like name to the variables,
+ * except that id is unique for each Var.
+ *
+ * \note Do not create Id directly, they are created in Var.
+ */
+class IdNode : public Node {
+ public:
+  /*!
+   * \brief The name of the variable,
+   *  this only acts as a hint to the user,
+   *  and is not used for equality.
+   */
+  std::string name_hint;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("name_hint", &name_hint);
+  }
+
+  static constexpr const char* _type_key = "relay.Id";
+  TVM_DECLARE_NODE_TYPE_INFO(IdNode, Node);
+};
+
+RELAY_DEFINE_NODE_REF(Id, IdNode, NodeRef);
+
 
 struct Module;
 

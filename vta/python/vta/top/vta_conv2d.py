@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Namespace for supporting packed_conv2d + ewise variant of nnvm."""
 from __future__ import absolute_import as _abs
 
@@ -193,7 +209,7 @@ def _build(funcs, target, target_host):
     tvm_t = tvm.target.create(target)
     if tvm_t.device_name == "vta":
         return tvm.build(funcs, target="ext_dev", target_host=target_host)
-    elif tvm_t.device_name == "rasp" or tvm_t.device_name == "vtacpu":
+    if tvm_t.device_name == "rasp" or tvm_t.device_name == "vtacpu":
         return tvm.build(funcs, target=target_host)
     return tvm.build(funcs, target=target)
 
@@ -279,10 +295,9 @@ def schedule_conv2d(attrs, outs, target):
         target = tvm.target.create(target)
         if target.device_name == "vta":
             return schedule_packed_conv2d(outs)
-        elif str(target).startswith("llvm"):
+        if str(target).startswith("llvm"):
             return tvm.create_schedule([x.op for x in outs])
-        else:
-            raise RuntimeError("not support target %s" % target)
+        raise RuntimeError("not support target %s" % target)
     return _nn.schedule_conv2d(attrs, outs, target)
 
 

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file topi/image/resize.h
@@ -12,6 +31,7 @@
 #include <algorithm>
 
 #include "topi/tags.h"
+#include "topi/elemwise.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
@@ -19,6 +39,45 @@
 namespace topi {
 namespace image {
 using namespace tvm;
+
+/*!
+ * \brief Sample a point in a tensor using bilinear interpolation.
+ *
+ * \param input The input tensor.
+ * \param indices The index of the target point, which can be fractional
+ * \param max_y The maximum of y dimension
+ * \param max_x The maximum of x dimension
+ *
+ * \return The interpolated value in the given index.
+ */
+inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices,
+                                 const Expr max_y, const Expr max_x) {
+  auto in_y = indices[2];
+  auto yf = tvm::floor(in_y);
+  auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
+
+  auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
+  auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
+  auto y_lerp = in_y - yf;
+
+  auto in_x = indices[3];
+  auto xf = tvm::floor(in_x);
+  auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
+
+  auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
+  auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
+  auto x_lerp = in_x - xf;
+
+  auto A = input(indices[0], indices[1], y0, x0);
+  auto B = input(indices[0], indices[1], y0, x1);
+  auto C = input(indices[0], indices[1], y1, x0);
+  auto D = input(indices[0], indices[1], y1, x1);
+
+  return A * ( 1 - x_lerp) * ( 1 - y_lerp) +
+         B * x_lerp * (1 - y_lerp) +
+         C * (1 - x_lerp) * y_lerp +
+         D * x_lerp * y_lerp;
+}
 
 /*!
 * \brief Resize given tensor to given shape using nearest neighbour for NHWC
@@ -95,6 +154,45 @@ inline Tensor resize_nearest_neighbor_nchw(const Tensor& input,
 }
 
 /*!
+* \brief Resize given tensor to given shape using nearest neighbour for NCHWc
+*
+* \param input The input tensor.
+* \param shape Output shape to resize to.
+* \param align_corners To preserve centers of 4 corner pixels
+* \param name Name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor resized to given shape
+*/
+inline Tensor resize_nearest_neighbor_nchwc(const Tensor& input,
+                                            const Array<Expr>& shape,
+                                            bool align_corners = false,
+                                            std::string name = "tensor",
+                                            std::string tag = kInjective) {
+  Array<Expr> out_shape;
+  out_shape.push_back(input->shape[0]);
+  out_shape.push_back(input->shape[1]);
+  out_shape.push_back(shape[0]);
+  out_shape.push_back(shape[1]);
+  out_shape.push_back(input->shape[4]);
+
+  Expr h_ratio = shape[0] / input->shape[2];
+  Expr w_ratio = shape[1] / input->shape[3];
+
+  return compute(
+    out_shape, [&](const Array<Var>& indices) {
+    Array<Expr> idx;
+    idx.push_back(indices[0]);
+    idx.push_back(indices[1]);
+    idx.push_back(indices[2] / h_ratio);
+    idx.push_back(indices[3] / w_ratio);
+    idx.push_back(indices[4]);
+
+     return input(idx);
+    }, name, tag);
+}
+
+/*!
 * \brief Resize given tensor to given shape using nearest neighbour
 *
 * \param input The input tensor.
@@ -113,11 +211,17 @@ inline Tensor resize_nearest_neighbor(const Tensor& input,
                                       std::string name = "tensor",
                                       std::string tag = kInjective) {
   CHECK_EQ(align_corners, false) << "Align corners not supported for nearest neighbour";
-
+  auto base_layout = layout.substr(0, 4);
   if (layout == "NHWC") {
     return resize_nearest_neighbor_nhwc(input, shape, align_corners);
-  } else {
+  } else if (layout == "NCHW") {
     return resize_nearest_neighbor_nchw(input, shape, align_corners);
+  } else if (base_layout == "NCHW") {
+    // NCHWc
+    return resize_nearest_neighbor_nchwc(input, shape, align_corners);
+  } else {
+    LOG(FATAL) << "Unknown layout: " << layout;
+    return Tensor();
   }
 }
 
@@ -175,7 +279,7 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
     auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
 
     auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
-    auto y1 = tvm::select((yc > other_y), other_y, yc);
+    auto y1 = tvm::if_then_else((yc > other_y), other_y, yc);
     auto y_lerp  = in_y - yf;
 
     auto in_x = indices[2] * x_ratio;
@@ -183,7 +287,7 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
     auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
 
     auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
-    auto x1 = tvm::select((xc > other_x), other_x, xc);
+    auto x1 = tvm::if_then_else((xc > other_x), other_x, xc);
     auto x_lerp  = in_x - xf;
 
     auto A = input(indices[0], y0, x0, indices[3]);
@@ -191,10 +295,10 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
     auto C = input(indices[0], y1, x0, indices[3]);
     auto D = input(indices[0], y1, x1, indices[3]);
 
-    auto top = A + (B - A) * x_lerp;
-    auto bottom = C + (D - C) * x_lerp;
-
-    return  (top + (bottom - top) * y_lerp);
+    return A * ( 1 - x_lerp) * ( 1 - y_lerp) +
+           B * x_lerp * (1 - y_lerp) +
+           C * (1 - x_lerp) * y_lerp +
+           D * x_lerp * y_lerp;
     }, name, tag);
 }
 
@@ -248,30 +352,8 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
   return compute(
     out_shape, [&](const Array<Var>& indices) {
     auto in_y = indices[2] * y_ratio;
-    auto yf = tvm::floor(in_y);
-    auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
-
-    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
-    auto y1 = tvm::select((yc > other_y), other_y, yc);
-    auto y_lerp  = in_y - yf;
-
     auto in_x = indices[3] * x_ratio;
-    auto xf = tvm::floor(in_x);
-    auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
-
-    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
-    auto x1 = tvm::select((xc > other_x), other_x, xc);
-    auto x_lerp  = in_x - xf;
-
-    auto A = input(indices[0], indices[1], y0, x0);
-    auto B = input(indices[0], indices[1], y0, x1);
-    auto C = input(indices[0], indices[1], y1, x0);
-    auto D = input(indices[0], indices[1], y1, x1);
-
-    auto top = A + (B - A) * x_lerp;
-    auto bottom = C + (D - C) * x_lerp;
-
-    return  (top + (bottom - top) * y_lerp);
+    return bilinear_sample_nchw(input, {indices[0], indices[1], in_y, in_x}, other_y, other_x);
     }, name, tag);
 }
 
@@ -288,7 +370,7 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_bilinear(const Tensor& input,
-                              const Array<Expr>& shape,
+                              const Array<tvm::Expr>& shape,
                               std::string layout = "NCHW",
                               bool align_corners = false,
                               std::string name = "tensor",

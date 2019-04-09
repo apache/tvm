@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Expression Intrinsics and math functions in TVM."""
 # pylint: disable=redefined-builtin
 from __future__ import absolute_import as _abs
@@ -272,7 +288,7 @@ def floor(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "floor", x)
+    return _make.floor(x)
 
 
 def ceil(x):
@@ -288,7 +304,7 @@ def ceil(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "ceil", x)
+    return _make.ceil(x)
 
 
 def trunc(x):
@@ -307,7 +323,7 @@ def trunc(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "trunc", x)
+    return _make.trunc(x)
 
 
 def abs(x):
@@ -339,7 +355,7 @@ def round(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "round", x)
+    return _make.round(x)
 
 
 def power(x, y):
@@ -392,6 +408,42 @@ def fmod(x, y):
         The result.
     """
     return call_pure_intrin(x.dtype, "fmod", x, y)
+
+
+def if_then_else(cond, t, f):
+    """Conditional selection expression.
+
+    Parameters
+    ----------
+    cond : Expr
+        The condition
+
+    t : Expr
+        The result expression if cond is true.
+
+    f : Expr
+        The result expression if cond is false.
+
+    Returns
+    -------
+    result : Node
+        The result of conditional expression.
+
+    Note
+    ----
+    Unlike Select, if_then_else will not execute
+    the branch that does not satisfy the condition.
+    You can use it to guard against out of bound access.
+    Unlike Select, if_then_else cannot be vectorized
+    if some lanes in the vector have different conditions.
+    """
+    t = convert(t)
+    f = convert(f)
+    cond = convert(cond)
+    if cond.dtype != "bool":
+        raise TypeError("The condition's data type has to be bool")
+    return call_pure_intrin(t.dtype, "tvm_if_then_else", cond, t, f)
+
 
 # Intrinsic rule related code
 def register_intrin_rule(target, intrin, f=None, override=False):
@@ -459,7 +511,7 @@ def _rule_float_suffix(op):
     """
     if op.dtype == "float32":
         return call_pure_extern(op.dtype, "%sf" % op.name, *op.args)
-    elif op.dtype == "float64":
+    if op.dtype == "float64":
         return call_pure_extern(op.dtype, op.name, *op.args)
     return op
 
@@ -488,10 +540,43 @@ def _rule_float_direct(op):
         return call_pure_extern(op.dtype, op.name, *op.args)
     return None
 
+@_register_func("tvm.default_trace_action")
+def _tvm_default_trace_action(*args):
+    print(list(args))
+
+def trace(args, trace_action="tvm.default_trace_action"):
+    """Trace tensor data at the runtime.
+
+    The trace function allows to trace specific tensor at the
+    runtime. The tracing value should come as last argument.
+    The trace action should be specified, by default
+    tvm.default_trace_action is used.
+
+    Parameters
+    ----------
+    args : list of Expr or Buffers.
+        Positional arguments.
+
+    trace_action : str.
+        The name of the trace action.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+
+    See Also
+    --------
+    tvm.call_packed : Creates packed function.
+    """
+    if not isinstance(args, list):
+        raise Exception("tvm.trace consumes the args as list type")
+    call_args = [_pack_buffer(x) if isinstance(x, _Buffer) else x for x in args]
+    call_args.insert(0, trace_action)
+    return _make.Call(
+        args[-1].dtype, "tvm_call_trace_packed", call_args, _Call.Intrinsic, None, 0)
+
 # opencl pattern for exp
 register_intrin_rule("opencl", "exp", _rule_float_direct, override=True)
 # default pattern for exp
 register_intrin_rule("default", "exp", _rule_float_suffix, override=True)
-
-# default pattern for sigmoid
-register_intrin_rule("default", "sigmoid", lambda op: 1.0 / (1.0 + exp(-op.args[0])))

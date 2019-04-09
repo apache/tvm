@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file src/tvm/ir/expr.cc
@@ -63,23 +82,30 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     p->stream << "Tuple(" << node->fields << ")";
   });
 
-Var VarNode::make(std::string name_hint, Type type_annotation) {
+
+Var VarNode::make(Id vid, Type type_annotation) {
   NodePtr<VarNode> n = make_node<VarNode>();
-  n->name_hint = std::move(name_hint);
+  n->vid = std::move(vid);
   n->type_annotation = std::move(type_annotation);
   return Var(n);
+}
+
+Var VarNode::make(std::string name_hint, Type type_annotation) {
+  NodePtr<IdNode> n = make_node<IdNode>();
+  n->name_hint = std::move(name_hint);
+  return VarNode::make(Id(n), type_annotation);
 }
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 TVM_REGISTER_API("relay._make.Var")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = VarNode::make(args[0], args[1]);
+    *ret = VarNode::make(args[0].operator std::string(), args[1]);
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<VarNode>([](const VarNode* node, tvm::IRPrinter* p) {
-    p->stream << "Var(" << node->name_hint;
+    p->stream << "Var(" << node->name_hint();
     if (node->type_annotation.defined()) {
       p->stream << ", ty=";
       p->print(node->type_annotation);
@@ -123,9 +149,20 @@ Function FunctionNode::make(tvm::Array<Var> params,
 FuncType FunctionNode::func_type_annotation() const {
   Array<Type> param_types;
   for (auto param : this->params) {
-    param_types.push_back(param->type_annotation);
+    Type param_type = (param->type_annotation.defined()) ? param->type_annotation
+      : IncompleteTypeNode::make(Kind::kType);
+    param_types.push_back(param_type);
   }
-  return FuncTypeNode::make(param_types, this->ret_type, this->type_params, {});
+
+  Type ret_type = (this->ret_type.defined()) ? this->ret_type
+    : IncompleteTypeNode::make(Kind::kType);
+  return FuncTypeNode::make(param_types, ret_type, this->type_params, {});
+}
+
+bool FunctionNode::IsPrimitive() const {
+  NodeRef res = FunctionGetAttr(GetRef<Function>(this), "Primitive");
+  const ir::IntImm* pval = res.as<ir::IntImm>();
+  return pval && pval->value != 0;
 }
 
 NodeRef FunctionGetAttr(const Function& func, const std::string& key) {
@@ -165,7 +202,7 @@ TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_API("relay._make.Function")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = FunctionNode::make(args[0], args[1], args[2], args[3]);
+  *ret = FunctionNode::make(args[0], args[1], args[2], args[3], args[4]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -256,6 +293,60 @@ TVM_REGISTER_API("relay._make.TupleGetItem").set_body([](TVMArgs args, TVMRetVal
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TupleGetItemNode>([](const TupleGetItemNode* node, tvm::IRPrinter* p) {
   p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
+});
+
+RefCreate RefCreateNode::make(Expr value) {
+  NodePtr<RefCreateNode> n = make_node<RefCreateNode>();
+  n->value = std::move(value);
+  return RefCreate(n);
+}
+
+TVM_REGISTER_API("relay._make.RefCreate").set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = RefCreateNode::make(args[0]);
+});
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<RefCreateNode>([](const RefCreateNode* node, tvm::IRPrinter* p) {
+  p->stream << "RefCreateNode(" << node->value << ")";
+});
+
+RefRead RefReadNode::make(Expr ref) {
+  NodePtr<RefReadNode> n = make_node<RefReadNode>();
+  n->ref = std::move(ref);
+  return RefRead(n);
+}
+
+TVM_REGISTER_API("relay._make.RefRead")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = RefReadNode::make(args[0]);
+});
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<RefReadNode>([](const RefReadNode* node, tvm::IRPrinter* p) {
+  p->stream << "RefReadNode(" << node->ref << ")";
+});
+
+RefWrite RefWriteNode::make(Expr ref, Expr value) {
+  NodePtr<RefWriteNode> n = make_node<RefWriteNode>();
+  n->ref = std::move(ref);
+  n->value = std::move(value);
+  return RefWrite(n);
+}
+
+TVM_REGISTER_API("relay._make.RefWrite")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = RefWriteNode::make(args[0], args[1]);
+});
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<RefWriteNode>([](const RefWriteNode* node, tvm::IRPrinter* p) {
+  p->stream << "RefWriteNode(" << node->ref << ", " << node->value << ")";
+});
+
+TVM_REGISTER_API("relay._expr.TempExprRealize")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  TempExpr temp = args[0];
+  *ret = temp->Realize();
 });
 
 }  // namespace relay

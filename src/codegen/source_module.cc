@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file source_module.cc
@@ -50,6 +69,52 @@ class SourceModuleNode : public runtime::ModuleNode {
 runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
   std::shared_ptr<SourceModuleNode> n =
       std::make_shared<SourceModuleNode>(code, fmt);
+  return runtime::Module(n);
+}
+
+// Simulator function
+class CSourceModuleNode : public runtime::ModuleNode {
+ public:
+  CSourceModuleNode(std::string code,
+                   std::string fmt)
+      : code_(code), fmt_(fmt) {}
+  const char* type_key() const {
+    return "c";
+  }
+
+  PackedFunc GetFunction(
+      const std::string& name,
+      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+    LOG(FATAL) << "C Source module cannot execute, to get executable module"
+               << " build TVM with \'" << fmt_ << "\' runtime support";
+    return PackedFunc();
+  }
+
+  std::string GetSource(const std::string& format) final {
+    return code_;
+  }
+
+  void SaveToFile(const std::string& file_name,
+                  const std::string& format) final {
+    std::string fmt = GetFileFormat(file_name, format);
+    std::string meta_file = GetMetaFilePath(file_name);
+    if (fmt == "cc") {
+      CHECK_NE(code_.length(), 0);
+      SaveBinaryToFile(file_name, code_);
+    } else {
+      CHECK_EQ(fmt, fmt_)
+          << "Can only save to format=" << fmt_;
+    }
+  }
+
+ protected:
+  std::string code_;
+  std::string fmt_;
+};
+
+runtime::Module CSourceModuleCreate(std::string code, std::string fmt) {
+  std::shared_ptr<CSourceModuleNode> n =
+      std::make_shared<CSourceModuleNode>(code, fmt);
   return runtime::Module(n);
 }
 

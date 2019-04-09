@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name
 """Int8 conv2d in NCHWc layout"""
 import tvm
@@ -233,11 +249,16 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output):
 
     s[conv].reorder(rco, ryo, rxo, rci, ryi, rxi, n, f, y, x, c, rc_block)
 
+    cfg.define_reorder("reorder_inner", [rco, ryo, rxo], policy="all")
+    cfg["reorder_inner"].apply(s, conv, [rco, ryo, rxo])
+    cfg["reorder_inner"].apply(s, conv, [rci, ryi, rxi])
+
     _, rc_block = s[conv].split(rc_block, factor=4)
     s[conv].tensorize(rc_block, _dp4a)
 
-    s[AA].compute_at(s[conv], rxo)
-    s[WW].compute_at(s[conv], rxo)
+    cache_loc = [rco, ryo, rxo][cfg["reorder_inner"].perm[-1]]
+    s[AA].compute_at(s[conv], cache_loc)
+    s[WW].compute_at(s[conv], cache_loc)
 
     # cooperative fetching
     for load in [AA, WW]:

@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 from tvm import relay
 import numpy as np
 
@@ -11,7 +27,8 @@ def test_combine_parallel_conv2d():
         # y3 cannot be combined
         y3 = relay.nn.conv2d(x, w3)
         y4 = relay.nn.conv2d(x, w4)
-        y = relay.Tuple((y1, y2, y3, y4))
+        y5 = relay.nn.max_pool2d(x)
+        y = relay.Tuple((y1, y2, y3, y4, y5))
         return relay.Function(args, y)
 
     def expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4):
@@ -24,7 +41,8 @@ def test_combine_parallel_conv2d():
         y3 = relay.nn.conv2d(x, w3)
         y4 = relay.strided_slice(y, [0, channels1 + channels2],
                                  [None, channels1 + channels2 + channels4])
-        y = relay.Tuple((y1, y2, y3, y4))
+        y5 = relay.nn.max_pool2d(x)
+        y = relay.Tuple((y1, y2, y3, y4, y5))
         return relay.Function(args, y)
 
     def check(x_shape, channels1, channels2, channels3, channels4):
@@ -37,7 +55,7 @@ def test_combine_parallel_conv2d():
 
         y_before = before(x, w1, w2, w3, w4)
         y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y)
+        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
         y = relay.ir_pass.infer_type(y)
         y_expected = expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4)
         y_expected = relay.ir_pass.infer_type(y_expected)
@@ -84,7 +102,7 @@ def test_combine_parallel_conv2d_scale_relu():
         bias = relay.var("bias", shape=(channels2, 1, 1))
         y_before = before(x, w1, w2, scale1, scale2, bias)
         y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y)
+        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
         y = relay.ir_pass.infer_type(y)
         y_expected = expected(x, w1, w2, scale1, scale2, bias, channels1, channels2)
         y_expected = relay.ir_pass.infer_type(y_expected)
@@ -124,7 +142,7 @@ def test_combine_parallel_conv2d_scale():
         scale2 = relay.var("scale2", shape=(1,))
         y_before = before(x, w1, w2, scale1, scale2)
         y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y)
+        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
         y = relay.ir_pass.infer_type(y)
         y_expected = expected(x, w1, w2, scale1, scale2, channels1, channels2)
         y_expected = relay.ir_pass.infer_type(y_expected)
@@ -132,7 +150,46 @@ def test_combine_parallel_conv2d_scale():
 
     check((1, 4, 16, 16), 4, 8)
 
+
+def test_combine_parallel_conv2d_multiple_blocks():
+    def before(x, w, repeat):
+        args = [x, w]
+        y = x
+        for i in range(repeat):
+            y1 = relay.nn.conv2d(y, w)
+            y2 = relay.nn.conv2d(y, w)
+            y = relay.concatenate((y1, y2), axis=1)
+        return relay.Function(args, y)
+
+    def expected(x, w, channels, repeat):
+        args = [x, w]
+        y = x
+        for i in range(repeat):
+            w_concat = relay.concatenate((w, w), axis=0)
+            y = relay.nn.conv2d(y, w_concat, channels=channels*2)
+            y1 = relay.strided_slice(y, [0, 0], [None, channels])
+            y2 = relay.strided_slice(y, [0, channels], [None, channels * 2])
+            y = relay.concatenate((y1, y2), axis=1)
+        return relay.Function(args, y)
+
+    def check(x_shape, repeat):
+        x = relay.var("x", shape=x_shape)
+        in_c = x_shape[1]
+        out_c = in_c // 2
+        w = relay.var("w", shape=(out_c, in_c, 1, 1))
+        y_before = before(x, w, repeat)
+        y = relay.ir_pass.infer_type(y_before)
+        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
+        y = relay.ir_pass.infer_type(y)
+        y_expected = expected(x, w, out_c, repeat)
+        y_expected = relay.ir_pass.infer_type(y_expected)
+        assert relay.ir_pass.alpha_equal(y, y_expected)
+
+    check((1, 4, 16, 16), 4)
+
+
 if __name__ == "__main__":
     test_combine_parallel_conv2d()
     test_combine_parallel_conv2d_scale_relu()
     test_combine_parallel_conv2d_scale()
+    test_combine_parallel_conv2d_multiple_blocks()

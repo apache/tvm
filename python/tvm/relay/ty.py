@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The type nodes of the Relay language."""
 from enum import IntEnum
@@ -21,6 +37,19 @@ class Type(RelayNode):
         """Compares two Relay types by referential equality."""
         return super().__eq__(other)
 
+    def __call__(self, *args):
+        """Create a type call from this type.
+
+        Parameters
+        ----------
+        args: List[relay.Type]
+            The arguments to the type call.
+
+        Returns
+        -------
+        call: relay.TypeCall
+        """
+        return TypeCall(self, args)
 
 @register_relay_node
 class TensorType(Type):
@@ -75,6 +104,9 @@ class Kind(IntEnum):
     ShapeVar = 1
     BaseType = 2
     Shape = 3
+    Constraint = 4
+    AdtHandle = 5
+    TypeData = 6
 
 @register_relay_node
 class TypeVar(Type):
@@ -107,9 +139,55 @@ class TypeVar(Type):
 
 
 @register_relay_node
+class GlobalTypeVar(Type):
+    """A global type variable in Relay.
+    GlobalTypeVar is used to refer to the global type-level definitions
+    stored in the environment.
+    """
+
+    def __init__(self, var, kind=Kind.AdtHandle):
+        """Construct a GlobalTypeVar.
+
+        Parameters
+        ----------
+        var: tvm.Var
+            The tvm.Var which backs the type parameter.
+        kind: Kind, optional
+            The kind of the type parameter, Kind.AdtHandle by default.
+
+        Returns
+        -------
+        type_var: GlobalTypeVar
+            The global type variable.
+        """
+        self.__init_handle_by_constructor__(_make.GlobalTypeVar, var, kind)
+
+
+@register_relay_node
+class TypeCall(Type):
+    """Type-level function application in Relay.
+    A type call applies argument types to a constructor (type-level function).
+    """
+
+    def __init__(self, func, args):
+        """Construct a TypeCall.
+        Parameters
+        ----------
+        func: tvm.relay.Type
+            The function.
+        args: List[tvm.expr.Type]
+            The arguments.
+        Returns
+        -------
+        type_call: TypeCall
+            The type function application.
+        """
+        self.__init_handle_by_constructor__(_make.TypeCall, func, args)
+
+
+@register_relay_node
 class TypeConstraint(Type):
     """Abstract class representing a type constraint."""
-    pass
 
 
 @register_relay_node
@@ -141,7 +219,7 @@ class FuncType(Type):
 
     This is the type assigned to functions in Relay. They consist of
     a list of type parameters which enable the definition of generic
-    fucntions, a set of type constraints which we omit for the time
+    functions, a set of type constraints which we omit for the time
     being, a sequence of argument types, and a return type.
 
     We informally write them as:
@@ -208,6 +286,19 @@ class TypeRelation(TypeConstraint):
     def __init__(self, func, args, num_inputs, attrs):
         self.__init_handle_by_constructor__(_make.TypeRelation,
                                             func, args, num_inputs, attrs)
+
+
+@register_relay_node
+class RefType(Type):
+    """Reference Type in relay.
+
+    Parameters
+    ----------
+    value: Type
+        The value type.
+    """
+    def __init__(self, value):
+        self.__init_handle_by_constructor__(_make.RefType, value)
 
 
 def scalar_type(dtype):
