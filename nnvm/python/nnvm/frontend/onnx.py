@@ -775,6 +775,80 @@ def _get_convert_map(opset):
     }
 
 
+supported_ops = set([
+    'Constant',
+    'Identity',
+    'ThresholdedRelu',
+    'ScaledTanh',
+    'ParametricSoftplus',
+    'ConstantFill',
+    'FC',
+    'Scale',
+    'ImageScaler',
+    'Upsample' ,
+    'SpatialBN',
+    'Add',
+    'Sub',
+    'Mul',
+    'Div',
+    'Neg',
+    'Abs',
+    'Reciprocal',
+    'Floor',
+    'Ceil',
+    'Sqrt',
+    'Relu',
+    'LeakyRelu',
+    'Selu',
+    'Elu',
+    'Exp',
+    'Log',
+    'Tanh',
+    'Pow',
+    'PRelu',
+    'Sigmoid',
+    'HardSigmoid',
+    'Max',
+    'Min',
+    'Sum',
+    'Mean',
+    'Clip',
+    'Softmax',
+    'LogSoftmax',
+    'Softsign',
+    'SoftPlus',
+    'Gemm',
+    'MatMul',
+    'AveragePool',
+    'MaxPool',
+    'Conv',
+    'ConvTranspose',
+    'GlobalAveragePool',
+    'GlobalMaxPool',
+    'BatchNormalization',
+    'Dropout',
+    'Flatten',
+    'LRN',
+    'ReduceMax',
+    'ReduceMin',
+    'ReduceSum',
+    'ReduceMean',
+    'ArgMax',
+    'ArgMin',
+    'Cast',
+    'Reshape',
+    'Concat',
+    'Split',
+    'Slice',
+    'Transpose',
+    'Gather',
+    'Squeeze',
+    'Unsqueeze',
+    'Pad',
+    'Shape',
+])
+
+
 class GraphProto(object):
     """A helper class for handling nnvm graph copying from pb2.GraphProto.
     Definition: https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
@@ -824,6 +898,16 @@ class GraphProto(object):
             else:
                 self._num_input += 1
                 self._nodes[i_name] = _sym.Variable(name=i_name)
+        # get list of unsupported ops
+        unsupported_ops = []
+        for node in graph.node:
+            op_name = node.op_type
+            if op_name not in supported_ops:
+                unsupported_ops.append(op_name)
+        if unsupported_ops:
+            msg = 'The following operators are not supported for frontend ONNX: {}'
+            unsupported_ops = str(unsupported_ops).strip('[]').replace("'", '')
+            raise tvm.error.OpNotImplemented(msg.format(unsupported_ops))
         # construct nodes, nodes are stored as directed acyclic graph
         for node in graph.node:
             op_name = node.op_type
