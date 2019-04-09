@@ -245,15 +245,55 @@ class PrettyPrinter :
     return Doc(unique_prefix);
   }
 
+  Doc Print(Kind k) {
+    switch (k) {
+    case kType:
+      return Doc("Type");
+    case kShapeVar:
+      return Doc("Shape");
+    case kBaseType:
+      return Doc("BaseType");
+    case kConstraint:
+      return Doc("Constraint");
+    case kAdtHandle:
+      return Doc("AdtHandle");
+    case kTypeData:
+      return Doc("TypeData");
+    default:
+      LOG(ERROR) << "Unknown Kind";
+      throw;
+    }
+  }
   /*!
-    * \brief Allocate name to a variable.
-    * \param var The input variable.
-    * \return The corresponding name.
-    */
+   * \brief Allocate name to a type variable.
+   * \param var The input type variable.
+   * \return The corresponding name.
+   */
+  Doc AllocTypeVar(const TypeVar& var) {
+    std::string name = var->var->name_hint;
+    if (name.length() == 0 || !std::isalpha(name[0])) {
+      name = "t" + name;
+    }
+    Doc val = GetUniqueName("%" + name);
+    if (memo_type_.count(var)) {
+      val << "-malformed-ir";
+    }
+    memo_type_[var] = val;
+    if (var->kind != kType) {
+      val << ": " << Print(var->kind);
+    }
+    return val;
+  }
+
+  /*!
+   * \brief Allocate name to a variable.
+   * \param var The input variable.
+   * \return The corresponding name.
+   */
   Doc AllocVar(const Var& var) {
     std::string name = var->name_hint();
     // always make sure first name is alpha
-    if (name.length() != 0 && !std::isalpha(name[0])) {
+    if (name.length() == 0 || !std::isalpha(name[0])) {
       name = "v" + name;
     }
     Doc val = GetUniqueName("%" + name);
@@ -387,12 +427,18 @@ class PrettyPrinter :
   }
 
   Doc PrintFunc(const Doc& prefix, const Function& fn) {
-      // TODO(tqchen, M.K.) support generic function
-      // Possibly through meta data
-      CHECK_EQ(fn->type_params.size(), 0U)
-      << "generic fn not yet supported";
       Doc doc;
-      doc << prefix << "(";
+      doc << prefix;
+      if (fn->type_params.size() > 0) {
+        doc << "<";
+        std::vector<Doc> type_params;
+        for (const TypeVar& tv : fn->type_params) {
+          type_params.push_back(AllocTypeVar(tv));
+        }
+        doc << PrintVec(type_params);
+        doc << ">";
+      }
+      doc << "(";
       std::vector<Doc> params;
       for (Var param : fn->params) {
         params.push_back(AllocVar(param));
@@ -514,6 +560,10 @@ class PrettyPrinter :
   Doc VisitTypeDefault_(const Node* node) final {
     // by default always print as meta data
     return Print(GetRef<NodeRef>(node), true);
+  }
+
+  Doc VisitType_(const TypeVarNode* node) final {
+    return AllocTypeVar(GetRef<TypeVar>(node));
   }
 
   Doc VisitType_(const TensorTypeNode* node) final {
