@@ -956,3 +956,20 @@ def pass_debug_print(ast, show_meta_data=True, annotate=None, gnf=True):
         A text representation of `ast`.
     """
     return _ir_pass.pass_debug_print(ast, show_meta_data, annotate, gnf)
+
+
+def partial_evaluate(expr):
+    """
+    Evaluate the static fragment of the code.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    expr : tvm.relay.Expr
+      The output expression.
+    """
+    return _ir_pass.partial_evaluate(expr)

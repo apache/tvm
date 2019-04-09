@@ -28,6 +28,7 @@
 #include <tvm/relay/expr_functor.h>
 #include "let_list.h"
 #include "../../common/arena.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -481,15 +482,7 @@ Expr ToANormalFormAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
 }
 
 Expr ToANormalForm(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
-  if (const auto* f = e.as<FunctionNode>()) {
-    return FunctionNode::make(f->params,
-                              ToANormalFormAux(f->body, m, gv),
-                              f->ret_type,
-                              f->type_params,
-                              f->attrs);
-  } else {
-    return ToANormalFormAux(e, m, gv);
-  }
+  return TransformF([&](const Expr& e) { return ToANormalFormAux(e, m, gv); }, e);
 }
 
 Expr ToANormalForm(const Expr& e, const Module& m) {

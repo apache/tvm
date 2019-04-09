@@ -27,6 +27,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
+#include "pass_util.h"
 #include "../ir/type_functor.h"
 
 namespace tvm {
@@ -171,13 +172,22 @@ class VarVisitor : protected ExprVisitor, protected PatternVisitor {
     return ret;
   }
 
-  Array<Var> Bound(const Expr& expr) {
-    this->VisitExpr(expr);
+  Array<Var> Collect() {
     Array<Var> ret;
     for (const auto& v : bound_vars_.data) {
       ret.push_back(v);
     }
     return ret;
+  }
+
+  Array<Var> Bound(const Expr& expr) {
+    this->VisitExpr(expr);
+    return Collect();
+  }
+
+  Array<Var> Bound(const Pattern& pat) {
+    this->VisitPattern(pat);
+    return Collect();
   }
 
   Array<Var> All(const Expr& expr) {
@@ -256,6 +266,10 @@ tvm::Array<Var> BoundVars(const Expr& expr) {
   return VarVisitor().Bound(expr);
 }
 
+tvm::Array<Var> BoundVars(const Pattern& pat) {
+  return VarVisitor().Bound(pat);
+}
+
 tvm::Array<Var> AllVars(const Expr& expr) {
   return VarVisitor().All(expr);
 }
@@ -267,7 +281,12 @@ TVM_REGISTER_API("relay._ir_pass.free_vars")
 
 TVM_REGISTER_API("relay._ir_pass.bound_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
-      *ret = BoundVars(args[0]);
+      NodeRef x = args[0];
+      if (x.as_derived<ExprNode>()) {
+        *ret = BoundVars(Downcast<Expr>(x));
+      } else {
+        *ret = BoundVars(Downcast<Pattern>(x));
+      }
     });
 
 TVM_REGISTER_API("relay._ir_pass.all_vars")
@@ -386,6 +405,34 @@ bool IsAllPositiveConstant(const Expr& expr) {
   } else {
     return false;
   }
+}
+
+Type TypeSubst(const Type& type, const TypeVar& tvar, const Type& subst) {
+  return TypeSubst(type, tvm::Map<TypeVar, Type>({{tvar, subst}}));
+}
+
+Expr TypeSubst(const Expr& expr, const TypeVar& tvar, const Type& subst) {
+  return TypeSubst(expr, tvm::Map<TypeVar, Type>({{tvar, subst}}));
+}
+
+Type TypeSubst(const Type& type, const tvm::Map<TypeVar, Type>& subst_map) {
+  return Bind(type, subst_map);
+}
+
+Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
+  class TypeSubstMutator : public ExprMutator, public PatternMutator {
+   public:
+    explicit TypeSubstMutator(const tvm::Map<TypeVar, Type>& subst_map) : subst_map_(subst_map) { }
+    Type VisitType(const Type& t) final {
+      return TypeSubst(t, subst_map_);
+    }
+    Var VisitVar(const Var& v) final {
+      return Downcast<Var>(VisitExpr(v));
+    }
+   private:
+    const tvm::Map<TypeVar, Type>& subst_map_;
+  };
+  return TypeSubstMutator(subst_map).VisitExpr(expr);
 }
 
 }  // namespace relay

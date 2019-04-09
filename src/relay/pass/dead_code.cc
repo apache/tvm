@@ -35,90 +35,109 @@
 namespace tvm {
 namespace relay {
 
-bool IsBoolLit(const Expr& e, bool b) {
-  if (const ConstantNode* c = e.as<ConstantNode>()) {
-    if (c->is_scalar()) {
-      auto dt = c->tensor_type()->dtype;
-      if (dt == Bool()) {
-        return *reinterpret_cast<const uint8_t*>(c->data->data) == b;
-      } else if (dt == UInt(8)) {
-        return *reinterpret_cast<const uint8_t*>(c->data->data) == b;
-      } else if (dt == UInt(16)) {
-        return *reinterpret_cast<const uint16_t*>(c->data->data) == b;
-      } else if (dt == UInt(32)) {
-        return *reinterpret_cast<const uint32_t*>(c->data->data) == b;
-      } else if (dt == UInt(64)) {
-        return *reinterpret_cast<const uint64_t*>(c->data->data) == b;
-      } else if (dt == Int(8)) {
-        return *reinterpret_cast<const int8_t*>(c->data->data) == b;
-      } else if (dt == Int(16)) {
-        return *reinterpret_cast<const int16_t*>(c->data->data) == b;
-      } else if (dt == Int(32)) {
-        return *reinterpret_cast<const int32_t*>(c->data->data) == b;
-      } else if (dt == Int(64)) {
-        return *reinterpret_cast<const int64_t*>(c->data->data) == b;
-      }
-    }
-  }
-  return false;
-}
-
 // calculate the dependency graph from expression
-class CalcDep : private ExprMutator {
+class CalcDep : private ExprVisitor {
  public:
   static Expr Eliminate(const Expr& e) {
     CalcDep cd;
-    auto res = cd(e);
-    GenLet gl(cd.var_map_);
-    gl(res);
-    return gl.lets_.Get(res);
+    cd.Calculate(e);
+    Eliminator el(cd.expr_map_, cd.use_map_, cd.letrec_set_);
+    return el(e);
   }
 
  private:
-  using VarMap = std::unordered_map<Var, Expr, NodeHash, NodeEqual>;
-  VarMap var_map_;
+  template<typename X>
+  using VarMap = std::unordered_map<Var, X, NodeHash, NodeEqual>;
+  using VarSet = std::unordered_set<Var, NodeHash, NodeEqual>;
+  VarMap<Expr> expr_map_;
+  VarMap<size_t> use_map_;
+  VarSet letrec_set_;
+  bool count_ = true;
+  VarSet dead_worklist_;
+  VarSet current_letrec_;
 
-  Expr VisitExpr_(const IfNode* i) final {
-    auto cond = VisitExpr(i->cond);
-    if (IsBoolLit(cond, true)) {
-      return Eliminate(i->true_branch);
-    } else if (IsBoolLit(cond, false)) {
-      return Eliminate(i->false_branch);
+  void LetRec(const std::function<void()>& func, const Var& v) {
+    current_letrec_.insert(v);
+    func();
+    current_letrec_.erase(v);
+  }
+
+  void VisitExpr_(const LetNode* l) final {
+    if (count_) {
+      CHECK_EQ(expr_map_.count(l->var), 0);
+      CHECK_EQ(use_map_.count(l->var), 0);
+      expr_map_[l->var] = l->value;
+      use_map_[l->var] = 0;
+      dead_worklist_.insert(l->var);
+      LetRec([&]() { VisitExpr(l->value); }, l->var);
+    }
+    VisitExpr(l->body);
+  }
+
+  void VisitExpr(const Expr& e) final {
+    ExprFunctor<void(const Expr&)>::VisitExpr(e);
+  }
+
+  void VisitExpr_(const VarNode* v) final {
+    Var var = GetRef<Var>(v);
+    if (expr_map_.count(var) == 0) {
+      return;
+    }
+    if (current_letrec_.count(var) == 0) {
+      if (count_) {
+        use_map_[var] += 1;
+        dead_worklist_.erase(var);
+      } else {
+        CHECK_GT(use_map_[var], 0) << var;
+        use_map_[var] -= 1;
+        if (use_map_[var] == 0) {
+          dead_worklist_.insert(var);
+        }
+      }
     } else {
-      return IfNode::make(cond, Eliminate(i->true_branch), Eliminate(i->false_branch));
+      letrec_set_.insert(var);
     }
   }
 
-  Expr VisitExpr_(const LetNode* l) final {
-    var_map_[l->var] = Eliminate(l->value);
-    return VisitExpr(l->body);
+  void Calculate(const Expr& v) {
+    VisitExpr(v);
+    count_ = false;
+    while (!dead_worklist_.empty()) {
+      Var dead = *(dead_worklist_.begin());
+      dead_worklist_.erase(dead);
+      CHECK_EQ(use_map_[dead], 0);
+      if (expr_map_.count(dead) > 0) {
+        LetRec([&]() { VisitExpr(expr_map_[dead]); }, dead);
+      }
+    }
   }
 
-  Expr VisitExpr_(const FunctionNode* f) final {
-    return FunctionNode::make(f->params,
-                              Eliminate(f->body),
-                              f->ret_type,
-                              f->type_params);
-  }
-
-  // generate the let list from dependency graph
-  class GenLet : private ExprVisitor {
+  class Eliminator : private ExprMutator {
    private:
-    LetList lets_;
-    VarMap var_map_;
-    explicit GenLet(const VarMap& var_map) : var_map_(var_map) { }
+    VarMap<Expr> expr_map_;
+    VarMap<size_t> use_map_;
+    VarSet letrec_set_;
+    explicit Eliminator(const VarMap<Expr>& expr_map,
+                        const VarMap<size_t>& use_map,
+                        const VarSet& letrec_set) :
+      expr_map_(expr_map), use_map_(use_map), letrec_set_(letrec_set) { }
     friend CalcDep;
 
-    void VisitExpr_(const VarNode* vnode) final {
-      Var v = GetRef<Var>(vnode);
-      auto it = var_map_.find(v);
-      if (it != var_map_.end()) {
-        Expr expr = it->second;
-        var_map_.erase(it);
-        // erase before visit to handle letrec
-        VisitExpr(expr);
-        // visit before push back so the dependency of dependency is before the dependency
-        lets_.Push(v, expr);
+    bool HasLet(const Var& v) {
+      return (use_map_[v] > 1 || (use_map_[v] != 0 && letrec_set_.count(v) != 0));
+    }
+
+    Expr VisitExpr_(const VarNode* op) final {
+      Var v = GetRef<Var>(op);
+      return (expr_map_.count(v) == 0 || HasLet(v)) ? v : VisitExpr(expr_map_[v]);
+    }
+
+    Expr VisitExpr_(const LetNode* op) final {
+      Var v = op->var;
+      if (HasLet(v)) {
+        return LetNode::make(v, VisitExpr(op->value), VisitExpr(op->body));
+      } else {
+        return VisitExpr(op->body);
       }
     }
   };

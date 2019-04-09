@@ -22,8 +22,10 @@ from tvm.relay.prelude import Prelude
 
 import numpy as np
 
+
 def rand(dtype='float32', *shape):
     return tvm.nd.array(np.random.rand(*shape).astype(dtype))
+
 
 def test_id():
     shape = (10, 10)
