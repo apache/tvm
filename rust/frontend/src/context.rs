@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 //! Provides [`TVMContext`] and related device specific queries.
 //!
 //! Create a new context by device type (cpu is 1) and device id.
@@ -26,10 +45,7 @@ use std::{
 
 use failure::Error;
 
-use tvm_common::{
-    ffi::{self, TVMValue},
-    TVMArgValue,
-};
+use tvm_common::ffi;
 
 use crate::function;
 
@@ -125,18 +141,6 @@ impl<'a> From<&'a str> for TVMDeviceType {
     }
 }
 
-impl<'a> From<&'a TVMDeviceType> for TVMArgValue<'a> {
-    fn from(dev_type: &'a TVMDeviceType) -> Self {
-        Self {
-            value: TVMValue {
-                v_int64: dev_type.0 as i64,
-            },
-            type_code: ffi::DLDataTypeCode_kDLInt as i64,
-            _lifetime: std::marker::PhantomData,
-        }
-    }
-}
-
 /// Represents the underlying device context. Default is cpu.
 ///
 /// ## Examples
@@ -209,7 +213,7 @@ impl TVMContext {
         let dt = self.device_type.0 as usize;
         // `unwrap` is ok here because if there is any error,
         // if would occure inside `call_packed!`
-        let ret: u64 = call_packed!(func, &dt, &self.device_id, &0)
+        let ret: u64 = call_packed!(func, dt, self.device_id, 0)
             .unwrap()
             .try_into()
             .unwrap();
@@ -238,7 +242,9 @@ macro_rules! impl_device_attrs {
                     // `unwrap` is ok here because if there is any error,
                     // if would occur in function call.
                     function::Builder::from(func)
-                        .args(&[dt, self.device_id as usize, $attr_kind])
+                        .arg(dt)
+                        .arg(self.device_id as usize)
+                        .arg($attr_kind)
                         .invoke()
                         .unwrap()
                         .try_into()

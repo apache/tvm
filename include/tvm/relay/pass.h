@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/pass.h
  * \brief The set of Relay passes written in C++.
  *
@@ -46,7 +64,7 @@
 #include <tvm/relay/module.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/type.h>
-
+#include <tvm/relay/adt.h>
 #include <string>
 #include <vector>
 
@@ -326,6 +344,17 @@ TVM_DLL bool WellFormed(const Expr& expr);
  */
 TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
 
+/*! \brief Get all bound variables from pattern pat.
+ *
+ * Bound variables are all variables that got bound by the pat.
+ * They only have meaning inside that expr, and can only be used in it.
+ *
+ * \param pat the Pattern.
+ *
+ * \return List of bound vars, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<Var> BoundVars(const Pattern& pat);
+
 /*! \brief Get free type parameters from expression expr.
  *
  * Free variables are variables that are not bound by a
@@ -413,12 +442,13 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
- * It will remove let bindings which are not referenced, and branches that will
- * not be entered.
+ * It will remove let bindings which are not referenced,
+ * and inline let bindings that are only used once.
  *
- * For example, this pass should turn `let a = 1 in 2` into `2`, as the value of
- * the expression does not depend on a. Another example is `if (true) then 1
- * else 2` will be optimized into 1.
+ * For example, this pass should turn `let a = 1 in 2` into `2`,
+ * as the value of the expression does not depend on a.
+ *
+ * As another example, `let a = 1 in a` will be optimized into 1.
  *
  * \param e the expression to optimize.
  *
@@ -540,6 +570,12 @@ TVM_DLL Expr ToANormalForm(const Expr& e, const Module& mod);
  */
 TVM_DLL Expr ToGraphNormalForm(const Expr& e);
 
+/*! \brief Aggressive constant propagation/constant folding/inlining.
+ * It will do as much computation in compile time as possible.
+ * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
+ * As a side effect, code size will explode.
+ */
+Expr PartialEval(const Expr& e);
 }  // namespace relay
 }  // namespace tvm
 

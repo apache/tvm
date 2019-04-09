@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file pretty_printer.cc
@@ -226,15 +245,55 @@ class PrettyPrinter :
     return Doc(unique_prefix);
   }
 
+  Doc Print(Kind k) {
+    switch (k) {
+    case kType:
+      return Doc("Type");
+    case kShapeVar:
+      return Doc("Shape");
+    case kBaseType:
+      return Doc("BaseType");
+    case kConstraint:
+      return Doc("Constraint");
+    case kAdtHandle:
+      return Doc("AdtHandle");
+    case kTypeData:
+      return Doc("TypeData");
+    default:
+      LOG(ERROR) << "Unknown Kind";
+      throw;
+    }
+  }
   /*!
-    * \brief Allocate name to a variable.
-    * \param var The input variable.
-    * \return The corresponding name.
-    */
+   * \brief Allocate name to a type variable.
+   * \param var The input type variable.
+   * \return The corresponding name.
+   */
+  Doc AllocTypeVar(const TypeVar& var) {
+    std::string name = var->var->name_hint;
+    if (name.length() == 0 || !std::isalpha(name[0])) {
+      name = "t" + name;
+    }
+    Doc val = GetUniqueName("%" + name);
+    if (memo_type_.count(var)) {
+      val << "-malformed-ir";
+    }
+    memo_type_[var] = val;
+    if (var->kind != kType) {
+      val << ": " << Print(var->kind);
+    }
+    return val;
+  }
+
+  /*!
+   * \brief Allocate name to a variable.
+   * \param var The input variable.
+   * \return The corresponding name.
+   */
   Doc AllocVar(const Var& var) {
     std::string name = var->name_hint();
     // always make sure first name is alpha
-    if (name.length() != 0 && !std::isalpha(name[0])) {
+    if (name.length() == 0 || !std::isalpha(name[0])) {
       name = "v" + name;
     }
     Doc val = GetUniqueName("%" + name);
@@ -368,12 +427,18 @@ class PrettyPrinter :
   }
 
   Doc PrintFunc(const Doc& prefix, const Function& fn) {
-      // TODO(tqchen, M.K.) support generic function
-      // Possibly through meta data
-      CHECK_EQ(fn->type_params.size(), 0U)
-      << "generic fn not yet supported";
       Doc doc;
-      doc << prefix << "(";
+      doc << prefix;
+      if (fn->type_params.size() > 0) {
+        doc << "<";
+        std::vector<Doc> type_params;
+        for (const TypeVar& tv : fn->type_params) {
+          type_params.push_back(AllocTypeVar(tv));
+        }
+        doc << PrintVec(type_params);
+        doc << ">";
+      }
+      doc << "(";
       std::vector<Doc> params;
       for (Var param : fn->params) {
         params.push_back(AllocVar(param));
@@ -495,6 +560,10 @@ class PrettyPrinter :
   Doc VisitTypeDefault_(const Node* node) final {
     // by default always print as meta data
     return Print(GetRef<NodeRef>(node), true);
+  }
+
+  Doc VisitType_(const TypeVarNode* node) final {
+    return AllocTypeVar(GetRef<TypeVar>(node));
   }
 
   Doc VisitType_(const TensorTypeNode* node) final {
@@ -690,9 +759,9 @@ std::string PrettyPrint_(const NodeRef& node,
   return doc.str();
 }
 
-std::string RelayPrint(const NodeRef& node,
-                       bool show_meta_data,
-                       runtime::TypedPackedFunc<std::string(Expr)> annotate) {
+std::string AsText(const NodeRef& node,
+                    bool show_meta_data,
+                    runtime::TypedPackedFunc<std::string(Expr)> annotate) {
   return PrettyPrint_(node, show_meta_data, annotate, true);
 }
 
@@ -703,10 +772,10 @@ std::string PassDebugPrint(const NodeRef& node,
   return PrettyPrint_(node, show_meta_data, annotate, gnf);
 }
 
-TVM_REGISTER_API("relay._expr.RelayPrint")
+TVM_REGISTER_API("relay._expr.AsText")
 .set_body_typed<std::string(const NodeRef&,
                             bool,
-                            runtime::TypedPackedFunc<std::string(Expr)>)>(RelayPrint);
+                            runtime::TypedPackedFunc<std::string(Expr)>)>(AsText);
 
 TVM_REGISTER_API("relay._ir_pass.pass_debug_print")
 .set_body_typed<std::string(const NodeRef&,

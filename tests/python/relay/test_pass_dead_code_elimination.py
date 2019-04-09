@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 from tvm import relay
 from tvm.relay.ir_pass import dead_code_elimination, alpha_equal
@@ -32,8 +48,13 @@ def test_let():
 
 
 def test_used_let():
+    orig = relay.Let(e.c, e.one, e.c + e.c)
+    assert alpha_equal(dead_code_elimination(orig), relay.Let(e.c, e.one, e.c + e.c))
+
+
+def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
-    assert alpha_equal(dead_code_elimination(orig), relay.Let(e.c, e.d, e.c))
+    assert alpha_equal(dead_code_elimination(orig), e.d)
 
 
 def test_chain_unused_let():
@@ -71,13 +92,6 @@ def test_op_let():
     assert alpha_equal(dead_code_elimination(add(relay.Let(e.a, e.one, e.three), e.two)), add(e.three, e.two))
 
 
-def test_if():
-    cond = relay.const(True)
-    orig = relay.If(cond, e.a, e.b)
-    y = dead_code_elimination(orig)
-    assert alpha_equal(y, e.a)
-
-
 def test_tuple_get_item():
     t = relay.Var('t')
     g = relay.TupleGetItem(t, 0)
@@ -86,9 +100,9 @@ def test_tuple_get_item():
 
 
 if __name__ == "__main__":
-    test_if()
     test_let()
     test_used_let()
+    test_inline()
     test_chain_unused_let()
     test_recursion()
     test_op_let()
