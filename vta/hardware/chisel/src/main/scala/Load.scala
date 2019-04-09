@@ -77,7 +77,7 @@ class Load(implicit val p: Parameters) extends Module with CoreParams {
   val inp_enq_cntr_wrap = (inp_enq_cntr_val === inp_enq_cntr_max)
 
   val inp_deq_cntr_max = x_size * y_size
-  val inp_deq_cntr_en = insn_valid && (memory_type === mem_id_wgt.U)
+  val inp_deq_cntr_en = insn_valid && (memory_type === mem_id_inp.U)
   val inp_deq_cntr_wait = io.inp_mem.waitrequest || !inp_queue.io.deq.valid
   val inp_deq_cntr_val = Reg(UInt(16.W))
   val inp_deq_cntr_wrap = (inp_deq_cntr_val === inp_deq_cntr_max)
@@ -87,13 +87,13 @@ class Load(implicit val p: Parameters) extends Module with CoreParams {
 
   // weights counters
   val wgt_enq_cntr_max = x_size * y_size
-  val wgt_enq_cntr_en = insn_valid
+  val wgt_enq_cntr_en = insn_valid && (memory_type === mem_id_wgt.U)
   val wgt_enq_cntr_wait = !wgt_queue.io.enq.ready || io.weights.waitrequest
   val wgt_enq_cntr_val = Reg(UInt(16.W))
   val wgt_enq_cntr_wrap = (wgt_enq_cntr_val === wgt_enq_cntr_max)
 
   val wgt_deq_cntr_max = x_size * y_size
-  val wgt_deq_cntr_en = insn_valid
+  val wgt_deq_cntr_en = insn_valid && (memory_type === mem_id_wgt.U)
   val wgt_deq_cntr_wait = io.wgt_mem.waitrequest || !wgt_queue.io.deq.valid
   val wgt_deq_cntr_val = Reg(UInt(16.W))
   val wgt_deq_cntr_wrap = (wgt_deq_cntr_val === wgt_deq_cntr_max)
@@ -123,8 +123,6 @@ class Load(implicit val p: Parameters) extends Module with CoreParams {
       state := s_DONE
     }
   }
-
-  // dependency queue processing
   when (dump &&  pop_next_dep_ready) { state := s_BUSY }
   when (push && push_next_dep_ready) { state := s_DONE }
 
