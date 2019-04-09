@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name
 """Utility to invoke nvcc compiler in the system"""
 from __future__ import absolute_import as _abs
@@ -28,7 +44,7 @@ def compile_cuda(code,
     arch : str
         The architecture
 
-    options : str
+    options : str or list of str
         The additional options
 
     path_target : str, optional
@@ -59,10 +75,16 @@ def compile_cuda(code,
     cmd = ["nvcc"]
     cmd += ["--%s" % target, "-O3"]
     cmd += ["-arch", arch]
-    cmd += ["-o", file_target]
 
     if options:
-        cmd += options
+        if isinstance(options, str):
+            cmd += [options]
+        elif isinstance(options, list):
+            cmd += options
+        else:
+            raise ValueError("options must be str or list of str")
+
+    cmd += ["-o", file_target]
     cmd += [temp_code]
 
     proc = subprocess.Popen(
@@ -97,7 +119,7 @@ def find_cuda_path():
     (out, _) = proc.communicate()
     out = py_str(out)
     if proc.returncode == 0:
-        return os.path.abspath(os.path.join(str(out).strip(), "../.."))
+        return os.path.realpath(os.path.join(str(out).strip(), "../.."))
     cuda_path = "/usr/local/cuda"
     if os.path.exists(os.path.join(cuda_path, "bin/nvcc")):
         return cuda_path
@@ -145,14 +167,14 @@ def find_libdevice_path(arch):
     selected_ver = 0
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver == 9.0 or cuda_ver == 9.1:
+    if cuda_ver in (9.0, 9.1, 10.0):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):
             if not fn.startswith("libdevice"):
                 continue
             ver = int(fn.split(".")[-3].split("_")[-1])
-            if ver > selected_ver and ver <= arch:
+            if selected_ver < ver <= arch:
                 selected_ver = ver
                 selected_path = fn
         if selected_path is None:

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief Utility to make loop nest.
@@ -164,7 +183,6 @@ std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
   return nest;
 }
 
-
 // replacer to replace tensors
 class TensorReplacer : public ir::IRMutator {
  public:
@@ -214,6 +232,36 @@ Stmt Substitute(Stmt s,
     init[kv.first->var.get()] = kv.second;
   }
   return ir::Substitute(s, init);
+}
+
+IterVarType ForTypeToIterVarType(ir::ForType for_type) {
+  switch (for_type) {
+  case ForType::Serial:
+    return kDataPar;
+  case ForType::Parallel:
+    return kParallelized;
+  case ForType::Vectorized:
+    return kVectorized;
+  case ForType::Unrolled:
+    return kUnrolled;
+  default:
+    return kDataPar;
+  }
+}
+
+ir::ForType IterVarTypeToForType(IterVarType iter_type) {
+  switch (iter_type) {
+  case kDataPar:
+    return ForType::Serial;
+  case kParallelized:
+    return ForType::Parallel;
+  case kVectorized:
+    return ForType::Vectorized;
+  case kUnrolled:
+    return ForType::Unrolled;
+  default:
+    return ForType::Serial;
+  }
 }
 
 }  // namespace op

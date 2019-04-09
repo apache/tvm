@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file elemwise.h
@@ -68,6 +87,45 @@ inline Tensor negative(const Tensor& x,
                        std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     return -x(i);
+  }, name, tag);
+}
+
+/*!
+* \brief Creates an operation that returns the logical NOT of a given tensor
+*
+* \param x The input tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the logical NOT operation
+*/
+inline Tensor logical_not(const Tensor& x,
+                          std::string name = "tensor",
+                          std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    return !x(i);
+  }, name, tag);
+}
+
+/*!
+* \brief Returns the sign of the tensor
+*
+* \param x The input tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the sign
+*/
+inline Tensor sign(const Tensor& x,
+                   std::string name = "tensor",
+                   std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    Expr zero = make_zero(x->dtype);
+    Expr one = make_const(x->dtype, 1);
+    Expr minus_one = make_const(x->dtype, -1);
+    auto s1 = tvm::ir::Select::make((x(i) < zero), minus_one, zero);
+    auto s2 = tvm::ir::Select::make((x(i) > zero), one, s1);
+    return s2;
   }, name, tag);
 }
 
@@ -163,7 +221,7 @@ inline Tensor full(const Array<Expr>& shape,
                    const Expr fill_value,
                    std::string name = "tensor",
                    std::string tag = kElementWise) {
-  Expr ev = lossless_cast(dtype, fill_value);
+  Expr ev = cast(dtype, fill_value);
   if (!ev.defined()) {
     LOG(ERROR) << "Can't cast fill_value to " << dtype;
   }
@@ -173,7 +231,7 @@ inline Tensor full(const Array<Expr>& shape,
 }
 
 /*!
-* \brief Creates an operation that construct a tensor with same shape as input tensor, 
+* \brief Creates an operation that construct a tensor with same shape as input tensor,
 * then fill a tensor with fill_value
 *
 * \param x The input tensor
@@ -187,10 +245,7 @@ inline Tensor full_like(const Tensor& x,
                         const Expr fill_value,
                         std::string name = "tensor",
                         std::string tag = kElementWise) {
-  Expr ev = lossless_cast(x->dtype, fill_value);
-  if (!ev.defined()) {
-    LOG(ERROR) << "Can't cast fill_value to " << x->dtype;
-  }
+  Expr ev = cast(x->dtype, fill_value);
   return compute(x->shape, [&](const Array<Var>& i) {
       return ev;
   }, name, tag);

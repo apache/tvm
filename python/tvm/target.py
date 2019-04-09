@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Target management API of TVM.
 
 TVM's target string is in fomat ``<target_name> [-option=value]...``.
@@ -104,6 +120,13 @@ class Target(NodeBase):
         if not self._libs:
             self._libs = [l.value for l in self.libs_array]
         return self._libs
+
+    @property
+    def model(self):
+        for opt in self.options_array:
+            if opt.value.startswith('-model='):
+                return opt.value[7:]
+        return 'unknown'
 
     def __enter__(self):
         _api_internal._EnterTargetScope(self)
@@ -354,57 +377,65 @@ def generic_func(fdefault):
     return fdecorate
 
 
-def cuda(options=None):
+def cuda(model='unknown', options=None):
     """Returns a cuda target.
 
     Parameters
     ----------
+    model: str
+        The model of cuda device (e.g. 1080ti)
     options : str or list of str
         Additional options
     """
-    options = _merge_opts([], options)
-    return _api_internal._TargetCreate("cuda", *options)
+    opts = _merge_opts(['-model=%s' % model], options)
+    return _api_internal._TargetCreate("cuda", *opts)
 
 
-def rocm(options=None):
+def rocm(model='unknown', options=None):
     """Returns a ROCM target.
 
     Parameters
     ----------
+    model: str
+        The model of this device
     options : str or list of str
         Additional options
     """
-    options = _merge_opts([], options)
-    return _api_internal._TargetCreate("rocm", *options)
+    opts = _merge_opts(["-model=%s" % model], options)
+    return _api_internal._TargetCreate("rocm", *opts)
 
 
-def mali(options=None):
+def mali(model='unknown', options=None):
     """Returns a ARM Mali GPU target.
 
     Parameters
     ----------
+    model: str
+        The model of this device
     options : str or list of str
         Additional options
     """
-    opts = ["-device=mali"]
+    opts = ["-device=mali", '-model=%s' % model]
     opts = _merge_opts(opts, options)
     return _api_internal._TargetCreate("opencl", *opts)
 
 
-def intel_graphics(options=None):
+def intel_graphics(model='unknown', options=None):
     """Returns an Intel Graphics target.
 
     Parameters
     ----------
+    model: str
+        The model of this device
     options : str or list of str
         Additional options
     """
-    opts = ["-device=intel_graphics"]
+    opts = ["-device=intel_graphics", '-model=%s' % model]
     opts = _merge_opts(opts, options)
     return _api_internal._TargetCreate("opencl", *opts)
 
 
-def opengl(options=None):
+def opengl(model='unknown', options=None):
     """Returns a OpenGL target.
 
     Parameters
@@ -412,8 +443,8 @@ def opengl(options=None):
     options : str or list of str
         Additional options
     """
-    options = _merge_opts([], options)
-    return _api_internal._TargetCreate("opengl", *options)
+    opts = _merge_opts(["-model=%s" % model], options)
+    return _api_internal._TargetCreate("opengl", *opts)
 
 
 def arm_cpu(model='unknown', options=None):
@@ -436,6 +467,7 @@ def arm_cpu(model='unknown', options=None):
         "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf -mattr=+neon"],
         "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu -mattr=+neon"],
         "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
+        "ultra96":   ["-model=ultra96", "-target=aarch64-linux-gnu -mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
@@ -494,5 +526,4 @@ def current_target(allow_none=True):
     ------
     ValueError if current target is not set.
     """
-    target_str = _api_internal._GetCurrentTarget(allow_none)
-    return create(target_str) if target_str is not None else None
+    return _api_internal._GetCurrentTarget(allow_none)

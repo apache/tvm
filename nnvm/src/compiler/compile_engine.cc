@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file compile_engine.cc
@@ -14,6 +33,7 @@
 #include <tuple>
 #include <vector>
 #include <limits>
+#include <unordered_map>
 #include "graph_hash.h"
 #include "compile_engine.h"
 
@@ -40,6 +60,7 @@ int GetTypeFlag(tvm::Type type) {
   if (type == tvm::UInt(16)) return 8;
   if (type == tvm::UInt(32)) return 9;
   if (type == tvm::UInt(64)) return 10;
+  if (type == tvm::UInt(1)) return 11;
   LOG(FATAL) << "cannot convert " << type;
   return 0;
 }
@@ -68,6 +89,8 @@ Type GetTVMType(int type_flag) {
       return tvm::UInt(32);
     case 10:
       return tvm::UInt(64);
+    case 11:
+      return tvm::UInt(1);
     default:
       LOG(FATAL) << "unknown type_flag=" << type_flag;
       return Float(32);
@@ -94,7 +117,7 @@ class CompileEngine {
       return it->second->graph_func;
     }
     GraphFunc f = DoLower(key->graph, key->inputs, key->target, master_idx);
-    std::shared_ptr<GraphCacheEntryNode> n = std::make_shared<GraphCacheEntryNode>();
+    auto n = tvm::make_node<GraphCacheEntryNode>();
     n->graph_func = f;
     n->use_count = 1;
     n->master_idx = master_idx;
@@ -107,8 +130,7 @@ class CompileEngine {
     Array<NodeRef> items;
     for (auto& kv : cache_) {
       items.push_back(kv.first);
-      std::shared_ptr<GraphCacheEntryNode> n =
-          std::make_shared<GraphCacheEntryNode>(*(kv.second.operator->()));
+      auto n = tvm::make_node<GraphCacheEntryNode>(*(kv.second.operator->()));
       items.push_back(GraphCacheEntry(n));
     }
     return items;
@@ -126,7 +148,7 @@ class CompileEngine {
   // Set the given function on given graph key.
   void Set(const GraphKey& key, GraphFunc func) {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::shared_ptr<GraphCacheEntryNode> n = std::make_shared<GraphCacheEntryNode>();
+    auto n = tvm::make_node<GraphCacheEntryNode>();
     n->graph_func = func;
     n->use_count = 1;
     cache_[key] = GraphCacheEntry(n);
@@ -265,7 +287,7 @@ class CompileEngine {
         graph, inputs, target, master_idx,
         &readable_name, &outputs);
 
-    std::shared_ptr<GraphFuncNode> gf = std::make_shared<GraphFuncNode>();
+    auto gf = tvm::make_node<GraphFuncNode>();
     gf->target = target;
     gf->func_name = GetUniqeName(readable_name);
     gf->inputs = inputs;

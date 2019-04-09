@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief Pooling op constructions
@@ -94,10 +113,10 @@ inline Tensor pool_impl(const Tensor& x,
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
-  const int64_t *padding_h0 = HalideIR::Internal::as_const_int(pad_top);
-  const int64_t *padding_w0 = HalideIR::Internal::as_const_int(pad_left);
-  const int64_t *padding_h1 = HalideIR::Internal::as_const_int(pad_bottom);
-  const int64_t *padding_w1 = HalideIR::Internal::as_const_int(pad_right);
+  const int64_t *padding_h0 = as_const_int(pad_top);
+  const int64_t *padding_w0 = as_const_int(pad_left);
+  const int64_t *padding_h1 = as_const_int(pad_bottom);
+  const int64_t *padding_w1 = as_const_int(pad_right);
   const bool do_pad = ((padding_h0 && *padding_h0) || (padding_w0 && *padding_w0)) ||
                       ((padding_h1 && *padding_h1) || (padding_w1 && *padding_w1));
 
@@ -192,7 +211,7 @@ inline bool find_height_width(const std::string& layout,
 *        Since pooling does not care about the factor size of dimensions
 *        other than `H` and `W`, one can pass `NCHWc` as well.
 * \param  count_include_pad Whether include padding in the calculation when pool_type is 'avg'
-*        
+*
 *
 * \return The output tensor in the same layout
 */

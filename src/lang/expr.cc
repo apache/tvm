@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file expr.cc
@@ -5,6 +24,7 @@
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/ir.h>
+#include <tvm/expr_operator.h>
 #include <ir/IRPrinter.h>
 #include <memory>
 
@@ -13,18 +33,18 @@ namespace tvm {
 using HalideIR::IR::RangeNode;
 
 Range::Range(Expr begin, Expr end)
-    : Range(std::make_shared<RangeNode>(
+    : Range(make_node<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
 }
 
 Range Range::make_by_min_extent(Expr min, Expr extent) {
-  return Range(std::make_shared<HalideIR::IR::RangeNode>(min, extent));
+  return Range(make_node<HalideIR::IR::RangeNode>(min, extent));
 }
 
 IterVar IterVarNode::make(Range dom, Var var,
                           IterVarType t, std::string thread_tag) {
-  std::shared_ptr<IterVarNode> n = std::make_shared<IterVarNode>();
+  NodePtr<IterVarNode> n = make_node<IterVarNode>();
   n->dom = dom;
   n->var = var;
   n->iter_type = t;
@@ -45,6 +65,10 @@ IterVar reduce_axis(Range dom, std::string name) {
 std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT(*)
   IRPrinter(os).print(n);
   return os;
+}
+
+void Dump(const NodeRef& n) {
+  std::cerr << n << "\n";
 }
 
 Var var(const std::string& name_hint, Type t) {

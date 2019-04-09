@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file codegen_spirv.cc
@@ -6,7 +25,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <string>
-#include "../codegen_common.h"
+#include "../../arithmetic/compute_expr.h"
 #include "codegen_spirv.h"
 
 namespace tvm {
@@ -66,7 +85,7 @@ void CodeGenSPIRV::InitFuncState() {
   std::fill(workgroup_size_, workgroup_size_ + 3, 1);
   var_map_.clear();
   storage_info_.clear();
-  align_map_.clear();
+  analyzer_.reset(new arith::Analyzer());
   builder_.reset(new spirv::IRBuilder());
   builder_->InitHeader();
 }
@@ -217,7 +236,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Select* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const Let* op) {
   CHECK(!var_map_.count(op->var.get()));
   var_map_[op->var.get()] = MakeValue(op->value);
-  align_map_[op->var.get()] = EvalModular(op->value, align_map_);
+  analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
 
@@ -378,9 +397,9 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
       if (const Ramp* ramp = op->index.as<Ramp>()) {
         if (is_one(ramp->stride)) {
           CHECK_EQ(ramp->lanes, op->type.lanes());
-          arith::ModularEntry me = arith::EvalModular(ramp->base, align_map_);
-          CHECK((me.coeff % ramp->lanes) == 0 &&
-                (me.base % ramp->lanes)  == 0)
+          arith::ModularSet me = analyzer_->modular_set(ramp->base);
+          CHECK((me->coeff % ramp->lanes) == 0 &&
+                (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
           Expr vec_index = ir::Simplify(
               ramp->base / make_const(ramp->base.type(), ramp->lanes));
@@ -458,9 +477,9 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
       if (const Ramp* ramp = op->index.as<Ramp>()) {
         if (is_one(ramp->stride)) {
           CHECK_EQ(ramp->lanes, op->value.type().lanes());
-          arith::ModularEntry me = arith::EvalModular(ramp->base, align_map_);
-          CHECK((me.coeff % ramp->lanes) == 0 &&
-                (me.base % ramp->lanes)  == 0)
+          arith::ModularSet me = analyzer_->modular_set(ramp->base);
+          CHECK((me->coeff % ramp->lanes) == 0 &&
+                (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
           Expr vec_index = ir::Simplify(
               ramp->base / make_const(ramp->base.type(), ramp->lanes));
@@ -477,6 +496,7 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
 
 void CodeGenSPIRV::VisitStmt_(const For* op) {
   CHECK(is_zero(op->min));
+  analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
   spirv::Value extent_value = MakeValue(op->extent);
   // Must get init label after making value(to make sure they are correct)
@@ -589,6 +609,7 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
+        analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
       }
     }
   } else if (op->attr_key == ir::attr::storage_scope) {
@@ -605,17 +626,15 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const AssertStmt* op) {
-  VisitAssert(op, &align_map_, [this](const Stmt& body) {
-      this->VisitStmt(body);
-    });
+  arith::ConstraintContext cctx(analyzer_.get(), op->condition);
+  this->VisitStmt(op->body);
 }
 
 void CodeGenSPIRV::VisitStmt_(const LetStmt* op) {
   CHECK(!var_map_.count(op->var.get()));
-  CHECK(!align_map_.count(op->var.get()));
   CHECK(!op->var.type().is_handle());
   var_map_[op->var.get()] = MakeValue(op->value);
-  align_map_[op->var.get()] = EvalModular(op->value, align_map_);
+  analyzer_->Bind(op->var, op->value);
   this->VisitStmt(op->body);
 }
 

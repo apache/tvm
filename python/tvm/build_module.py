@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """The build utils in python.
 
 This module provides the functions to transform schedule to
@@ -5,8 +21,8 @@ LoweredFunc and compiled Module.
 """
 from __future__ import absolute_import as _abs
 import warnings
-import types
 
+from ._ffi.function import Function
 from ._ffi.node import NodeBase, register_node
 from . import api
 from . import _api_internal
@@ -69,7 +85,7 @@ class DumpIR(object):
             vset[k] = v
         for k, v in vset.items():
             self._recover_list.append(recover)
-            vset[k] = self.decorate(v) if isinstance(v, types.FunctionType) else v
+            vset[k] = self.decorate(v) if isinstance(v, Function) else v
 
     def decorate_custompass(self, custom_pass):
         """decorate given list of custom passes, and return decorated passes"""
@@ -125,7 +141,9 @@ class BuildConfig(NodeBase):
         "data_alignment": -1,
         "restricted_func": True,
         "double_buffer_split_loop": 1,
-        "dump_pass_ir": False
+        "dump_pass_ir": False,
+        "instrument_bound_checkers": False,
+        "disable_select_rewriting": False
     }
     _dump_ir = DumpIR()
 
@@ -290,6 +308,25 @@ def get_binds(args, binds=None):
     return binds, arg_list
 
 
+def form_body(sch):
+    """According to the given schedule, form the raw body
+    Parameters
+    ----------
+    sch : tvm.schedule.Schedule
+    The given scheduler to form the raw body
+
+    Returns
+    -------
+    The body formed according to the given schedule
+    """
+    # normalize schedule first
+    sch = sch.normalize()
+    bounds = schedule.InferBound(sch)
+    stmt = schedule.ScheduleOps(sch, bounds)
+    stmt = ir_pass.InjectPrefetch(stmt)
+    return stmt
+
+
 def lower(sch,
           args,
           name="default_function",
@@ -299,8 +336,8 @@ def lower(sch,
 
     Parameters
     ----------
-    sch : tvm.Schedule
-        The schedule to be builded
+    sch : tvm.schedule.Schedule
+        The schedule to be built
 
     args : list of Buffer or Tensor or Var
         The argument lists to the function.
@@ -335,21 +372,12 @@ def lower(sch,
 
     # Phase 0
     if isinstance(sch, schedule.Schedule):
-        # normalize schedule first
-        sch = sch.normalize()
-        bounds = schedule.InferBound(sch)
-        stmt = schedule.ScheduleOps(sch, bounds)
-        stmt = ir_pass.InjectPrefetch(stmt)
-    else:
-        #So far there is no op for hybrid script, so a plain ir body is given
-        if not isinstance(sch, _stmt.Stmt):
-            raise ValueError("sch should be either a Schedule or a Stmt")
-        stmt = sch
+        stmt = form_body(sch)
 
     for f in lower_phase0:
         stmt = f(stmt)
     # Phase 1
-    stmt = ir_pass.StorageFlatten(stmt, binds, 64)
+    stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
     stmt = ir_pass.CanonicalSimplify(stmt)
     for f in lower_phase1:
         stmt = f(stmt)
@@ -368,89 +396,47 @@ def lower(sch,
         cfg.unroll_explicit)
     for f in lower_phase2:
         stmt = f(stmt)
-    # Phase 2
+    # Phase 3
     stmt = ir_pass.Simplify(stmt)
     stmt = ir_pass.LowerStorageAccessInfo(stmt)
     stmt = ir_pass.RemoveNoOp(stmt)
-    stmt = ir_pass.RewriteUnsafeSelect(stmt)
+    if not cfg.disable_select_rewriting:
+        stmt = ir_pass.RewriteUnsafeSelect(stmt)
     for f in lower_phase3:
         stmt = f(stmt)
+    # Instrument BoundCheckers
+    if cfg.instrument_bound_checkers:
+        stmt = ir_pass.InstrumentBoundCheckers(stmt)
     if simple_mode:
         return stmt
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
 
-def build(sch,
-          args=None,
-          target=None,
-          target_host=None,
-          name="default_function",
-          binds=None):
-    """Build a function with arguments as signiture.
+
+def _build_for_device(flist, target, target_host):
+    """Build the lowered functions for a device with the given compilation
+    target.
 
     Parameters
     ----------
-    sch : tvm.Schedule, or LoweredFunc
-        The schedule to be builded
+    flist : list of LoweredFunc
+        The schedule to be built.
 
-    args : list of Buffer or Tensor or Var, optional
-        The argument lists to the function.
-
-    target : str or :any:`tvm.target.Target`, optional
+    target : str or :any:`tvm.target.Target`
         The target and option of the compilation.
 
-    target_host : str or :any:`tvm.target.Target` optional
-        Host compilation target, if target is device.
-        When TVM compiles device specific program such as CUDA,
-        we also need host(CPU) side code to interact with the driver
-        setup the dimensions and parameters correctly.
-        target_host is used to specify the host side codegen target.
-        By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
-
-    name : str, optional
-        The name of result function.
-
-    binds : dict, optional
-        Dictionary that maps the binding of symbolic buffer to Tensor.
-        By default, a new buffer is created for each tensor in the argument.
+    target_host : str or :any:`tvm.target.Target`
+        The host compilation target.
 
     Returns
     -------
-    f : Function, or pair of functions
-       The result function.
+    fhost : list of LoweredFunc
+        A list of lowered functions for the host.
 
-    Note
-    ----
-    See the note on :any:`tvm.target` on target string format.
+    mdev : tvm.module
+        A module that contains device code.
     """
-    if isinstance(sch, schedule.Schedule):
-        if args is None:
-            raise ValueError("args must be given for build from schedule")
-        flist = lower(sch, args,
-                      name=name,
-                      binds=binds)
-        if isinstance(flist, container.LoweredFunc):
-            flist = [flist]
-    elif isinstance(sch, container.LoweredFunc):
-        if args:
-            raise ValueError("args must be done when build from LoweredFunc")
-        flist = [sch]
-    elif isinstance(sch, (list, tuple, container.Array)):
-        flist = sch
-    else:
-        raise ValueError("sch have to be Schedule, LoweredFunc or list of LoweredFunc")
-    fname_set = set()
-    for x in flist:
-        if not isinstance(x, container.LoweredFunc):
-            raise ValueError("sch have to be Schedule, LoweredFunc or list of LoweredFunc")
-        if x.name in fname_set:
-            raise ValueError("Duplicate function name %s" % x.name)
-        fname_set.add(x.name)
-
-    target = _target.current_target() if target is None else target
-    target = _target.create(target) if target else _target.create("llvm")
+    target = _target.create(target)
     device_type = ndarray.context(target.target_name, 0).device_type
-
     fhost = []
     fdevice = []
     for func in flist:
@@ -482,25 +468,162 @@ def build(sch,
 
     if "gpu" in target.keys and not fdevice:
         warnings.warn(
-            "Specified target %s, but cannot find device code, did you do bind?" % target)
+            "Specified target %s, but cannot find device code, did you do "
+            "bind?" % target)
 
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
     fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
 
-    if not target_host:
-        if device_type == ndarray.cpu(0).device_type:
-            target_host = target
-            assert not fdevice
-        else:
-            target_host = "llvm" if module.enabled("llvm") else "stackvm"
+    if device_type == ndarray.cpu(0).device_type and target_host == target:
+        assert not fdevice
+
     target_host = _target.create(target_host)
-    target_device = target
-    fdevice = [ir_pass.LowerIntrin(x, target_device.target_name) for x in fdevice]
+    fdevice = [ir_pass.LowerIntrin(x, target.target_name) for x in fdevice]
     fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
-    mhost = codegen.build_module(fhost, str(target_host))
+    mdev = codegen.build_module(fdevice, str(target)) if fdevice else None
 
-    if fdevice:
-        mdev = codegen.build_module(fdevice, str(target_device))
-        mhost.import_module(mdev)
+    return fhost, mdev
+
+
+def build(inputs,
+          args=None,
+          target=None,
+          target_host=None,
+          name="default_function",
+          binds=None):
+    """Build a function with arguments as signature. Code will be generated
+    for devices coupled with target information.
+
+    Parameters
+    ----------
+    inputs : tvm.Schedule, LoweredFunc, or dict of target to LoweredFunc list
+        The schedule to be built
+
+    args : list of Buffer or Tensor or Var, optional
+        The argument lists to the function.
+
+    target : str or :any:`tvm.target.Target`, optional
+        The target and option of the compilation.
+
+    target_host : str or :any:`tvm.target.Target` optional
+        Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
+
+    name : str, optional
+        The name of result function.
+
+    binds : dict, optional
+        Dictionary that maps the binding of symbolic buffer to Tensor.
+        By default, a new buffer is created for each tensor in the argument.
+
+    Returns
+    -------
+    ret : tvm.module
+        A module that combines both host and device code.
+
+    Examples
+    ________
+    There are two typical example uses of this function depending on the type
+    of the argument `inputs`:
+    1. it is a list of lowered functions:
+
+    .. code-block:: python
+
+        n = 2
+        A = tvm.placeholder((n,), name='A')
+        B = tvm.placeholder((n,), name='B')
+        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        s = tvm.create_schedule(C.op)
+        f = tvm.lower(s, [A, B, C], name="test_add")
+        m = tvm.build(f, target="llvm")
+
+    2. it is a dict of compilation target to list of lowered functions:
+
+    .. code-block:: python
+
+        n = 2
+        A = tvm.placeholder((n,), name='A')
+        B = tvm.placeholder((n,), name='B')
+        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        s1 = tvm.create_schedule(C.op)
+        s2 = topi.cpp.cuda.schedule_injective("cuda", [C])
+        f1 = tvm.lower(s1, [A, B, C], name="test_add1")
+        f2 = tvm.lower(s2, [A, B, C], name="test_add2")
+        m = tvm.build({"llvm": [f1], "cuda": [f2]}, target_host="llvm")
+
+    Note
+    ----
+    See the note on :any:`tvm.target` on target string format.
+    """
+    if isinstance(inputs, schedule.Schedule):
+        if args is None:
+            raise ValueError("args must be given for build from schedule")
+        flist = lower(inputs, args,
+                      name=name,
+                      binds=binds)
+        if isinstance(flist, container.LoweredFunc):
+            flist = [flist]
+    elif isinstance(inputs, container.LoweredFunc):
+        if args:
+            raise ValueError("args must be done when build from LoweredFunc.")
+        flist = [inputs]
+    elif isinstance(inputs, (list, tuple, container.Array)):
+        flist = inputs
+    elif not isinstance(inputs, (dict, container.Map)):
+        raise ValueError("inputs must be Schedule, LoweredFunc, list of "
+                         "LoweredFunc, or dict of target to list of "
+                         "LoweredFunc.")
+
+    if not isinstance(inputs, (dict, container.Map)):
+        target = _target.current_target() if target is None else target
+        target = target if target else "llvm"
+        target_flist = {target: flist}
+    else:
+        target_flist = inputs
+
+    for tar, flist in target_flist.items():
+        if not isinstance(tar, (str, _target.Target)):
+            raise ValueError("The key of inputs must be str or "
+                             "_target.Target when inputs is dict.")
+        fname_set = set()
+        for x in flist:
+            if not isinstance(x, container.LoweredFunc):
+                raise ValueError("inputs must be Schedule, LoweredFunc, list "
+                                 "of LoweredFunc, or dict of str to list of "
+                                 "LoweredFunc.")
+            if x.name in fname_set:
+                raise ValueError("Duplicate function name %s" % x.name)
+            fname_set.add(x.name)
+
+    if not target_host:
+        for tar, _ in target_flist.items():
+            tar = _target.create(tar)
+            device_type = ndarray.context(tar.target_name, 0).device_type
+            if device_type == ndarray.cpu(0).device_type:
+                target_host = tar
+                break
+    if not target_host:
+        target_host = "llvm" if module.enabled("llvm") else "stackvm"
+
+    fhost_all = []
+    device_modules = []
+    for tar, flist in target_flist.items():
+        fhost, mdev = _build_for_device(flist, tar, target_host)
+        # Save the current lowered functions of the host and the device module.
+        fhost_all += fhost
+        device_modules.append(mdev)
+
+    # Generate a unified host module.
+    mhost = codegen.build_module(fhost_all, str(target_host))
+
+    # Import all modules.
+    for mdev in device_modules:
+        if mdev:
+            mhost.import_module(mdev)
     return mhost

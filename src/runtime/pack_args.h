@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file pack_args.h
@@ -168,7 +187,7 @@ inline PackedFunc PackFuncNonBufferArg_(
       switch (codes[i]) {
         case INT64_TO_INT64:
         case FLOAT64_TO_FLOAT64: {
-          LOG(FATAL) << "Donot support 64bit argument to device function"; break;
+          LOG(FATAL) << "Do not support 64bit argument to device function"; break;
         }
         case INT64_TO_INT32: {
           holder[i].v_int32 = static_cast<int32_t>(args.values[base + i].v_int64);

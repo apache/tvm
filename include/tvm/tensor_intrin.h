@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file tvm/tensor_intrin.h
  * \brief Tensor intrinsic operations.
  */
@@ -19,7 +37,7 @@ class TensorIntrinNode;
 class TensorIntrin : public NodeRef {
  public:
   TensorIntrin() {}
-  explicit TensorIntrin(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit TensorIntrin(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -74,13 +92,13 @@ class TensorIntrinNode : public Node {
     v->Visit("reduce_update", &reduce_update);
   }
 
-  static TensorIntrin make(std::string name,
-                           Operation op,
-                           Array<Tensor> inputs,
-                           Array<Buffer> buffers,
-                           Stmt body,
-                           Stmt reduce_init,
-                           Stmt reduce_update);
+  TVM_DLL static TensorIntrin make(std::string name,
+                                   Operation op,
+                                   Array<Tensor> inputs,
+                                   Array<Buffer> buffers,
+                                   Stmt body,
+                                   Stmt reduce_init,
+                                   Stmt reduce_update);
 
   static constexpr const char* _type_key = "TensorIntrin";
   TVM_DECLARE_NODE_TYPE_INFO(TensorIntrinNode, Node);
@@ -89,5 +107,57 @@ class TensorIntrinNode : public Node {
 inline const TensorIntrinNode* TensorIntrin::operator->() const {
   return static_cast<const TensorIntrinNode*>(node_.get());
 }
+
+// Internal node container of tensor intrinsic calling.
+class TensorIntrinCallNode;
+
+/*! \brief Tensor intrinsic calling node. */
+class TensorIntrinCall : public NodeRef {
+ public:
+  TensorIntrinCall() {}
+  explicit TensorIntrinCall(NodePtr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const TensorIntrinCallNode* operator->() const;
+
+  /*! \brief specify container node */
+  using ContainerType = TensorIntrinCallNode;
+};
+
+class TensorIntrinCallNode : public Node {
+ public:
+  /*! \brief the tensor intrinsic */
+  TensorIntrin intrin;
+  /*! \brief input tensors of the intrinsic */
+  Array<Tensor> tensors;
+  /*! \brief regions of input tensors */
+  Array<Region> regions;
+  /*!
+   * \brief IterVar on each reduction axis, if the
+   * intrin will use the reduce axis
+   */
+  Array<IterVar> reduce_axis;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("intrin", &intrin);
+    v->Visit("tensors", &tensors);
+    v->Visit("regions", &regions);
+    v->Visit("reduce_axis", &reduce_axis);
+  }
+  static TensorIntrinCall make(TensorIntrin intrin,
+                               Array<Tensor> tensors,
+                               Array<Region> regions,
+                               Array<IterVar> reduce_axis);
+
+  static constexpr const char* _type_key = "TensorIntrinCall";
+  TVM_DECLARE_NODE_TYPE_INFO(TensorIntrinCallNode, Node);
+};
+
+inline const TensorIntrinCallNode* TensorIntrinCall::operator->() const {
+  return static_cast<const TensorIntrinCallNode*>(node_.get());
+}
+
 }  // namespace tvm
 #endif  // TVM_TENSOR_INTRIN_H_

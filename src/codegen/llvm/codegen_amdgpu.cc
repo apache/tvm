@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file codegen_amdgpu.cc
@@ -47,8 +66,10 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       if (info.scope.rank == runtime::StorageRank::kLocal) {
         // const int local_address_space = 5;
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
-        llvm::AllocaInst* alloca = builder_->CreateAlloca(
-            LLVMType(op->type), ConstInt32(constant_size));
+        llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
+            return builder_->CreateAlloca(
+                LLVMType(op->type), ConstInt32(constant_size));
+          });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
           alloca->setAlignment(info.alignment);
         }
@@ -154,16 +175,17 @@ inline int DetectROCMComputeVersion(const std::string& target) {
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
+  InitializeLLVM();
   CHECK(target.length() >= 4 &&
         target.substr(0, 4) == "rocm");
   std::ostringstream config;
   config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx"
          << DetectROCMComputeVersion(target)
          << target.substr(4, target.length() - 4);
-  llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
+  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
+  cg->Init(funcs[0]->name, tm.get(), ctx.get(), false, false);
   for (LoweredFunc f :  funcs) {
     cg->AddFunction(f);
   }

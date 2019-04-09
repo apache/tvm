@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file make_api.cc Build API function.
@@ -132,7 +151,7 @@ LoweredFunc MakeAPI(Stmt body,
     }
   }
 
-  std::shared_ptr<LoweredFuncNode> n = std::make_shared<LoweredFuncNode>();
+  NodePtr<LoweredFuncNode> n = make_node<LoweredFuncNode>();
   n->name = name;
   n->args = args;
   n->handle_data_type = binder.def_handle_dtype();
@@ -176,13 +195,13 @@ class DeviceTypeBinder: public IRMutator {
   explicit DeviceTypeBinder(int device_type)
       : device_type_(device_type) {}
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt &s) final {
+  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     if (op->attr_key == attr::device_context_type) {
       if (const Variable* var = op->value.as<Variable>()) {
-        std::unordered_map<const Variable*, Expr> dmap;
+        var_ = var;
         Expr value = make_const(op->value.type(), device_type_);
-        dmap[var] = value;
-        Stmt body = Substitute(s, dmap);
+        Stmt body = IRMutator::Mutate_(op, s);
+        var_ = nullptr;
         std::ostringstream os;
         os << "device_type need to be " << device_type_;
         return AssertStmt::make(op->value == value, os.str(), body);
@@ -191,13 +210,46 @@ class DeviceTypeBinder: public IRMutator {
     return IRMutator::Mutate_(op, s);
   }
 
+  Stmt Mutate_(const IfThenElse* op, const Stmt& s) final {
+    // eager simplify if guard.
+    Stmt res = IRMutator::Mutate_(op, s);
+    op = res.as<IfThenElse>();
+    if (is_zero(op->condition)) {
+      if (op->else_case.defined()) return op->else_case;
+      return Evaluate::make(0);
+    }
+    if (is_one(op->condition)) {
+      return op->then_case;
+    }
+    return res;
+  }
+
+  Expr Mutate_(const NE* op, const Expr& e) final {
+    // eager check NE for device check
+    Expr res = IRMutator::Mutate_(op, e);
+    op = res.as<NE>();
+    if (ir::Equal(op->a, op->b)) {
+      return make_const(op->type, false);
+    }
+    return res;
+  }
+
+  Expr Mutate_(const Variable* op, const Expr& e) final {
+    if (op == var_) {
+      return make_const(op->type, device_type_);
+    } else {
+      return e;
+    }
+  }
+
  public:
+  const Variable* var_{nullptr};
   int device_type_;
 };
 
 LoweredFunc BindDeviceType(LoweredFunc f,
                            int device_type) {
-  auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
   n->body = DeviceTypeBinder(device_type).Mutate(n->body);
   return LoweredFunc(n);
 }

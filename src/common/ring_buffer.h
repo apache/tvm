@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file ring_buffer.h
@@ -36,19 +55,31 @@ class RingBuffer {
    * \param n The size of capacity.
    */
   void Reserve(size_t n) {
-    if (ring_.size() >= n) return;
-    size_t old_size = ring_.size();
-    size_t new_size = ring_.size();
-    while (new_size < n) {
-      new_size *= 2;
-    }
-    ring_.resize(new_size);
-    if (head_ptr_ + bytes_available_ > old_size) {
-      // copy the ring overflow part into the tail.
-      size_t ncopy = head_ptr_ + bytes_available_ - old_size;
-      memcpy(&ring_[0] + old_size, &ring_[0], ncopy);
+    if (ring_.size() < n) {
+        size_t old_size = ring_.size();
+        size_t new_size = static_cast<size_t>(n * 1.2);
+        ring_.resize(new_size);
+        if (head_ptr_ + bytes_available_ > old_size) {
+          // copy the ring overflow part into the tail.
+          size_t ncopy = head_ptr_ + bytes_available_ - old_size;
+          memcpy(&ring_[0] + old_size, &ring_[0], ncopy);
+        }
+    } else if (ring_.size() > n * 8 && ring_.size() > kInitCapacity) {
+        // shrink too large temporary buffer to avoid out of memory on some embedded devices
+        size_t old_bytes = bytes_available_;
+
+        std::vector<char> tmp(old_bytes);
+
+        Read(&tmp[0], old_bytes);
+        ring_.resize(kInitCapacity);
+        ring_.shrink_to_fit();
+
+        memcpy(&ring_[0], &tmp[0], old_bytes);
+        head_ptr_ = 0;
+        bytes_available_ = old_bytes;
     }
   }
+
   /*!
    * \brief Peform a non-blocking read from buffer
    *  size must be smaller than this->bytes_available()

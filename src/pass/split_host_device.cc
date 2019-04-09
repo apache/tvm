@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file split_host_device.cc
@@ -34,7 +53,7 @@ class IRUseDefAnalysis : public IRMutator {
         value = this->Mutate(value);
       }
       Stmt body = this->Mutate(op->body);
-      if (value.same_as(value) && body.same_as(body)) return s;
+      if (value.same_as(op->value) && body.same_as(op->body)) return s;
       return AttrStmt::make(op->node, op->attr_key, value, body);
     } else if (op->attr_key == attr::channel_write_scope ||
                op->attr_key == attr::channel_read_scope) {
@@ -153,7 +172,8 @@ class HostDeviceSplitter : public IRMutator {
 
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
     if (op->attr_key == attr::thread_extent ||
-        op->attr_key == attr::pipeline_exec_scope) {
+        op->attr_key == attr::pipeline_exec_scope ||
+        op->attr_key == attr::device_scope) {
       return SplitDeviceFunc(s);
     }
     return IRMutator::Mutate_(op, s);
@@ -165,8 +185,8 @@ class HostDeviceSplitter : public IRMutator {
       handle_data_type_[kv.first.get()] = kv.second;
     }
     name_ = f->name;
-    std::shared_ptr<LoweredFuncNode> n =
-        std::make_shared<LoweredFuncNode>(*f.operator->());
+    NodePtr<LoweredFuncNode> n =
+        make_node<LoweredFuncNode>(*f.operator->());
     n->body = this->Mutate(f->body);
     n->func_type = kHostFunc;
     Array<LoweredFunc> ret{LoweredFunc(n)};
@@ -180,7 +200,7 @@ class HostDeviceSplitter : public IRMutator {
   Stmt SplitDeviceFunc(Stmt body) {
     std::ostringstream os;
     os << name_ << "_kernel" << device_funcs_.size();
-    std::shared_ptr<LoweredFuncNode> n = std::make_shared<LoweredFuncNode>();
+    NodePtr<LoweredFuncNode> n = make_node<LoweredFuncNode>();
     // isolate the device function.
     IRUseDefAnalysis m;
     m.visit_thread_extent_ = false;

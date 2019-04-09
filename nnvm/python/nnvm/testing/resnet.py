@@ -46,18 +46,16 @@ def residual_unit(data, num_filter, stride, dim_match, name, bottle_neck=True):
         Base name of the operators
     """
     if bottle_neck:
-        # the same as https://github.com/facebook/fb.resnet.torch#notes,
-        # a bit difference with origin paper
         bn1 = sym.batch_norm(data=data, epsilon=2e-5, name=name + '_bn1')
         act1 = sym.relu(data=bn1, name=name + '_relu1')
         conv1 = sym.conv2d(
             data=act1, channels=int(num_filter*0.25), kernel_size=(1, 1),
-            strides=(1, 1), padding=(0, 0), use_bias=False, name=name + '_conv1')
+            strides=stride, padding=(0, 0), use_bias=False, name=name + '_conv1')
         bn2 = sym.batch_norm(data=conv1, epsilon=2e-5, name=name + '_bn2')
         act2 = sym.relu(data=bn2, name=name + '_relu2')
         conv2 = sym.conv2d(
             data=act2, channels=int(num_filter*0.25), kernel_size=(3, 3),
-            strides=stride, padding=(1, 1), use_bias=False, name=name + '_conv2')
+            strides=(1, 1), padding=(1, 1), use_bias=False, name=name + '_conv2')
         bn3 = sym.batch_norm(data=conv2, epsilon=2e-5, name=name + '_bn3')
         act3 = sym.relu(data=bn3, name=name + '_relu3')
         conv3 = sym.conv2d(

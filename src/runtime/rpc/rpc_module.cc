@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file rpc_device_api.cc
@@ -124,10 +143,11 @@ class RPCModuleNode final : public ModuleNode {
   PackedFunc GetTimeEvaluator(const std::string& name,
                               TVMContext ctx,
                               int number,
-                              int repeat) {
+                              int repeat,
+                              int min_repeat_ms) {
     RPCFuncHandle handle = GetFuncHandle(name);
     if (handle == nullptr) return PackedFunc();
-    handle = sess_->GetTimeEvaluator(handle, ctx, number, repeat);
+    handle = sess_->GetTimeEvaluator(handle, ctx, number, repeat, min_repeat_ms);
     return WrapRemote(handle);
   }
 
@@ -203,10 +223,10 @@ TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
     ctx.device_id = args[3];
     if (tkey == "rpc") {
       *rv = static_cast<RPCModuleNode*>(m.operator->())
-          ->GetTimeEvaluator(args[1], ctx, args[4], args[5]);
+          ->GetTimeEvaluator(args[1], ctx, args[4], args[5], args[6]);
     } else {
       *rv = WrapTimeEvaluator(
-          m.GetFunction(args[1], false), ctx, args[4], args[5]);
+          m.GetFunction(args[1], false), ctx, args[4], args[5], args[6]);
     }
   });
 

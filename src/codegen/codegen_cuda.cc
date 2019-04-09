@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file codegen_cuda.cc
@@ -42,7 +61,7 @@ std::string CodeGenCUDA::Finish() {
 }
 
 void CodeGenCUDA::VisitStmt_(const ir::For* op) {
-  CHECK(is_zero(op->min));
+  CHECK(is_const_int(op->min, 0));
   if (op->for_type == ir::ForType::Unrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
@@ -77,6 +96,8 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
     if (!fail && (lanes >= 2 && lanes <= 4)) {
       os << lanes; return;
     }
+  } else if (t == Bool()) {
+    os << "bool"; return;
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
       if (t.lanes() != 1) {
@@ -271,6 +292,16 @@ void CodeGenCUDA::VisitExpr_(const Ramp* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+  if (op->type.is_int() && op->type.bits() == 8 && op->lanes == 4) {
+    // make_int8x4
+    const int64_t *p = as_const_int(op->value);
+    CHECK(p);
+    int64_t v = *p & 0xFF;
+    v = (v << 24) | (v << 16) | (v << 8) | v;
+    os << "(int)" << v;
+    return;
+  }
+
   std::string v = PrintExpr(op->value);
   os << "make_";
   PrintType(op->type, os);

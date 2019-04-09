@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Test code for relu activation"""
 import os
 import numpy as np
@@ -27,7 +43,7 @@ def verify_relu(m, n):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         foo = tvm.build(s, [A, B], device, name="relu")
         foo(a, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in get_all_backend():
         check_device(device)
@@ -45,7 +61,7 @@ def verify_leaky_relu(m, alpha):
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
     foo = tvm.build(s, [A, B], "llvm", name="leaky_relu")
     foo(a, b)
-    np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+    tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 
 def verify_prelu(x, w, axis, weight_reshape):
@@ -68,7 +84,7 @@ def verify_prelu(x, w, axis, weight_reshape):
     foo = tvm.build(s, [X, W, B], "llvm", name="prelu")
     foo(x_tvm, w_tvm, b)
     out_np = _prelu_numpy(x_np, w_np)
-    np.testing.assert_allclose(b.asnumpy(), out_np, rtol=1e-5)
+    tvm.testing.assert_allclose(b.asnumpy(), out_np, rtol=1e-5)
 
 def test_relu():
     verify_relu(10, 128)
@@ -83,6 +99,7 @@ def test_leaky_relu():
 def test_prelu():
     verify_prelu((1, 3, 2, 2), (3,), 1, (3, 1, 1))
     verify_prelu((1, 3, 2, 2), (2,), 2, (2, 1))
+    verify_prelu((1, 3), (3,), 1, (3, ))
 
 if __name__ == "__main__":
     test_schedule_big_array()

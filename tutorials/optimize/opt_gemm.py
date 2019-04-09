@@ -1,4 +1,22 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
+.. _opt-gemm:
+
 How to optimize GEMM on CPU
 ===========================
 **Author**: `Jian Weng <https://github.com/were>`_, \
@@ -91,7 +109,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=1)
 print('Baseline: %f' % evaluator(a, b, c).mean)
@@ -126,7 +144,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 # By simply tiling the loop 32x32, and hoisting ko, ki outside the blocking loops,
 # we can see big speedup compared with the baseline.
@@ -162,7 +180,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
 print('Opt2: %f' % evaluator(a, b, c).mean)
@@ -195,7 +213,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
 print('Opt3: %f' % evaluator(a, b, c).mean)
@@ -250,7 +268,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
 print('Opt4: %f' % evaluator(a, b, c).mean)
@@ -296,7 +314,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
 print('Opt5: %f' % evaluator(a, b, c).mean)
@@ -339,7 +357,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=50)
 opt6_time = evaluator(a, b, c).mean

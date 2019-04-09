@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 import tvm
 from tvm.contrib import graph_runtime
@@ -96,6 +112,7 @@ def test_check_function():
     _check_function_must_fail(sym.block_grad(x + 2*y), numerical_grads=True)
     _check_function_must_fail(x*x, numerical_grads=True,
                               numerical_grads_params={'atol': 0.0, 'rtol': 0.0})
+    _check_function_must_fail(sym.log(-x*x), numerical_grads=True, error=ValueError)
 
     # different styles of returning results from the forward function
     check_function(x + 2*y, lambda x, y: [x + 2*y], numerical_grads=False)
@@ -532,6 +549,36 @@ def test_l2_normalize():
     verify_l2_normalize((1, 3, 20, 20), 0.001, (1,))
     verify_l2_normalize((1, 3, 20, 20), 0.001, (1, 2))
 
+def verify_gather_nd(src_shape, indices_src):
+    src_dtype = "float32"
+    indices_dtype = "int32"
+    indices_src = np.array(indices_src, dtype=indices_dtype)
+    a = sym.Variable("a", shape=src_shape)
+    indices = sym.Variable("indices", shape=indices_src.shape)
+    y = sym.gather_nd(a, indices)
+
+    def forward(a, indices):
+        return topi.testing.gather_nd_python(a, indices)
+
+    a_src = np.arange(np.prod(src_shape), dtype=src_dtype).reshape(src_shape)
+
+    check_function(y, forward,
+                   dtype={'a': src_dtype, 'indices': indices_dtype},
+                   values={'a': a_src, 'indices': indices_src})
+
+def test_gather_nd():
+    verify_gather_nd((4,), [[1]])
+    verify_gather_nd((4,), [[1, 3, 2]])
+    verify_gather_nd((2, 3), [[1]])
+    verify_gather_nd((2, 3), [[1], [0]])
+    verify_gather_nd((2, 3), [[1, 0], [0, 2]])
+    verify_gather_nd((2, 3, 4), [[1, 0], [0, 2]])
+    verify_gather_nd((2, 3, 4), [[1, 0], [0, 2], [3, 1]])
+    verify_gather_nd((2, 3, 4), [[[1, 0], [0, 1]], [[0, 2], [1, 2]],
+                                 [[3, 1], [0, 2]]])
+    verify_gather_nd((2, 3, 4, 5), [[1, 0], [0, 2]])
+    verify_gather_nd((2, 3, 4, 5), [[1, 0], [2, 1], [3, 2], [4, 2]])
+
 if __name__ == "__main__":
     test_check_function()
     test_split()
@@ -555,3 +602,4 @@ if __name__ == "__main__":
     test_lrn()
     test_l2_normalize()
     test_strided_slice()
+    test_gather_nd()

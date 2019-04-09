@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Test code for dense operator"""
 import numpy as np
 import tvm
@@ -37,14 +53,14 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         with tvm.target.create(device):
             D = topi.nn.dense(A, B, C if use_bias else None)
             D = topi.nn.relu(D)
-            s = topi.generic.schedule_dense(D)
+            s = topi.generic.schedule_dense([D])
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(c_np, ctx)
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B, C, D], device, name="dense")
         f(a, b, c, d)
-        np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
+        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
     for device in get_all_backend():
         check_device(device)

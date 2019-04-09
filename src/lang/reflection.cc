@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file reflection.cc
@@ -6,9 +25,10 @@
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/attrs.h>
-#include <tvm/container.h>
+#include <tvm/node/container.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/packed_func.h>
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
 #include <string>
@@ -25,34 +45,12 @@ namespace tvm {
 }
 
 inline std::string Type2String(const Type& t) {
-  if (t.code()  ==Type::Handle) return "handle";
-  std::ostringstream os;
-  os << t;
-  return os.str();
+  return runtime::TVMType2String(Type2TVMType(t));
 }
 
 
 inline Type String2Type(std::string s) {
-  std::istringstream is(s);
-  halideir_type_code_t code = Type::Int;
-  if (s.substr(0, 3) == "int") {
-    code = Type::Int; s = s.substr(3);
-  } else if (s.substr(0, 4) == "uint") {
-    code = Type::UInt; s = s.substr(4);
-  } else if (s.substr(0, 5) == "float") {
-    code = Type::Float; s = s.substr(5);
-  } else if (s.substr(0, 5) == "float") {
-    code = Type::Float; s = s.substr(5);
-  } else if (s == "handle") {
-    return Handle();
-  } else {
-    LOG(FATAL) << "unknown type " << s;
-  }
-  int bits = 32, lanes = 1;
-  if (sscanf(s.c_str(), "%dx%d", &bits, &lanes) == 0) {
-    LOG(FATAL) << "unknown type " << s;
-  }
-  return Type(code, bits, lanes);
+  return TVMType2Type(runtime::String2TVMType(s));
 }
 
 
@@ -208,6 +206,8 @@ class JSONAttrGetter : public AttrVisitor {
     node_->type_key = node->type_key();
     // sepcially handle global object
     auto* f = dmlc::Registry<NodeFactoryReg>::Find(node_->type_key);
+    CHECK(f != nullptr)
+        << "Node type \'" << node_->type_key << "\' is not registered in TVM";
     if (f->fglobal_key != nullptr) {
       node_->global_key = f->fglobal_key(node);
       return;
@@ -248,7 +248,7 @@ class JSONAttrGetter : public AttrVisitor {
 
 class JSONAttrSetter : public AttrVisitor {
  public:
-  const std::vector<std::shared_ptr<Node> >* node_list_;
+  const std::vector<NodePtr<Node> >* node_list_;
   const std::vector<runtime::NDArray>* tensor_list_;
   JSONNode* node_;
 
@@ -401,13 +401,13 @@ std::string SaveJSON(const NodeRef& n) {
   return os.str();
 }
 
-std::shared_ptr<Node> LoadJSON_(std::string json_str) {
+NodePtr<Node> LoadJSON_(std::string json_str) {
   std::istringstream is(json_str);
   dmlc::JSONReader reader(&is);
   JSONGraph jgraph;
   // load in json graph.
   jgraph.Load(&reader);
-  std::vector<std::shared_ptr<Node> > nodes;
+  std::vector<NodePtr<Node> > nodes;
   std::vector<runtime::NDArray> tensors;
   // load in tensors
   for (const std::string& blob : jgraph.b64ndarrays) {
@@ -427,7 +427,7 @@ std::shared_ptr<Node> LoadJSON_(std::string json_str) {
           << "Node type \'" << jnode.type_key << "\' is not registered in TVM";
       nodes.emplace_back(f->fcreator(jnode.global_key));
     } else {
-      nodes.emplace_back(std::shared_ptr<Node>());
+      nodes.emplace_back(NodePtr<Node>());
     }
   }
   CHECK_EQ(nodes.size(), jgraph.nodes.size());
@@ -526,7 +526,7 @@ void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
   TVMArgs kwargs(args.values + 1, args.type_codes + 1, args.size() - 1);
   CHECK(f->fglobal_key == nullptr)
       << "Cannot make node type \'" << type_key << "\' with global_key.";
-  std::shared_ptr<Node> n = f->fcreator(empty_str);
+  NodePtr<Node> n = f->fcreator(empty_str);
   if (n->derived_from<BaseAttrsNode>()) {
     static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
   } else {

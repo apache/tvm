@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # TVM WebAssembly and Javascript Backend
 
 This folder contains TVM WebAssembly and Javascript backend through Emscripten.
@@ -59,7 +76,7 @@ to do so, make sure we set the environment correctly as in previous section and 
 make web
 ```
 
-This will create ```lib/libtvm_web_runtime.bc``` and ```lib/libtvm_web_runtime.js```.
+This will create ```build/libtvm_web_runtime.bc``` and ```build/libtvm_web_runtime.js```.
 
 ## Use TVM to Generate Javascript Library
 
@@ -87,11 +104,11 @@ def prepare_test_libs(base_path):
 
 if __name__ == "__main__":
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    prepare_test_libs(os.path.join(curr_path, "../../lib"))
+    prepare_test_libs(os.path.join(curr_path, "../../build"))
 ```
 
 In this workflow, we use TVM to generate a ```.bc``` file and statically link
-that with the  ```lib/libtvm_web_runtime.bc```(emscripten.create_js will help you do that).
+that with the  ```build/libtvm_web_runtime.bc```(emscripten.create_js will help you do that).
 The result js library is a library that contains both TVM runtime and the compiled function.
 
 
@@ -101,10 +118,10 @@ The following code snippet from [tests/web/test_module_load.js](https://github.c
 how to run the compiled library.
 
 ```js
-// Load Emscripten Module, need to change path to root/lib
+// Load Emscripten Module, need to change path to root/build
 const path = require("path");
-process.chdir(path.join(__dirname, "../../lib"));
-var Module = require("../../lib/test_module.js");
+process.chdir(path.join(__dirname, "../../buld"));
+var Module = require("../../build/test_module.js");
 // Bootstrap TVMruntime with emscripten module.
 const tvm_runtime = require("../../web/tvm_runtime.js");
 const tvm = tvm_runtime.create(Module);

@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Example code to do convolution.
 Copied from topi/tests/python/test_topi_conv2d_nchw.py.
 Should be removed once we fix OpenGL testing on Jenkins."""
@@ -49,8 +65,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
             func1(a, w, b)
             func2(a, w, c)
-            np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-            np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+            tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device in ['opengl']:
         check_device(device)

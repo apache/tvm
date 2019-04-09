@@ -1,5 +1,7 @@
 enclave {
     from "sgx_tstdc.edl" import *;
+    from "sgx_stdio.edl" import *;
+    from "sgx_backtrace.edl" import *;
 
     trusted {
         public void tvm_ecall_init([isptr, user_check] TVMRetValueHandle ret);
@@ -7,7 +9,8 @@ enclave {
                                           [in, count=num_args] const TVMValue* arg_values,
                                           [in, count=num_args] const int* type_codes,
                                           int num_args,
-                                          [isptr, user_check] TVMRetValueHandle ret);
+                                          [out] TVMValue* ret_val,
+                                          [out] int* ret_type_code);
     };
 
     untrusted {
@@ -17,12 +20,7 @@ enclave {
                                    int num_args,
                                    [out] TVMValue* ret_val,
                                    [out] int* ret_type_code);
-        void tvm_ocall_set_return([isptr, user_check] TVMRetValueHandle ret,
-                                   [in, count=num_ret] const TVMValue* value,
-                                   [in, count=num_ret] const int* type_code,
-                                   int num_ret);
         void tvm_ocall_register_export([in, string] const char* name, int func_id);
-        void* tvm_ocall_reserve_space(size_t num_bytes, size_t alignment);
     };
 };
 

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file pynq_driver.c
@@ -135,35 +154,4 @@ int VTADeviceRun(VTADeviceHandle handle,
                  uint32_t wait_cycles) {
   return static_cast<VTADevice*>(handle)->Run(
       insn_phy_addr, insn_count, wait_cycles);
-}
-
-void VTAProgram(const char* bitstream) {
-  int elem;
-  FILE *src, *dst, *partial;
-  partial = fopen(VTA_PYNQ_BS_IS_PARTIAL, "w");
-  if (partial == NULL) {
-    printf("Cannot open partial config file %s\n", VTA_PYNQ_BS_IS_PARTIAL);
-        fclose(partial);
-        exit(1);
-  }
-  fputc('0', partial);
-  fclose(partial);
-  src = fopen(bitstream, "rb");
-  if (src == NULL) {
-    printf("Cannot open bitstream %s\n", bitstream);
-    exit(1);
-  }
-  dst = fopen(VTA_PYNQ_BS_XDEVCFG, "wb");
-  if (dst == NULL) {
-    printf("Cannot open device file %s\n", VTA_PYNQ_BS_XDEVCFG);
-    fclose(dst);
-    exit(1);
-  }
-  elem = fgetc(src);
-  while (elem != EOF) {
-    fputc(elem, dst);
-    elem = fgetc(src);
-  }
-  fclose(src);
-  fclose(dst);
 }

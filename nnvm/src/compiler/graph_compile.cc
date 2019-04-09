@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file graph_compile.cc
@@ -109,13 +128,14 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       inputs.push_back(it->second);
     }
     // Find master idx in the subgraph.
-    int sub_master_idx = 0;
+    int sub_master_idx = -1;
     for (uint32_t i = 0; i < subidx.num_nodes(); i++) {
       if (subidx[i].source->op() == idx[master].source->op()) {
         sub_master_idx = i;
         break;
       }
     }
+    CHECK_NE(sub_master_idx, -1) << "A master node not found in the subgraph.";
     fe.compiled_func = GraphLower(fe.subgraph, inputs, target, sub_master_idx);
     for (LoweredFunc f : fe.compiled_func->funcs) {
       if (!func_set.count(f.get())) {

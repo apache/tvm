@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 import numpy as np
 
@@ -8,7 +24,7 @@ def test_reduce_prims():
         n = tvm.var('n')
         m = tvm.var('m')
         A = tvm.placeholder((n, m), name='A')
-        R = tvm.compute((n, ), lambda i: tvm.select((i > 1), 1, 0), name='R')
+        R = tvm.compute((n, ), lambda i: tvm.expr.Select((i > 1), 1, 0), name='R')
         k = tvm.reduce_axis((0, m))
         B = tvm.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(R[i]==1)), name='B')
         # schedule
@@ -42,7 +58,7 @@ def test_reduce_prims():
             npy[:2] = 0
             res = np_reducer(x.asnumpy(), axis=1)
             res[:2] = 0
-            np.testing.assert_allclose(npy, res, rtol=1e-4)
+            tvm.testing.assert_allclose(npy, res, rtol=1e-4)
 
         check_device("metal")
         check_device("vulkan")
@@ -78,7 +94,7 @@ def test_rfactor():
         b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
     check_target()
@@ -108,7 +124,7 @@ def test_rfactor_factor_axis():
         b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
     check_target()
@@ -155,7 +171,7 @@ def test_rfactor_threads():
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=1)
         res[:2] = 0
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
     check_target("vulkan")
@@ -206,7 +222,7 @@ def test_rfactor_elemwise_threads():
         b  = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=1) + 2
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
     check_target("vulkan")
@@ -256,7 +272,7 @@ def test_argmax():
         nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
         nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
-        np.testing.assert_allclose(np_res, nd_res0.asnumpy())
+        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
     check_target()
 
@@ -316,7 +332,7 @@ def test_rfactor_argmax():
         nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
         nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
-        np.testing.assert_allclose(np_res, nd_res0.asnumpy())
+        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
     check_target("cuda")
     check_target("vulkan")

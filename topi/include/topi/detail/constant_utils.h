@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
 *  Copyright (c) 2017 by Contributors
 * \file constant_utils.h
@@ -59,6 +78,7 @@ inline int64_t GetConstInt(Expr expr) {
  */
 inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& var_name) {
   std::vector<int> result;
+  if (!exprs.defined()) return result;
   for (auto expr : exprs) {
     CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));
@@ -77,6 +97,7 @@ inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& 
  */
 inline std::vector<int64_t> GetConstInt64Values(Array<Expr> exprs, const std::string& var_name) {
   std::vector<int64_t> result;
+  if (!exprs.defined()) return result;
   for (auto expr : exprs) {
     CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));

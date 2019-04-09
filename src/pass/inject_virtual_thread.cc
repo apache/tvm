@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file inject_virtual_thread.cc
@@ -321,7 +340,7 @@ class VTInjector : public IRMutator {
     CHECK_EQ(max_loop_depth_, 0);
     Stmt then_case = this->Mutate(op->then_case);
     Stmt else_case;
-    if (else_case.defined()) {
+    if (op->else_case.defined()) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
       else_case = this->Mutate(op->else_case);
@@ -430,7 +449,8 @@ class VTInjector : public IRMutator {
     } else {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_->type);
-      stmt = Substitute(stmt, {{var_, idx}});
+      Map<Var, Expr> values{{var_, idx}};
+      stmt = Substitute(stmt, values);
       return For::make(idx, make_zero(idx.type()),
                        make_const(idx.type(), num_threads_),
                        ForType::Serial, DeviceAPI::None, stmt);

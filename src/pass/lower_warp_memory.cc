@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  *
@@ -93,7 +112,7 @@ class WarpStoreCoeffFinder : private IRVisitor {
         arith::DetectLinearEquation(index, {warp_index_});
     CHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed due to store index=" << index;
-    int coeff;
+    int coeff = 0;
     Expr mcoeff = ir::Simplify(m[0]);
 
     CHECK(arith::GetConstInt(mcoeff, &coeff) && coeff > 0)
@@ -317,7 +336,7 @@ class WarpMemoryRewriter : private IRMutator {
 LoweredFunc
 LowerWarpMemory(LoweredFunc f, int warp_size) {
   CHECK_EQ(f->func_type, kDeviceFunc);
-  auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
   n->body = WarpMemoryRewriter(warp_size).Rewrite(n->body);
   return LoweredFunc(n);
 }

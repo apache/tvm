@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 import numpy as np
 
@@ -35,5 +51,26 @@ def test_nd_create():
         ctx.sync()
 
 
+def test_fp16_conversion():
+    n = 100
+
+    for (src, dst) in [('float32', 'float16'), ('float16', 'float32')]:
+        A = tvm.placeholder((n,), dtype=src)
+        B = tvm.compute((n,), lambda i: A[i].astype(dst))
+
+        s = tvm.create_schedule([B.op])
+        func = tvm.build(s, [A, B], 'llvm')
+
+        x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50)
+        y_tvm = tvm.nd.array(100 * np.random.randn(n).astype(dst) - 50)
+
+        func(x_tvm, y_tvm)
+
+        expected = x_tvm.asnumpy().astype(dst)
+        real = y_tvm.asnumpy()
+
+        tvm.testing.assert_allclose(expected, real)
+
 if __name__ == "__main__":
     test_nd_create()
+    test_fp16_conversion()

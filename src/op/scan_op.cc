@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief Scan Operator.
@@ -51,7 +70,10 @@ Operation ScanOpNode::make(std::string name,
                            Array<Tensor> update,
                            Array<Tensor> state_placeholder,
                            Array<Tensor> inputs) {
-  auto n = std::make_shared<ScanOpNode>();
+  if (!attrs.defined()) {
+    attrs = Map<std::string, NodeRef>();
+  }
+  auto n = make_node<ScanOpNode>();
   CHECK_EQ(init.size(), update.size());
   CHECK_EQ(init.size(), state_placeholder.size());
 
@@ -135,7 +157,7 @@ Operation ScanOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  std::shared_ptr<ScanOpNode> n = std::make_shared<ScanOpNode>(*this);
+  auto n = make_node<ScanOpNode>(*this);
   for (size_t i = 0; i < n->init.size(); ++i) {
     if (rmap.count(n->init[i])) {
       n->init.Set(i, rmap.at(n->init[i]));

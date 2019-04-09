@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Base definitions for RPC."""
 # pylint: disable=invalid-name
 
@@ -40,6 +56,11 @@ class TrackerCode(object):
     GET_PENDING_MATCHKEYS = 7
 
 RPC_SESS_MASK = 128
+
+
+def get_addr_family(addr):
+    res = socket.getaddrinfo(addr[0], addr[1], 0, 0, socket.IPPROTO_TCP)
+    return res[0][0]
 
 
 def recvall(sock, nbytes):
@@ -142,7 +163,7 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
     tstart = time.time()
     while True:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(get_addr_family(addr), socket.SOCK_STREAM)
             sock.connect(addr)
             return sock
         except socket.error as sock_err:

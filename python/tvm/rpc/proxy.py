@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """RPC proxy, allows both client/server to connect and match connection.
 
 In normal RPC, client directly connect to server's IP address.
@@ -298,7 +314,8 @@ class ProxyServerHandler(object):
         """Update information on tracker."""
         try:
             if self._tracker_conn is None:
-                self._tracker_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self._tracker_conn = socket.socket(base.get_addr_family(self._tracker_addr),
+                                                   socket.SOCK_STREAM)
                 self._tracker_conn.connect(self._tracker_addr)
                 self._tracker_conn.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
                 magic = struct.unpack("<i", base.recvall(self._tracker_conn, 4))[0]
@@ -388,7 +405,7 @@ class ProxyServerHandler(object):
         if key in pool_src:
             self._pair_up(pool_src.pop(key), handler)
             return
-        elif key not in pool_dst:
+        if key not in pool_dst:
             pool_dst[key] = handler
             def cleanup():
                 """Cleanup client connection if timeout"""
@@ -481,7 +498,7 @@ class Proxy(object):
                  tracker_addr=None,
                  index_page=None,
                  resource_files=None):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
         self.port = None
         for my_port in range(port, port_end):
             try:

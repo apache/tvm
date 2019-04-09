@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tvm/expr.h
  * \brief The Expr and related elements in DataFlow construction.
  */
@@ -7,10 +25,10 @@
 #define TVM_EXPR_H_
 
 #include <ir/Expr.h>
-#include <ir/IROperator.h>
 #include <ir/IRPrinter.h>
 #include <string>
 #include <algorithm>
+#include <unordered_map>
 #include "base.h"
 #include "runtime/c_runtime_api.h"
 
@@ -30,17 +48,10 @@ using HalideIR::VarExpr;
 using HalideIR::IR::RangeNode;
 using HalideIR::IR::FunctionRef;
 using HalideIR::IR::FunctionBaseNode;
+using HalideIR::Internal::IntImm;
 using HalideIR::Internal::Stmt;
 using HalideIR::Internal::IRPrinter;
 using HalideIR::Internal::Variable;
-
-using HalideIR::Internal::make_const;
-using HalideIR::Internal::make_zero;
-using HalideIR::Internal::as_const_int;
-using HalideIR::Internal::as_const_uint;
-using HalideIR::Internal::const_true;
-using HalideIR::Internal::const_false;
-using HalideIR::Internal::is_no_op;
 
 inline Type TVMShapeIndexType() {
   if (std::is_signed<tvm_index_t>::value) {
@@ -65,6 +76,8 @@ inline TVMType Type2TVMType(Type t) {
 // Get number of bytes considering vector type.
 inline int GetVectorBytes(Type dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
+  // allow bool to exist
+  if (dtype == Bool()) return 1;
   CHECK_EQ(data_bits % 8, 0U)
       << "Need to load/store by multiple of bytes";
   return data_bits / 8;
@@ -75,7 +88,7 @@ class Var : public HalideIR::VarExpr {
  public:
   EXPORT explicit Var(const std::string& name_hint = "v",
                Type t = Int(32)) : VarExpr(name_hint, t) {}
-  explicit Var(std::shared_ptr<Node> n) : VarExpr(n) {}
+  explicit Var(NodePtr<Node> n) : VarExpr(n) {}
   explicit Var(VarExpr v) : VarExpr(v) {}
   /*!
    * \brief Make a new copy of var with same type, append suffix
@@ -87,6 +100,51 @@ class Var : public HalideIR::VarExpr {
   }
   /*! \brief type indicate the container type */
   using ContainerType = Variable;
+};
+
+
+/*!
+ * \brief Container of constant integer (IntImm).
+ *
+ * This is used to store and automate type check
+ * attributes that must be constant integer.
+ */
+class Integer : public Expr {
+ public:
+  Integer() : Expr() {}
+  /*!
+   * \brief constructor from node.
+   */
+  explicit Integer(NodePtr<Node> node) : Expr(node) {}
+  /*!
+   * \brief Construct integer from int value.
+   */
+  Integer(int value) : Expr(value) {}  // NOLINT(*)
+  /*!
+   * \brief Assign an expression to integer.
+   * \param other another expression.
+   */
+  Integer& operator=(const Integer& other) {
+    node_ = other.node_;
+    return *this;
+  }
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the content of the integer.
+   */
+  const IntImm* operator->() const {
+    return static_cast<const IntImm*>(node_.get());
+  }
+  /*!
+   * \brief convert to int64_t
+   */
+  operator int64_t() const {
+    CHECK(node_ != nullptr)
+        << " Trying get reference a null Integer";
+    return (*this)->value;
+  }
+  /*! \brief type indicate the container type */
+  using ContainerType = IntImm;
 };
 
 
@@ -106,7 +164,7 @@ class Range : public HalideIR::IR::Range {
  public:
   /*! \brief constructor */
   Range() {}
-  explicit Range(std::shared_ptr<Node> n) : HalideIR::IR::Range(n) {}
+  explicit Range(NodePtr<Node> n) : HalideIR::IR::Range(n) {}
   /*!
    * \brief constructor by begin and end
    * \param begin The begin of the range.
@@ -116,6 +174,8 @@ class Range : public HalideIR::IR::Range {
 
   TVM_DLL static Range make_by_min_extent(Expr min, Expr extent);
 };
+
+using Region = Array<Range>;
 
 /*!
  * \brief Type of iteration variable.
@@ -196,7 +256,7 @@ class IterVar : public NodeRef {
   // construct a new iter var without a domain
   IterVar() {}
   // construct from shared ptr.
-  explicit IterVar(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit IterVar(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -230,6 +290,13 @@ using Domain = Array<Range>;
 
 // print functions for expr
 TVM_DLL std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
+
+/*!
+ * \brief Dump the node to stderr, used for debug purposes.
+ * \param node The input node
+ */
+TVM_DLL void Dump(const NodeRef& node);
+
 // definition of Node.
 /*!
  * \brief An iteration variable representing an iteration

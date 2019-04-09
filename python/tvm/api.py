@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Functions defined in TVM."""
 # pylint: disable=invalid-name,unused-import,redefined-builtin
 from __future__ import absolute_import as _abs
@@ -26,23 +42,76 @@ handle = "handle"
 
 
 def min_value(dtype):
-    """minimum value of dtype"""
+    """minimum value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The minimum value of dtype.
+    """
     return _api_internal._min_value(dtype)
 
 
 def max_value(dtype):
-    """maximum value of dtype"""
+    """maximum value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The maximum value of dtype.
+    """
     return _api_internal._max_value(dtype)
 
 
-def const(value, dtype=None):
-    """construct a constant"""
-    if dtype is None:
-        if isinstance(value, _Integral):
-            dtype = 'int32'
-        else:
-            dtype = 'float32'
+def const(value, dtype):
+    """construct a constant
+
+    Parameters
+    ----------
+    value : number
+        The content of the constant number.
+
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    const_val: tvm.Expr
+        The result expression.
+    """
     return _api_internal._const(value, dtype)
+
+
+def get_env_func(name):
+    """Get an EnvFunc by a global name.
+
+    Parameters
+    ----------
+    name: str
+        The name of the global function.
+
+    Returns
+    -------
+    env_func : EnvFunc
+        The result env function.
+
+    Note
+    ----
+    EnvFunc is a Node wrapper around
+    global function that can be serialized via its name.
+    This can be used to serialize function field in the language.
+    """
+    return _api_internal._EnvFuncGet(name)
 
 
 def convert(value):
@@ -83,7 +152,7 @@ def load_json(json_str):
 
 
 def save_json(node):
-    """Load tvm object as json string.
+    """Save tvm object as json string.
 
     Parameters
     ----------
@@ -134,9 +203,9 @@ def any(*args):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _expr.Or(args[0], args[1])
+    ret = _make._OpOr(args[0], args[1])
     for i in range(2, len(args)):
-        ret = _expr.Or(ret, args[i])
+        ret = _make._OpOr(ret, args[i])
     return ret
 
 
@@ -158,9 +227,9 @@ def all(*args):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _expr.And(args[0], args[1])
+    ret = _make._OpAnd(args[0], args[1])
     for i in range(2, len(args)):
-        ret = _expr.And(ret, args[i])
+        ret = _make._OpAnd(ret, args[i])
     return ret
 
 
@@ -216,29 +285,48 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     tensor: Tensor
         The created tensor
     """
-    if _tag.TagScope.current is not None:
+    if _tag.TagScope.get_current() is not None:
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
-        tag = _tag.TagScope.current.tag
+        tag = _tag.TagScope.get_current().tag
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    # for python3
+    shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
     ndim = len(shape)
     code = fcompute.__code__
 
-    if fcompute.__code__.co_argcount == 0:
+    out_ndim = ndim
+    if code.co_argcount == 0:
         arg_names = ["i%d" % i for i in range(ndim)]
     else:
         arg_names = code.co_varnames[:code.co_argcount]
+        out_ndim = code.co_argcount
 
-    if ndim != len(arg_names):
+    if out_ndim != len(arg_names):
         raise ValueError("fcompute do not match dimension, ndim=%d" % ndim)
 
-    dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape)]
+    dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
-    if not isinstance(body, (list, tuple)):
-        body = [body]
-    body = convert(body)
-    op_node = _api_internal._ComputeOp(
-        name, tag, attrs, dim_var, body)
+
+    if isinstance(body, _tensor.TensorIntrinCall):
+        for i, s in enumerate(shape[out_ndim:]):
+            var_name = "ax" + str(i)
+            dim_var.append(_IterVar((0, s), var_name, 4))
+        op_node = _api_internal._TensorComputeOp(name,
+                                                 tag,
+                                                 dim_var,
+                                                 body.reduce_axis,
+                                                 out_ndim,
+                                                 body.intrin,
+                                                 body.tensors,
+                                                 body.regions)
+    else:
+        if not isinstance(body, (list, tuple)):
+            body = [body]
+        body = convert(body)
+        op_node = _api_internal._ComputeOp(
+            name, tag, attrs, dim_var, body)
+
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
@@ -289,10 +377,10 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
       s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
       res = tvm.scan(s_init, s_update, s_state, X)
     """
-    if _tag.TagScope.current is not None:
+    if _tag.TagScope.get_current() is not None:
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
-        tag = _tag.TagScope.current.tag
+        tag = _tag.TagScope.get_current().tag
     if isinstance(init, _tensor.Tensor):
         init = [init]
     if isinstance(update, _tensor.Tensor):
@@ -385,10 +473,10 @@ def extern(shape,
                           "tvm.contrib.cblas.matmul",
                             ins[0], ins[1], outs[0], 0, 0), name="C")
     """
-    if _tag.TagScope.current is not None:
+    if _tag.TagScope.get_current() is not None:
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
-        tag = _tag.TagScope.current.tag
+        tag = _tag.TagScope.get_current().tag
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
     shape = [shape] if isinstance(shape[0], (_expr.Expr, _Integral)) else shape
     if in_buffers is not None:
@@ -443,7 +531,7 @@ def decl_buffer(shape,
                 scope="",
                 data_alignment=-1,
                 offset_factor=0):
-    """Decleare a new symbolic buffer.
+    """Declare a new symbolic buffer.
 
     Normally buffer is created automatically during lower and build.
     This is only needed if user want to specify their own buffer layout.
@@ -507,13 +595,56 @@ def decl_buffer(shape,
     dtype = float32 if dtype is None else dtype
     strides = () if strides is None else strides
     if offset_factor != 0 and elem_offset is None:
-        elem_offset = var('%s_elem_offset' % name, shape[0].dtype)
+        shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
+        elem_offset = var('%s_elem_offset' % name, shape_dtype)
     if data is None:
         data = var(name, "handle")
     return _api_internal._Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor)
 
+def layout(layout_str):
+    """Create a layout node from a string.
+
+    Parameters
+    ----------
+    layout_str : str
+        A layout representation is composed of upper cases, lower cases and numbers,
+        where upper case indicates a primal axis and
+        the corresponding lower case with factor size indicates the subordinate axis.
+        For example, NCHW16c can describe a 5-D tensor of
+        [batch_size, channel, height, width, channel_block].
+        Here subordinate axis channel_block=16 is the factor size of
+        the primal axis C (channel).
+
+    Returns
+    -------
+    layout : Layout
+        The created layout
+    """
+    return _api_internal._Layout(layout_str)
+
+def bijective_layout(src_layout, dst_layout):
+    """Create a bijective layout mapping.
+
+    Parameters
+    ----------
+    src_layout : str or Layout
+        source layout.
+
+    dst_layout : str or Layout
+        destination layout.
+
+    Returns
+    -------
+    bijective_layout : BijectiveLayout
+        The created bijective layout
+    """
+    if isinstance(src_layout, str):
+        src_layout = layout(src_layout)
+    if isinstance(dst_layout, str):
+        dst_layout = layout(dst_layout)
+    return _api_internal._BijectiveLayout(src_layout, dst_layout)
 
 def _IterVar(dom, name, iter_type, thread_tag=''):
     """Internal function to create IterVar
@@ -595,28 +726,6 @@ def reduce_axis(dom, name="rv"):
         An iteration variable representing the value.
     """
     return _IterVar(dom, name, 2)
-
-
-def select(cond, t, f):
-    """Construct a select branch.
-
-    Parameters
-    ----------
-    cond : Expr
-        The condition
-
-    t : Expr
-        The result expression if cond is true.
-
-    f : Expr
-        The result expression if cond is false.
-
-    Returns
-    -------
-    node : Node
-        The tvm.expr.Select node
-    """
-    return _expr.Select(convert(cond), convert(t), convert(f))
 
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
@@ -751,5 +860,5 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 _init_api("tvm.api")
 #pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _expr.Min(x, y), max_value, name='min')
-max = comm_reducer(lambda x, y: _expr.Max(x, y), min_value, name='max')
+min = comm_reducer(lambda x, y: _make._OpMin(x, y), max_value, name='min')
+max = comm_reducer(lambda x, y: _make._OpMax(x, y), min_value, name='max')

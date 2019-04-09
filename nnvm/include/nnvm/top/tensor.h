@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file nnvm/top/tensor.h
@@ -43,7 +62,7 @@ struct SplitParam : public dmlc::Parameter<SplitParam> {
   DMLC_DECLARE_PARAMETER(SplitParam) {
     DMLC_DECLARE_FIELD(indices_or_sections)
         .describe("Number of outputs to be splitted");
-    DMLC_DECLARE_FIELD(axis).set_lower_bound(0).set_default(1)
+    DMLC_DECLARE_FIELD(axis).set_default(1)
         .describe("the axis to be splitted.");
   }
 };
@@ -205,6 +224,7 @@ struct ReduceParam : public dmlc::Parameter<ReduceParam> {
   TShape axis;
   bool keepdims;
   bool exclude;
+  int dtype;
 
   DMLC_DECLARE_PARAMETER(ReduceParam) {
     DMLC_DECLARE_FIELD(axis).set_default(TShape())
@@ -226,6 +246,8 @@ struct ReduceParam : public dmlc::Parameter<ReduceParam> {
                 "in the result as dimension with size one.");
     DMLC_DECLARE_FIELD(exclude).set_default(false)
       .describe("Whether to perform reduction on axis that are NOT in axis instead.");
+    DMLC_DECLARE_DTYPE_FIELD(dtype).set_default(kInt32)
+      .describe("Target data type.");
   }
 };
 

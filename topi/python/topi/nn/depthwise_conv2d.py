@@ -1,6 +1,23 @@
-# pylint: disable=invalid-name, unused-variable, too-many-locals
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name, unused-variable, too-many-locals, unused-argument
 """Depthwise convolution operators"""
 from __future__ import absolute_import as _abs
+from collections import namedtuple
 import tvm
 
 from .dilate import dilate
@@ -8,9 +25,30 @@ from .pad import pad
 from .util import get_pad_tuple
 from ..util import simplify
 
+# workload description of depthwise-conv2d
+Workload = namedtuple('Workload',
+                      ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'out_filter',
+                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
+
+def _get_workload(data, kernel, stride, padding, out_dtype):
+    """ Get the workload structure. """
+    _, in_channel, height, width = [x.value for x in data.shape]
+    channel, channel_multiplier, kh, kw = [x.value for x in kernel.shape]
+    out_channel = channel * channel_multiplier
+    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    if isinstance(stride, (tuple, list)):
+        HSTR, WSTR = stride
+    else:
+        HSTR, WSTR = stride, stride
+    assert (data.dtype == kernel.dtype) or (data.dtype == 'uint8' and kernel.dtype == 'int8'), \
+        "Do not support inputs with different data types now. ' \
+        '{} vs. {}".format(data.dtype, kernel.dtype)
+    return Workload(data.dtype, out_dtype, height, width, in_channel,
+                    out_channel, kh, kw, HPAD, WPAD, HSTR, WSTR)
+
 
 @tvm.target.generic_func
-def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
+def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Depthwise convolution nchw forward operator.
 
     Parameters
@@ -27,6 +65,9 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
     out_dtype: str, optional
         Output data type
 
@@ -37,18 +78,27 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
     """
     out_dtype = Input.dtype if out_dtype is None else out_dtype
 
-    batch, in_channel, in_height, in_width = Input.shape
-    filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
 
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    batch, in_channel, in_height, in_width = Input.shape
+    # shape of dilated kernel
+    filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape
+
+    dilated_kernel_h = (filter_height - 1) * dilation_h + 1
+    dilated_kernel_w = (filter_width - 1) * dilation_w + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (filter_height, filter_width))
+        padding, (dilated_kernel_h, dilated_kernel_w))
     out_channel = simplify(in_channel * channel_multiplier)
-    out_height = simplify((in_height - filter_height + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - filter_width + pad_left + pad_right) // stride_w + 1)
+    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
+    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
 
     # padding stage
     pad_before = [0, 0, pad_top, pad_left]
@@ -60,7 +110,8 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
     Output = tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda b, c, i, j: tvm.sum(
-            (PaddedInput[b, c/channel_multiplier, i*stride_h+di, j*stride_w+dj].astype(out_dtype) *
+            (PaddedInput[b, c/channel_multiplier, i*stride_h+di*dilation_h,
+                         j*stride_w+dj*dilation_w].astype(out_dtype) *
              Filter[c/channel_multiplier, c%channel_multiplier, di, dj].astype(out_dtype)),
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nchw")
@@ -68,7 +119,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
 
 
 @tvm.target.generic_func
-def depthwise_conv2d_nhwc(Input, Filter, stride, padding, out_dtype=None):
+def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Depthwise convolution nhwc forward operator.
 
     Parameters
@@ -85,6 +136,9 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, out_dtype=None):
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
     out_dtype: str, optional
         Output data type
 
@@ -95,18 +149,27 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, out_dtype=None):
     """
     out_dtype = Input.dtype if out_dtype is None else out_dtype
 
-    batch, in_height, in_width, in_channel = Input.shape
-    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
 
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    batch, in_height, in_width, in_channel = Input.shape
+    # shape of dilated kernel
+    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
+
+    dilated_kernel_h = (filter_height - 1) * dilation_h + 1
+    dilated_kernel_w = (filter_width - 1) * dilation_w + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (filter_height, filter_width))
+        padding, (dilated_kernel_h, dilated_kernel_w))
     out_channel = simplify(in_channel * channel_multiplier)
-    out_height = simplify((in_height - filter_height + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - filter_width + pad_left + pad_right) // stride_w + 1)
+    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
+    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
 
     # padding stage
     pad_before = [0, pad_top, pad_left, 0]
@@ -118,8 +181,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, out_dtype=None):
     Output = tvm.compute(
         (batch, out_height, out_width, out_channel),
         lambda b, i, j, c: tvm.sum(
-            (PaddedInput[b, i*stride_h + di, j*stride_w + dj, c/channel_multiplier].astype(
-                out_dtype) *
+            (PaddedInput[b, i*stride_h + di*dilation_h, j*stride_w + dj*dilation_w,
+                         c/channel_multiplier].astype(out_dtype) *
              Filter[di, dj, c/channel_multiplier, c%channel_multiplier].astype(out_dtype)),
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
@@ -232,3 +295,44 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
         tag='depthwise_conv2d_backward_weight_nhwc')
 
     return Weight_grad
+
+
+@tvm.target.generic_func
+def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
+                           layout, out_layout, out_dtype=None):
+    """Depthwise convolution NCHW[x]c forward operator.
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
+
+    Filter : tvm.Tensor
+        6-D with shape [out_channel_chunk, 1, filter_height, filter_width, 1, out_channel_block]
+        In NCHWc depthwise convolution,
+        we group kernel's in_channel and channel_multiplier together then do the tiling.
+
+    stride : tuple of two ints
+        The spatial stride along height and width
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    dilation: int or a list/tuple of two ints
+         dilation size, or [dilation_height, dilation_width]
+
+    layout : str
+        Input data layout
+
+    out_layout : str
+        Output data layout
+
+    out_dtype: str, optional
+        Output data type
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
+    """
+    raise ValueError("missing register for topi.nn.depthwise_conv2d_NCHWc")
