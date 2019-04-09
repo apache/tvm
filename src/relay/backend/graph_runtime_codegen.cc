@@ -416,12 +416,17 @@ class GraphRuntimeCodegen
        }
     } else {
       // heterogeneous execution.
+      const auto call_dev_key = std::to_string(call_dev_type);
       const auto call_dev_name = runtime::DeviceName(call_dev_type);
-      if (targets_.count(call_dev_name) == 0) {
+      if (targets_.count(call_dev_name) == 0 && targets_.count(call_dev_key) == 0) {
         LOG(FATAL) << "No target is provided for device "
                    << call_dev_name;
       }
-      target = targets_[call_dev_name];
+      if (targets_.count(call_dev_key)) {
+        target = targets_[call_dev_key];
+      } else {
+        target = targets_[call_dev_name];
+      }
     }
     CCacheKey key = (*pf0)(func, target);
     CachedFunc lowerd_func = (*pf1)(compile_engine_, key);
@@ -604,9 +609,17 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
         auto& tmp_targets = node->data;
         std::unordered_map<std::string, std::string> targets;
         for (size_t i = 0; i < tmp_targets.size(); i += 2) {
-          auto k = Expr(tmp_targets[i]).as<ir::StringImm>();
+          std::string key;
+          auto sk = Expr(tmp_targets[i]).as<ir::StringImm>();
+          auto ik = Expr(tmp_targets[i]).as<ir::IntImm>();
+          if (sk) {
+            key = sk->value;
+          }
+          if (ik) {
+            key = std::to_string(ik->value);
+          }
           auto v = Expr(tmp_targets[i + 1]).as<ir::StringImm>();
-          targets[k->value] = v->value;
+          targets[key] = v->value;
         }
         codegen_ = std::make_shared<GraphRuntimeCodegen>(
           reinterpret_cast<runtime::Module*>(mod), targets);

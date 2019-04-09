@@ -61,7 +61,10 @@ class GraphRuntimeCodegen(object):
         if isinstance(target, dict):
             for kv in target.items():
                 tgts.append(kv[0])
-                tgts.append(kv[1])
+                if isinstance(kv[1], (str, _target.Target)):
+                    tgts.append(str(kv[1]))
+                else:
+                    raise Exception("Unknown target type")
         elif isinstance(target, (str, _target.Target)):
             tgts.append("0")
             tgts.append(str(target))
