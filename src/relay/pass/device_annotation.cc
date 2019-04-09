@@ -377,7 +377,6 @@ class DeviceInfo {
     void VisitExpr_(const CallNode* call) final {
       // Skip annotation nodes.
       if (!IsOnDeviceNode(call)) {
-        
         if (GetDeviceCopyNode(call)) {
           num_device_copy_ops_++;
           bool has_copy_prev = has_copy_;
@@ -385,7 +384,7 @@ class DeviceInfo {
           ExprVisitor::VisitExpr_(call);
           post_dfs_order_.push_back(std::make_pair(call, has_copy_));
           has_copy_ = has_copy_prev;
-        }else{
+        } else {
           ExprVisitor::VisitExpr_(call);
           post_dfs_order_.push_back(std::make_pair(call, has_copy_));
         }
@@ -402,7 +401,7 @@ class DeviceInfo {
       std::make_pair(op, has_copy_);
     }
 
-    void VisitExpr_(const VarNode* vn) final { 
+    void VisitExpr_(const VarNode* vn) final {
         post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
     }
 
@@ -471,14 +470,14 @@ class DeviceInfo {
     }
       return out_dev_type;
   }
-  
+
   void FillPropagation(int out_dev_type) {
     for (const auto& it : post_visitor_.post_dfs_order_) {
         Expr expr = GetRef<Expr>(it.first);
         if (!it.second) device_map_.Set(expr, out_dev_type);
     }
   }
-  
+
 
   PostDfsOrderVisitor post_visitor_;
   Map<Expr, Integer> device_map_;
