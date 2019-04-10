@@ -984,6 +984,12 @@ def _logical(name):
         return AttrCvt(op_name=name)(inputs, attr)
     return _impl
 
+def _reverse():
+    def _impl(inputs, attr, params):
+        axis = params.pop(inputs[1].name_hint).asnumpy()[0]
+        return _op.reverse(inputs[0], int(axis))
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1060,6 +1066,7 @@ _convert_map = {
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
     'Unpack'                            : _unpack(),
+    'ReverseV2'                         : _reverse(),
 }
 
 def _LSTMBlockCell():

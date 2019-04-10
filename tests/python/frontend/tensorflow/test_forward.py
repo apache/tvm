@@ -1268,6 +1268,21 @@ def test_forward_rel_ops():
     _test_forward_rel_op([t1, t2], math_ops.equal)
     _test_forward_rel_op([t1, t2], math_ops.not_equal)
 
+#######################################################################
+# Reverse
+# ---------
+def _test_forward_reverse(shape, axis):
+    inp_array = np.random.uniform(-5, 5, size=shape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        out = tf.reverse(in1, axis=[axis])
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', out.name)
+
+def test_forward_reverse():
+    _test_forward_reverse((2, 3, 10, 10), 0)
+    _test_forward_reverse((2, 3, 10, 10), 1)
+    _test_forward_reverse((2, 3, 10, 10), 2)
+    _test_forward_reverse((2, 3, 10, 10), 3)
 
 #######################################################################
 # Main
@@ -1286,6 +1301,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_split()
     test_forward_unstack()
+    test_forward_reverse()
 
     # Activations
     test_forward_sigmoid()
