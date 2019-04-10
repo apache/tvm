@@ -63,7 +63,7 @@ tvm::Expr Map(const tvm::Array<tvm::Expr>& exprs, T op) {
 template <typename T>
 inline tvm::Tensor relu(const tvm::Tensor& t,
                         T threshold = static_cast<T>(0),
-                        std::string name = "tensor",
+                        std::string name = "T_relu",
                         std::string tag = kElementWise) {
   return tvm::compute(
       t->shape,
@@ -87,7 +87,7 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
 */
 inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
                               double alpha = 0.1,
-                              std::string name = "tensor",
+                              std::string name = "T_leaky_relu",
                               std::string tag = kElementWise) {
   return tvm::compute(
     t->shape,
@@ -114,7 +114,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
 inline tvm::Tensor prelu(const tvm::Tensor &x,
                          const tvm::Tensor &slope,
                          const int axis = 1,
-                         std::string name = "tensor",
+                         std::string name = "T_prelu",
                          std::string tag = kBroadcast) {
   CHECK((size_t)axis < x->shape.size()) <<
         "Wrong axis ("  << axis << ")value. ";
@@ -171,7 +171,7 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
                        const tvm::Array<tvm::Expr>& pad_before,
                        tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>(),
                        Expr pad_value = Expr(),
-                       std::string name = "tensor",
+                       std::string name = "T_pad",
                        std::string tag = kElementWise) {
   if (pad_after.size() < pad_before.size()) {
     for (size_t i = pad_after.size(); i < pad_before.size(); ++i) {
@@ -247,7 +247,7 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
                                int pad_w = 0,
                                int stride_h = 1,
                                int stride_w = 1,
-                               std::string name = "tensor",
+                               std::string name = "T_conv2d_nchw",
                                std::string tag = kConv2dNCHW) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
@@ -298,7 +298,7 @@ inline tvm::Tensor conv2d_hwcn(const tvm::Tensor& I,
                                int pad_w = 0,
                                int stride_h = 1,
                                int stride_w = 1,
-                               std::string name = "tensor",
+                               std::string name = "T_conv2d_hwcn",
                                std::string tag = kConv2dHWCN) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
@@ -349,7 +349,7 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
                                          int pad_w = 0,
                                          int stride_h = 1,
                                          int stride_w = 1,
-                                         std::string name = "tensor",
+                                         std::string name = "T_depthwise_conv2d_nchw",
                                          std::string tag = kDepthwiseConv2dNCHW) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
@@ -382,7 +382,7 @@ inline tvm::Tensor depthwise_conv2d_nhwc(const tvm::Tensor& I,
                                          int pad_w = 0,
                                          int stride_h = 1,
                                          int stride_w = 1,
-                                         std::string name = "tensor",
+                                         std::string name = "T_depthwise_conv2d_nhwc",
                                          std::string tag = kDepthwiseConv2dNHWC) {
   CHECK_EQ(4, I->shape.size());
   CHECK_EQ(4, W->shape.size());
@@ -435,7 +435,7 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
                                       int pad_w = 0,
                                       int stride_h = 1,
                                       int stride_w = 1,
-                                      std::string name = "tensor",
+                                      std::string name = "T_group_conv2d_ngchw",
                                       std::string tag = kGroupConv2d) {
   CHECK_EQ(5, I->shape.size());
   CHECK_EQ(5, W->shape.size());

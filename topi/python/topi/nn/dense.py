@@ -47,7 +47,7 @@ def dense_default(data, weight, bias=None):
     k = tvm.reduce_axis((0, in_dim), name='k')
     matmul = tvm.compute((batch, out_dim), \
                          lambda i, j: tvm.sum(data[i, k] * weight[j, k], axis=k), \
-                         tag='dense')
+                         name='T_dense', tag='dense')
     if bias is not None:
         matmul = tvm.compute((batch, out_dim), \
                              lambda i, j: matmul[i, j] + bias[j], \
