@@ -392,7 +392,6 @@ class GraphRuntimeCodegen
                  << "the fuse_ops transformation to the expression.";
     } else if (op->op.as<GlobalVarNode>()) {
       LOG(FATAL) << "Not implemented";
-      // func = self.mod[call.op]
     } else if (op->op.as<FunctionNode>()) {
       func = GetRef<Function>(op->op.as<FunctionNode>());
     } else {

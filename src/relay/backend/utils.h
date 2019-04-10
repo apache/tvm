@@ -56,7 +56,7 @@ inline const PackedFunc* GetPackedFunc(const std::string& func_name) {
  * \param typ
  * \return std::string string format of type
  */
-std::string DType2String(const tvm::Type typ) {
+inline std::string DType2String(const tvm::Type typ) {
   std::ostringstream os;
   auto tvm_type = Type2TVMType(typ);
   if (tvm_type.code == kDLFloat) {

@@ -40,7 +40,7 @@ mv jvm/core/target/site/apidocs docs/_build/html/javadoc
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
 cd docs
-PYTHONPATH=`pwd`/../python3 make html
+PYTHONPATH=`pwd`/../python make html
 cd _build/html
 tar czf docs.tgz *
 mv docs.tgz ../../../

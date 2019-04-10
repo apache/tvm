@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export PYTHONPATH=python3
+export PYTHONPATH=python
 
 cp /emsdk-portable/.emscripten ~/.emscripten
 source /emsdk-portable/emsdk_env.sh

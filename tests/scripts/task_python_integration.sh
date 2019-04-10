@@ -33,6 +33,8 @@ rm -rf lib
 make
 cd ../..
 
+python3 -m nose -v apps/extension/tests
+
 TVM_FFI=ctypes python3 -m nose -v tests/python/integration
 TVM_FFI=ctypes python3 -m nose -v tests/python/contrib
 
