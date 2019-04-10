@@ -36,9 +36,8 @@ class ExprFunctor:
     # pylint: disable=no-else-return
     def visit(self, expr):
         """Apply the visitor to an expression."""
-        found = self.memo_map.get(expr)
-        if found:
-            return found
+        if expr in self.memo_map:
+            return self.memo_map[expr]
 
         if isinstance(expr, Function):
             res = self.visit_function(expr)
@@ -124,6 +123,68 @@ class ExprFunctor:
 
     def visit_match(self, _):
         raise NotImplementedError()
+
+
+class ExprVisitor(ExprFunctor):
+    """
+    A visitor over Expr.
+
+    The default behavior recursively traverses the AST.
+    """
+    def visit_tuple(self, t):
+        for x in t.fields:
+            self.visit(x)
+
+    def visit_call(self, c):
+        self.visit(c.op)
+        for a in c.args:
+            self.visit(a)
+
+    def visit_var(self, v):
+        pass
+
+    def visit_let(self, l):
+        self.visit(l.var)
+        self.visit(l.value)
+        self.visit(l.body)
+
+    def visit_function(self, f):
+        self.visit(f.body)
+
+    def visit_if(self, i):
+        self.visit(i.cond)
+        self.visit(i.true_branch)
+        self.visit(i.false_branch)
+
+    def visit_global_var(self, gv):
+        pass
+
+    def visit_constructor(self, c):
+        pass
+
+    def visit_op(self, op):
+        pass
+
+    def visit_constant(self, const):
+        pass
+
+    def visit_ref_create(self, r):
+        self.visit(r.value)
+
+    def visit_ref_read(self, r):
+        self.visit(r.ref)
+
+    def visit_ref_write(self, r):
+        self.visit(r.ref)
+        self.visit(r.value)
+
+    def visit_tuple_getitem(self, t):
+        self.visit(t.tuple_value)
+
+    def visit_match(self, m):
+        self.visit(m.data)
+        for c in m.clause:
+            self.visit(c.rhs)
 
 
 class ExprMutator(ExprFunctor):

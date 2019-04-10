@@ -64,7 +64,7 @@
 #include <tvm/relay/module.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/type.h>
-
+#include <tvm/relay/adt.h>
 #include <string>
 #include <vector>
 
@@ -344,6 +344,17 @@ TVM_DLL bool WellFormed(const Expr& expr);
  */
 TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
 
+/*! \brief Get all bound variables from pattern pat.
+ *
+ * Bound variables are all variables that got bound by the pat.
+ * They only have meaning inside that expr, and can only be used in it.
+ *
+ * \param pat the Pattern.
+ *
+ * \return List of bound vars, in the PostDFS order in the expression.
+ */
+TVM_DLL tvm::Array<Var> BoundVars(const Pattern& pat);
+
 /*! \brief Get free type parameters from expression expr.
  *
  * Free variables are variables that are not bound by a
@@ -431,12 +442,13 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
- * It will remove let bindings which are not referenced, and branches that will
- * not be entered.
+ * It will remove let bindings which are not referenced,
+ * and inline let bindings that are only used once.
  *
- * For example, this pass should turn `let a = 1 in 2` into `2`, as the value of
- * the expression does not depend on a. Another example is `if (true) then 1
- * else 2` will be optimized into 1.
+ * For example, this pass should turn `let a = 1 in 2` into `2`,
+ * as the value of the expression does not depend on a.
+ *
+ * As another example, `let a = 1 in a` will be optimized into 1.
  *
  * \param e the expression to optimize.
  *
@@ -558,6 +570,12 @@ TVM_DLL Expr ToANormalForm(const Expr& e, const Module& mod);
  */
 TVM_DLL Expr ToGraphNormalForm(const Expr& e);
 
+/*! \brief Aggressive constant propagation/constant folding/inlining.
+ * It will do as much computation in compile time as possible.
+ * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
+ * As a side effect, code size will explode.
+ */
+Expr PartialEval(const Expr& e);
 }  // namespace relay
 }  // namespace tvm
 

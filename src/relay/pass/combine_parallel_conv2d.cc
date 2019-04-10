@@ -159,10 +159,15 @@ class BranchGroupFinder : private ExprVisitor {
 
 class ParallelConv2DCombiner {
  public:
+  explicit ParallelConv2DCombiner(uint64_t min_num_branches) : min_num_branches_(min_num_branches) {
+  }
+
   Expr Combine(const Expr& expr) {
     auto groups = BranchGroupFinder().Find(expr);
     for (const Group& group : groups) {
-      if (group.size() < 2) continue;
+      if (group.size() < min_num_branches_) {
+        continue;
+      }
       CombineBranches(group);
     }
     return ExprSubst(expr, std::move(subst_map_));
@@ -170,6 +175,7 @@ class ParallelConv2DCombiner {
 
  private:
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map_;
+  uint64_t min_num_branches_;
 
   std::tuple<Expr, IndexExpr> TransformWeight(const Group& branches) {
     int64_t num_filters = 0;  // number of filters of the transformed weight
@@ -343,11 +349,14 @@ class ParallelConv2DCombiner {
   }
 };
 
-Expr CombineParallelConv2D(const Expr& expr) { return ParallelConv2DCombiner().Combine(expr); }
+/*! \brief Combine parallel conv2d if number of branches >= min_num_branches */
+Expr CombineParallelConv2D(const Expr& expr, uint64_t min_num_branches) {
+  return ParallelConv2DCombiner(min_num_branches).Combine(expr);
+}
 
 TVM_REGISTER_API("relay._ir_pass.CombineParallelConv2D")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = CombineParallelConv2D(args[0]);
+  *ret = CombineParallelConv2D(args[0], args[1]);
 });
 
 }  // namespace relay
