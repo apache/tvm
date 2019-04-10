@@ -1,0 +1,88 @@
+#ifndef VTA_SIM_H_
+#define VTA_SIM_H_
+
+#include <tvm/runtime/c_runtime_api.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+
+/*! \brief the context handle */
+typedef void* VTAContextHandle;
+
+/*!
+ * \brief Host DPI callback function that is invoked in VTAHostDPI.v every clock cycle
+ * \param exit Host kill simulation
+ * \param req_valid Host has a valid request for read or write a register in Accel
+ * \param req_opcode Host request type, opcode=0 for read and opcode=1 for write
+ * \param req_addr Host request register address
+ * \param req_value Host request value to be written to a register
+ * \param req_deq Accel is ready to dequeue Host request
+ * \param resp_valid Accel has a valid response for Host
+ * \param resp_value Accel response value for Host
+ * \return 0 if success,
+ */
+typedef void (*VTAHostDPIFunc)(
+    VTAContextHandle self,
+    unsigned char *exit,
+    unsigned char *req_valid,
+    unsigned char *req_opcode,
+    unsigned char *req_addr,
+    unsigned int *req_value,
+    unsigned char req_deq,
+    unsigned char resp_valid,
+    unsigned int resp_value);
+
+/*!
+ * \brief Memory DPI callback function that is invoked in VTAMemDPI.v every clock cycle
+ * \param req_valid Accel has a valid request for Host
+ * \param req_opcode Accel request type, opcode=0 (read) and opcode=1 (write)
+ * \param req_len Accel request length of size 8-byte and starts at 0
+ * \param req_addr Accel request base address
+ * \param wr_valid Accel has a valid value for Host
+ * \param wr_value Accel has a value to be written Host
+ * \param rd_valid Host has a valid value for Accel
+ * \param rd_value Host has a value to be read by Accel
+ */
+typedef void (*VTAMemDPIFunc)(
+    VTAContextHandle self,
+    unsigned char req_valid,
+    unsigned char req_opcode,
+    unsigned char req_len,
+    unsigned long long req_addr,
+    unsigned char wr_valid,
+    unsigned long long wr_value,
+    unsigned char *rd_valid,
+    unsigned long long *rd_value,
+    unsigned char rd_ready);
+
+/*! \brief The type of VTADPIInit function pointer */
+typedef void (*VTADPIInitFunc)(VTAContextHandle handle,
+                            VTAHostDPIFunc host_dpi,
+                            VTAMemDPIFunc mem_dpi);
+
+
+/*! \brief The type of VTASim function pointer */
+typedef int (*VTASimFunc)(uint64_t max_cycles);
+
+/*!
+ * \brief Set Host and Memory DPI functions
+ * \param host_dpi Host DPI function
+ * \param memory_dpi Memory DPI function
+ */
+TVM_DLL void VTADPIInit(VTAContextHandle handle,
+                VTAHostDPIFunc host_dpi,
+                VTAMemDPIFunc mem_dpi);
+
+/*!
+ * \brief Instantiate VTA design and generate clock/reset.
+ * \param max_cycles The maximum number of simulation cycles.
+ */
+TVM_DLL int VTASim(uint64_t max_cycles);
+
+#ifdef __cplusplus
+}
+#endif
+#endif // VTA_SIM_H_

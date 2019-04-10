@@ -60,6 +60,11 @@ elseif(PYTHON)
     find_library(__cma_lib NAMES cma PATH /usr/lib)
     target_link_libraries(vta ${__cma_lib})
   endif()
+
+  # DPI module
+  include_directories("vta/include")
+  file(GLOB RUNTIME_DPI_SRCS vta/src/verilator/dpi_module.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
 else()
   message(STATUS "Cannot found python in env, VTA build is skipped..")
 endif()
