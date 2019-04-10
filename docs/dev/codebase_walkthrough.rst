@@ -40,7 +40,7 @@ Relay is the new IR for deep networks that is intended to replace NNVM. If you h
 When a user invokes graph compilation by ``relay.build(...)`` (or ``nnvm.compiler.build(...)`` for the older API), the following sequence of actions happens for each node in the graph:
 
 - Look up an operator implementation by querying the operator registry
-- Generate a compute expression and a schdule for the operator
+- Generate a compute expression and a schedule for the operator
 - Compile the operator into object code
 
 One of the interesting aspects of TVM codebase is that interop between C++ and Python is not unidirectional. Typically, all code that do heavy liftings are implemented in C++, and Python bindings are provided for user interface. This is also true in TVM, but in TVM codebase, C++ code also call into functions defined in a Python module. For example, the convolution operator is implemented in Python, and its implementation is invoked from C++ code in Relay.
