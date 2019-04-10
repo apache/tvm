@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/attrs/vision.h
  * \brief Auxiliary attributes for vision operators.
  */
@@ -58,19 +76,42 @@ struct MultiBoxTransformLocAttrs
   }
 };
 
-/*! \brief Attributes used in non_maximum_suppression operators */
-struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
-  double overlap_threshold;
-  bool force_suppress;
-  int topk;
+/*! \brief Attributes used in get_valid_counts operator */
+struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
+  double score_threshold;
 
-  TVM_DECLARE_ATTRS(NMSAttrs, "relay.attrs.NMSAttrs") {
-      TVM_ATTR_FIELD(overlap_threshold).set_default(0.5)
-        .describe("Non-maximum suppression threshold.");
-      TVM_ATTR_FIELD(force_suppress).set_default(false)
-        .describe("Suppress all detections regardless of class_id.");
-      TVM_ATTR_FIELD(topk).set_default(-1)
-        .describe("Keep maximum top k detections before nms, -1 for no limit.");
+  TVM_DECLARE_ATTRS(GetValidCountsAttrs, "relay.attrs.GetValidCountsAttrs") {
+    TVM_ATTR_FIELD(score_threshold).set_default(0.0)
+      .describe("Lower limit of score for valid bounding boxes.");
+  }
+};
+
+/*! \brief Attributes used in non_maximum_suppression operator */
+struct NonMaximumSuppressionAttrs : public tvm::AttrsNode<NonMaximumSuppressionAttrs> {
+  int max_output_size;
+  double iou_threshold;
+  bool force_suppress;
+  int top_k;
+  int id_index;
+  bool return_indices;
+  bool invalid_to_bottom;
+
+  TVM_DECLARE_ATTRS(NonMaximumSuppressionAttrs, "relay.attrs.NonMaximumSuppressionAttrs") {
+    TVM_ATTR_FIELD(max_output_size).set_default(-1)
+      .describe("Max number of output valid boxes for each instance."
+                "By default all valid boxes are returned.");
+    TVM_ATTR_FIELD(iou_threshold).set_default(0.5)
+      .describe("Non-maximum suppression threshold.");
+    TVM_ATTR_FIELD(force_suppress).set_default(false)
+      .describe("Suppress all detections regardless of class_id.");
+    TVM_ATTR_FIELD(top_k).set_default(-1)
+      .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    TVM_ATTR_FIELD(id_index).set_default(0)
+      .describe("Axis index of id.");
+    TVM_ATTR_FIELD(return_indices).set_default(true)
+      .describe("Whether to return box indices in input data.");
+    TVM_ATTR_FIELD(invalid_to_bottom).set_default(false)
+      .describe("Whether to move all invalid bounding boxes to the bottom.");
   }
 };
 
@@ -90,6 +131,26 @@ struct ROIAlignAttrs : public tvm::AttrsNode<ROIAlignAttrs> {
     TVM_ATTR_FIELD(sample_ratio)
         .set_default(-1)
         .describe("Optional sampling ratio of ROI align, using adaptive size by default.");
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively. Convolution is applied on the 'H' and"
+        "'W' dimensions.");
+  }
+};
+
+/*! \brief Attributes used in roi_pool operators */
+struct ROIPoolAttrs : public tvm::AttrsNode<ROIPoolAttrs> {
+  Array<IndexExpr> pooled_size;
+  double spatial_scale;
+  std::string layout;
+  TVM_DECLARE_ATTRS(ROIPoolAttrs, "relay.attrs.ROIPoolAttrs") {
+    TVM_ATTR_FIELD(pooled_size).describe("Output size of roi pool.");
+    TVM_ATTR_FIELD(spatial_scale)
+        .describe(
+            "Ratio of input feature map height (or w) to raw image height (or w). "
+            "Equals the reciprocal of total stride in convolutional layers, which should be "
+            "in range (0.0, 1.0]");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
         "Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"

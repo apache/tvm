@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 #pylint: disable=unused-argument
 """Internal module for registering attribute for annotation."""
 from __future__ import absolute_import
@@ -112,6 +128,11 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     kind: QAnnotateKind
         the kind of annotation field.
     """
+    quantize_op = _op.get("relay.op.annotation.simulated_quantize")
+    if isinstance(data, _expr.Call) and data.op == quantize_op:
+        if data.attrs.kind == kind and data.attrs.sign == sign and data.attrs.rounding == rounding:
+            return data
+
     dom_scale = _expr.var("dom_scale")
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
@@ -161,9 +182,10 @@ def multiply_rewrite(ref_call, new_args, ctx):
 
     if lhs_kind is None and rhs_kind is None:
         return None
-    if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind is None:
+    if lhs_kind in [QAnnotateKind.ACTIVATION, QAnnotateKind.INPUT] and rhs_kind is None:
         # quantize lhs to INPUT field
-        lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+        if lhs_kind == QAnnotateKind.ACTIVATION:
+            lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
         # quantize rhs to WEIGHT field
         rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
@@ -192,6 +214,9 @@ def add_rewrite(ref_call, new_args, ctx):
         else:
             # quantize rhs to INPUT field if it is not Constant
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+    if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
+        # quantize rhs to INPUT field if both lhs and rhs are ACTIVATION
+        rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
@@ -244,11 +269,10 @@ def concatenate_rewrite(ref_call, new_args, ctx):
 
     # make sure the inputs of concatenate are all normal
     # expression or annotate expression
-    if kind_list[0] is None:
-        for k in kind_list:
-            assert k is None
+    if all([k is None for k in kind_list]):
         return None
-    for k in kind_list:
-        assert k is not None
+    for i, k in enumerate(kind_list):
+        if k is None:
+            expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.ACTIVATION)
     expr = _forward_op(ref_call, [_expr.Tuple(expr_list)])
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)

@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Util to invoke c++ compilers in the system."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
@@ -29,12 +45,44 @@ def create_shared(output,
     cc : str, optional
         The compile string.
     """
-    if sys.platform == "darwin" or sys.platform.startswith('linux'):
+    if sys.platform == "darwin" or sys.platform.startswith("linux"):
         _linux_shared(output, objects, options, cc)
     elif sys.platform == "win32":
         _windows_shared(output, objects, options)
     else:
         raise ValueError("Unsupported platform")
+
+
+# assign so as default output format
+create_shared.output_format = "so" if sys.platform != "win32" else "dll"
+
+
+def cross_compiler(cc, options=None, output_format="so"):
+    """Create a cross compiler function.
+
+    Parameters
+    ----------
+    cc :  str
+        The cross compiler name.
+
+    options : list, optional
+        List of additional optional string.
+
+    output_format : str, optional
+        Library output format.
+
+    Returns
+    -------
+    fcompile : function
+        A compilation function that can be passed to export_library.
+    """
+    def _fcompile(outputs, objects, opts=None):
+        opts = opts if opts else []
+        if options:
+            opts += options
+        _linux_shared(outputs, objects, opts, cc=cc)
+    _fcompile.output_format = output_format
+    return _fcompile
 
 
 def _linux_shared(output, objects, options, cc="g++"):

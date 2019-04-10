@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
 *  Copyright (c) 2017 by Contributors
 * \brief Registration of TVM operators and schedules
@@ -173,6 +192,11 @@ TVM_REGISTER_GLOBAL("topi.elemwise_sum")
   *rv = elemwise_sum(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.sign")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = sign(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.full")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = full(args[0], args[1], args[2]);
@@ -271,6 +295,11 @@ TVM_REGISTER_GLOBAL("topi.stack")
   *rv = stack(args[0], args[1]);
 });
 
+TVM_REGISTER_GLOBAL("topi.shape")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = shape(args[0], args[1]);
+});
+
 TVM_REGISTER_GLOBAL("topi.split")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   if (args[1].type_code() == kDLInt || args[1].type_code() == kDLUInt) {
@@ -278,7 +307,7 @@ TVM_REGISTER_GLOBAL("topi.split")
   } else {
     *rv = split(args[0], args[1], args[2]);
   }
-  });
+});
 
 TVM_REGISTER_GLOBAL("topi.layout_transform")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -287,11 +316,13 @@ TVM_REGISTER_GLOBAL("topi.layout_transform")
 
 TVM_REGISTER_GLOBAL("topi.take")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  if (args.size() == 2) {
-    *rv = take(args[0], args[1]);
+  if (args.size() == 3) {
+    std::string mode = args[2];
+    *rv = take(args[0], args[1], mode);
   } else {
     int axis = args[2];
-    *rv = take(args[0], args[1], axis);
+    std::string mode = args[3];
+    *rv = take(args[0], args[1], axis, mode);
   }
   });
 
@@ -303,6 +334,16 @@ TVM_REGISTER_GLOBAL("topi.where")
 TVM_REGISTER_GLOBAL("topi.arange")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = arange(args[0], args[1], args[2], args[3]);
+});
+
+TVM_REGISTER_GLOBAL("topi.repeat")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = repeat(args[0], args[1], args[2]);
+});
+
+TVM_REGISTER_GLOBAL("topi.tile")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = tile(args[0], args[1]);
 });
 
 TVM_REGISTER_GLOBAL("topi.gather_nd")

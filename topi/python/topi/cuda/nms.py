@@ -1,10 +1,26 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
 """Non-maximum suppression operator"""
 import math
 import tvm
 
 from tvm import api
-from topi.vision import nms
+from topi.vision import non_max_suppression
 from ..util import get_const_tuple
 
 def sort_ir(data, index, output):
@@ -35,7 +51,7 @@ def sort_ir(data, index, output):
     p_index = ib.buffer_ptr(index)
     p_out = ib.buffer_ptr(output)
     nthread_tx = max_threads
-    nthread_bx = (num_anchors + 1) // 2 // max_threads + 1
+    nthread_bx = num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
     bx = tvm.thread_axis("vthread")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
@@ -46,10 +62,8 @@ def sort_ir(data, index, output):
 
     with ib.for_range(0, batch, for_type="unroll") as b:
         start = b * num_anchors
-        for i in range(2):
-            bbox_id = tid * 2 + i
-            with ib.if_scope(bbox_id < num_anchors):
-                p_out[start + bbox_id] = bbox_id
+        with ib.if_scope(tid < num_anchors):
+            p_out[start + tid] = tid
         # OddEvenTransposeSort
         with ib.for_range(0, p_index[b]) as k:
             with ib.if_scope(tid < (p_index[b] + 1) // 2):
@@ -183,13 +197,21 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     return body
 
 
-@nms.register(["cuda", "gpu"])
-def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1):
+@non_max_suppression.register(["cuda", "gpu"])
+def nms_gpu(data,
+            valid_count,
+            max_output_size=-1,
+            iou_threshold=0.5,
+            force_suppress=False,
+            top_k=-1,
+            id_index=0,
+            return_indices=True,
+            invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
     ----------
-    data: tvm.Tensor
+    data : tvm.Tensor
         3-D tensor with shape [batch_size, num_anchors, 6].
         The last dimension should be in format of
         [class_id, score, box_left, box_top, box_right, box_bottom].
@@ -197,14 +219,23 @@ def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
 
-    nms_threshold : float
+    return_indices : boolean
+        Whether to return box indices in input data.
+
+    iou_threshold : optional, float
         Non-maximum suppression threshold.
 
-    force_suppress : boolean
+    force_suppress : optional, boolean
         Whether to suppress all detections regardless of class_id.
 
-    nms_topk : int
+    top_k : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
+
+    id_index : optional, int
+        index of the class categories, -1 to disable.
+
+    invalid_to_bottom : optional, boolean
+        Whether to move all valid bounding boxes to the top.
 
     Returns
     -------
@@ -218,14 +249,13 @@ def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk
         # An example to use nms
         dshape = (1, 5, 6)
         data = tvm.placeholder(dshape, name="data")
-        valid_count = tvm.placeholder(
-            (dshape[0],), dtype="int32", name="valid_count")
-        nms_threshold = 0.7
+        valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
+        iou_threshold = 0.7
         force_suppress = True
-        nms_topk = -1
-        out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
-        np_data = np.random.uniform(size=dshape).astype("float32")
-        np_valid_count = np.array([4]).astype("int32")
+        top_k = -1
+        out = nms(data, valid_count, iou_threshold, force_suppress, topk)
+        np_data = np.random.uniform(dshape)
+        np_valid_count = np.array([4])
         s = topi.generic.schedule_nms(out)
         f = tvm.build(s, [data, valid_count, out], "llvm")
         ctx = tvm.cpu()
@@ -265,8 +295,8 @@ def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk
         tvm.extern(data.shape,
                    [data, sort_tensor, valid_count],
                    lambda ins, outs: nms_ir(
-                       ins[0], ins[1], ins[2], outs[0], nms_threshold,
-                       force_suppress, nms_topk),
+                       ins[0], ins[1], ins[2], outs[0], iou_threshold,
+                       force_suppress, top_k),
                    dtype="float32",
                    in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
                    tag="nms")

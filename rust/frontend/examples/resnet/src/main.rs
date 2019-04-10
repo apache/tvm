@@ -1,4 +1,21 @@
-#![feature(try_from)]
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 extern crate csv;
 extern crate image;
@@ -10,6 +27,7 @@ use std::{
     convert::TryInto,
     fs::{self, File},
     path::Path,
+    str::FromStr,
 };
 
 use image::{FilterType, GenericImageView};
@@ -44,8 +62,12 @@ fn main() {
     // make arr shape as [1, 3, 224, 224] acceptable to resnet
     let arr = arr.insert_axis(Axis(0));
     // create input tensor from rust's ndarray
-    let input =
-        NDArray::from_rust_ndarray(&arr, TVMContext::cpu(0), TVMType::from("float32")).unwrap();
+    let input = NDArray::from_rust_ndarray(
+        &arr,
+        TVMContext::cpu(0),
+        TVMType::from_str("float32").unwrap(),
+    )
+    .unwrap();
     println!(
         "input size is {:?}",
         input.shape().expect("cannot get the input shape")
@@ -59,7 +81,7 @@ fn main() {
     )))
     .unwrap();
     // get the global TVM graph runtime function
-    let runtime_create_fn = Function::get("tvm.graph_runtime.create", true).unwrap();
+    let runtime_create_fn = Function::get("tvm.graph_runtime.create").unwrap();
     let runtime_create_fn_ret = call_packed!(
         runtime_create_fn,
         &graph,
@@ -85,14 +107,19 @@ fn main() {
         .get_function("set_input", false)
         .unwrap();
 
-    call_packed!(set_input_fn, "data", &input).unwrap();
+    let data_str = "data".to_string();
+    call_packed!(set_input_fn, &data_str, &input).unwrap();
     // get `run` function from runtime module
     let ref run_fn = graph_runtime_module.get_function("run", false).unwrap();
     // execute the run function. Note that it has no argument
     call_packed!(run_fn,).unwrap();
     // prepare to get the output
     let output_shape = &mut [1, 1000];
-    let output = NDArray::empty(output_shape, TVMContext::cpu(0), TVMType::from("float32"));
+    let output = NDArray::empty(
+        output_shape,
+        TVMContext::cpu(0),
+        TVMType::from_str("float32").unwrap(),
+    );
     // get the `get_output` function from runtime module
     let ref get_output_fn = graph_runtime_module
         .get_function("get_output", false)

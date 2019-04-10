@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin
 """Conv2D operators"""
@@ -329,7 +345,68 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     """
     # search platform specific declaration first
     # default declaration
-    raise ValueError("missing register for topi.nn.conv2d_NCHWc")
+    # layout and out_layout are not used here,
+    # we keep them for debug convenience when dumping autotvm workload
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding,
+                                                           (dilated_kernel_h,
+                                                            dilated_kernel_w))
+    HPAD = pad_top + pad_down
+    WPAD = pad_left + pad_right
+    HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
+    dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    assert (dh, dw) == (1, 1), "Does not support dilation"
+
+    n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
+    in_channel = ic_chunk * ic_bn
+    if data.dtype == 'uint8':
+        oc_chunk, _, kernel_height, kernel_width, _, oc_bn, _ = get_const_tuple(kernel.shape)
+    else:
+        oc_chunk, _, kernel_height, kernel_width, _, oc_bn = get_const_tuple(kernel.shape)
+    num_filter = oc_chunk * oc_bn
+
+    # output shape
+    out_height = (ih + 2 * HPAD - kernel_height) // HSTR + 1
+    out_width = (iw + 2 * WPAD - kernel_width) // WSTR + 1
+    oshape = (n, oc_chunk, out_height, out_width, oc_bn)
+
+    # DOPAD
+    DOPAD = (HPAD != 0 or WPAD != 0)
+    if DOPAD:
+        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
+    else:
+        data_pad = data
+
+    ic = tvm.reduce_axis((0, in_channel), name='ic')
+    kh = tvm.reduce_axis((0, kernel_height), name='kh')
+    kw = tvm.reduce_axis((0, kernel_width), name='kw')
+
+    if data.dtype == 'uint8':
+        assert out_dtype == "int32", \
+            "INT8 convolution requires input dtype = uint8 and output dtype=int32"
+        # Intel performs dot product of 2 "4" Int8 values
+        # Current implementation requires ic_bn to be a multiple of 4
+        n_elems = 4
+        assert ic_bn % n_elems == 0
+
+        ic_outer = tvm.reduce_axis((0, in_channel//ic_bn), name='ic_outer')
+        ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
+        ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
+        return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                           tvm.sum(data_pad[n, ic_outer, oh*HSTR+kh, ow*WSTR+kw,
+                                            ic_f_inner * n_elems +  ic_s_inner]
+                                   .astype(out_dtype) *
+                                   kernel[oc_chunk, ic_outer, kh, kw, ic_f_inner,
+                                          oc_block, ic_s_inner].astype(out_dtype),
+                                   axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
+                           name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
+    # else: fp implementation
+    return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                       tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
+                                        ic%ic_bn].astype(out_dtype) *
+                               kernel[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn, oc_block],
+                               axis=[ic, kh, kw]),
+                       name='conv2d_NCHWc', tag="conv2d_NCHWc")
+
 
 
 def conv2d_winograd_weight_transform(kernel, tile_size):
@@ -403,6 +480,48 @@ def conv2d_winograd_without_weight_transform(input, filter, strides, padding, di
         Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
 
     Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
+    """
+    raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
+
+
+def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_dtype):
+    """Weight transformation for winograd
+     Parameters
+    ----------
+    kernel: Tensor
+        The raw kernel tensor with layout "NCHW". Only 3x3 kernel is supported for now.
+    convolution_algorithm: int
+        The convolution algorithm for Winograd NNPACK.
+     Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [alpha, alpha, CO, CI]
+    """
+    from tvm.contrib import nnpack
+    return nnpack.convolution_inference_weight_transform(
+        kernel, algorithm=convolution_algorithm, dtype=out_dtype)
+
+@tvm.target.generic_func
+def conv2d_winograd_nnpack_without_weight_transform(
+        input, filter, bias, strides, padding, dilation, layout, out_dtype):
+    """Compute convolution in winograd algorithm. The filter is supposed to be transformed
+    in advance.
+     Parameters
+    ----------
+    input : tvm.Tensor
+        4-D with shape [batch, in_height, in_width, in_channel]
+    filter : tvm.Tensor
+        4-D with shape [num_filter, in_channel, 8, 8]
+    bias : tvm.Tensor
+        1-D with shape [num_filter]
+    strides : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+     Returns
     -------
     output : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file tvm/arithmetic/pattern_match.h
@@ -49,6 +68,7 @@
 
 #include <tvm/ir_pass.h>
 #include <tuple>
+#include "const_fold.h"
 
 namespace tvm {
 namespace arith {
@@ -242,7 +262,11 @@ class PBinaryExpr :
   }
 
   Expr Eval() const {
-    return NodeType::make(a_.Eval(), b_.Eval());
+    Expr lhs = a_.Eval();
+    Expr rhs = b_.Eval();
+    Expr ret = TryConstFold<NodeType>(lhs, rhs);
+    if (ret.defined()) return ret;
+    return NodeType::make(lhs, rhs);
   }
 
  private:
@@ -250,12 +274,48 @@ class PBinaryExpr :
   typename TB::Nested b_;
 };
 
+template<typename TA>
+class PConstWithTypeLike :
+      public Pattern<PConstWithTypeLike<TA> > {
+ public:
+  PConstWithTypeLike(const TA& ref, int64_t value)
+      : ref_(ref), value_(value) {}
 
-#define TVM_PATTERN_BINARY_OP(FuncName, NodeName)             \
-  template<typename TA, typename TB>                          \
-  inline PBinaryExpr<NodeName, TA, TB>                        \
-  FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {      \
+  void InitMatch_() const {}
+
+  bool Match_(const NodeRef& node) const {
+    if (const ir::IntImm* ptr = node.as<ir::IntImm>()) {
+      return ptr->value == value_;
+    } else {
+      return false;
+    }
+  }
+
+  Expr Eval() const {
+    return make_const(ref_.Eval().type(), value_);
+  }
+
+ private:
+  typename TA::Nested ref_;
+  int64_t value_;
+};
+
+
+#define TVM_PATTERN_BINARY_OP(FuncName, NodeName)                   \
+  template<typename TA, typename TB>                                \
+  inline PBinaryExpr<NodeName, TA, TB>                              \
+  FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {            \
     return PBinaryExpr<NodeName, TA, TB>(a.derived(), b.derived()); \
+  }                                                                 \
+  template<typename TA>                                             \
+  inline PBinaryExpr<NodeName, TA, PConstWithTypeLike<TA> >         \
+  FuncName(const Pattern<TA>& a, int64_t b) {                       \
+    return FuncName(a, PConstWithTypeLike<TA>(a.derived(), b));     \
+  }                                                                 \
+  template<typename TA>                                             \
+  inline PBinaryExpr<NodeName, PConstWithTypeLike<TA>, TA>          \
+  FuncName(int64_t b, const Pattern<TA>& a) {                       \
+    return FuncName(PConstWithTypeLike<TA>(a.derived(), b), a);     \
   }
 
 // arithmetic expressions

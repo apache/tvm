@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/expr.h
  * \brief Relay expression language.
  */
@@ -544,17 +562,16 @@ inline const TTypeNode* ExprNode::type_as() const {
 }
 
 /*!
- * \brief Print node as text format.
- * \param node The node to be printed.
+ * \brief Render the node as a string in the Relay text format.
+ * \param node The node to be rendered.
  * \param show_meta_data Whether to print meta data section.
  * \param annotate An optional callback function for attaching
  *        additional comment block to an expr.
  * \return The text representation.
  */
-std::string RelayPrint(
-    const NodeRef& node,
-    bool show_meta_data = true,
-    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+std::string AsText(const NodeRef& node,
+                   bool show_meta_data = true,
+                   runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_

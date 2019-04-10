@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 TVM Change Log
 ==============
 
@@ -27,56 +44,56 @@ This release features several major improvements. Some of the highlights are: Ar
   - AutoTVM optimizations for CUDA
   - AutoTVM optimizations for x86
 - Initial release of the differentiable programming IR, Relay
-  - Generic & informative Relay error reporting #2408 
-  - Relay IR text format support #1781 
+  - Generic & informative Relay error reporting #2408
+  - Relay IR text format support #1781
   - Support control flows
-  - A Normal Form Canonicalization #2251 
+  - A Normal Form Canonicalization #2251
   - Type system support
   - End to end compilation
-     * Frontend support: Caffe2 #2507 , CoreML #2476 , Keras #2376 , MXNet #2163 , ONNX, TFLite #2365 
-     * Operator coverage #1799 #2051 
-  - FoldScaleAxis #2020 
-  - SimplifyInference #2033 
+     * Frontend support: Caffe2 #2507 , CoreML #2476 , Keras #2376 , MXNet #2163 , ONNX, TFLite #2365
+     * Operator coverage #1799 #2051
+  - FoldScaleAxis #2020
+  - SimplifyInference #2033
   - CombineParallelConv2D #2089
-  - InstrumentBoundCheckers pass #2079 
+  - InstrumentBoundCheckers pass #2079
   - Bind & FoldConstant #2100
   - Alter Op Layout #2150
   - General OpFusion #2090
 - CodeGen
-  - Gcc / g++ compatible C code generator for TVM #2161 
-  - Device type annotation for heterogeneous compilation #2361 
-  - Cache packed func ptr, lift alloca #2070 
-  - Generalize compute to tensor region #1476 
+  - Gcc / g++ compatible C code generator for TVM #2161
+  - Device type annotation for heterogeneous compilation #2361
+  - Cache packed func ptr, lift alloca #2070
+  - Generalize compute to tensor region #1476
 - Runtime
-  - Relay interpreter and compiler #1954 
-  - Heterogeneous runtime #1695 
-  - Language bindings: Golang runtime #1470 , Rust runtime #1597 
-  - Add min_repeat_ms to time_evaluator #2200 
-  - Bundled interpreter demonstration #2297 
+  - Relay interpreter and compiler #1954
+  - Heterogeneous runtime #1695
+  - Language bindings: Golang runtime #1470 , Rust runtime #1597
+  - Add min_repeat_ms to time_evaluator #2200
+  - Bundled interpreter demonstration #2297
   - Enable PlanMemory in the graph runtime #2120
 - Language Binding
-  - Rust frontend #2292 
+  - Rust frontend #2292
 - VTA
   - Improved RPC for VTA #2043
 - Hybrid python programming model
-  - Support for scheduling #2416 
-  - Support for Inter-function call  #2287 
+  - Support for scheduling #2416
+  - Support for Inter-function call  #2287
   - Backend support  #2477
 - TOPI
   - Initial support for sparse tensor computation
-  - Improve ARM CPU depthwise convolution performance #2345 
-  - Port winograd ops to relay #2356 
+  - Improve ARM CPU depthwise convolution performance #2345
+  - Port winograd ops to relay #2356
   - Add faster-rcnn proposal op #2420
 - Tutorials and docs
-  - Relay language docs #2232 
+  - Relay language docs #2232
   - Tutorials on how to use SGX backend
   - How to write a pass in python
   - General lowering flow of TVM
   - How to do tensorize
-  - TFLite frontend tutorial #2508 
-  - Keras seq2seq model for translation tutorial #1815 
+  - TFLite frontend tutorial #2508
+  - Keras seq2seq model for translation tutorial #1815
   - Committer guide and tips #2468
-  - Code review guideline on API designs #2459 
+  - Code review guideline on API designs #2459
 
 
 

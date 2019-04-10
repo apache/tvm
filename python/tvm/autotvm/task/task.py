@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=unused-variable
 """Definition of task function.
 
@@ -205,7 +221,7 @@ def args_to_workload(x, topi_compute_func=None):
         workload = tuple([args_to_workload(a) for a in x])
     elif isinstance(x, (str, int, float, np.int, np.float)):
         workload = x
-    elif isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
+    elif isinstance(x, (expr.StringImm, expr.UIntImm, expr.IntImm, expr.FloatImm)):
         workload = x.value
     elif x is None:
         workload = 0
@@ -338,7 +354,7 @@ def compute_flop(sch):
                             expr.Max, expr.Min,
                             expr.EQ, expr.NE, expr.LT, expr.LE, expr.GT, expr.GE,
                             expr.And, expr.Or, expr.Not)):
-            base = 1 if "float" in exp.a.dtype else 0
+            base = 1
 
             if isinstance(exp, expr.Not):  # unary
                 return base + _count_flop(exp.a)
@@ -348,6 +364,10 @@ def compute_flop(sch):
             return _count_flop(exp.condition) + max(_count_flop(exp.true_value),
                                                     _count_flop(exp.false_value))
         if isinstance(exp, expr.Call):
+            if exp.call_type == expr.Call.Halide:
+                # Ignore flops from indexing expressions.
+                return 0
+
             return sum([_count_flop(x) for x in exp.args])
 
         raise FlopCalculationError("Found unsupported operator in the compute expr")

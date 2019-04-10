@@ -1,8 +1,25 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 from __future__ import absolute_import as _abs
 
 import logging
+import tvm
 import numpy as np
 from ... import nd as _nd
 from .. import ir_pass
@@ -18,7 +35,9 @@ def dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise NotImplementedError("Only 2d kernel supported.")
+        msg = 'Only 2D kernels are supported for operator {}.'
+        op_name = prefix + '2d'
+        raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
 
@@ -29,7 +48,8 @@ def revert_caffe2_pad(pads):
     elif len(pads) == 2:
         pass
     else:
-        raise ValueError("Invalid caffe2 type padding: {}".format(pads))
+        raise tvm.error.OpAttributeInvalid(
+            'Number of pads must be either 2 or 4.')
     return pads
 
 def dimension_constraint():
@@ -102,7 +122,7 @@ class Pool(OnnxOpConverter):
                 'pads': ('padding', (0, 0), revert_caffe2_pad)
             },
             # very weird attributes here in onnx, force check
-            ignores=['dilations'],
+            ignores=['dilations', 'auto_pad'],
             # TODO(zhreshold): make sure ceil_mode in onnx, and layout?
             extras={'ceil_mode': False},
             custom_check=dimension_constraint())(inputs, attr, params)
@@ -156,6 +176,7 @@ class Conv(OnnxOpConverter):
                           'dilations': ('dilation', (0, 0)),
                           'pads': ('padding', (0, 0), revert_caffe2_pad),
                           'group': ('groups', 1)},
+                      ignores=['auto_pad'],
                       custom_check=dimension_constraint())(inputs[:2], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
@@ -328,7 +349,21 @@ class Reshape(OnnxOpConverter):
             shape = tuple(params[inputs[1].name_hint].asnumpy())
             out = _op.reshape(inputs[0], shape)
         else:
-            out = _op.reshape_like(inputs[0], inputs[1])
+            # Try to infer shape by precompute prune if possible.
+            # TODO: good to check inputs to be in params.
+            #       to be enhanced when relay support list_input_names API of NNVM
+            logging.warning("Infering Reshape argument by precompute")
+            func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
+            with tvm.relay.build_config(opt_level=0):
+                graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+            ctx = tvm.context("llvm", 0)
+            from tvm.contrib import graph_runtime
+            m = graph_runtime.create(graph, lib, ctx)
+            m.set_input(**params)
+            m.run()
+            params_new = m.get_output(0)
+            inputs.pop(1)
+            out = _op.reshape(inputs[0], tuple(params_new.asnumpy().astype('int32').flatten()))
 
         return out
 
@@ -447,8 +482,13 @@ class Upsample(OnnxOpConverter):
     """
 
     @classmethod
-    def _impl_v7(cls, inputs, attr, params):
+    def _impl_v9(cls, inputs, attr, params):
         scales = attr.get('scales')
+        if not scales:
+            #Here we are going to higher OPSET version.
+            assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
+            scales = params[inputs[1].name_hint].asnumpy()
+            inputs = inputs[:1]
         assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0 and scales[2] == scales[3]
         mode = attr.get('mode')
         if mode == b'nearest':
@@ -456,7 +496,8 @@ class Upsample(OnnxOpConverter):
         elif mode == b'linear':
             method = "BILINEAR"
         else:
-            raise ValueError("Invalid ONNX upsample mode: {}".format(mode))
+            raise tvm.error.OpAttributeInvalid(
+                'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
         attr = {'scale':int(scales[-1]), 'method':method, 'layout':'NCHW'}
         return AttrCvt('upsampling')(inputs, attr)
 
@@ -467,10 +508,7 @@ class Shape(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # Result of this operator is prominently used by reshape operator.
-        # Just pass the input as it is so that reshape_like can be used there.
-        logging.warning("Shape: Differently implemented in relay as a bypass (dummy operator)")
-        return inputs[0]
+        return _op.shape_of(inputs[0])
 
 class Cast(OnnxOpConverter):
     """ Operator converter for Cast.
@@ -484,7 +522,7 @@ class Cast(OnnxOpConverter):
     def _impl_v5(cls, inputs, attr, params):
         try:
             from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
-            attr['to'] = TENSOR_TYPE_TO_NP_TYPE[attr['to']]
+            attr['to'] = str(TENSOR_TYPE_TO_NP_TYPE[attr['to']])
         except ImportError as e:
             raise ImportError(
                 "Unable to import onnx.mapping which is required {}".format(e))
@@ -664,6 +702,11 @@ class ReduceMean(Reduce):
     """
     name = 'mean'
 
+class ReduceProd(Reduce):
+    """ Operator converter for ArgMax.
+    """
+    name = 'prod'
+
 class ArgMax(OnnxOpConverter):
     """ Operator converter for ArgMax.
     """
@@ -713,8 +756,9 @@ class ConstantFill(OnnxOpConverter):
                 shape = params[get_name(inputs[0])].asnumpy()
             else:
                 if 'extra_shape' in attr:
-                    raise ImportError(
-                        "Extra Shape not supported with fill_like")
+                    raise tvm.error.OpAttributeInvalid('Attribute "extra_shape" not '
+                                                       'supported with "fill_like" for '
+                                                       'operator ConstantFill.')
                 return _op.full_like(inputs[0], inputs[1])
 
         if 'extra_shape' in attr:
@@ -807,7 +851,7 @@ def _get_convert_map(opset):
         # 'InstanceNormalization'
         # 'LpNormalization'
         'Dropout': AttrCvt('dropout', {'ratio': 'rate'}, ignores=['is_test']),
-        'Flatten': Renamer('flatten'),
+        'Flatten': Renamer('batch_flatten'),
         'LRN': LRN.get_converter(opset),
 
         # defs/reduction
@@ -815,6 +859,7 @@ def _get_convert_map(opset):
         'ReduceMin': ReduceMin.get_converter(opset),
         'ReduceSum': ReduceSum.get_converter(opset),
         'ReduceMean': ReduceMean.get_converter(opset),
+        'ReduceProd': ReduceProd.get_converter(opset),
         # 'ReduceProd'
         # 'ReduceLogSumExp'
         'ArgMax': ArgMax.get_converter(opset),
@@ -831,8 +876,7 @@ def _get_convert_map(opset):
         'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),
-        # TODO(zhreshold) Shape op is implemented as bypass op in relay
-        # 'Shape': Shape.get_converter(opset),
+        'Shape': Shape.get_converter(opset),
     }
 
 
@@ -872,6 +916,7 @@ class GraphProto(object):
         ----------
         graph : onnx protobuf object
             The loaded onnx graph
+
         opset : opset version
 
         Returns
@@ -900,12 +945,12 @@ class GraphProto(object):
                                               dtype=self._params[i_name].dtype)
             else:
                 self._num_input += 1
-                shape = self._shape[i_name] if i_name in self._shape else ()
+                tshape = self._shape[i_name] if i_name in self._shape else ()
                 if isinstance(self._dtype, dict):
                     dtype = self._dtype[i_name] if i_name in self._dtype else d_type
                 else:
                     dtype = d_type
-                self._nodes[i_name] = new_var(i_name, shape=shape, dtype=dtype)
+                self._nodes[i_name] = new_var(i_name, shape=tshape, dtype=dtype)
         # construct nodes, nodes are stored as directed acyclic graph
         for node in graph.node:
             op_name = node.op_type
@@ -924,6 +969,10 @@ class GraphProto(object):
                     self._params[i_name] = fill_value
                     self._nodes[i_name] = new_var(node.output[0], shape=(), dtype=dtype)
                     inputs.append(self._nodes[i_name])
+
+                i_name = self._parse_value_proto(node)
+                attr['tvm_custom'] = {}
+                attr['tvm_custom']['name'] = i_name
 
                 op = self._convert_operator(op_name, inputs, attr, opset)
                 node_output = self._fix_outputs(op_name, node.output)

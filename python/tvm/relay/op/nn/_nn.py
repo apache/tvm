@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 #pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
@@ -85,7 +101,6 @@ def compute_conv2d(attrs, inputs, out_type, target):
             inputs[0], inputs[1], strides, padding,
             dilation, layout, out_dtype=out_dtype)
     elif layout == "NCHW" and \
-         kernel_layout == "OIHW" and \
          get_const_int(inputs[1].shape[0]) == groups and \
          get_const_int(inputs[1].shape[1]) == 1:
         out = topi.nn.depthwise_conv2d_nchw(
@@ -96,6 +111,9 @@ def compute_conv2d(attrs, inputs, out_type, target):
          get_const_int(inputs[1].shape[3]) == 1:
         out = topi.nn.depthwise_conv2d_nhwc(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
+    elif layout in ['NCHW', 'NCHW4c']:
+        out = topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups,
+                                        out_dtype=out_dtype)
     else:
         raise ValueError("not support arbitrary group number for now")
     return [out]
@@ -120,6 +138,8 @@ def schedule_conv2d(attrs, outs, target):
                 return topi.generic.schedule_depthwise_conv2d_nchw(outs)
             if layout == "NHWC" and kernel_layout == "HWOI":
                 return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
+            if layout == "NCHW4c":
+                return topi.generic.schedule_group_conv2d_nchw(outs)
     raise ValueError("No compatible schedule")
 
 
@@ -321,6 +341,58 @@ def schedule_contrib_conv2d_winograd_weight_transform(attrs, outs, target):
 reg.register_pattern("nn.contrib_conv2d_winograd_weight_transform",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
 
+
+# winograd nnpack related operators
+@reg.register_compute("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
+def compute_contrib_conv2d_winograd_nnpack_without_weight_transform(
+        attrs, inputs, out_dtype, target):
+    """Compute definition of conv2d_winograd_nnpack_without_weight_transform"""
+    # pylint: disable=assignment-from-no-return
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    data_layout = attrs.get_str("data_layout")
+    out_dtype = attrs.get_str("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+    assert dilation == (1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+
+    # No bias
+    out = topi.nn.conv2d_winograd_nnpack_without_weight_transform(
+        inputs[0], inputs[1], None, strides, padding, dilation, data_layout,
+        out_dtype)
+
+    return [out]
+
+@reg.register_schedule("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
+def schedule_contrib_conv2d_winograd_nnpack_without_weight_transform(attrs, outs, target):
+    """Schedule definition of conv2d_winograd_nnpack_without_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_winograd_nnpack_without_weight_transform(outs)
+
+reg.register_pattern("nn.contrib_conv2d_winograd_nnpack_without_weight_transform",
+                     OpPattern.OPAQUE)
+
+
+@reg.register_compute("nn.contrib_conv2d_winograd_nnpack_weight_transform")
+def compute_contrib_conv2d_winograd_nnpack_weight_transform(attrs, inputs, out_dtype, target):
+    """Compute definition of contrib_conv2d_winograd_nnpack_weight_transform"""
+    convolution_algorithm = attrs.get_int('convolution_algorithm')
+    out = topi.nn.conv2d_winograd_nnpack_weight_transform(
+        inputs[0], convolution_algorithm, out_dtype)
+    return [out]
+
+@reg.register_schedule("nn.contrib_conv2d_winograd_nnpack_weight_transform")
+def schedule_contrib_conv2d_winograd_nnpack_weight_transform(attrs, outs, target):
+    """Schedule definition of contrib_conv2d_winograd_nnpack_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_winograd_nnpack_weight_transform(outs)
+
+reg.register_pattern("nn.contrib_conv2d_winograd_nnpack_weight_transform",
+                     OpPattern.OPAQUE)
+
+
 @reg.register_compute("nn.contrib_conv2d_NCHWc")
 def compute_contrib_conv2d_NCHWc(attrs, inputs, out_dtype, target):
     """Compute definition of conv2d NCHWc"""
@@ -345,3 +417,51 @@ def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
 
 reg.register_pattern("nn.contrib_conv2d_NCHWc",
                      OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("nn.contrib_depthwise_conv2d_NCHWc")
+def compute_contrib_depthwise_conv2d_NCHWc(attrs, inputs, out_dtype, target):
+    """Compute definition of depthwise conv2d NCHWc"""
+    # pylint: disable=assignment-from-no-return
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    data_layout = attrs.get_str("data_layout")
+    out_layout = attrs.get_str("out_layout")
+    out_dtype = attrs.get_str("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+
+    out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides, padding, dilation,
+                                         data_layout, out_layout, out_dtype)
+    return [out]
+
+@reg.register_schedule("nn.contrib_depthwise_conv2d_NCHWc")
+def schedule_contrib_depthwise_conv2d_NCHWc(attrs, outs, target):
+    """Schedule definition of contrib_conv2d_NCHWc"""
+    with target:
+        return topi.generic.schedule_depthwise_conv2d_NCHWc(outs)
+
+reg.register_pattern("nn.contrib_depthwise_conv2d_NCHWc",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("nn.deformable_conv2d")
+def compute_deformable_conv2d(attrs, inputs, out_dtype, target):
+    """Compute definition of deformable_conv2d"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    deformable_groups = attrs.deformable_groups
+    groups = attrs.groups
+    out_dtype = attrs.out_dtype
+    out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+    with target:
+        out = topi.nn.deformable_conv2d_nchw(inputs[0], inputs[1], inputs[2], strides, padding,
+                                             dilation, deformable_groups, groups, out_dtype)
+    return [out]
+
+@reg.register_schedule("nn.deformable_conv2d")
+def schedule_deformable_conv2d(attrs, outs, target):
+    """Schedule definition of deformable_conv2d"""
+    with target:
+        return topi.generic.schedule_deformable_conv2d_nchw(outs)
+
+reg.register_pattern("nn.deformable_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)

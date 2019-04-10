@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#pylint: disable=invalid-name, too-many-lines
 """Neural network operations."""
 from __future__ import absolute_import as _abs
 from ...expr import TupleWrapper
@@ -862,6 +879,72 @@ def contrib_conv2d_winograd_without_weight_transform(data,
         kernel_layout, out_layout, out_dtype)
 
 
+def contrib_conv2d_winograd_nnpack_without_weight_transform(data,
+                                                            weight,
+                                                            strides=(1, 1),
+                                                            padding=(0, 0),
+                                                            dilation=(1, 1),
+                                                            groups=1,
+                                                            channels=None,
+                                                            kernel_size=None,
+                                                            data_layout="NCHW",
+                                                            kernel_layout="OIHW",
+                                                            out_layout="",
+                                                            out_dtype=""):
+    r"""2D convolution with the NNPACK implementation of winograd algorithm.
+
+    The basic parameters are the same as the ones in vanilla conv2d.
+    It assumes the weight is pre-transformed by nn.contrib_conv2d_winograd_nnpack_weight_transform
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : tuple of int, optional
+        The strides of convoltution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_conv2d_winograd_nnpack_without_weight_transform(
+        data, weight, strides, padding, dilation,
+        groups, channels, kernel_size, data_layout,
+        kernel_layout, out_layout, out_dtype)
+
+
 def contrib_conv2d_nchwc(data,
                          kernel,
                          strides=(1, 1),
@@ -927,6 +1010,70 @@ def contrib_conv2d_nchwc(data,
                                       groups, channels, kernel_size, data_layout,
                                       kernel_layout, out_layout, out_dtype)
 
+def contrib_depthwise_conv2d_nchwc(data,
+                                   kernel,
+                                   strides=(1, 1),
+                                   padding=(0, 0),
+                                   dilation=(1, 1),
+                                   groups=1,
+                                   channels=None,
+                                   kernel_size=None,
+                                   data_layout="NCHW8c",
+                                   kernel_layout="OIHW",
+                                   out_layout="",
+                                   out_dtype=""):
+    r"""Variant of 2D depthwise convolution.
+
+    This operator takes the weight as the depthwise convolution kernel
+    and depthwise convolves it with data to produce an output, following a specialized
+    NCHWc data layout.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    kernel : tvm.relay.Expr
+        The kernel expressions.
+
+    strides : tuple of int, optional
+        The strides of convoltution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_depthwise_conv2d_NCHWc(data, kernel, strides, padding, dilation,
+                                                groups, channels, kernel_size, data_layout,
+                                                kernel_layout, out_layout, out_dtype)
 
 def contrib_conv2d_winograd_weight_transform(weight,
                                              tile_size):
@@ -949,3 +1096,101 @@ def contrib_conv2d_winograd_weight_transform(weight,
         The computed result.
     """
     return _make.contrib_conv2d_winograd_weight_transform(weight, tile_size)
+
+
+def contrib_conv2d_winograd_nnpack_weight_transform(weight,
+                                                    convolution_algorithm,
+                                                    out_dtype=""):
+    r"""Weight Transformation part for 2D convolution with winograd algorithm.
+
+    We separate this as a single op to enable pre-compute for inference.
+    Use this together with nn.contrib_conv2d_winograd_without_weight_transform
+
+    Parameters
+    ----------
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    convolution_algorithm : int
+        The Tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_conv2d_winograd_nnpack_weight_transform(
+        weight, convolution_algorithm, out_dtype)
+
+
+def deformable_conv2d(data,
+                      offset,
+                      weight,
+                      strides=(1, 1),
+                      padding=(0, 0),
+                      dilation=(1, 1),
+                      deformable_groups=1,
+                      groups=1,
+                      channels=None,
+                      kernel_size=None,
+                      data_layout='NCHW',
+                      kernel_layout='OIHW',
+                      out_layout='',
+                      out_dtype=''):
+    r""" Deformable 2d convolution.
+
+    The deformable convolution operation is described in https://arxiv.org/abs/1703.06211
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    offset : tvm.relay.Expr
+        The offset expressions.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : tuple of int, optional
+        The strides of convoltution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    deformable_groups : int, optional
+        Number of deformable groups.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+
+    """
+    return _make.deformable_conv2d(data, offset, weight, strides, padding, dilation,
+                                   deformable_groups, groups, channels, kernel_size, data_layout,
+                                   kernel_layout, out_layout, out_dtype)

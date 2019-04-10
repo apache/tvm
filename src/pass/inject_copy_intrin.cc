@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief Replace certain copy with copy intrinsics.
@@ -39,7 +58,6 @@ class CopyIntrinInjector : public IRMutator {
   bool MatchCopyPattern(Stmt stmt, Stmt *out) {
     using namespace arith;
     Stmt body = stmt;
-    bool is_single_point_copy = false;
 
     // strip the loops
     std::vector<const For*> loops;
@@ -60,7 +78,6 @@ class CopyIntrinInjector : public IRMutator {
     const Cast* cast = store->value.as<Cast>();
     const Load* load = store->value.as<Load>();
     if (0 == loops.size()) {
-      is_single_point_copy = true;
       CHECK(!has_cond);
     }
     // for now only support true condition matching
@@ -83,9 +100,8 @@ class CopyIntrinInjector : public IRMutator {
         arith::DetectLinearEquation(load->index, loop_vars);
     if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
     Array<Expr> dst_shape;
-    auto loop_var_size = loop_vars.size();
-    if (is_single_point_copy) {
-      loop_var_size = 1;
+    const size_t loop_var_size = loop_vars.size();
+    if (loop_var_size == 0) {
       dst_shape.push_back(make_const(Int(32), 1));
     } else {
       for (const For* op : loops) {
@@ -132,6 +148,10 @@ class CopyIntrinInjector : public IRMutator {
     CHECK_EQ(load_strides.size(), loop_var_size + 1);
     Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
     Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
+    if (loop_var_size == 0) {
+        src_strides.push_back(make_const(Int(32), 1));
+        dst_strides.push_back(make_const(Int(32), 1));
+    }
     Buffer dst = BufferNode::make(
         Var(store->buffer_var.node_),
         store->value.type(),

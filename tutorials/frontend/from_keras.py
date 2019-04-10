@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 Compile Keras Models
 =====================
@@ -20,21 +36,9 @@ https://keras.io/#installation
 """
 import tvm
 import tvm.relay as relay
+from tvm.contrib.download import download_testdata
 import keras
 import numpy as np
-
-def download(url, path, overwrite=False):
-    import os
-    if os.path.isfile(path) and not overwrite:
-        print('File {} exists, skip.'.format(path))
-        return
-    print('Downloading from url {} to {}'.format(url, path))
-    try:
-        import urllib.request
-        urllib.request.urlretrieve(url, path)
-    except:
-        import urllib
-        urllib.urlretrieve(url, path)
 
 ######################################################################
 # Load pretrained keras model
@@ -43,10 +47,10 @@ def download(url, path, overwrite=False):
 weights_url = ''.join(['https://github.com/fchollet/deep-learning-models/releases/',
                        'download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels.h5'])
 weights_file = 'resnet50_weights.h5'
-download(weights_url, weights_file)
+weights_path = download_testdata(weights_url, weights_file, module='keras')
 keras_resnet50 = keras.applications.resnet50.ResNet50(include_top=True, weights=None,
                                                       input_shape=(224, 224, 3), classes=1000)
-keras_resnet50.load_weights('resnet50_weights.h5')
+keras_resnet50.load_weights(weights_path)
 
 ######################################################################
 # Load a test image
@@ -56,8 +60,8 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from keras.applications.resnet50 import preprocess_input
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-download(img_url, 'cat.png')
-img = Image.open('cat.png').resize((224, 224))
+img_path = download_testdata(img_url, 'cat.png', module='data')
+img = Image.open(img_path).resize((224, 224))
 plt.imshow(img)
 plt.show()
 # input preprocess
@@ -92,9 +96,9 @@ synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '4d0b62f3d01426887599d4f7ede23ee5/raw/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',
                       'imagenet1000_clsid_to_human.txt'])
-synset_name = 'synset.txt'
-download(synset_url, synset_name)
-with open(synset_name) as f:
+synset_name = 'imagenet1000_clsid_to_human.txt'
+synset_path = download_testdata(synset_url, synset_name, module='data')
+with open(synset_path) as f:
     synset = eval(f.read())
 print('Relay top-1 id: {}, class name: {}'.format(top1_tvm, synset[top1_tvm]))
 # confirm correctness with keras output

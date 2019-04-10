@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 import tvm
 import topi
@@ -18,10 +34,11 @@ def test_ewise():
 
     shape = (20, 3)
 
-    def test_apply(func, name, f_numpy, low, high, check_round=False):
+    def test_apply(func, name, f_numpy, low, high, check_round=False, skip_name_check=False):
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
-        assert B.op.body[0].name == name
+        if not skip_name_check:
+            assert B.op.body[0].name == name
         a_np = np.random.uniform(low=low, high=high, size=shape).astype(A.dtype) * 10
         # avoid round check too close to boundary
         if check_round:
@@ -49,6 +66,7 @@ def test_ewise():
 
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
+    test_apply(topi.sign, "sign", np.sign, -100, 100, skip_name_check=True)
     test_apply(topi.trunc, "trunc", np.trunc, -100, 100)
     test_apply(topi.abs, "fabs", np.abs, -100, 100)
     test_apply(topi.round, "round", np.round, -100, 100, check_round=True)

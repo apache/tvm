@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2018 by Contributors
  * \file constant_folding.cc
@@ -6,6 +25,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/interpreter.h>
+#include <tvm/relay/attrs/transform.h>
 
 namespace tvm {
 namespace relay {
@@ -71,6 +91,7 @@ class ConstantFolder : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     static auto op_stateful = Op::GetAttr<TOpIsStateful>("TOpIsStateful");
+    auto origin_args = call->args;
     Expr res = ExprMutator::VisitExpr_(call);
     call = res.as<CallNode>();
     // We don't constant fold function with zero arguments.
@@ -81,6 +102,10 @@ class ConstantFolder : public ExprMutator {
     if (op == nullptr) return res;
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return res;
+    // Try to evaluate shape_of op
+    if (call->op.same_as(Op::Get("shape_of"))) {
+      return EvaluateShapeOf(res, origin_args, call->attrs);
+    }
     bool all_const_args = true;
     for (Expr arg : call->args) {
       if (!checker_.Check(arg)) {
@@ -132,6 +157,42 @@ class ConstantFolder : public ExprMutator {
     expr = InferType(expr, Module(nullptr));
     return ValueToExpr(executor_(expr));
   }
+  // Evaluate shape_of op
+  Expr EvaluateShapeOf(Expr expr, Array<Expr> args, Attrs attrs) {
+    Expr input = args[0];
+    const auto* param = attrs.as<ShapeOfAttrs>();
+    CHECK(param != nullptr);
+    tvm::Array<IndexExpr> ishape;
+    if (const ConstantNode* op = input.as<ConstantNode>()) {
+      ishape = op->tensor_type()->shape;
+    } else if (input->checked_type_.defined()) {
+      ishape = input->checked_type().as<TensorTypeNode>()->shape;
+    } else {
+      return expr;
+    }
+    // Get the constant shape
+    DLContext ctx;
+    ctx.device_type = kDLCPU;
+    ctx.device_id = 0;
+    auto val = runtime::NDArray::Empty(
+        {(int64_t)ishape.size()}, Type2TVMType(Int(32)), ctx);
+    int32_t* dims = static_cast<int32_t*>(val->data);
+    using ::tvm::ir::IntImm;
+    for (size_t i = 0; i < ishape.size(); ++i) {
+      if (const IntImm* dim = ishape[i].as<IntImm>()) {
+        dims[i] = dim->value;
+      } else {
+        return expr;
+      }
+    }
+    Expr shape = ValueToExpr(TensorValueNode::make(val));
+    // Cast the constant into correct dtype
+    auto cast_attrs = make_node<CastAttrs>();
+    cast_attrs->dtype = param->dtype;
+    static const Op& cast_op = Op::Get("cast");
+    Expr ret = CallNode::make(cast_op, {shape}, Attrs(cast_attrs), {});
+    return ConstEvaluate(ret);
+  }
 };
 
 
@@ -149,9 +210,7 @@ Expr FoldConstant(const Expr& expr) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.FoldConstant")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = FoldConstant(args[0]);
-});
+.set_body_typed(FoldConstant);
 
 }  // namespace relay
 }  // namespace tvm

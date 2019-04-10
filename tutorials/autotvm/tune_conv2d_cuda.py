@@ -1,9 +1,25 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 Tuning High Performance Convolution on NVIDIA GPUs
 =========================================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 
-This is an advanced tutorial for writing high performance tunable template for 
+This is an advanced tutorial for writing high performance tunable template for
 NVIDIA GPU. By running auto-tuner on this template, we can outperform the
 vendor provided library CuDNN in many cases.
 """
@@ -41,18 +57,18 @@ from tvm import autotvm
 ######################################################################
 # Step 1:  Define the search space
 # --------------------------------
-# There are plenty of useful schedule primitives in tvm. You can also find 
-# some tutorials that describe them in more details, such as 
+# There are plenty of useful schedule primitives in tvm. You can also find
+# some tutorials that describe them in more details, such as
 # (1). :ref:`opt-conv-gpu`
 # (2). `Optimizing DepthwiseConv on NVIDIA GPU <https://tvm.ai/2017/08/22/Optimize-Deep-Learning-GPU-Operators-with-TVM-A-Depthwise-Convolution-Example.html>`_
-# 
+#
 # However, their implementations are manually tuned for some special input
 # shapes. In this section, we build a large enough space to cover
 # the techniques used in these tutorials. Then we rely on the efficient auto-tuner
 # to search through this space and pick some good configurations.
-# 
+#
 # If you are familiar with writing cuda schedule, you can find the following
-# template is very general. Actually this template can be easily modified 
+# template is very general. Actually this template can be easily modified
 # to tune other operators such as depthwise convolution and gemm.
 # In order to fully understand this template, you should be familiar with
 # the schedule primitives and auto tuning API. You can refer to the above

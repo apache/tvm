@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2018 by Contributors
  *
@@ -9,6 +28,7 @@
 #include <tvm/relay/expr_functor.h>
 #include "let_list.h"
 #include "../../common/arena.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -462,15 +482,7 @@ Expr ToANormalFormAux(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
 }
 
 Expr ToANormalForm(const Expr& e, const Module& m, std::set<GlobalVar>* gv) {
-  if (const auto* f = e.as<FunctionNode>()) {
-    return FunctionNode::make(f->params,
-                              ToANormalFormAux(f->body, m, gv),
-                              f->ret_type,
-                              f->type_params,
-                              f->attrs);
-  } else {
-    return ToANormalFormAux(e, m, gv);
-  }
+  return TransformF([&](const Expr& e) { return ToANormalFormAux(e, m, gv); }, e);
 }
 
 Expr ToANormalForm(const Expr& e, const Module& m) {
@@ -479,9 +491,7 @@ Expr ToANormalForm(const Expr& e, const Module& m) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.to_a_normal_form")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ToANormalForm(args[0], args[1]);
-  });
+.set_body_typed(static_cast<Expr (*)(const Expr&, const Module&)>(ToANormalForm));
 
 }  // namespace relay
 }  // namespace tvm

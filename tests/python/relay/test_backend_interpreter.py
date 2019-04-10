@@ -1,8 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.relay.backend.interpreter import Value, TupleValue
+from tvm.relay.backend.interpreter import Value, TupleValue, TensorValue
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import testing, create_executor
 
@@ -135,6 +151,11 @@ def test_binds():
     tvm.testing.assert_allclose(xx + xx, res)
 
 
+def test_tensor_value():
+    x = relay.var("x", shape=(1, 10))
+    xx = np.ones((1, 10)).astype("float32")
+    check_eval(relay.Function([x], x), [TensorValue(xx)], xx)
+
 def test_kwargs_params():
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(1, 10))
@@ -159,3 +180,4 @@ if __name__ == "__main__":
     test_binds()
     test_kwargs_params()
     test_ref()
+    test_tensor_value()

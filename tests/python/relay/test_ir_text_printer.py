@@ -1,10 +1,27 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 import tvm.relay.testing
 import numpy as np
 from tvm import relay
 
-
 do_print = [False]
+
+SEMVER = "v0.0.1\n"
 
 def show(text):
     if do_print[0]:
@@ -33,8 +50,8 @@ def test_env():
     text = env.astext()
     assert "def @myf" in text
     assert "def @myf" in str(env)
-    assert "%1 = add(%0, %0) # ty=float32" in text
-    assert "%1 = add(%0, %0) # ty=float32" in str(env)
+    assert "%1 = add(%0, %0) // ty=float32" in text
+    assert "%1 = add(%0, %0) // ty=float32" in str(env)
     show(env.astext(annotate=lambda x: str(x.checked_type.dtype)))
     show(text)
 
@@ -95,7 +112,7 @@ def test_let_if_scope():
 
     f = relay.Function([x, y, cond], result)
     text = f.astext()
-    assert text.count("{") == 4
+    assert text.count("{") == 6
     assert "%cond: bool" in text
     show(f.astext())
 
@@ -152,6 +169,19 @@ def test_densenet():
     net, params = tvm.relay.testing.densenet.get_workload(batch_size=1)
     net.astext()
 
+def test_call_node_order():
+    x = relay.var("x")
+    y = relay.var("y")
+    assert relay.Call(relay.Function([x], x), [relay.Call(relay.Function([y], y), [relay.const(1)])]).astext() == SEMVER + \
+        ("%0 = fn (%y) {\n"
+         "  %y\n"
+         "}\n"
+         "%1 = %0(1)\n"
+         "%2 = fn (%x) {\n"
+         "  %x\n"
+         "}\n"
+         "%3 = %2(%1)\n"
+         "%3")
 
 if __name__ == "__main__":
     do_print[0] = True
@@ -170,3 +200,4 @@ if __name__ == "__main__":
     test_call_attrs()
     test_let_if_scope()
     test_variable_name()
+    test_call_node_order()

@@ -1,7 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """ Support level10 operator test cases.
 """
 import numpy as np
 import tvm
+import topi.testing
 from tvm import relay
 from tvm.relay.testing import ctx_list
 import topi
@@ -176,6 +193,20 @@ def test_batch_matmul():
     verify_batch_matmul((5, 16, 32), (5, 20, 32), (5, 16, 20))
     verify_batch_matmul((30, 16, 32), (30, 20, 32), (30, 16, 20))
 
+def test_shape_of():
+    shape = (10, 5, 12)
+    x = relay.var("x", shape=shape)
+    func = relay.Function([x], relay.op.shape_of(x))
+    func = relay.ir_pass.infer_type(func)
+    x_data = np.random.rand(*shape).astype('float32')
+    for target, ctx in ctx_list():
+        # Because using graph executor, this op will be optimized after
+        # constant folding pass, here we only test with interpreter
+        for kind in ["debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(),
+                                        np.array(shape).astype('int32'))
 
 if __name__ == "__main__":
     test_collapse_sum_like()
@@ -183,3 +214,4 @@ if __name__ == "__main__":
     test_slice_like()
     test_reverse_reshape()
     test_batch_matmul()
+    test_shape_of()

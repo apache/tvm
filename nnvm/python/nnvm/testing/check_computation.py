@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=cell-var-from-loop,no-else-return
 """Helper utilities to check functions and their gradients."""
 from __future__ import absolute_import as _abs
@@ -8,10 +24,12 @@ import numpy as np
 import tvm
 from tvm.contrib import graph_runtime
 from tvm.testing import check_numerical_grads
+from tvm import relay
 
 import nnvm
 from nnvm.compiler import graph_util
 from nnvm.compiler.graph_attr import TCODE_TO_DTYPE, DTYPE_TO_TCODE
+from nnvm.to_relay import to_relay
 from .config import ctx_list
 
 def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
@@ -440,6 +458,23 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
             # nnvm_res contains the output and gradients (if they are needed)
             debug_stage = "running"
             nnvm_res = main_function(**np_inputs)
+
+            try:
+                logging.debug("checking to_relay conversion")
+                inputs = np_inputs_without_head_grads.copy()
+                func, inputs = to_relay(main_graph, shape, dtype, params=inputs)
+                with relay.build_config(opt_level=3):
+                    graph, lib, params = relay.build(func, target=target)
+                m = graph_runtime.create(graph, lib, ctx)
+                m.set_input(**inputs)
+                m.set_input(**params)
+                m.run()
+                for i in range(out_len):
+                    relay_out = m.get_output(i).asnumpy()
+                    tvm.testing.assert_allclose(nnvm_res[i], relay_out, atol=atol, rtol=rtol)
+            except NotImplementedError as err:
+                # the NNVM operator is not supported yet
+                logging.warning(err)
 
             if backward_graph is not None:
                 grad_var_names = [x.attr('name') for x in grad_input_vars]

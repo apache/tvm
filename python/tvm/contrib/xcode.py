@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name
 """Utility to invoke Xcode compiler toolchain"""
 from __future__ import absolute_import as _abs
@@ -98,6 +114,9 @@ def create_dylib(output, objects, arch, sdk="macosx"):
         raise RuntimeError(msg)
 
 
+# assign so as default output format
+create_dylib.output_format = "dylib"
+
 def compile_metal(code, path_target=None, sdk="macosx"):
     """Compile metal with CLI tool from env.
 
@@ -126,8 +145,13 @@ def compile_metal(code, path_target=None, sdk="macosx"):
         out_file.write(code)
     file_target = path_target if path_target else temp_target
 
+    # See:
+    # - https://developer.apple.com/documentation/metal/gpu_functions_libraries/building_a_library_with_metal_s_command-line_tools#overview # pylint: disable=line-too-long
+    #
+    #   xcrun -sdk macosx metal -c MyLibrary.metal -o MyLibrary.air
+    #   xcrun -sdk macosx metallib MyLibrary.air -o MyLibrary.metallib
     cmd1 = ["xcrun", "-sdk", sdk, "metal", "-O3"]
-    cmd1 += [temp_code, "-o", temp_ir]
+    cmd1 += ["-c", temp_code, "-o", temp_ir]
     cmd2 = ["xcrun", "-sdk", sdk, "metallib"]
     cmd2 += [temp_ir, "-o", file_target]
     proc = subprocess.Popen(
@@ -138,7 +162,7 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         sys.stderr.write("Compilation error:\n")
-        sys.stderr.write(out)
+        sys.stderr.write(py_str(out))
         sys.stderr.flush()
         libbin = None
     else:

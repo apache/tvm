@@ -1,13 +1,30 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, import-self
 """Keras frontend."""
 from __future__ import absolute_import as _abs
 import sys
+import tvm
 import numpy as np
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
 from ... import nd as _nd
-from .common import ExprTable
+from .common import ExprTable, new_var
 
 __all__ = ['from_keras']
 
@@ -91,7 +108,8 @@ def _convert_activation(inexpr, keras_layer, _):
         x = (_expr.const(0.2, dtype='float32') * inexpr) + _expr.const(0.5, dtype='float32')
         return _op.clip(x, a_min=0., a_max=1.)
 
-    raise TypeError("Unsupported activation type : {}".format(act_type))
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported in frontend Keras.'.format(act_type))
 
 
 def _convert_advanced_activation(inexpr, keras_layer, etab):
@@ -118,7 +136,8 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
         return _op.multiply(inexpr, _op.greater(inexpr, \
             _expr.const(theta, dtype='float32')).astype('float32'))
 
-    raise TypeError("Unsupported advanced activation type : {}".format(act_type))
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported in frontend Keras.'.format(act_type))
 
 
 def _convert_merge(inexpr, keras_layer, _):
@@ -136,7 +155,8 @@ def _convert_merge(inexpr, keras_layer, _):
             ret = _op.add(ret, inexpr[i])
         ret = ret / _expr.const(len(inexpr), dtype='float32')
     else:
-        raise TypeError("Unsupported merge type : {}".format(merge_type))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported in frontend Keras.'.format(merge_type))
     return ret
 
 
@@ -150,7 +170,8 @@ def _convert_dense(inexpr, keras_layer, etab):
     if input_dim > 2:
         input_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
         if input_dim != 3 or input_shape[0] != 1 or input_shape[1] != 1:
-            raise ValueError("Cannot flatten the inputs with shape.", input_shape, " for dense.")
+            raise tvm.error.OpAttributeInvalid(
+                'Input shape {} is not valid for operator Dense.'.format(input_shape))
         inexpr = _op.squeeze(inexpr, axis=0)
     out = _op.nn.dense(data=inexpr, **params)
     if keras_layer.use_bias:
@@ -214,7 +235,9 @@ def _convert_convolution(inexpr, keras_layer, etab):
             inexpr = _op.nn.pad(data=inexpr, pad_width=(
                 (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
     else:
-        raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
+        msg = 'Padding with {} is not supported for operator Convolution ' \
+              'in frontend Keras.'
+        raise tvm.error.OpAttributeUnimplemented(msg.format(keras_layer.padding))
     if is_deconv:
         out = _op.nn.conv2d_transpose(data=inexpr, **params)
     else:
@@ -260,7 +283,10 @@ def _convert_separable_convolution(inexpr, keras_layer, etab):
             inexpr = _op.nn.pad(data=inexpr, pad_width=(
                 (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
     else:
-        raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
+        msg = 'Padding with {} is not supported for operator Separable ' \
+              'Convolution in frontend Keras.'
+        raise tvm.error.OpAttributeUnimplemented(msg.format(keras_layer.padding))
+
     depthconv = _op.nn.conv2d(data=inexpr, **params0)
     # pointwise conv
     weight1 = weightList[1].transpose([3, 2, 0, 1])
@@ -313,13 +339,15 @@ def _convert_pooling(inexpr, keras_layer, etab):
         pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
         params['padding'] = [pad_t, pad_l, pad_b, pad_r]
     else:
-        raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
+        raise tvm.error.OpAttributeUnimplemented(
+            'Padding with {} is not supported in operator Pooling.'.format(keras_layer.padding))
     if pool_type == 'MaxPooling2D':
         return _op.nn.max_pool2d(inexpr, **params)
     if pool_type == 'AveragePooling2D':
         params['count_include_pad'] = False
         return _op.nn.avg_pool2d(inexpr, **params)
-    raise TypeError("Unsupported pooling type : {}".format(keras_layer))
+    raise tvm.error.OpNotImplemented(
+        'Operator {} is not supported for frontend Keras.'.format(keras_layer))
 
 
 def _convert_upsample(inexpr, keras_layer, _):
@@ -331,30 +359,38 @@ def _convert_upsample(inexpr, keras_layer, _):
     elif upsample_type == 'UpSampling2D':
         h, w = keras_layer.size
         if h != w:
-            raise TypeError("Unsupported upsampling type with different axes size : {}"
-                            .format(keras_layer.size))
+            raise tvm.error.OpAttributeInvalid(
+                'Height must equal width for operator Upsample.')
         params = {'scale': h}
+
+        if hasattr(keras_layer, 'interpolation'):
+            interpolation = keras_layer.interpolation
+            if interpolation == 'nearest':
+                params['method'] = 'NEAREST_NEIGHBOR'
+            else:
+                params['method'] = 'BILINEAR'
+
     elif upsample_type == 'UpSampling3D':
         h, w, d = keras_layer.size
         if h != w or w != d:
-            raise TypeError("Unsupported upsampling type with different axes size : {}"
-                            .format(keras_layer.size))
+            raise tvm.error.OpAttributeInvalid(
+                'Height, width, and depth must all be equal for operator Upsample.')
         params = {'scale': h}
     else:
-        raise TypeError("Unsupported upsampling type : {}".format(upsample_type))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend Keras.'.format(upsample_type))
     return _op.nn.upsampling(inexpr, **params)
 
 
 def _convert_cropping(inexpr, keras_layer, _):
     _check_data_format(keras_layer)
     crop_type = type(keras_layer).__name__
-    if crop_type == 'Cropping1D':
-        raise NotImplementedError("Cropping1D not implemented")
-    elif crop_type == 'Cropping2D':
+    if crop_type == 'Cropping2D':
         (_, in_h, in_w, _) = keras_layer.input_shape
         ((crop_t, crop_b), (crop_l, crop_r)) = keras_layer.cropping
     else:
-        raise TypeError("Unrecognized cropping type : {}".format(crop_type))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend Keras.'.format(crop_type))
     int32_max = np.iinfo(np.int32).max
     return _op.strided_slice(inexpr, begin=[0, 0, crop_t, crop_l], \
         end=[int32_max, int32_max, in_h-crop_b, in_w-crop_r])
@@ -399,14 +435,18 @@ def _convert_padding(inexpr, keras_layer, _):
                 top, bottom = padding[0]
                 left, right = padding[1]
             else:
-                raise ValueError("Unrecognized padding option: {}".format(str(padding)))
+                msg = 'Value {} in attribute "padding" of operator Padding ' \
+                      'is not valid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(str(padding)))
         else:
-            raise ValueError("Unrecognized padding option: {}".format(str(padding)))
-    elif padding_type == 'ZeroPadding1D':
-        raise NotImplementedError("ZeroPadding1D not implemented")
+            msg = 'Value {} in attribute "padding" of operator Padding is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(str(padding)))
     else:
-        raise ValueError("Unrecognized padding type: {}".format(padding_type))
-    return _op.nn.pad(data=inexpr, pad_width=((0, 0), (0, 0), (top, bottom), (left, right)))
+        msg = 'Operator {} is not supported in frontend Keras.'
+        raise tvm.error.OpNotImplemented(msg.format(padding_type))
+    return _op.nn.pad(data=inexpr,
+                      pad_width=((0, 0), (0, 0), (top, bottom), (left, right)))
 
 
 def _convert_concat(inexpr, keras_layer, _):
@@ -593,8 +633,10 @@ _convert_map = {
 
 def _check_unsupported_layers(model):
     for layer in model.layers:
-        if type(layer).__name__ not in _convert_map:
-            raise ValueError("Keras layer {} not supported.".format(type(layer).__name__))
+        op_name = type(layer).__name__
+        if op_name not in _convert_map:
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported in frontend Keras.'.format(op_name))
 
 
 def keras_op_to_relay(inexpr, keras_layer, outname, etab):
@@ -614,9 +656,11 @@ def keras_op_to_relay(inexpr, keras_layer, outname, etab):
     etab : relay.frontend.common.ExprTable
         The global expression table to be updated.
     """
-    if type(keras_layer).__name__ not in _convert_map:
-        raise NotImplementedError("{} is not supported".format((type(keras_layer).__name__)))
-    outs = _convert_map[type(keras_layer).__name__](inexpr, keras_layer, etab)
+    op_name = type(keras_layer).__name__
+    if op_name not in _convert_map:
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend Keras.'.format(op_name))
+    outs = _convert_map[op_name](inexpr, keras_layer, etab)
     outs = _as_list(outs)
     for t_idx, out in enumerate(outs):
         name = outname + ":" + str(t_idx)
@@ -653,12 +697,15 @@ def from_keras(model, shape=None):
         raise ValueError("Keras frontend currently supports data_format = channels_last only.")
     _check_unsupported_layers(model)
 
+    def _convert_input_layer(keras_layer):
+        input_name = keras_layer.name
+        input_shape = shape[input_name] if shape is not None and input_name in shape else None
+        etab.set_expr(input_name, new_var(input_name, shape=input_shape))
+
     etab = ExprTable()
     for keras_layer in model.layers:
         if isinstance(keras_layer, keras.engine.InputLayer):
-            input_name = keras_layer.name
-            input_shape = shape[input_name] if shape is not None and input_name in shape else None
-            etab.set_expr(input_name, _expr.var(input_name, shape=input_shape))
+            _convert_input_layer(keras_layer)
         else:
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
                        else keras_layer._inbound_nodes if hasattr(keras_layer, '_inbound_nodes') \
@@ -682,6 +729,7 @@ def from_keras(model, shape=None):
                 for n_idx, t_idx, inbound_layer in zip_node:
                     if isinstance(inbound_layer, keras.engine.InputLayer):
                         expr_name = inbound_layer.name
+                        _convert_input_layer(inbound_layer)
                     else:
                         expr_name = inbound_layer.name + ':' + str(n_idx) + ':' + str(t_idx)
                     expr = etab.get_expr(expr_name)

@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=unused-variable,invalid-name,unused-argument
 """
 Decorators for registering tunable templates to TOPI.
@@ -67,7 +83,11 @@ class TaskExtractEnv:
             topi.nn.depthwise_conv2d_nchw: "topi_nn_depthwise_conv2d_nchw",
             topi.nn.group_conv2d_nchw: "topi_nn_group_conv2d_nchw",
             topi.nn.conv2d_transpose_nchw: "topi_nn_conv2d_transpose_nchw",
+            topi.nn.conv2d_NCHWc: "topi_x86_conv2d_NCHWc",
             topi.nn.dense: "topi_nn_dense",
+            topi.nn.bitserial_conv2d_nchw: "topi_nn_bitserial_conv2d_nchw",
+            topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
+            topi.nn.deformable_conv2d_nchw: "topi_nn_deformable_conv2d_nchw",
         }
 
         self.topi_to_schedule = {
@@ -77,7 +97,11 @@ class TaskExtractEnv:
                                             topi.generic.schedule_depthwise_conv2d_nhwc],
             topi.nn.group_conv2d_nchw: [topi.generic.schedule_group_conv2d_nchw],
             topi.nn.conv2d_transpose_nchw: [topi.generic.schedule_conv2d_transpose_nchw],
+            topi.nn.conv2d_NCHWc: [topi.generic.schedule_conv2d_NCHWc],
             topi.nn.dense: [topi.generic.schedule_dense],
+            topi.nn.bitserial_conv2d_nchw: [topi.generic.schedule_bitserial_conv2d_nchw],
+            topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
+            topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
         }
 
         self._register_tracing()
@@ -102,7 +126,6 @@ class TaskExtractEnv:
                         key = (self.topi_to_task[compute_func], serialize_args(args))
                         if key not in self.task_collection:
                             self.task_collection.append(key)
-
                     return compute_func.fdefault(*args)
             _local_scope(topi_compute)
 
@@ -171,6 +194,42 @@ class TaskExtractEnv:
             if bias is not None:
                 return s, [data, weight, bias, C]
             return s, [data, weight, C]
+
+        @register("topi_nn_bitserial_conv2d_nhwc")
+        def _topi_bitserial_conv2d_nhwc(*args, **kwargs):
+            args = deserialize_args(args)
+            C = topi.nn.bitserial_conv2d_nhwc(*args, **kwargs)
+            s = topi.generic.nn.schedule_bitserial_conv2d_nhwc([C])
+            data = args[0]
+            kernel = args[1]
+            return s, [data, kernel, C]
+
+        @register("topi_nn_bitserial_conv2d_nchw")
+        def _topi_bitserial_conv2d_nchw(*args, **kwargs):
+            args = deserialize_args(args)
+            C = topi.nn.bitserial_conv2d_nchw(*args, **kwargs)
+            s = topi.generic.nn.schedule_bitserial_conv2d_nchw([C])
+            data = args[0]
+            kernel = args[1]
+            return s, [data, kernel, C]
+
+        @register("topi_nn_deformable_conv2d_nchw")
+        def _topi_nn_deformable_conv2d_nchw(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            A, Offset, W = args[:3]
+            C = topi.nn.deformable_conv2d_nchw(*args, **kwargs)
+            s = topi.generic.schedule_deformable_conv2d_nchw([C])
+            return s, [A, Offset, W, C]
+
+        @register("topi_nn_conv2d_NCHWc")
+        def _topi_nn_conv2d_NCHWc(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            A, W = args[:2]
+            C = topi.nn.conv2d_NCHWc(*args, **kwargs)
+            s = topi.generic.schedule_conv2d_NCHWc([C])
+            return s, [A, W, C]
 
     def reset(self, wanted_topi_funcs):
         """Reset task collections

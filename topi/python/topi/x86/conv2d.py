@@ -1,5 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D schedule on x86"""
+
+import logging
+import re
 
 import tvm
 from tvm import autotvm
@@ -15,6 +34,8 @@ from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
 from ..nn.pad import pad
 
 from . import conv2d_avx_1x1, conv2d_avx_common
+
+logger = logging.getLogger('topi')
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
     """
@@ -37,9 +58,22 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
+    pat = re.compile(r'NCHW.+(\d+)c')
     if layout == 'NCHW':
         n, ic, h, w = dshape
         oc, _, kh, kw = kshape
+    elif pat.match(layout) is not None:
+        n, ic_chunk, h, w, ic_bn = dshape
+        if data.dtype == 'uint8':
+            oc_chunk, k_ic, kh, kw, k_ic_f, oc_bn, k_ic_s = kshape
+            ic = ic_chunk*ic_bn
+            assert ic == k_ic*k_ic_f*kic_s
+        else:
+            oc_chunk, k_ic_chunk, kh, kw, k_ic_bn, oc_bn = kshape
+            assert ic_chunk == k_ic_chunk
+            assert ic_bn == k_ic_bn
+            ic = ic_chunk*ic_bn
+        oc = oc_chunk*oc_bn
     else:
         raise ValueError("Not support this layout {} with "
                          "schedule template.".format(layout))
@@ -254,7 +288,14 @@ def schedule_conv2d_nhwc(outs):
 @autotvm.task.register("topi_x86_conv2d_NCHWc")
 def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
-    data, kernel, strides, padding, dilation, origin_layout, dtype = deserialize_args(args)
+    args = deserialize_args(args)
+
+    if len(args) == 7:
+        data, kernel, strides, padding, dilation, origin_layout, dtype = args
+    else:
+        assert len(args) == 8
+        data, kernel, strides, padding, dilation, origin_layout, out_layout, dtype = args
+
     raw_data_shape = get_const_tuple(data.shape)
     raw_kernel_shape = get_const_tuple(kernel.shape)
 
@@ -290,7 +331,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     batch_size, in_channel, height, width = get_const_tuple(data.shape)
 
     groups = attrs.get_int("groups")
-    out_channel = attrs.get_int("channels")
+    out_channel = attrs.get_int("channels") if F == sym else attrs.get_int("channels").value
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
@@ -330,16 +371,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
 
     new_data = tvm.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
                                dtype=data.dtype)
-    if is_depthwise:
-        # channel, channel_multiplier, kh, kw -> out_channel_chunk, kh, kw, out_channel_block
-        # in which out_channel = merge(channel, channel_multiplier)
-        kernel_sym = copy_inputs[1]
-        kernel_sym = sym.reshape(kernel_sym, shape=(out_channel//oc_bn, oc_bn, kh, kw))
-        kernel_sym = sym.transpose(kernel_sym, axes=(0, 2, 3, 1))
-        copy_inputs[1] = kernel_sym
 
+    if is_depthwise:
+        new_attrs['kernel_layout'] = 'OIHW1i%do' % oc_bn
         # Store altered operator's config
-        new_kernel = tvm.placeholder((out_channel//oc_bn, kh, kw, oc_bn), dtype=kernel.dtype)
+        new_kernel = tvm.placeholder((out_channel//oc_bn, 1, kh, kw, 1, oc_bn), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
              new_attrs['out_layout'], out_dtype], depthwise_conv2d_NCHWc)
@@ -356,9 +392,16 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
              new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
 
     dispatch_ctx.update(target, new_workload, cfg)
-    if F == sym:
-        return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
-    return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
+
+    if is_depthwise:
+        if F == sym:
+            logging.warning("Use native layout for depthwise convolution on NNVM.")
+            return None
+        return F.nn.contrib_depthwise_conv2d_nchwc(*copy_inputs, **new_attrs)
+    else:
+        if F == sym:
+            return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+        return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
 
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')

@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tvm/arithmetic.h
  * \brief Algebra and set operations and simplifications.
  */
@@ -193,6 +211,73 @@ class ModularSetAnalyzer {
 };
 
 /*!
+ * \brief Rewrite-rule based simplifier.
+ */
+class RewriteSimplifier {
+ public:
+  /*!
+   * \brief analyze the expr
+   * \param expr The expression of interest.
+   * \return the result of the analysis.
+   */
+  Expr operator()(const Expr& expr);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_expr
+   * \param override Whether do we allow override of existing information.
+   */
+  void Update(const Var& var,
+              const Expr& new_expr,
+              bool override = false);
+
+ private:
+  friend class Analyzer;
+  friend class ConstraintContext;
+  friend class CanonicalSimplifier;
+  explicit RewriteSimplifier(Analyzer* parent);
+  ~RewriteSimplifier();
+  class Impl;
+  /*! \brief Internal impl */
+  Impl* impl_;
+};
+
+/*!
+ * \brief Canonical-form based simplifier.
+ */
+class CanonicalSimplifier {
+ public:
+  /*!
+   * \brief analyze the expr
+   * \param expr The expression of interest.
+   * \return the result of the analysis.
+   */
+  Expr operator()(const Expr& expr);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_expr
+   * \param override Whether do we allow override of existing information.
+   */
+  void Update(const Var& var,
+              const Expr& new_expr,
+              bool override = false);
+
+ private:
+  friend class Analyzer;
+  friend class ConstraintContext;
+  explicit CanonicalSimplifier(Analyzer* parent);
+  ~CanonicalSimplifier();
+  class Impl;
+  /*! \brief Internal impl */
+  Impl* impl_;
+};
+
+/*!
  * \brief A RAII constraint context.
  *
  * \code
@@ -242,6 +327,10 @@ class Analyzer {
   ConstIntBoundAnalyzer const_int_bound;
   /*! \brief sub-analyzer: modular set */
   ModularSetAnalyzer modular_set;
+  /*! \brief sub-analyzer rewrite simplfy */
+  RewriteSimplifier rewrite_simplify;
+  /*! \brief sub-analyzer rewrite simplfy */
+  CanonicalSimplifier canonical_simplify;
   /*! \brief constructor */
   Analyzer();
   /*!

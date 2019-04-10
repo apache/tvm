@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # coding: utf-8
 # pylint: disable=invalid-name, protected-access, too-many-branches, global-statement
 """Function configuration API."""
@@ -7,7 +23,7 @@ import ctypes
 import traceback
 from numbers import Number, Integral
 
-from ..base import _LIB, check_call
+from ..base import _LIB, get_last_ffi_error, py2cerror
 from ..base import c_str, string_types
 from ..node_generic import convert_to_node, NodeGeneric
 from ..runtime_ctypes import TVMType, TVMByteArray, TVMContext
@@ -55,6 +71,7 @@ def convert_to_tvm_func(pyfunc):
             rv = local_pyfunc(*pyargs)
         except Exception:
             msg = traceback.format_exc()
+            msg = py2cerror(msg)
             _LIB.TVMAPISetLastError(c_str(msg))
             return -1
 
@@ -65,7 +82,8 @@ def convert_to_tvm_func(pyfunc):
             values, tcodes, _ = _make_tvm_args((rv,), temp_args)
             if not isinstance(ret, TVMRetValueHandle):
                 ret = TVMRetValueHandle(ret)
-            check_call(_LIB.TVMCFuncSetReturn(ret, values, tcodes, ctypes.c_int(1)))
+            if _LIB.TVMCFuncSetReturn(ret, values, tcodes, ctypes.c_int(1)) != 0:
+                raise get_last_ffi_error()
             _ = temp_args
             _ = rv
         return 0
@@ -76,8 +94,9 @@ def convert_to_tvm_func(pyfunc):
     # TVM_FREE_PYOBJ will be called after it is no longer needed.
     pyobj = ctypes.py_object(f)
     ctypes.pythonapi.Py_IncRef(pyobj)
-    check_call(_LIB.TVMFuncCreateFromCFunc(
-        f, pyobj, TVM_FREE_PYOBJ, ctypes.byref(handle)))
+    if _LIB.TVMFuncCreateFromCFunc(
+            f, pyobj, TVM_FREE_PYOBJ, ctypes.byref(handle)) != 0:
+        raise get_last_ffi_error()
     return _CLASS_FUNCTION(handle, False)
 
 
@@ -168,7 +187,8 @@ class FunctionBase(object):
 
     def __del__(self):
         if not self.is_global and _LIB is not None:
-            check_call(_LIB.TVMFuncFree(self.handle))
+            if _LIB.TVMFuncFree(self.handle) != 0:
+                raise get_last_ffi_error()
 
     def __call__(self, *args):
         """Call the function with positional arguments
@@ -180,9 +200,10 @@ class FunctionBase(object):
         values, tcodes, num_args = _make_tvm_args(args, temp_args)
         ret_val = TVMValue()
         ret_tcode = ctypes.c_int()
-        check_call(_LIB.TVMFuncCall(
-            self.handle, values, tcodes, ctypes.c_int(num_args),
-            ctypes.byref(ret_val), ctypes.byref(ret_tcode)))
+        if _LIB.TVMFuncCall(
+                self.handle, values, tcodes, ctypes.c_int(num_args),
+                ctypes.byref(ret_val), ctypes.byref(ret_tcode)) != 0:
+            raise get_last_ffi_error()
         _ = temp_args
         _ = args
         return RETURN_SWITCH[ret_tcode.value](ret_val)
@@ -194,9 +215,10 @@ def __init_handle_by_constructor__(fconstructor, args):
     values, tcodes, num_args = _make_tvm_args(args, temp_args)
     ret_val = TVMValue()
     ret_tcode = ctypes.c_int()
-    check_call(_LIB.TVMFuncCall(
-        fconstructor.handle, values, tcodes, ctypes.c_int(num_args),
-        ctypes.byref(ret_val), ctypes.byref(ret_tcode)))
+    if _LIB.TVMFuncCall(
+            fconstructor.handle, values, tcodes, ctypes.c_int(num_args),
+            ctypes.byref(ret_val), ctypes.byref(ret_tcode)) != 0:
+        raise get_last_ffi_error()
     _ = temp_args
     _ = args
     assert ret_tcode.value == TypeCode.NODE_HANDLE

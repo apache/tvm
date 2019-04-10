@@ -1,51 +1,45 @@
-//! This module implements TVM custom [`Error`], [`ErrorKind`] and [`Result`] types.
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
-use std::{ffi, option};
+pub use failure::Error;
 
-use crate::{common_errors, rust_ndarray};
+#[derive(Debug, Fail)]
+#[fail(display = "Cannot convert from an empty array.")]
+pub struct EmptyArrayError;
 
-error_chain! {
-    errors {
-        EmptyArray {
-            description("cannot convert from an empty array")
-        }
-
-        NullHandle(name: String) {
-            description("null handle")
-            display("requested `{}` handle is null", name)
-        }
-
-        FunctionNotFound {
-            description("function not found")
-            display("function was not set in `function::Builder`")
-        }
-
-        TypeMismatch(expected: String, found: String) {
-            description("type mismatch!")
-            display("expected type `{}`, but found `{}`", expected, found)
-        }
-
-        MissingShapeError {
-            description("ndarray `shape()` returns `None`")
-            display("called `Option::unwrap()` on a `None` value")
-        }
-
-        AtMostOneReturn {
-            description("TVM functions accept at most one return value")
-        }
-
-    }
-
-    foreign_links {
-        ShapeError(rust_ndarray::ShapeError);
-        NulError(ffi::NulError);
-        IntoStringError(ffi::IntoStringError);
-        CommonError(common_errors::Error);
-    }
+#[derive(Debug, Fail)]
+#[fail(display = "Handle `{}` is null.", name)]
+pub struct NullHandleError {
+    pub name: String,
 }
 
-impl From<option::NoneError> for Error {
-    fn from(_err: option::NoneError) -> Self {
-        ErrorKind::MissingShapeError.into()
-    }
+#[derive(Debug, Fail)]
+#[fail(display = "Function was not set in `function::Builder`")]
+pub struct FunctionNotFoundError;
+
+#[derive(Debug, Fail)]
+#[fail(display = "Expected type `{}` but found `{}`", expected, actual)]
+pub struct TypeMismatchError {
+    pub expected: String,
+    pub actual: String,
 }
+
+#[derive(Debug, Fail)]
+#[fail(display = "Missing NDArray shape.")]
+pub struct MissingShapeError;

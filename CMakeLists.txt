@@ -58,7 +58,7 @@ include_directories("3rdparty/compiler-rt")
 
 # initial variables
 set(TVM_LINKER_LIBS "")
-set(TVM_RUNTIME_LINKER_LIBS "")
+set(TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Generic compilation options
@@ -84,7 +84,8 @@ else(MSVC)
   include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_compile_options(-O0 -Wall -fPIC -fvisibility=hidden -std=c++11)
+    set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS} -rdynamic")
+    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS} -rdynamic")
   else()
     set(CMAKE_C_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden -std=c++11 ${CMAKE_CXX_FLAGS}")
@@ -232,7 +233,7 @@ if(GTEST_LIB)
     add_executable(${__execname} ${__srcpath})
     list(APPEND TEST_EXECS ${__execname})
     target_link_libraries(${__execname}
-      tvm ${GTEST_LIB} pthread)
+      tvm ${GTEST_LIB} pthread dl)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
     set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
   endforeach()

@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 import math
 import topi
@@ -113,35 +129,36 @@ def test_reshape():
 
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
-def test_reshape_like():
+def test_shape():
     in_shape = (4, 3, 3, 4)
-    ref_shape = (3, 4, 4, 3)
+    ref_shape = (6, 2, 4, 3)
 
-    ref_array = np.random.uniform(size=ref_shape).astype('float32')
+    ref_array = np.array(ref_shape)
     ref_node = onnx.helper.make_node('Constant',
                                  inputs=[],
                                  outputs=['ref_in'],
                                  value=onnx.helper.make_tensor(name = 'const_tensor',
-                                                               data_type = onnx.TensorProto.FLOAT,
+                                                               data_type = onnx.TensorProto.INT32,
                                                                dims = ref_array.shape,
-                                                               vals = ref_array.flatten().astype(float)))
-    copy_node = helper.make_node("Identity", ["ref_in"], ["copy_in"])
-    reshape_node = helper.make_node("Reshape", ["in", "copy_in"], ["out"])
+                                                               vals = ref_array.flatten().astype(int)))
+    reshape_node = helper.make_node("Reshape", ["in", "ref_in"], ["out"])
 
-    graph = helper.make_graph([ref_node, copy_node, reshape_node],
-                              "reshape_like_test",
+    shape_node = helper.make_node("Shape", ['out'], ['final_out'])
+
+    graph = helper.make_graph([ref_node, reshape_node, shape_node],
+                              "shape_test",
                               inputs = [helper.make_tensor_value_info("in",
                                             TensorProto.FLOAT, list(in_shape))],
-                              outputs = [helper.make_tensor_value_info("out",
+                              outputs = [helper.make_tensor_value_info("final_out",
                                             TensorProto.FLOAT, list(ref_shape))])
 
-    model = helper.make_model(graph, producer_name='reshape_like_test')
+    model = helper.make_model(graph, producer_name='shape_test')
 
     for target, ctx in ctx_list():
-        x = np.random.uniform(size=in_shape).astype('float32')
-        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
+        x = np.random.uniform(size=in_shape).astype('int32')
+        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'int32')
 
-    tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+    tvm.testing.assert_allclose(ref_shape, tvm_out)
 
 def _test_power_iteration(x_shape, y_shape):
     if isinstance(y_shape, int):
@@ -995,7 +1012,7 @@ def test_LogSoftmax():
 
 if __name__ == '__main__':
     test_reshape()
-    test_reshape_like()
+    test_shape()
     test_power()
     test_squeeze()
     test_unsqueeze()

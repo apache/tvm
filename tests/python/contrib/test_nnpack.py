@@ -1,7 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 import numpy as np
 import scipy.signal
 from tvm.contrib import nnpack
+from nose import SkipTest
 
 
 def test_fully_connected_inference():
@@ -17,13 +34,11 @@ def test_fully_connected_inference():
 
     def verify(target="llvm"):
         if not tvm.module.enabled(target):
-            print("skip because %s is not enabled..." % target)
-            return
+            raise SkipTest("skip because %s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
-            print("skip because extern function is not available")
-            return
+            raise SkipTest("skip because extern function is not available")
         if not nnpack.is_available():
-            return
+            raise SkipTest("skip because nnpack is not available")
 
         ctx = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
@@ -97,13 +112,11 @@ def test_convolution_inference():
                algorithm=nnpack.ConvolutionAlgorithm.AUTO,
                with_bias=True):
         if not tvm.module.enabled(target):
-            print("skip because %s is not enabled..." % target)
-            return
-        if not tvm.get_global_func("tvm.contrib.nnpack.convolution_inference", True):
-            print("skip because extern function is not available")
-            return
+            raise SkipTest("skip because %s is not enabled..." % target)
+        if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
+            raise SkipTest("skip because extern function is not available")
         if not nnpack.is_available():
-            return
+            raise SkipTest("skip because nnpack is not available")
 
         ctx = tvm.cpu(0)
         output = nnpack.convolution_inference(
@@ -161,13 +174,11 @@ def test_convolution_inference_without_weight_transform():
                algorithm=nnpack.ConvolutionAlgorithm.AUTO,
                with_bias=True):
         if not tvm.module.enabled(target):
-            print("skip because %s is not enabled..." % target)
-            return
-        if not tvm.get_global_func("tvm.contrib.nnpack.convolution_inference_without_weight_transform", True):
-            print("skip because extern function is not available")
-            return
+            raise SkipTest("skip because %s is not enabled..." % target)
+        if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
+            raise SkipTest("skip because extern function is not available")
         if not nnpack.is_available():
-            return
+            raise SkipTest("skip because nnpack is not available")
 
         ctx = tvm.cpu(0)
         transformed_kernel = nnpack.convolution_inference_weight_transform(

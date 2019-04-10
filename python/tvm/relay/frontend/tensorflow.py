@@ -1,9 +1,27 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition
 """TF: Tensorflow frontend."""
 from __future__ import absolute_import as _abs
 from __future__ import print_function
 
 import logging
+import warnings
+from collections import defaultdict
 # Numpy support
 import numpy as np
 
@@ -25,7 +43,8 @@ def _get_relay_op(op_name):
             op = getattr(_op.image, op_name)
 
     if not op:
-        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend TensorFlow.'.format(op_name))
     return op
 
 class AttrCvt(object):
@@ -80,6 +99,7 @@ class AttrCvt(object):
         self._ignores.append('_node_name')
         self._ignores.append('is_training')
         self._ignores.append('_target_layout')
+        self._ignores.append('_input_0d_mismatch')
 
         # apply custom check
         if self._custom_check:
@@ -96,7 +116,8 @@ class AttrCvt(object):
         new_attrs = {}
         for k in attrs.keys():
             if k in self._excludes:
-                raise NotImplementedError("Attribute {} not supported yet.".format(k))
+                raise tvm.error.OpAttributeUnimplemented(
+                    'Attribute {} in operator {} is not supported.'.format(k, op_name))
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.%s", k, op_name)
             elif k in self._ignores:
@@ -145,7 +166,8 @@ class AttrCvt(object):
         """Wrapper for getting required attributes."""
         assert isinstance(attr, dict)
         if key not in attr:
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise tvm.error.OpAttributeRequired(
+                'Attribute {} not found in operator {}'.format(key, self._op_name))
         return attr[key]
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
@@ -175,7 +197,8 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        raise NotImplementedError("Only 2d kernel supported.")
+        raise tvm.error.OpAttributeInvalid(
+            'Only 2D kernels are supported for operator {}'.format(prefix + '2d'))
     return _impl
 
 def _dimension_constraint():
@@ -226,7 +249,7 @@ def _pooling(name):
         attr['data_format'] = attr['data_format'].decode("utf-8")
         flip_layout = False
 
-        input_shape = attr['_input_shapes'][inputs[0]][0]
+        input_shape = attr['_input_shapes'][inputs[0]]
 
         if attr['data_format'] == 'NHWC':
             attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2])
@@ -235,10 +258,12 @@ def _pooling(name):
             attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3])
             attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
-            raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
+            msg = 'Value {} of attribute "data_format" of operator Pooling ' \
+                  'is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attrs['data_format']))
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
-            tmp_shape = attr['_input_shapes'][inputs[0]][0]
+            tmp_shape = attr['_input_shapes'][inputs[0]]
             input_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
             inputs[0] = _op.transpose(inputs[0], axes=(0, 3, 1, 2))
             attr['data_format'] = "NCHW"
@@ -264,7 +289,9 @@ def _pooling(name):
 
             attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
-            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+            msg = 'Value {} in attribute "padding" of operator Pooling is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
 
         if name == "avg_pool":
             attr['count_include_pad'] = False
@@ -291,13 +318,13 @@ def _conv(opname):
 
         # NCHW Layout require weights transpose
         if attr['data_format'] == 'NCHW':
-            tmp_shape = attr['_input_shapes'][inputs[1]][0]
+            tmp_shape = attr['_input_shapes'][inputs[1]]
             tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
             inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
-            attr['_input_shapes'][inputs[1]] = [tmp_shape]
+            attr['_input_shapes'][inputs[1]] = tmp_shape
 
-        input_shape = attr['_input_shapes'][inputs[0]][0]
-        weights_shape = attr['_input_shapes'][inputs[1]][0]
+        input_shape = attr['_input_shapes'][inputs[0]]
+        weights_shape = attr['_input_shapes'][inputs[1]]
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
@@ -322,7 +349,7 @@ def _conv(opname):
                 attr['channels'] = input_shape[3] * depth_mult
 
             if 'dilations' in attr:
-                attr['dilations'] = (attr['dilations'][0], attr['dilations'][1])
+                attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
             depth_mult, _, kernel_h, kernel_w = weights_shape
@@ -338,7 +365,9 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
             attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
-            raise TypeError("Unsupported data format type : {}".format(attr['data_format']))
+            msg = 'Value {} in attribute "data_format" of operator Conv is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
 
         if opname == 'depthwise':
@@ -359,8 +388,13 @@ def _conv(opname):
                 in_h = input_shape[2]
                 in_w = input_shape[3]
 
-            pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
-            pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
+            dilation_h = attr['dilations'][0]
+            dilation_w = attr['dilations'][1]
+            dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+            dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+            pad_v = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
+
 
             if attr['data_format'] == 'NHWC':
                 inputs[0] = _op.nn.pad(data=inputs[0],
@@ -378,7 +412,9 @@ def _conv(opname):
             attr['padding'] = [0, 0]
 
         else:
-            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+            msg = 'Value {} in attribute "padding" of operator Conv is not ' \
+                  'valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
 
         if 'kernel_layout' not in attr:
             if opname == 'conv':
@@ -410,7 +446,7 @@ def _conv(opname):
 def _decode_image():
     def _impl(inputs, attr, params):
         # Image decode wrapper: Expecting user to feed decoded input to next layer drop this layer.
-        print("DecodeJpeg: It's a pass through, please handle preprocessing before input")
+        warnings.warn("DecodeJpeg: It's a pass through, please handle preprocessing before input")
         return inputs[0]
     return _impl
 
@@ -424,8 +460,7 @@ def _expand_dims():
         dim_input = inputs.pop(1)
         axis = params[dim_input.name_hint]
         params.pop(dim_input.name_hint)
-        return AttrCvt(op_name="expand_dims", ignores=['Tdim'],
-                       extras={'axis': int(axis.asnumpy()[0])})(inputs, attr)
+        return _expand_dims_0d_aware(inputs[0], attr, axis=axis.asnumpy()[0])
     return _impl
 
 def _resize_bilinear():
@@ -460,6 +495,11 @@ def _matmul():
 
     return _impl
 
+def _undef():
+    def _impl(inputs, attr, params):
+        return _sym.__undef__()
+    return _impl
+
 def _identity():
     def _impl(inputs, attr, params):
         return inputs[0]
@@ -488,9 +528,25 @@ def _concat():
 def _pack():
     def _impl(inputs, attr, params):
         axis = int(attr["axis"])
-        inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
+        inputs_reshaped = [_expand_dims_0d_aware(i, attr, axis=axis, num_newaxis=1) for i in inputs]
         return _op.concatenate(inputs_reshaped, axis)
     return _impl
+
+def _slice():
+    def _impl(inputs, attr, params):
+        begin = params.pop(_get_name_hint(inputs[1])).asnumpy().tolist()
+        size = params.pop(_get_name_hint(inputs[2])).asnumpy().tolist()
+        data_shape = attr['_input_shapes'][inputs[0]]
+        data_dim = len(data_shape)
+        end = size
+        for i in range(data_dim):
+            if size[i] == -1:
+                end[i] = data_shape[i] - begin[i]
+            else:
+                end[i] += begin[i]
+        return _op.strided_slice(inputs[0], begin=begin, end=size)
+    return _impl
+
 
 def _reshape():
     def _impl(inputs, attr, params):
@@ -503,25 +559,23 @@ def _reshape():
                 op_name="reshape",
                 extras={'newshape':tuple(shape_arg.asnumpy())},
                 ignores=['Tshape'])(inputs, attr)
-        except KeyError:
+        except AttributeError:
             # Shape operator is already pruned, hence
             # try to infer shape by precompute prune if possible.
-            if all(in_node in params for in_node in inputs[1].list_input_names()):
-                func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
-                with tvm.relay.build_config(opt_level=0):
-                    graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
-                ctx = tvm.context("llvm", 0)
-                from tvm.contrib import graph_runtime
-                m = graph_runtime.create(graph, lib, ctx)
-                m.set_input(**params)
-                m.run()
-                params_new = m.get_output(0)
-                inputs.pop(1)
-                return AttrCvt(
-                    op_name="reshape",
-                    extras={'newshape':tuple(params_new.asnumpy().flatten())},
-                    ignores=['Tshape'])(inputs, attr)
-            raise RuntimeError("Reshape with dynamic shape input not supported yet.")
+            func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
+            with tvm.relay.build_config(opt_level=0):
+                graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+            ctx = tvm.context("llvm", 0)
+            from tvm.contrib import graph_runtime
+            m = graph_runtime.create(graph, lib, ctx)
+            m.set_input(**params)
+            m.run()
+            params_new = m.get_output(0)
+            inputs.pop(1)
+            return AttrCvt(
+                op_name="reshape",
+                extras={'newshape':tuple(params_new.asnumpy().astype('int64').flatten())},
+                ignores=['Tshape'])(inputs, attr)
     return _impl
 
 def _bias_add():
@@ -595,7 +649,7 @@ def _relu6():
 
 def _shape():
     def _impl(inputs, attr, params):
-        return np.array(attr['_input_shapes'][inputs[0]][0], dtype='int32')
+        return np.array(attr['_input_shapes'][inputs[0]], dtype='int32')
     return _impl
 
 def _fill():
@@ -635,17 +689,20 @@ def _square():
         return _op.multiply(inputs[0], inputs[0])
     return _impl
 
-def _gather_v2():
-    "Tensorflow now support only gatherv2"
+def _gather():
+    "GatherV2, Gather"
     def _impl(inputs, attr, params):
-        axis = params[inputs.pop(2).name_hint].asnumpy()[0]
+
+        axis = 0
+        if len(inputs) > 2:
+            axis = params[inputs.pop(2).name_hint].asnumpy()[0]
         new_input = []
         new_input.append(inputs.pop(0))
         new_input.append(inputs.pop(0))
-        return  AttrCvt(op_name="take",
-                        extras={'axis': tvm.const(axis, 'int32')},
-                        ignores=['Tindices', 'Tparams', 'validate_indices', \
-                                 'Taxis', '_class'])(new_input, attr)
+        return AttrCvt(op_name="take",
+                       extras={'axis': tvm.const(axis, 'int32')},
+                       ignores=['Tindices', 'Tparams', 'validate_indices', \
+                                'Taxis', '_class'])(new_input, attr)
     return _impl
 
 def _infer_out_shapes(inputs, params):
@@ -670,7 +727,7 @@ def _stridedSlice():
         new_axis_mask = int(attr.get('new_axis_mask', 0))
         shrink_axis_mask = int(attr.get('shrink_axis_mask', 0))
         data_shape = attr['_input_shapes'][inputs[0]]
-        data_dim = len(data_shape[0])
+        data_dim = len(data_shape)
         stride_dim = len(stride)
 
         def _transform_mask(stride_dim, ellipsis_mask):
@@ -701,7 +758,7 @@ def _stridedSlice():
                                      + new_axes_after_ellipsis), data_dim)
                     for i in range(final_index, to_index):
                         m_begin[final_index] = 0
-                        m_end[final_index] = data_shape[0][final_index]
+                        m_end[final_index] = data_shape[final_index]
                         m_stride[final_index] = 1
                         fshape_indices.append(final_index)
                         final_index += 1
@@ -711,19 +768,19 @@ def _stridedSlice():
                     if final_index == len(m_begin):
                         break
                     if mask & begin_mask:
-                        m_begin[final_index] = data_shape[0][final_index] \
+                        m_begin[final_index] = data_shape[final_index] \
                                                      if stride[index] < 0 else 0
                     elif begin[index]:
                         m_begin[final_index] = begin[index]
                     if mask & end_mask:
                         m_end[final_index] = 0 if stride[index] < 0 \
-                                                 else data_shape[0][final_index]
+                                                 else data_shape[final_index]
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]
                     if mask & shrink_axis_mask:
                         #Tensorflow make axis with shrink_axis_mask as dimension 1
-                        m_begin[final_index] = data_shape[0][final_index] + begin[index] \
+                        m_begin[final_index] = data_shape[final_index] + begin[index] \
                                                  if begin[index] < 0 else begin[index]
                         m_end[final_index] = begin[index] + 1
                         m_stride[final_index] = 1
@@ -751,6 +808,9 @@ def _stridedSlice():
                 pass
             else:
                 final_output.append(out_shape[gather_index])
+        # Prevent 0-dim tensors which are not accepted by Relay
+        if not final_output:
+            final_output.append(1)
         return _op.reshape(out, newshape=tuple(final_output))
     return _impl
 
@@ -760,7 +820,8 @@ def _pad(name):
         if padlist_key in params:
             padlist = params.pop(padlist_key).asnumpy()
         else:
-            raise RuntimeError("Required parameter {} not fount.".format(padlist_key))
+            raise tvm.error.OpAttributeRequired(
+                'Attribute {} not found in operator Pad.'.format(padlist_key))
         paddings = tuple([tuple(l) for l in padlist])
         attr['pad_width'] = paddings
         attr['pad_value'] = 0
@@ -772,7 +833,6 @@ def _pad(name):
             op_name='pad',
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
-
 
 def _transpose():
     def _impl(inputs, attr, params):
@@ -786,13 +846,17 @@ def _transpose():
         return _op.transpose(inputs[0], axes=axes)
     return _impl
 
+def _where():
+    def _impl(inputs, attr, params):
+        return AttrCvt(op_name="where")(inputs, attr)
+    return _impl
+
 def _rank():
     def _impl(inputs, attr, params):
-        input_shapes = attr['_input_shapes'][inputs[0]]
-        assert len(inputs) == 1
+        input_shape = attr['_input_shapes'][inputs[0]]
 
         name = attr["_node_name"]
-        params[name] = tvm.nd.array([len(input_shapes[0])])
+        params[name] = tvm.nd.array([len(input_shape)])
         return [_expr.var(name,
                           shape=params[name].shape,
                           dtype='int32')]
@@ -843,10 +907,81 @@ def _broadcast(name):
         )(inputs, attr)
     return _impl
 
+def _split(has_size_vector):
+    # TF documentation https://www.tensorflow.org/api_docs/python/tf/split
+    def _impl(inputs, attr, params):
+        try:
+            # order and number of inputs are different:
+            # if has_size_vector:
+            #     https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/split-v
+            # else:
+            #     https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/split
+
+            # in addition, `axis` and `num_or_size_splits` can be tensors in TensorFlow,
+            # we can only support constants
+            if has_size_vector:
+                input_node_index = 0
+                input_axis_index = 2
+                size_splits_input_name = _get_name_hint(inputs[1])
+                size_splits = params[size_splits_input_name].asnumpy()
+                section_beginnings = np.cumsum(size_splits)[:-1]
+                indices_or_sections = tuple(section_beginnings)
+            else:
+                input_node_index = 1
+                input_axis_index = 0
+                indices_or_sections = attr['num_split']
+            input_node = inputs[input_node_index]
+            axis_input_name = _get_name_hint(inputs[input_axis_index])
+            axis_input_value = params[axis_input_name].asnumpy()[0]
+        except (IndexError, KeyError):
+            raise TypeError( \
+                "Unsupported argument for split: `axis` and `num_or_size_splits` " \
+                "should be constants")
+        return _op.split(input_node,
+                         indices_or_sections=indices_or_sections,
+                         axis=int(axis_input_value))
+    return _impl
+
+def _unpack():
+    def _impl(inputs, attr, params):
+        input_node = inputs[0]
+        axis = attr['axis']
+        input_shape = attr['_input_shapes'][input_node]
+        axis_length = input_shape[axis]
+        if axis_length < 0:
+            raise TypeError("Unstack with unknown axis length")
+        splitted = _op.split(input_node,
+                             indices_or_sections=axis_length,
+                             axis=axis)
+        #name=attr.get('_node_name', 'unstack'))
+        if axis == 0:
+            axis = None
+        else:
+            axis = [axis]
+        return _expr.TupleWrapper(
+            _expr.Tuple([_op.squeeze(split_item, axis=axis) \
+            for split_item in splitted]), len(splitted))
+    return _impl
+
+def _expand_dims_0d_aware(data, attr, axis, num_newaxis=1):
+    if data in attr['_input_0d_mismatch']:
+        return data if num_newaxis == 1 else \
+            AttrCvt(op_name="expand_dims", ignores=['Tdim', 'N'],
+                    extras={'axis': int(axis), 'num_newaxis': int(num_newaxis-1)})([data], attr)
+
+    return AttrCvt(op_name="expand_dims", ignores=['Tdim', 'N'],
+                   extras={'axis': int(axis), 'num_newaxis': int(num_newaxis)})([data], attr)
+
+
 def _softmax():
     def _impl(inputs, attr, params):
         return AttrCvt(op_name='softmax',
                        transforms={'axis': ('axis', 1)})([inputs[0]], attr)
+    return _impl
+
+def _logical(name):
+    def _impl(inputs, attr, params):
+        return AttrCvt(op_name=name)(inputs, attr)
     return _impl
 
 # compatible operators that do NOT require any conversion.
@@ -879,11 +1014,13 @@ _convert_map = {
     'Add'                               : _elemwise('add'),
     'Sub'                               : _elemwise('subtract'),
     'Mul'                               : _elemwise('multiply'),
+    'RealDiv'                           : _elemwise('div'),
     'Maximum'                           : _elemwise('maximum'),
     'Minimum'                           : _elemwise('minimum'),
     'Sum'                               : _sum(),
     'Square'                            : _square(),
     'Pack'                              : _pack(),
+    'Slice'                             : _slice(),
     'LeakyRelu'                         : AttrCvt('leaky_relu'),
     'Relu'                              : AttrCvt('relu'),
     'Reshape'                           : _reshape(),
@@ -898,8 +1035,10 @@ _convert_map = {
     'DepthwiseConv2dNative'             : _conv('depthwise'),
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
+    'Select'                            : _where(),
     'Fill'                              : _fill(),
-    'GatherV2'                          : _gather_v2(),
+    'GatherV2'                          : _gather(),
+    'Gather'                            : _gather(),
     'StridedSlice'                      : _stridedSlice(),
     'LRN'                               : _lrn(),
     'Pad'                               : _pad('Pad'),
@@ -909,12 +1048,18 @@ _convert_map = {
     'Transpose'                         : _transpose(),
     'Tanh'                              : AttrCvt('tanh'),
     'Mean'                              : _mean(),
+    'LogicalAnd'                        : _logical('logical_and'),
+    'LogicalOr'                         : _logical('logical_or'),
+    'LogicalNot'                        : _logical('logical_not'),
     'Less'                              : _broadcast('less'),
     'Greater'                           : _broadcast('greater'),
     'LessEqual'                         : _broadcast('less_equal'),
     'GreaterEqual'                      : _broadcast('greater_equal'),
     'Equal'                             : _broadcast('equal'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'Split'                             : _split(False),
+    'SplitV'                            : _split(True),
+    'Unpack'                            : _unpack(),
 }
 
 def _LSTMBlockCell():
@@ -949,8 +1094,8 @@ def _LSTMBlockCell():
         forget_bias = attr.pop('forget_bias')
         input_shape = attr['_input_shapes'][inputs[0]]
         weight_shape = attr['_input_shapes'][inputs[3]]
-        batch_size, input_size = input_shape[0][0], input_shape[0][1]
-        num_hidden_layers = weight_shape[0][1]
+        batch_size, input_size = input_shape[0], input_shape[1]
+        num_hidden_layers = weight_shape[1]
         num_hidden = num_hidden_layers // 4
 
         in_data = _op.reshape(in_data,
@@ -1078,8 +1223,8 @@ class RecurrentNetworks(object):
                 input_shape = attr['_input_shapes'][inputs[0]]
                 weight_shape = attr['_input_shapes'][inputs[3]]
 
-                batch_size = input_shape[0][0]
-                num_hidden = weight_shape[0][1] // 4
+                batch_size = input_shape[0]
+                num_hidden = weight_shape[1] // 4
 
                 if layer == 0:
                     #Create initial states placeholder in case of first layer
@@ -1162,6 +1307,220 @@ class RecurrentNetworks(object):
                                                      params, num_layers)
         return sym
 
+# An internal list to contain all the control flow primitives used in Tensorflow
+# 1.x.
+_control_flow_nodes = ['Merge', 'Switch', 'NextIteration', 'Exit', 'Enter', 'LoopCond']
+
+def _in_while_loop(control_flow_node_map, op_name):
+    """
+    Check if a given control flow operator is part of a while loop execution
+    frame. This is based on the fact that there is only one occurrence of
+    `LoopCond` for a loop execution frame and it is only presented in the loop
+    construct.
+
+    Parameters
+    ----------
+    control_flow_node_map : Dict[str, Set[str]]
+        A dictionay contains the unqiue control flow execution frame name to
+        a set of primitive operators mapping.
+
+    op_name : str
+        The name of a control flow primitive.
+
+    Returns
+    -------
+    ret : bool
+        Return true if the operator is in a while loop execution frame,
+    otherwise, return false.
+    """
+    return op_name in control_flow_node_map and \
+            "LoopCond" in control_flow_node_map[op_name]
+
+
+class Branch:
+    """A class contains the components that are used to build up a Relay if
+    node.
+
+    Parameters
+    ----------
+    cond : tvm.relay.Expr
+        The condition of a if node.
+
+    true_branch : tvm.relay.Expr
+        The body of the true branch of a if expression.
+
+    false_branch: tvm.relay.Expr
+        The body of the false branch of a if expression.
+
+    _if : tvm.relay.Expr
+        An internal variable indicates where an if expression is already created
+        for a matched TF condition construct.
+
+    Examples
+    --------
+    The following is a cond statement written in TensorFlow:
+
+    .. code-block:: python
+
+        def vanilla_cond():
+            i = tf.constant(1)
+            j = tf.constant(4)
+
+             def f1():
+                return tf.multiply(1, 17)
+
+             def f2():
+                return tf.add(4, 23)
+            r = tf.cond(tf.less(i, j), f1, f2)
+
+    This condition statement should be coverted into Relay in the following
+    form:
+
+    .. code-block:: python
+
+        fn (%Const: Tensor[(1,), int32],
+            %Const_1: Tensor[(1,), int32],
+            %cond/Mul/x: Tensor[(1,), int32],
+            %cond/Mul/y: Tensor[(1,), int32],
+            %cond/Add/x: Tensor[(1,), int32],
+            %cond/Add/y: Tensor[(1,), int32]) {
+          %0 = less(%Const, %Const_1) # ty=Tensor[(1,), bool]
+          %1 = min(%0)
+          if (%1) {
+            %2 = multiply(%cond/Mul/x, %cond/Mul/y)
+            %2
+          }  else {
+            %3 = add(%cond/Add/x, %cond/Add/y)
+            %3
+          }
+        }
+    """
+    def __init__(self):
+        self._if = None
+        self.cond = None
+        self.true_branch = None
+        self.false_branch = None
+
+    def _if_node(self):
+        """An internal API to create a relay if node from the matched TF
+        condition construct.
+        """
+        # `cond`  returns a tensor that contains boolean values. We add a `min`
+        # operator to checks if there is any false value. If so, this condition
+        # doesn't not hold.
+        cond = tvm.relay.op.min(self.cond)
+        return tvm.relay.If(cond, self.true_branch, self.false_branch)
+
+    def if_node(self):
+        """Create an tvm.relay.If node if it hasn't been created yet."""
+        if self._if is None:
+            self._if = self._if_node()
+        return self._if
+
+
+class Loop:
+    """
+    A class contains the components that are used to build up a Relay
+    recursive call.
+
+    Parameters
+    ----------
+    loop_vars : List[tvm.relay.Expr]
+        The loop variables that used in a while loop.
+
+    cond : tvm.relay.Expr
+        The condition of a while loop.
+
+    body : tvm.relay.Expr
+        The body of a matched while loop.
+
+    _loop : tvm.relay.Expr
+        An internal variable indicates where a recursive call is already created
+        for a matched TF while loop construct.
+
+    Examples
+    --------
+    The following is a vanilla loop from TensorFlow:
+
+    .. code-block:: python
+
+        i = tf.constant(0)
+        c = lambda i: tf.less(i, 10)
+        b = lambda i: tf.add(i, 1)
+        r = tf.while_loop(c, b, [i])
+
+    It will be converted to the following recursive call in Relay:
+
+    .. code-block:: python
+
+        fn (%while/Less/y: Tensor[(1,), int32],
+            %while/Add/y: Tensor[(1,), int32],
+            %Const: Tensor[(1,), int32]) {
+          %0 = fn(%loop_var0: Tensor[(1,), int32]) {
+            %1 = less(%loop_var0, %while/Less/y)
+            %2 = min(%1)
+            if (%2) {
+              %3 = add(%loop_var0, %while/Add/y)
+              free_var %while_loop
+              %4 = %while_loop(%3)
+              %4
+            }    else {
+              %5 = (%loop_var0,)
+              %5
+            }
+          }
+          let %while_loop1 = %0
+          %6 = %while_loop1(%Const)
+          %6
+        }
+    """
+    def __init__(self):
+        self.loop_vars = []
+        self.cond = None
+        self.body = []
+        self._loop = None
+
+    def _while_loop(self):
+        """An internal API to create a Relay recurisve call for a matched TF
+        `while_loop` construct.
+        """
+        wl = tvm.relay.var('while_loop')
+
+        sb = tvm.relay.scope_builder.ScopeBuilder()
+
+        loop_vars = []
+        bind_map = {}
+        for i, var in enumerate(self.loop_vars):
+            assert isinstance(var, _expr.Var), repr(var)
+            v = tvm.relay.var("loop_var" + str(i),
+                              type_annotation=var.type_annotation)
+            loop_vars.append(v)
+            bind_map[var] = v
+
+        self.cond = tvm.relay.bind(self.cond, bind_map)
+        self.body = [tvm.relay.bind(b, bind_map) for b in self.body]
+
+        cond = tvm.relay.op.min(self.cond)
+
+        with sb.if_scope(cond):
+            sb.ret(wl(*self.body))
+        with sb.else_scope():
+            sb.ret(tvm.relay.Tuple(loop_vars))
+
+        loop_fn = tvm.relay.Function(loop_vars, sb.get())
+        sb = tvm.relay.scope_builder.ScopeBuilder()
+        sb.let(wl, loop_fn)
+        sb.ret(wl(*self.loop_vars))
+        return sb.get()
+
+    def while_loop(self):
+        """Instantiate a while loop if it has not been created yet."""
+        if self._loop is None:
+            self._loop = self._while_loop()
+            return self._loop
+        return self._loop
+
+
 class GraphProto(object):
     """ A helper class for handling relay graph copying from Tensorflow GraphDef.
     Definition:
@@ -1170,9 +1529,14 @@ class GraphProto(object):
     def __init__(self):
         self._nodes = {}
         self._params = {}
+        self._input_shapes = {}
         self._output_shapes = {}
         self._num_param = 0
         self._num_rnn_layer = False
+        self._outputs_are_0d = {}
+        self._input_shapes = {}
+        self._loops = {}
+        self._branches = {}
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow  graph definition - GraphDef.
@@ -1221,36 +1585,66 @@ class GraphProto(object):
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
 
+        control_flow_node_map = defaultdict(set)
+        for node in graph.node:
+            node_name_prefix = node.name.rsplit('/', 1)[0]
+            control_flow_node_map[node_name_prefix].add(node.op)
+            if node.op == 'Placeholder':
+                if shape and node.name in shape:
+                    self._input_shapes[node.name] = list(shape[node.name])
+                    continue
+                self._input_shapes[node.name] = \
+                    tensor_util.TensorShapeProtoToList(node.attr['shape'].shape)
+                for idx, dim in enumerate(self._input_shapes[node.name]):
+                    if dim < 0:
+                        self._input_shapes[node.name][idx] = 1
+                        warnings.warn("Use 1 instead of -1 in shape of operator %s."
+                                      % node.name)
+
+                # Ignore user's input shape for Non placeholder
+            elif node.op == 'Const':
+                tensor_value = node.attr['value'].tensor
+                self._input_shapes[node.name] = \
+                    tensor_util.TensorShapeProtoToList(tensor_value.tensor_shape)
+                if shape and node.name in shape:
+                    warnings.warn("Ignore the passed shape. Shape in graphdef "
+                                  "will be used for operator %s." % node.name)
+
         # Parse the nodes to re-create TF graph using Relay operators.
         for node in graph.node:
-            # Tensorflow doesn't have seperate list for params extraction.
+            # Tensorflow doesn't have separate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build params dict.
 
             input_shapes = {}
+            input_0d_mismatch = set()
             attr = self._parse_attr(node.attr)
 
-            #Variable converted to Const will not have only value attr
+            # Variable converted to Const will not have only value attr
             if 'value' in attr and node.op == 'Const':
-                tensor_value = attr['value']
-                self._output_shapes[node.name] = \
-                    [tensor_util.TensorShapeProtoToList( \
-                        tensor_value.tensor_shape)]
+                self._output_shapes[node.name] = [self._input_shapes[node.name]]
+            elif shape and node.name in shape:
+                # Give priority to user argument.
+                self._output_shapes[node.name] = [shape[node.name]]
+            elif node.op == 'Placeholder':
+                self._output_shapes[node.name] = [self._input_shapes[node.name]]
             elif '_output_shapes' in attr:
                 self._output_shapes[node.name] = \
                     [tensor_util.TensorShapeProtoToList(tshape) \
                     for tshape in attr['_output_shapes']]
-            elif shape:
+            else:
                 # Keep the list indexable to avoid key error.
                 # Actual value will be filled after node creation.
+                # Will infer shapes if the graph is not frozen with add_shapes=True
                 self._output_shapes[node.name] = [None]
-            else:
-                raise NotImplementedError( \
-                    "Please freeze the graph with add_shapes=True")
+
+            self._outputs_are_0d[node.name] = [ \
+                not shape if isinstance(tshape, list) else False \
+                for tshape in self._output_shapes[node.name]]
 
             if node.op == "Placeholder":
-                self._output_shapes[node.name] = [shape[node.name]]
+                self._output_shapes[node.name] = [self._input_shapes[node.name]]
                 self._nodes[node.name] = [_expr.var(node.name,
-                                                    shape=self._output_shapes[node.name][0],
+                                                    shape=self._input_shapes[node.name],
                                                     dtype=attr['dtype'].name)]
 
             elif node.op == "Const":
@@ -1266,7 +1660,7 @@ class GraphProto(object):
 
             else:
                 # Pass the parsed shapes instead
-                attr["_output_shapes"] = self._output_shapes[node.name]
+                attr["_output_shapes"] = output_shapes = self._output_shapes[node.name]
 
                 # Pass the node name too in attr
                 attr["_node_name"] = node.name
@@ -1286,14 +1680,42 @@ class GraphProto(object):
                 # Fill shapes for all inputs in a list
                 inputs = []
                 for i in node.input:
-                    if i in self._nodes:
-                        inputs.append(self._nodes[i][0])
-                        input_shapes[self._nodes[i][0]] = self._output_shapes[i]
+                    # Some TensorFlow operators internally maintain execution layers
+                    # and their output name includes the layer number along with
+                    # graph node name. E.g. the node name is 'Model/RNN/cell_0/RnnCell', but the
+                    # output tensor name is 'Model/RNN/cell_0/RnnCell:0'. In this case,
+                    # the number has to be ignored for single-output nodes.
+                    # On the other hand, for multi-output nodes the number is the output index,
+                    # and the lack of the number implies 0.
+                    tensor_name = i.split(':')
+                    node_name = tensor_name[0]
+                    if node_name in self._nodes:
+                        in_sym = self._nodes[node_name]
+                        if isinstance(in_sym, _expr.TupleWrapper):
+                            tensor_slot = int(tensor_name[1]) if len(tensor_name) > 1 else 0
+                            in_sym = [in_sym[tensor_slot]]
+                            input_shape = self._output_shapes[node_name][tensor_slot]
+                        else:
+                            tensor_slot = 0
+                            input_shape = self._output_shapes[node_name][0]
+                        inputs.append(in_sym[0])
+                        input_shapes[in_sym[0]] = input_shape
+                        # This means the node is 1d in Relay and 0d in TF.
+                        # See `_expand_dims_0d_aware`.
+                        if self._outputs_are_0d[node_name][tensor_slot] and input_shape:
+                            input_0d_mismatch.add(in_sym[0])
+
                 attr['_input_shapes'] = input_shapes
+                attr['_input_0d_mismatch'] = input_0d_mismatch
 
-                op = self._convert_operator(node.op, inputs, attr, graph)
+                if node.op in _control_flow_nodes:
+                    op = self._convert_control_flow_operator(node, inputs,
+                                                             attr,
+                                                             control_flow_node_map)
+                else:
+                    op = self._convert_operator(node.op, inputs, attr, graph)
 
-                # Check is op is converted to param
+                # Check if op is converted to param
                 if isinstance(op, np.ndarray):
                     self._params[node.name] = tvm.nd.array(op)
                     op = [_expr.var(node.name,
@@ -1309,17 +1731,41 @@ class GraphProto(object):
 
                 self._nodes[node.name] = op
 
+                # Infer shapes even without specifying "add_shapes=True"
+                if output_shapes == [None]:
+                    out_shapes = []
+                    for node_item in self._nodes[node.name]:
+                        out_type = ir_pass.infer_type(node_item)
+                        out_shapes.append(get_const_tuple(out_type.checked_type.shape))
+                    self._output_shapes[node.name] = out_shapes
+
+                if self._output_shapes[node.name] and shape and node.name in shape:
+                    assert self._output_shapes[node.name] == list(shape[node.name])
+
             # Infer shapes if passed explicitely
             node_output = self._nodes[node.name]
-            out_type = ir_pass.infer_type(node_output[0])
-            self._output_shapes[node.name] = [get_const_tuple(out_type.checked_type.shape)]
-
+            if shape and (not self._output_shapes[node.name][0]
+                          or -1 in self._output_shapes[node.name][0]):
+                out_shapes = []
+                for node_item in node_output:
+                    out_type = ir_pass.infer_type(node_item)
+                    out_shapes.append(get_const_tuple(out_type.checked_type.shape))
+                self._output_shapes[node.name] = out_shapes
 
         out = []
         if outputs is None:
-            out = op
+            if node.op == "Exit":
+                out = [op[0].tuple_value]
+            else:
+                out = op
         else:
-            out = [self._nodes[out_name][0] for out_name in outputs]
+            for out_name in outputs:
+                if ":" in out_name:
+                    out_name, out_num = out_name.split(":")
+                    out_num = int(out_num)
+                    out.append(self._nodes[out_name][out_num])
+                else:
+                    out.append(self._nodes[out_name][0])
 
         #Add the RNN outputs also with 'head' nodes of the relay graph
         if self._num_rnn_layer:
@@ -1347,7 +1793,9 @@ class GraphProto(object):
             elif node.op == "Const":
                 pass
             else:
-                if any([node.op in t for t in [_identity_list, _convert_map, _convert_map_rnn]]):
+                if any([node.op in t for t in [_identity_list, _convert_map,
+                                               _convert_map_rnn,
+                                               _control_flow_nodes]]):
                     pass
                 else:
                     missing_operators.add(node.op)
@@ -1473,6 +1921,89 @@ class GraphProto(object):
             self._num_rnn_layer = True
         sym = self.rnn.process_op(op_name, inputs, attrs, params)
         return sym
+
+    def _convert_control_flow_operator(self, node, inputs, attrs, control_flow_node_map):
+        """
+        Convert the Relay control flow primitive into corresponding component
+        of a Relay control flow construct, i.e. `tf.cond` and `tf.while_loop`
+        are converted in Relay `If` and recusrive call, respectively.
+
+        Parameters
+        ----------
+        node: TensorFlow graph node object.
+            A TensorFlow graph node object.
+
+        inputs : List[tvm.relay.Expr]
+            List of input symbols.
+
+        attrs : Dict[tvm.Attrs]
+            Dict of operator attributes.
+
+        control_flow_node_map : Dict[str, Set[str]]
+            A dictionary contains the execution frame name to primitives
+            mapping.
+
+        Returns
+        -------
+        op : tvm.relay.Expr
+            Converted relay expression.
+        """
+        node_name_prefix = node.name.rsplit('/', 1)[0]
+        if node.op == "Merge":
+            if _in_while_loop(control_flow_node_map, node_name_prefix):
+                op = self._nodes[node.input[0]]
+                self._loops[node_name_prefix] = Loop()
+            else:
+                if len(self._branches) == 0:
+                    raise RuntimeError("Cannot find a created "
+                                       "conditional for merge node")
+                branch = self._branches[node_name_prefix]
+                false_br = self._nodes[node.input[0]]
+                true_br = self._nodes[node.input[1]]
+                assert len(true_br) == 1
+                assert len(false_br) == 1
+                branch.true_branch = true_br[0]
+                branch.false_branch = false_br[0]
+                op = [branch.if_node()]
+        elif node.op == "Exit":
+            loop = self._loops[node_name_prefix]
+            exit_name = node.name.split('/')[-1]
+            assert str.startswith(exit_name, 'Exit')
+
+            # TensorFlow has differen naming convention on different
+            # versions.
+            if '_' in exit_name:
+                exit_number = int("0" + exit_name[5:])
+            else:
+                exit_number = int("0" + exit_name[4:])
+
+            expr = loop.while_loop()
+            op = _expr.TupleGetItem(expr, exit_number)
+        elif node.op == "Enter":
+            op = self._nodes[node.input[0]]
+        elif node.op == "LoopCond":
+            op = self._nodes[node.input[0]]
+            assert len(op) == 1
+            self._loops[node_name_prefix].cond = op[0]
+        elif node.op == "Switch":
+            op = self._nodes[node.input[0]]
+            assert len(op) == 1
+            if _in_while_loop(control_flow_node_map, node_name_prefix):
+                self._loops[node_name_prefix].loop_vars.append(op[0])
+            else:
+                if node_name_prefix not in self._branches:
+                    self._branches[node_name_prefix] = Branch()
+                self._branches[node_name_prefix].cond = ir_pass.infer_type(op[0])
+        elif node.op == "NextIteration":
+            op = self._nodes[node.input[0]]
+            assert len(op) == 1
+            self._loops[node_name_prefix].body.append(op[0])
+        else:
+            raise Exception("Cannot identify control flow operator: " +
+                            "{}".format(node.op))
+
+        return op
+
 
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):

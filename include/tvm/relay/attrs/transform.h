@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/attrs/transform.h
  * \brief Transform operators.
  */
@@ -75,10 +93,15 @@ struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
 
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer axis;
+  std::string mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
         .describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(mode).set_default("clip")
+        .describe("Specify how out-of-bound indices will behave."
+                  "clip - clip to the range (default)"
+                  "wrap - wrap around the indices");
   }
 };
 
@@ -123,6 +146,37 @@ struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
         .describe("The axis in the result array along which the input arrays are stacked.");
   }
 };  // struct StackAttrs
+
+/*! \brief Attributes used in repeat operators */
+struct RepeatAttrs : public tvm::AttrsNode<RepeatAttrs> {
+  Integer repeats;
+  Integer axis;
+  TVM_DECLARE_ATTRS(RepeatAttrs, "relay.attrs.RepeatAttrs") {
+    TVM_ATTR_FIELD(repeats)
+        .describe("The number of repetitions for each element.");
+    TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
+        .describe(" The axis along which to repeat values.");
+  }
+};  // struct RepeatAttrs
+
+/*! \brief Attributes used in tile operators */
+struct TileAttrs : public tvm::AttrsNode<TileAttrs> {
+  Array<Integer> reps;
+  TVM_DECLARE_ATTRS(TileAttrs, "relay.attrs.TileAttrs") {
+    TVM_ATTR_FIELD(reps)
+        .describe("The number of times for repeating the tensor a."
+                  "Each dim sizeof reps must be a positive integer.");
+  }
+};  // struct TileAttrs
+
+/*! \brief Attributes used in reverse operators */
+struct ReverseAttrs : public tvm::AttrsNode<ReverseAttrs> {
+  Integer axis;
+  TVM_DECLARE_ATTRS(ReverseAttrs, "relay.attrs.ReverseAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
+        .describe("The axis along which to reverse elements.");
+  }
+};  // struct ReverseAttrs
 
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
@@ -195,6 +249,7 @@ struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
   }
 };
 
+/*! \brief Attributes for LayoutTransform operator */
 struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   std::string src_layout;
   std::string dst_layout;
@@ -204,6 +259,17 @@ struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
         .describe("The source layout of the tensor. (e.g. NCHW)");
     TVM_ATTR_FIELD(dst_layout)
         .describe("The destination layout of the tensor. (e.g. NCHW16c)");
+  }
+};
+
+/*! \brief Attributes for ShapeOf operator */
+struct ShapeOfAttrs : public tvm::AttrsNode<ShapeOfAttrs> {
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(ShapeOfAttrs, "relay.attrs.ShapeOfAttrs") {
+    TVM_ATTR_FIELD(dtype)
+        .describe("Target data type")
+        .set_default(NullValue<DataType>());
   }
 };
 

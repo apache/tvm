@@ -3,22 +3,7 @@ from __future__ import absolute_import as _abs
 import os
 import logging
 from .super_resolution import get_super_resolution
-
-def _download(url, filename, overwrite=False):
-    if os.path.isfile(filename) and not overwrite:
-        logging.debug('File %s existed, skip.', filename)
-        return
-    logging.debug('Downloading from url %s to %s', url, filename)
-    try:
-        import urllib.request
-        urllib.request.urlretrieve(url, filename)
-    except:
-        import urllib
-        urllib.urlretrieve(url, filename)
-
-def _as_abs_path(fname):
-    cur_dir = os.path.abspath(os.path.dirname(__file__))
-    return os.path.join(cur_dir, fname)
+from tvm.contrib.download import download_testdata
 
 
 URLS = {
@@ -30,9 +15,9 @@ URLS = {
 # download and add paths
 for k, v  in URLS.items():
     name = k.split('.')[0]
-    path = _as_abs_path(k)
-    _download(v, path, False)
-    locals()[name] = path
+    relpath = os.path.join('onnx', k)
+    abspath = download_testdata(v, relpath, module='onnx')
+    locals()[name] = abspath
 
 # symbol for graph comparison
 super_resolution_sym = get_super_resolution()

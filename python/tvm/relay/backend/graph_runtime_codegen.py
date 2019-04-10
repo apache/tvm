@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 A compiler from a Relay expression to TVM's graph runtime.
 
@@ -20,7 +36,7 @@ contrib.graph_runtime or any other TVM runtime comptatible system.
 
 from __future__ import absolute_import
 import json
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import attr
 from . import _backend
 from . import compile_engine
@@ -348,13 +364,31 @@ class GraphRuntimeCodegen(ExprFunctor):
             attrs["device_index"] = ["list_int", device_types]
         attrs["dltype"] = ["list_str", dltypes]
 
-        json_dict = {
-            "nodes": nodes,
-            "arg_nodes": arg_nodes,
-            "heads": heads,
-            "attrs": attrs,
-            "node_row_ptr":  node_row_ptr
-        }
+        # Metadata definitions
+        def nested_defaultdict():
+            return defaultdict(nested_defaultdict)
+        metadata = nested_defaultdict()
+        for node_id in arg_nodes:
+            node_name = nodes[node_id]['name']
+            if node_name not in self.params:
+                metadata['signatures']['default']['inputs'][node_name]['id'] = node_id
+                metadata['signatures']['default']['inputs'][node_name]['dtype'] = dltypes[node_id]
+                metadata['signatures']['default']['inputs'][node_name]['shape'] = shapes[node_id]
+        for node_id in heads:
+            node_name = nodes[node_id[0]]['name']
+            metadata['signatures']['default']['outputs'][node_name]['id'] = node_id[0]
+            metadata['signatures']['default']['outputs'][node_name]['dtype'] = dltypes[node_id[0]]
+            metadata['signatures']['default']['outputs'][node_name]['shape'] = shapes[node_id[0]]
+
+        # Keep  'metadata' always at end
+        json_dict = OrderedDict([
+            ("nodes", nodes),
+            ("arg_nodes", arg_nodes),
+            ("heads", heads),
+            ("attrs", attrs),
+            ("node_row_ptr", node_row_ptr),
+            ("metadata", metadata),
+        ])
 
         return json.dumps(json_dict, indent=2)
 

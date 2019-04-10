@@ -1,7 +1,26 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 use std::{
     os::raw::{c_int, c_void},
     sync::{
-        atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT},
+        atomic::{AtomicUsize, Ordering},
         Arc, Barrier,
     },
 };
@@ -18,11 +37,10 @@ use std::{
 use std::{collections::VecDeque, ptr, sync::Mutex};
 
 use bounded_spsc_queue::{self, Producer};
-
-use crate::{errors::*, ffi::runtime::TVMParallelGroupEnv};
+use tvm_common::ffi::TVMParallelGroupEnv;
 
 #[cfg(target_env = "sgx")]
-use super::{sgx::ocall_packed_func, TVMArgValue, TVMRetValue};
+use super::{TVMArgValue, TVMRetValue};
 
 type FTVMParallelLambda =
     extern "C" fn(task_id: usize, penv: *const TVMParallelGroupEnv, cdata: *const c_void) -> i32;
@@ -62,12 +80,11 @@ impl Job {
     }
 
     /// Waits for all tasks in this `Job` to be completed.
-    fn wait(&self) -> Result<()> {
+    fn wait(&self) {
         while self.pending.load(Ordering::Acquire) > 0 {
             #[cfg(not(target_env = "sgx"))]
             thread::yield_now();
         }
-        Ok(())
     }
 }
 
@@ -161,7 +178,7 @@ impl ThreadPool {
         }
 
         tasks.pop().unwrap()();
-        job.wait().unwrap();
+        job.wait();
     }
 
     fn run_worker(queue: Consumer<Task>) {
@@ -251,7 +268,7 @@ pub extern "C" fn TVMBackendParallelLaunch(
                 cb: cb,
                 cdata: cdata,
                 req_num_tasks: num_task,
-                pending: Arc::new(ATOMIC_USIZE_INIT),
+                pending: Arc::new(AtomicUsize::new(0)),
             });
         });
     }
@@ -273,7 +290,7 @@ pub(crate) fn sgx_join_threads() {
             cb: poison_pill,
             cdata: ptr::null(),
             req_num_tasks: 0,
-            pending: Arc::new(ATOMIC_USIZE_INIT),
+            pending: Arc::new(AtomicUsize::new(0)),
         });
     });
     ocall_packed!("__sgx_thread_group_join__", 0);
@@ -322,8 +339,8 @@ mod tests {
     #[test]
     fn test_parallel_launch() {
         TVMBackendParallelLaunch(flambda, ptr::null(), 6);
-        let counter = ATOMIC_USIZE_INIT;
-        let task_ids_sum = ATOMIC_USIZE_INIT;
+        let counter = AtomicUsize::new(0);
+        let task_ids_sum = AtomicUsize::new(0);
         let cdata = (counter, task_ids_sum);
         let num_tasks = 3;
         TVMBackendParallelLaunch(flambda, &cdata as *const _ as *const c_void, num_tasks);

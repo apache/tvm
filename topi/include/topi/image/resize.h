@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file topi/image/resize.h
@@ -135,6 +154,45 @@ inline Tensor resize_nearest_neighbor_nchw(const Tensor& input,
 }
 
 /*!
+* \brief Resize given tensor to given shape using nearest neighbour for NCHWc
+*
+* \param input The input tensor.
+* \param shape Output shape to resize to.
+* \param align_corners To preserve centers of 4 corner pixels
+* \param name Name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor resized to given shape
+*/
+inline Tensor resize_nearest_neighbor_nchwc(const Tensor& input,
+                                            const Array<Expr>& shape,
+                                            bool align_corners = false,
+                                            std::string name = "tensor",
+                                            std::string tag = kInjective) {
+  Array<Expr> out_shape;
+  out_shape.push_back(input->shape[0]);
+  out_shape.push_back(input->shape[1]);
+  out_shape.push_back(shape[0]);
+  out_shape.push_back(shape[1]);
+  out_shape.push_back(input->shape[4]);
+
+  Expr h_ratio = shape[0] / input->shape[2];
+  Expr w_ratio = shape[1] / input->shape[3];
+
+  return compute(
+    out_shape, [&](const Array<Var>& indices) {
+    Array<Expr> idx;
+    idx.push_back(indices[0]);
+    idx.push_back(indices[1]);
+    idx.push_back(indices[2] / h_ratio);
+    idx.push_back(indices[3] / w_ratio);
+    idx.push_back(indices[4]);
+
+     return input(idx);
+    }, name, tag);
+}
+
+/*!
 * \brief Resize given tensor to given shape using nearest neighbour
 *
 * \param input The input tensor.
@@ -153,11 +211,17 @@ inline Tensor resize_nearest_neighbor(const Tensor& input,
                                       std::string name = "tensor",
                                       std::string tag = kInjective) {
   CHECK_EQ(align_corners, false) << "Align corners not supported for nearest neighbour";
-
+  auto base_layout = layout.substr(0, 4);
   if (layout == "NHWC") {
     return resize_nearest_neighbor_nhwc(input, shape, align_corners);
-  } else {
+  } else if (layout == "NCHW") {
     return resize_nearest_neighbor_nchw(input, shape, align_corners);
+  } else if (base_layout == "NCHW") {
+    // NCHWc
+    return resize_nearest_neighbor_nchwc(input, shape, align_corners);
+  } else {
+    LOG(FATAL) << "Unknown layout: " << layout;
+    return Tensor();
   }
 }
 

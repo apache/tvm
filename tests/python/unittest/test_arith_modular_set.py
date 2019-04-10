@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import tvm
 
 
@@ -117,6 +133,22 @@ def test_constraint_scope():
     assert m.coeff == 1
     assert m.base == 0
 
+def test_intersect():
+    a = tvm.var("a")
+    analyzer = tvm.arith.Analyzer()
+    with analyzer.constraint_scope(a % 4 == 1):
+        with analyzer.constraint_scope(a % 3 == 1):
+            m = analyzer.modular_set(a)
+            assert m.coeff == 12
+            assert m.base == 1
+
+    with analyzer.constraint_scope(a % 3 == 2):
+        with analyzer.constraint_scope(a % 5 == 3):
+            with analyzer.constraint_scope(a % 7 == 2):
+                m = analyzer.modular_set(a)
+                assert m.coeff == 105
+                assert m.base == 23
+
 
 if __name__ == "__main__":
     test_cast()
@@ -126,3 +158,4 @@ if __name__ == "__main__":
     test_min_max_select()
     test_mix_index()
     test_constraint_scope()
+    test_intersect()

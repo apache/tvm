@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  *  Lower intrinsic calls to device specific ir when possible.
@@ -50,7 +69,23 @@ class IntrinInjecter : public IRMutator {
     // on ARM.
     if (const Broadcast* bcast = e.as<Broadcast>()) {
       if (const Cast* cast = bcast->value.as<Cast>()) {
-        if (cast->type.bits() == cast->value.type().bits() * 2) {
+        auto should_swap = [&]() {
+          // Maintain behaviour (int8 -> int16, fp16 -> fp32).
+          if (cast->type.bits() == cast->value.type().bits() * 2) {
+            return true;
+          }
+          // Check both operands are integer-like.
+          if (!cast->type.is_uint() && !cast->type.is_int()) {
+            return false;
+          }
+          if (!cast->value.type().is_uint() && !cast->value.type().is_int()) {
+            return false;
+          }
+          // If both are integer-like, swap if we have a widening cast.
+          return cast->type.bits() > cast->value.type().bits();
+        };
+
+        if (should_swap()) {
           Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
           return Cast::make(bcast->type, new_bcast);
         }
