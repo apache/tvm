@@ -63,3 +63,6 @@ def create_shared(output,
         msg = "Compilation error:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
+
+# assign output format
+create_shared.output_format = "so"
