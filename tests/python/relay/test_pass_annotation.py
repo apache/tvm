@@ -426,7 +426,7 @@ def run_unpropagatable_graph(dev, tgt):
               add      mul
                 \      /
                 subtract
-    device_index is wrongly propagated in previous version"""
+    """
     
     a = relay.var("a", shape=(10, 10))
     b = relay.var("b", shape=(10, 10))
