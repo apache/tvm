@@ -158,7 +158,7 @@ Stage& Stage::compute_at(Stage parent, IterVar scope) {   // NOLINT(*)
 
 Stage& Stage::compute_inline() {   // NOLINT(*)
   CHECK_NE((*this)->attach_type, kScanUpdate)
-      << "Cannot specify compute_at for scan updates";
+      << "Cannot specify compute_inline for scan updates";
   (*this)->attach_type = kInline;
   return *this;
 }
@@ -279,9 +279,9 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
 
 Stage& Stage::fuse(const Array<IterVar>& axes, IterVar* p_target) {  // NOLINT(*)
   if (axes.size() != 0) {
-    IterVar fused = axes[0];
-    for (size_t i = 1; i < axes.size(); ++i) {
-      this->fuse(fused, axes[i], &fused);
+    IterVar fused = axes[axes.size() - 1];
+    for (size_t i = 2; i <= axes.size(); ++i) {
+      this->fuse(axes[axes.size() - i], fused, &fused);
     }
     *p_target = std::move(fused);
   } else {
