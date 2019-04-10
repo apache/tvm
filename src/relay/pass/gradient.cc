@@ -247,10 +247,7 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.first_order_gradient")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args.size(), 2);
-  *ret = FirstOrderGradient(args[0], args[1]);
-});
+.set_body_typed(FirstOrderGradient);
 
 struct ReverseADType : TypeMutator {
   Type VisitType_(const TensorTypeNode* ttn) final {
@@ -263,7 +260,7 @@ struct ReverseAD : ExprMutator {
   Var bp;
   const OpMap<FPrimalGradient> rev_map = Op::GetAttr<FPrimalGradient>("FPrimalGradient");
 
-  ReverseAD(const Var& bp) : bp(bp) { }
+  ReverseAD(const Var& bp) : bp(bp) { } /// NOLINT(*)
 
   Expr VisitExpr_(const OpNode* op) final {
     LOG(FATAL) << "op should only be inside call";
@@ -349,10 +346,7 @@ Expr Gradient(const Expr& re, const Module& mod) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.gradient")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args.size(), 2);
-  *ret = Gradient(args[0], args[1]);
-});
+.set_body_typed(Gradient);
 
 }  // namespace relay
 }  // namespace tvm

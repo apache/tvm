@@ -427,13 +427,9 @@ Module VulkanModuleLoadBinary(void* strm) {
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_vulkan")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = VulkanModuleLoadFile(args[0], args[1]);
-  });
+.set_body_typed(VulkanModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadbinary_vulkan")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = VulkanModuleLoadBinary(args[0]);
-  });
+.set_body_typed(VulkanModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

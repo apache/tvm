@@ -164,9 +164,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
 }
 
 TVM_REGISTER_API("codegen.build_sdaccel")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildSDAccel(args[0], args[1]);
-  });
+.set_body_typed(BuildSDAccel);
 
 }  // namespace codegen
 }  // namespace tvm

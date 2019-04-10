@@ -73,9 +73,7 @@ Expr MakeMultiBoxPrior(Expr data,
 
 
 TVM_REGISTER_API("relay.op.vision._make.multibox_prior")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 6>(MakeMultiBoxPrior, args, rv);
-});
+.set_body_typed(MakeMultiBoxPrior);
 
 
 RELAY_REGISTER_OP("vision.multibox_prior")
@@ -147,9 +145,7 @@ Expr MakeMultiBoxTransformLoc(Expr cls_prob,
 }
 
 TVM_REGISTER_API("relay.op.vision._make.multibox_transform_loc")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 6>(MakeMultiBoxTransformLoc, args, rv);
-});
+.set_body_typed(MakeMultiBoxTransformLoc);
 
 RELAY_REGISTER_OP("vision.multibox_transform_loc")
 .describe(R"doc("Location transformation for multibox detection."

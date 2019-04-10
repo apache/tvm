@@ -571,20 +571,13 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_REGISTER_API("relay._quantize._GetCurrentQConfig")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = QConfig::Current();
-  });
+.set_body_typed(QConfig::Current);
 
 TVM_REGISTER_API("relay._quantize._EnterQConfigScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  QConfig target = args[0];
-  QConfig::EnterQConfigScope(target);
-  });
+.set_body_typed(QConfig::EnterQConfigScope);
 
 TVM_REGISTER_API("relay._quantize._ExitQConfigScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  QConfig::ExitQConfigScope();
-  });
+.set_body_typed(QConfig::ExitQConfigScope);
 
 }  // namespace quantize
 }  // namespace relay

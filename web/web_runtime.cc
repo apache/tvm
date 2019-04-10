@@ -60,16 +60,16 @@ struct RPCEnv {
 };
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
+.set_body_typed<std::string(std::string)>([](std::string path) {
     static RPCEnv env;
-    *rv = env.GetPath(args[0]);
+    return env.GetPath(path);
   });
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-    std::string file_name = "/rpc/" + args[0].operator std::string();
-    *rv = Module::LoadFromFile(file_name, "");
+.set_body_typed<Module(std::string)>([](std::string path) {
+    std::string file_name = "/rpc/" + path;
     LOG(INFO) << "Load module from " << file_name << " ...";
+    return Module::LoadFromFile(file_name, "");
   });
 }  // namespace contrib
 }  // namespace tvm

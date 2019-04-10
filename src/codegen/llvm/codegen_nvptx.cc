@@ -243,9 +243,7 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
 }
 
 TVM_REGISTER_API("codegen.build_nvptx")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildNVPTX(args[0], args[1]);
-  });
+.set_body_typed(BuildNVPTX);
 
 }  // namespace codegen
 }  // namespace tvm

@@ -346,9 +346,8 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.post_order_visit")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    PackedFunc f = args[1];
-    PostOrderVisit(args[0], [f](const Expr& n) {
+.set_body_typed<void(Expr, PackedFunc)>([](Expr expr, PackedFunc f) {
+    PostOrderVisit(expr, [f](const Expr& n) {
         f(n);
       });
   });
