@@ -136,12 +136,12 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
 
-    with ib.if_scope(tid < batch_size * num_anchors * elem_length):
-        out[tid] = -1.0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = tid / num_anchors # number of batches
         j = tid % num_anchors # number of anchors
         base_idx = i * num_anchors * elem_length
+        with ib.for_range(0, elem_length) as l:
+            out[tid * elem_length + l] = -1.0
         with ib.if_scope(flag[tid] > 0):
             with ib.for_range(0, elem_length) as k:
                 out[base_idx + (idx[tid] - 1) * elem_length + k] =\
