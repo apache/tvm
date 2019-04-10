@@ -122,7 +122,7 @@ The process of ``tvm.build()`` can be divided into two steps:
 - Lowering, where a high level, initial loop nest structures are transformed into a final, low level IR
 - Code generation, where target machine code is generated from the low level IR
 
-Lowering is done by ``tvm.lower()`` function, defined in ``python/tvm/build_module.py``. First, bound inference is peformed, and an initial loop nest structure is created.
+Lowering is done by ``tvm.lower()`` function, defined in ``python/tvm/build_module.py``. First, bound inference is performed, and an initial loop nest structure is created.
 
 ::
 
