@@ -102,7 +102,8 @@ class Registry {
    * \endcode
    *
    * \param f The function to forward to.
-   * \tparam FType the signature of the function.
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
    */
   template<typename R, typename ...Args>
   Registry& set_body_typed(R (*f)(Args...)) {
@@ -125,6 +126,9 @@ class Registry {
    * \endcode
    *
    * \param f the method pointer to forward to.
+   * \tparam T the type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
    */
   template<typename T, typename R, typename ...Args>
   Registry& set_body_method(R (T::*f)(Args...)) {
@@ -150,6 +154,9 @@ class Registry {
    * \endcode
    *
    * \param f the method pointer to forward to.
+   * \tparam T the type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
    */
   template<typename T, typename R, typename ...Args>
   Registry& set_body_method(R (T::*f)(Args...) const) {
@@ -185,6 +192,9 @@ class Registry {
    *
    * \param f the method pointer to forward to.
    * \tparam TNodeRef the node reference type to call the method on
+   * \tparam TNode the node type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
    */
   template<typename TNodeRef, typename TNode, typename R, typename ...Args,
     typename = typename std::enable_if<std::is_base_of<NodeRef, TNodeRef>::value>::type>
@@ -222,6 +232,9 @@ class Registry {
    *
    * \param f the method pointer to forward to.
    * \tparam TNodeRef the node reference type to call the method on
+   * \tparam TNode the node type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
    */
   template<typename TNodeRef, typename TNode, typename R, typename ...Args,
     typename = typename std::enable_if<std::is_base_of<NodeRef, TNodeRef>::value>::type>
