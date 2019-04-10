@@ -155,8 +155,6 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
 }
 
 TVM_REGISTER_API("codegen.build_cuda")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildCUDA(args[0]);
-  });
+.set_body_typed(BuildCUDA);
 }  // namespace codegen
 }  // namespace tvm

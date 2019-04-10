@@ -410,14 +410,14 @@ size_t StructuralHash::operator()(const Expr& expr) const {
 }
 
 TVM_REGISTER_API("relay._ir_pass._expr_hash")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = static_cast<int64_t>(RelayHashHandler().Hash(args[0]));
-  });
+.set_body_typed<int64_t(NodeRef)>([](NodeRef ref) {
+  return static_cast<int64_t>(RelayHashHandler().Hash(ref));
+});
 
 TVM_REGISTER_API("relay._ir_pass._type_hash")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = static_cast<int64_t>(RelayHashHandler().TypeHash(args[0]));
-  });
+.set_body_typed<int64_t(Type)>([](Type type) {
+  return static_cast<int64_t>(RelayHashHandler().TypeHash(type));
+});
 
 }  // namespace relay
 }  // namespace tvm

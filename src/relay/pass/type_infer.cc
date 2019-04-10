@@ -801,8 +801,8 @@ Function InferType(const Function& func,
 }
 
 TVM_REGISTER_API("relay._ir_pass.infer_type")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = InferType(args[0], args[1]);
+.set_body_typed<Expr(const Expr&, const Module&)>([](const Expr& expr, const Module& mod_ref) {
+    return InferType(expr, mod_ref);
   });
 }  // namespace relay
 }  // namespace tvm

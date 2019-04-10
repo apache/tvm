@@ -36,9 +36,7 @@ PatternWildcard PatternWildcardNode::make() {
 TVM_REGISTER_NODE_TYPE(PatternWildcardNode);
 
 TVM_REGISTER_API("relay._make.PatternWildcard")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = PatternWildcardNode::make();
-  });
+.set_body_typed(PatternWildcardNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PatternWildcardNode>([](const PatternWildcardNode* node,
@@ -55,9 +53,7 @@ PatternVar PatternVarNode::make(tvm::relay::Var var) {
 TVM_REGISTER_NODE_TYPE(PatternVarNode);
 
 TVM_REGISTER_API("relay._make.PatternVar")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = PatternVarNode::make(args[0]);
-  });
+.set_body_typed(PatternVarNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PatternVarNode>([](const PatternVarNode* node,
@@ -76,9 +72,7 @@ PatternConstructor PatternConstructorNode::make(Constructor constructor,
 TVM_REGISTER_NODE_TYPE(PatternConstructorNode);
 
 TVM_REGISTER_API("relay._make.PatternConstructor")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = PatternConstructorNode::make(args[0], args[1]);
-  });
+.set_body_typed(PatternConstructorNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PatternConstructorNode>([](const PatternConstructorNode* node,
@@ -100,9 +94,7 @@ Constructor ConstructorNode::make(std::string name_hint,
 TVM_REGISTER_NODE_TYPE(ConstructorNode);
 
 TVM_REGISTER_API("relay._make.Constructor")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ConstructorNode::make(args[0], args[1], args[2]);
-  });
+.set_body_typed(ConstructorNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ConstructorNode>([](const ConstructorNode* node,
@@ -124,9 +116,7 @@ TypeData TypeDataNode::make(GlobalTypeVar header,
 TVM_REGISTER_NODE_TYPE(TypeDataNode);
 
 TVM_REGISTER_API("relay._make.TypeData")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = TypeDataNode::make(args[0], args[1], args[2]);
-  });
+.set_body_typed(TypeDataNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TypeDataNode>([](const TypeDataNode* node,
@@ -145,9 +135,7 @@ Clause ClauseNode::make(Pattern lhs, Expr rhs) {
 TVM_REGISTER_NODE_TYPE(ClauseNode);
 
 TVM_REGISTER_API("relay._make.Clause")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ClauseNode::make(args[0], args[1]);
-  });
+.set_body_typed(ClauseNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ClauseNode>([](const ClauseNode* node,
@@ -166,9 +154,7 @@ Match MatchNode::make(Expr data, tvm::Array<Clause> clauses) {
 TVM_REGISTER_NODE_TYPE(MatchNode);
 
 TVM_REGISTER_API("relay._make.Match")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = MatchNode::make(args[0], args[1]);
-  });
+.set_body_typed(MatchNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<MatchNode>([](const MatchNode* node,

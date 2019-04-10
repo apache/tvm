@@ -31,73 +31,51 @@ namespace tvm {
 namespace arith {
 
 TVM_REGISTER_API("arith.intset_single_point")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = IntSet::single_point(args[0]);
-  });
+.set_body_typed(IntSet::single_point);
 
 TVM_REGISTER_API("arith.intset_vector")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = IntSet::vector(args[0]);
-  });
+.set_body_typed(IntSet::vector);
 
 TVM_REGISTER_API("arith.intset_interval")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = IntSet::interval(args[0], args[1]);
-  });
+.set_body_typed(IntSet::interval);
 
 TVM_REGISTER_API("arith.DetectLinearEquation")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = DetectLinearEquation(args[0], args[1]);
-  });
+.set_body_typed(DetectLinearEquation);
 
 TVM_REGISTER_API("arith.DetectClipBound")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = DetectClipBound(args[0], args[1]);
-  });
+.set_body_typed(DetectClipBound);
 
 TVM_REGISTER_API("arith.DeduceBound")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = DeduceBound(args[0], args[1],
-        args[2].operator Map<Var, IntSet>(),
-        args[3].operator Map<Var, IntSet>());
-  });
+.set_body_typed<IntSet(Expr, Expr, Map<Var, IntSet>, Map<Var, IntSet>)>([](
+  Expr v, Expr cond,
+  const Map<Var, IntSet> hint_map,
+  const Map<Var, IntSet> relax_map
+) {
+  return DeduceBound(v, cond, hint_map, relax_map);
+});
 
 
 TVM_REGISTER_API("arith.DomainTouched")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = DomainTouched(args[0], args[1], args[2], args[3]);
-  });
+.set_body_typed(DomainTouched);
 
 
 TVM_REGISTER_API("_IntervalSetGetMin")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = args[0].operator IntSet().min();
-  });
+.set_body_method(&IntSet::min);
 
 TVM_REGISTER_API("_IntervalSetGetMax")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = args[0].operator IntSet().max();
-  });
+.set_body_method(&IntSet::max);
 
 TVM_REGISTER_API("_IntSetIsNothing")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = args[0].operator IntSet().is_nothing();
-  });
+.set_body_method(&IntSet::is_nothing);
 
 TVM_REGISTER_API("_IntSetIsEverything")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = args[0].operator IntSet().is_everything();
-  });
+.set_body_method(&IntSet::is_everything);
 
 TVM_REGISTER_API("arith._make_ConstIntBound")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ConstIntBoundNode::make(args[0], args[1]);
-  });
+.set_body_typed(ConstIntBoundNode::make);
 
 TVM_REGISTER_API("arith._make_ModularSet")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ModularSetNode::make(args[0], args[1]);
-  });
+.set_body_typed(ModularSetNode::make);
 
 TVM_REGISTER_API("arith._CreateAnalyzer")
 .set_body([](TVMArgs args, TVMRetValue* ret) {

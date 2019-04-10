@@ -147,9 +147,7 @@ int64_t GetTotalMacNumber(const Expr& expr) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.GetTotalMacNumber")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  *ret = GetTotalMacNumber(args[0]);
-});
+.set_body_typed(GetTotalMacNumber);
 
 }  // namespace mac_count
 }  // namespace relay

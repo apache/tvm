@@ -119,68 +119,43 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
   });
 
 // make from two arguments
-#define REGISTER_PASS1(PassName)                                  \
+#define REGISTER_PASS(PassName)                                   \
   TVM_REGISTER_API("ir_pass."#PassName)                           \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
-      *ret = PassName(args[0]);                                   \
-    })                                                            \
+  .set_body_typed(PassName);                                     \
 
-#define REGISTER_PASS2(PassName)                                  \
-  TVM_REGISTER_API("ir_pass."#PassName)                           \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
-      *ret = PassName(args[0], args[1]);                          \
-    })                                                            \
 
-#define REGISTER_PASS3(PassName)                                        \
-  TVM_REGISTER_API("ir_pass."#PassName)                                 \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      *ret = PassName(args[0], args[1], args[2]);                       \
-    })                                                                  \
-
-#define REGISTER_PASS4(PassName)                                        \
-  TVM_REGISTER_API("ir_pass."#PassName)                                 \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      *ret = PassName(args[0], args[1], args[2], args[3]);              \
-    })                                                                  \
-
-#define REGISTER_PASS5(PassName)                                        \
-  TVM_REGISTER_API("ir_pass."#PassName)                                 \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      *ret = PassName(args[0], args[1], args[2], args[3], args[4]);     \
-    })                                                                  \
-
-REGISTER_PASS1(ConvertSSA);
-REGISTER_PASS1(VerifySSA);
-REGISTER_PASS1(RewriteUnsafeSelect);
-REGISTER_PASS4(Inline);
-REGISTER_PASS4(IRTransform);
-REGISTER_PASS1(VectorizeLoop);
-REGISTER_PASS5(UnrollLoop);
-REGISTER_PASS3(InjectCopyIntrin);
-REGISTER_PASS2(ThreadSync);
-REGISTER_PASS5(MakeAPI);
-REGISTER_PASS2(BindDeviceType);
-REGISTER_PASS1(SplitHostDevice);
-REGISTER_PASS1(StorageRewrite);
-REGISTER_PASS1(CoProcSync);
-REGISTER_PASS1(LowerStorageAccessInfo);
-REGISTER_PASS1(InjectVirtualThread);
-REGISTER_PASS1(InjectPrefetch);
-REGISTER_PASS2(InjectDoubleBuffer);
-REGISTER_PASS2(LoopPartition);
-REGISTER_PASS1(RemoveNoOp);
-REGISTER_PASS2(SplitPipeline);
-REGISTER_PASS2(LiftAttrScope);
-REGISTER_PASS1(NarrowChannelAccess);
-REGISTER_PASS2(LowerThreadAllreduce);
-REGISTER_PASS2(LowerWarpMemory);
-REGISTER_PASS2(RemapThreadAxis);
-REGISTER_PASS2(LowerIntrin);
-REGISTER_PASS1(LowerTVMBuiltin);
-REGISTER_PASS1(CombineContextCall);
-REGISTER_PASS2(VerifyMemory);
-REGISTER_PASS2(VerifyGPUCode);
-REGISTER_PASS1(DecorateDeviceScope);
-REGISTER_PASS1(InstrumentBoundCheckers);
+REGISTER_PASS(ConvertSSA);
+REGISTER_PASS(VerifySSA);
+REGISTER_PASS(RewriteUnsafeSelect);
+REGISTER_PASS(Inline);
+REGISTER_PASS(IRTransform);
+REGISTER_PASS(VectorizeLoop);
+REGISTER_PASS(UnrollLoop);
+REGISTER_PASS(InjectCopyIntrin);
+REGISTER_PASS(ThreadSync);
+REGISTER_PASS(MakeAPI);
+REGISTER_PASS(BindDeviceType);
+REGISTER_PASS(SplitHostDevice);
+REGISTER_PASS(StorageRewrite);
+REGISTER_PASS(CoProcSync);
+REGISTER_PASS(LowerStorageAccessInfo);
+REGISTER_PASS(InjectVirtualThread);
+REGISTER_PASS(InjectPrefetch);
+REGISTER_PASS(InjectDoubleBuffer);
+REGISTER_PASS(LoopPartition);
+REGISTER_PASS(RemoveNoOp);
+REGISTER_PASS(SplitPipeline);
+REGISTER_PASS(LiftAttrScope);
+REGISTER_PASS(NarrowChannelAccess);
+REGISTER_PASS(LowerThreadAllreduce);
+REGISTER_PASS(LowerWarpMemory);
+REGISTER_PASS(RemapThreadAxis);
+REGISTER_PASS(LowerIntrin);
+REGISTER_PASS(LowerTVMBuiltin);
+REGISTER_PASS(CombineContextCall);
+REGISTER_PASS(VerifyMemory);
+REGISTER_PASS(VerifyGPUCode);
+REGISTER_PASS(DecorateDeviceScope);
+REGISTER_PASS(InstrumentBoundCheckers);
 }  // namespace ir
 }  // namespace tvm
