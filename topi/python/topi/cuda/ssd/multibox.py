@@ -375,8 +375,6 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
     num_anchors = cls_prob.shape[2]
     oshape = (batch_size, num_anchors, 6)
     # Define data alignment for intermediate buffer
-    loc_pred_buf = api.decl_buffer(loc_pred.shape, loc_pred.dtype, "loc_pred_buf", data_alignment=8)
-    anchor_buf = api.decl_buffer(anchor.shape, anchor.dtype, "anchor_buf", data_alignment=8)
     valid_count_dtype = "int32"
     out_loc_dtype = loc_pred.dtype
 
@@ -407,8 +405,6 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
                        ins[0], ins[1], ins[2], ins[3], ins[4], outs[0], clip, variances, \
                        batch_size, num_anchors),
                    dtype=[out_loc_dtype],
-                   in_buffers=[loc_pred_buf, anchor_buf, temp_valid_count_buf, \
-                               temp_cls_id_buf, temp_score_buf],
                    tag="multibox_transform_loc")
 
     return [out_loc, valid_count]
