@@ -104,7 +104,7 @@ class Range(NodeBase):
     """Represent range in TVM.
 
     You do not need to create Range explicitly.
-    Python list and tuple will be converted automatically to Range in api functions.
+    Python list and tuple will be converted automatically to Range in API functions.
     """
 
 
