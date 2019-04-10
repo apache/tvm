@@ -103,7 +103,7 @@ runtime::Module BuildSPIRV(Array<LoweredFunc> funcs) {
 }
 
 TVM_REGISTER_API("codegen.build_vulkan")
-.set_body_simple(BuildSPIRV);
+.set_body_typed(BuildSPIRV);
 
 }  // namespace codegen
 }  // namespace tvm

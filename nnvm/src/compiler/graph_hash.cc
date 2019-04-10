@@ -235,6 +235,6 @@ std::string GraphDeepCompare(const Graph& a,
 }
 
 TVM_REGISTER_GLOBAL("nnvm.graph.DeepCompare")
-.set_body_simple(GraphDeepCompare);
+.set_body_typed(GraphDeepCompare);
 }  // namespace compiler
 }  // namespace nnvm

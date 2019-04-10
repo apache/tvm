@@ -491,7 +491,7 @@ Expr ToANormalForm(const Expr& e, const Module& m) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.to_a_normal_form")
-.set_body_simple(static_cast<Expr (*)(const Expr&, const Module&)>(ToANormalForm));
+.set_body_typed(static_cast<Expr (*)(const Expr&, const Module&)>(ToANormalForm));
 
 }  // namespace relay
 }  // namespace tvm

@@ -59,7 +59,7 @@ Expr MakeGetValidCounts(Expr data,
 
 
 TVM_REGISTER_API("relay.op.vision._make.get_valid_counts")
-.set_body_simple(MakeGetValidCounts);
+.set_body_typed(MakeGetValidCounts);
 
 
 RELAY_REGISTER_OP("vision.get_valid_counts")
@@ -123,7 +123,7 @@ Expr MakeNMS(Expr data,
 
 
 TVM_REGISTER_API("relay.op.vision._make.non_max_suppression")
-.set_body_simple(MakeNMS);
+.set_body_typed(MakeNMS);
 
 
 RELAY_REGISTER_OP("vision.non_max_suppression")

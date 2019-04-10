@@ -302,7 +302,7 @@ runtime::Module BuildOpenGL(Array<LoweredFunc> funcs) {
 }
 
 TVM_REGISTER_API("codegen.build_opengl")
-.set_body_simple(BuildOpenGL);
+.set_body_typed(BuildOpenGL);
 
 }  // namespace codegen
 }  // namespace tvm

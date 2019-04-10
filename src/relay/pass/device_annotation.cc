@@ -493,13 +493,13 @@ Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.CollectDeviceInfo")
-.set_body_simple(CollectDeviceInfo);
+.set_body_typed(CollectDeviceInfo);
 
 TVM_REGISTER_API("relay._ir_pass.RewriteDeviceAnnotation")
-.set_body_simple(RewriteAnnotatedOps);
+.set_body_typed(RewriteAnnotatedOps);
 
 TVM_REGISTER_API("relay._ir_pass.CollectDeviceAnnotationOps")
-.set_body_simple(CollectDeviceAnnotationOps);
+.set_body_typed(CollectDeviceAnnotationOps);
 
 }  // namespace relay
 }  // namespace tvm

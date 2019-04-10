@@ -427,9 +427,9 @@ Module VulkanModuleLoadBinary(void* strm) {
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_vulkan")
-.set_body_simple(VulkanModuleLoadFile);
+.set_body_typed(VulkanModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadbinary_vulkan")
-.set_body_simple(VulkanModuleLoadBinary);
+.set_body_typed(VulkanModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

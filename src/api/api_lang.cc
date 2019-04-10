@@ -53,7 +53,7 @@ TVM_REGISTER_API("_const")
   });
 
 TVM_REGISTER_API("_str")
-.set_body_simple(ir::StringImm::make);
+.set_body_typed(ir::StringImm::make);
 
 
 TVM_REGISTER_API("_Array")
@@ -207,7 +207,7 @@ TVM_REGISTER_API("Range")
   });
 
 TVM_REGISTER_API("_Buffer")
-.set_body_simple(BufferNode::make);
+.set_body_typed(BufferNode::make);
 
 TVM_REGISTER_API("_BufferAccessPtr")
 .set_body_method(&Buffer::access_ptr);
@@ -219,7 +219,7 @@ TVM_REGISTER_API("_BufferVStore")
 .set_body_method(&Buffer::vstore);
 
 TVM_REGISTER_API("_Layout")
-.set_body_simple(LayoutNode::make);
+.set_body_typed(LayoutNode::make);
 
 TVM_REGISTER_API("_LayoutIndexOf")
 .set_body_typed<int(Layout, std::string)>([](Layout layout, std::string axis) {
@@ -243,7 +243,7 @@ TVM_REGISTER_API("_LayoutGetItem")
 });
 
 TVM_REGISTER_API("_BijectiveLayout")
-.set_body_simple(BijectiveLayoutNode::make);
+.set_body_typed(BijectiveLayoutNode::make);
 
 TVM_REGISTER_API("_BijectiveLayoutForwardIndex")
 .set_body_method(&BijectiveLayout::ForwardIndex);
@@ -258,13 +258,13 @@ TVM_REGISTER_API("_BijectiveLayoutBackwardShape")
 .set_body_method(&BijectiveLayout::BackwardShape);
 
 TVM_REGISTER_API("_Tensor")
-.set_body_simple(TensorNode::make);
+.set_body_typed(TensorNode::make);
 
 TVM_REGISTER_API("_TensorIntrin")
-.set_body_simple(TensorIntrinNode::make);
+.set_body_typed(TensorIntrinNode::make);
 
 TVM_REGISTER_API("_TensorIntrinCall")
-.set_body_simple(TensorIntrinCallNode::make);
+.set_body_typed(TensorIntrinCallNode::make);
 
 TVM_REGISTER_API("_TensorEqual")
 .set_body_method(&Tensor::operator==);
@@ -282,19 +282,19 @@ TVM_REGISTER_API("_Placeholder")
 });
 
 TVM_REGISTER_API("_ComputeOp")
-.set_body_simple(ComputeOpNode::make);
+.set_body_typed(ComputeOpNode::make);
 
 TVM_REGISTER_API("_ScanOp")
-.set_body_simple(ScanOpNode::make);
+.set_body_typed(ScanOpNode::make);
 
 TVM_REGISTER_API("_TensorComputeOp")
-.set_body_simple(TensorComputeOpNode::make);
+.set_body_typed(TensorComputeOpNode::make);
 
 TVM_REGISTER_API("_ExternOp")
-.set_body_simple(ExternOpNode::make);
+.set_body_typed(ExternOpNode::make);
 
 TVM_REGISTER_API("_HybridOp")
-.set_body_simple(HybridOpNode::make);
+.set_body_typed(HybridOpNode::make);
 
 TVM_REGISTER_API("_OpGetOutput")
 .set_body_typed<Tensor(Operation, int64_t)>([](Operation op, int64_t output) {
@@ -302,10 +302,10 @@ TVM_REGISTER_API("_OpGetOutput")
 });
 
 TVM_REGISTER_API("_OpNumOutputs")
-.set_body_node_method<Operation>(&OperationNode::num_outputs);
+.set_body_method<Operation>(&OperationNode::num_outputs);
 
 TVM_REGISTER_API("_OpInputTensors")
-.set_body_node_method<Operation>(&OperationNode::InputTensors);
+.set_body_method<Operation>(&OperationNode::InputTensors);
 
 TVM_REGISTER_API("_IterVar")
 .set_body_typed<IterVar(Range, Var, int, std::string)>([](
@@ -318,7 +318,7 @@ TVM_REGISTER_API("_IterVar")
 });
 
 TVM_REGISTER_API("_CreateSchedule")
-.set_body_simple(create_schedule);
+.set_body_typed(create_schedule);
 
 TVM_REGISTER_API("_StageSetScope")
 .set_body_method(&Stage::set_scope);
@@ -434,6 +434,6 @@ TVM_REGISTER_API("_ScheduleRFactor")
 .set_body_method(&Schedule::rfactor);
 
 TVM_REGISTER_API("_CommReducerCombine")
-.set_body_node_method<ir::CommReducer>(&ir::CommReducerNode::operator());
+.set_body_method<ir::CommReducer>(&ir::CommReducerNode::operator());
 
 }  // namespace tvm

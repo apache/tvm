@@ -170,7 +170,7 @@ Expr MakeConv2D(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.conv2d")
-.set_body_simple(MakeConv2D);
+.set_body_typed(MakeConv2D);
 
 
 RELAY_REGISTER_OP("nn.conv2d")
@@ -322,7 +322,7 @@ Expr MakeConv2DTranspose(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.conv2d_transpose")
-.set_body_simple(MakeConv2DTranspose);
+.set_body_typed(MakeConv2DTranspose);
 
 RELAY_REGISTER_OP("nn.conv2d_transpose")
 .describe(R"code(Transposed 2D convolution layer (sometimes called Deconvolution).
@@ -461,7 +461,7 @@ Expr MakeConv2DWinograd(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
-.set_body_simple(MakeConv2DWinograd);
+.set_body_typed(MakeConv2DWinograd);
 
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
@@ -524,7 +524,7 @@ Expr MakeConv2DWinogradWeightTransform(Expr weight,
 
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
-.set_body_simple(MakeConv2DWinogradWeightTransform);
+.set_body_typed(MakeConv2DWinogradWeightTransform);
 
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_weight_transform")
@@ -572,7 +572,7 @@ Expr MakeConv2DWinogradNNPACK(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
-.set_body_simple(MakeConv2DWinogradNNPACK);
+.set_body_typed(MakeConv2DWinogradNNPACK);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
 .describe(R"code(Compute conv2d with winograd nnpack. Only supports NCHW layout.
@@ -639,7 +639,7 @@ Expr MakeConv2DWinogradNNPACKWeightTransform(Expr weight,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")
-.set_body_simple(MakeConv2DWinogradNNPACKWeightTransform);
+.set_body_typed(MakeConv2DWinogradNNPACKWeightTransform);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_weight_transform")
 .describe(R"code(Weight transformation of winograd fast convolution algorithm with NNPACK.
@@ -686,7 +686,7 @@ Expr MakeConv2DNCHWc(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_NCHWc")
-.set_body_simple(MakeConv2DNCHWc);
+.set_body_typed(MakeConv2DNCHWc);
 
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
@@ -736,7 +736,7 @@ Expr MakeDepthwiseConv2DNCHWc(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
-.set_body_simple(MakeDepthwiseConv2DNCHWc);
+.set_body_typed(MakeDepthwiseConv2DNCHWc);
 
 
 RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
@@ -894,7 +894,7 @@ Expr MakeDeformableConv2D(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.deformable_conv2d")
-.set_body_simple(MakeDeformableConv2D);
+.set_body_typed(MakeDeformableConv2D);
 
 
 }  // namespace relay

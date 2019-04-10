@@ -80,9 +80,9 @@ Module SDAccelModuleLoadBinary(void* strm) {
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_xclbin")
-.set_body_simple(SDAccelModuleLoadFile);
+.set_body_typed(SDAccelModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadfile_awsxclbin")
-.set_body_simple(SDAccelModuleLoadFile);
+.set_body_typed(SDAccelModuleLoadFile);
 }  // namespace runtime
 }  // namespace tvm

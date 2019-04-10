@@ -81,7 +81,7 @@ Expr MakeCast(Expr data,
 }
 
 TVM_REGISTER_API("relay._make.cast")
-.set_body_simple(MakeCast);
+.set_body_typed(MakeCast);
 
 RELAY_REGISTER_OP("cast")
 .describe(R"code(Cast the data into a new data type.
@@ -159,7 +159,7 @@ Expr MakeExpandDims(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.expand_dims")
-.set_body_simple(MakeExpandDims);
+.set_body_typed(MakeExpandDims);
 
 RELAY_REGISTER_OP("expand_dims")
 .describe(R"code(Insert `num_newaxis` axises at the position given by `axis`
@@ -275,7 +275,7 @@ Expr MakeConcatenate(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.concatenate")
-.set_body_simple(MakeConcatenate);
+.set_body_typed(MakeConcatenate);
 
 RELAY_REGISTER_OP("concatenate")
 .describe(R"code(Concatenate the input tensors along the given axis.
@@ -361,7 +361,7 @@ Expr MakeStack(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.stack")
-.set_body_simple(MakeStack);
+.set_body_typed(MakeStack);
 
 RELAY_REGISTER_OP("stack")
 .describe(R"code(Stack the input tensors along the given axis.
@@ -453,7 +453,7 @@ Expr MakeTranspose(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.transpose")
-.set_body_simple(MakeTranspose);
+.set_body_typed(MakeTranspose);
 
 RELAY_REGISTER_OP("transpose")
 .describe(R"code(Permutes the dimensions of an array.
@@ -588,7 +588,7 @@ Expr MakeReshape(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.reshape")
-.set_body_simple(MakeReshape);
+.set_body_typed(MakeReshape);
 
 RELAY_REGISTER_OP("reshape")
 .describe(R"code(Reshapes the input array.
@@ -686,7 +686,7 @@ Expr MakeReshapeLike(Expr data,
 
 
 TVM_REGISTER_API("relay.op._make.reshape_like")
-.set_body_simple(MakeReshapeLike);
+.set_body_typed(MakeReshapeLike);
 
 
 RELAY_REGISTER_OP("reshape_like")
@@ -776,7 +776,7 @@ Expr MakeTake(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.take")
-.set_body_simple(MakeTake);
+.set_body_typed(MakeTake);
 
 RELAY_REGISTER_OP("take")
 .describe(R"code(Take elements from an array along an axis.
@@ -857,7 +857,7 @@ Expr MakeFull(Expr fill_value,
 }
 
 TVM_REGISTER_API("relay.op._make.full")
-.set_body_simple(MakeFull);
+.set_body_typed(MakeFull);
 
 RELAY_REGISTER_OP("full")
 .describe(R"code(Fill array with scalar value.
@@ -892,7 +892,7 @@ Expr MakeZeros(Array<IndexExpr> shape,
 }
 
 TVM_REGISTER_API("relay.op._make.zeros")
-.set_body_simple(MakeZeros);
+.set_body_typed(MakeZeros);
 
 RELAY_REGISTER_OP("zeros")
 .describe(R"code(Fill array with zeros.
@@ -913,7 +913,7 @@ Expr MakeOnes(Array<IndexExpr> shape,
 }
 
 TVM_REGISTER_API("relay.op._make.ones")
-.set_body_simple(MakeOnes);
+.set_body_typed(MakeOnes);
 
 RELAY_REGISTER_OP("ones")
 .describe(R"code(Fill array with ones.
@@ -960,7 +960,7 @@ Expr MakeFullLike(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.full_like")
-.set_body_simple(MakeFullLike);
+.set_body_typed(MakeFullLike);
 
 RELAY_REGISTER_OP("full_like")
 .describe(R"code(Return an scalar value array with the same shape
@@ -1017,7 +1017,7 @@ Expr MakeArange(tvm::Expr start,
 }
 
 TVM_REGISTER_API("relay.op._make.arange")
-.set_body_simple(MakeArange);
+.set_body_typed(MakeArange);
 
 RELAY_REGISTER_OP("arange")
 .describe(R"code(Returns evenly spaced values within a given interval.
@@ -1091,7 +1091,7 @@ Expr MakeRepeat(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.repeat")
-.set_body_simple(MakeRepeat);
+.set_body_typed(MakeRepeat);
 
 RELAY_REGISTER_OP("repeat")
 .describe(R"code(Repeat elements of an array `repeats` times along axis `axis`
@@ -1189,7 +1189,7 @@ Expr MakeTile(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.tile")
-.set_body_simple(MakeTile);
+.set_body_typed(MakeTile);
 
 RELAY_REGISTER_OP("tile")
 .describe(R"code(Repeat the whole array multiple times.
@@ -1250,7 +1250,7 @@ Expr MakeReverse(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.reverse")
-.set_body_simple(MakeReverse);
+.set_body_typed(MakeReverse);
 
 RELAY_REGISTER_OP("reverse")
 .describe(R"code(Reverses the order of elements along given `axis` while preserving array shape.
@@ -1313,7 +1313,7 @@ Array<Tensor> WhereCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op._make.where")
-.set_body_simple(MakeWhere);
+.set_body_typed(MakeWhere);
 
 RELAY_REGISTER_OP("where")
 .describe(R"code(
@@ -1366,7 +1366,7 @@ Expr MakeSqueeze(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.squeeze")
-.set_body_simple(MakeSqueeze);
+.set_body_typed(MakeSqueeze);
 
 
 bool SqueezeRel(const Array<Type>& types,
@@ -1471,7 +1471,7 @@ Array<Tensor> CollapseSumLikeCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op._make.collapse_sum_like")
-.set_body_simple(MakeCollapseSumLike);
+.set_body_typed(MakeCollapseSumLike);
 
 RELAY_REGISTER_OP("collapse_sum_like")
 .describe(R"code(Collapse the first input to match the shape of the second input.
@@ -1516,7 +1516,7 @@ Array<Tensor> BroadCastToCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op._make.broadcast_to")
-.set_body_simple(MakeBroadCastTo);
+.set_body_typed(MakeBroadCastTo);
 
 RELAY_REGISTER_OP("broadcast_to")
 .describe(R"code(Broadcast the first input to match the shape argument.
@@ -1554,7 +1554,7 @@ Array<Tensor> BroadCastToLikeCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op._make.broadcast_to_like")
-.set_body_simple(MakeBroadCastToLike);
+.set_body_typed(MakeBroadCastToLike);
 
 RELAY_REGISTER_OP("broadcast_to_like")
 .describe(R"code(Broadcast the first input to match the shape of the second input.
@@ -1764,7 +1764,7 @@ Array<Tensor> StridedSliceCompute(const Attrs& attrs,
 
 
 TVM_REGISTER_API("relay.op._make.strided_slice")
-.set_body_simple(MakeStridedSlice);
+.set_body_typed(MakeStridedSlice);
 
 
 RELAY_REGISTER_OP("strided_slice")
@@ -2037,7 +2037,7 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
 
 
 TVM_REGISTER_API("relay.op._make.slice_like")
-.set_body_simple(MakeSliceLike);
+.set_body_typed(MakeSliceLike);
 
 
 RELAY_REGISTER_OP("slice_like")
@@ -2098,7 +2098,7 @@ Expr MakeLayoutTransform(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.layout_transform")
-.set_body_simple(MakeLayoutTransform);
+.set_body_typed(MakeLayoutTransform);
 
 RELAY_REGISTER_OP("layout_transform")
 .describe(R"code(Transform the input data layout.
@@ -2126,7 +2126,7 @@ Expr MakeReverseReshape(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make._contrib_reverse_reshape")
-.set_body_simple(MakeReverseReshape);
+.set_body_typed(MakeReverseReshape);
 
 RELAY_REGISTER_OP("_contrib_reverse_reshape")
 .describe(R"code(Reshapes the input array where the special values are inferred from
@@ -2200,7 +2200,7 @@ Expr MakeGatherND(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.gather_nd")
-.set_body_simple(MakeGatherND);
+.set_body_typed(MakeGatherND);
 
 RELAY_REGISTER_OP("gather_nd")
 .describe(R"code(Gather elements or slices from data and store to

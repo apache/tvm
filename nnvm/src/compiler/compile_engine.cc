@@ -360,7 +360,7 @@ TVM_REGISTER_GLOBAL("nnvm.compiler.GraphKeyGetGraph")
   });
 
 TVM_REGISTER_GLOBAL("nnvm.compiler.MakeGraphKey")
-.set_body_simple(GraphKeyNode::make);
+.set_body_typed(GraphKeyNode::make);
 
 // This can be used to extract workloads from nnvm compiler
 TVM_REGISTER_GLOBAL("nnvm.compiler.CacheItem2ScheduleArgs")

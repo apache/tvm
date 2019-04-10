@@ -50,7 +50,7 @@ TVM_REGISTER_API("_load_json")
 .set_body_typed<NodeRef(std::string)>(LoadJSON<NodeRef>);
 
 TVM_REGISTER_API("_TVMSetStream")
-.set_body_simple(TVMSetStream);
+.set_body_typed(TVMSetStream);
 
 TVM_REGISTER_API("_save_param_dict")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

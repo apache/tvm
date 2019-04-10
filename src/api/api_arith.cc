@@ -31,19 +31,19 @@ namespace tvm {
 namespace arith {
 
 TVM_REGISTER_API("arith.intset_single_point")
-.set_body_simple(IntSet::single_point);
+.set_body_typed(IntSet::single_point);
 
 TVM_REGISTER_API("arith.intset_vector")
-.set_body_simple(IntSet::vector);
+.set_body_typed(IntSet::vector);
 
 TVM_REGISTER_API("arith.intset_interval")
-.set_body_simple(IntSet::interval);
+.set_body_typed(IntSet::interval);
 
 TVM_REGISTER_API("arith.DetectLinearEquation")
-.set_body_simple(DetectLinearEquation);
+.set_body_typed(DetectLinearEquation);
 
 TVM_REGISTER_API("arith.DetectClipBound")
-.set_body_simple(DetectClipBound);
+.set_body_typed(DetectClipBound);
 
 TVM_REGISTER_API("arith.DeduceBound")
 .set_body_typed<IntSet(Expr, Expr, Map<Var, IntSet>, Map<Var, IntSet>)>([](
@@ -56,7 +56,7 @@ TVM_REGISTER_API("arith.DeduceBound")
 
 
 TVM_REGISTER_API("arith.DomainTouched")
-.set_body_simple(DomainTouched);
+.set_body_typed(DomainTouched);
 
 
 TVM_REGISTER_API("_IntervalSetGetMin")
@@ -72,10 +72,10 @@ TVM_REGISTER_API("_IntSetIsEverything")
 .set_body_method(&IntSet::is_everything);
 
 TVM_REGISTER_API("arith._make_ConstIntBound")
-.set_body_simple(ConstIntBoundNode::make);
+.set_body_typed(ConstIntBoundNode::make);
 
 TVM_REGISTER_API("arith._make_ModularSet")
-.set_body_simple(ModularSetNode::make);
+.set_body_typed(ModularSetNode::make);
 
 TVM_REGISTER_API("arith._CreateAnalyzer")
 .set_body([](TVMArgs args, TVMRetValue* ret) {

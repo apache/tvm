@@ -64,6 +64,6 @@ PackedFunc CreateEventDrivenServer(PackedFunc fsend,
 }
 
 TVM_REGISTER_GLOBAL("rpc._CreateEventDrivenServer")
-.set_body_simple(CreateEventDrivenServer);
+.set_body_typed(CreateEventDrivenServer);
 }  // namespace runtime
 }  // namespace tvm

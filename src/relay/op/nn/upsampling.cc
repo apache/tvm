@@ -110,7 +110,7 @@ Expr MakeUpSampling(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.upsampling")
-.set_body_simple(MakeUpSampling);
+.set_body_typed(MakeUpSampling);
 
 
 RELAY_REGISTER_OP("nn.upsampling")

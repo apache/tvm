@@ -78,7 +78,7 @@ Expr MakeBiasAdd(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.bias_add")
-.set_body_simple(MakeBiasAdd);
+.set_body_typed(MakeBiasAdd);
 
 
 RELAY_REGISTER_OP("nn.bias_add")
@@ -143,7 +143,7 @@ Expr MakeDense(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.dense")
-.set_body_simple(MakeDense);
+.set_body_typed(MakeDense);
 
 
 RELAY_REGISTER_OP("nn.dense")
@@ -175,7 +175,7 @@ Expr MakeLeakyRelu(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.leaky_relu")
-.set_body_simple(MakeLeakyRelu);
+.set_body_typed(MakeLeakyRelu);
 
 
 RELAY_REGISTER_OP("nn.leaky_relu")
@@ -238,7 +238,7 @@ Expr MakePRelu(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.prelu")
-.set_body_simple(MakePRelu);
+.set_body_typed(MakePRelu);
 
 
 RELAY_REGISTER_OP("nn.prelu")
@@ -367,7 +367,7 @@ Expr MakeBatchFlatten(Expr data) {
 
 
 TVM_REGISTER_API("relay.op.nn._make.batch_flatten")
-.set_body_simple(MakeBatchFlatten);
+.set_body_typed(MakeBatchFlatten);
 
 
 RELAY_REGISTER_OP("nn.batch_flatten")
@@ -452,7 +452,7 @@ Expr MakeLRN(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.lrn")
-.set_body_simple(MakeLRN);
+.set_body_typed(MakeLRN);
 
 RELAY_REGISTER_OP("nn.lrn")
 .describe(R"code(LRN layer.
@@ -490,7 +490,7 @@ Expr MakeL2Normalize(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.l2_normalize")
-.set_body_simple(MakeL2Normalize);
+.set_body_typed(MakeL2Normalize);
 
 RELAY_REGISTER_OP("nn.l2_normalize")
 .describe(R"code(L2 Normalization layer.
@@ -535,7 +535,7 @@ Expr MakeDropout(Expr data, double rate) {
 }
 
 TVM_REGISTER_API("relay.op.nn._make.dropout")
-.set_body_simple(MakeDropout);
+.set_body_typed(MakeDropout);
 
 RELAY_REGISTER_OP("nn.dropout")
 .describe(R"code(Applies the dropout operation to the input array.
@@ -599,7 +599,7 @@ Expr MakeBatchNorm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr movi
 }
 
 TVM_REGISTER_API("relay.op.nn._make.batch_norm")
-.set_body_simple(MakeBatchNorm);
+.set_body_typed(MakeBatchNorm);
 
 RELAY_REGISTER_OP("nn.batch_norm")
 .describe(R"code(Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -686,7 +686,7 @@ Expr MakeBatchMatmul(Expr x,
 
 
 TVM_REGISTER_API("relay.op.nn._make.batch_matmul")
-.set_body_simple(MakeBatchMatmul);
+.set_body_typed(MakeBatchMatmul);
 
 
 RELAY_REGISTER_OP("nn.batch_matmul")

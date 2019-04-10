@@ -33,11 +33,11 @@ namespace tvm {
 namespace schedule {
 
 TVM_REGISTER_API("schedule.AutoInlineElemWise")
-.set_body_simple(AutoInlineElemWise);
+.set_body_typed(AutoInlineElemWise);
 
 
 TVM_REGISTER_API("schedule.AutoInlineInjective")
-.set_body_simple(AutoInlineInjective);
+.set_body_typed(AutoInlineInjective);
 
 TVM_REGISTER_API("schedule.ScheduleOps")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -49,7 +49,7 @@ TVM_REGISTER_API("schedule.ScheduleOps")
 
 #define REGISTER_SCHEDULE_PASS(PassName)                          \
   TVM_REGISTER_API("schedule."#PassName)                          \
-  .set_body_simple(PassName);                                     \
+  .set_body_typed(PassName);                                     \
 
 
 REGISTER_SCHEDULE_PASS(InferBound);

@@ -243,10 +243,10 @@ Module ROCMModuleLoadBinary(void* strm) {
 
 
 TVM_REGISTER_GLOBAL("module.loadbinary_hsaco")
-.set_body_simple(ROCMModuleLoadBinary);
+.set_body_typed(ROCMModuleLoadBinary);
 
 
 TVM_REGISTER_GLOBAL("module.loadbinary_hip")
-.set_body_simple(ROCMModuleLoadBinary);
+.set_body_typed(ROCMModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

@@ -105,7 +105,7 @@ Expr MakeResize(Expr data,
 
 
 TVM_REGISTER_API("relay.op.image._make.resize")
-.set_body_simple(MakeResize);
+.set_body_typed(MakeResize);
 
 
 RELAY_REGISTER_OP("image.resize")

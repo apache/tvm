@@ -36,25 +36,25 @@ TVM_REGISTER_API("_Var")
   });
 
 TVM_REGISTER_API("make.abs")
-.set_body_simple(tvm::abs);
+.set_body_typed(tvm::abs);
 
 TVM_REGISTER_API("make.floor")
-.set_body_simple(tvm::floor);
+.set_body_typed(tvm::floor);
 
 TVM_REGISTER_API("make.ceil")
-.set_body_simple(tvm::ceil);
+.set_body_typed(tvm::ceil);
 
 TVM_REGISTER_API("make.round")
-.set_body_simple(tvm::round);
+.set_body_typed(tvm::round);
 
 TVM_REGISTER_API("make.trunc")
-.set_body_simple(tvm::trunc);
+.set_body_typed(tvm::trunc);
 
 TVM_REGISTER_API("make._cast")
-.set_body_simple(tvm::cast);
+.set_body_typed(tvm::cast);
 
 TVM_REGISTER_API("make._range_by_min_extent")
-.set_body_simple(Range::make_by_min_extent);
+.set_body_typed(Range::make_by_min_extent);
 
 TVM_REGISTER_API("make.For")
 .set_body_typed<Stmt(VarExpr, Expr, Expr, int, int, Stmt)>([](
@@ -90,7 +90,7 @@ TVM_REGISTER_API("make.Store")
   });
 
 TVM_REGISTER_API("make.Realize")
-.set_body_simple(Realize::make);
+.set_body_typed(Realize::make);
 
 TVM_REGISTER_API("make.Call")
 .set_body_typed<Expr(Type, std::string, Array<Expr>, int, FunctionRef, int)>([](
@@ -107,12 +107,12 @@ TVM_REGISTER_API("make.Call")
 });
 
 TVM_REGISTER_API("make.CommReducer")
-.set_body_simple(CommReducerNode::make);
+.set_body_typed(CommReducerNode::make);
 
 // make from two arguments
 #define REGISTER_MAKE(Node)                                  \
   TVM_REGISTER_API("make."#Node)                             \
-  .set_body_simple(Node::make);                              \
+  .set_body_typed(Node::make);                              \
 
 REGISTER_MAKE(Reduce);
 REGISTER_MAKE(AttrStmt);
@@ -156,7 +156,7 @@ REGISTER_MAKE(Evaluate);
 
 // overloaded, needs special handling
 TVM_REGISTER_API("make.Block")
-  .set_body_simple(static_cast<Stmt (*)(Stmt, Stmt)>(Block::make));
+  .set_body_typed(static_cast<Stmt (*)(Stmt, Stmt)>(Block::make));
 
 // has default args
 TVM_REGISTER_API("make.Allocate")

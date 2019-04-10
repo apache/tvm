@@ -308,12 +308,12 @@ Module CUDAModuleLoadBinary(void* strm) {
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_cubin")
-.set_body_simple(CUDAModuleLoadFile);
+.set_body_typed(CUDAModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadfile_ptx")
-.set_body_simple(CUDAModuleLoadFile);
+.set_body_typed(CUDAModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadbinary_cuda")
-.set_body_simple(CUDAModuleLoadBinary);
+.set_body_typed(CUDAModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

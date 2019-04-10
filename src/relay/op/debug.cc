@@ -64,7 +64,7 @@ Expr MakeDebug(Expr expr, std::string name) {
 }
 
 TVM_REGISTER_API("relay.op._make.debug")
-.set_body_simple(MakeDebug);
+.set_body_typed(MakeDebug);
 
 }  // namespace relay
 }  // namespace tvm

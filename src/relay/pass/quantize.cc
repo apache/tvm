@@ -571,13 +571,13 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_REGISTER_API("relay._quantize._GetCurrentQConfig")
-.set_body_simple(QConfig::Current);
+.set_body_typed(QConfig::Current);
 
 TVM_REGISTER_API("relay._quantize._EnterQConfigScope")
-.set_body_simple(QConfig::EnterQConfigScope);
+.set_body_typed(QConfig::EnterQConfigScope);
 
 TVM_REGISTER_API("relay._quantize._ExitQConfigScope")
-.set_body_simple(QConfig::ExitQConfigScope);
+.set_body_typed(QConfig::ExitQConfigScope);
 
 }  // namespace quantize
 }  // namespace relay

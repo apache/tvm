@@ -265,7 +265,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 }
 
 TVM_REGISTER_API("codegen.build_rocm")
-.set_body_simple(BuildAMDGPU);
+.set_body_typed(BuildAMDGPU);
 
 }  // namespace codegen
 }  // namespace tvm

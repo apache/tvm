@@ -181,19 +181,19 @@ Module ModuleNode::FromExpr(
 TVM_REGISTER_NODE_TYPE(ModuleNode);
 
 TVM_REGISTER_API("relay._make.Module")
-.set_body_simple(ModuleNode::make);
+.set_body_typed(ModuleNode::make);
 
 TVM_REGISTER_API("relay._make.Module_Add")
-.set_body_node_method<Module>(&ModuleNode::Add);
+.set_body_method<Module>(&ModuleNode::Add);
 
 TVM_REGISTER_API("relay._module.Module_AddDef")
-.set_body_node_method<Module>(&ModuleNode::AddDef);
+.set_body_method<Module>(&ModuleNode::AddDef);
 
 TVM_REGISTER_API("relay._module.Module_GetGlobalVar")
-.set_body_node_method<Module>(&ModuleNode::GetGlobalVar);
+.set_body_method<Module>(&ModuleNode::GetGlobalVar);
 
 TVM_REGISTER_API("relay._module.Module_GetGlobalTypeVar")
-.set_body_node_method<Module>(&ModuleNode::GetGlobalTypeVar);
+.set_body_method<Module>(&ModuleNode::GetGlobalTypeVar);
 
 TVM_REGISTER_API("relay._module.Module_Lookup")
 .set_body_typed<Function(Module, GlobalVar)>([](Module mod, GlobalVar var) {

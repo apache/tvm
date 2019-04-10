@@ -121,7 +121,7 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
 // make from two arguments
 #define REGISTER_PASS(PassName)                                   \
   TVM_REGISTER_API("ir_pass."#PassName)                           \
-  .set_body_simple(PassName);                                     \
+  .set_body_typed(PassName);                                     \
 
 
 REGISTER_PASS(ConvertSSA);
