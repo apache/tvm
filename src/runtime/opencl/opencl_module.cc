@@ -281,18 +281,12 @@ Module OpenCLModuleLoadBinary(void* strm) {
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_cl")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoadFile(args[0], args[1]);
-  });
+.set_body_typed(OpenCLModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadfile_clbin")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoadFile(args[0], args[1]);
-  });
+.set_body_typed(OpenCLModuleLoadFile);
 
 TVM_REGISTER_GLOBAL("module.loadbinary_opencl")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoadBinary(args[0]);
-  });
+.set_body_typed(OpenCLModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

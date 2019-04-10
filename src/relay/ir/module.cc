@@ -181,66 +181,43 @@ Module ModuleNode::FromExpr(
 TVM_REGISTER_NODE_TYPE(ModuleNode);
 
 TVM_REGISTER_API("relay._make.Module")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = ModuleNode::make(args[0], args[1]);
-  });
+.set_body_typed(ModuleNode::make);
 
 TVM_REGISTER_API("relay._make.Module_Add")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    mod->Add(args[1], args[2], args[3]);
-  });
+.set_body_method<Module>(&ModuleNode::Add);
 
 TVM_REGISTER_API("relay._module.Module_AddDef")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    mod->AddDef(args[1], args[2]);
-  });
+.set_body_method<Module>(&ModuleNode::AddDef);
 
 TVM_REGISTER_API("relay._module.Module_GetGlobalVar")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    *ret = mod->GetGlobalVar(args[1]);
-  });
+.set_body_method<Module>(&ModuleNode::GetGlobalVar);
 
 TVM_REGISTER_API("relay._module.Module_GetGlobalTypeVar")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    *ret = mod->GetGlobalTypeVar(args[1]);
-  });
+.set_body_method<Module>(&ModuleNode::GetGlobalTypeVar);
 
 TVM_REGISTER_API("relay._module.Module_Lookup")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    GlobalVar var = args[1];
-    *ret = mod->Lookup(var);
+.set_body_typed<Function(Module, GlobalVar)>([](Module mod, GlobalVar var) {
+    return mod->Lookup(var);
   });
 
 TVM_REGISTER_API("relay._module.Module_Lookup_str")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    std::string var_name = args[1];
-    *ret = mod->Lookup(var_name);
+.set_body_typed<Function(Module, std::string)>([](Module mod, std::string var) {
+    return mod->Lookup(var);
   });
 
 TVM_REGISTER_API("relay._module.Module_LookupDef")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    GlobalTypeVar var = args[1];
-    *ret = mod->LookupDef(var);
+.set_body_typed<TypeData(Module, GlobalTypeVar)>([](Module mod, GlobalTypeVar var) {
+    return mod->LookupDef(var);
   });
 
 TVM_REGISTER_API("relay._module.Module_LookupDef_str")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    std::string var_name = args[1];
-    *ret = mod->LookupDef(var_name);
+.set_body_typed<TypeData(Module, std::string)>([](Module mod, std::string var) {
+    return mod->LookupDef(var);
   });
 
 TVM_REGISTER_API("relay._module.Module_Update")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module mod = args[0];
-    mod->Update(args[1]);
+.set_body_typed<void(Module, Module)>([](Module mod, Module from) {
+    mod->Update(from);
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
