@@ -263,8 +263,6 @@ runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
 }
 
 TVM_REGISTER_API("codegen.build_opencl")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildOpenCL(args[0]);
-  });
+.set_body_typed(BuildOpenCL);
 }  // namespace codegen
 }  // namespace tvm
