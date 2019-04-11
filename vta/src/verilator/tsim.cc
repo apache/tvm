@@ -1,4 +1,4 @@
-#include <vta/verilator/sim.h>
+#include <vta/verilator/tsim.h>
 
 #if VM_TRACE
 #include <verilated_vcd_c.h>
@@ -58,13 +58,13 @@ int VTASim(uint64_t max_cycles) {
   uint64_t start = 0;
 #endif
 
-  VL_VSIM_NAME *top = new VL_VSIM_NAME;
+  VL_TSIM_NAME *top = new VL_TSIM_NAME;
 
 #if VM_TRACE
   Verilated::traceEverOn(true);
   VerilatedVcdC* tfp = new VerilatedVcdC;
   top->trace(tfp, 99);
-  tfp->open(STRINGIZE_VALUE_OF(VSIM_TRACE_FILE));
+  tfp->open(STRINGIZE_VALUE_OF(TSIM_TRACE_FILE));
 #endif
 
   // reset

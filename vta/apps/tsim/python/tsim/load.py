@@ -32,8 +32,8 @@ def _load_driver_lib():
 def load_driver():
     return tvm.get_global_func("tvm.vta.driver")
 
-def load_vsim():
-    lib = get_lib_path("libvsim")
-    return tvm.module.load(lib, "vta-sim")
+def load_tsim():
+    lib = get_lib_path("libtsim")
+    return tvm.module.load(lib, "vta-tsim")
 
 LIBS = _load_driver_lib()

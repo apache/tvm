@@ -1,6 +1,6 @@
 # vta software components
-file(GLOB VSIM_SW_SRC src/test_driver.cc)
-add_library(driver SHARED ${VSIM_SW_SRC})
+file(GLOB TSIM_SW_SRC src/test_driver.cc)
+add_library(driver SHARED ${TSIM_SW_SRC})
 target_include_directories(driver PRIVATE ${VTA_DIR}/include)
 
 if(APPLE)

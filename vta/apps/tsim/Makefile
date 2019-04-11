@@ -1,15 +1,15 @@
 export PYTHONPATH:=$(PWD)/python:$(PYTHONPATH)
 
-BUILD_DIR = $(shell python python/vsim/config.py --get-build-name)
+BUILD_DIR = $(shell python python/tsim/config.py --get-build-name)
 
 TVM_DIR = $(abspath ../../../)
 
-VSIM_TARGET = verilog
-VSIM_TOP_NAME = TestAccel
-VSIM_BUILD_NAME = build
+TSIM_TARGET = verilog
+TSIM_TOP_NAME = TestAccel
+TSIM_BUILD_NAME = build
 
 # optional
-VSIM_TRACE_NAME = trace.vcd
+TSIM_TRACE_NAME = trace.vcd
 
 .PHONY: cmake
 
@@ -20,7 +20,7 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 run:
-	python3 tests/python/test_vsim.py | grep PASS
+	python3 tests/python/test_tsim.py | grep PASS
 
 clean:
 	-rm -rf $(BUILD_DIR)

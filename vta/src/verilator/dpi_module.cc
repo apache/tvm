@@ -3,7 +3,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <vta/verilator/dpi_module.h>
-#include <vta/verilator/sim.h>
+#include <vta/verilator/tsim.h>
 #if defined(_WIN32)
 #include <windows.h>
 #else
@@ -171,7 +171,7 @@ class DPIModule final : public DPIModuleNode {
   }
 
   const char* type_key() const final {
-    return "vta-sim";
+    return "vta-tsim";
   }
 
   PackedFunc GetFunction(
@@ -345,7 +345,7 @@ Module DPIModuleNode::Load(std::string dll_name) {
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_vta-sim")
+TVM_REGISTER_GLOBAL("module.loadfile_vta-tsim")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = DPIModuleNode::Load(args[0]);
   });

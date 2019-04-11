@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.2)
-project(vsim C CXX)
+project(tsim C CXX)
 
 set(TVM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../)
 set(VTA_DIR ${TVM_DIR}/vta)
@@ -18,5 +18,5 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
 endif()
 
 # Module rules
-include(cmake/modules/vsim.cmake)
+include(cmake/modules/tsim.cmake)
 include(cmake/modules/driver.cmake)
