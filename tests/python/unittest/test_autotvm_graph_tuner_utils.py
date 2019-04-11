@@ -104,7 +104,10 @@ def test_get_in_nodes():
     net = bind_inputs(net, {"data": (4, 5), "w0": (5, 5), "w1": (20, 5)})
     target_ops = ["dense"]
     input_names = ["data"]
-    out = get_in_nodes(net, target_ops, input_names)
+    node_list = []
+    node_dict = {}
+    expr2graph(net, target_ops, node_dict, node_list)
+    out = get_in_nodes(node_list, target_ops, input_names)
     expected_out = {7: [3], 3: [2, 0], 2: [0]}
     diff_set = set(out) ^ set(expected_out)
     if len(diff_set) != 0:

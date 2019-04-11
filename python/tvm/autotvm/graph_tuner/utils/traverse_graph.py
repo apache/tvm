@@ -28,10 +28,14 @@ def expr2graph(expr, target_ops, node_dict, node_list):
 
     node_list : list of dictionary
     """
-    env = TaskExtractEnv.get()
+    env = TaskExtractEnv.get(allow_duplicate=True)
     env.task_collection = []
     _expr2graph_impl(expr, target_ops, node_dict, node_list)
     task_pos = 0
+    a = 0
+    for node_entry in node_list:
+        if node_entry["op"] in target_ops:
+            a += 1
     for node_entry in node_list:
         if node_entry["op"] in target_ops:
             task_name, args = env.task_collection[task_pos]
