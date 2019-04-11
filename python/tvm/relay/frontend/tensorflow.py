@@ -853,7 +853,7 @@ def _reverse_v2():
         return AttrCvt(
             op_name="reverse",
             ignores=['Tidx'],
-            extras={'axis': axis})([inputs[0]], attr)
+            extras={'axis': int(axis)})([inputs[0]], attr)
     return _impl
 
 def _rank():
