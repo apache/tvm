@@ -12,8 +12,17 @@ from tvm.autotvm.task.topi_integration import deserialize_args, serialize_args
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 
-from .utils import is_input_node, shape2layout, get_in_nodes, get_out_nodes, \
-    has_multiple_inputs, get_wkl_map, bind_inputs, expr2graph
+from ... import target as _target
+from .utils import is_input_node, get_in_nodes, get_out_nodes, has_multiple_inputs, \
+    bind_inputs, expr2graph
+
+
+# Setup topi_op_name -> layout function
+# NOTE: To add more ops, change the following dictionary.
+OP2LAYOUT = {
+    "topi_nn_conv2d": topi.nn.conv2d_infer_layout,
+    "topi_nn_depthwise_conv2d_nchw": topi.nn.depthwise_conv2d_infer_layout,
+}
 
 
 @autotvm.template
@@ -33,14 +42,12 @@ class BaseGraphTuner(object):
     layout transformation time.
 
     Before creating a Graph Executor instance, schedule candidates for all kernels in
-    graph should be provided through tensor searching.
-
-    TODO Develop more effective approximation/learning algorithm.
+    graph should be provided through tensor-level tuning.
     """
-    def __init__(self, graph, input_shapes, records, graph_workload_list, target_op,
-                 data_layout, layout_related_fields, infer_layout_shape_func,
-                 max_sch_num=20, dtype="float32", verbose=True, log_file="graph_tuner.log",
-                 log_level=logging.DEBUG, name="graph_tuner"):
+    def __init__(self, graph, input_shapes, records, target_ops,
+                 target, max_sch_num=20, dtype="float32", verbose=True,
+                 log_file="graph_tuner.log", log_level=logging.DEBUG,
+                 name="graph_tuner"):
         """Create a GlobalTuner instance. Local schedule searching for all nodes with
         target_op in the input graph and layout transformation benchmark need to be
         executed before initialization.
@@ -57,40 +64,11 @@ class BaseGraphTuner(object):
                        Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
 
-        graph_workload_list : list of tuple
-            List contains all workloads of target_op in the input graph. The order
-            of workloads should be the ascending order of node index. For conv2d_NCHWc,
-            conversion from conv2d workload is required and get_conv2d_NCHWc_AVX_workload
-            is provided as built-in function to deal with this. Make sure the workload
-            format is consistent with the workload format in records.
+        target_ops : List of str
+            Target tuning operators.
 
-        target_op : str
-            Target tuning operator.
-
-        data_layout : str
-            Data layout for target operator.
-
-        layout_related_fields : tuple of str
-             Fields name in schedule configuration which are related to data I/O layout.
-             For example, the data layout for conv2d of intel avx is NCWHc. "tile_ic" and
-             "tile_oc" are related to data layout.
-
-        infer_layout_shape_func : function
-            Function to infer actual input and output shapes for layout
-            transformation given a workload, current schedule and target schedule.
-
-            Take a CNN as example, a layout transformation can happen
-            in two cases:
-            1. Between two convolution nodes. Data shape before and after
-               layout transformation can be determined purely by workload
-               and schedules.
-            2. Before multi_input nodes. In this case, shape of the
-               multi_input_node_shape_dict node is required as well.
-
-            Arguments for this function should be (wkl, current_sch, target_sch,
-            batch_size, multi_input_node_shape), and it should return input_shape,
-            output_shape and is_valid. Check utils.infer_layout_shape_avx for reference
-            implementation.
+        target : str or tvm.target
+            Compilation target.
 
         max_sch_num : int, optional
             Maximum number of schedule candidates for each workload.
@@ -98,29 +76,26 @@ class BaseGraphTuner(object):
         dtype : str, optional
             Data type.
 
-        target_op : str, optional
-            Operator name.
+        log_file : str, optional
+            graph tuner log file name
 
         name : str, optional
             Name of global tuner.
         """
-        self._wkl_dict = {}
-        self._sch_dict = {}
+        self._node_list = []
         self._layout_transform_dict = {}
         self._layout_transform_matrix_dict = {}
-        self._stage_dict = {}
-        self._dep_dict = {}
-        self._counted_nodes_set = set()
         self._input_shapes = input_shapes
-        self._target_op = target_op
+        self._target_ops = [op.__name__ for op in target_ops]
         self._name = name
         self._max_sch_num = max_sch_num
         self._optimal_sch_dict = {}
-        self._data_layout = data_layout
         self._records = records
-        self._infer_layout_shape_func = infer_layout_shape_func
-        self._graph_workload_list = graph_workload_list
         self._dtype = dtype
+        if isinstance(target, str):
+            target = _target.create(target)
+        self._target = target
+        self._optimal_record_dict = {}
 
         # Set up logger
         self._verbose = verbose
@@ -148,90 +123,96 @@ class BaseGraphTuner(object):
 
         # Generate workload and schedule dictionaries.
         if isinstance(graph, relay.expr.Function):
-            self._node_list = []
             node_dict = {}
             graph = bind_inputs(graph, input_shapes, dtype)
-            expr2graph(graph, node_dict, self._node_list)
+            expr2graph(graph, self._target_ops, node_dict, self._node_list)
         else:
             raise RuntimeError("Unsupported graph type: %s" % str(type(graph)))
 
         self._graph = graph
-        self._in_nodes_dict = get_in_nodes(self._graph, self._target_op, input_shapes.keys())
+        self._in_nodes_dict = get_in_nodes(self._node_list, self._target_ops, input_shapes.keys())
         self._out_nodes_dict = get_out_nodes(self._in_nodes_dict)
+        self._fetch_cfg()
 
-        sch_dict = self._records2dict(layout_related_fields)
-        workload_list = list(sch_dict.keys())
-        self._node_map = get_wkl_map(self._node_list, workload_list, target_op,
-                                     graph_workload_list)
-
+        # Setup infer_layout for elemwise-like nodes
+        # Note: graph tuner currently only supports tuning of single input and single output
+        # op as target op, such as conv2d, dense and conv2d_transpose. In this case, we can
+        # reuse infer_layout function from target ops for elemwise-like nodes. The behavior
+        # is to modify the first tensor shape of input workload to the output shape of
+        # elemwise-like node, and use infer_layout function from input op to generate layouts.
         input_names = self._input_shapes.keys()
-        for key in sorted(self._in_nodes_dict):
-            node_name = self._node_list[key]["name"]
-            if node_name in self._input_shapes.keys():
-                continue
-            if self._node_list[key]["op"] == target_op:
-                self._wkl_dict[key] = workload_list[self._node_map[key]]
-                sch_list = sch_dict[self._wkl_dict[key]]
-                current_sch_list = []
-                for j in range(min(self._max_sch_num, len(sch_list))):
-                    current_sch_list.append(dict(sch_list[j]))
-                self._sch_dict[key] = current_sch_list
-            else:
-                pivot_input_idx = -1
-                for idx in self._in_nodes_dict[key]:
-                    if not is_input_node(self._node_list[idx], input_names):
-                        pivot_input_idx = idx
-                        break
-                self._wkl_dict[key] = self._wkl_dict[pivot_input_idx]
-                self._sch_dict[key] = self._sch_dict[pivot_input_idx]
+        for idx in sorted(self._in_nodes_dict.keys()):
+            if has_multiple_inputs(self._node_list, idx, input_names):
+                node_entry = self._node_list[idx]
+                node_entry["topi_op"] = []
+                node_entry["workloads"] = []
+                for input_idx in self._in_nodes_dict[idx]:
+                    input_node = self._node_list[input_idx]
+                    if not is_input_node(input_node, input_names):
+                        input_topi_op = input_node["topi_op"][0]
+                        node_entry["topi_op"].append(input_topi_op)
+                        # Only replace the first input tensor
+                        input_workload = input_node["workloads"][0]
+                        first_tensor = input_workload[1]
+                        dtype = first_tensor[-1]
+                        new_shape = tuple([val.value for val in node_entry["types"][0].shape])
+                        actual_workload = (input_workload[0],) + \
+                                          ((new_shape + (dtype,)),) + input_workload[2:]
+                        node_entry["workloads"].append(actual_workload)
+                        if "record_candidates" not in node_entry:
+                            node_entry["record_candidates"] = input_node["record_candidates"]
+                    else:
+                        node_entry["topi_op"].append(None)
+                        node_entry["workloads"].append(None)
 
-        self._global_data_dict = {
-            "wkl_dict": self._wkl_dict, "sch_dict": self._sch_dict,
-            "dtype": self._dtype, "data_layout": self._data_layout,
-            "counted_nodes_set": self._counted_nodes_set,
-            "stage_dict": self._stage_dict, "in_nodes_dict": self._in_nodes_dict,
-            "out_nodes_dict": self._out_nodes_dict, "dep_dict": self._dep_dict,
-            "node_list": self._node_list, "input_shapes": self._input_shapes,
-            "infer_layout_shape_func": self._infer_layout_shape_func
-        }
 
-    def _records2dict(self, layout_related_fields):
+    def _fetch_cfg(self):
         """Read and pre-process input schedules."""
-        sch_dict = {}
-        sch_record_dict = {}
         if isinstance(self._records, str):
             records = load_from_file(self._records)
         else:
             records = self._records
-
-
-        # Remove unnecessary schedules w.r.t layout_related_fields
-        # For a set of schedules which generate the same layout, only
-        # the fastest one needs to be preserved.
-        for in_measure, out_measure in records:
+        cfg_dict = {}
+        for record in records:
+            in_measure, _ = record
             workload = in_measure.task.workload
-            schedule = in_measure.config
-            exec_time = out_measure.costs[0]
-            if workload not in sch_record_dict:
-                sch_record_dict[workload] = {}
-            sch_record = []
-            for field_name in schedule:
-                field_value = schedule[field_name]
-                if field_name in layout_related_fields:
-                    sch_record.append(field_value)
-            sch_record = str(sch_record)
-            if sch_record not in sch_record_dict[workload] or \
-                    exec_time < sch_record_dict[workload][sch_record][1]:
-                sch_record_dict[workload][sch_record] = (schedule, exec_time)
+            if workload not in cfg_dict:
+                cfg_dict[workload] = []
+            cfg_dict[workload].append(record)
 
-        # Generate final schedule dictionary.
-        for wkl, sch_dict_val in sch_record_dict.items():
-            sch_dict[wkl] = []
-            for sch, exec_time in sch_dict_val.values():
-                sch_dict[wkl].append({"schedule": sch, "cost": exec_time})
-            sch_dict[wkl] = sorted(sch_dict[wkl], key=lambda item: item["cost"])
-
-        return sch_dict
+        cache_dict = {}
+        for key in self._in_nodes_dict:
+            node_entry = self._node_list[key]
+            if node_entry["op"] not in self._target_ops:
+                continue
+            workload = node_entry["workloads"][0]
+            if workload in cache_dict:
+                node_entry["record_candidates"] = cache_dict[workload]
+                continue
+            record_candidates = []
+            infer_layout_func = OP2LAYOUT[node_entry["topi_op"][0]]
+            layout_tracking_dict = {}
+            for record in cfg_dict[workload]:
+                in_measure, out_measure = record
+                workload = in_measure.task.workload
+                cfg = in_measure.config
+                # For multiple cfgs which produces the same in/out layouts,
+                # only the most efficient one is preserved.
+                with self._target:
+                    layouts = infer_layout_func(workload, cfg)
+                    if layouts in layout_tracking_dict:
+                        cost = out_measure.costs[0]
+                        current_best_cost = layout_tracking_dict[layouts][1].costs[0]
+                        if cost < current_best_cost:
+                            layout_tracking_dict[layouts] = record
+                    else:
+                        layout_tracking_dict[layouts] = record
+            sorted_records = sorted(layout_tracking_dict.values(),
+                                    key=lambda item: item[1].costs[0])
+            for i in range(min(self._max_sch_num, len(sorted_records))):
+                record_candidates.append(sorted_records[i])
+            node_entry["record_candidates"] = record_candidates
+            cache_dict[workload] = record_candidates
 
     def _iterate_layout_transform(self, callback):
         """Iterate all possible layout transformations and execute callback for each
@@ -241,7 +222,7 @@ class BaseGraphTuner(object):
         """
         input_names = self._input_shapes.keys()
         for key, val in self._in_nodes_dict.items():
-            node = self._node_list[key]
+            node_entry = self._node_list[key]
             target_input_idx = -1
             target_input_pos = -1
             if has_multiple_inputs(self._node_list, key, input_names):
@@ -252,41 +233,55 @@ class BaseGraphTuner(object):
                         break
 
             for i, item in enumerate(val):
-                if is_input_node(self._node_list[item], input_names):
+                i_idx = item
+                in_node_entry = self._node_list[i_idx]
+                if is_input_node(in_node_entry, input_names):
                     continue
 
-                c_idx = item
-                if node["op"] == self._target_op:
-                    t_idx = key
+                if node_entry["op"] in self._target_ops:
+                    o_idx = key
+                    o_infer_layout_func = OP2LAYOUT[node_entry["topi_op"][0]]
+                    o_wkl = node_entry["workloads"][0]
+                    i_topi_op = in_node_entry["topi_op"][0]
+                    i_wkl = in_node_entry["workloads"][0]
+                    pivot = 0
+                    while not i_wkl:
+                        pivot += 1
+                        i_topi_op = in_node_entry["topi_op"][pivot]
+                        i_wkl = in_node_entry["workloads"][pivot]
+                    i_infer_layout_func = OP2LAYOUT[i_topi_op]
                 else:
-                    t_idx = target_input_idx
+                    o_idx = target_input_idx
                     if i <= target_input_pos:
                         continue
-                wkl_c = self._wkl_dict[c_idx]
-                sch_current_list = self._sch_dict[c_idx]
-                sch_current = [sch_current_list[j]["schedule"]
-                               for j in range(min(self._max_sch_num, len(sch_current_list)))]
-                wkl_t = self._wkl_dict[t_idx]
-                sch_target_list = self._sch_dict[t_idx]
-                sch_target = [sch_target_list[j]["schedule"]
-                              for j in range(min(self._max_sch_num, len(sch_target_list)))]
+                    o_infer_layout_func = OP2LAYOUT[node_entry["topi_op"][0]]
+                    o_wkl = node_entry["workloads"][target_input_pos]
+                    i_infer_layout_func = OP2LAYOUT[node_entry["topi_op"][i]]
+                    i_wkl = node_entry["workloads"][i]
 
-                for m, sch_c in enumerate(sch_current):
-                    for n, sch_t in enumerate(sch_target):
-                        if has_multiple_inputs(self._node_list, key, input_names):
-                            first_input_idx = self._node_list[key]["inputs"][0][0]
-                            first_input_oshape = self._node_list[first_input_idx]["oshape"]
-                            in_shape, out_shape, is_valid = self._infer_layout_shape_func(
-                                wkl_c, sch_c, sch_t, first_input_oshape)
+
+                for m, i_record in enumerate(in_node_entry["record_candidates"]):
+                    for n, o_record in enumerate(node_entry["record_candidates"]):
+                        i_cfg, o_cfg = i_record[0].config, o_record[0].config
+                        with self._target:
+                            i_input_info, i_output_info = i_infer_layout_func(i_wkl, i_cfg)
+                            o_input_info, o_output_info = o_infer_layout_func(o_wkl, o_cfg)
+                        if len(i_input_info) > 1 or len(i_output_info) > 1 or \
+                                len(o_input_info) > 1 or len(o_output_info) > 1:
+                            raise RuntimeError("Graph tuner only supports target operator "
+                                               "with single input and single output. "
+                                               "Please check target_ops argument.")
+
+                        in_shape, in_layout = i_output_info[0]
+                        if node_entry["op"] in self._target_ops:
+                            _, out_layout = o_input_info[0]
                         else:
-                            in_shape, out_shape, is_valid = self._infer_layout_shape_func(
-                                wkl_t, sch_c, sch_t)
-                        in_layout = shape2layout(in_shape, self._data_layout)
-                        out_layout = shape2layout(out_shape, self._data_layout)
+                            _, out_layout = o_output_info[0]
                         data_placeholder = tvm.placeholder(in_shape, name="data",
                                                            dtype=self._dtype)
                         args = [data_placeholder, in_layout, out_layout]
-                        callback(c_idx, t_idx, m, n, args)
+                        callback(i_idx, o_idx, m, n, args)
+
 
     def _create_matrix_callback(self, from_node_idx, to_node_idx, from_sch_idx,
                                 to_sch_idx, args):
@@ -310,7 +305,7 @@ class BaseGraphTuner(object):
         self._layout_transform_matrix_dict[idx_pair_key][from_sch_idx]\
             .append(layout_transform_time)
 
-    def benchmark_layout_transform(self, target="llvm", min_exec_num=100, timeout=10,
+    def benchmark_layout_transform(self, min_exec_num=100, timeout=10,
                                    use_rpc=False, device_key=None, host="localhost",
                                    port=9190, n_parallel=1, build_func='default',
                                    records=None, target_host=None, infer_layout=False):
@@ -319,9 +314,6 @@ class BaseGraphTuner(object):
 
         Parameters
         ----------
-        target : str, optional
-            Build target.
-
         min_exec_num : int, optional
             Minimum number of execution. Final execution time is the average of
             all execution time.
@@ -380,6 +372,7 @@ class BaseGraphTuner(object):
 
             This might bring performance loss comparing to benchmarking layout transformation.
         """
+        self._logger.info("Start to benchmark layout transformation...")
         if records is None and infer_layout:
             raise RuntimeError("Requires some records to infer layout transformation time.")
 
@@ -443,14 +436,14 @@ class BaseGraphTuner(object):
                 for i in input_shape:
                     flops *= i
                 inferred_time = flops * avg_time
-                record_input = MeasureInput(target=target, task=None, config=None)
+                record_input = MeasureInput(target=self._target, task=None, config=None)
                 record_output = MeasureResult(costs=(inferred_time,), error_no=0,
                                               all_cost=-1, timestamp=-1)
                 self._layout_transform_dict[ltf_workload] = (record_input, record_output)
                 continue
 
             records = []
-            task = autotvm.task.create(layout_transform, args=args, target=target,
+            task = autotvm.task.create(layout_transform, args=args, target=self._target,
                                        target_host=target_host)
             task.workload = ltf_workload
             tuner = autotvm.tuner.GridSearchTuner(task)
@@ -459,9 +452,6 @@ class BaseGraphTuner(object):
             self._layout_transform_dict[ltf_workload] = records[0]
 
         self._iterate_layout_transform(self._create_matrix_callback)
-
-        self._global_data_dict["layout_time_matrix_dict"] = \
-            self._layout_transform_matrix_dict
         self._logger.info("Benchmarking layout transformation successful.")
 
     @property
@@ -476,27 +466,22 @@ class BaseGraphTuner(object):
         return self._layout_transform_dict
 
 
-    def get_optimal_schedules(self):
-        """Convert optimal schedule dictionary to a list of schedules
+    def get_optimal_records(self):
+        """Convert optimal record dictionary to a list of records
         with ascending order of node index in graph.
 
         Returns
         -------
-        sch_list : list of namedtuple
-            List of schedules with ascending order of node index in graph.
+        sch_list : list of tuple
+            List of records with ascending order of node index in graph.
         """
-        sch_list = []
-        input_names = self._input_shapes.keys()
-        for key, val in self._optimal_sch_dict.items():
-            if not has_multiple_inputs(self._node_list, key, input_names):
-                sch_list.append((key, val))
-        ordered_sch_list = sorted(sch_list, key=lambda x: x[0])
+        ordered_index_list = sorted(self._optimal_record_dict.keys())
         ret = []
-        for item in ordered_sch_list:
-            node_idx = item[0]
-            sch_idx = item[1]
-            sch = self._sch_dict[node_idx][sch_idx]["schedule"]
-            ret.append(sch)
+        for index in ordered_index_list:
+            node_entry = self._node_list[index]
+            if node_entry["op"] not in self._target_ops:
+                continue
+            ret.append(node_entry["record_candidates"][self._optimal_record_dict[index]])
         return ret
 
     def write_opt_sch2record_file(self, record_file="graph_opt_schedule.log"):
@@ -507,23 +492,9 @@ class BaseGraphTuner(object):
         record_file : str, optional
             Output schedule file.
         """
-        if isinstance(self._records, str):
-            records = load_from_file(self._records)
-        else:
-            records = self._records
-
-        # Create dict from (workload, schedule) to record
-        record_dict = {}
-        for record in records:
-            in_measure = record[0]
-            workload = in_measure.task.workload
-            schedule = in_measure.config
-            record_dict[str((workload, schedule))] = record
-
         with open(record_file, "a") as out_file:
-            for workload, schedule in zip(self._graph_workload_list,
-                                          self.get_optimal_schedules()):
-                record = record_dict[str((workload, schedule))]
+            records = self.get_optimal_records()
+            for record in records:
                 out_file.write(encode(record[0], record[1]) + "\n")
         msg = "Writing optimal schedules to %s successfully." % record_file
         self._logger.info(msg)

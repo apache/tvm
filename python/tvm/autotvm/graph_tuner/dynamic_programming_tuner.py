@@ -25,6 +25,21 @@ class DPTuner(BaseGraphTuner):
         """
         super(DPTuner, self).__init__(*args, **kwargs)
         self._num_states = self._max_num_states = None
+        self._stage_dict = {}
+        self._dep_dict = {}
+        self._counted_nodes_set = set()
+
+        self._global_data_dict = {
+            "dtype": self._dtype,
+            "counted_nodes_set": self._counted_nodes_set,
+            "stage_dict": self._stage_dict,
+            "in_nodes_dict": self._in_nodes_dict,
+            "out_nodes_dict": self._out_nodes_dict,
+            "dep_dict": self._dep_dict,
+            "node_list": self._node_list,
+            "input_shapes": self._input_shapes,
+            "layout_time_matrix_dict": self._layout_transform_matrix_dict
+        }
 
     def _check_num_states(self, num_states):
         """Track the number of states."""
@@ -41,9 +56,9 @@ class DPTuner(BaseGraphTuner):
         self._logger.info("Start forward pass...")
         input_names = self._input_shapes.keys()
         for node_idx, node in enumerate(self._node_list):
-            if node["op"] == self._target_op or has_multiple_inputs(self._node_list, node_idx,
-                                                                    input_names):
-                stage = DPStage(idx=node_idx, target_op=self._target_op,
+            if node["op"] in self._target_ops or has_multiple_inputs(self._node_list, node_idx,
+                                                                     input_names):
+                stage = DPStage(idx=node_idx, target_ops=self._target_ops,
                                 **self._global_data_dict)
                 self._check_num_states(stage.full_states.size)
                 self._stage_dict[node_idx] = stage
@@ -54,14 +69,14 @@ class DPTuner(BaseGraphTuner):
         """
         self._logger.info("Start backward pass...")
         input_names = self._input_shapes.keys()
-        optimal_sch_dict = {}
+        optimal_record_dict = {}
         # Pick optimal schedule for output nodes
         output_idx_list = []
         for key, val in self._out_nodes_dict.items():
             if not val:
                 output_idx_list.append(key)
         states_list, aligned_node_list = DPStage.align_states(output_idx_list, self._stage_dict,
-                                                              self._sch_dict)
+                                                              self._node_list)
         num_states = states_list[0][3].size
         self._check_num_states(num_states * len(output_idx_list))
         aligned_node_shape = states_list[0][3].shape
@@ -81,13 +96,14 @@ class DPTuner(BaseGraphTuner):
             current_major_axis = states[1]
             current_sch_idx = (min_pos % (states[2] *
                                           aligned_node_shape[current_major_axis])) // states[2]
-            optimal_sch_dict[aligned_node_list[i]] = current_sch_idx
+            optimal_record_dict[aligned_node_list[i]] = current_sch_idx
         # Pick optimal schedule for dependencies of output nodes
         for i in range(len(states_list), len(aligned_node_list)):
             multiplier = 1
             for j in range(i + 1, len(aligned_node_list)):
                 multiplier *= aligned_node_shape[j]
-            optimal_sch_dict[aligned_node_list[i]] = min_pos // multiplier % aligned_node_shape[i]
+            optimal_record_dict[aligned_node_list[i]] = \
+                min_pos // multiplier % aligned_node_shape[i]
 
         # Backward pass to get optimal schedules for other nodes
         bfs_q = queue.Queue()
@@ -99,7 +115,7 @@ class DPTuner(BaseGraphTuner):
             visited.add(node_idx)
             if is_input_node(self._node_list[node_idx], input_names):
                 continue
-            optimal_sch_idx = optimal_sch_dict[node_idx]
+            optimal_sch_idx = optimal_record_dict[node_idx]
             full_states = self._stage_dict[node_idx].full_states
             if not has_multiple_inputs(self._node_list, node_idx, input_names):
                 input_idx = self._in_nodes_dict[node_idx][0]
@@ -107,21 +123,21 @@ class DPTuner(BaseGraphTuner):
                     continue
                 if input_idx not in visited:
                     bfs_q.put(input_idx)
-                    if input_idx not in optimal_sch_dict:
+                    if input_idx not in optimal_record_dict:
                         dep_list = self._stage_dict[node_idx].dep
-                        dep_idx = tuple([optimal_sch_dict[item] for item in dep_list])
+                        dep_idx = tuple([optimal_record_dict[item] for item in dep_list])
                         tmp = np.argmin(full_states, axis=1)
                         optimal_input_sch_idx = tmp[(optimal_sch_idx,) + dep_idx]
-                        optimal_sch_dict[input_idx] = optimal_input_sch_idx
+                        optimal_record_dict[input_idx] = optimal_input_sch_idx
             else:
                 input_idx_list = self._in_nodes_dict[node_idx]
-                optimal_sch_dict[input_idx_list[0]] = optimal_sch_idx
+                optimal_record_dict[input_idx_list[0]] = optimal_sch_idx
                 full_states_idx = self._stage_dict[node_idx].full_states_idx
                 tmp = full_states[optimal_sch_idx]
                 new_states_idx, new_states_pos = [], []
                 visited_states_idx, visited_states_pos = [], []
                 for i in range(1, len(full_states_idx)):
-                    if full_states_idx[i] in optimal_sch_dict:
+                    if full_states_idx[i] in optimal_record_dict:
                         visited_states_idx.append(full_states_idx[i])
                         visited_states_pos.append(i - 1)
                     else:
@@ -129,25 +145,23 @@ class DPTuner(BaseGraphTuner):
                         new_states_pos.append(i - 1)
                 if visited_states_idx:
                     tmp = np.transpose(tmp, tuple(visited_states_pos + new_states_pos))
-                    tmp = tmp[tuple([optimal_sch_dict[idx] for idx in visited_states_idx])]
+                    tmp = tmp[tuple([optimal_record_dict[idx] for idx in visited_states_idx])]
                 min_pos = np.argmin(tmp)
                 multiplier = 1
                 for i in range(len(new_states_idx)):
                     multiplier *= full_states.shape[new_states_pos[i] + 1]
                 for pos, idx in zip(new_states_pos, new_states_idx):
                     multiplier //= full_states.shape[pos + 1]
-                    optimal_sch_dict[idx] = min_pos // multiplier
+                    optimal_record_dict[idx] = min_pos // multiplier
                     min_pos %= multiplier
                 for input_idx in input_idx_list:
                     if input_idx not in visited:
                         bfs_q.put(input_idx)
 
-        self._optimal_sch_dict = optimal_sch_dict
-        for node_idx, _ in self._sch_dict.items():
-            if self._node_list[node_idx]["op"] != self._target_op:
+        self._optimal_record_dict = optimal_record_dict
+        for node_idx, _ in self._in_nodes_dict.items():
+            if self._node_list[node_idx]["op"] not in self._target_ops:
                 continue
-            if node_idx not in self._optimal_sch_dict:
-                self._optimal_sch_dict[node_idx] = 0
         self._logger.info("Finished backward pass...")
 
     def run(self, **kwargs):

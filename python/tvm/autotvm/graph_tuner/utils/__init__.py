@@ -7,9 +7,6 @@ from . import get_workload
 from . import traverse_graph
 from . import utils
 
-from .infer_layout_transform import infer_conv2d_layout_shape_avx
-from .get_workload import get_conv2d_NCHWc_AVX_workload
 from .traverse_graph import expr2graph, get_direct_ancestor, get_in_nodes, \
     get_out_nodes
-from .utils import get_wkl_map, has_multiple_inputs, \
-    is_input_node, shape2layout, bind_inputs
+from .utils import has_multiple_inputs, is_input_node, bind_inputs

@@ -13,10 +13,10 @@ class DPStage(object):
 
     In most cases, instance of this class should be created through DPTuner.
     """
-    def __init__(self, idx, wkl_dict, sch_dict, input_shapes, node_list,
-                 data_layout, counted_nodes_set, layout_time_matrix_dict,
-                 stage_dict, in_nodes_dict, out_nodes_dict, dep_dict, target_op,
-                 infer_layout_shape_func, dtype="float32"):
+    def __init__(self, idx, input_shapes, node_list,
+                 counted_nodes_set, layout_time_matrix_dict,
+                 stage_dict, in_nodes_dict, out_nodes_dict,
+                 dep_dict, target_ops, dtype="float32"):
         """Initialize a stage and create all states.
 
         Parameters
@@ -24,21 +24,11 @@ class DPStage(object):
         idx : int
             Index for current node.
 
-        wkl_dict : dict of str to namedtuple
-            Workload dictionary maps node index to workload.
-
-        sch_dict : dict of int to list of dict
-            Schedule dictionary maps node index to schedule candidates. Each element
-            in the value list is a dictionary which has "schedule" and "cost" entries.
-
         input_shapes : dict of string to tuple of int
             Input shapes for current graph.
 
         node_list : list of dict
             List of all nodes for current graph.
-
-        data_layout : str
-            Data layout for target operator.
 
         counted_nodes_set : set of int
             Global set recording whether the execution time of a node has been counted.
@@ -58,18 +48,12 @@ class DPStage(object):
         dep_dict : dict of int to set of int
             Dictionary maps node index to dependent node index.
 
-        target_op : str
-            Operator name.
-
-        infer_layout_shape_func : function
-            Function to infer actual input and output shapes for layout
-            transformation given a workload, current schedule and target schedule.
+        target_ops : list of str
+            Target operators
 
         dtype : str, optional
             Data type.
         """
-        self._global_wkl_dict = wkl_dict
-        self._global_sch_dict = sch_dict
         self._global_input_shapes = input_shapes
         self._global_input_names = input_shapes.keys()
         self._global_node_list = node_list
@@ -81,13 +65,11 @@ class DPStage(object):
         self._global_dep_dict = dep_dict
 
         self._idx = idx
-        self._target_op = target_op
-        self._data_layout = data_layout
-        self._batch_size = list(self._global_input_shapes.values())[0][0]
-        self._wkl = self._global_wkl_dict[self._idx]
-        self._sch_list = self._global_sch_dict[self._idx]
+        self._node_entry = self._global_node_list[idx]
+        self._target_ops = target_ops
+        self._wkl = self._node_entry["workloads"][0]
+        self._record_list = self._node_entry["record_candidates"]
         self._dep = []
-        self._infer_layout_shape_func = infer_layout_shape_func
         self._dtype = dtype
         self._states = None
         self._full_states = None
@@ -97,7 +79,7 @@ class DPStage(object):
     def _create_states(self):
         """Create states."""
         node = self._global_node_list[self._idx]
-        if node["op"] == self._target_op:
+        if node["op"] in self._target_ops:
             self._create_op_states()
         else:
             self._create_multi_inputs_states()
@@ -113,20 +95,22 @@ class DPStage(object):
 
         if is_input_node(self._global_node_list[input_idx],
                          self._global_input_names):
-            self._full_states = np.array([sch["cost"] for sch in self._sch_list])
+            self._full_states = np.array([record[1].costs[0]
+                                          for record in self._record_list])
             self._states = self._full_states
         else:
+            input_node_entry = self._global_node_list[input_idx]
             input_stage = self._global_stage_dict[input_idx]
             input_dep = input_stage.dep
             input_states = input_stage.states
             input_flatten_states = input_states.flatten()
-            input_sch_list = self._global_sch_dict[input_idx]
-            num_schedules = len(self._sch_list)
-            num_input_schedules = len(input_sch_list)
+            input_record_list = input_node_entry["record_candidates"]
+            num_schedules = len(self._record_list)
+            num_input_schedules = len(input_record_list)
             num_input_states = input_flatten_states.shape[0]
 
             full_states_shape = tuple([num_schedules, num_input_schedules] +
-                                      [len(self._global_sch_dict[dep_idx])
+                                      [len(self._global_node_list[dep_idx]["record_candidates"])
                                        for dep_idx in input_dep])
             self._full_states = np.zeros(full_states_shape).flatten().astype("float32")
             self._full_states_idx = [self._idx, input_idx] + input_dep
@@ -136,11 +120,11 @@ class DPStage(object):
             input_node_time_counted = input_idx in self._global_counted_nodes_set
 
             for i in range(num_schedules):
-                current_sch_time = float(self._sch_list[i]["cost"])
+                current_sch_time = float(self._record_list[i][1].costs[0])
                 for j in range(num_input_states):
                     input_sch_idx = j // dep_multiplier
                     layout_transform_time = \
-                        self._global_layout_time_matrix_dict\
+                        self._global_layout_time_matrix_dict \
                             [(input_idx, self._idx)][input_sch_idx][i]
 
                     if input_node_time_counted:
@@ -181,17 +165,17 @@ class DPStage(object):
     def _create_multi_inputs_states(self):
         """State creation routine for multi_input operator"""
         full_input_node_list = list(self._global_in_nodes_dict[self._idx])
-        input_node_list = []
+        input_index_list = []
         # Remove input and parameter nodes
         for input_idx in full_input_node_list:
             if not is_input_node(self._global_node_list[input_idx],
                                  self._global_input_names):
-                input_node_list.append(input_idx)
+                input_index_list.append(input_idx)
 
         # Generate new states
-        states_list, aligned_node_list = DPStage.align_states(input_node_list,
+        states_list, aligned_node_list = DPStage.align_states(input_index_list,
                                                               self._global_stage_dict,
-                                                              self._global_sch_dict)
+                                                              self._global_node_list)
         aligned_shape = states_list[0][3].shape
         self._full_states = np.zeros(aligned_shape).astype("float32").flatten()
         self._full_states_idx = list(aligned_node_list)
@@ -261,10 +245,6 @@ class DPStage(object):
             for child in self._global_out_nodes_dict[self._idx]:
                 self._global_dep_dict[self._idx].add(child)
 
-        # Update sch_dict
-        leftmost_in_node = self._global_in_nodes_dict[self._idx][0]
-        self._global_sch_dict[self._idx] = self._global_sch_dict[leftmost_in_node]
-
     @property
     def dep(self):
         """Get dependency list."""
@@ -286,22 +266,21 @@ class DPStage(object):
         return self._full_states_idx
 
     @staticmethod
-    def align_states(node_list, stage_dict, sch_dict):
+    def align_states(input_index_list, stage_dict, node_list):
         """Align all input node states shapes to be the same and transpose/reshape properly.
 
         This is used in creating multi_input operator states.
 
         Parameters
         ----------
-        node_list : list of int
+        input_index_list : list of int
             List of input node index.
 
         stage_dict : dict of int to Stage
             Global dictionary of node index to stage.
 
-        sch_dict : dict of int to list
-            Schedule dictionary maps node index to schedule candidates. Each element
-            in the value list is a dictionary which has "schedule" and "cost" entries.
+        node_list : list of dict
+            List of all nodes for current graph.
 
         Returns
         -------
@@ -311,15 +290,16 @@ class DPStage(object):
         aligned_node_list : list in int
             List of node index for aligned states.
         """
-        aligned_node_list = list(node_list)
+        aligned_node_list = list(input_index_list)
         states_list = []
-        for input_idx in node_list:
+        for input_idx in input_index_list:
             input_node_stage = stage_dict[input_idx]
             for dep_idx in input_node_stage.dep:
                 if dep_idx not in aligned_node_list:
                     aligned_node_list.append(dep_idx)
-        aligned_shape = tuple([len(sch_dict[idx]) for idx in aligned_node_list])
-        for input_idx in node_list:
+        aligned_shape = tuple([len(node_list[idx]["record_candidates"])
+                               for idx in aligned_node_list])
+        for input_idx in input_index_list:
             input_node_stage = stage_dict[input_idx]
             input_node_shape_idx_list = [input_idx] + input_node_stage.dep
             transpose_idx_list = []

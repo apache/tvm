@@ -26,11 +26,11 @@ class PBQPTuner(BaseGraphTuner):
             self._adj_dict[node_idx] = list(self._in_nodes_dict[node_idx]) + \
                                        list(self._out_nodes_dict[node_idx])
 
-        self._sch_cost_dict = {}
-        for key, val in self._sch_dict.items():
-            self._sch_cost_dict[key] = []
-            for item in val:
-                self._sch_cost_dict[key].append(item["cost"])
+        self._record_cost_dict = {}
+        for key in self._in_nodes_dict:
+            self._record_cost_dict[key] = []
+            for record in self._node_list[key]["record_candidates"]:
+                self._record_cost_dict[key].append(record[1].costs[0])
 
         self._max_degree = -1
         self._node_degree_dict = {}
@@ -99,8 +99,8 @@ class PBQPTuner(BaseGraphTuner):
         for i, cost_vec in enumerate(ltf_matrix):
             min_cost = INVALID_LAYOUT_TIME
             for j, cost in enumerate(cost_vec):
-                min_cost = min(min_cost, cost + self._sch_cost_dict[node_idx][j])
-            self._sch_cost_dict[adj_node][i] += min_cost
+                min_cost = min(min_cost, cost + self._record_cost_dict[node_idx][j])
+            self._record_cost_dict[adj_node][i] += min_cost
         self._remove_node(node_idx)
         self._reorder_adj_nodes(node_idx)
         self._stack.append(node_idx)
@@ -115,14 +115,14 @@ class PBQPTuner(BaseGraphTuner):
         for i, cost_vec_x in enumerate(ltf_matrix_x):
             for j, cost_vec_y in enumerate(ltf_matrix_y):
                 min_cost = INVALID_LAYOUT_TIME
-                for k in range(len(self._sch_cost_dict[node_idx])):
+                for k in range(len(self._record_cost_dict[node_idx])):
                     min_cost = min(min_cost, cost_vec_x[k] + cost_vec_y[k]
-                                   + self._sch_cost_dict[node_idx][k])
+                                   + self._record_cost_dict[node_idx][k])
                 delta_matrix[i].append(min_cost)
 
         if adj_node_x == adj_node_y:
             for i, delta_row in enumerate(delta_matrix):
-                self._sch_cost_dict[adj_node_x][i] += delta_row[i]
+                self._record_cost_dict[adj_node_x][i] += delta_row[i]
         elif adj_node_x in self._adj_dict[adj_node_y]:
             for i, _ in enumerate(delta_matrix):
                 for j, delta in enumerate(delta_matrix[i]):
@@ -141,30 +141,30 @@ class PBQPTuner(BaseGraphTuner):
         """Reduce nodes with degree greater than 2.
         """
         min_cost = INVALID_LAYOUT_TIME
-        sch_idx = -1
+        record_idx = -1
 
-        for i, sch_cost in enumerate(self._sch_cost_dict[node_idx]):
-            current_cost = sch_cost
+        for i, record_cost in enumerate(self._record_cost_dict[node_idx]):
+            current_cost = record_cost
             for adj_node in self._adj_dict[node_idx]:
                 ltf_matrix = self._layout_transform_matrix_dict[(node_idx, adj_node)]
-                adj_sch_cost = list(self._sch_cost_dict[adj_node])
+                adj_record_cost = list(self._record_cost_dict[adj_node])
                 for j, ltf_cost in enumerate(ltf_matrix[i]):
-                    adj_sch_cost[j] += ltf_cost
-                current_cost += min(adj_sch_cost)
+                    adj_record_cost[j] += ltf_cost
+                current_cost += min(adj_record_cost)
             if current_cost < min_cost:
                 min_cost = current_cost
-                sch_idx = i
+                record_idx = i
 
-        if sch_idx < 0:
+        if record_idx < 0:
             raise RuntimeError("Can't find a soltuion for node %d when "
                                "applying RN reduction" % node_idx)
-        self._optimal_sch_dict[node_idx] = sch_idx
+        self._optimal_record_dict[node_idx] = record_idx
         self._is_optimal = False
 
         for adj_node in self._adj_dict[node_idx]:
             ltf_matrix = self._layout_transform_matrix_dict[(node_idx, adj_node)]
-            for i, ltf_cost in enumerate(ltf_matrix[sch_idx]):
-                self._sch_cost_dict[adj_node][i] += ltf_cost
+            for i, ltf_cost in enumerate(ltf_matrix[record_idx]):
+                self._record_cost_dict[adj_node][i] += ltf_cost
 
         self._remove_node(node_idx)
         self._reorder_adj_nodes(node_idx)
@@ -197,29 +197,29 @@ class PBQPTuner(BaseGraphTuner):
         """
         # Solve nodes left in the forward graph
         for node_idx in self._buckets[0]:
-            sch_costs = self._sch_cost_dict[node_idx]
-            min_cost = min(sch_costs)
-            self._optimal_sch_dict[node_idx] = sch_costs.index(min_cost)
+            record_costs = self._record_cost_dict[node_idx]
+            min_cost = min(record_costs)
+            self._optimal_record_dict[node_idx] = record_costs.index(min_cost)
 
         # Solve nodes with one or two degrees
         for node_idx in reversed(self._stack):
             self._backward_insert_node(node_idx)
-            if node_idx not in self._optimal_sch_dict:
-                sch_costs = list(self._sch_cost_dict[node_idx])
+            if node_idx not in self._optimal_record_dict:
+                record_costs = list(self._record_cost_dict[node_idx])
                 for adj_node in self._adj_dict[node_idx]:
-                    adj_optimal_idx = self._optimal_sch_dict[adj_node]
-                    for i, _ in enumerate(sch_costs):
-                        sch_costs[i] += \
+                    adj_optimal_idx = self._optimal_record_dict[adj_node]
+                    for i, _ in enumerate(record_costs):
+                        record_costs[i] += \
                             self._layout_transform_matrix_dict \
                                 [(node_idx, adj_node)][i][adj_optimal_idx]
-                min_cost = min(sch_costs)
-                self._optimal_sch_dict[node_idx] = sch_costs.index(min_cost)
+                min_cost = min(record_costs)
+                self._optimal_record_dict[node_idx] = record_costs.index(min_cost)
 
     def run(self, **kwargs):
         """Run partitioned boolean quadratic programming tuner.
         """
         self._logger.info("Start to run PBQP algorithm...")
-        # Define virtual schedule lists and layout transformaton matrices
+        # Define virtual record lists and layout transformaton matrices
         # for multi-input nodes.
         input_names = self._input_shapes.keys()
         for key, val in self._in_nodes_dict.items():
@@ -233,9 +233,10 @@ class PBQPTuner(BaseGraphTuner):
                         break
                 self._layout_transform_matrix_dict[(target_input_idx, key)] = []
                 layout_matrix = self._layout_transform_matrix_dict[(target_input_idx, key)]
-                for j in range(len(self._sch_dict[target_input_idx])):
+                record_candidates = self._node_list[target_input_idx]["record_candidates"]
+                for j in range(len(record_candidates)):
                     layout_matrix.append([])
-                    for k in range(len(self._sch_dict[target_input_idx])):
+                    for k in range(len(record_candidates)):
                         layout_matrix[j].append(0 if j == k else INVALID_LAYOUT_TIME)
 
                 for j in range(target_input_pos + 1, len(val)):

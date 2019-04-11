@@ -8,7 +8,6 @@ from tvm import relay
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
-from tvm.autotvm.graph_tuner.utils import get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
 from test_autotvm_graph_tuner_utils import create_workload
 
 
@@ -28,9 +27,9 @@ def _create_data(target, dshape, dtype, layout):
                                               params=params,
                                               ops=(relay.op.nn.conv2d,))
     wkl_list = [
-        create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1), (1, 1),layout, layout, dtype, dtype),
-        create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0), (1, 1),layout, layout, dtype, dtype),
-        create_workload((1, 32, 8, 8), (32, 32, 3, 3), (1, 1), (1, 1), (1, 1),layout, layout, dtype, dtype),
+        create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1), (1, 1), layout, layout, dtype, dtype),
+        create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0), (1, 1), layout, layout, dtype, dtype),
+        create_workload((1, 32, 8, 8), (32, 32, 3, 3), (1, 1), (1, 1), (1, 1), layout, layout, dtype, dtype),
     ]
     costs = [0.04, 0.012, 0.03]
     config_list = []
@@ -99,14 +98,11 @@ def test_graph_tuner_layout_transform():
     dshape = (1, 3, 8, 8)
     dtype = "float32"
     layout = "NCHW"
-    target_op = "conv2d"
-    data_layout = "NCHWc"
+    target_ops = [relay.nn.conv2d]
 
     g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
-    graph_wkl_list = get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
-    executor = DPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
-                       ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx, log_file=log_file)
-    executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
+    executor = DPTuner(g, {"data": dshape}, records, target_ops, target=target, log_file=log_file)
+    executor.benchmark_layout_transform(records=ltf_records, infer_layout=True)
     out = executor._layout_transform_dict
 
     for key in ltf_keys:
@@ -122,8 +118,7 @@ def test_DPTuner_run():
     dtype = "float32"
     layout = "NCHW"
     dshape = (1, 3, 8, 8)
-    target_op = "conv2d"
-    data_layout = "NCHWc"
+    target_ops = [relay.nn.conv2d]
 
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     costs = [0.02, 0.02, 0.045]
@@ -157,19 +152,16 @@ def test_DPTuner_run():
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
-    graph_wkl_list = get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
-    executor = DPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
-                       ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx, log_file=log_file)
-    executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
+    executor = DPTuner(g, {"data": dshape}, records, target_ops, target, log_file=log_file)
+    executor.benchmark_layout_transform(records=ltf_records, infer_layout=True)
     executor.run()
-    out = executor.get_optimal_schedules()
+    out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
     if expected_out != out:
         raise RuntimeError("Output mismatch: expecting %s but got %s"
                            % (str(expected_out), str(out)))
     if not os.path.isfile(log_file):
         raise RuntimeError("No log file with name %s exists." % log_file)
-    os.remove(log_file)
 
 
 def test_PBQPTuner_run():
@@ -177,8 +169,7 @@ def test_PBQPTuner_run():
     dtype = "float32"
     layout = "NCHW"
     dshape = (1, 3, 8, 8)
-    target_op = "conv2d"
-    data_layout = "NCHWc"
+    target_ops = [relay.nn.conv2d]
 
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     costs = [0.02, 0.02, 0.045]
@@ -212,12 +203,10 @@ def test_PBQPTuner_run():
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
-    graph_wkl_list = get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
-    executor = PBQPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
-                         ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx)
-    executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
+    executor = PBQPTuner(g, {"data": dshape}, records, target_ops, target)
+    executor.benchmark_layout_transform(records=ltf_records, infer_layout=True)
     executor.run()
-    out = executor.get_optimal_schedules()
+    out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
     if expected_out != out:
         raise RuntimeError("Output mismatch: expecting %s but got %s"
