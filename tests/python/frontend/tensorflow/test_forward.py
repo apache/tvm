@@ -1258,6 +1258,8 @@ def test_forward_reverse_v2():
     _test_forward_reverse_v2((2, 3), 0, "int32")
     _test_forward_reverse_v2((2, 3, 5), 2, "float32")
     _test_forward_reverse_v2((2, 3, 5, 7), 1, "float32")
+    _test_forward_reverse_v2((2, 3, 5), -1, "float64")
+    _test_forward_reverse_v2((2, 3, 5), -3, "float64")
 
 def test_forward_sign():
     """test Sign"""
