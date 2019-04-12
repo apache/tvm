@@ -328,6 +328,11 @@ inline Expr OnesLike(Expr e) {
   return CallNode::make(op, {e});
 }
 
+inline Expr CollapseSumLike(Expr e) {
+  static const Op& op = Op::Get("collapse_sum_like");
+  return CallNode::make(op, {e});
+}
+
 inline Expr Power(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("power");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
