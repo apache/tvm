@@ -319,8 +319,7 @@ llvm::Type* CodeGenLLVM::LLVMType(const Type& t) const {
     }
   } else if (DatatypeRegistry::Global()->DatatypeRegistered(t.code())) {
     // Custom types.
-    etype = llvm::Type::getIntNTy(
-        *ctx_, DatatypeRegistry::Global()->GetStorageSize(t.code()));
+    etype = llvm::Type::getIntNTy(*ctx_, t.bits());
   }
   if (t.lanes() != 1) {
     return llvm::VectorType::get(etype, t.lanes());

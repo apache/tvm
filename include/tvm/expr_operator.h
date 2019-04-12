@@ -554,7 +554,7 @@ inline Expr MakeConstScalar(Type t, ValueType value) {
   if (t.is_uint()) return ir::UIntImm::make(t, static_cast<uint64_t>(value));
   if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
   if (DatatypeRegistry::Global()->DatatypeRegistered(static_cast<uint8_t>(t.code()))) {
-    switch (DatatypeRegistry::Global()->GetStorageSize(t.code())) {
+    switch (t.bits()) {
     case 1:
       // TODO(gus): here and below, hardcoding uint to 1.
       // How should we do this?
