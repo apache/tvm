@@ -460,7 +460,7 @@ Type TypeSolver::Resolve(const Type& type) {
 }
 
 bool TypeSolver::Solve() {
-  // update until queue is empty
+  // Update until queue is empty.
   while (!update_queue_.empty()) {
     RelationNode* rnode = update_queue_.front();
     const auto& rel = rnode->rel;
