@@ -22,7 +22,16 @@
  * \file pretty_printer.cc
  * \brief Pretty printer for Relay programs
  * Supports ANF, GNF, and metadata.
+ *
+ * Inlining heuristics:
+ *  - Always inline:
+ *    - GlobalVar
+ *    - Constant
+ *    - Op
+ *    - Var
+ *  - Otherwise, inline if the node is at the end of a scope and is used at most once.
  */
+
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/module.h>
 #include <tvm/relay/pattern_functor.h>
