@@ -161,6 +161,7 @@ def is_gpu_available():
     else:
         return False
 
+
 #######################################################################
 # Pooling
 # -------
@@ -221,6 +222,19 @@ def test_forward_pooling():
                          dilation_rate=[1, 1],
                          strides=[2, 1])
 
+            # Tests involving SpaceToBatchND
+            _test_pooling(input_shape=[1, 1, 2, 1],
+                         window_shape=[1, 1],
+                         padding='VALID',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 2])
+
+            _test_pooling(input_shape=[1, 2, 1],
+                         window_shape=[1],
+                         padding='VALID',
+                         pooling_type=pool_type,
+                         dilation_rate=[2])
+
 #######################################################################
 # Convolution
 # -----------
@@ -229,12 +243,8 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
                       dilations, strides, padding, data_format):
     """ One iteration of convolution with given shapes and attributes """
 
-    total_size_1 = 1
-    total_size_2 = 1
-    for s in tensor_in_sizes:
-        total_size_1 *= s
-    for s in filter_in_sizes:
-        total_size_2 *= s
+    total_size_1 = np.prod(tensor_in_sizes)
+    total_size_2 = np.prod(filter_in_sizes)
     # Initializes the input tensor with array containing incrementing
     # numbers from 1.
     data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
@@ -253,6 +263,7 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
         nn_ops.conv2d(in_data,
                       in_filter,
                       strides=strides,
+                      dilations=dilations,
                       padding=padding,
                       data_format=data_format)
 
@@ -270,6 +281,116 @@ def test_forward_convolution():
     _test_convolution([4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
     _test_convolution([4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution([4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC')
+
+#######################################################################
+# SpaceToBatchND
+# --------------
+def _test_space_to_batch_nd(input_shape, block_shape, paddings, dtype='int32'):
+    data = np.random.uniform(0, 5, size=input_shape).astype(dtype)
+
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype=dtype)
+        out = tf.space_to_batch_nd(in_data, block_shape, paddings)
+
+        compare_tf_with_tvm(data, in_data.name, out.name)
+
+def test_forward_space_to_batch_nd():
+    # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/space-to-batch-n-d
+    _test_space_to_batch_nd(
+        input_shape=[1, 2, 2, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[1, 2, 2, 3],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[1, 4, 4, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[2, 2, 4, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [2, 0]],
+        dtype='int64'
+    )
+
+    # pylint: disable=line-too-long
+    # https://github.com/tensorflow/tensorflow/blob/24f578/tensorflow/python/kernel_tests/spacetobatch_op_test.py
+    _test_space_to_batch_nd(
+        input_shape=[2, 3],
+        block_shape=[2],
+        paddings=[[1, 0]],
+        dtype='float32'
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[2, 3, 2],
+        block_shape=[2],
+        paddings=[[1, 0]],
+        dtype='float64'
+    )
+
+#######################################################################
+# BatchToSpaceND
+# --------------
+def _test_batch_to_space_nd(input_shape, block_shape, crops, dtype='int32'):
+    data = np.random.uniform(0, 5, size=input_shape).astype(dtype)
+
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype=dtype)
+        out = tf.batch_to_space_nd(in_data, block_shape, crops)
+
+        compare_tf_with_tvm(data, in_data.name, out.name)
+
+def test_forward_batch_to_space_nd():
+    # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d
+    _test_batch_to_space_nd(
+        input_shape=[4, 1, 1, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[4, 1, 1, 3],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[4, 2, 2, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[8, 1, 3, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [2, 0]],
+        dtype='int64'
+    )
+
+    # pylint: disable=line-too-long
+    # https://github.com/tensorflow/tensorflow/blob/24f578/tensorflow/python/kernel_tests/batchtospace_op_test.py
+    _test_batch_to_space_nd(
+        input_shape=[18, 2, 1, 2],
+        block_shape=[2, 3],
+        crops=[[1, 1], [0, 0]],
+        dtype='float32'
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[20, 5, 8, 7],
+        block_shape=[2, 2],
+        crops=[[1, 1], [1, 1]],
+        dtype='float64'
+    )
 
 #######################################################################
 # Reshape
@@ -1312,6 +1433,8 @@ if __name__ == '__main__':
         _test_forward_concat_v2()
     test_forward_lrn()
     test_forward_l2_normalize()
+    test_forward_space_to_batch_nd()
+    test_forward_batch_to_space_nd()
 
     # End to End
     test_forward_inception_v3()
