@@ -60,7 +60,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
                                             uint8_t type_code,
                                             uint8_t src_type_code) {
   std::ostringstream ss;
-  ss << "tvm.datatypes.lower.";
+  ss << "tvm.datatype.lower.";
   ss << target << ".";
   ss << "Cast"
      << ".";
@@ -90,7 +90,7 @@ TVM_REGISTER_GLOBAL("_register_Cast")
       const std::string extern_func_name = args[3];
 
       auto lower_cast_name =
-          "tvm.datatypes.lower." + target + ".Cast." + type + "." + src_type;
+          "tvm.datatype.lower." + target + ".Cast." + type + "." + src_type;
       runtime::Registry::Register(lower_cast_name)
           .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {
             Expr e = args[0];
@@ -117,7 +117,7 @@ TVM_REGISTER_GLOBAL("_register_Cast")
         const std::string type = args[1];                                      \
         const std::string extern_func_name = args[2];                          \
         auto lower_op_name =                                                   \
-            "tvm.datatypes.lower." + target + "." #OP "." + type;              \
+            "tvm.datatype.lower." + target + "." #OP "." + type;              \
         runtime::Registry::Register(lower_op_name)                             \
             .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {      \
               Expr e = args[0];                                                \
