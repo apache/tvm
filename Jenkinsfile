@@ -214,7 +214,7 @@ stage('Build') {
 }
 
 stage('Unit Test') {
-  parallel 'python2/3: GPU': {
+  parallel 'python3: GPU': {
     node('GPU') {
       ws('workspace/tvm/ut-python-gpu') {
         init_git()
@@ -226,7 +226,7 @@ stage('Unit Test') {
       }
     }
   },
-  'python2/3: i386': {
+  'python3: i386': {
     node('CPU') {
       ws('workspace/tvm/ut-python-i386') {
         init_git()

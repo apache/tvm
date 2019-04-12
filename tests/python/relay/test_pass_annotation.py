@@ -325,7 +325,9 @@ def test_fusible_network():
 
         annotated_func = annotated()
         expected_func = expected()
-        expected_index = [1, 1, 1, 2, 2, 1, 1, 2, 2]
+        ctx = tvm.context(device, 0)
+        dev_idx = ctx.device_type
+        expected_index = [1, 1, 1, dev_idx, dev_idx, 1, 1, dev_idx, dev_idx]
         check_annotated_graph(annotated_func, expected_func)
         test_runtime(target, device, annotated_func, fallback_device,
                      expected_index)
@@ -401,7 +403,9 @@ def test_fusible_network():
 
         annotated_func = annotated()
         expected_func = expected()
-        expected_index = [2, 2, 2, 1, 1]
+        ctx = tvm.context(device, 0)
+        dev_idx = ctx.device_type
+        expected_index = [dev_idx, dev_idx, dev_idx, 1, 1]
         check_annotated_graph(annotated_func, expected_func)
         test_runtime(target, device, annotated_func, fallback_device,
                      expected_index)

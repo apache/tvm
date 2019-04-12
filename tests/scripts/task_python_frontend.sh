@@ -24,14 +24,12 @@ export PYTHONPATH=nnvm/python:python:topi/python
 export OMP_NUM_THREADS=1
 
 # Rebuild cython
-make cython
 make cython3
 
 echo "Running relay TFLite frontend test..."
 python3 -m nose -v tests/python/frontend/tflite
 
 echo "Running nnvm unittest..."
-python -m nose -v nnvm/tests/python/unittest
 python3 -m nose -v nnvm/tests/python/unittest
 
 echo "Running nnvm compiler test..."
