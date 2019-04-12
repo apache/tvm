@@ -1033,15 +1033,14 @@ inline TVMType String2TVMType(std::string s) {
     scan += custom_name_len + 1;
 
     auto type_name = s.substr(7, custom_name_len);
-    // TODO(gus) asserts for these?
+    // TODO(gus) asserts for this?
     t.code = GetTypeCode(type_name);
-    t.bits = GetStorageSize(t.code);
-    // TODO(gus) We assume above that the storage size will have been set for
-    // this custom type. At this point, parsing will continue, and will
-    // potentially parse out a bitwidth from the string, e.g. if the user
-    // supplied `custom[mytype]16x8`. This would result in overwriting the
-    // bitwidth that we just grabbed with GetStorageSize. We're going to assume
-    // that the user DOESN'T do this; the behavior if they do this is undefined.
+
+    // TODO(gus) at this point, the custom type parsing is done. To determine
+    // the storage type (e.g. the width of the opaque block of data that will be
+    // used to store an instance of this data), we rely on the user to specify
+    // it after the `custom[typename]` part of the type string.
+    // Need to document this very clearly!
   } else {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;
