@@ -18,6 +18,8 @@
 """TVM: Low level DSL/IR stack for tensor computation."""
 from __future__ import absolute_import as _abs
 
+from . import _pyversion
+
 from . import tensor
 from . import arith
 from . import expr
