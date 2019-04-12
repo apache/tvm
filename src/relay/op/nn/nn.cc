@@ -236,7 +236,7 @@ Array<Array<Layout> > PReluInferCorrectLayout(
   CHECK_EQ(old_in_layouts.size(), 2U);
   CHECK_EQ(old_in_shapes.size(), 2U);
   Layout data_layout = old_in_layouts[0];
-  if(new_in_layouts.defined()) {
+  if (new_in_layouts.defined()) {
     CHECK_EQ(new_in_layouts.size(), 2U);
   }
   return Array<Array<Layout> >{{data_layout, Layout("C")},
