@@ -21,14 +21,6 @@ TVM_REGISTER_GLOBAL("_get_type_name")
       *ret = DatatypeRegistry::Global()->GetTypeName(args[0].operator int());
     });
 
-TVM_REGISTER_GLOBAL("_get_storage_size")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      // TODO(gus) I cast this down to an int so that it can be automatically
-      // converted to TVMRetValue. This is dumb and should be fixed somehow.
-      *ret = static_cast<int>(
-          DatatypeRegistry::Global()->GetStorageSize(args[0].operator int()));
-    });
-
 // TODO(gus) make naming consistent
 TVM_REGISTER_GLOBAL("_get_custom_datatype_registered")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -50,10 +42,6 @@ uint8_t DatatypeRegistry::GetTypeCode(const std::string& type_name) {
 
 std::string DatatypeRegistry::GetTypeName(uint8_t type_code) {
   return code_to_name[type_code];
-}
-
-size_t DatatypeRegistry::GetStorageSize(uint8_t type_code) {
-  return code_to_storage_size[type_code];
 }
 
 const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,

@@ -38,8 +38,6 @@ class DatatypeRegistry {
 
   std::string GetTypeName(uint8_t type_code);
 
-  size_t GetStorageSize(uint8_t type_code);
-
   inline bool DatatypeRegistered(uint8_t type_code) {
     return code_to_name.find(type_code) != code_to_name.end();
   }

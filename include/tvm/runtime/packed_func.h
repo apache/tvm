@@ -44,7 +44,6 @@
 
 extern "C" std::string GetTypeName(uint8_t);
 extern "C" uint8_t GetTypeCode(const std::string& type_name);
-extern "C" size_t GetStorageSize(uint8_t type_code);
 extern "C" uint8_t GetCustomDatatypeRegistered(uint8_t type_code);
 
 namespace HalideIR {
