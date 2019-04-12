@@ -56,8 +56,14 @@ struct NodeEntry {
     version(version)
   {}
 
+  NodeEntry(NodePtr node):
+    node(std::move(node)),
+    index(),
+    version()
+  {}
+
   NodeEntry():
-    node(),
+    node(std::make_shared<Node>()),
     index(),
     version()
   {}
