@@ -65,6 +65,7 @@ We do encourage everyone to work anything they are interested in.
 - [Wei Chen](https://github.com/wweic): @wweic
 - [Zhi Chen](https://github.com/zhiics): @zhiics
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
+- [Hao Lu](https://github.com/hlu1): @hlu1
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
