@@ -63,7 +63,7 @@ struct NodeEntry {
   {}
 
   NodeEntry():
-    node(std::make_shared<Node>()),
+    node(nullptr),
     index(),
     version()
   {}
