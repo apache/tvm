@@ -428,20 +428,18 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
                                                 const Target& target_host,
                                                 const BuildConfig& config) {
   std::unordered_set<std::string> all_names;
-  for (const auto &x : funcs) {
-    CHECK(all_names.count(x->name) == 0) << "Duplicate function name " << x->name;
+  for (const auto& x : funcs) {
+    CHECK(all_names.count(x->name) == 0)
+        << "Duplicate function name " << x->name;
     all_names.insert(x->name);
   }
 
-  auto target_host_val = target_host.defined() ? target_host : DefaultTargetHost(target);
-
-  Array<LoweredFunc> fhost;
   Array<LoweredFunc> fdevice;
 
   for (const auto& x : funcs) {
     CHECK(ir::VerifyMemory(x, target->device_type))
-        << "Direct host side access to device memory is detected in " << x->func_name()
-        << ". Did you forget to bind?";
+        << "Direct host side access to device memory is detected in "
+        << x->func_name() << ". Did you forget to bind?";
 
     if (x->func_type == kMixedFunc) {
       auto func = x;
@@ -450,14 +448,15 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
       }
 
       func = ir::ThreadSync(func, "shared");
+      func = ir::ThreadSync(func, "warp");
       func = ir::LowerThreadAllreduce(func, target->thread_warp_size);
       auto fsplits = ir::SplitHostDevice(func);
-      fhost.push_back(fsplits[0]);
+      fhost->push_back(fsplits[0]);
       for (auto f = fsplits.begin() + 1; f != fsplits.end(); ++f) {
         fdevice.push_back(*f);
       }
     } else if (x->func_type == kHostFunc) {
-      fhost.push_back(x);
+      fhost->push_back(x);
     } else if (x->func_type == kDeviceFunc) {
       fdevice.push_back(x);
     } else {
@@ -465,21 +464,20 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
     }
   }
 
+  for (size_t i = 0; i < fdevice.size(); i++) {
+    auto warp_size = target->thread_warp_size;
+    auto func = fdevice[i];
+    func = ir::LowerWarpMemory(fdevice[i], warp_size);
+    fdevice.Set(i, func);
+  }
+
   auto keys = target->keys();
-  bool target_is_gpu =
-    std::find(keys.begin(), keys.end(), "gpu") != keys.end();
+  bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
   if (target_is_gpu && fdevice.size() == 0) {
-    LOG(WARNING) << "Specified target " + target->str() +
-      " but cannot find device code. Did you forget to bind?";
+    LOG(WARNING) << "Specified target "
+                 << target->str()
+                 << " but cannot find device code. Did you forget to bind?";
   }
-
-  for (size_t i = 0; i < fhost.size(); ++i) {
-    auto func = fhost[i];
-    func = ir::BindDeviceType(func, target->device_type);
-    func = ir::LowerTVMBuiltin(func);
-    fhost.Set(i, func);
-  }
-
 
   for (size_t i = 0; i < fdevice.size(); ++i) {
     auto func = fdevice[i];
@@ -487,32 +485,96 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
     fdevice.Set(i, func);
   }
 
-  for (size_t i = 0; i < fhost.size(); ++i) {
-    auto func = fhost[i];
-    func = ir::LowerIntrin(func, target_host_val->target_name);
+  if (target->device_type == target::llvm()->device_type &&
+        target_host == target) {
+    CHECK(fdevice.empty()) << "No device code should be generated when target "
+                           << "and host_target are both llvm target."
+                           << "\n";
+  }
+
+  for (size_t i = 0; i < fhost->size(); ++i) {
+    auto func = (*fhost)[i];
+    func = ir::BindDeviceType(func, target->device_type);
+    func = ir::LowerTVMBuiltin(func);
+    fhost->Set(i, func);
+  }
+
+  for (size_t i = 0; i < fhost->size(); ++i) {
+    auto func = (*fhost)[i];
+    func = ir::LowerIntrin(func, target_host->target_name);
     func = ir::CombineContextCall(func);
-    fhost.Set(i, func);
+    fhost->Set(i, func);
   }
   return {fhost, fdevice};
 }
 
-runtime::Module build(const Array<LoweredFunc>& funcs,
-                      const Target& target,
-                      const Target& target_host,
-                      const BuildConfig& config) {
+// Create a module for a specific device (target). The lowered functions
+// associated with the host is returned as well.
+runtime::Module DeviceBuild(const Array<LoweredFunc>& funcs,
+                            const Target& target,
+                            const Target& target_host,
+                            const BuildConfig& config,
+                            Array<LoweredFunc>* fhost) {
   auto target_host_val = target_host.defined() ? target_host : DefaultTargetHost(target);
   auto host_dev_funcs = split_dev_host_funcs(funcs, target, target_host, config);
   auto& fhost = host_dev_funcs[0];
   auto& fdevice = host_dev_funcs[1];
 
-  auto mhost = codegen::Build(fhost, target_host_val->str());
+  if (!fdevice.empty()) {
+    return codegen::Build(fdevice, target->str());
+  } else {
+    return runtime::Module(nullptr);
+  }
+}
 
-  if (fdevice.size() > 0) {
-    auto mdev = codegen::Build(fdevice, target->str());
-    mhost.Import(mdev);
+// Build for heterogeneous execution.
+runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
+                      const Target& target_host,
+                      const BuildConfig& config) {
+  Array<LoweredFunc> fhost_all;
+  std::vector<runtime::Module> device_modules;
+
+  Target target_host_val = target_host;
+  if (!target_host.defined()) {
+    for (const auto& it : inputs) {
+      if (it.first->device_type == kDLCPU) {
+        target_host_val = it.first;
+        break;
+      }
+    }
   }
 
+  if (!target_host_val.defined()) {
+    target_host_val = DefaultTargetHost(target_host_val);
+  }
+
+  for (const auto& it : inputs) {
+    Array<LoweredFunc> fhost;
+    runtime::Module mdev =
+        DeviceBuild(it.second, it.first, target_host_val, config, &fhost);
+    for (const auto& it : fhost) {
+      fhost_all.push_back(it);
+    }
+    device_modules.push_back(mdev);
+  }
+
+  runtime::Module mhost = codegen::Build(fhost_all, target_host_val->str());
+  // Import all modules
+  for (const auto& it : device_modules) {
+    if (it.operator->()) {
+      mhost.Import(it);
+    }
+  }
   return mhost;
+}
+
+// Build for homogeneous execution.
+runtime::Module build(const Array<LoweredFunc>& funcs,
+                      const Target& target,
+                      const Target& target_host,
+                      const BuildConfig& config) {
+  Map<Target, Array<LoweredFunc>> inputs = {{target, funcs}};
+  return build(inputs, target_host, config);
 }
 
 BuildConfig build_config() {
