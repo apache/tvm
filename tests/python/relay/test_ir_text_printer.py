@@ -50,8 +50,8 @@ def test_env():
     text = env.astext()
     assert "def @myf" in text
     assert "def @myf" in str(env)
-    assert "%1 = add(%0, %0) // ty=float32" in text
-    assert "%1 = add(%0, %0) // ty=float32" in str(env)
+    assert "add(%0, %0) /* ty=float32 */" in text
+    assert "add(%0, %0) /* ty=float32 */" in str(env)
     show(env.astext(annotate=lambda x: str(x.checked_type.dtype)))
     show(text)
 
@@ -112,7 +112,7 @@ def test_let_if_scope():
 
     f = relay.Function([x, y, cond], result)
     text = f.astext()
-    assert text.count("{") == 6
+    assert text.count("{") == 4
     assert "%cond: bool" in text
     show(f.astext())
 
@@ -180,8 +180,19 @@ def test_call_node_order():
          "%2 = fn (%x) {\n"
          "  %x\n"
          "}\n"
-         "%3 = %2(%1)\n"
-         "%3")
+         "%2(%1)")
+
+def test_let_inlining():
+    tup = relay.Tuple([relay.const(0), relay.const(0)])
+    x = relay.var("x")
+    assert relay.Let(x, tup, tup).astext() == SEMVER + \
+        ("%0 = (0, 0)\n"
+         "let %x = %0\n"
+         "%0")
+
+    assert relay.Let(x, tup, x).astext() == SEMVER + \
+        ("let %x = (0, 0)\n"
+         "%x")
 
 if __name__ == "__main__":
     do_print[0] = True
@@ -201,3 +212,4 @@ if __name__ == "__main__":
     test_let_if_scope()
     test_variable_name()
     test_call_node_order()
+    test_let_inlining()

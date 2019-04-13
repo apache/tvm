@@ -38,7 +38,7 @@ def test_unary_op():
         x = relay.var("x", tp)
         y = opfunc(x)
         # test printer
-        assert ("%0 = {}(%x)".format(y.op.name)) in y.astext()
+        assert ("{}(%x)".format(y.op.name)) in y.astext()
         # test type inference
         assert relay.ir_pass.infer_type(y).checked_type == tp
 
@@ -78,7 +78,7 @@ def test_binary_op():
         y = relay.var("y", t2)
         z = opfunc(x, y)
         # test printer
-        assert ("%0 = {}(%x, %y)".format(z.op.name)) in z.astext()
+        assert ("{}(%x, %y)".format(z.op.name)) in z.astext()
         assert relay.ir_pass.infer_type(z).checked_type == t1
 
         if ref is not None:
