@@ -1785,7 +1785,8 @@ class GraphProto(object):
                         input_shapes[in_sym[0]] = input_shape
                         # This means the node is 1d in Relay and 0d in TF.
                         # See `_expand_dims_0d_aware`.
-                        if self._outputs_are_0d[node_name][tensor_slot] and input_shape:
+                        if node_name in self._outputs_are_0d \
+                                and self._outputs_are_0d[node_name][tensor_slot] and input_shape:
                             input_0d_mismatch.add(in_sym[0])
 
                 attr['_input_shapes'] = input_shapes
