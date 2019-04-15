@@ -602,7 +602,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "store_lowbit_output==" << op->store_lowbit_output << ", ";
   p->stream << "debug_enabled_ops==" << op->debug_enabled_ops << ", ";
   p->stream << "use_stop_fusion==" << op->use_stop_fusion << ", ";
-  p->stream << "quantize_dense==" << op->quantize_dense;
+  p->stream << "quantize_op==" << op->quantize_op;
   p->stream << ")";
 });
 

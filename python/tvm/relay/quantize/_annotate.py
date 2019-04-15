@@ -152,6 +152,8 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     """Rewrite function for conv2d. Lhs of conv will be quantized to
     input field, and rhs of conv will be quantized to weight field.
     Output would be in activation field"""
+    if ref_call.op not in current_qconfig().quantize_op:
+        return None
     cnt = _conv_counter()
     if cnt < current_qconfig().skip_k_conv:
         _set_conv_counter(cnt + 1)
@@ -175,7 +177,7 @@ def conv2d_rewrite(ref_call, new_args, ctx):
 def dense_rewrite(ref_call, new_args, ctx):
     """Rewrite function for dense. Lhs of dense will be quantized to input field, and rhs of
     dense will be quantized to weight field. Output would be in activation field."""
-    if not current_qconfig().quantize_dense:
+    if ref_call.op not in current_qconfig().quantize_op:
         return None
     cnt = _conv_counter()
     if cnt < current_qconfig().skip_k_conv:
