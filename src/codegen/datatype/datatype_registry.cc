@@ -96,14 +96,14 @@ TVM_REGISTER_GLOBAL("_register_Cast")
           });
     });
 
-#define REGISTER_BINARY_OP(OP)                                                    \
+#define REGISTER_BINARY_OP(OP)                                                 \
   TVM_REGISTER_GLOBAL("_register_" #OP)                                        \
       .set_body([](TVMArgs args, TVMRetValue *rv) {                            \
         const std::string target = args[0];                                    \
         const std::string type = args[1];                                      \
         const std::string extern_func_name = args[2];                          \
         auto lower_op_name =                                                   \
-            "tvm.datatype.lower." + target + "." #OP "." + type;              \
+            "tvm.datatype.lower." + target + "." #OP "." + type;               \
         runtime::Registry::Register(lower_op_name)                             \
             .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {      \
               Expr e = args[0];                                                \
