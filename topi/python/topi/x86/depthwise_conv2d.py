@@ -207,7 +207,7 @@ def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
     # change shape with the value in config
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     new_data_shape = (batch, in_channel // ic_bn, height, width, ic_bn)
-    new_kernel_shape = (out_channel // oc_bn, kh, kw, oc_bn)
+    new_kernel_shape = (out_channel // oc_bn, 1, kh, kw, 1, oc_bn)
     new_data = tvm.placeholder(new_data_shape, data.dtype)
     new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
 
@@ -221,7 +221,7 @@ def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
 
 @depthwise_conv2d_infer_layout.register("cpu")
 def _depthwise_conv2d_infer_layout(workload, cfg):
-    _, data, kernel, strides, padding, dilation, layout, dtype = workload
+    _, data, kernel, strides, padding, dilation, dtype = workload
     batch_size, in_channel, in_height, in_width = data[:-1]
     filter_channel, channel_multiplier, k_height, k_width = kernel[:-1]
     out_channel = filter_channel * channel_multiplier
