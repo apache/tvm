@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -36,6 +36,7 @@
 #include <topi/reduction.h>
 #include <topi/transform.h>
 
+#include <topi/nn/bias_add.h>
 #include <topi/nn/bnn.h>
 #include <topi/nn/dense.h>
 #include <topi/nn/dilate.h>
@@ -398,6 +399,12 @@ TVM_REGISTER_GLOBAL("topi.nn.binary_dense")
 TVM_REGISTER_GLOBAL("topi.nn.dense")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = nn::dense(args[0], args[1], args[2]);
+  });
+
+/* Ops from nn/bias_add.h */
+TVM_REGISTER_GLOBAL("topi.nn.bias_add")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::bias_add(args[0], args[1], args[2]);
   });
 
 /* Ops from nn/batch_matmul.h */
