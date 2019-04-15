@@ -1,6 +1,5 @@
 #include "datatype_registry.h"
 #include <tvm/api_registry.h>
-#include "topi/detail/extern.h"
 
 namespace tvm {
 
