@@ -81,7 +81,7 @@ TVM_REGISTER_GLOBAL("_register_Cast")
           .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {
             Expr e = args[0];
             const ir::Cast *cast = e.as<ir::Cast>();
-            internal_assert(cast);
+            CHECK(cast) << "Expected cast";
             // Custom datatypes should get cast to their underlying storage
             // type.
             // TODO(gus) I'm not using the width registered originally; I'm
@@ -108,7 +108,7 @@ TVM_REGISTER_GLOBAL("_register_Cast")
             .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {      \
               Expr e = args[0];                                                \
               const ir::OP *op = e.as<ir::OP>();                               \
-              internal_assert(op);                                             \
+              CHECK(op) << "Expected " #OP;                                    \
               *rv = ir::Call::make(UInt(op->type.bits()), extern_func_name,    \
                                    {op->a, op->b}, ir::Call::Extern);          \
             });                                                                \
