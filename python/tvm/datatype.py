@@ -38,7 +38,7 @@ def _register_op(op_name, target, datatype_name, extern_func_name):
         def lower(op):
             dtype = op.dtype
             t = _TVMType(dtype)
-            if _api_internal._get_custom_datatype_registered(t.type_code):
+            if _api_internal._datatype_registered(t.type_code):
                 dtype = "uint" + str(t.bits)
                 if t.lanes > 1:
                     dtype += "x" + str(t.lanes)

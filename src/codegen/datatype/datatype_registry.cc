@@ -3,25 +3,24 @@
 
 namespace tvm {
 
-TVM_REGISTER_GLOBAL("_register_datatype")
+TVM_REGISTER_GLOBAL("_datatype_register")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       DatatypeRegistry::Global()->RegisterDatatype(
           args[0], static_cast<uint8_t>(args[1].operator int()),
           args[2].operator size_t());
     });
 
-TVM_REGISTER_GLOBAL("_get_type_code")
+TVM_REGISTER_GLOBAL("_datatype_get_type_code")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       *ret = DatatypeRegistry::Global()->GetTypeCode(args[0]);
     });
 
-TVM_REGISTER_GLOBAL("_get_type_name")
+TVM_REGISTER_GLOBAL("_datatype_get_type_name")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       *ret = DatatypeRegistry::Global()->GetTypeName(args[0].operator int());
     });
 
-// TODO(gus) make naming consistent
-TVM_REGISTER_GLOBAL("_get_custom_datatype_registered")
+TVM_REGISTER_GLOBAL("_datatype_registered")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       *ret = DatatypeRegistry::Global()->DatatypeRegistered(
           args[0].operator int());

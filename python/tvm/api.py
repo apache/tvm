@@ -857,7 +857,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     return reducer
 
 def register_datatype(type_name, type_code, storage_size):
-    _api_internal._register_datatype(type_name, type_code, storage_size)
+    _api_internal._datatype_register(type_name, type_code, storage_size)
 
 _init_api("tvm.api")
 #pylint: disable=unnecessary-lambda
