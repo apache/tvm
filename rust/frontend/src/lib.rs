@@ -30,7 +30,7 @@
 //!
 //! Checkout the `examples` repository for more details.
 
-#![feature(box_syntax)]
+#![feature(box_syntax, type_alias_enum_variants)]
 
 #[macro_use]
 extern crate failure;
@@ -48,7 +48,6 @@ use std::{
 use failure::Error;
 
 pub use crate::{
-    bytearray::TVMByteArray,
     context::{TVMContext, TVMDeviceType},
     errors::*,
     function::Function,
@@ -56,7 +55,7 @@ pub use crate::{
     ndarray::NDArray,
     tvm_common::{
         errors as common_errors,
-        ffi::{self, TVMType},
+        ffi::{self, TVMByteArray, TVMType},
         packed_func::{TVMArgValue, TVMRetValue},
     },
 };
@@ -89,7 +88,6 @@ pub(crate) fn set_last_error(err: &Error) {
 
 #[macro_use]
 pub mod function;
-pub mod bytearray;
 pub mod context;
 pub mod errors;
 pub mod module;

@@ -17,16 +17,23 @@
  * under the License.
  */
 
-use std::process::Command;
+use std::{path::Path, process::Command};
 
 fn main() {
-    let output = Command::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
+    let output = Command::new("python3")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
+        .arg(&format!("--build-dir={}", env!("CARGO_MANIFEST_DIR")))
         .output()
         .expect("Failed to execute command");
     assert!(
-        std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_lib.o")).exists(),
+        Path::new(&format!("{}/deploy_lib.o", env!("CARGO_MANIFEST_DIR"))).exists(),
         "Could not prepare demo: {}",
-        String::from_utf8(output.stderr).unwrap().trim()
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .trim()
+            .split("\n")
+            .last()
+            .unwrap_or("")
     );
     println!(
         "cargo:rustc-link-search=native={}",
