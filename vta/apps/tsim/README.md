@@ -43,4 +43,5 @@ make
 3. Add-by-one Chisel3 example
     * Open `tvm/vta/apps/tsim/python/tsim/config.json`
     * Change `TARGET` from `verilog` to `chisel`
-    * Run again `make`
+    * Go to `tvm/vta/apps/tsim`
+    * Run `make`
