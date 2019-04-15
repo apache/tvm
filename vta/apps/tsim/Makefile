@@ -11,6 +11,8 @@ TSIM_BUILD_NAME = build
 # optional
 TSIM_TRACE_NAME = trace.vcd
 
+default: cmake run
+
 .PHONY: cmake
 
 cmake: | $(BUILD_DIR)
