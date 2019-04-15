@@ -248,13 +248,15 @@ class PBQPTuner(BaseGraphTuner):
                     del self._layout_transform_matrix_dict[(input_idx, target_input_idx)]
 
         # Create reverse layout transformation matrices
+        temp = {}
         for idx_pair, ltf_matrix in self._layout_transform_matrix_dict.items():
             reverse_key = (idx_pair[1], idx_pair[0])
             reverse_matrix = [[] for _ in range(len(ltf_matrix[0]))]
             for i, _ in enumerate(ltf_matrix):
                 for j, ltf in enumerate(ltf_matrix[i]):
                     reverse_matrix[j].append(ltf)
-            self._layout_transform_matrix_dict[reverse_key] = reverse_matrix
+            temp[reverse_key] = reverse_matrix
+        self._layout_transform_matrix_dict.update(temp)
 
         self._forward()
         self._backward()
