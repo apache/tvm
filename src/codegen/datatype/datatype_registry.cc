@@ -96,7 +96,7 @@ TVM_REGISTER_GLOBAL("_register_Cast")
           });
     });
 
-#define REGISTER_OP_A_B(OP)                                                    \
+#define REGISTER_BINARY_OP(OP)                                                    \
   TVM_REGISTER_GLOBAL("_register_" #OP)                                        \
       .set_body([](TVMArgs args, TVMRetValue *rv) {                            \
         const std::string target = args[0];                                    \
@@ -114,5 +114,5 @@ TVM_REGISTER_GLOBAL("_register_Cast")
             });                                                                \
       });
 
-REGISTER_OP_A_B(Add);
+REGISTER_BINARY_OP(Add);
 }  // namespace tvm
