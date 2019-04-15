@@ -62,6 +62,10 @@ struct NodeEntry {
     version()
   {}
 
+  /**
+   * MXNet assumes that a node with a null ptr doesn't have a gradient attached. Don't change this
+   * constructor.
+   */
   NodeEntry():
     node(nullptr),
     index(),
