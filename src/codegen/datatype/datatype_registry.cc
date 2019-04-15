@@ -68,7 +68,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
   return runtime::Registry::Get(ss.str());
 }
 
-TVM_REGISTER_GLOBAL("_register_Cast")
+TVM_REGISTER_GLOBAL("_datatype_register_Cast")
     .set_body([](TVMArgs args, TVMRetValue *rv) {
       const std::string target = args[0];
       const std::string type = args[1];
@@ -97,7 +97,7 @@ TVM_REGISTER_GLOBAL("_register_Cast")
     });
 
 #define REGISTER_BINARY_OP(OP)                                                 \
-  TVM_REGISTER_GLOBAL("_register_" #OP)                                        \
+  TVM_REGISTER_GLOBAL("_datatype_register_" #OP)                               \
       .set_body([](TVMArgs args, TVMRetValue *rv) {                            \
         const std::string target = args[0];                                    \
         const std::string type = args[1];                                      \
