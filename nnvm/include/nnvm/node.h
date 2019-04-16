@@ -56,7 +56,7 @@ struct NodeEntry {
     version(version)
   {}
 
-  NodeEntry(NodePtr node):
+  explicit NodeEntry(NodePtr node):
     node(std::move(node)),
     index(),
     version()
