@@ -602,9 +602,9 @@ class PrettyPrinter :
     for (const Type& t : node->args) {
       args.push_back(PrintType(t, false));
     }
-    doc << "(";
+    doc << "[";
     doc << PrintVec(args);
-    doc << ")";
+    doc << "]";
     return doc;
   }
 
