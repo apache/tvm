@@ -508,10 +508,10 @@ def test_logical_simplify():
               tvm.const(True, "bool"))
     ck.verify(tvm.expr.Or(tvm.expr.NE(x, y), tvm.expr.EQ(x, y)),
               tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(x > y, tvm.expr.Not(x < y)), tvm.const(True, "bool"))
+    ck.verify(tvm.expr.Or(x > y, tvm.expr.Not(x > y)), tvm.const(True, "bool"))
 
     ck.verify(tvm.expr.Or(x <= y, y < x), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(y < x, y <= x), tvm.const(True, "bool"))
+    ck.verify(tvm.expr.Or(y < x, y >= x), tvm.const(True, "bool"))
 
     ck.verify(tvm.expr.Or(x < 1, 0 < x), tvm.const(True, "bool"))
     ck.verify(tvm.expr.Or(0 < x, x < 1), tvm.const(True, "bool"))
