@@ -44,9 +44,28 @@ RUN bash /install/ubuntu_install_gradle.sh
 COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
 RUN bash /install/ubuntu_install_androidsdk.sh
 
+COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
+RUN bash /install/ubuntu_install_vulkan.sh
+
+ENV VULKAN_SDK /usr/local/VulkanSDK/1.0.65.0/x86_64
+ENV PATH ${PATH}:${VULKAN_SDK}/bin
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:${VULKAN_SDK}/lib
+ENV VK_LAYER_PATH ${VULKAN_SDK}/etc/explicit_layer.d
+
 # Build TVM
-COPY install/install_tvm_cpu.sh /install/install_tvm_cpu.sh
-RUN bash /install/install_tvm_cpu.sh
+RUN cd /usr && \
+    git clone --depth=1 https://github.com/dmlc/tvm --recursive && \
+    cd /usr/tvm && \
+    mkdir -p build && \
+    cd build && \
+    cmake \
+        -DUSE_LLVM=llvm-config-6.0 \
+        -DUSE_RPC=ON \
+        -DUSE_SORT=ON \
+        -DUSE_GRAPH_RUNTIME=ON \
+        -DUSE_VULKAN=ON \
+        .. && \
+    make -j10
 
 # Environment variables
 ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/topi/python:/usr/tvm/nnvm/python/:/usr/tvm/vta/python:${PYTHONPATH}
