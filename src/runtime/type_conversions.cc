@@ -1,3 +1,9 @@
+/*!
+ *  Copyright (c) 2019 by Contributors
+ * \file tvm/src/runtime/type_conversions.cc
+ * \brief Custom datatype lookup functions needed by runtime
+ */
+
 // TODO(gus) think about renaming this file
 // TODO(gus) where's a good place for this file?
 
@@ -27,5 +33,5 @@ extern "C" uint8_t GetTypeCode(const std::string& type_name) {
 
 extern "C" uint8_t GetCustomDatatypeRegistered(uint8_t type_code) {
   return (*tvm::runtime::Registry::Get("_datatype_registered"))(type_code).
-    operator unsigned long();
+  operator unsigned long();
 }
