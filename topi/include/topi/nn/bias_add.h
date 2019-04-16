@@ -44,8 +44,6 @@ namespace nn {
 * \return Tensor with shape [batch, in_dim]
 */
 inline tvm::Tensor bias_add(const tvm::Tensor& data, const tvm::Tensor& bias, int axis) {
-  CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
-  CHECK_EQ(bias->shape.size(), 1) << "dense requires 1-D bias";
   int data_ndim = data->shape.size();
   if (axis < 0) {
     axis += data_ndim;
