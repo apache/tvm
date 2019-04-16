@@ -1,3 +1,9 @@
+/*!
+ *  Copyright (c) 2019 by Contributors
+ * \file tvm/src/codegen/datatype/datatype_registry.cc
+ * \brief Custom datatypes registry
+ */
+
 #include "datatype_registry.h"
 #include <tvm/api_registry.h>
 
@@ -11,12 +17,12 @@ TVM_REGISTER_GLOBAL("_datatype_register")
     });
 
 TVM_REGISTER_GLOBAL("_datatype_get_type_code")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
       *ret = DatatypeRegistry::Global()->GetTypeCode(args[0]);
     });
 
 TVM_REGISTER_GLOBAL("_datatype_get_type_name")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
       *ret = DatatypeRegistry::Global()->GetTypeName(args[0].operator int());
     });
 
@@ -34,7 +40,7 @@ void DatatypeRegistry::RegisterDatatype(const std::string &type_name,
   code_to_storage_size[type_code] = storage_size;
 }
 
-uint8_t DatatypeRegistry::GetTypeCode(const std::string& type_name) {
+uint8_t DatatypeRegistry::GetTypeCode(const std::string &type_name) {
   return name_to_code[type_name];
 }
 
@@ -42,7 +48,7 @@ std::string DatatypeRegistry::GetTypeName(uint8_t type_code) {
   return code_to_name[type_code];
 }
 
-const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
+const runtime::PackedFunc *GetCastLowerFunc(const std::string &target,
                                             uint8_t type_code,
                                             uint8_t src_type_code) {
   std::ostringstream ss;
@@ -96,22 +102,22 @@ TVM_REGISTER_GLOBAL("_datatype_register_Cast")
           });
     });
 
-#define REGISTER_BINARY_OP(OP)                                                 \
-  TVM_REGISTER_GLOBAL("_datatype_register_" #OP)                               \
-      .set_body([](TVMArgs args, TVMRetValue *rv) {                            \
-        const std::string target = args[0];                                    \
-        const std::string type = args[1];                                      \
-        const std::string extern_func_name = args[2];                          \
-        auto lower_op_name =                                                   \
-            "tvm.datatype.lower." + target + "." #OP "." + type;               \
-        runtime::Registry::Register(lower_op_name)                             \
-            .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {      \
-              Expr e = args[0];                                                \
-              const ir::OP *op = e.as<ir::OP>();                               \
-              CHECK(op) << "Expected " #OP;                                    \
-              *rv = ir::Call::make(UInt(op->type.bits()), extern_func_name,    \
-                                   {op->a, op->b}, ir::Call::Extern);          \
-            });                                                                \
+#define REGISTER_BINARY_OP(OP)                                              \
+  TVM_REGISTER_GLOBAL("_datatype_register_" #OP)                            \
+      .set_body([](TVMArgs args, TVMRetValue *rv) {                         \
+        const std::string target = args[0];                                 \
+        const std::string type = args[1];                                   \
+        const std::string extern_func_name = args[2];                       \
+        auto lower_op_name =                                                \
+            "tvm.datatype.lower." + target + "." #OP "." + type;            \
+        runtime::Registry::Register(lower_op_name)                          \
+            .set_body([extern_func_name](TVMArgs args, TVMRetValue *rv) {   \
+              Expr e = args[0];                                             \
+              const ir::OP *op = e.as<ir::OP>();                            \
+              CHECK(op) << "Expected " #OP;                                 \
+              *rv = ir::Call::make(UInt(op->type.bits()), extern_func_name, \
+                                   {op->a, op->b}, ir::Call::Extern);       \
+            });                                                             \
       });
 
 REGISTER_BINARY_OP(Add);

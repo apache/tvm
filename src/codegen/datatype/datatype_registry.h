@@ -1,8 +1,14 @@
-#ifndef DATATYPE_REGISTRY_H_
-#define DATATYPE_REGISTRY_H_
+/*!
+ *  Copyright (c) 2019 by Contributors
+ * \file tvm/src/codegen/datatype/datatype_registry.h
+ * \brief Custom datatypes registry
+ */
 
-#include <tvm/runtime/registry.h>
+#ifndef SRC_CODEGEN_DATATYPE_DATATYPE_REGISTRY_H_
+#define SRC_CODEGEN_DATATYPE_DATATYPE_REGISTRY_H_
+
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <string>
 #include <unordered_map>
 
@@ -27,14 +33,15 @@ namespace tvm {
  */
 class DatatypeRegistry {
  public:
-  static inline DatatypeRegistry* Global() {
+  static inline DatatypeRegistry *Global() {
     static DatatypeRegistry inst;
     return &inst;
   }
 
-  void RegisterDatatype(const std::string& type_name, uint8_t type_code, size_t storage_size);
+  void RegisterDatatype(const std::string &type_name, uint8_t type_code,
+                        size_t storage_size);
 
-  uint8_t GetTypeCode(const std::string& type_name);
+  uint8_t GetTypeCode(const std::string &type_name);
 
   std::string GetTypeName(uint8_t type_code);
 
@@ -52,17 +59,17 @@ class DatatypeRegistry {
   std::unordered_map<uint8_t, size_t> code_to_storage_size;
 };
 
-const runtime::PackedFunc* GetCastLowerFunc(const std::string& target,
+const runtime::PackedFunc *GetCastLowerFunc(const std::string &target,
                                             uint8_t type_code,
                                             uint8_t src_type_code);
 
-  // TODO(gus) Could use asserts here
-#define DEFINE_GET_LOWER_FUNC_(OP)                                  \
-  inline const runtime::PackedFunc* Get##OP##LowerFunc(             \
-      const std::string& target, uint8_t type_code) {               \
-    return runtime::Registry::Get(                                  \
-        "tvm.datatype.lower." + target + "." #OP "." +             \
-        DatatypeRegistry::Global()->GetTypeName(type_code));        \
+// TODO(gus) Could use asserts here
+#define DEFINE_GET_LOWER_FUNC_(OP)                           \
+  inline const runtime::PackedFunc *Get##OP##LowerFunc(      \
+      const std::string &target, uint8_t type_code) {        \
+    return runtime::Registry::Get(                           \
+        "tvm.datatype.lower." + target + "." #OP "." +       \
+        DatatypeRegistry::Global()->GetTypeName(type_code)); \
   }
 
 DEFINE_GET_LOWER_FUNC_(Add)
@@ -89,4 +96,4 @@ DEFINE_GET_LOWER_FUNC_(Shuffle)
 
 }  // namespace tvm
 
-#endif
+#endif  // SRC_CODEGEN_DATATYPE_DATATYPE_REGISTRY_H_
