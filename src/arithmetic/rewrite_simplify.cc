@@ -1169,7 +1169,7 @@ Mutate_(const Or* op, const Expr& self) {
   TVM_TRY_REWRITE(x != y || x == y, ctrue);
   TVM_TRY_REWRITE(x || !x, ctrue);
   TVM_TRY_REWRITE(x <= y || y < x, ctrue);
-  TVM_TRY_REWRITE(y < x || y <= x, ctrue);
+  TVM_TRY_REWRITE(y < x || x <= y, ctrue);
 
   TVM_TRY_REWRITE_IF(x < c1 || c2 < x, ctrue,
                      c2.Eval()->value < c1.Eval()->value);
