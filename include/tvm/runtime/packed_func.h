@@ -964,7 +964,7 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   // For now, just don't append the bits if the datatype is custom. This is to
   // keep it consistent with the parser, which doesn't expect a bits field after
   // a custom datatype.
-  //if (!GetCustomDatatypeRegistered(t.code)) os << static_cast<int>(t.bits);
+  // if (!GetCustomDatatypeRegistered(t.code)) os << static_cast<int>(t.bits);
   // TODO(gus) actually, changed my mind on this; we need the bits in the string
   // because we can't get that info any other way on the Python side
   os << static_cast<int>(t.bits);
