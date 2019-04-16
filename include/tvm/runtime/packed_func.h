@@ -42,7 +42,7 @@
 #include "object.h"
 #include "node_base.h"
 
-extern "C" std::string GetTypeName(uint8_t);
+extern "C" void GetTypeName(uint8_t, char**);
 extern "C" uint8_t GetTypeCode(const std::string& type_name);
 extern "C" uint8_t GetCustomDatatypeRegistered(uint8_t type_code);
 
@@ -939,7 +939,10 @@ inline const char* TypeCode2Str(int type_code) {
 
       // TODO(gus): handle code-not-found error
 
-      auto type_name = GetTypeName(type_code);
+      char* type_name_cstr;
+      GetTypeName(type_code, &type_name_cstr);
+      std::string type_name(type_name_cstr);
+      delete [] type_name_cstr;
       std::ostringstream ss;
       ss << "custom[" << type_name << "]";
       auto str = ss.str();
