@@ -220,8 +220,8 @@ TVM_REGISTER_API("relay._make.Call")
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<CallNode>([](const CallNode* node, tvm::IRPrinter* p) {
-  p->stream << "CallNode(" << node->op << ", " << node->args << ", "
-    << node->attrs << ", " << node->type_args << ")";
+    p->stream << "CallNode(" << node->op << ", " << node->args << ", "
+              << node->attrs << ", " << node->type_args << ")";
 });
 
 Let LetNode::make(Var var, Expr value, Expr body) {
@@ -324,7 +324,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_API("relay._expr.TempExprRealize")
 .set_body_typed<Expr(TempExpr)>([](TempExpr temp) {
-  return temp->Realize();
+    return temp->Realize();
 });
 
 }  // namespace relay

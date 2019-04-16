@@ -38,10 +38,10 @@ namespace relay {
 // calculate the dependency graph from expression
 class CalcDep : private ExprVisitor {
  public:
-  static Expr Eliminate(const Expr& e) {
+  static Expr Eliminate(const Expr& e, bool inline_once) {
     CalcDep cd;
     cd.Calculate(e);
-    Eliminator el(cd.expr_map_, cd.use_map_, cd.letrec_set_);
+    Eliminator el(cd.expr_map_, cd.use_map_, cd.letrec_set_, inline_once);
     return el(e);
   }
 
@@ -117,15 +117,23 @@ class CalcDep : private ExprVisitor {
     VarMap<Expr> expr_map_;
     VarMap<size_t> use_map_;
     VarSet letrec_set_;
+    bool inline_once_;
     explicit Eliminator(const VarMap<Expr>& expr_map,
                         const VarMap<size_t>& use_map,
-                        const VarSet& letrec_set) :
-      expr_map_(expr_map), use_map_(use_map), letrec_set_(letrec_set) { }
+                        const VarSet& letrec_set,
+                        bool inline_once) :
+      expr_map_(expr_map), use_map_(use_map), letrec_set_(letrec_set), inline_once_(inline_once) { }
     friend CalcDep;
 
     bool HasLet(const Var& v) {
-      // TODO(@jroesch): MK fix me
-      return (use_map_[v] > 0 || (use_map_[v] != 0 && letrec_set_.count(v) != 0));
+      switch (use_map_[v]) {
+      case 0:
+        return false;
+      case 1:
+        return letrec_set_.count(v) > 0 || !inline_once_;
+      default:
+        return true;
+      }
     }
 
     Expr VisitExpr_(const VarNode* op) final {
@@ -144,8 +152,8 @@ class CalcDep : private ExprVisitor {
   };
 };
 
-Expr DeadCodeElimination(const Expr& e) {
-  return CalcDep::Eliminate(e);
+Expr DeadCodeElimination(const Expr& e, bool inline_once) {
+  return CalcDep::Eliminate(e, inline_once);
 }
 
 TVM_REGISTER_API("relay._ir_pass.dead_code_elimination")
@@ -153,10 +161,10 @@ TVM_REGISTER_API("relay._ir_pass.dead_code_elimination")
 
 namespace transform {
 
-Pass DeadCodeElimination() {
+Pass DeadCodeElimination(bool inline_once) {
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
-    return Downcast<Function>(DeadCodeElimination(f));
+    return Downcast<Function>(DeadCodeElimination(f, inline_once));
   };
   return CreateFunctionPass(pass_func, 1, "DeadCodeElimination", {});
 }
