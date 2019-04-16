@@ -24,7 +24,7 @@ from . import _backend
 from .. import _make, ir_pass
 from ... import register_func, nd
 from ..base import NodeBase, register_relay_node
-from ..expr import Call, Constant, GlobalVar, Function, const
+from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
 from ..scope_builder import ScopeBuilder
 
 class Value(NodeBase):
@@ -112,6 +112,12 @@ class RefValue(Value):
 def _arg_to_ast(arg):
     if isinstance(arg, TensorValue):
         return Constant(arg.data.copyto(nd.cpu(0)))
+    elif isinstance(arg, TupleValue):
+        return Tuple([_arg_to_ast(field) for field in arg.fields])
+    elif isinstance(arg, RefValue):
+        return RefCreate(_arg_to_ast(arg.value))
+    elif isinstance(arg, ConstructorValue):
+        return Call(arg.constructor, [_arg_to_ast(field) for field in arg.fields])
     elif isinstance(arg, np.ndarray):
         return Constant(nd.array(arg))
     elif isinstance(arg, Constant):
