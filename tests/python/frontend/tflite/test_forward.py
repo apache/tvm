@@ -515,7 +515,7 @@ def test_forward_fully_connected():
 # ---------
 
 def test_forward_mobilenet_v1():
-    '''test mobilenet v1 tflite model'''
+    """Test the Mobilenet V1 TF Lite model."""
     # MobilenetV1
     tflite_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz",
@@ -530,7 +530,7 @@ def test_forward_mobilenet_v1():
                                 rtol=1e-5, atol=1e-5)
 
 def test_forward_mobilenet_v2():
-    '''test mobilenet v2 tflite model'''
+    """Test the Mobilenet V2 TF Lite model."""
     # MobilenetV2
     tflite_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz",
@@ -549,7 +549,7 @@ def test_forward_mobilenet_v2():
 # ------------
 
 def test_forward_inception_v3_net():
-    '''test inception v3 tflite model'''
+    """Test the Inception V3 TF Lite model."""
     # InceptionV3
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v3_2018_04_27.tgz",
@@ -564,7 +564,7 @@ def test_forward_inception_v3_net():
                                 rtol=1e-5, atol=1e-5)
 
 def test_forward_inception_v4_net():
-    '''test inception v4 tflite model'''
+    """Test the Inception V4 TF Lite model."""
     # InceptionV4
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v4_2018_04_27.tgz",
