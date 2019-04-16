@@ -74,7 +74,7 @@ def schedule_batch_matmul(attrs, outputs, target):
     with target:
         return topi.generic.schedule_batch_matmul(outputs)
 
-reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+reg.register_pattern("nn.batch_matmul", reg.OpPattern.OPAQUE)
 
 
 # conv2d
