@@ -73,7 +73,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
             break
 
     new_attrs = {k: attrs[k] for k in attrs.keys()}
-    new_attrs['kernel_layout'] = 'OIHW%do' % (oc_bn)
+    new_attrs["kernel_layout"] = 'OIHW%do' % (oc_bn)
+
+    if F == tvm.relay.op:
+        # Derive channels for frontends (e.g ONNX) that miss "channel" field.
+        new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
 
     if F == sym:
         out = F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
