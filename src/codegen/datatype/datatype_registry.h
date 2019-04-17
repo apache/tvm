@@ -38,8 +38,7 @@ class DatatypeRegistry {
     return &inst;
   }
 
-  void RegisterDatatype(const std::string &type_name, uint8_t type_code,
-                        size_t storage_size);
+  void RegisterDatatype(const std::string &type_name, uint8_t type_code);
 
   uint8_t GetTypeCode(const std::string &type_name);
 
@@ -56,7 +55,6 @@ class DatatypeRegistry {
   // TODO(gus) is there a typedef for the code?
   std::unordered_map<uint8_t, std::string> code_to_name;
   std::unordered_map<std::string, uint8_t> name_to_code;
-  std::unordered_map<uint8_t, size_t> code_to_storage_size;
 };
 
 const runtime::PackedFunc *GetCastLowerFunc(const std::string &target,

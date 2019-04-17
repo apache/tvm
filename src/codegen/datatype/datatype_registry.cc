@@ -12,8 +12,7 @@ namespace tvm {
 TVM_REGISTER_GLOBAL("_datatype_register")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       DatatypeRegistry::Global()->RegisterDatatype(
-          args[0], static_cast<uint8_t>(args[1].operator int()),
-          args[2].operator size_t());
+          args[0], static_cast<uint8_t>(args[1].operator int()));
     });
 
 TVM_REGISTER_GLOBAL("_datatype_get_type_code")
@@ -33,11 +32,9 @@ TVM_REGISTER_GLOBAL("_datatype_registered")
     });
 
 void DatatypeRegistry::RegisterDatatype(const std::string &type_name,
-                                        uint8_t type_code,
-                                        size_t storage_size) {
+                                        uint8_t type_code) {
   code_to_name[type_code] = type_name;
   name_to_code[type_name] = type_code;
-  code_to_storage_size[type_code] = storage_size;
 }
 
 uint8_t DatatypeRegistry::GetTypeCode(const std::string &type_name) {
