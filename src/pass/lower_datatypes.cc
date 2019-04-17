@@ -1,3 +1,9 @@
+/*!
+ *  Copyright (c) 2019 by Contributors
+ * \file tvm/src/pass/lower_datatypes.cc
+ * \brief Pass for lowering custom datatypes
+ */
+
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
@@ -18,7 +24,7 @@ namespace ir {
  */
 class DatatypesLowerer : public IRMutator {
  public:
-  DatatypesLowerer(const std::string& target) : target_(target) {}
+  explicit DatatypesLowerer(const std::string& target) : target_(target) {}
 
   inline Expr Mutate_(const Cast* op, const Expr& e) final {
     Expr expr = IRMutator::Mutate_(op, e);
