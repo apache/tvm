@@ -867,15 +867,15 @@ class FuseMutator : private ExprMutator {
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
     // If the function has no call, it is not a primitive function.
     struct HasCallVisitor : ExprVisitor {
-      bool HasCall = false;
+      bool has_call = false;
       void VisitExpr_(const CallNode* op) final {
-        HasCall = true;
+        has_call = true;
       }
     } visitor;
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = FunctionNode::make(ginfo.params, body, ret_type, {});
-    func = FunctionSetAttr(func, "Primitive", tvm::Integer(visitor.HasCall));
+    func = FunctionSetAttr(func, "Primitive", tvm::Integer(visitor.has_call));
     return CallNode::make(func, ginfo.arguments, Attrs());
   }
 
