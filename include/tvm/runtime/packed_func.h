@@ -937,8 +937,6 @@ inline const char* TypeCode2Str(int type_code) {
       // This is (potentially) the case of a custom type code.
       // TODO(gus): should only a range of codes be allowed for customs?
 
-      // TODO(gus): handle code-not-found error
-
       char* type_name_cstr;
       GetTypeName(type_code, &type_name_cstr);
       std::string type_name(type_name_cstr);
