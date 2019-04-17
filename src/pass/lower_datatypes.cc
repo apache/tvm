@@ -94,9 +94,65 @@ class DatatypesLowerer : public IRMutator {
   std::string target_;
 };
 
+/*!
+ * \brief Mutator for lowering Allocates of custom datatypes
+ *
+ * Lowers Allocates of custom datatypes into Allocates of the custom
+ * datatype's storage type. So a 16-bit posit, for example, would allocate as
+ * an opaque 16-bit integer.
+ */
+class AllocateLowerer : public IRMutator {
+ public:
+  inline Stmt Mutate_(const Allocate* allocate, const Stmt& s) final {
+    Stmt stmt = IRMutator::Mutate_(allocate, s);
+    allocate = stmt.as<Allocate>();
+
+    auto type_code = allocate->type.code();
+    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {
+      auto new_allocate_type = Int(allocate->type.bits());
+      return Allocate::make(allocate->buffer_var, new_allocate_type,
+                            allocate->extents, allocate->condition,
+                            allocate->body, allocate->new_expr,
+                            allocate->free_function);
+    }
+    return stmt;
+  }
+};
+
+/*!
+ * \brief Mutator for lowering Loads of custom datatypes
+ *
+ * Lowers Loads of custom datatypes into Loads of the custom
+ * datatype's storage type. So a 16-bit posit, for example, would load as
+ * an opaque 16-bit integer.
+ */
+class LoadLowerer : public IRMutator {
+ public:
+  inline Expr Mutate_(const Load* load, const Expr& e) final {
+    Expr expr = IRMutator::Mutate_(load, e);
+    load = expr.as<Load>();
+    auto type_code = load->type.code();
+    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {
+      auto new_load_type = Int(load->type.bits());
+      return Load::make(new_load_type, load->buffer_var, load->index,
+                        load->predicate);
+    }
+    return expr;
+  }
+};
+
 LoweredFunc LowerDatatypes(LoweredFunc f, const std::string& target) {
   auto n = make_node<LoweredFuncNode>(*f.operator->());
+  // We lower in stages. First, we lower all operations (e.g. casts, binary ops,
+  // etc) to Calls into external libraries. Then we lower Allocates. Finally, we
+  // lower Loads. I am not sure whether allocates need to happen in any specific
+  // location in this order. Loads, however, must go after the Calls have been
+  // inserted. Otherwise, if we lower Loads first, the types of the ops will
+  // change correspondingly, and so a custom-datatype add might become an int16
+  // add.
   n->body = DatatypesLowerer(target).Mutate(n->body);
+  n->body = AllocateLowerer().Mutate(n->body);
+  n->body = LoadLowerer().Mutate(n->body);
   return LoweredFunc(n);
 }
 
