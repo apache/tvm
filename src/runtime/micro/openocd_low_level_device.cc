@@ -17,7 +17,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
    * \brief constructor to initialize connection to openocd device
    * \param port port of the OpenOCD server to connect to
    */
-  OpenOCDLowLevelDevice(int port);
+  explicit OpenOCDLowLevelDevice(int port);
 
   /*!
    * \brief destructor to close openocd device connection
@@ -50,5 +50,5 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
 const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(int port) {
   return nullptr;
 }
-} // namespace runtime
-} // namespace tvm
+}  // namespace runtime
+}  // namespace tvm

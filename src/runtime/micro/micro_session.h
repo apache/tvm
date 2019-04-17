@@ -46,9 +46,10 @@ class MicroSectionAllocator {
    */
   void* Allocate(size_t size) {
     void* alloc_ptr = nullptr;
-    if ((uint8_t*) section_max_ + size  < (uint8_t *) section_end_) {
+    if (reinterpret_cast<uint8_t*>(section_max_) + size
+        < reinterpret_cast<uint8_t*>(section_end_)) {
       alloc_ptr = section_max_;
-      section_max_ = (uint8_t*) section_max_ + size;
+      section_max_ = reinterpret_cast<uint8_t*>(section_max_) + size;
       alloc_map_[alloc_ptr] = size;
     }
     return alloc_ptr;

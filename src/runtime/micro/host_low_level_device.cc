@@ -20,7 +20,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
    * \brief constructor to initialize on-host memory region to act as device
    * \param num_bytes size of the emulated on-device memory region
    */
-  HostLowLevelDevice(size_t num_bytes)
+  explicit HostLowLevelDevice(size_t num_bytes)
     : size_(num_bytes) {
     size_t size_in_pages = (num_bytes + kPageSize - 1) / kPageSize;
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
@@ -71,9 +71,9 @@ class HostLowLevelDevice final : public LowLevelDevice {
 };
 
 const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes) {
-  std::shared_ptr<LowLevelDevice> lld = 
+  std::shared_ptr<LowLevelDevice> lld =
       std::make_shared<HostLowLevelDevice>(num_bytes);
   return lld;
 }
-} // namespace runtime
-} // namespace tvm
+}  // namespace runtime
+}  // namespace tvm

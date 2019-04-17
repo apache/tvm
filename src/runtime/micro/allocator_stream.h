@@ -7,10 +7,10 @@
 #define TVM_RUNTIME_MICRO_ALLOCATOR_STREAM_H_
 
 #include <cstring>
+#include <dmlc/memory_io.h>
 #include <string>
 #include <algorithm>
 #include <vector>
-#include <dmlc/memory_io.h>
 
 namespace tvm {
 namespace runtime {
@@ -136,7 +136,7 @@ class AllocatorStream : public dmlc::SeekStream {
    * \return buffer size
    */
   void* GetAddr(size_t offset) {
-    return (uint8_t*) start_addr_ + offset;
+    return reinterpret_cast<uint8_t*>(start_addr_) + offset;
   }
 
  private:

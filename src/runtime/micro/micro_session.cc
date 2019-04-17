@@ -32,7 +32,6 @@ MicroSession::MicroSession() {
 }
 
 MicroSession::~MicroSession() {
-
 }
 
 void MicroSession::InitSession(TVMArgs args) {
@@ -112,16 +111,17 @@ void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
   int (*func_addr)(void*, void*, int32_t) =
       (int (*)(void*, void*, int32_t)) GetAddr(func, low_level_device()->base_addr());
   void* args_addr = AllocateTVMArgs(args);
-  void* arg_type_ids_addr = (uint8_t*) args_addr + sizeof(TVMValue*) * num_args;
-  void* num_args_addr = (uint8_t*) arg_type_ids_addr +
+  void* arg_type_ids_addr = reinterpret_cast<uint8_t*>(args_addr) +
+                            sizeof(TVMValue*) * num_args;
+  void* num_args_addr = reinterpret_cast<uint8_t*>(arg_type_ids_addr) +
                         sizeof(const int*) * num_args;
   void* task_addr = GetSymbol(init_symbol_map_, "task",
                               low_level_device()->base_addr());
   UTVMTask task = {.func = func_addr,
                    .args = args_addr,
                    .arg_type_ids = arg_type_ids_addr,
-                   .num_args = (int32_t*) num_args_addr};
-  // TODO: handle bits / endianness
+                   .num_args = reinterpret_cast<int32_t*>(num_args_addr)};
+  // TODO(mutinifni): handle bits / endianness
   low_level_device()->Write(task_addr, &task, sizeof(task));
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
 }
@@ -143,7 +143,7 @@ void MicroSession::LoadInitStub() {
   init_data_start_ = AllocateInSection(kData, init_data_size_);
   init_bss_start_ = AllocateInSection(kBss, init_bss_size_);
   CHECK(init_text_start_ != nullptr &&
-        init_data_start_ != nullptr && 
+        init_data_start_ != nullptr &&
         init_bss_start_ != nullptr)
       << "Not enough space to load init binary on device";
   std::string relocated_bin = RelocateBinarySections(
@@ -160,7 +160,7 @@ void MicroSession::LoadInitStub() {
   // obtain init stub binary metadata
   init_symbol_map_ = GetSymbolMap(relocated_bin);
   utvm_main_symbol_addr_ = GetSymbol(init_symbol_map_, "UTVMMain", nullptr);
-  utvm_done_symbol_addr_ = GetSymbol(init_symbol_map_, "UTVMDone", nullptr); 
+  utvm_done_symbol_addr_ = GetSymbol(init_symbol_map_, "UTVMDone", nullptr);
 }
 
 // TODO(mutinifni): overload TargetAwareWrite with different val types as need be
@@ -184,8 +184,8 @@ void* MicroSession::TargetAwareWrite(TVMArray* val, AllocatorStream* stream) {
   void* data_addr = (uint8_t*) low_level_device()->base_addr() +
                     reinterpret_cast<std::uintptr_t>(val->data);
   arr.data = data_addr;
-  arr.shape = (int64_t*) shape_addr;
-  arr.strides = (int64_t*) strides_addr;
+  arr.shape = static_cast<int64_t*>(shape_addr);
+  arr.strides = static_cast<int64_t*>(strides_addr);
   tarr_slot.Write(&arr);
   return tarr_slot.addr();
 }
@@ -206,7 +206,7 @@ void* MicroSession::AllocateTVMArgs(TVMArgs args) {
   stream->Write(type_codes, sizeof(const int*) * num_args);
   stream->Write(&num_args, sizeof(int));
   for (int i = 0; i < num_args; i++) {
-    switch(type_codes[i]) {
+    switch (type_codes[i]) {
       case kNDArrayContainer: {
         void* val_addr = TargetAwareWrite((TVMArray*) values[i].v_handle, stream);
         stream->Seek(args_offset + sizeof(TVMValue*) * i);

@@ -36,8 +36,6 @@ class MicroModuleNode final : public ModuleNode {
    * \param binary name of the binary to be loaded
    */
   void InitMicroModule(const std::string binary) {
-    // TODO: if first MicroModule, then load init section in MicroSession
-    // this will be handled by micro_init that loads MicroSession
     session_ = MicroSession::Global();
     lldevice_ = session_->low_level_device();
     binary_ = binary;
