@@ -856,9 +856,6 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     reducer.__doc__ = doc_str.format(name)
     return reducer
 
-def register_datatype(type_name, type_code):
-    _api_internal._datatype_register(type_name, type_code)
-
 _init_api("tvm.api")
 #pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")

@@ -9,6 +9,9 @@ from ._ffi.runtime_ctypes import TVMType as _TVMType
 from . import _api_internal
 
 
+def register(type_name, type_code):
+    _api_internal._datatype_register(type_name, type_code)
+
 def _datatype_register_op(extern_func_name,
                           op_name,
                           target,
