@@ -165,7 +165,7 @@ def do_nms_sort(dets, classes, thresh):
                 if _box_iou(a, b) > thresh:
                     dets[j]['prob'][k] = 0
 
-def draw_detections(im, dets, thresh, names, classes):
+def draw_detections(font_path, im, dets, thresh, names, classes):
     "Draw the markings around the detected region"
     for det in dets:
         labelstr = []
@@ -198,7 +198,7 @@ def draw_detections(im, dets, thresh, names, classes):
             if bot > imh-1:
                 bot = imh-1
             _draw_box_width(im, left, top, right, bot, width, red, green, blue)
-            label = _get_label(''.join(labelstr), rgb)
+            label = _get_label(font_path, ''.join(labelstr), rgb)
             _draw_label(im, top + width, left, label, rgb)
 
 def _get_pixel(im, x, y, c):
@@ -223,7 +223,7 @@ def _draw_label(im, r, c, label, rgb):
                         val = _get_pixel(label, i, j, k)
                         _set_pixel(im, i+c, j+r, k, val)#rgb[k] * val)
 
-def _get_label(labelstr, rgb):
+def _get_label(font_path, labelstr, rgb):
     from PIL import Image
     from PIL import ImageDraw
     from PIL import ImageFont
@@ -231,7 +231,7 @@ def _get_label(labelstr, rgb):
     text = labelstr
     colorText = "black"
     testDraw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
-    font = ImageFont.truetype("arial.ttf", 25)
+    font = ImageFont.truetype(font_path, 25)
     width, height = testDraw.textsize(labelstr, font=font)
     img = Image.new('RGB', (width, height), color=(int(rgb[0]*255), int(rgb[1]*255),
                                                    int(rgb[2]*255)))
