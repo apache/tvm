@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from .. import ir_pass
 from .. import expr as _expr
+from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import AttrCvt, Renamer
@@ -382,6 +383,7 @@ class Caffe2NetDef(object):
         self._ops = {}
         self._shape = shape
         self._dtype = dtype
+        self._mod = _module.Module({})
 
     def from_caffe2(self, init_net, predict_net):
         """Construct Relay expression from caffe2 graph.
@@ -393,8 +395,9 @@ class Caffe2NetDef(object):
 
         Returns
         -------
-        func : tvm.relay.expr.Function
-            Compatible relay function
+        mod : tvm.relay.Module
+            The module that optimizations will be performed on.
+
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
@@ -448,8 +451,9 @@ class Caffe2NetDef(object):
             outputs = out[0]
 
         func = _expr.Function(ir_pass.free_vars(outputs), outputs)
+        self._mod[self._mod.entry_func] = func
 
-        return func, self._params
+        return self._mod, self._params
 
     def _get_node(self, blob):
         """Get the Symbol of blob and detect cyclic dependency in the graph."""
@@ -560,8 +564,8 @@ def from_caffe2(init_net, predict_net, shape=None, dtype="float32"):
 
     Returns
     -------
-    sym : tvm.relay.expr.Function
-        Compatible relay function
+    mod : tvm.relay.Module
+        The module that optimizations will be performed on.
 
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format

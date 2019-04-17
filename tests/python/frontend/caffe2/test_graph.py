@@ -28,9 +28,10 @@ def compare_graph(f1, f2):
 def test_squeeze_net():
     shape_dict = {'data': (1, 3, 224, 224)}
     dtype_dict = {'data': 'float32'}
-    from_c2_func, _ = relay.frontend.from_caffe2(c2_squeezenet.init_net, c2_squeezenet.predict_net, shape_dict, dtype_dict)
+    mod, _, = relay.frontend.from_caffe2(
+        c2_squeezenet.init_net, c2_squeezenet.predict_net, shape_dict, dtype_dict)
     relay_func, _ = relay_squeezenet()
-    compare_graph(from_c2_func, relay_func)
+    compare_graph(mod[mod.entry_func], relay_func)
 
 
 if __name__ == '__main__':

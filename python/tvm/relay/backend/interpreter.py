@@ -21,7 +21,8 @@ from __future__ import absolute_import
 import numpy as np
 
 from . import _backend
-from .. import _make, ir_pass
+from .. import _make, ir_pass, transform
+from .. import module
 from ... import register_func, nd
 from ..base import NodeBase, register_relay_node
 from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
@@ -191,7 +192,7 @@ class Executor(object):
 
         return tuple(cargs)
 
-    def _make_executor(self, _):
+    def _make_executor(self, expr=None):
         """
         Construct a Python function that implements the evaluation
         of expression.
@@ -208,16 +209,16 @@ class Executor(object):
         """
         raise NotImplementedError()
 
-    def evaluate(self, expr, binds=None):
+    def evaluate(self, expr=None, binds=None):
         """
         Evaluate a Relay expression on the executor.
 
         Parameters
         ----------
-        expr: tvm.relay.Expr
+        expr: Optional[tvm.relay.Expr]
             The expression to evaluate.
 
-        binds: Map[tvm.relay.Var, tvm.relay.Expr]
+        binds: Optional[Map[tvm.relay.Var, tvm.relay.Expr]]
             Additional binding of free variable.
 
         Returns
@@ -232,10 +233,13 @@ class Executor(object):
             scope_builder.ret(expr)
             expr = scope_builder.get()
 
+        if not expr:
+            return self._make_executor()
+
         if isinstance(expr, Function):
             assert not ir_pass.free_vars(expr)
 
-        if isinstance(expr, (Function, GlobalVar)):
+        if isinstance(expr, (Function, GlobalVar, module.Module)):
             return self._make_executor(expr)
 
         # normal expression evaluated by running a function.
@@ -264,46 +268,47 @@ class Interpreter(Executor):
         self.target = target
         self._intrp = _backend.CreateInterpreter(mod, ctx, target)
 
-    def optimize(self, expr):
-        """Optimize an expr.
-
-        Parameters
-        ----------
-        expr : Expr
-            The expression to be optimized.
+    def optimize(self):
+        """Optimize functions in a module.
 
         Returns
         -------
-        opt_expr : Expr
-            The optimized expression.
+        opt_mod : tvm.relay.Module
+            The optimized module.
         """
-        # TODO: We need to move this optimization code into the optimizer/pass manager
-        wrapped_expr = expr if isinstance(expr, Function) else Function([], expr)
-        if self.mod:
-            self.mod[self.mod.entry_func] = wrapped_expr
-        ck_expr = ir_pass.infer_type(wrapped_expr, mod=self.mod)
-        simp_expr = ir_pass.simplify_inference(ck_expr)
-        ck_simp = ir_pass.infer_type(simp_expr, mod=self.mod)
-        fused_expr = ir_pass.fuse_ops(ck_simp, 0, mod=self.mod)
-        ck_fused = ir_pass.infer_type(fused_expr, mod=self.mod)
-        return ck_fused if isinstance(expr, Function) else Call(ck_fused, [])
+        seq = transform.Sequential([transform.SimplifyInference(),
+                                    transform.FuseOps(0),
+                                    transform.InferType()])
+        return seq(self.mod)
 
-    def _make_executor(self, expr):
+    def _make_executor(self, expr=None):
+        expr = expr if expr else self.mod
         def _interp_wrapper(*args, **kwargs):
-            args = self._convert_args(expr, args, kwargs)
+            assert expr, "either expr or self.mod should be not null."
+
+            cur_expr = expr
+            if isinstance(expr, module.Module):
+                cur_expr = expr[expr.entry_func]
+            args = self._convert_args(cur_expr, args, kwargs)
 
             relay_args = []
             for arg in args:
                 relay_args.append(_arg_to_ast(arg))
 
+            # Set the entry function for the module.
             if isinstance(expr, GlobalVar):
-                func = self.mod[expr]
-                func = self.optimize(func)
-                self.mod._add(expr, func, True)
-                opt_expr = Call(expr, relay_args)
-                return self._intrp(opt_expr)
+                self.mod[self.mod.entry_func] = self.mod[expr]
+            elif isinstance(expr, module.Module):
+                self.mod = expr
             else:
-                call = Call(expr, relay_args)
-                opt_expr = self.optimize(call)
-                return self._intrp(opt_expr)
+                func = Function([], Call(expr, relay_args))
+                relay_args = []
+                if self.mod:
+                    self.mod[self.mod.entry_func] = func
+                else:
+                    self.mod = module.Module.from_expr(func)
+
+            mod = self.optimize()
+            opt_expr = Call(mod[mod.entry_func], relay_args)
+            return self._intrp(opt_expr)
         return _interp_wrapper

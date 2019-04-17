@@ -22,6 +22,7 @@ import numpy as np
 import tvm
 from .. import ir_pass
 from .. import expr as _expr
+from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable
@@ -749,8 +750,8 @@ def from_tflite(model, shape_dict, dtype_dict):
 
     Returns
     -------
-    func : tvm.relay.Function
-        Compatible relay Function
+    mod : tvm.relay.Module
+        The relay module for compilation.
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by relay
@@ -788,4 +789,4 @@ def from_tflite(model, shape_dict, dtype_dict):
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
     func = _expr.Function(ir_pass.free_vars(outputs), outputs)
-    return func, params
+    return _module.Module.from_expr(func), params

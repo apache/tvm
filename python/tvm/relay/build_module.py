@@ -219,7 +219,10 @@ class GraphExecutor(_interpreter.Executor):
         self.ctx = ctx
         self.target = target
 
-    def _make_executor(self, func):
+    def _make_executor(self, func=None):
+        if not func:
+            assert self.mod, "either func or self.mod should be not null."
+            func = self.mod[self.mod.entry_func]
         ret_type = ir_pass.infer_type(func).ret_type
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         graph_json, mod, params = build(func, target=self.target)

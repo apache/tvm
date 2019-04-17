@@ -22,9 +22,9 @@ from tvm.relay.frontend.tensorflow import from_tensorflow
 
 
 def check_equal(graph, tf_out):
-    expr, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
-    ex = relay.create_executor('debug')
-    relay_out = ex.evaluate(expr)(**params)
+    mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
+    ex = relay.create_executor('debug', mod=mod)
+    relay_out = ex.evaluate()(**params)
     if isinstance(relay_out, relay.backend.interpreter.TensorValue):
         np.testing.assert_allclose(tf_out, relay_out.asnumpy())
     else:
