@@ -38,19 +38,19 @@ class DatatypesLowerer : public IRMutator {
     return expr;
   }
 
-#define DEFINE_MUTATE__(OP)                                                    \
-  inline Expr Mutate_(const OP *op, const Expr &e) final {                     \
-    Expr expr = IRMutator::Mutate_(op, e);                                     \
-    op = expr.as<OP>();                                                        \
-    auto type_code = op->type.code();                                          \
-    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {           \
-      auto lower = Get##OP##LowerFunc(target_, type_code);                     \
-      CHECK(lower) << #OP " lowering function for target " << target_          \
-                   << " type " << static_cast<unsigned>(type_code)             \
-                   << "not found";                                             \
-      return (*lower)(expr);                                                   \
-    }                                                                          \
-    return expr;                                                               \
+#define DEFINE_MUTATE__(OP)                                           \
+  inline Expr Mutate_(const OP* op, const Expr& e) final {            \
+    Expr expr = IRMutator::Mutate_(op, e);                            \
+    op = expr.as<OP>();                                               \
+    auto type_code = op->type.code();                                 \
+    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {  \
+      auto lower = Get##OP##LowerFunc(target_, type_code);            \
+      CHECK(lower) << #OP " lowering function for target " << target_ \
+                   << " type " << static_cast<unsigned>(type_code)    \
+                   << "not found";                                    \
+      return (*lower)(expr);                                          \
+    }                                                                 \
+    return expr;                                                      \
   }
 
   // TODO(gus) this list should be the same as the list of
@@ -82,7 +82,7 @@ class DatatypesLowerer : public IRMutator {
   // is this correct? Somehow, it works, but I'm not sure how; the codegen stage
   // is somehow gracefully able to encounter a Load of a custom datatype and not
   // fail.
-  //DEFINE_MUTATE__(Load)
+  // DEFINE_MUTATE__(Load)
   DEFINE_MUTATE__(Ramp)
   DEFINE_MUTATE__(Broadcast)
   DEFINE_MUTATE__(Let)
