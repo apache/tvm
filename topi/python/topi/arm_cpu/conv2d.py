@@ -700,6 +700,10 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
 
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
+    if F == tvm.relay.op:
+        # Derive channels for frontends (e.g ONNX) that miss "channel" field.
+        new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
+
     dilation = attrs.get_int_tuple("dilation")
     assert attrs.get_int_tuple("dilation") == (1, 1), "Does not support dilation " \
                                                       "when alter_op_layout is enabled"

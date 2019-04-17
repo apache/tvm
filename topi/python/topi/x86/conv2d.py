@@ -327,11 +327,16 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
 
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
+
+    if F == tvm.relay.op:
+        # Derive channels for frontends (e.g ONNX) that miss "channel" field.
+        new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
+
     data, kernel = tinfo[0], tinfo[1]
     batch_size, in_channel, height, width = get_const_tuple(data.shape)
 
     groups = attrs.get_int("groups")
-    out_channel = attrs.get_int("channels") if F == sym else attrs.get_int("channels").value
+    out_channel = attrs.get_int("channels") if F == sym else new_attrs["channels"]
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
