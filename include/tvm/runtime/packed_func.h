@@ -956,18 +956,8 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  // TODO(gus) we need to set in stone the formatting for custom datatypes. The
-  // main open question that I see is how we use the `bits` field, if at all.
-  // Each custom type will have its underlying storage type; should this be
-  // considered the same as the bits field?
   os << TypeCode2Str(t.code);
   if (t.code == kHandle) return os;
-  // For now, just don't append the bits if the datatype is custom. This is to
-  // keep it consistent with the parser, which doesn't expect a bits field after
-  // a custom datatype.
-  // if (!GetCustomDatatypeRegistered(t.code)) os << static_cast<int>(t.bits);
-  // TODO(gus) actually, changed my mind on this; we need the bits in the string
-  // because we can't get that info any other way on the Python side
   os << static_cast<int>(t.bits);
   if (t.lanes != 1) {
     os << 'x' << static_cast<int>(t.lanes);
@@ -1036,14 +1026,7 @@ inline TVMType String2TVMType(std::string s) {
     scan += custom_name_len + 1;
 
     auto type_name = s.substr(7, custom_name_len);
-    // TODO(gus) asserts for this?
     t.code = GetTypeCode(type_name);
-
-    // TODO(gus) at this point, the custom type parsing is done. To determine
-    // the storage type (e.g. the width of the opaque block of data that will be
-    // used to store an instance of this data), we rely on the user to specify
-    // it after the `custom[typename]` part of the type string.
-    // Need to document this very clearly!
   } else {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;
