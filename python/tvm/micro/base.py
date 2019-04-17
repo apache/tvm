@@ -11,9 +11,8 @@ from ..contrib import util
 from ..api import register_func, convert
 
 
-# how to call micro_init() in program?
-def micro_init(device_type):
-    _MicroInit(device_type)
+def micro_init(device_type, init_source, port=0):
+    _MicroInit(device_type, init_source, port)
 
 
 _init_api("tvm.micro", "tvm.micro.base")

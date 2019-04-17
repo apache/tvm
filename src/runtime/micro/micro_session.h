@@ -183,7 +183,28 @@ class MicroSession {
    */
   void* AllocateTVMArgs(TVMArgs args);
 
-  void TargetAwareWrite(TVMArray* val, AllocatorStream* stream, size_t as, int i);
+  /*!
+   * \brief sets the init stub source path
+   * \param source path to init stub source
+   */
+  void SetInitSource(std::string source);
+
+  /*!
+   * \brief writes TVMArray to stream
+   * \param val pointer to the TVMArray to be written
+   * \param stream stream for values to be written into
+   * \return real address of the allocated TVMArray
+   */
+  void* TargetAwareWrite(TVMArray* val, AllocatorStream* stream);
+
+  /*!
+   * \brief writes int64_t array to stream
+   * \param val address to the int64_t array
+   * \param n number of elements in the array
+   * \param stream stream for values to be written into
+   * \return real address of the allocated int64_t array
+   */
+  void* TargetAwareWrite(int64_t* val, size_t n, AllocatorStream* stream);
 };
 }  // namespace runtime
 }  // namespace tvm

@@ -138,6 +138,6 @@ TVM_REGISTER_GLOBAL("module.loadfile_micro_dev")
     std::shared_ptr<MicroModuleNode> n = std::make_shared<MicroModuleNode>();
     n->InitMicroModule(args[0]);
     *rv = runtime::Module(n);
-  });
+    });
 }  // namespace runtime
 }  // namespace tvm

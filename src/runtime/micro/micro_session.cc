@@ -36,13 +36,13 @@ MicroSession::~MicroSession() {
 }
 
 void MicroSession::InitSession(TVMArgs args) {
-  // TODO: add init stub source path in args of micro_init
-  init_source_ = "/home/pratyush/utvm/tvm-riscv/src/runtime/micro/device/utvm_runtime.cc";
   std::string device_type = args[0];
   if (device_type == "host") {
     low_level_device_ = HostLowLevelDeviceCreate(kMemorySize);
+    SetInitSource(args[1]);
   } else if (device_type == "openocd") {
-    low_level_device_ = OpenOCDLowLevelDeviceCreate(args[1]);
+    low_level_device_ = OpenOCDLowLevelDeviceCreate(args[2]);
+    SetInitSource(args[1]);
   } else {
     LOG(FATAL) << "Unsupported micro low-level device";
   }
@@ -126,6 +126,10 @@ void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
 }
 
+void MicroSession::SetInitSource(std::string source) {
+  init_source_ = source;
+}
+
 void MicroSession::LoadInitStub() {
   // compile init stub
   const auto* f = Registry::Get("tvm_callback_compile_micro");
@@ -141,7 +145,7 @@ void MicroSession::LoadInitStub() {
   CHECK(init_text_start_ != nullptr &&
         init_data_start_ != nullptr && 
         init_bss_start_ != nullptr)
-    << "Not enough space to load init binary on device";
+      << "Not enough space to load init binary on device";
   std::string relocated_bin = RelocateBinarySections(
       binary_path,
       GetAddr(init_text_start_, low_level_device()->base_addr()),
@@ -161,48 +165,37 @@ void MicroSession::LoadInitStub() {
 
 // TODO(mutinifni): overload TargetAwareWrite with different val types as need be
 
-void MicroSession::TargetAwareWrite(TVMArray* val, AllocatorStream* stream, size_t args_offset, int i) {
-  void* base_addr = (uint8_t*) low_level_device()->base_addr() + kArgsStart;
-  size_t val_offset = stream->Allocate(sizeof(TVMArray));
-  size_t shape_size = 1;
-  for (int dim = 0; dim < val->ndim; dim++)
-    shape_size *= val->shape[dim];
-  size_t shape_offset = stream->Allocate(sizeof(int64_t) * val->ndim);
-  stream->Seek(shape_offset);
-  stream->Write(val->shape, sizeof(int64_t) * val->ndim);
-  size_t strides_offset = 0;
-  if (val->strides != NULL) {
-    strides_offset = stream->Allocate(sizeof(int64_t) * val->ndim);
-    stream->Seek(strides_offset);
-    stream->Write(val->strides, sizeof(int64_t) * val->ndim);
+void* MicroSession::TargetAwareWrite(int64_t* val, size_t n,
+                                     AllocatorStream* stream) {
+  Slot arr_slot(stream, stream->AllocInt64Array(n));
+  arr_slot.Write(val, n);
+  return arr_slot.addr();
+}
+
+void* MicroSession::TargetAwareWrite(TVMArray* val, AllocatorStream* stream) {
+  TVMArray arr = *val;
+  Slot tarr_slot(stream, stream->AllocTVMArray());
+  TargetAwareWrite(val->shape, val->ndim, stream);
+  void* shape_addr = TargetAwareWrite(val->shape, val->ndim, stream);
+  void* strides_addr = nullptr;
+  if (val->strides != nullptr) {
+    strides_addr = TargetAwareWrite(val->strides, val->ndim, stream);
   }
-  stream->Seek(val_offset);
-  stream->Write(val, sizeof(TVMArray)); 
-  void* data_addr = (uint8_t*) base_addr +
-                    reinterpret_cast<std::uintptr_t>(val->data) -
-                    kArgsStart;
-  void* shape_addr = (uint8_t*) base_addr + shape_offset;
-  void* strides_addr = NULL;
-  if (val->strides != NULL)
-    strides_addr = (uint8_t*) base_addr + strides_offset;
-  stream->Seek(val_offset);
-  stream->Write(&data_addr, sizeof(void*));
-  stream->Seek(val_offset + sizeof(void*) + sizeof(DLContext) +
-               sizeof(int) + sizeof(DLDataType));
-  stream->Write(&shape_addr, sizeof(void*));
-  stream->Write(&strides_addr, sizeof(void*));
-  void* val_addr = (uint8_t*) base_addr + val_offset;
-  // TODO: get args_offset and i somehow
-  stream->Seek(args_offset + sizeof(TVMValue*) * i);
-  stream->Write(&val_addr, sizeof(void*));
+  void* data_addr = (uint8_t*) low_level_device()->base_addr() +
+                    reinterpret_cast<std::uintptr_t>(val->data);
+  arr.data = data_addr;
+  arr.shape = (int64_t*) shape_addr;
+  arr.strides = (int64_t*) strides_addr;
+  tarr_slot.Write(&arr);
+  return tarr_slot.addr();
 }
 
 void* MicroSession::AllocateTVMArgs(TVMArgs args) {
   std::string args_buf;
-  AllocatorStream* stream = new AllocatorStream(&args_buf);
-  // TODO: rethink this, and freeing
+  // TODO(mutinifni): this part is a bit weird
   void* base_addr = GetAddr(args_allocator_->section_max(),
                             low_level_device()->base_addr());
+  AllocatorStream* stream = new AllocatorStream(&args_buf, base_addr);
   const TVMValue* values = args.values;
   const int* type_codes = args.type_codes;
   int num_args = args.num_args;
@@ -214,17 +207,20 @@ void* MicroSession::AllocateTVMArgs(TVMArgs args) {
   stream->Write(&num_args, sizeof(int));
   for (int i = 0; i < num_args; i++) {
     switch(type_codes[i]) {
-      case kNDArrayContainer:
-        TargetAwareWrite((TVMArray*) values[i].v_handle, stream, args_offset, i);
+      case kNDArrayContainer: {
+        void* val_addr = TargetAwareWrite((TVMArray*) values[i].v_handle, stream);
+        stream->Seek(args_offset + sizeof(TVMValue*) * i);
+        stream->Write(&val_addr, sizeof(void*));
         break;
+      }
       // TODO(mutinifni): implement other cases if needed
       default:
         LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
         break;
     }
   }
-  void* ad = args_allocator_->Allocate(stream->GetBufferSize());
-  low_level_device()->Write(ad, (void*) args_buf.c_str(),
+  void* stream_addr = args_allocator_->Allocate(stream->GetBufferSize());
+  low_level_device()->Write(stream_addr, (void*) args_buf.c_str(),
                             stream->GetBufferSize());
   return base_addr;
 }
@@ -232,7 +228,6 @@ void* MicroSession::AllocateTVMArgs(TVMArgs args) {
 // initializes micro session and low-level device from Python frontend
 TVM_REGISTER_GLOBAL("micro._MicroInit")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    LOG(INFO) << "micro init called";
     std::shared_ptr<MicroSession> session = MicroSession::Global();
     session->InitSession(args);
     });
