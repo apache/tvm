@@ -78,13 +78,13 @@ class DatatypesLowerer : public IRMutator {
   DEFINE_MUTATE__(LE)
   DEFINE_MUTATE__(GT)
   DEFINE_MUTATE__(GE)
-  DEFINE_MUTATE__(Select)
-  DEFINE_MUTATE__(Ramp)
-  DEFINE_MUTATE__(Broadcast)
-  DEFINE_MUTATE__(Let)
-  DEFINE_MUTATE__(Call)
-  DEFINE_MUTATE__(Variable)
-  DEFINE_MUTATE__(Shuffle)
+  // DEFINE_MUTATE__(Select)
+  // DEFINE_MUTATE__(Ramp)
+  // DEFINE_MUTATE__(Broadcast)
+  // DEFINE_MUTATE__(Let)
+  // DEFINE_MUTATE__(Call)
+  // DEFINE_MUTATE__(Variable)
+  // DEFINE_MUTATE__(Shuffle)
 
  private:
   std::string target_;
