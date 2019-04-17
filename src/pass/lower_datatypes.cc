@@ -79,16 +79,6 @@ class DatatypesLowerer : public IRMutator {
   DEFINE_MUTATE__(GT)
   DEFINE_MUTATE__(GE)
   DEFINE_MUTATE__(Select)
-  // TODO(gus) currently running into an error where, in a simple program
-  // consisting of casting two placeholder floats to bfloats, adding them, and
-  // casting back to float, the lowering is encountering a Load of a bfloat.
-  // This makes sense; when we use the cast values, this is technically a Load
-  // in TVM.
-  // One way to make this go away for now is to remove Load from this list. But
-  // is this correct? Somehow, it works, but I'm not sure how; the codegen stage
-  // is somehow gracefully able to encounter a Load of a custom datatype and not
-  // fail.
-  // DEFINE_MUTATE__(Load)
   DEFINE_MUTATE__(Ramp)
   DEFINE_MUTATE__(Broadcast)
   DEFINE_MUTATE__(Let)
