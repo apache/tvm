@@ -301,13 +301,11 @@ Expr DenseRealize(const Call& ref_call,
                   const NodeRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 2);
-  if (!new_args[0]->derived_from<TempExprNode>() && !new_args[1]->derived_from<TempExprNode>()) {
+  if (!new_args[0]->derived_from<TempExprNode>() || !new_args[1]->derived_from<TempExprNode>()) {
     return Expr(nullptr);
   }
   const auto* lhs = new_args[0].as<QRealizeIntExprNode>();
-  CHECK(lhs);
   const auto* rhs = new_args[1].as<QRealizeIntExprNode>();
-  CHECK(rhs);
 
   Expr ldata = lhs->data;
   if (lhs->dtype != cfg->dtype_input) {
