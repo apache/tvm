@@ -658,7 +658,7 @@ bool BatchMatmulRel(const Array<Type>& types,
   const auto* x = types[0].as<TensorTypeNode>();
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
-  if (x->shape.size() != 3 || y->shape.size() != 3) return false;
+  CHECK(x->shape.size() == 3 && y->shape.size() == 3);
   CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
       << "BatchDot: batch dimension doesn't match, "
       << " x shape=" << x->shape
