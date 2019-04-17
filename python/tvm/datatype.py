@@ -16,6 +16,11 @@ def _datatype_register_op(extern_func_name,
                           src_datatype_name=None):
     """Register an external function which computes the given op.
 
+    Currently, this will only work with Casts and binary expressions
+    whose arguments are named `a` and `b`.
+    TODO(gus) figure out what other special cases must be handled by
+        looking through expr.py.
+
     Parameters
     ----------
     extern_func_name : str
