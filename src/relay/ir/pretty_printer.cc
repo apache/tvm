@@ -592,6 +592,22 @@ class PrettyPrinter :
     return AllocTypeVar(GetRef<TypeVar>(node));
   }
 
+  Doc VisitType_(const GlobalTypeVarNode* node) final {
+    return Doc(node->var->name_hint);
+  }
+
+  Doc VisitType_(const TypeCallNode* node) final {
+    Doc doc = PrintType(node->func, false);
+    std::vector<Doc> args;
+    for (const Type& t : node->args) {
+      args.push_back(PrintType(t, false));
+    }
+    doc << "[";
+    doc << PrintVec(args);
+    doc << "]";
+    return doc;
+  }
+
   Doc VisitType_(const TensorTypeNode* node) final {
     // scalar type
     if (node->shape.size() == 0) {
