@@ -51,6 +51,12 @@ def test_tuple_value():
     np.testing.assert_allclose(tv[2].asnumpy(), 3)
 
 
+def test_tuple_getitem():
+    two = relay.add(relay.const(1), relay.const(1))
+    func = relay.Function([], relay.TupleGetItem(relay.Tuple([relay.const(1), relay.const(2)]), 0))
+    check_eval(func, [], 1)
+
+
 def test_id():
     x = relay.var('x', 'float32')
     ident = relay.Function([x], x)
@@ -223,4 +229,6 @@ if __name__ == "__main__":
     test_kwargs_params()
     test_ref()
     test_tensor_value()
+    test_tuple_value()
+    test_tuple_getitem()
     test_function_taking_adt_ref_tuple()
