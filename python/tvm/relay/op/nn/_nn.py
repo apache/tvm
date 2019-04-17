@@ -182,20 +182,6 @@ def schedule_conv2d_transpose(attrs, outs, target):
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # bias_add
-@reg.register_compute("nn.bias_add")
-def compute_bias_add(attrs, inputs, out_dtype, target):
-    """Compute definition of conv2d_transpose"""
-    axis = attrs.axis
-    bias = inputs[1]
-    data_ndim = len(inputs[0].shape)
-    if axis < 0:
-        axis = axis + data_ndim
-    num_newaxis = data_ndim - axis - 1
-
-    if num_newaxis:
-        bias = topi.expand_dims(bias, axis=1, num_newaxis=num_newaxis)
-    return [topi.add(inputs[0], bias)]
-
 reg.register_schedule("nn.bias_add", schedule_injective)
 reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)
 
