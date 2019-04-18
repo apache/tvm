@@ -180,7 +180,7 @@ def test_pow():
     x = relay.var("x", t)
     double = relay.Function([x], x + x)
     i = relay.var("i", t)
-    func = relay.Function([i], relay.Call(p.iterate(double, p.s(p.s(p.s(p.z())))), [i]))
+    func = relay.Function([i], relay.Call(p.iterate(double, relay.const(3)), [i]))
     back_func = relay.ir_pass.infer_type(gradient(func, mod=mod), mod=mod)
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     i_nd = rand(dtype, *shape)

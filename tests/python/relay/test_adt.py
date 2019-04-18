@@ -26,6 +26,43 @@ p = Prelude(mod)
 ctx = tvm.context("llvm", 0)
 intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
 
+# We will add a simple Peano nat type for testing purposes
+def define_nat_adt(prelude):
+    """Defines a Peano (unary) natural number ADT.
+    Zero is represented by z(). s(n) adds 1 to a nat n."""
+    prelude.nat = relay.GlobalTypeVar("nat")
+    prelude.z = relay.Constructor("z", [], prelude.nat)
+    prelude.s = relay.Constructor("s", [prelude.nat()], prelude.nat)
+    prelude.mod[prelude.nat] = relay.TypeData(prelude.nat, [], [prelude.z, prelude.s])
+
+
+def define_nat_double(prelude):
+    """Defines a function that doubles a nat."""
+    prelude.double = relay.GlobalVar("double")
+    x = relay.Var("x", prelude.nat())
+    y = relay.Var("y")
+    z_case = relay.Clause(relay.PatternConstructor(prelude.z), prelude.z())
+    s_case = relay.Clause(relay.PatternConstructor(prelude.s, [relay.PatternVar(y)]),
+                          prelude.s(prelude.s(prelude.double(y))))
+    prelude.mod[prelude.double] = relay.Function([x], relay.Match(x, [z_case, s_case]))
+
+
+def define_nat_add(prelude):
+    """Defines a function that adds two nats."""
+    prelude.add = relay.GlobalVar("add")
+    x = relay.Var("x", prelude.nat())
+    y = relay.Var("y", prelude.nat())
+    a = relay.Var("a")
+    z_case = relay.Clause(relay.PatternConstructor(prelude.z), y)
+    s_case = relay.Clause(relay.PatternConstructor(prelude.s, [relay.PatternVar(a)]),
+                          prelude.s(prelude.add(a, y)))
+    prelude.mod[prelude.add] = relay.Function([x, y], relay.Match(x, [z_case, s_case]))
+
+
+define_nat_adt(p)
+define_nat_double(p)
+define_nat_add(p)
+    
 z = p.z
 s = p.s
 nat = p.nat
@@ -158,11 +195,11 @@ def test_nth():
     expected = list(range(10))
     l = nil()
     for i in reversed(expected):
-        l = cons(build_nat(i), l)
+        l = cons(relay.const(i), l)
 
     got = []
     for i in range(len(expected)):
-        got.append(count(intrp.evaluate(nth(l, build_nat(i)))))
+        got.append(intrp.evaluate(nth(l, relay.const(i))))
 
     assert got == expected
 
@@ -175,19 +212,19 @@ def test_update():
 
     # set value
     for i, v in enumerate(expected):
-        l = update(l, build_nat(i), build_nat(v))
+        l = update(l, relay.const(i), build_nat(v))
 
     got = []
     for i in range(len(expected)):
-        got.append(count(intrp.evaluate(nth(l, build_nat(i)))))
+        got.append(count(intrp.evaluate(nth(l, relay.const(i)))))
 
     assert got == expected
 
 def test_length():
     a = relay.TypeVar("a")
-    assert mod[length].checked_type == relay.FuncType([l(a)], nat(), [a])
+    assert mod[length].checked_type == relay.FuncType([l(a)], relay.scalar_type('int32'), [a])
     res = intrp.evaluate(length(cons(z(), cons(z(), cons(z(), nil())))))
-    assert count(res) == 3
+    assert res == 3
 
 
 def test_map():
@@ -263,7 +300,7 @@ def test_foldr1():
 
 
 def test_sum():
-    assert mod[sum].checked_type == relay.FuncType([l(nat())], nat())
+    assert mod[sum].checked_type == relay.FuncType([l(relay.scalar_type('int32'))], relay.scalar_type('int32'))
     res = intrp.evaluate(sum(cons(build_nat(1), cons(build_nat(2), nil()))))
     assert count(res) == 3
 
@@ -532,7 +569,7 @@ def test_tmap():
 def test_size():
     a = relay.TypeVar("a")
     lhs = mod[size].checked_type
-    rhs = relay.FuncType([tree(a)], nat(), [a])
+    rhs = relay.FuncType([tree(a)], relay.scalar_type('int32'), [a])
     assert lhs == rhs
 
     root = rose(z(), cons(rose(z(), nil()),
@@ -540,7 +577,7 @@ def test_size():
                                        nil())))
     t = rose(z(), cons(root, cons(root, cons(root, nil()))))
     res = intrp.evaluate(size(t))
-    assert count(res) == 10
+    assert res == 10
 
 
 def test_wildcard_match_solo():
@@ -660,6 +697,7 @@ def test_nested_pattern_match():
 
     assert count(res) == 2
 
+
 def test_compose():
     n = relay.Var('n')
     inc = relay.Function([n], s(n))
@@ -667,10 +705,12 @@ def test_compose():
     res = intrp.evaluate(relay.Call(compose(inc, double), [s(s(z()))]))
     assert count(res) == 5
 
+
 def test_iterate():
-    expr = relay.Call(iterate(double, build_nat(2)), [build_nat(3)])
+    expr = relay.Call(iterate(double, relay.const(2)), [build_nat(3)])
     res = intrp.evaluate(relay.Function([], expr)())
     assert count(res) == 12
+
 
 if __name__ == "__main__":
     test_nat_constructor()
