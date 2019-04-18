@@ -444,7 +444,6 @@ class Prelude:
         self.size = GlobalVar("size")
         a = TypeVar("a")
         t = Var("t", self.tree(a))
-        x = Var("x", self.tree(a))
         z = Var("z")
         rose_case = Clause(PatternConstructor(self.rose, [PatternWildcard(), PatternVar(z)]),
                            add(const(1), self.sum(self.map(self.size, z))))
@@ -483,7 +482,7 @@ class Prelude:
 
     def define_iterate(self):
         """Defines a function that take a number n and a function f;
-        returns a closure that takes an argument and applies f 
+        returns a closure that takes an argument and applies f
         n times to its argument.
 
         Signature: fn<a>(f : fn(a) -> a, n : Tensor[(), int32]) -> fn(a) -> a
