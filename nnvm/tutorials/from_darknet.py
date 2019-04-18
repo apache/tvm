@@ -153,7 +153,7 @@ elif MODEL_NAME == 'yolov3':
 # do the detection and bring up the bounding boxes
 thresh = 0.5
 nms_thresh = 0.45
-img = nnvm.testing.darknet.load_image_color(test_image)
+img = nnvm.testing.darknet.load_image_color(img_path)
 _, im_h, im_w = img.shape
 dets = nnvm.testing.yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh,
                                                       1, tvm_out)
@@ -172,6 +172,6 @@ with open(coco_path) as f:
 
 names = [x.strip() for x in content]
 
-nnvm.testing.yolo_detection.draw_detections(img, dets, thresh, names, last_layer.classes)
+nnvm.testing.yolo_detection.draw_detections(font_path, img, dets, thresh, names, last_layer.classes)
 plt.imshow(img.transpose(1, 2, 0))
 plt.show()
