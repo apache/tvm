@@ -23,8 +23,6 @@ from tvm.relay.prelude import Prelude
 
 mod = relay.Module()
 p = Prelude(mod)
-ctx = tvm.context("llvm", 0)
-intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
 
 # We will add a simple Peano nat type for testing purposes
 def define_nat_adt(prelude):
@@ -62,7 +60,10 @@ def define_nat_add(prelude):
 define_nat_adt(p)
 define_nat_double(p)
 define_nat_add(p)
-    
+
+ctx = tvm.context("llvm", 0)
+intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
+
 z = p.z
 s = p.s
 nat = p.nat
@@ -301,7 +302,7 @@ def test_foldr1():
 
 def test_sum():
     assert mod[sum].checked_type == relay.FuncType([l(relay.scalar_type('int32'))], relay.scalar_type('int32'))
-    res = intrp.evaluate(sum(cons(build_nat(1), cons(build_nat(2), nil()))))
+    res = intrp.evaluate(sum(cons(relay.const(1), cons(relay.const(2), nil()))))
     assert count(res) == 3
 
 
