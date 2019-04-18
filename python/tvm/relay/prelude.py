@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
-"""Adds certain standard global functions and ADT definitions to the module."""
+"""A prelude containing useful global functions and ADT definitions."""
+import os
 from .ty import GlobalTypeVar, TypeVar, FuncType, TupleType, scalar_type
 from .expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
 from .op.tensor import add, subtract, equal
@@ -502,7 +503,7 @@ class Prelude:
 
 
     def __init__(self, mod):
-        self.mod = mod
+        self.mod = load_prelude(mod)
         self.define_list_adt()
         self.define_list_hd()
         self.define_list_tl()
@@ -533,3 +534,12 @@ class Prelude:
         self.define_id()
         self.define_compose()
         self.define_iterate()
+
+__PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
+
+def load_prelude(mod=None):
+    from .parser import fromtext
+    file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
+    with open(file) as prelude:
+        t = fromtext(prelude.read())
+        import pdb; pdb.set_trace()

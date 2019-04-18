@@ -1,0 +1,3 @@
+fn @mm_id(%x: Tensor[(10)]) -> Tensor[(10)] {
+    %x
+}
