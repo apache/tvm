@@ -54,14 +54,11 @@ class DPTuner(BaseGraphTuner):
         """Forward pass in DP to generate states for all stages.
         """
         self._logger.info("Start forward pass...")
-        input_names = self._input_shapes.keys()
-        for node_idx, node in enumerate(self._node_list):
-            if node["op"] in self._target_ops or has_multiple_inputs(self._node_list, node_idx,
-                                                                     input_names):
-                stage = DPStage(idx=node_idx, target_ops=self._target_ops,
-                                **self._global_data_dict)
-                self._check_num_states(stage.full_states.size)
-                self._stage_dict[node_idx] = stage
+        for node_idx in sorted(self._in_nodes_dict.keys()):
+            stage = DPStage(idx=node_idx, target_ops=self._target_ops,
+                            **self._global_data_dict)
+            self._check_num_states(stage.full_states.size)
+            self._stage_dict[node_idx] = stage
         self._logger.info("Finished forward pass.")
 
     def _backward(self):
