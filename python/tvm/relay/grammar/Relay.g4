@@ -111,8 +111,8 @@ expr
   // | 'debug'                                # debug
   ;
 
-func: 'fn'        '(' argList ')' ('->' type_)? body ;
-defn: 'def' ident '(' argList ')' ('->' type_)? body ;
+func: 'fn'        (typeParamSeq)? '(' argList ')' ('->' type_)? body ;
+defn: 'def' ident (typeParamSeq)? '(' argList ')' ('->' type_)? body ;
 
 argList
   : varList
@@ -132,6 +132,12 @@ attr: CNAME '=' expr ;
 // relations: 'where' relation (',' relation)* ;
 // relation: ident '(' (type_ (',' type_)*)? ')' ;
 
+typeParamSeq
+  : '[' ']'
+  | '[' ident ']'
+  | '[' ident (',' ident)+ ']'
+  ;
+
 type_
   : '(' ')'                                         # tupleType
   | '(' type_ ',' ')'                               # tupleType
@@ -140,7 +146,7 @@ type_
   | 'Tensor' '[' shapeSeq ',' type_ ']'             # tensorType
   // currently unused
   // | identType '[' (type_ (',' type_)*)? ']'         # callType
-  | 'fn' '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
+  | 'fn' (typeParamSeq)? '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
   | '_'                                             # incompleteType
   | NAT                                             # intType
   ;

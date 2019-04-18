@@ -22,6 +22,7 @@ from .expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
+from .module import Module
 
 class Prelude:
     """Contains standard definitions."""
@@ -504,6 +505,7 @@ class Prelude:
 
     def __init__(self, mod):
         self.mod = load_prelude(mod)
+        self.id = self.mod["id"]
         self.define_list_adt()
         self.define_list_hd()
         self.define_list_tl()
@@ -531,7 +533,6 @@ class Prelude:
         self.define_tree_map()
         self.define_tree_size()
 
-        self.define_id()
         self.define_compose()
         self.define_iterate()
 
@@ -539,7 +540,13 @@ __PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
 
 def load_prelude(mod=None):
     from .parser import fromtext
+
+    if mod is None:
+        mod = Module({})
+
     file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
     with open(file) as prelude:
-        t = fromtext(prelude.read())
-        import pdb; pdb.set_trace()
+        prelude = fromtext(prelude.read())
+        assert isinstance(mod, Module)
+        mod.update(prelude)
+        return mod

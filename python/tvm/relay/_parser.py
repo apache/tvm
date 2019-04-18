@@ -242,10 +242,12 @@ class ParseTreeToRelayIR(RelayVisitor):
             self.visit_list(ctx.defn())
             return self.module
 
-        return self.visit(ctx.expr())
+        if ctx.expr():
+            return self.visit(ctx.expr())
+
+        return self.module
 
     # Exprs
-
     def visitOpIdent(self, ctx):
         # type: (RelayParser.OpIdentContext) -> op.Op
         return op.get(ctx.CNAME().getText())
@@ -368,6 +370,12 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.enter_var_scope()
         # Capture type params in params.
         self.enter_type_param_scope()
+        type_params = ctx.typeParamSeq().ident()
+        assert type_params, "type params are none"
+        for ty_param in type_params:
+            name = ty_param.getText()
+            self.mk_typ(name, ty.Kind.Type)
+
         var_list, attr_list = self.visit(ctx.argList())
         ret_type = self.getType_(ctx.type_())
 
@@ -454,15 +462,20 @@ class ParseTreeToRelayIR(RelayVisitor):
         return None
 
     def visitIdentType(self, ctx):
+        # TODO(@jroesch) Identifier Type doesn't make sense should be Type Identifier.
         # type: (RelayParser.IdentTypeContext) -> Union[ty.TensorType, str]
-        ident_type = ctx.CNAME().getText()
+        type_ident = ctx.CNAME().getText()
 
-        # look through all type prefixes for a match
+        # Look through all type prefixes for a match
         for type_prefix in TYPE_PREFIXES:
-            if ident_type.startswith(type_prefix):
-                return ty.scalar_type(ident_type)
+            if type_ident.startswith(type_prefix):
+                return ty.scalar_type(type_ident)
 
-        raise ParseError("Unknown builtin type: {}".format(ident_type))
+        type_param = lookup(self.type_param_scopes, type_ident)
+        if type_param:
+            return type_param
+
+        raise ParseError("Unknown builtin type: {}".format(type_ident))
 
     # def visitCallType(self, ctx):
     #     # type: (RelayParser.CallTypeContext) -> Union[expr.Expr, ty.TensorType]
