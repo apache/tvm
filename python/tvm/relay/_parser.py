@@ -370,20 +370,25 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.enter_var_scope()
         # Capture type params in params.
         self.enter_type_param_scope()
-        type_params = ctx.typeParamSeq().ident()
-        assert type_params, "type params are none"
-        for ty_param in type_params:
-            name = ty_param.getText()
-            self.mk_typ(name, ty.Kind.Type)
+        type_params = ctx.typeParamSeq()
+
+        if type_params is not None:
+            type_params = type_params.ident()
+            assert type_params
+            for ty_param in type_params:
+                name = ty_param.getText()
+                self.mk_typ(name, ty.Kind.Type)
 
         var_list, attr_list = self.visit(ctx.argList())
         ret_type = self.getType_(ctx.type_())
 
+        body = self.visit(ctx.body())
+        # NB(@jroesch): you must stay in the type parameter scope until
+        # after you exit the body, you can reference the type parameters
+        # of your parent scopes.
         type_params = list(self.exit_type_param_scope())
         if type_params:
             _, type_params = zip(*type_params)
-
-        body = self.visit(ctx.body())
         self.exit_var_scope()
 
         attrs = tvm.make.node("DictAttrs", **attr_list) if attr_list is not None else None
@@ -475,6 +480,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         if type_param:
             return type_param
 
+        print(type_ident)
         raise ParseError("Unknown builtin type: {}".format(type_ident))
 
     # def visitCallType(self, ctx):

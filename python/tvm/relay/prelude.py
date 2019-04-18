@@ -506,6 +506,7 @@ class Prelude:
     def __init__(self, mod):
         self.mod = load_prelude(mod)
         self.id = self.mod["id"]
+        self.compose = self.mod["compose"]
         self.define_list_adt()
         self.define_list_hd()
         self.define_list_tl()
@@ -533,7 +534,6 @@ class Prelude:
         self.define_tree_map()
         self.define_tree_size()
 
-        self.define_compose()
         self.define_iterate()
 
 __PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))

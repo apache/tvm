@@ -3,3 +3,9 @@ v0.0.1
 def @id[a](%x: a) -> a {
     %x
 }
+
+def @compose[a, b, c](%f: fn(b) -> c, %g: fn(a) -> b) {
+    fn (%x: a) -> c {
+        %f(%g(%x))
+    }
+}
