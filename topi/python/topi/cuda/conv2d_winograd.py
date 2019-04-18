@@ -379,7 +379,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     if "target" in new_attrs:
         del new_attrs["target"]
 
-    if F == tvm.relay.op:
+    if F.__name__ == 'tvm.relay.op':
         # Derive channels for frontends (e.g ONNX) that miss "channel" field.
         new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
 
