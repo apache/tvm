@@ -737,26 +737,30 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
 class RemoveRootTupleVisitor : ExprVisitor {
  public:
   RemoveRootTupleVisitor(const std::unordered_map<const Node*, GraphPartitioner::Group*>& gmap,
-                         IndexedForwardGraph& graph)
-      : gmap_(gmap), graph_(graph) {}
+                         const Expr& body)
+    : body_(body), gmap_(gmap) {}
 
-  void UpdateNodeEntries(const Expr& body) { this->VisitExpr(body); }
+  void UpdateNodeEntries(IndexedForwardGraph* graph) {
+    graph_ = graph;
+    this->VisitExpr(body_);
+  }
 
   void VisitExpr_(const TupleNode* tuple) {
     const GraphPartitioner::Group* tuple_group = gmap_.at(tuple)->FindRoot();
     if (tuple_group == gmap_.at(tuple)) {
-      IndexedForwardGraph::Node* tuple_node = graph_.node_map[tuple];
+      IndexedForwardGraph::Node* tuple_node = graph_->node_map[tuple];
       tuple_node->pattern = kOpaque;
       for (auto field : tuple->fields) {
-        IndexedForwardGraph::Node* tuple_filed_node = graph_.node_map[field.get()];
+        IndexedForwardGraph::Node* tuple_filed_node = graph_->node_map[field.get()];
         tuple_filed_node->extern_ref = true;
       }
     }
   }
 
  private:
+  const Expr& body_;
   const std::unordered_map<const Node*, GraphPartitioner::Group*>& gmap_;
-  IndexedForwardGraph& graph_;
+  IndexedForwardGraph* graph_;
 };
 
 
@@ -769,7 +773,7 @@ class FuseMutator : private ExprMutator {
     AssignGroups(graph, fuse_opt_level);
     // Detect and remove tuple nodes that are roots in their groups
     // This is to prevent making a fused function that returns a tuple
-    RemoveRootTupleVisitor(gmap_, graph).UpdateNodeEntries(body);
+    RemoveRootTupleVisitor(gmap_, body).UpdateNodeEntries(&graph);
     // Reassign new groups where detected tuples are no longer roots
     AssignGroups(graph, fuse_opt_level);
 
