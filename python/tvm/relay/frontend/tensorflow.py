@@ -532,6 +532,18 @@ def _pack():
         return _op.concatenate(inputs_reshaped, axis)
     return _impl
 
+def _tile():
+    def _impl(inputs, attr, params):
+        reps = params[inputs.pop().name_hint].asnumpy()
+        new_input = []
+        new_input.append(inputs.pop(0))
+
+        return AttrCvt(
+            op_name='tile',
+            extras={'reps': tuple(reps)},
+            ignores=['Tmultiples'])(new_input, attr)
+    return _impl
+
 def _slice():
     def _impl(inputs, attr, params):
         begin = params.pop(_get_name_hint(inputs[1])).asnumpy().tolist()
@@ -851,6 +863,15 @@ def _where():
         return AttrCvt(op_name="where")(inputs, attr)
     return _impl
 
+def _reverse_v2():
+    def _impl(inputs, attr, params):
+        axis = params.pop(inputs[1].name_hint).asnumpy()[0]
+        return AttrCvt(
+            op_name="reverse",
+            ignores=['Tidx'],
+            extras={'axis': int(axis)})([inputs[0]], attr)
+    return _impl
+
 def _rank():
     def _impl(inputs, attr, params):
         input_shape = attr['_input_shapes'][inputs[0]]
@@ -1078,6 +1099,7 @@ _identity_list = []
 # for 1 to N mapping(composed), use custom callable functions
 # for N to 1 mapping, currently not supported(?)
 _convert_map = {
+    'Add'                               : _elemwise('add'),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'AvgPool'                           : _pooling('avg_pool'),
@@ -1090,60 +1112,65 @@ _convert_map = {
     'ConcatV2'                          : _concatV2(),
     'Conv2D'                            : _conv('conv'),
     'DecodeJpeg'                        : _decode_image(),
+    'DepthwiseConv2dNative'             : _conv('depthwise'),
+    'Equal'                             : _broadcast('equal'),
     'Elu'                               : _elu(),
+    'Exp'                               : AttrCvt('exp'),
     'ExpandDims'                        : _expand_dims(),
+    'Fill'                              : _fill(),
     'Floor'                             : AttrCvt('floor'),
-    'Identity'                          : _identity(),
-    'MatMul'                            : _matmul(),
-    'MaxPool'                           : _pooling('max_pool'),
-    'Add'                               : _elemwise('add'),
-    'Sub'                               : _elemwise('subtract'),
-    'Mul'                               : _elemwise('multiply'),
-    'RealDiv'                           : _elemwise('div'),
-    'Maximum'                           : _elemwise('maximum'),
-    'Minimum'                           : _elemwise('minimum'),
-    'Sum'                               : _sum(),
-    'Square'                            : _square(),
-    'Pack'                              : _pack(),
-    'Slice'                             : _slice(),
-    'LeakyRelu'                         : AttrCvt('leaky_relu'),
-    'Relu'                              : AttrCvt('relu'),
-    'Reshape'                           : _reshape(),
-    'ResizeBilinear'                    : _resize_bilinear(),
-    'Selu'                              : _selu(),
-    'Softmax'                           : _softmax(),
-    'Rsqrt'                             : _rsqrt(),
-    'Squeeze'                           : _squeeze(),
     'FusedBatchNorm'                    : _fused_batch_norm(),
     'FusedBatchNormV2'                  : _fused_batch_norm(),
-    'Relu6'                             : _relu6(),
-    'DepthwiseConv2dNative'             : _conv('depthwise'),
-    'Shape'                             : _shape(),
-    'Sigmoid'                           : AttrCvt('sigmoid'),
-    'Select'                            : _where(),
-    'Fill'                              : _fill(),
-    'GatherV2'                          : _gather(),
     'Gather'                            : _gather(),
-    'StridedSlice'                      : _stridedSlice(),
-    'LRN'                               : _lrn(),
-    'Pad'                               : _pad('Pad'),
-    'PadV2'                             : _pad('PadV2'),
-    'Range'                             : _range(),
-    'Rank'                              : _rank(),
-    'Transpose'                         : _transpose(),
-    'Tanh'                              : AttrCvt('tanh'),
-    'Mean'                              : _mean(),
+    'GatherV2'                          : _gather(),
+    'Greater'                           : _broadcast('greater'),
+    'GreaterEqual'                      : _broadcast('greater_equal'),
+    'Identity'                          : _identity(),
+    'LeakyRelu'                         : AttrCvt('leaky_relu'),
+    'Less'                              : _broadcast('less'),
+    'LessEqual'                         : _broadcast('less_equal'),
     'LogicalAnd'                        : _logical('logical_and'),
     'LogicalOr'                         : _logical('logical_or'),
     'LogicalNot'                        : _logical('logical_not'),
-    'Less'                              : _broadcast('less'),
-    'Greater'                           : _broadcast('greater'),
-    'LessEqual'                         : _broadcast('less_equal'),
-    'GreaterEqual'                      : _broadcast('greater_equal'),
-    'Equal'                             : _broadcast('equal'),
+    'LRN'                               : _lrn(),
+    'MatMul'                            : _matmul(),
+    'MaxPool'                           : _pooling('max_pool'),
+    'Maximum'                           : _elemwise('maximum'),
+    'Mean'                              : _mean(),
+    'Minimum'                           : _elemwise('minimum'),
+    'Mul'                               : _elemwise('multiply'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'Pack'                              : _pack(),
+    'Pad'                               : _pad('Pad'),
+    'PadV2'                             : _pad('PadV2'),
+    'Pow'                               : _elemwise('power'),
+    'Range'                             : _range(),
+    'Rank'                              : _rank(),
+    'RealDiv'                           : _elemwise('div'),
+    'Relu'                              : AttrCvt('relu'),
+    'Relu6'                             : _relu6(),
+    'Reshape'                           : _reshape(),
+    'ResizeBilinear'                    : _resize_bilinear(),
+    'ReverseV2'                         : _reverse_v2(),
+    'Round'                             : AttrCvt('round'),
+    'Rsqrt'                             : _rsqrt(),
+    'Select'                            : _where(),
+    'Selu'                              : _selu(),
+    'Shape'                             : _shape(),
+    'Sigmoid'                           : AttrCvt('sigmoid'),
+    'Sign'                              : AttrCvt('sign'),
+    'Slice'                             : _slice(),
+    'Softmax'                           : _softmax(),
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
+    'Square'                            : _square(),
+    'Squeeze'                           : _squeeze(),
+    'StridedSlice'                      : _stridedSlice(),
+    'Sub'                               : _elemwise('subtract'),
+    'Sum'                               : _sum(),
+    'Tanh'                              : AttrCvt('tanh'),
+    'Tile'                              : _tile(),
+    'Transpose'                         : _transpose(),
     'Unpack'                            : _unpack(),
     'SpaceToBatchND'                    : _space_to_batch_nd(),
     'BatchToSpaceND'                    : _batch_to_space_nd(),

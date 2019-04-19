@@ -763,6 +763,24 @@ def test_forward_unstack():
 
 
 #######################################################################
+# Tile
+# ----
+
+def _test_tile(in_shape, multiples, dtype):
+    np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    tf.tile(in_data, multiples=multiples, name="tile")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'tile:0')
+
+def test_forward_tile():
+    '''test Tile'''
+    _test_tile((2, ), (3, ), "int32")
+    _test_tile((2, 2), (2, 3), "float32")
+    _test_tile((2, 4, 6), (6, 7, 8), "float64")
+
+
+#######################################################################
 # Multi Input to graph
 # --------------------
 
@@ -1354,6 +1372,53 @@ def test_forward_tanh():
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Tanh:0')
 
 #######################################################################
+# Tensor
+# ------
+
+def test_forward_round():
+    """test Round"""
+    np_data = np.random.uniform(-10, 10, size=(5, 7)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (5, 7), name="in_data")
+    tf.round(in_data, name="round")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'round:0')
+
+def _test_forward_reverse_v2(in_shape, axis, dtype):
+    np_data = np.random.uniform(-10, 10, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    tf.reverse(in_data, axis=[axis], name="reverse")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'reverse:0')
+
+def test_forward_reverse_v2():
+    """test ReverseV2"""
+    _test_forward_reverse_v2((2, 3), 0, "int32")
+    _test_forward_reverse_v2((2, 3, 5), 2, "float32")
+    _test_forward_reverse_v2((2, 3, 5, 7), 1, "float32")
+    _test_forward_reverse_v2((2, 3, 5), -1, "float64")
+    _test_forward_reverse_v2((2, 3, 5), -3, "float64")
+
+def test_forward_sign():
+    """test Sign"""
+    np_data = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (5, 7, 11), name="in_data")
+    tf.sign(in_data, name="sign")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'sign:0')
+
+def test_forward_pow_exp():
+    """test Pow"""
+    np_in1 = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
+    np_in2 = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in1 = tf.placeholder(tf.float32, (5, 7, 11), name="in1")
+    in2 = tf.placeholder(tf.float32, (5, 7, 11), name="in2")
+    out1 = tf.pow(in1, in2, name="pow")
+    out = tf.exp(out1, name='exp')
+    compare_tf_with_tvm([np_in1, np_in2], ['in1:0', 'in2:0'], 'pow:0')
+    compare_tf_with_tvm([np_in1, np_in2], ['in1:0', 'in2:0'], 'exp:0')
+
+#######################################################################
 # Mean
 # ----
 def test_forward_mean():
@@ -1394,6 +1459,7 @@ def test_forward_rel_ops():
 # Main
 # ----
 if __name__ == '__main__':
+
     # Transforms
     test_forward_transpose()
     test_forward_reshape()
@@ -1407,6 +1473,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_split()
     test_forward_unstack()
+    test_forward_tile()
 
     # Activations
     test_forward_sigmoid()
@@ -1415,6 +1482,12 @@ if __name__ == '__main__':
     test_forward_elu()
     test_forward_selu()
     test_forward_tanh()
+
+    # Tensor
+    test_forward_round()
+    test_forward_reverse_v2()
+    test_forward_pow_exp()
+    test_forward_sign()
 
     # Reductions
     test_forward_argminmax()
