@@ -748,10 +748,10 @@ class RemoveRootTupleVisitor : ExprVisitor {
   void VisitExpr_(const TupleNode* tuple) {
     const GraphPartitioner::Group* tuple_group = gmap_.at(tuple)->FindRoot();
     if (tuple_group == gmap_.at(tuple)) {
-      IndexedForwardGraph::Node* tuple_node = graph_->node_map[tuple];
+      IndexedForwardGraph::Node* tuple_node = graph_->node_map.at(tuple);
       tuple_node->pattern = kOpaque;
       for (auto field : tuple->fields) {
-        IndexedForwardGraph::Node* tuple_filed_node = graph_->node_map[field.get()];
+        IndexedForwardGraph::Node* tuple_filed_node = graph_->node_map.at(field.get());
         tuple_filed_node->extern_ref = true;
       }
     }
