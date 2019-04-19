@@ -57,7 +57,7 @@ using namespace topi::detail;
 inline Tensor expand_dims(const Tensor& x,
                           int axis,
                           int num_newaxis = 1,
-                          std::string name = "expand_dims",
+                          std::string name = "T_expand_dims",
                           std::string tag = kBroadcast) {
   int ndim = static_cast<int>(x->shape.size());
   CHECK(-ndim - 1 <= axis && axis <= ndim)
@@ -108,7 +108,7 @@ inline Tensor expand_dims(const Tensor& x,
 */
 inline Tensor transpose(const Tensor& x,
                         Array<Integer> axes,
-                        std::string name = "transpose",
+                        std::string name = "T_transpose",
                         std::string tag = kInjective) {
   if (!axes.defined() || axes.size() == 0) {
     axes = Array<Integer>();
@@ -164,7 +164,7 @@ inline Tensor transpose(const Tensor& x,
 */
 inline Tensor flip(const Tensor& x,
                    int axis = 0,
-                   std::string name = "flip",
+                   std::string name = "T_flip",
                    std::string tag = kInjective) {
   size_t src_tensor_dim = x->shape.size();
   int axis_inp = axis;
@@ -204,7 +204,7 @@ inline Tensor flip(const Tensor& x,
 */
 inline Tensor reshape(const Tensor& x,
                       Array<Expr> newshape,
-                      std::string name = "reshape",
+                      std::string name = "T_reshape",
                       std::string tag = kInjective) {
   auto x_shape = x->shape;
   return compute(
@@ -229,7 +229,7 @@ inline Tensor reshape(const Tensor& x,
 inline Tensor squeeze(const Tensor& x,
                       Array<Integer> axis,
                       bool atleast1d = false,
-                      std::string name = "squeeze",
+                      std::string name = "T_squeeze",
                       std::string tag = kInjective) {
   auto ndim = x->shape.size();
   std::vector<int> axis_val;
@@ -291,7 +291,7 @@ inline Tensor squeeze(const Tensor& x,
 */
 inline Tensor concatenate(const Array<Tensor>& inputs,
                           int axis = 0,
-                          std::string name = "concat",
+                          std::string name = "T_concat",
                           std::string tag = kInjective) {
   int ndim = static_cast<int>(inputs[0]->shape.size());
   CHECK(-ndim <= axis && axis < ndim)
@@ -355,7 +355,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
 */
 inline Tensor stack(const Array<Tensor>& inputs,
                     int axis = 0,
-                    std::string name = "stack",
+                    std::string name = "T_stack",
                     std::string tag = kInjective) {
   int ndim = static_cast<int>(inputs[0]->shape.size());
   CHECK(-ndim - 1 <= axis && axis <= ndim)
@@ -408,7 +408,7 @@ inline Tensor stack(const Array<Tensor>& inputs,
 inline Array<Tensor> split(const Tensor& x,
                            Array<Integer> split_indices,
                            int axis,
-                           std::string name = "split",
+                           std::string name = "T_split",
                            std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
@@ -486,7 +486,7 @@ inline Tensor strided_slice(const Tensor& x,
                             const Array<Integer>& begin,
                             const Array<Integer>& end,
                             const Array<Integer>& strides,
-                            std::string name = "T_st_slice",
+                            std::string name = "T_strided_slice",
                             std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
   // Setup the ranges.
@@ -585,7 +585,7 @@ inline Tensor strided_slice(const Tensor& x,
 inline Array<Tensor> split_sections(const Tensor& x,
                                     int num_sections,
                                     int axis,
-                                    std::string name = "T_split",
+                                    std::string name = "T_split_sections",
                                     std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
@@ -1084,7 +1084,7 @@ inline Tensor arange(const Expr start,
                      const Expr stop,
                      const Expr step,
                      Type dtype,
-                     std::string name = "arange",
+                     std::string name = "T_arange",
                      std::string tag = kInjective) {
   Expr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
       tvm::cast(tvm::Float(32), stop - start) / step));
