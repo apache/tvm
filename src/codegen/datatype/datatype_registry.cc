@@ -39,14 +39,13 @@ void DatatypeRegistry::RegisterDatatype(const std::string &type_name,
 
 uint8_t DatatypeRegistry::GetTypeCode(const std::string &type_name) {
   CHECK(name_to_code.find(type_name) != name_to_code.end())
-    << "Type name " << type_name << " not registered";
+      << "Type name " << type_name << " not registered";
   return name_to_code[type_name];
 }
 
 std::string DatatypeRegistry::GetTypeName(uint8_t type_code) {
   CHECK(code_to_name.find(type_code) != code_to_name.end())
-    << "Type code " << static_cast<unsigned>(type_code)
-    << " not registered";
+      << "Type code " << static_cast<unsigned>(type_code) << " not registered";
   return code_to_name[type_code];
 }
 
