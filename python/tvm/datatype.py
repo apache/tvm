@@ -13,7 +13,7 @@ def register(type_name, type_code):
     _api_internal._datatype_register(type_name, type_code)
 
 
-def register_op(extern_func_name,
+def register_op(lower_func,
                 op_name,
                 target,
                 datatype_name,
@@ -27,12 +27,12 @@ def register_op(extern_func_name,
 
     Parameters
     ----------
-    extern_func_name : str
-        The name of the external function to call.
+    lower_func : function
+        The lowering function to call. See create_lower_func.
 
     op_name : str
         The name of the operation which the function computes, given by its
-        Halide::Internal class name (e.g. Add, LE, Not).
+        Halide::Internal class name (e.g. Add, LE, Cast).
 
     target : str
         The name of codegen target.
@@ -45,9 +45,22 @@ def register_op(extern_func_name,
         the argument to the Cast. If op_name is not "Cast", this is unused.
     """
 
-    def lower(op):
-        """Function which lowers an operation to a function call.
+    if op_name is "Cast":
+        assert src_datatype_name is not None
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
+                          + datatype_name + "." + src_datatype_name
+    else:
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
+                          + datatype_name
+    print(lower_func_name)
+    _register_func(lower_func_name, lower_func)
 
+
+def create_lower_func(extern_func_name):
+    """Returns a function which lowers an operation to a function call."""
+
+    def lower(op):
+        """
         Takes an op---either a Cast or a binary op (e.g. an Add) and returns a
         call to the specified external function, passing the op's argument
         (Cast) or arguments (a binary op). The return type of the call depends
@@ -66,12 +79,4 @@ def register_op(extern_func_name,
         else:
             return _make.Call(dtype, extern_func_name, convert([op.a, op.b]),
                               _Call.Extern, None, 0)
-
-    if op_name is "Cast":
-        assert (src_datatype_name is not None)
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + datatype_name + "." + src_datatype_name
-    else:
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + datatype_name
-    _register_func(lower_func_name, lower)
+    return lower

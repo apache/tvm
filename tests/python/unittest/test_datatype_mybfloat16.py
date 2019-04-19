@@ -16,11 +16,15 @@ def test_bfloat():
     #tvm.register_datatype("bfloat16", 24)
     tvm.datatype.register("bfloat", 24)
 
-    tvm.datatype.register_op("FloatToBFloat16_wrapper", "Cast", "llvm",
-                             "bfloat", "float")
-    tvm.datatype.register_op("BFloat16ToFloat_wrapper", "Cast", "llvm",
-                             "float", "bfloat")
-    tvm.datatype.register_op("BFloat16Add_wrapper", "Add", "llvm", "bfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("FloatToBFloat16_wrapper"), "Cast",
+        "llvm", "bfloat", "float")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("BFloat16ToFloat_wrapper"), "Cast",
+        "llvm", "float", "bfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
+        "bfloat")
 
     X = tvm.placeholder((3, ), name="X")
     Y = tvm.placeholder((3, ), name="Y")
