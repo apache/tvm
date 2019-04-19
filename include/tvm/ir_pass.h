@@ -509,7 +509,7 @@ LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
  * \param target The target device.
  * \return Transformed function.
  */
-LoweredFunc LowerDatatypes(LoweredFunc f, const std::string& target);
+LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
 
 /*!
  * \brief Verify if memory accesses are legal for a specific target device type.

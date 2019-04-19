@@ -151,7 +151,7 @@ REGISTER_PASS(LowerThreadAllreduce);
 REGISTER_PASS(LowerWarpMemory);
 REGISTER_PASS(RemapThreadAxis);
 REGISTER_PASS(LowerIntrin);
-REGISTER_PASS(LowerDatatypes);
+REGISTER_PASS(LowerCustomDatatypes);
 REGISTER_PASS(LowerTVMBuiltin);
 REGISTER_PASS(CombineContextCall);
 REGISTER_PASS(VerifyMemory);

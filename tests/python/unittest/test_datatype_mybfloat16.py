@@ -43,7 +43,7 @@ def test_bfloat():
     #def callback(stmt):
     #if isinstance(stmt, tvm.expr.Call):
     #print(stmt.name + " " + stmt.dtype)
-    flist = [ir_pass.LowerDatatypes(func, tgt) for func in flist]
+    flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
     #print(flist[0].body)
     #tvm.ir_pass.PostOrderVisit(flist[0].body, callback)
     built_cast = tvm.build(flist[0], target=tgt)

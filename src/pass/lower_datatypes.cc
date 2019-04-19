@@ -137,7 +137,7 @@ class LoadLowerer : public IRMutator {
   }
 };
 
-LoweredFunc LowerDatatypes(LoweredFunc f, const std::string& target) {
+LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target) {
   auto n = make_node<LoweredFuncNode>(*f.operator->());
   // We lower in stages. First, we lower all operations (e.g. casts, binary ops,
   // etc) to Calls into external libraries. Then we lower Allocates. Finally, we
