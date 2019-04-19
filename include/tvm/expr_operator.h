@@ -555,33 +555,9 @@ inline Expr MakeConstScalar(Type t, ValueType value) {
   if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
   if (DatatypeRegistry::Global()->DatatypeRegistered(
           static_cast<uint8_t>(t.code()))) {
-    switch (t.bits()) {
-    case 1:
-      // TODO(gus): here and below, hardcoding uint to 1.
-      // How should we do this?
-      return ir::UIntImm::make(
-          Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()),
-          static_cast<bool>(value));
-    case 8:
-      return ir::UIntImm::make(
-          Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()),
-          static_cast<uint8_t>(value));
-    case 16:
-      return ir::UIntImm::make(
-          Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()),
-          static_cast<uint16_t>(value));
-    case 32:
-      return ir::UIntImm::make(
-          Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()),
-          static_cast<uint32_t>(value));
-    case 64:
-      return ir::UIntImm::make(
-          Type(static_cast<halideir_type_code_t>(1), t.bits(), t.lanes()),
-          static_cast<uint64_t>(value));
-    default:
-      // TODO(gus): this should be handled earlier
-      LOG(FATAL) << "Custom datatype has invalid storage size";
-    }
+    return ir::UIntImm::make(t,
+                             ConvertConstScalar(static_cast<uint8_t>(t.code()),
+                                                static_cast<double>(value)));
   }
   LOG(FATAL) << "cannot make const for type " << t;
   return Expr();

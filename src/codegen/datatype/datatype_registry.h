@@ -57,6 +57,10 @@ class DatatypeRegistry {
   std::unordered_map<std::string, uint8_t> name_to_code;
 };
 
+// For the custom datatype specified by type_code, convert the value to this
+// datatype and return the bits within a uint64_t.
+uint64_t ConvertConstScalar(uint8_t type_code, double value);
+
 const runtime::PackedFunc *GetCastLowerFunc(const std::string &target,
                                             uint8_t type_code,
                                             uint8_t src_type_code);

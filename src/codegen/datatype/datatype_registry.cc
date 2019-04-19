@@ -76,4 +76,12 @@ const runtime::PackedFunc *GetCastLowerFunc(const std::string &target,
   return runtime::Registry::Get(ss.str());
 }
 
+uint64_t ConvertConstScalar(uint8_t type_code, double value) {
+  std::ostringstream ss;
+  ss << "tvm.datatype.convertconstscalar.float.";
+  ss << DatatypeRegistry::Global()->GetTypeName(type_code);
+  auto make_const_scalar_func = runtime::Registry::Get(ss.str());
+  return (*make_const_scalar_func)(value).operator uint64_t();
+}
+
 }  // namespace tvm
