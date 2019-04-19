@@ -49,7 +49,7 @@ from ._ffi.function import Function
 from ._ffi.base import TVMError, __version__
 from .api import *
 from .intrin import *
-from .datatype import *
+from .custom_datatypes import *
 from .tensor_intrin import decl_tensor_intrin
 from .node import register_node
 from .ndarray import register_extension
