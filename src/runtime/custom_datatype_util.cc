@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file tvm/src/runtime/type_conversions.cc
+ * \file tvm/src/runtime/custom_datatype_util.cc
  * \brief Custom datatype lookup functions needed by runtime
  */
 
@@ -9,8 +9,6 @@
 // depend on the TVM registry, but including tvm/runtime/registry.h in
 // packed_func.h creates an include cycle. This allows us to avoid the cycle (in
 // an admittedly hacky way).
-
-// TODO(gus) think about renaming this file
 
 #include <string.h>
 #include <tvm/runtime/registry.h>
