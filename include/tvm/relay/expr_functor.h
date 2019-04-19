@@ -235,7 +235,7 @@ class ExprMutator
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
-void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit);
+void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 
 /*
  * \brief Bind function parameters or free variables.
