@@ -734,18 +734,45 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
   return std::move(groups_);
 }
 
+class RemoveRootTupleVisitor : ExprVisitor {
+ public:
+  RemoveRootTupleVisitor(const std::unordered_map<const Node*, GraphPartitioner::Group*>& gmap,
+                         IndexedForwardGraph& graph)
+      : gmap_(gmap), graph_(graph) {}
+
+  void UpdateNodeEntries(const Expr& body) { this->VisitExpr(body); }
+
+  void VisitExpr_(const TupleNode* tuple) {
+    const GraphPartitioner::Group* tuple_group = gmap_.at(tuple)->FindRoot();
+    if (tuple_group == gmap_.at(tuple)) {
+      IndexedForwardGraph::Node* tuple_node = graph_.node_map[tuple];
+      tuple_node->pattern = kOpaque;
+      for (auto field : tuple->fields) {
+        IndexedForwardGraph::Node* tuple_filed_node = graph_.node_map[field.get()];
+        tuple_filed_node->extern_ref = true;
+      }
+    }
+  }
+
+ private:
+  const std::unordered_map<const Node*, GraphPartitioner::Group*>& gmap_;
+  IndexedForwardGraph& graph_;
+};
+
+
 class FuseMutator : private ExprMutator {
  public:
   // Run the transform
   Expr Transform(const Expr& body, int fuse_opt_level) {
     // setup the group map.
     auto graph = IndexedForwardGraph::Create(&arena_, body);
-    auto groups = GraphPartitioner(&arena_, fuse_opt_level).Partition(
-        graph);
-    for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
-      CHECK(graph.post_dfs_order[nid]->ref != nullptr);
-      gmap_[graph.post_dfs_order[nid]->ref] = groups[nid];
-    }
+    AssignGroups(graph, fuse_opt_level);
+    // Detect and remove tuple nodes that are roots in their groups
+    // This is to prevent making a fused function that returns a tuple
+    RemoveRootTupleVisitor(gmap_, graph).UpdateNodeEntries(body);
+    // Reassign new groups where detected tuples are no longer roots
+    AssignGroups(graph, fuse_opt_level);
+
     // The following line can be used for debug.
     // this->DebugDumpGroup(body);
     return this->Mutate(body);
@@ -821,29 +848,12 @@ class FuseMutator : private ExprMutator {
 
   Expr VisitExpr_(const TupleNode* tuple) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
-    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     if (ret_group == gmap_.at(tuple)) {
-      // This tuple is the root of its group. Check if all fields come from other groups.
-      bool isolated = new_fields.size() == ginfo_[ret_group].params.size();
-      for (size_t i = 0; i < new_fields.size() && isolated; ++i) {
-        isolated &= (new_fields[i].same_as(ginfo_[ret_group].params[i]));
-      }
-      if (isolated) {
-        // Do not put a isolated tuple into a function
-        return ExprMutator::VisitExpr_(tuple);
-      }
-      // This tuple has been fused with other ops before it
-      for (size_t i = 0; i < new_fields.size(); i++) {
-        // Copy function arguments to tuple field of the output because currently graph memory
-        // planer doesn't support inplace operations
-        if (new_fields[i].as<VarNode>()) {
-          auto copy = Copy(new_fields[i]);
-          new_fields.Set(i, copy);
-        }
-      }
-      return MakeNewFunction(ret_group, tuple->checked_type(), TupleNode::make(new_fields));
+      // Do not fuse a tuple if it is the return value
+      return ExprMutator::VisitExpr_(tuple);
     }
     // This tuple is an intermediate node in the group
+    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     return TupleNode::make(new_fields);
   }
 
@@ -862,6 +872,15 @@ class FuseMutator : private ExprMutator {
     }
     // This is an intermediate node in the group
     return new_node;
+  }
+
+  void AssignGroups(const IndexedForwardGraph& graph, int fuse_opt_level) {
+    auto groups = GraphPartitioner(&arena_, fuse_opt_level).Partition(graph);
+    gmap_.clear();
+    for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
+      CHECK(graph.post_dfs_order[nid]->ref != nullptr);
+      gmap_[graph.post_dfs_order[nid]->ref] = groups[nid];
+    }
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
