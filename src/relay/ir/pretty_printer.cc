@@ -163,7 +163,7 @@ class PrettyPrinter :
       }
     } else {
       std::string annotated_expr = annotate_(expr);
-      if (annotated_expr == "") {
+      if (annotated_expr != "") {
         doc << annotated_expr;
       }
     }
