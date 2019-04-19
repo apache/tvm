@@ -11,7 +11,6 @@
 // an admittedly hacky way).
 
 // TODO(gus) think about renaming this file
-// TODO(gus) where's a good place for this file?
 
 #include <string.h>
 #include <tvm/runtime/registry.h>
