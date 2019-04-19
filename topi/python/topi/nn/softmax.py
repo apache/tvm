@@ -65,7 +65,7 @@ def softmax(x, axis=-1):
     expsum = tvm.compute(reduced_shape, lambda *indices: _compute_expsum(max_elem, *indices),
                          name='T_softmax_expsum')
     return tvm.compute(shape, lambda *indices: _normalize(max_elem, expsum, *indices),
-            name='T_softmax_norm')
+                       name='T_softmax_norm')
 
 
 @tvm.tag_scope(tag='log_softmax_output')
