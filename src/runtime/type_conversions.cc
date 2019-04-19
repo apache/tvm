@@ -4,6 +4,12 @@
  * \brief Custom datatype lookup functions needed by runtime
  */
 
+// These extern C functions are needed to support custom datatypes in
+// packed_func.h specifically. The custom datatype facilities in packed_func.h
+// depend on the TVM registry, but including tvm/runtime/registry.h in
+// packed_func.h creates an include cycle. This allows us to avoid the cycle (in
+// an admittedly hacky way).
+
 // TODO(gus) think about renaming this file
 // TODO(gus) where's a good place for this file?
 
