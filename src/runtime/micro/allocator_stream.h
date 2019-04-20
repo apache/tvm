@@ -95,7 +95,7 @@ class AllocatorStream : public dmlc::SeekStream {
   /*!
    * \brief allocates an empty region within the stream buffer
    * \param size size of the allocated region
-   * \return offset bytes of the allocated region from start of the buffer
+   * \return byte offset of the allocated region from start of the buffer
    */
   size_t Allocate(size_t size) {
     size_t ret = max_ptr_;
@@ -105,7 +105,7 @@ class AllocatorStream : public dmlc::SeekStream {
 
   /*!
    * \brief allocates an empty TVMArray region on the stream buffer
-   * \return offset bytes of the allocated region from start of the buffer
+   * \return byte offset of the allocated region from start of the buffer
    */
   size_t AllocTVMArray() {
     size_t ret = max_ptr_;
@@ -115,7 +115,7 @@ class AllocatorStream : public dmlc::SeekStream {
 
   /*!
    * \brief allocates an empty TVMArray region on the stream buffer
-   * \return offset bytes of the allocated region from start of the buffer
+   * \return byte offset of the allocated region from start of the buffer
    */
   size_t AllocInt64Array(size_t size) {
     size_t ret = max_ptr_;
@@ -168,7 +168,7 @@ class Slot {
 
   /*!
    * \brief write TVMArray into slot
-   * \param data pointer to the TVMArray to be written
+   * \param pointer to the TVMArray to be written
    */
   void Write(const TVMArray* data) {
     parent_->Seek(offset_);
@@ -177,7 +177,7 @@ class Slot {
 
   /*!
    * \brief write int64_t array into slot
-   * \param data pointer to the array to be written
+   * \param pointer to the array to be written
    * \param n number of array elements to be written
    */
   void Write(int64_t* data, size_t n) {
@@ -209,6 +209,7 @@ class Slot {
   AllocatorStream* parent_;
   /*! \brief start offset of the slot in the stream */
   size_t offset_;
+  /*! \brief start address of the slot in device memory */
   void* addr_;
 };
 }  // namespace runtime

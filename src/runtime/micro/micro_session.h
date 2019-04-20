@@ -167,7 +167,7 @@ class MicroSession {
   /*! \brief symbol map for init stub */
   std::unordered_map<std::string, void*> init_symbol_map_;
   /*! \brief path to init stub source code */
-  std::string init_source_;
+  std::string init_binary_path_;
   /*! \brief address of the init stub entry function */
   void* utvm_main_symbol_addr_;
   /*! \brief address of the init stub exit breakpoint */
@@ -185,10 +185,10 @@ class MicroSession {
   void* AllocateTVMArgs(TVMArgs args);
 
   /*!
-   * \brief sets the init stub source path
-   * \param source path to init stub source
+   * \brief sets the init stub binary path
+   * \param path to init stub binary
    */
-  void SetInitSource(std::string source);
+  void SetInitBinaryPath(std::string path);
 
   /*!
    * \brief writes TVMArray to stream

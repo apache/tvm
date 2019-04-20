@@ -38,10 +38,10 @@ void MicroSession::InitSession(TVMArgs args) {
   std::string device_type = args[0];
   if (device_type == "host") {
     low_level_device_ = HostLowLevelDeviceCreate(kMemorySize);
-    SetInitSource(args[1]);
+    SetInitBinaryPath(args[1]);
   } else if (device_type == "openocd") {
     low_level_device_ = OpenOCDLowLevelDeviceCreate(args[2]);
-    SetInitSource(args[1]);
+    SetInitBinaryPath(args[1]);
   } else {
     LOG(FATAL) << "Unsupported micro low-level device";
   }
@@ -126,19 +126,16 @@ void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
 }
 
-void MicroSession::SetInitSource(std::string source) {
-  init_source_ = source;
+void MicroSession::SetInitBinaryPath(std::string path) {
+  init_binary_path_ = path;
 }
 
 void MicroSession::LoadInitStub() {
-  // compile init stub
-  const auto* f = Registry::Get("tvm_callback_compile_micro");
-  CHECK(f != nullptr) << "Require tvm_callback_compile_micro to exist in registry";
-  std::string binary_path = (*f)(init_source_, low_level_device()->device_type());
+  CHECK(!init_binary_path_.empty()) << "init library not initialized";
   // relocate and load binary on low-level device
-  init_text_size_ = GetSectionSize(binary_path, kText);
-  init_data_size_ = GetSectionSize(binary_path, kData);
-  init_bss_size_ = GetSectionSize(binary_path, kBss);
+  init_text_size_ = GetSectionSize(init_binary_path_, kText);
+  init_data_size_ = GetSectionSize(init_binary_path_, kData);
+  init_bss_size_ = GetSectionSize(init_binary_path_, kBss);
   init_text_start_ = AllocateInSection(kText, init_text_size_);
   init_data_start_ = AllocateInSection(kData, init_data_size_);
   init_bss_start_ = AllocateInSection(kBss, init_bss_size_);
@@ -147,7 +144,7 @@ void MicroSession::LoadInitStub() {
         init_bss_start_ != nullptr)
       << "Not enough space to load init binary on device";
   std::string relocated_bin = RelocateBinarySections(
-      binary_path,
+      init_binary_path_,
       GetAddr(init_text_start_, low_level_device()->base_addr()),
       GetAddr(init_data_start_, low_level_device()->base_addr()),
       GetAddr(init_bss_start_, low_level_device()->base_addr()));

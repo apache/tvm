@@ -1,8 +1,9 @@
 """Utilities for binary file manipulation"""
 import subprocess
-from os.path import join, exists
+from os.path import join, exists, dirname
 from . import util
 from .._ffi.base import py_str
+from .._ffi.libinfo import find_include_path
 from ..api import register_func, convert
 
 
@@ -25,14 +26,16 @@ def tvm_callback_get_section_size(binary_path, section):
         size of the section in bytes
     """
     section_map = {"text": "1", "data": "2", "bss": "3"}
-    p1 = subprocess.Popen(["size", binary_path], stdout=subprocess.PIPE)
-    p2 = subprocess.Popen(["awk", "{print $" + section_map[section] + "}"],
-                           stdin=p1.stdout, stdout=subprocess.PIPE)
-    p3 = subprocess.Popen(["tail", "-1"], stdin=p2.stdout, stdout=subprocess.PIPE)
-    p1.stdout.close()
-    p2.stdout.close()
-    (out, _) = p3.communicate()
-    if p3.returncode != 0:
+    proc1 = subprocess.Popen(["size", binary_path], stdout=subprocess.PIPE)
+    proc2 = subprocess.Popen(["awk", "{print $" + section_map[section] + "}"],
+                             stdin=proc1.stdout, stdout=subprocess.PIPE)
+    proc3 = subprocess.Popen(["tail", "-1"],
+                             stdin=proc2.stdout,
+                             stdout=subprocess.PIPE)
+    proc1.stdout.close()
+    proc2.stdout.close()
+    (out, _) = proc3.communicate()
+    if proc3.returncode != 0:
         msg = "Error in finding section size:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
@@ -64,15 +67,15 @@ def tvm_callback_relocate_binary(binary_path, text, data, bss):
     """
     tmp_dir = util.tempdir()
     rel_obj = tmp_dir.relpath("relocated.o")
-    p1 = subprocess.Popen(["ld", binary_path,
+    proc1 = subprocess.Popen(["ld", binary_path,
                            "-Ttext", text,
                            "-Tdata", data,
                            "-Tbss", bss,
                            "-o", rel_obj],
                           stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT)
-    (out, _) = p1.communicate()
-    if p1.returncode != 0:
+    (out, _) = proc1.communicate()
+    if proc1.returncode != 0:
         msg = "Linking error using ld:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
@@ -99,13 +102,15 @@ def tvm_callback_read_binary_section(binary, section):
     """
     tmp_dir = util.tempdir()
     tmp_section = tmp_dir.relpath("tmp_section.bin")
-    p1 = subprocess.Popen(["objcopy", "--dump-section",
+    with open(tmp_bin, "wb") as out_file:
+        out_file.write(bytes(binary))
+    proc = subprocess.Popen(["objcopy", "--dump-section",
                            "." + section + "=" + tmp_section,
                            binary_path],
                           stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT)
-    (out, _) = p1.communicate()
-    if p1.returncode != 0:
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
         msg = "Error in using objcopy:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
@@ -136,11 +141,11 @@ def tvm_callback_get_symbol_map(binary):
     tmp_obj = tmp_dir.relpath("tmp_obj.bin")
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(binary))
-    p1 = subprocess.Popen(["nm", "-C", "--defined-only", tmp_obj],
+    proc = subprocess.Popen(["nm", "-C", "--defined-only", tmp_obj],
                           stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT)
-    (out, _) = p1.communicate()
-    if p1.returncode != 0:
+    (out, _) = proc.communicate()
+    if proc.returncode != 0:
         msg = "Error in using nm:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
@@ -152,42 +157,3 @@ def tvm_callback_get_symbol_map(binary):
         map_str += line[0] + "\n"
     return map_str
 
-
-@register_func("tvm_callback_compile_micro")
-def tvm_callback_compile_micro(source_path, device_type="", cc="gcc"):
-    """Compiles code into a binary
-
-    Parameters
-    ----------
-    source_path : str
-        path to source file
-
-    device_type : str
-        type of low-level device
-
-    cc : str
-        compiler to be used
-
-    Return
-    ------
-    obj_path : bytearray
-        compiled binary file path
-    """
-    if device_type == "host":
-        cc = "gcc"
-    elif device_type == "openocd":
-        cc = "riscv-gcc"
-    obj_path = "/home/pratyush/utvm/tvm-riscv/src/runtime/micro/device/utvm_runtime.o"
-    includes = ["-I/home/pratyush/utvm/tvm-riscv/include",
-                "-I/home/pratyush/utvm/tvm-riscv/3rdparty/dlpack/include"]
-    options = ["-fno-stack-protector"]
-    cmd = [cc, "-x", "c", "-c", "-o", obj_path, source_path]
-    cmd += includes
-    cmd += options
-    p1 = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    (out, _) = p1.communicate()
-    if p1.returncode != 0:
-        msg = "Error in compilation:\n"
-        msg += py_str(out)
-        raise RuntimeError(msg)
-    return obj_path

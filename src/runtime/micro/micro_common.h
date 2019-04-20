@@ -51,6 +51,10 @@ constexpr int kWorkspaceStart = 350000;
 /*! \brief total memory size */
 constexpr int kMemorySize = 409600;
 
+/*! \brief default size alignment */
+constexpr int kDefaultSizeAlignment = 8;
+
+
 /*!
  * \brief converts actual address to offset from base_addr
  * \param addr address to be converted to offset
@@ -115,10 +119,11 @@ std::string ReadSection(std::string binary, SectionKind section);
  * \brief finds size of the section in the binary
  * \param binary input binary contents
  * \param section section type
- * \param align alignment of the returned size
+ * \param align alignment of the returned size (default: 8)
  * \return size of the section if it exists, 0 otherwise
  */
-size_t GetSectionSize(std::string binary_name, SectionKind section, int align = 8);
+size_t GetSectionSize(std::string binary_name, SectionKind section,
+                      int align = kDefaultSizeAlignment);
 
 /*!
  * \brief builds a map of symbol to address
