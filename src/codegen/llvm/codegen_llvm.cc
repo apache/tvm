@@ -316,8 +316,6 @@ llvm::Type* CodeGenLLVM::LLVMType(const Type& t) const {
       case 64: etype = llvm::Type::getDoubleTy(*ctx_); break;
       default: LOG(FATAL) << "do not support " << t;
     }
-  } else {
-    CHECK(false) << "Encountered an unexpected type with code " << t.code();
   }
   if (t.lanes() != 1) {
     return llvm::VectorType::get(etype, t.lanes());
