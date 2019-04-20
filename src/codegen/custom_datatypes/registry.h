@@ -4,8 +4,8 @@
  * \brief Custom datatypes registry
  */
 
-#ifndef SRC_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
-#define SRC_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
+#ifndef TVM_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
+#define TVM_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -98,4 +98,4 @@ DEFINE_GET_LOWER_FUNC_(GE)
 }  // namespace custom_datatypes
 }  // namespace tvm
 
-#endif  // SRC_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
+#endif  // TVM_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
