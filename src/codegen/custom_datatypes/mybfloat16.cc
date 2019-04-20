@@ -1,4 +1,8 @@
 /*
+    Copyright (c) 2019 by Contributors
+   \file tvm/src/codegen/custom_datatypes/mybfloat16.cc
+   \brief Small bfloat16 library for use in unittests
+
   Code originally from Tensorflow; taken and simplified. Original license:
 
   Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,7 +49,8 @@ void BFloat16ToFloat(const uint16_t* src, float* dst, size_t size) {
 #endif
 }
 
-void BFloat16Add(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t size) {
+void BFloat16Add(const uint16_t* a, const uint16_t* b, uint16_t* dst,
+                 size_t size) {
   float a_f, b_f;
   BFloat16ToFloat(a, &a_f, 1);
   BFloat16ToFloat(b, &b_f, 1);
