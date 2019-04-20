@@ -284,7 +284,7 @@ class NDArrayBase(_NDArrayBase):
         return np_arr
 
     def copybytesto(self, target):
-        assert(target.flags['C_CONTIGUOUS'])
+        assert target.flags['C_CONTIGUOUS']
         data = target.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(target.size * target.dtype.itemsize)
         _LIB.TVMArrayCopyToBytes(self.handle, data, nbytes)

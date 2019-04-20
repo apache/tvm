@@ -53,7 +53,7 @@ def register_op(lower_func, op_name, target, type_name, src_type_name=None):
         the argument to the Cast. If op_name is not "Cast", this is unused.
     """
 
-    if op_name is "Cast":
+    if op_name == "Cast":
         assert src_type_name is not None
         lower_func_name = "tvm.custom_datatypes.lower." + target + "." \
                           + op_name + "." + type_name + "." + src_type_name
@@ -81,11 +81,10 @@ def create_lower_func(extern_func_name):
             dtype = "uint" + str(t.bits)
             if t.lanes > 1:
                 dtype += "x" + str(t.lanes)
-        if type(op) is _Cast:
+        if isinstance(op, _Cast):
             return _make.Call(dtype, extern_func_name, convert([op.value]),
                               _Call.Extern, None, 0)
-        else:
-            return _make.Call(dtype, extern_func_name, convert([op.a, op.b]),
-                              _Call.Extern, None, 0)
+        return _make.Call(dtype, extern_func_name, convert([op.a, op.b]),
+                          _Call.Extern, None, 0)
 
     return lower
