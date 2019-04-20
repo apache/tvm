@@ -725,6 +725,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
 }
 
 void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
+#if TVM_USE_ASSERT == 1
   using llvm::BasicBlock;
   llvm::Value* cond = MakeValue(op->condition);
   std::ostringstream os;
@@ -744,6 +745,7 @@ void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
   builder_->CreateRet(ConstInt32(-1));
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);
+#endif
   CodeGenLLVM::VisitStmt_(op);
 }
 

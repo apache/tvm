@@ -94,6 +94,9 @@ set(USE_GRAPH_RUNTIME_DEBUG OFF)
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
 set(USE_LLVM OFF)
 
+# Whether use assert statements in code generation
+set(USE_ASSERT ON)
+
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
