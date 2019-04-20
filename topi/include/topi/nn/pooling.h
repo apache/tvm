@@ -272,8 +272,8 @@ inline Tensor global_pool(const Tensor& x,
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto dheight = tvm::reduce_axis(Range(0, height));
-  auto dwidth = tvm::reduce_axis(Range(0, width));
+  auto dheight = tvm::reduce_axis(Range(0, height), "rv1");
+  auto dwidth = tvm::reduce_axis(Range(0, width), "rv2");
 
   if (pool_type == kMaxPool) {
     return tvm::compute(out_shape,
