@@ -4,9 +4,13 @@
  * \brief Pass for lowering custom datatypes
  */
 
-#include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
+// TODO if I don't include this, I get warnings seemingly related to the fact
+// that ir_mutator.h (and ir_pass.h as well, if I re-order the includes) ends up
+// causing packed_func.h to be included without packed_func_ext.h being
+// included.
+#include <tvm/packed_func_ext.h>
 
 #include "../codegen/custom_datatypes/registry.h"
 
