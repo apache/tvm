@@ -879,79 +879,6 @@ def _get_convert_map(opset):
         'Shape': Shape.get_converter(opset),
     }
 
-supported_ops = set([
-    'Constant',
-    'Identity',
-    'ThresholdedRelu',
-    'ScaledTanh',
-    'ParametricSoftplus',
-    'ConstantFill',
-    'FC',
-    'Scale',
-    'Upsample' ,
-    'SpatialBN',
-    'Add',
-    'Sub',
-    'Mul',
-    'Div',
-    'Neg',
-    'Abs',
-    'Reciprocal',
-    'Floor',
-    'Ceil',
-    'Sqrt',
-    'Relu',
-    'LeakyRelu',
-    'Selu',
-    'Elu',
-    'Exp',
-    'Log',
-    'Tanh',
-    'Pow',
-    'PRelu',
-    'Sigmoid',
-    'HardSigmoid',
-    'Max',
-    'Min',
-    'Sum',
-    'Mean',
-    'Clip',
-    'Softmax',
-    'LogSoftmax',
-    'Softsign',
-    'SoftPlus',
-    'Gemm',
-    'MatMul',
-    'AveragePool',
-    'MaxPool',
-    'Conv',
-    'ConvTranspose',
-    'GlobalAveragePool',
-    'GlobalMaxPool',
-    'BatchNormalization',
-    'Dropout',
-    'Flatten',
-    'LRN',
-    'ReduceMax',
-    'ReduceMin',
-    'ReduceSum',
-    'ReduceMean',
-    'ReduceProd',
-    'ArgMax',
-    'ArgMin',
-    'Cast',
-    'Reshape',
-    'Concat',
-    'Split',
-    'Slice',
-    'Transpose',
-    'Gather',
-    'Squeeze',
-    'Unsqueeze',
-    'Pad',
-    'Shape',
-])
-
 
 class GraphProto(object):
     """A helper class for handling Relay expression copying from pb2.GraphProto.
@@ -1025,15 +952,18 @@ class GraphProto(object):
                     dtype = d_type
                 self._nodes[i_name] = new_var(i_name, shape=tshape, dtype=dtype)
         # get list of unsupported ops
-        unsupported_ops = []
+        convert_map = _get_convert_map(opset)
+        unsupported_ops = set()
         for node in graph.node:
             op_name = node.op_type
-            if op_name not in supported_ops:
-                unsupported_ops.append(op_name)
+            if op_name not in convert_map and \
+               op_name != 'Constant' and \
+               op_name not in _identity_list:
+                unsupported_ops.add(op_name)
         if unsupported_ops:
-            unsupported_ops = str(unsupported_ops).strip('[]').replace("'", '')
-            msg = 'The following operators are not supported for frontend ONNX: {}'
-            raise tvm.error.OpNotImplemented(msg.format(unsupported_ops))
+            msg = 'The following operators are not supported for frontend ONNX: '
+            msg += ', '.join(unsupported_ops)
+            raise tvm.error.OpNotImplemented(msg)
         # construct nodes, nodes are stored as directed acyclic graph
         for node in graph.node:
             op_name = node.op_type
