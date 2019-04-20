@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file tvm/src/runtime/custom_datatype_util.cc
+ * \file tvm/src/runtime/custom_datatypes_util.cc
  * \brief Custom datatype lookup functions needed by runtime
  */
 
@@ -18,18 +18,21 @@
 
 // These functions should only be used within the runtime. If you need to look
 // up custom datatype information outside of the runtime, use the
-// DatatypeRegistry.
+// custom_datatypes::Registry.
 
 // This function returns a string which must be deleted by the caller.
 extern "C" void GetTypeName(uint8_t type_code, char** ret) {
-  auto name =
-      (*tvm::runtime::Registry::Get("_datatype_get_type_name"))(type_code).
-      operator std::string();
+  auto name = (*tvm::runtime::Registry::Get("_custom_datatypes_get_type_name"))(
+                  type_code)
+                  .
+                  operator std::string();
   *ret = new char[name.length() + 1];
   strcpy(*ret, name.c_str());
 }
 
 extern "C" uint8_t GetTypeCode(const std::string& type_name) {
-  return (*tvm::runtime::Registry::Get("_datatype_get_type_code"))(type_name).
-  operator int();
+  return (*tvm::runtime::Registry::Get("_custom_datatypes_get_type_code"))(
+             type_name)
+      .
+      operator int();
 }

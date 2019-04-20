@@ -38,6 +38,7 @@ from . import generic
 from . import hybrid
 from . import testing
 from . import error
+from . import custom_datatypes
 
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
@@ -49,7 +50,6 @@ from ._ffi.function import Function
 from ._ffi.base import TVMError, __version__
 from .api import *
 from .intrin import *
-from .custom_datatypes import *
 from .tensor_intrin import decl_tensor_intrin
 from .node import register_node
 from .ndarray import register_extension

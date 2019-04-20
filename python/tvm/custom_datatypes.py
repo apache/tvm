@@ -10,14 +10,22 @@ from . import _api_internal
 
 
 def register(type_name, type_code):
-    _api_internal._datatype_register(type_name, type_code)
+    _api_internal._custom_datatypes_register(type_name, type_code)
 
 
-def register_op(lower_func,
-                op_name,
-                target,
-                datatype_name,
-                src_datatype_name=None):
+def get_type_name(type_code):
+    return _api_internal._custom_datatypes_get_type_name(type_code)
+
+
+def get_type_code(type_name):
+    return _api_internal._custom_datatypes_get_type_code(type_name)
+
+
+def get_type_registered(type_code):
+    return _api_internal._custom_datatypes_get_type_registered(type_code)
+
+
+def register_op(lower_func, op_name, target, type_name, src_type_name=None):
     """Register an external function which computes the given op.
 
     Currently, this will only work with Casts and binary expressions
@@ -37,21 +45,21 @@ def register_op(lower_func,
     target : str
         The name of codegen target.
 
-    datatype_name : str
+    type_name : str
         The name of the custom datatype, e.g. posit (but not custom[posit]8).
 
-    src_datatype_name : str
+    src_type_name : str
         If op_name is "Cast", then this should be set to the source datatype of
         the argument to the Cast. If op_name is not "Cast", this is unused.
     """
 
     if op_name is "Cast":
-        assert src_datatype_name is not None
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + datatype_name + "." + src_datatype_name
+        assert src_type_name is not None
+        lower_func_name = "tvm.custom_datatypes.lower." + target + "." \
+                          + op_name + "." + type_name + "." + src_type_name
     else:
-        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
-                          + datatype_name
+        lower_func_name = "tvm.custom_datatypes.lower." + target + "." \
+                          + op_name + "." + type_name
     print(lower_func_name)
     _register_func(lower_func_name, lower_func)
 
@@ -69,7 +77,7 @@ def create_lower_func(extern_func_name):
         unchanged."""
         dtype = op.dtype
         t = _TVMType(dtype)
-        if _api_internal._datatype_registered(t.type_code):
+        if get_type_registered(t.type_code):
             dtype = "uint" + str(t.bits)
             if t.lanes > 1:
                 dtype += "x" + str(t.lanes)
@@ -79,4 +87,5 @@ def create_lower_func(extern_func_name):
         else:
             return _make.Call(dtype, extern_func_name, convert([op.a, op.b]),
                               _Call.Extern, None, 0)
+
     return lower

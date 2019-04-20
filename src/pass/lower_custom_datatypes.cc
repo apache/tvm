@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file tvm/src/pass/lower_datatypes.cc
+ * \file tvm/src/pass/lower_custom_datatypes.cc
  * \brief Pass for lowering custom datatypes
  */
 
@@ -8,8 +8,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 
-// TODO(gus) how to do these imports correctly?
-#include "../codegen/datatype/datatype_registry.h"
+#include "../codegen/custom_datatypes/registry.h"
 
 namespace tvm {
 namespace ir {
@@ -22,9 +21,10 @@ namespace ir {
  * datatype) for lowering this type of expression, and uses it to lower the
  * expression.
  */
-class DatatypesLowerer : public IRMutator {
+class CustomDatatypesLowerer : public IRMutator {
  public:
-  explicit DatatypesLowerer(const std::string& target) : target_(target) {}
+  explicit CustomDatatypesLowerer(const std::string& target)
+      : target_(target) {}
 
   inline Expr Mutate_(const Cast* op, const Expr& e) final {
     Expr expr = IRMutator::Mutate_(op, e);
@@ -32,9 +32,11 @@ class DatatypesLowerer : public IRMutator {
     auto type_code = op->type.code();
     auto src_type_code = op->value.type().code();
     // If either datatype is a registered custom datatype, we must lower.
-    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code) ||
-        DatatypeRegistry::Global()->DatatypeRegistered(src_type_code)) {
-      auto lower = GetCastLowerFunc(target_, type_code, src_type_code);
+    if (custom_datatypes::Registry::Global()->GetTypeRegistered(type_code) ||
+        custom_datatypes::Registry::Global()->GetTypeRegistered(
+            src_type_code)) {
+      auto lower =
+          custom_datatypes::GetCastLowerFunc(target_, type_code, src_type_code);
       CHECK(lower) << "Cast lowering function for target " << target_
                    << " destination type " << static_cast<unsigned>(type_code)
                    << " source type " << static_cast<unsigned>(src_type_code)
@@ -44,24 +46,24 @@ class DatatypesLowerer : public IRMutator {
     return expr;
   }
 
-#define DEFINE_MUTATE__(OP)                                           \
-  inline Expr Mutate_(const OP* op, const Expr& e) final {            \
-    Expr expr = IRMutator::Mutate_(op, e);                            \
-    op = expr.as<OP>();                                               \
-    auto type_code = op->type.code();                                 \
-    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {  \
-      auto lower = Get##OP##LowerFunc(target_, type_code);            \
-      CHECK(lower) << #OP " lowering function for target " << target_ \
-                   << " type " << static_cast<unsigned>(type_code)    \
-                   << "not found";                                    \
-      return (*lower)(expr);                                          \
-    }                                                                 \
-    return expr;                                                      \
+#define DEFINE_MUTATE__(OP)                                                   \
+  inline Expr Mutate_(const OP* op, const Expr& e) final {                    \
+    Expr expr = IRMutator::Mutate_(op, e);                                    \
+    op = expr.as<OP>();                                                       \
+    auto type_code = op->type.code();                                         \
+    if (custom_datatypes::Registry::Global()->GetTypeRegistered(type_code)) { \
+      auto lower = custom_datatypes::Get##OP##LowerFunc(target_, type_code);  \
+      CHECK(lower) << #OP " lowering function for target " << target_         \
+                   << " type " << static_cast<unsigned>(type_code)            \
+                   << "not found";                                            \
+      return (*lower)(expr);                                                  \
+    }                                                                         \
+    return expr;                                                              \
   }
 
   // TODO(gus) this list should be the same as the list of
-  // DEFINE_GET_LOWER_FUNC_ in datatypes_registry.h. We should avoid the
-  // duplication.
+  // DEFINE_GET_LOWER_FUNC_ in codegen/custom_datatypes/registry.h. We should
+  // avoid the duplication.
   // TODO(gus) what should be included in this list? See the commentary below
   // on the Load case. Some of these things may not actually need to be lowered,
   // or perhaps they all need to be lowered but special cases need to be added.
@@ -104,7 +106,7 @@ class AllocateLowerer : public IRMutator {
     allocate = stmt.as<Allocate>();
 
     auto type_code = allocate->type.code();
-    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {
+    if (custom_datatypes::Registry::Global()->GetTypeRegistered(type_code)) {
       auto new_allocate_type = Int(allocate->type.bits());
       return Allocate::make(allocate->buffer_var, new_allocate_type,
                             allocate->extents, allocate->condition,
@@ -128,7 +130,7 @@ class LoadLowerer : public IRMutator {
     Expr expr = IRMutator::Mutate_(load, e);
     load = expr.as<Load>();
     auto type_code = load->type.code();
-    if (DatatypeRegistry::Global()->DatatypeRegistered(type_code)) {
+    if (custom_datatypes::Registry::Global()->GetTypeRegistered(type_code)) {
       auto new_load_type = Int(load->type.bits());
       return Load::make(new_load_type, load->buffer_var, load->index,
                         load->predicate);
@@ -146,7 +148,7 @@ LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target) {
   // inserted. Otherwise, if we lower Loads first, the types of the ops will
   // change correspondingly, and so a custom-datatype add might become an int16
   // add.
-  n->body = DatatypesLowerer(target).Mutate(n->body);
+  n->body = CustomDatatypesLowerer(target).Mutate(n->body);
   n->body = AllocateLowerer().Mutate(n->body);
   n->body = LoadLowerer().Mutate(n->body);
   return LoweredFunc(n);

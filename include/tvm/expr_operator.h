@@ -32,7 +32,7 @@
 #include "expr.h"
 #include "ir.h"
 // TODO(gus) how to do this include?
-#include "../../src/codegen/datatype/datatype_registry.h"
+#include "../../src/codegen/custom_datatypes/registry.h"
 
 namespace tvm {
 /*!
@@ -553,10 +553,10 @@ inline Expr MakeConstScalar(Type t, ValueType value) {
   if (t.is_int()) return ir::IntImm::make(t, static_cast<int64_t>(value));
   if (t.is_uint()) return ir::UIntImm::make(t, static_cast<uint64_t>(value));
   if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
-  if (DatatypeRegistry::Global()->DatatypeRegistered(
+  if (custom_datatypes::Registry::Global()->GetTypeRegistered(
           static_cast<uint8_t>(t.code()))) {
-    return ir::UIntImm::make(t,
-                             ConvertConstScalar(static_cast<uint8_t>(t.code()),
+    return ir::UIntImm::make(
+        t, custom_datatypes::ConvertConstScalar(static_cast<uint8_t>(t.code()),
                                                 static_cast<double>(value)));
   }
   LOG(FATAL) << "cannot make const for type " << t;
