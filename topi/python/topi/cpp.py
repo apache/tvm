@@ -18,7 +18,7 @@
 import sys
 import os
 import ctypes
-from imp import new_module as _new_module
+from types import ModuleType as _new_module
 from tvm._ffi.function import _init_api_prefix
 from tvm._ffi import libinfo
 
