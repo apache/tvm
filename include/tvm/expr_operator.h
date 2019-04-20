@@ -31,7 +31,6 @@
 #include <type_traits>
 #include "expr.h"
 #include "ir.h"
-// TODO(gus) how to do this include?
 #include "../../src/codegen/custom_datatypes/registry.h"
 
 namespace tvm {
