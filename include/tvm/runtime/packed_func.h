@@ -36,15 +36,12 @@
 #include <memory>
 #include <utility>
 #include <type_traits>
+#include "../../../src/runtime/custom_datatypes_util.h"
 #include "c_runtime_api.h"
 #include "module.h"
 #include "ndarray.h"
 #include "object.h"
 #include "node_base.h"
-
-extern "C" void GetTypeName(uint8_t, char**);
-extern "C" uint8_t GetTypeCode(const std::string& type_name);
-extern "C" uint8_t GetCustomDatatypeRegistered(uint8_t type_code);
 
 namespace HalideIR {
 // Forward declare type for extensions
@@ -937,12 +934,8 @@ inline const char* TypeCode2Str(int type_code) {
       // This is (potentially) the case of a custom type code.
       // TODO(gus): should only a range of codes be allowed for customs?
 
-      char* type_name_cstr;
-      GetTypeName(type_code, &type_name_cstr);
-      std::string type_name(type_name_cstr);
-      delete [] type_name_cstr;
       std::ostringstream ss;
-      ss << "custom[" << type_name << "]";
+      ss << "custom[" << GetTypeName(type_code) << "]";
       auto str = ss.str();
       return str.c_str();
 
