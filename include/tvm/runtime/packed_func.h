@@ -934,13 +934,14 @@ inline const char* TypeCode2Str(int type_code) {
       // This is (potentially) the case of a custom type code.
       // TODO(gus): should only a range of codes be allowed for customs?
 
-      std::ostringstream ss;
-      ss << "custom[" << GetTypeName(type_code) << "]";
-      auto str = ss.str();
-      return str.c_str();
-
-      // LOG(FATAL) << "unknown type_code="
-      //                   << static_cast<int>(type_code); return "";
+      if (GetTypeRegistered(type_code)) {
+        std::ostringstream ss;
+        ss << "custom[" << GetTypeName(type_code) << "]";
+        return ss.str().c_str();
+      } else {
+        LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
+        return "";
+      }
   }
 }
 

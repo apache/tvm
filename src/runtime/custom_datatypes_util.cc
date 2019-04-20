@@ -11,7 +11,7 @@
 
 std::string GetTypeName(uint8_t type_code) {
   return (*tvm::runtime::Registry::Get("_custom_datatypes_get_type_name"))(
-            type_code)
+             type_code)
       .
       operator std::string();
 }
@@ -19,6 +19,13 @@ std::string GetTypeName(uint8_t type_code) {
 uint8_t GetTypeCode(const std::string& type_name) {
   return (*tvm::runtime::Registry::Get("_custom_datatypes_get_type_code"))(
              type_name)
+      .
+      operator int();
+}
+
+bool GetTypeRegistered(uint8_t type_code) {
+  return (*tvm::runtime::Registry::Get(
+      "_custom_datatypes_get_type_registered"))(type_code)
       .
       operator int();
 }

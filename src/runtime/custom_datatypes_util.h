@@ -10,5 +10,6 @@
 
 std::string GetTypeName(uint8_t type_code);
 uint8_t GetTypeCode(const std::string& type_name);
+bool GetTypeRegistered(uint8_t type_code);
 
 #endif  // SRC_RUNTIME_CUSTOM_DATATYPES_UTIL_H_
