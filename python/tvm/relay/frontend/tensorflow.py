@@ -239,7 +239,7 @@ def _argx(func, func_name):
 
 def _elemwise(name):
     def _impl(inputs, attr, *args):
-        assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(len(inputs))
+        assert len(inputs) == 2, "{} take 2 inputs, {} given".format(name, len(inputs))
         return _get_relay_op(name)(*inputs)
     return _impl
 
@@ -1704,16 +1704,23 @@ class GraphProto(object):
             node_name_prefix = node.name.rsplit('/', 1)[0]
             control_flow_node_map[node_name_prefix].add(node.op)
             if node.op == 'Placeholder':
+                # Give priority to user argument.
                 if shape and node.name in shape:
                     self._input_shapes[node.name] = list(shape[node.name])
-                    continue
-                self._input_shapes[node.name] = \
-                    tensor_util.TensorShapeProtoToList(node.attr['shape'].shape)
-                for idx, dim in enumerate(self._input_shapes[node.name]):
-                    if dim < 0:
-                        self._input_shapes[node.name][idx] = 1
-                        warnings.warn("Use 1 instead of -1 in shape of operator %s."
-                                      % node.name)
+                else:
+                    self._input_shapes[node.name] = \
+                        tensor_util.TensorShapeProtoToList(node.attr['shape'].shape)
+                    for idx, dim in enumerate(self._input_shapes[node.name]):
+                        if dim < 0:
+                            self._input_shapes[node.name][idx] = 1
+                            warnings.warn("Use 1 instead of -1 in shape of operator %s."
+                                          % node.name)
+
+                self._output_shapes[node.name] = [self._input_shapes[node.name]]
+                attr = self._parse_attr(node.attr)
+                self._nodes[node.name] = [_expr.var(node.name,
+                                                    shape=self._input_shapes[node.name],
+                                                    dtype=attr['dtype'].name)]
 
                 # Ignore user's input shape for Non placeholder
             elif node.op == 'Const':
@@ -1736,11 +1743,6 @@ class GraphProto(object):
             # Variable converted to Const will not have only value attr
             if 'value' in attr and node.op == 'Const':
                 self._output_shapes[node.name] = [self._input_shapes[node.name]]
-            elif shape and node.name in shape:
-                # Give priority to user argument.
-                self._output_shapes[node.name] = [shape[node.name]]
-            elif node.op == 'Placeholder':
-                self._output_shapes[node.name] = [self._input_shapes[node.name]]
             elif '_output_shapes' in attr:
                 self._output_shapes[node.name] = \
                     [tensor_util.TensorShapeProtoToList(tshape) \
@@ -1755,13 +1757,7 @@ class GraphProto(object):
                 not shape if isinstance(tshape, list) else False \
                 for tshape in self._output_shapes[node.name]]
 
-            if node.op == "Placeholder":
-                self._output_shapes[node.name] = [self._input_shapes[node.name]]
-                self._nodes[node.name] = [_expr.var(node.name,
-                                                    shape=self._input_shapes[node.name],
-                                                    dtype=attr['dtype'].name)]
-
-            elif node.op == "Const":
+            if node.op == "Const":
                 # All Const nodes are Param nodes, lets parse
                 self._num_param += 1
                 for key, value in node.attr.items():
@@ -1772,7 +1768,7 @@ class GraphProto(object):
 
                 attr = self._parse_attr(node.attr)
 
-            else:
+            elif node.op != "Placeholder":
                 # Pass the parsed shapes instead
                 attr["_output_shapes"] = output_shapes = self._output_shapes[node.name]
 
@@ -1816,7 +1812,8 @@ class GraphProto(object):
                         input_shapes[in_sym[0]] = input_shape
                         # This means the node is 1d in Relay and 0d in TF.
                         # See `_expand_dims_0d_aware`.
-                        if self._outputs_are_0d[node_name][tensor_slot] and input_shape:
+                        if node_name in self._outputs_are_0d \
+                                and self._outputs_are_0d[node_name][tensor_slot] and input_shape:
                             input_0d_mismatch.add(in_sym[0])
 
                 attr['_input_shapes'] = input_shapes
