@@ -51,3 +51,32 @@ def schedule_injective(outs):
     elif len(s[x].op.axis) >= 2:
         s[x].parallel(s[x].op.axis[0])
     return s
+
+@generic.schedule_concatenate.register(["arm_cpu"])
+def schedule_concatenate(outs):
+    """Schedule for concatenate op.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of reduce in the format
+          of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+    x = outs[0]
+    tvm.schedule.AutoInlineInjective(s)
+    if len(s[x].op.axis) >= 4:
+        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1], s[x].op.axis[2])
+        s[x].parallel(fused)
+    elif len(s[x].op.axis) >= 3:
+        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1])
+        s[x].parallel(fused)
+    elif len(s[x].op.axis) >= 2:
+        s[x].parallel(s[x].op.axis[0])
+    return s

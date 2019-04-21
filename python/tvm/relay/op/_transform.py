@@ -23,6 +23,7 @@ from .op import schedule_injective, OpPattern
 
 schedule_injective = _reg.schedule_injective
 schedule_broadcast = _reg.schedule_injective
+schedule_concatenate = _reg.schedule_concatenate
 
 
 _reg.register_schedule("collapse_sum_like", _schedule_reduce)
@@ -46,7 +47,7 @@ _reg.register_schedule("take", schedule_injective)
 _reg.register_schedule("transpose", schedule_injective)
 _reg.register_schedule("where", schedule_broadcast)
 _reg.register_schedule("stack", schedule_injective)
-_reg.register_schedule("concatenate", schedule_injective)
+_reg.register_schedule("concatenate", schedule_concatenate)
 _reg.register_schedule("_contrib_reverse_reshape", schedule_injective)
 _reg.register_schedule("gather_nd", schedule_injective)
 
