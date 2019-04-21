@@ -272,7 +272,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // If the tuple has no consumers or contains consumers more complex than kInjective,
     // we do not allow fuse through this tuple
     auto outputs = tuple_node->outputs;
-    bool is_intermediate = outputs.head != nullptr; // never intermediate if no consumers
+    bool is_intermediate = outputs.head != nullptr;  // never intermediate if no consumers
     for (auto link = outputs.head; link != nullptr; link = link->next) {
       if (link->value.pattern > kInjective) {
         is_intermediate = false;
