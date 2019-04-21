@@ -274,10 +274,16 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     auto outputs = tuple_node->outputs;
     bool is_intermediate = outputs.head != nullptr; // never intermediate if no consumers
     for (auto link = outputs.head; link != nullptr; link = link->next) {
-      if (link->value.pattern > kInjective) is_intermediate = false;
+      if (link->value.pattern > kInjective) {
+        is_intermediate = false;
+        break;
+      }
     }
-    if(is_intermediate) tuple_node->pattern = kInjective;
-    else tuple_node->pattern = kOpaque;
+    if (is_intermediate) {
+      tuple_node->pattern = kInjective;
+    } else {
+      tuple_node->pattern = kOpaque;
+    }
     for (const Expr& field : op->fields) {
       if (field->checked_type().as<TensorTypeNode>() && is_intermediate) {
         this->Update(field, tuple_node, kInjective);
