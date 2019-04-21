@@ -80,7 +80,7 @@ size_t GetSectionSize(std::string binary_path, SectionKind section, int align) {
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
   size_t size = (*f)(binary_path, SectionToString(section));
-  while (size % align) size++;
+  ROUNDUP(size, align);
   return size;
 }
 

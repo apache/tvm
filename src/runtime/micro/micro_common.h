@@ -9,6 +9,8 @@
 #include <string>
 #include <unordered_map>
 
+#define ROUNDUP(n, align) (((n) | (align)) & ~((align) - 1))
+
 namespace tvm {
 namespace runtime {
 /*!
