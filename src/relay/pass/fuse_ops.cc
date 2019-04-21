@@ -267,9 +267,19 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const TupleNode* op) final {
     CHECK(graph_.node_map.count(op));
     Node* tuple_node = graph_.node_map.at(op);
-    tuple_node->pattern = kInjective;
+    // By examining op patterns of consumer ops, we can determine if this tuple
+    // is an intermediate value in its group or not.
+    // If the tuple has no consumers or contains consumers more complex than kInjective,
+    // we do not allow fuse through this tuple
+    auto outputs = tuple_node->outputs;
+    bool is_intermediate = outputs.head != nullptr; // never intermediate if no consumers
+    for (auto link = outputs.head; link != nullptr; link = link->next) {
+      if (link->value.pattern > kInjective) is_intermediate = false;
+    }
+    if(is_intermediate) tuple_node->pattern = kInjective;
+    else tuple_node->pattern = kOpaque;
     for (const Expr& field : op->fields) {
-      if (field->checked_type().as<TensorTypeNode>()) {
+      if (field->checked_type().as<TensorTypeNode>() && is_intermediate) {
         this->Update(field, tuple_node, kInjective);
       } else {
         this->Update(field, nullptr, kOpaque);
@@ -821,29 +831,11 @@ class FuseMutator : private ExprMutator {
 
   Expr VisitExpr_(const TupleNode* tuple) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
-    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     if (ret_group == gmap_.at(tuple)) {
-      // This tuple is the root of its group. Check if all fields come from other groups.
-      bool isolated = new_fields.size() == ginfo_[ret_group].params.size();
-      for (size_t i = 0; i < new_fields.size() && isolated; ++i) {
-        isolated &= (new_fields[i].same_as(ginfo_[ret_group].params[i]));
-      }
-      if (isolated) {
-        // Do not put a isolated tuple into a function
-        return ExprMutator::VisitExpr_(tuple);
-      }
-      // This tuple has been fused with other ops before it
-      for (size_t i = 0; i < new_fields.size(); i++) {
-        // Copy function arguments to tuple field of the output because currently graph memory
-        // planer doesn't support inplace operations
-        if (new_fields[i].as<VarNode>()) {
-          auto copy = Copy(new_fields[i]);
-          new_fields.Set(i, copy);
-        }
-      }
-      return MakeNewFunction(ret_group, tuple->checked_type(), TupleNode::make(new_fields));
+      return ExprMutator::VisitExpr_(tuple);
     }
     // This tuple is an intermediate node in the group
+    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     return TupleNode::make(new_fields);
   }
 
