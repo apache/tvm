@@ -15,6 +15,7 @@ from tvm.autotvm.measure import MeasureResult, MeasureInput
 from ... import target as _target
 from .utils import is_input_node, get_in_nodes, get_out_nodes, has_multiple_inputs, \
     bind_inputs, expr2graph
+from ._base import INVALID_LAYOUT_TIME
 
 
 # Setup topi_op_name -> layout function
@@ -449,6 +450,8 @@ class BaseGraphTuner(object):
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option,
                        callbacks=[_log_to_list(records)])
+            if not isinstance(records[0][1].costs[0], float):
+                records[0] = (records[0][0], records[0][1]._replace(costs=(INVALID_LAYOUT_TIME,)))
             self._layout_transform_dict[ltf_workload] = records[0]
 
         self._iterate_layout_transform(self._create_matrix_callback)

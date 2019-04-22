@@ -222,6 +222,7 @@ class PBQPTuner(BaseGraphTuner):
         # Define virtual record lists and layout transformaton matrices
         # for multi-input nodes.
         input_names = self._input_shapes.keys()
+        temp = {}
         for key, val in self._in_nodes_dict.items():
             target_input_idx = -1
             target_input_pos = -1
@@ -231,21 +232,21 @@ class PBQPTuner(BaseGraphTuner):
                         target_input_idx = item
                         target_input_pos = i
                         break
-                self._layout_transform_matrix_dict[(target_input_idx, key)] = []
-                layout_matrix = self._layout_transform_matrix_dict[(target_input_idx, key)]
+                temp[(target_input_idx, key)] = []
                 record_candidates = self._node_list[target_input_idx]["record_candidates"]
                 for j in range(len(record_candidates)):
-                    layout_matrix.append([])
+                    temp[(target_input_idx, key)].append([])
                     for k in range(len(record_candidates)):
-                        layout_matrix[j].append(0 if j == k else INVALID_LAYOUT_TIME)
+                        temp[(target_input_idx, key)][j].append(0 if j == k
+                                                                else INVALID_LAYOUT_TIME)
 
                 for j in range(target_input_pos + 1, len(val)):
                     input_idx = val[j]
                     if is_input_node(self._node_list[input_idx], input_names):
                         continue
-                    self._layout_transform_matrix_dict[(input_idx, key)] = \
+                    temp[(input_idx, key)] = \
                         self._layout_transform_matrix_dict[(input_idx, target_input_idx)]
-                    del self._layout_transform_matrix_dict[(input_idx, target_input_idx)]
+        self._layout_transform_matrix_dict.update(temp)
 
         # Create reverse layout transformation matrices
         temp = {}
