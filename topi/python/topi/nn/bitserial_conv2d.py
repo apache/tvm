@@ -67,7 +67,7 @@ def bitserial_conv2d_nchw(data, kernel, stride, padding, activation_bits, weight
     Input_q = bitpack(data, activation_bits, pack_axis=1, bit_axis=2, pack_type=pack_dtype)
     Filter_q = bitpack(filter, weight_bits, pack_axis=1, bit_axis=4, pack_type=pack_dtype)
     batch, in_channel, activation_bits, in_height, in_width = Input_q.shape
-    num_filter, channel, kernel_h, kernel_w, weight_bits = Filter_q.shape
+    num_filter, _, kernel_h, kernel_w, weight_bits = Filter_q.shape
 
     if isinstance(padding, int) or (isinstance(padding, (tuple, list)) and len(padding) == 2):
         TPAD, LPAD, DPAD, RPAD = get_pad_tuple(padding, kernel)
@@ -258,9 +258,9 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
                               filter=lambda x: max(x.size[1:]) <= 16)
     cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
 
-    re_axes = cfg.define_reorder("reorder_0",
-                                 [n, co, oh, ow, vc, vh, vw, kh, kw, kb, ib, ci],
-                                 policy='interval_all', interval=(6, 11))
+    cfg.define_reorder("reorder_0",
+                       [n, co, oh, ow, vc, vh, vw, kh, kw, kb, ib, ci],
+                       policy='interval_all', interval=(6, 11))
     cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW) # these are actually binary ops
     # ====================
 
@@ -274,7 +274,7 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     oshape = (1, CO, OH, OW)
 
     if (TPAD != 0 and RPAD != 0):
-        data_pad = pad(data_q, (0, 0, 0, TPAD, LPAD), (0, 0, 0, DPAD, RPAD), name="data_pad")
+        data_pad = pad(data_q, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data_q
 
@@ -360,9 +360,9 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     ow, vw = cfg.define_split('tile_ow', ow, policy='all', num_outputs=2,
                               filter=lambda x: max(x.size[1:]) <= 16)
     cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
-    re_axes = cfg.define_reorder("reorder_0",
-                                 [n, oh, ow, co, vh, vw, kh, kw, kb, ib, vc, ci],
-                                 policy='interval_all', interval=(3, 7))
+    cfg.define_reorder("reorder_0",
+                       [n, oh, ow, co, vh, vw, kh, kw, kb, ib, vc, ci],
+                       policy='interval_all', interval=(3, 7))
     cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW) # these are actually binary ops
     # ====================
 
@@ -376,7 +376,7 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     oshape = (1, OH, OW, CO)
 
     if (DPAD != 0 and RPAD != 0):
-        data_pad = pad(data_q, (0, TPAD, LPAD, 0, 0), (0, DPAD, RPAD, 0, 0), name="data_pad")
+        data_pad = pad(data_q, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data_q
 
@@ -412,4 +412,3 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     return tvm.compute(oshape, lambda n, h, w, co:
                        conv[n][h//VH][w//VW][co//VC][h%VH][w%VW][co%VC],
                        name='output_unpack', tag='spatial_bitserial_conv_nhwc')
-
