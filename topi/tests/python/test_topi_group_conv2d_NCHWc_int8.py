@@ -80,7 +80,8 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
         func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-3)
 
-    for device in ["llvm -mcpu=skylake-avx512"]:
+    # for device in ["llvm -mcpu=skylake-avx512"]:
+    for device in ["llvm -mcpu=core-avx2"]:
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device)
 
