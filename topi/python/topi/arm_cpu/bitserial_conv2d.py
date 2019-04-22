@@ -21,7 +21,8 @@ import tvm
 from tvm import autotvm
 from .. import tag
 from ..nn.pad import pad
-from ..nn.bitserial_conv2d import bitpack, bitserial_conv2d_nhwc
+from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc
+from ..nn.bitserial_util import bitpack
 from ..nn.util import get_pad_tuple
 from ..util import get_const_int, get_const_tuple
 from .. import generic
@@ -310,7 +311,6 @@ def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,
 
     s[conv_out].compute_at(s[last], co)
     s[last].parallel(oh)
-    s = s.normalize()
     return s
 
 @autotvm.register_topi_schedule(generic.nn.schedule_bitserial_conv2d_nhwc, 'arm_cpu', 'direct')

@@ -25,7 +25,7 @@ from .. import generic
 from .bitserial_conv2d import _intrin_popcount
 from ..nn.pad import pad
 from ..nn.bitserial_dense import bitserial_dense
-from ..nn.bitserial_conv2d import bitpack # Pull out into a utility function?
+from ..nn.bitserial_util import bitpack
 
 @autotvm.register_topi_compute(bitserial_dense, ['arm_cpu'], 'direct')
 def bitserial_dense_generic(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_dtype,
@@ -164,7 +164,6 @@ def schedule_bitserial_dense(cfg, outs):
             pc = _intrin_popcount(nfactor, kfactor, WB, DB, unipolar)
             s[output].tensorize(wb, pc)
 
-        s = s.normalize()
         return s
 
     def traverse(op):

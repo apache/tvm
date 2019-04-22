@@ -20,7 +20,7 @@ from __future__ import absolute_import
 import tvm
 from tvm import autotvm
 from topi.util import get_const_tuple
-from .bitserial_conv2d import bitpack
+from .bitserial_util import bitpack
 
 @tvm.target.generic_func
 def bitserial_dense(data, weight, data_bits, weight_bits, pack_dtype='uint32',
