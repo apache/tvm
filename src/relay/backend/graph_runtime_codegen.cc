@@ -429,11 +429,11 @@ class GraphRuntimeCodegen
     }
     CCacheKey key = (*pf0)(func, target);
     CachedFunc lowerd_func = (*pf1)(compile_engine_, key);
-    if (!lowered_funcs_.count(target->target_name)) {
-      lowered_funcs_[target->target_name] = {};
+    if (!lowered_funcs_.count(target->str())) {
+      lowered_funcs_[target->str()] = {};
     }
     for (auto f : lowerd_func->funcs) {
-      lowered_funcs_[target->target_name].insert(f);
+      lowered_funcs_[target->str()].insert(f);
     }
 
     std::vector<GraphNodeRef> inputs;
