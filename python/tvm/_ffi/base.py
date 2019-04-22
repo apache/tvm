@@ -49,7 +49,17 @@ else:
 def _load_lib():
     """Load libary by searching possible path."""
     lib_path = libinfo.find_lib_path()
-    lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
+    try:
+      lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
+    except:
+      # Add user-friendly error messages
+      sys.stderr.write('Got an error while loading TVM library from {}:\n\n'.format(lib_path[0]))
+      sys.stderr.write(
+          'Please consider updating environment variable TVM_LIBRARY_PATH to the right position,\n'
+          'or checking https://github.com/dmlc/tvm/issues/281 for more information '
+          'about which paths TVM will look up for its libraries.\n\n')
+      raise
+
     # DMatrix functions
     lib.TVMGetLastError.restype = ctypes.c_char_p
     return lib, os.path.basename(lib_path[0])
