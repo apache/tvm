@@ -238,8 +238,8 @@ def schedule_conv2d(cfg, outs):
     return s
 
 
-# @generic.schedule_conv2d_nhwc.register("cpu")
-@autotvm.register_topi_schedule(generic.schedule_conv2d_nhwc, 'cpu', ['direct'])
+@generic.schedule_conv2d_nhwc.register("cpu")
+# @autotvm.register_topi_schedule(generic.schedule_conv2d_nhwc, 'cpu', ['direct'])
 def schedule_conv2d_nhwc(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
