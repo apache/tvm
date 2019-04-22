@@ -20,20 +20,21 @@ import math
 import tvm
 
 from tvm import api
-from tvm.intrin import if_then_else
+from tvm.generic import cast
+from tvm.intrin import if_then_else, log, power
 from topi.vision import non_max_suppression, get_valid_counts
 from .sort import argsort
 
 
 def get_valid_counts_pre(data, flag, idx, score_threshold):
-    """Low level IR to get valid count of bounding boxes
+    """Low level IR to Prepare get valid count of bounding boxes
     given a score threshold. Also moves valid boxes to the
     top of input data.
 
     Parameters
     ----------
     data: Buffer
-        3D Buffer with shape [batch_size, num_anchors, 6], output of nms.
+        3D Buffer with shape [batch_size, num_anchors, elem_length], output of nms.
 
     flag : Buffer
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
@@ -64,32 +65,184 @@ def get_valid_counts_pre(data, flag, idx, score_threshold):
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("vthread")
+    bx = tvm.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "virtual_thread", nthread_bx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
 
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors # number of batches
-        j = tid % num_anchors # number of anchors
-        base_idx = i * num_anchors * box_data_length
-        with ib.if_scope(data[base_idx + j * box_data_length + 1] > score_threshold):
+        with ib.if_scope(data[tid * box_data_length + 1] > score_threshold):
             flag[tid] = 1
             idx[tid] = 1
         with ib.else_scope():
             flag[tid] = 0
             idx[tid] = 0
 
-    with ib.if_scope(tid < batch_size):
-        with ib.for_range(0, num_anchors) as k:
-            with ib.if_scope(k > 0):
-                idx[tid * num_anchors + k] += idx[tid * num_anchors + k - 1]
+    return ib.get()
+
+def get_valid_counts_upsweep(data, idx_in, idx, partial):
+    """Low level IR of first step of scan: unsweep.
+
+    Parameters
+    ----------
+    data: Buffer
+        3D Buffer with shape [batch_size, num_anchors, elem_length], output of nms.
+
+    idx_in : Buffer
+        2D Buffer of valid data indices with shape [batch_size, num_anchors].
+
+    idx : Buffer
+        2D Buffer of valid data indices with shape [batch_size, num_anchors].
+
+    partial : Buffer
+        2D Buffer of valid data indices with shape [batch_size, new_range].
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    ib = tvm.ir_builder.create()
+    data = ib.buffer_ptr(data)
+    idx_in = ib.buffer_ptr(idx_in)
+    idx = ib.buffer_ptr(idx)
+    partial = ib.buffer_ptr(partial)
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    elem_per_thread = num_anchors // max_threads + 1
+    nthread_tx = max_threads
+    nthread_bx = batch_size
+    tx = tvm.thread_axis("threadIdx.x")
+    bx = tvm.thread_axis("blockIdx.x")
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    new_range = num_anchors // elem_per_thread + 1
+    # Scan: Upsweep:
+    with ib.if_scope(tvm.all(bx < batch_size, tx < new_range)):
+        with ib.for_range(0, elem_per_thread) as i:
+            with ib.if_scope(bx * num_anchors + \
+                             tx * elem_per_thread + i < batch_size * num_anchors):
+                with ib.if_scope(i == 0):
+                    partial[bx * new_range + tx] = idx_in[bx * num_anchors + tx * elem_per_thread]
+                    idx[bx * num_anchors + tx * elem_per_thread] = \
+                    idx_in[bx * num_anchors + tx * elem_per_thread]
+                with ib.else_scope():
+                    partial[bx * new_range + tx] += \
+                    idx_in[bx * num_anchors + tx * elem_per_thread + i]
+                    idx[bx * num_anchors + tx * elem_per_thread + i] = \
+                    idx[bx * num_anchors + tx * elem_per_thread + i - 1] + \
+                    idx_in[bx * num_anchors + tx * elem_per_thread + i]
+                ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
+                                      tvm.convert(['shared']),
+                                      tvm.expr.Call.Intrinsic, None, 0))
+    return ib.get()
+
+def get_valid_counts_scan(data, partial_in, partial):
+    """Low level IR to do scan.
+
+    Parameters
+    ----------
+    data: Buffer
+        3D Buffer with shape [batch_size, num_anchors, elem_length], output of nms.
+
+    idx_in : Buffer
+        2D Buffer of valid data indices with shape [batch_size, num_anchors].
+
+    idx : Buffer
+        2D Buffer of valid data indices with shape [batch_size, num_anchors].
+
+    partial : Buffer
+        2D Buffer of valid data indices with shape [batch_size, new_range].
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    ib = tvm.ir_builder.create()
+    partial_in = ib.buffer_ptr(partial_in)
+    partial = ib.buffer_ptr(partial)
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    elem_per_thread = num_anchors // max_threads + 1
+    nthread_tx = max_threads
+    nthread_bx = batch_size
+    tx = tvm.thread_axis("threadIdx.x")
+    bx = tvm.thread_axis("blockIdx.x")
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    var = tvm.make.node("FloatImm", dtype="float32", value=2)
+    new_range = num_anchors // elem_per_thread + 1
+    iteration = log(cast(new_range, "float32")) // math.log(2)
+    # Scan: Kogge-Stone adder
+    with ib.if_scope(tvm.all(bx < batch_size, tx < tvm.min(new_range, num_anchors))):
+        with ib.for_range(0, iteration) as k:
+            with ib.if_scope(k == 0):
+                with ib.if_scope(tvm.all(tx > 0, tx < tvm.min(new_range, num_anchors))):
+                    partial[bx * new_range + tx] = \
+                    partial_in[bx * new_range + tx] + partial_in[bx * new_range + tx - 1]
+                with ib.else_scope():
+                    partial[bx * new_range] = partial_in[bx * new_range]
+            with ib.else_scope():
+                with ib.if_scope(tvm.all(tx >= cast(power(var, k), "int32"), \
+                                         tx < tvm.min(new_range, num_anchors))):
+                    partial[bx * new_range + tx] += \
+                    partial[bx * new_range + tx - cast(power(var, k), "int32")]
             ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
                                   tvm.convert(['shared']),
                                   tvm.expr.Call.Intrinsic, None, 0))
-
     return ib.get()
 
+def get_valid_counts_downsweep(data, idx_in, partial, idx):
+    """Low level IR to do downsweep of scan.
+
+    Parameters
+    ----------
+    data: Buffer
+        3D Buffer with shape [batch_size, num_anchors, elem_length], output of nms.
+
+    idx_in : Buffer
+        2D Buffer of valid data indices with shape [batch_size, num_anchors].
+
+    partial : Buffer
+        2D Buffer of valid data indices with shape [batch_size, new_range].
+
+    idx : Buffer
+        2D Buffer of valid data indices with shape [batch_size, num_anchors].
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    ib = tvm.ir_builder.create()
+    idx_in = ib.buffer_ptr(idx_in)
+    idx = ib.buffer_ptr(idx)
+    partial = ib.buffer_ptr(partial)
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    elem_per_thread = num_anchors // max_threads + 1
+    nthread_tx = max_threads
+    nthread_bx = batch_size * num_anchors // max_threads + 1
+    tx = tvm.thread_axis("threadIdx.x")
+    bx = tvm.thread_axis("blockIdx.x")
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    tid = bx * max_threads + tx
+    new_range = num_anchors // elem_per_thread + 1
+    # Scan: Downsweep:
+    with ib. if_scope(tid < batch_size * num_anchors):
+        i = tid / num_anchors # number of batches
+        j = tid % num_anchors # number of anchors
+        with ib.if_scope(j < elem_per_thread):
+            idx[tid] = idx_in[tid]
+        with ib.else_scope():
+            idx[tid] = idx_in[tid] + partial[i * new_range + j // elem_per_thread - 1]
+
+    return ib.get()
 
 def get_valid_counts_ir(data, flag, idx, valid_count, out):
     """Low level IR to get valid count of bounding boxes
@@ -99,7 +252,7 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     Parameters
     ----------
     data : Buffer
-        Input data. 3-D Buffer with shape [batch_size, num_anchors, 6].
+        Input data. 3-D Buffer with shape [batch_size, num_anchors, elem_length].
 
     flag : Buffer
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
@@ -121,6 +274,7 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
     elem_length = data.shape[2]
+    size = batch_size * num_anchors * elem_length
 
     ib = tvm.ir_builder.create()
 
@@ -139,18 +293,27 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
 
-    with ib.if_scope(tid < batch_size * num_anchors * elem_length):
-        out[tid] = -1.0
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors # number of batches
-        j = tid % num_anchors # number of anchors
+        i = tid / num_anchors
+        j = tid % num_anchors
         base_idx = i * num_anchors * elem_length
         with ib.if_scope(flag[tid] > 0):
             with ib.for_range(0, elem_length) as k:
-                out[base_idx + (idx[tid] - 1) * elem_length + k] =\
-                data[base_idx + j * elem_length + k]
-        valid_count[i] = idx[i * num_anchors + num_anchors - 1]
-
+                with ib.if_scope(base_idx + (idx[tid] - 1) * elem_length + k < size):
+                    out[base_idx + (idx[tid] - 1) * elem_length + k] =\
+                    data[base_idx + j * elem_length + k]
+                    ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
+                                          tvm.convert(['shared']),
+                                          tvm.expr.Call.Intrinsic, None, 0))
+        with ib.if_scope(j == 0):
+            valid_count[i] = idx[tid + num_anchors - 1]
+        with ib.if_scope(j >= idx[i * num_anchors + num_anchors - 1]):
+            with ib.for_range(0, elem_length) as l:
+                with ib.if_scope(tid * elem_length + l < size):
+                    out[tid * elem_length + l] = -1.0
+                    ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
+                                          tvm.convert(['shared']),
+                                          tvm.expr.Call.Intrinsic, None, 0))
     return ib.get()
 
 
@@ -162,7 +325,7 @@ def get_valid_counts_gpu(data, score_threshold=0):
     Parameters
     ----------
     data : tvm.Tensor
-        Input data. 3-D tensor with shape [batch_size, num_anchors, 6].
+        Input data. 3-D tensor with shape [batch_size, num_anchors, elem_length].
 
     score_threshold : optional, float
         Lower limit of score for valid bounding boxes.
@@ -177,12 +340,18 @@ def get_valid_counts_gpu(data, score_threshold=0):
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    elem_per_thread = num_anchors // max_threads + 1
+    new_range = num_anchors // elem_per_thread + 1
     temp_flag_buf = api.decl_buffer(
         (batch_size, num_anchors,), "int32", "temp_flag", data_alignment=8)
     temp_idx_buf = api.decl_buffer(
         (batch_size, num_anchors,), "int32", "temp_idx", data_alignment=8)
+    temp_partial_buf = api.decl_buffer(
+        (batch_size, new_range), "int32", "temp_partial", data_alignment=8)
     data_buf = api.decl_buffer(
         data.shape, data.dtype, "data_buf", data_alignment=8)
+
     temp_flag, temp_idx = \
         tvm.extern([(batch_size, num_anchors,), (batch_size, num_anchors,)], [data],
                    lambda ins, outs: get_valid_counts_pre(
@@ -190,14 +359,35 @@ def get_valid_counts_gpu(data, score_threshold=0):
                    dtype=["int32", "int32"],
                    out_buffers=[temp_flag_buf, temp_idx_buf],
                    name="get_valid_counts_phase_one")
-
+    temp_idx_new, temp_partial = \
+        tvm.extern([(batch_size, num_anchors,), (batch_size, new_range)], [data, temp_idx],
+                   lambda ins, outs: get_valid_counts_upsweep(
+                       ins[0], ins[1], outs[0], outs[1]),
+                   dtype=["int32", "int32"],
+                   out_buffers=[temp_idx_buf, temp_partial_buf],
+                   name="get_valid_counts_phase_two")
+    temp_partial_new = \
+        tvm.extern([(batch_size, new_range)], [data, temp_partial],
+                   lambda ins, outs: get_valid_counts_scan(
+                       ins[0], ins[1], outs[0]),
+                   dtype=["int32"],
+                   out_buffers=[temp_partial_buf],
+                   name="get_valid_counts_phase_three")
+    temp_idx_final = \
+        tvm.extern([(batch_size, num_anchors)], [data, temp_idx_new, temp_partial_new],
+                   lambda ins, outs: get_valid_counts_downsweep(
+                       ins[0], ins[1], ins[2], outs[0]),
+                   dtype=["int32"],
+                   out_buffers=[temp_idx_buf],
+                   name="get_valid_counts_phase_four")
     valid_count, out_tensor = \
-	tvm.extern([(batch_size,), data.shape], [data, temp_flag, temp_idx],
+	tvm.extern([(batch_size,), data.shape], [data, temp_flag, temp_idx_final],
             lambda ins, outs: get_valid_counts_ir(
                 ins[0], ins[1], ins[2], outs[0], outs[1]),
             dtype=["int32", data.dtype],
             in_buffers=[data_buf, temp_flag_buf, temp_idx_buf],
-            tag="get_valid_counts")
+            name="get_valid_counts_phase_five",
+            tag="get_valid_counts_gpu")
 
     return [valid_count, out_tensor]
 
@@ -360,7 +550,7 @@ def invalid_to_bottom_pre(data, flag, idx):
     Parameters
     ----------
     data: Buffer
-        3D Buffer with shape [batch_size, num_anchors, 6], output of nms.
+        3D Buffer with shape [batch_size, num_anchors, elem_length], output of nms.
 
     flag : Buffer
         1D Buffer of flag indicating valid data with [num_anchors].
@@ -416,7 +606,7 @@ def invalid_to_bottom_ir(data, flag, idx, out):
     Parameters
     ----------
     data: Buffer
-        3D Buffer with shape [batch_size, num_anchors, 6], output of nms.
+        3D Buffer with shape [batch_size, num_anchors, elem_length], output of nms.
 
     flag : Buffer
         1D Buffer of flag indicating valid data with [num_anchors].
@@ -425,7 +615,7 @@ def invalid_to_bottom_ir(data, flag, idx, out):
         1D Buffer of valid data indices with [num_anchors].
 
     out : Buffer
-        3D Buffer of rearranged nms output with shape [batch_size, num_anchors, 6].
+        3D Buffer of rearranged nms output with shape [batch_size, num_anchors, elem_length].
 
     Returns
     -------
@@ -475,7 +665,7 @@ def non_max_suppression_gpu(data, valid_count, max_output_size=-1,
     Parameters
     ----------
     data : tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6].
+        3-D tensor with shape [batch_size, num_anchors, elem_length].
         The last dimension should be in format of
         [class_id, score, box_left, box_top, box_right, box_bottom].
 
@@ -513,7 +703,7 @@ def non_max_suppression_gpu(data, valid_count, max_output_size=-1,
     Returns
     -------
     out : tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6].
+        3-D tensor with shape [batch_size, num_anchors, elem_length].
 
     Example
     --------
