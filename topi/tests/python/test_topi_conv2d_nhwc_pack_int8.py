@@ -49,7 +49,7 @@ def verify_conv2d_1x1_nhwc_pack_int8(batch, in_channel, in_size, num_filter, ker
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     # for device in ['llvm -mcpu=skylake-avx512']:
-    for device in ['llvm -mcpu=core-avx2']:
+    for device in ['llvm']:
         check_device(device)
 
 
