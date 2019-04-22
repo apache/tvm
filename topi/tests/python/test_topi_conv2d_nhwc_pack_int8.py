@@ -40,7 +40,7 @@ def verify_conv2d_1x1_nhwc_pack_int8(batch, in_channel, in_size, num_filter, ker
 
         with tvm.target.create(device):
             B = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NHWC', out_dtype="int32")
-            s = topi.generic.schedule_conv2d_nhwc([B])
+            s = topi.generic.schedule_conv2d_nhwc_pack([B])
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)

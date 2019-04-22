@@ -238,9 +238,8 @@ def schedule_conv2d(cfg, outs):
     return s
 
 
-@generic.schedule_conv2d_nhwc.register("cpu")
-# @autotvm.register_topi_schedule(generic.schedule_conv2d_nhwc, 'cpu', ['direct'])
-def schedule_conv2d_nhwc(cfg, outs):
+@autotvm.register_topi_schedule(generic.schedule_conv2d_nhwc_pack, 'cpu', ['direct'])
+def schedule_conv2d_nhwc_pack(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     output_op = outs[0].op
@@ -286,7 +285,35 @@ def schedule_conv2d_nhwc(cfg, outs):
                 raise ValueError("Not support this data type {} with "
                                  "schedule template.".format(data.dtype))
 
-        elif 'conv2d_nhwc' in op.tag:
+        scheduled_ops.append(op)
+    traverse(output_op)
+    return s
+
+
+@generic.schedule_conv2d_nhwc.register("cpu")
+def schedule_conv2d_nhwc(outs):
+    """Create schedule for tensors"""
+    s = tvm.create_schedule([x.op for x in outs])
+    output_op = outs[0].op
+    scheduled_ops = []
+
+    def traverse(op):
+        """Traverse operators from computation graph"""
+        # inline all one-to-one-mapping operators except the last stage (output)
+        if tag.is_broadcast(op.tag):
+            if op not in s.outputs:
+                s[op].compute_inline()
+            else: # inject custom schedule
+                if len(op.axis) == 4: # schedule bias + bn + relu
+                    n, h, w, c = op.axis
+                    fused = s[op].fuse(n, h, w)
+                    s[op].parallel(fused)
+                    s[op].vectorize(c)
+            for tensor in op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                    traverse(tensor.op)
+
+        if 'conv2d_nhwc' in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
