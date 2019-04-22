@@ -169,7 +169,9 @@ class Conv(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # get number of channels
+        # get number of input channels
+        attr['in_channels'] = infer_shape(inputs[0])[1]
+
         out = AttrCvt(op_name=dimension_picker('conv'),
                       transforms={
                           'kernel_shape': 'kernel_size',
