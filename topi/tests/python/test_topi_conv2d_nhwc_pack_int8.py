@@ -17,16 +17,18 @@ def verify_conv2d_1x1_nhwc_pack_int8(batch, in_channel, in_size, num_filter, ker
     W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W', dtype='int8')
 
     a_shape = get_const_tuple(A.shape)
-    w_shape = (kernel, kernel, in_channel, num_filter)
-    dtype = A.dtype
+    w_shape = get_const_tuple(W.shape)
+    adtype = A.dtype
+    wdtype = W.dtype
 
     @memoize("topi.tests.test_topi_conv2d_1x1_nhwc_pack_int8.verify_nhwc.v2")
     def get_ref_data():
-        a_np = np.random.uniform(size=a_shape).astype(dtype)
-        w_np = np.random.uniform(size=w_shape).astype(W.dtype)
+        a_np = np.random.uniform(size=a_shape).astype(adtype)
+        w_np = np.random.uniform(size=w_shape).astype(wdtype)
         dw_np = topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
         b_np = topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
         return a_np, w_np, b_np
+
     a_np, w_np, b_np = get_ref_data()
 
     def check_device(device):
