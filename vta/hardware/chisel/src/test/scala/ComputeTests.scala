@@ -31,38 +31,84 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   val insn_finish = "h00000000000000000000000000000013".U // finish
 
   // min
-  val biases_min_data0 = "00000001fffffff3ffffffe2ffffffc800000024ffffffdf00000012ffffffde00000025ffffffe8ffffffe9ffffffdb0000002100000010ffffffd6ffffffd5"
-  val biases_min_data1 = "ffffffe6ffffffe4ffffffd9ffffffee00000008ffffffe60000003fffffffe1ffffffd3000000020000000a000000270000000fffffffd0fffffffffffffffb"
-  val biases_min_data2 = "ffffffddffffffd0fffffff6ffffffd1ffffffd8000000330000002afffffff000000032ffffffe7ffffffceffffffed00000021ffffffdf0000003affffffe3"
-  val biases_min_data3 = "00000038ffffffe4ffffffd3ffffffc500000037000000020000003cfffffff100000036ffffffe5ffffffec0000002200000018000000190000001000000012"
-  val biases_min_data4 = "000000090000000cffffffc8ffffffdf00000004ffffffd00000001e000000090000000e00000009ffffffddfffffffbfffffff60000001bffffffc9ffffffce"
-  val biases_min_data5 = "00000020fffffff5ffffffeffffffff5ffffffe1ffffffda0000003a0000001d0000002b00000020ffffffdcffffffecfffffffbffffffc4ffffffef0000001c"
-  val biases_min_data6 = "0000000d0000000c000000200000001b0000002f0000001d00000037ffffffd30000003f00000036ffffffe10000002b000000280000002fffffffcaffffffc0"
-  val biases_min_data7 = "00000023fffffffffffffff5000000260000000effffffd6000000000000000e0000003a0000001a000000250000002d0000003f00000039ffffffe4ffffffc0"
+  val biases_min_data0 = "fffffff6ffffffc4ffffffc7ffffffefffffffc1ffffffecfffffff30000001e"+
+                         "000000040000000a0000000b00000039ffffffeeffffffc6ffffffe9fffffff5"
+  val biases_min_data1 = "000000120000003afffffffb00000010fffffff3ffffffde00000034fffffffa"+
+                         "0000002a00000037ffffffcd00000022ffffffd3ffffffc60000003400000020"
+  val biases_min_data2 = "000000310000003efffffffcffffffd800000031000000170000000b0000003e"+
+                         "ffffffd10000002200000038ffffffd0ffffffdbfffffff8ffffffc7ffffffc7"
+  val biases_min_data3 = "ffffffe20000003c00000023ffffffddffffffdb00000016000000200000000f"+
+                         "0000002bffffffd9ffffffc5fffffff800000007fffffff8ffffffec00000031"
+  val biases_min_data4 = "fffffff8ffffffe10000000afffffff30000001400000017ffffffdcffffffd3"+
+                         "00000028000000290000002e0000000f00000018000000250000002bffffffe3"
+  val biases_min_data5 = "000000020000001b00000009000000300000003b00000016ffffffe90000002d"+
+                         "fffffffa0000001fffffffe9ffffffca0000001000000019ffffffce00000021"
+  val biases_min_data6 = "ffffffd3000000160000003affffffe7fffffff2ffffffd20000002e00000003"+
+                         "0000001100000008000000320000001d0000002f00000034ffffffdefffffff1"
+  val biases_min_data7 = "fffffffa0000003ffffffff50000002f00000019ffffffc8ffffffd6fffffffa"+
+                         "0000001ffffffff1000000010000003efffffff6000000110000002400000017"
   val biases_min = IndexedSeq(biases_min_data0, biases_min_data1, biases_min_data2, biases_min_data3,
                               biases_min_data4, biases_min_data5, biases_min_data6, biases_min_data7)
 
+  // min (uop_compress=false)
+  val biases_min_nocomp_data0 = "00000001fffffff3ffffffe2ffffffc800000024ffffffdf00000012ffffffde"+
+                                "00000025ffffffe8ffffffe9ffffffdb0000002100000010ffffffd6ffffffd5"
+  val biases_min_nocomp_data1 = "ffffffe6ffffffe4ffffffd9ffffffee00000008ffffffe60000003fffffffe1"+
+                                "ffffffd3000000020000000a000000270000000fffffffd0fffffffffffffffb"
+  val biases_min_nocomp_data2 = "ffffffddffffffd0fffffff6ffffffd1ffffffd8000000330000002afffffff0"+
+                                "00000032ffffffe7ffffffceffffffed00000021ffffffdf0000003affffffe3"
+  val biases_min_nocomp_data3 = "00000038ffffffe4ffffffd3ffffffc500000037000000020000003cfffffff1"+
+                                "00000036ffffffe5ffffffec0000002200000018000000190000001000000012"
+  val biases_min_nocomp_data4 = "000000090000000cffffffc8ffffffdf00000004ffffffd00000001e00000009"+
+                                "0000000e00000009ffffffddfffffffbfffffff60000001bffffffc9ffffffce"
+  val biases_min_nocomp_data5 = "00000020fffffff5ffffffeffffffff5ffffffe1ffffffda0000003a0000001d"+
+                                "0000002b00000020ffffffdcffffffecfffffffbffffffc4ffffffef0000001c"
+  val biases_min_nocomp_data6 = "0000000d0000000c000000200000001b0000002f0000001d00000037ffffffd3"+
+                                "0000003f00000036ffffffe10000002b000000280000002fffffffcaffffffc0"
+  val biases_min_nocomp_data7 = "00000023fffffffffffffff5000000260000000effffffd6000000000000000e"+
+                                "0000003a0000001a000000250000002d0000003f00000039ffffffe4ffffffc0"
+  val biases_min_nocomp = IndexedSeq(biases_min_nocomp_data0, biases_min_nocomp_data1,
+                                     biases_min_nocomp_data2, biases_min_nocomp_data3,
+                                     biases_min_nocomp_data4, biases_min_nocomp_data5,
+                                     biases_min_nocomp_data6, biases_min_nocomp_data7)
+
   // max
-  val biases_max_data0 = "0000001a0000000b0000003600000004ffffffdf00000035fffffff200000003ffffffd4ffffffe1ffffffdcfffffffeffffffc300000028000000380000002e"
-  val biases_max_data1 = "ffffffd8ffffffe5ffffffc9ffffffc5ffffffd6ffffffd000000033ffffffd00000003afffffff5ffffffd6ffffffe20000003bffffffc50000000900000014"
-  val biases_max_data2 = "fffffff9ffffffe60000001c00000017ffffffdaffffffed0000001b0000000fffffffc3000000210000002a00000035000000190000000dfffffff4ffffffc2"
-  val biases_max_data3 = "00000010fffffffc000000070000000fffffffcd00000009ffffffd4ffffffe600000021fffffff2ffffffd20000002cffffffdc0000001effffffc3fffffffc"
-  val biases_max_data4 = "ffffffecffffffd30000002400000003ffffffd0ffffffe1ffffffc500000038ffffffc500000037000000060000003bffffffc7ffffffd4ffffffffffffffc7"
-  val biases_max_data5 = "00000020ffffffd9ffffffcb00000007ffffffc4fffffff2000000190000002bffffffdffffffffcffffffc100000018ffffffdaffffffcdfffffff1ffffffea"
-  val biases_max_data6 = "fffffffc0000003900000016ffffffefffffffcafffffff90000003800000024ffffffe00000000d0000003b00000038ffffffd7ffffffe500000021ffffffe7"
-  val biases_max_data7 = "00000010ffffffe3ffffffddffffffd3ffffffc2fffffff3ffffffcbffffffc8fffffffafffffff9ffffffedffffffcf0000003e0000003bffffffd900000005"
+  val biases_max_data0 = "0000001a0000000b0000003600000004ffffffdf00000035fffffff200000003"+
+                         "ffffffd4ffffffe1ffffffdcfffffffeffffffc300000028000000380000002e"
+  val biases_max_data1 = "ffffffd8ffffffe5ffffffc9ffffffc5ffffffd6ffffffd000000033ffffffd0"+
+                         "0000003afffffff5ffffffd6ffffffe20000003bffffffc50000000900000014"
+  val biases_max_data2 = "fffffff9ffffffe60000001c00000017ffffffdaffffffed0000001b0000000f"+
+                         "ffffffc3000000210000002a00000035000000190000000dfffffff4ffffffc2"
+  val biases_max_data3 = "00000010fffffffc000000070000000fffffffcd00000009ffffffd4ffffffe6"+
+                         "00000021fffffff2ffffffd20000002cffffffdc0000001effffffc3fffffffc"
+  val biases_max_data4 = "ffffffecffffffd30000002400000003ffffffd0ffffffe1ffffffc500000038"+
+                         "ffffffc500000037000000060000003bffffffc7ffffffd4ffffffffffffffc7"
+  val biases_max_data5 = "00000020ffffffd9ffffffcb00000007ffffffc4fffffff2000000190000002b"+
+                         "ffffffdffffffffcffffffc100000018ffffffdaffffffcdfffffff1ffffffea"
+  val biases_max_data6 = "fffffffc0000003900000016ffffffefffffffcafffffff90000003800000024"+
+                         "ffffffe00000000d0000003b00000038ffffffd7ffffffe500000021ffffffe7"
+  val biases_max_data7 = "00000010ffffffe3ffffffddffffffd3ffffffc2fffffff3ffffffcbffffffc8"+
+                         "fffffffafffffff9ffffffedffffffcf0000003e0000003bffffffd900000005"
   val biases_max = IndexedSeq(biases_max_data0, biases_max_data1, biases_max_data2, biases_max_data3,
                               biases_max_data4, biases_max_data5, biases_max_data6, biases_max_data7)
 
   // shr
-  val biases_shr_data0 = "ffffffd6ffffffc1ffffffd6ffffffeaffffffdfffffffdbffffffc50000001000000037fffffffa000000020000002100000000006646c000007ffff6cd4878"
-  val biases_shr_data1 = "00000019ffffffc1ffffffe4ffffffc5fffffff700000012ffffffc600000030fffffffd00000033ffffffc5ffffffc400000012ffffffe90000001fffffffc4"
-  val biases_shr_data2 = "0000003bffffffd7ffffffc4ffffffd800000007ffffffeafffffff100000019ffffffc2ffffffd5ffffffd5ffffffdd0000003e00000035ffffffc4ffffffc8"
-  val biases_shr_data3 = "0000000d0000003100000010fffffff900000031000000200000002f00000030fffffff50000002bffffffecffffffe0ffffffdb00000008fffffff0ffffffcf"
-  val biases_shr_data4 = "000000200000003b000000210000003cffffffd5000000310000002a0000001affffffcaffffffc30000000300000004ffffffea00000000ffffffeb0000001f"
-  val biases_shr_data5 = "ffffffc5000000220000000efffffff700000016ffffffdbffffffc90000003c00000030ffffffeaffffffd30000003c0000002dfffffffa0000003f0000003d"
-  val biases_shr_data6 = "0000000dffffffd4000000330000003dffffffd300000019000000370000003bffffffd80000002dffffffd50000003e000000230000001200000034ffffffed"
-  val biases_shr_data7 = "ffffffcafffffffd00000026ffffffe50000002e0000002affffffdcfffffffc00000035ffffffd9ffffffc1fffffffe0000001000000026ffffffd400000034"
+  val biases_shr_data0 = "ffffffd6ffffffc1ffffffd6ffffffeaffffffdfffffffdbffffffc500000010"+
+                         "00000037fffffffa000000020000002100000000006646c000007ffff6cd4878"
+  val biases_shr_data1 = "00000019ffffffc1ffffffe4ffffffc5fffffff700000012ffffffc600000030"+
+                         "fffffffd00000033ffffffc5ffffffc400000012ffffffe90000001fffffffc4"
+  val biases_shr_data2 = "0000003bffffffd7ffffffc4ffffffd800000007ffffffeafffffff100000019"+
+                         "ffffffc2ffffffd5ffffffd5ffffffdd0000003e00000035ffffffc4ffffffc8"
+  val biases_shr_data3 = "0000000d0000003100000010fffffff900000031000000200000002f00000030"+
+                         "fffffff50000002bffffffecffffffe0ffffffdb00000008fffffff0ffffffcf"
+  val biases_shr_data4 = "000000200000003b000000210000003cffffffd5000000310000002a0000001a"+
+                         "ffffffcaffffffc30000000300000004ffffffea00000000ffffffeb0000001f"
+  val biases_shr_data5 = "ffffffc5000000220000000efffffff700000016ffffffdbffffffc90000003c"+
+                         "00000030ffffffeaffffffd30000003c0000002dfffffffa0000003f0000003d"
+  val biases_shr_data6 = "0000000dffffffd4000000330000003dffffffd300000019000000370000003b"+
+                         "ffffffd80000002dffffffd50000003e000000230000001200000034ffffffed"
+  val biases_shr_data7 = "ffffffcafffffffd00000026ffffffe50000002e0000002affffffdcfffffffc"+
+                         "00000035ffffffd9ffffffc1fffffffe0000001000000026ffffffd400000034"
   val biases_shr = IndexedSeq(biases_shr_data0, biases_shr_data1, biases_shr_data2, biases_shr_data3,
                               biases_shr_data4, biases_shr_data5, biases_shr_data6, biases_shr_data7)
 
@@ -254,103 +300,36 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
 
   poke(c.io.gemm_queue.valid, 0.U)
   expect(c.io.biases.read, 1.U)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "hffffffeeffffffc6ffffffe9fffffff5".U) // data 0
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "h000000040000000a0000000b00000039".U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "hffffffc1ffffffecfffffff30000001e".U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "hfffffff6ffffffc4ffffffc7ffffffef".U)
-  poke(c.io.biases.waitrequest, 1.U)
-  step(1)
-  poke(c.io.biases.waitrequest, 0.U)
-  step(1)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("040",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "hffffffd3ffffffc60000003400000020".U) // data 1
-  step(1)
-  poke(c.io.biases.readdata, "h0000002a00000037ffffffcd00000022".U)
-  step(1)
-  poke(c.io.biases.readdata, "hfffffff3ffffffde00000034fffffffa".U)
-  step(1)
-  poke(c.io.biases.readdata, "h000000120000003afffffffb00000010".U)
-  step(1)
+  for (i <- 0 to 7) {
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("080",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "hffffffdbfffffff8ffffffc7ffffffc7".U) // data 2
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 3, 32 * 3 + 32)).U)
   step(1)
-  poke(c.io.biases.readdata, "hffffffd10000002200000038ffffffd0".U)
-  step(1)
-  poke(c.io.biases.readdata, "h00000031000000170000000b0000003e".U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 2, 32 * 2 + 32)).U)
   step(1)
   poke(c.io.biases.waitrequest, 1.U)
   step(1)
   poke(c.io.biases.waitrequest, 0.U)
-  poke(c.io.biases.readdata, "h000000310000003efffffffcffffffd8".U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 1, 32 * 1 + 32)).U)
+  step(1)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 0, 32 * 0 + 32)).U)
+  poke(c.io.biases.waitrequest, 1.U)
+  step(1)
+  poke(c.io.biases.waitrequest, 0.U)
+  if (i == 6) {
+    poke(c.io.gemm_queue.data, insn_min_out)
+    poke(c.io.gemm_queue.valid, 1.U)
+  }
   step(1)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("0c0",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "h00000007fffffff8ffffffec00000031".U) // data 3
-  step(1)
-  poke(c.io.biases.readdata, "h0000002bffffffd9ffffffc5fffffff8".U)
-  step(1)
-  poke(c.io.biases.readdata, "hffffffdb00000016000000200000000f".U)
-  step(1)
-  poke(c.io.biases.readdata, "hffffffe20000003c00000023ffffffdd".U)
-  step(1)
+  } // end of for loop
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("100",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "h00000018000000250000002bffffffe3".U) // data 4
-  step(1)
-  poke(c.io.biases.readdata, "h00000028000000290000002e0000000f".U)
-  step(1)
-  poke(c.io.biases.readdata, "h0000001400000017ffffffdcffffffd3".U)
-  step(1)
-  poke(c.io.biases.readdata, "hfffffff8ffffffe10000000afffffff3".U)
-  step(1)
+  step(6)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("140",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "h0000001000000019ffffffce00000021".U) // data 5
-  step(1)
-  poke(c.io.biases.readdata, "hfffffffa0000001fffffffe9ffffffca".U)
-  step(1)
-  poke(c.io.biases.readdata, "h0000003b00000016ffffffe90000002d".U)
-  step(1)
-  poke(c.io.biases.readdata, "h000000020000001b0000000900000030".U)
-  step(1)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("180",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "h0000002f00000034ffffffdefffffff1".U) // data 6
-  step(1)
-  poke(c.io.biases.readdata, "h0000001100000008000000320000001d".U)
-  step(1)
-  poke(c.io.biases.readdata, "hfffffff2ffffffd20000002e00000003".U)
-  step(1)
-  poke(c.io.biases.readdata, "hffffffd3000000160000003affffffe7".U)
-  step(1)
-  poke(c.io.gemm_queue.data, insn_min_out)
-  poke(c.io.gemm_queue.valid, 1.U)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("1c0",16)).toString(16)).U)
-  poke(c.io.biases.readdata, "hfffffff6000000110000002400000017".U) // data 7
-  step(1)
-  poke(c.io.biases.readdata, "h0000001ffffffff1000000010000003e".U)
-  step(1)
-  poke(c.io.biases.readdata, "h00000019ffffffc8ffffffd6fffffffa".U)
-  step(1)
-  poke(c.io.biases.readdata, "hfffffffa0000003ffffffff50000002f".U)
-  step(1)
-  step(1)
-  step(1)
-  step(1)
-
-  step(1)
-  step(1)
-  step(1)
   poke(c.io.gemm_queue.data, 0.U)
   poke(c.io.gemm_queue.valid, 0.U)
   step(1)
@@ -405,103 +384,35 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   poke(c.io.gemm_queue.valid, 0.U)
   expect(c.io.biases.read, 1.U)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(0).substring(32 * 3, 32 * 3 + 32)).U) // data 0
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(0).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(0).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(0).substring(32 * 0, 32 * 0 + 32)).U)
-  poke(c.io.biases.waitrequest, 1.U)
-  step(1)
-  poke(c.io.biases.waitrequest, 0.U)
-  step(1)
+  for (i <- 0 to 7) {
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("040",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(1).substring(32 * 3, 32 * 3 + 32)).U) // data 1
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 3, 32 * 3 + 32)).U)
   step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(1).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(1).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(1).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("080",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(2).substring(32 * 3, 32 * 3 + 32)).U) // data 2
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(2).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(2).substring(32 * 1, 32 * 1 + 32)).U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 2, 32 * 2 + 32)).U)
   step(1)
   poke(c.io.biases.waitrequest, 1.U)
   step(1)
   poke(c.io.biases.waitrequest, 0.U)
-  poke(c.io.biases.readdata, ("h"+biases_min(2).substring(32 * 0, 32 * 0 + 32)).U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 1, 32 * 1 + 32)).U)
+  step(1)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 0, 32 * 0 + 32)).U)
+  poke(c.io.biases.waitrequest, 1.U)
+  step(1)
+  poke(c.io.biases.waitrequest, 0.U)
+  if (i == 6) {
+    poke(c.io.gemm_queue.data, insn_min_nocomp_out)
+    poke(c.io.gemm_queue.valid, 1.U)
+  }
   step(1)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("0c0",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(3).substring(32 * 3, 32 * 3 + 32)).U) // data 3
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(3).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(3).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(3).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
+  } // end of for loop
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("100",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(4).substring(32 * 3, 32 * 3 + 32)).U) // data 4
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(4).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(4).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(4).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
+  step(6)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("140",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(5).substring(32 * 3, 32 * 3 + 32)).U) // data 5
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(5).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(5).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(5).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("180",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(6).substring(32 * 3, 32 * 3 + 32)).U) // data 6
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(6).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(6).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(6).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-  poke(c.io.gemm_queue.data, insn_min_nocomp_out)
-  poke(c.io.gemm_queue.valid, 1.U)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("1c0",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(7).substring(32 * 3, 32 * 3 + 32)).U) // data 7
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(7).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(7).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_min(7).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-  step(1)
-  step(1)
-  step(1)
-
-  step(1)
-  step(1)
-  step(1)
   poke(c.io.gemm_queue.data, 0.U)
   poke(c.io.gemm_queue.valid, 0.U)
   step(1)
@@ -563,103 +474,35 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   poke(c.io.gemm_queue.valid, 0.U)
   expect(c.io.biases.read, 1.U)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(0).substring(32 * 3, 32 * 3 + 32)).U) // data 0
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(0).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(0).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(0).substring(32 * 0, 32 * 0 + 32)).U)
-  poke(c.io.biases.waitrequest, 1.U)
-  step(1)
-  poke(c.io.biases.waitrequest, 0.U)
-  step(1)
+  for (i <- 0 to 7) {
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("040",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(1).substring(32 * 3, 32 * 3 + 32)).U) // data 1
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_max(i).substring(32 * 3, 32 * 3 + 32)).U)
   step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(1).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(1).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(1).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("080",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(2).substring(32 * 3, 32 * 3 + 32)).U) // data 2
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(2).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(2).substring(32 * 1, 32 * 1 + 32)).U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_max(i).substring(32 * 2, 32 * 2 + 32)).U)
   step(1)
   poke(c.io.biases.waitrequest, 1.U)
   step(1)
   poke(c.io.biases.waitrequest, 0.U)
-  poke(c.io.biases.readdata, ("h"+biases_max(2).substring(32 * 0, 32 * 0 + 32)).U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_max(i).substring(32 * 1, 32 * 1 + 32)).U)
+  step(1)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_max(i).substring(32 * 0, 32 * 0 + 32)).U)
+  poke(c.io.biases.waitrequest, 1.U)
+  step(1)
+  poke(c.io.biases.waitrequest, 0.U)
+  if (i == 6) {
+    poke(c.io.gemm_queue.data, insn_max_out)
+    poke(c.io.gemm_queue.valid, 1.U)
+  }
   step(1)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("0c0",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(3).substring(32 * 3, 32 * 3 + 32)).U) // data 3
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(3).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(3).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(3).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
+  } // end of for loop
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("100",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(4).substring(32 * 3, 32 * 3 + 32)).U) // data 4
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(4).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(4).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(4).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
+  step(6)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("140",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(5).substring(32 * 3, 32 * 3 + 32)).U) // data 5
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(5).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(5).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(5).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("180",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(6).substring(32 * 3, 32 * 3 + 32)).U) // data 6
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(6).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(6).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(6).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-  poke(c.io.gemm_queue.data, insn_max_out)
-  poke(c.io.gemm_queue.valid, 1.U)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("1c0",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_max(7).substring(32 * 3, 32 * 3 + 32)).U) // data 7
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(7).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(7).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_max(7).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-  step(1)
-  step(1)
-  step(1)
-
-  step(1)
-  step(1)
-  step(1)
   poke(c.io.gemm_queue.data, 0.U)
   poke(c.io.gemm_queue.valid, 0.U)
   step(1)
@@ -721,103 +564,35 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   poke(c.io.gemm_queue.valid, 0.U)
   expect(c.io.biases.read, 1.U)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(0).substring(32 * 3, 32 * 3 + 32)).U) // data 0
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(0).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(0).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(0).substring(32 * 0, 32 * 0 + 32)).U)
-  poke(c.io.biases.waitrequest, 1.U)
-  step(1)
-  poke(c.io.biases.waitrequest, 0.U)
-  step(1)
+  for (i <- 0 to 7) {
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("040",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(1).substring(32 * 3, 32 * 3 + 32)).U) // data 1
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_shr(i).substring(32 * 3, 32 * 3 + 32)).U)
   step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(1).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(1).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(1).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("080",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(2).substring(32 * 3, 32 * 3 + 32)).U) // data 2
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(2).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(2).substring(32 * 1, 32 * 1 + 32)).U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_shr(i).substring(32 * 2, 32 * 2 + 32)).U)
   step(1)
   poke(c.io.biases.waitrequest, 1.U)
   step(1)
   poke(c.io.biases.waitrequest, 0.U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(2).substring(32 * 0, 32 * 0 + 32)).U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_shr(i).substring(32 * 1, 32 * 1 + 32)).U)
+  step(1)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_shr(i).substring(32 * 0, 32 * 0 + 32)).U)
+  poke(c.io.biases.waitrequest, 1.U)
+  step(1)
+  poke(c.io.biases.waitrequest, 0.U)
+  if (i == 6) {
+    poke(c.io.gemm_queue.data, insn_shr_out)
+    poke(c.io.gemm_queue.valid, 1.U)
+  }
   step(1)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("0c0",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(3).substring(32 * 3, 32 * 3 + 32)).U) // data 3
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(3).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(3).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(3).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
+  } // end of for loop
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("100",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(4).substring(32 * 3, 32 * 3 + 32)).U) // data 4
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(4).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(4).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(4).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
+  step(6)
 
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("140",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(5).substring(32 * 3, 32 * 3 + 32)).U) // data 5
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(5).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(5).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(5).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("180",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(6).substring(32 * 3, 32 * 3 + 32)).U) // data 6
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(6).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(6).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(6).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-  poke(c.io.gemm_queue.data, insn_shr_out)
-  poke(c.io.gemm_queue.valid, 1.U)
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("1c0",16)).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_shr(7).substring(32 * 3, 32 * 3 + 32)).U) // data 7
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(7).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(7).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  poke(c.io.biases.readdata, ("h"+biases_shr(7).substring(32 * 0, 32 * 0 + 32)).U)
-  step(1)
-  step(1)
-  step(1)
-  step(1)
-
-  step(1)
-  step(1)
-  step(1)
   poke(c.io.gemm_queue.data, 0.U)
   poke(c.io.gemm_queue.valid, 0.U)
   step(1)
