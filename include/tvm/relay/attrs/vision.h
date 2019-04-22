@@ -34,7 +34,7 @@ namespace relay {
 struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
   int axis;
   bool is_ascend;
-  std::string dtype;
+  DataType dtype;
 
   TVM_DECLARE_ATTRS(ArgsortAttrs, "relay.attrs.ArgsortAttrs") {
     TVM_ATTR_FIELD(axis).set_default(-1)
@@ -43,7 +43,7 @@ struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
     TVM_ATTR_FIELD(is_ascend).set_default(true)
       .describe("Whether to sort in ascending or descending order."
                 "By default, sort in ascending order");
-    TVM_ATTR_FIELD(dtype).set_default("float32")
+    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
       .describe("DType of the output indices.");
   }
 };
