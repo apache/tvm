@@ -29,8 +29,8 @@ def test_bfloat():
     X = tvm.placeholder((3, ), name="X")
     Y = tvm.placeholder((3, ), name="Y")
     Z = topi.cast(
-        topi.cast(X, dtype="custom[bfloat]") +
-        topi.cast(Y, dtype="custom[bfloat]"),
+        topi.cast(X, dtype="custom[bfloat]16") +
+        topi.cast(Y, dtype="custom[bfloat]16"),
         dtype="float")
 
     # Create schedule and lower, manually lowering datatypes. Once datatype
