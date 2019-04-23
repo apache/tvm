@@ -164,9 +164,9 @@ def dot_16x1x16_int8_int8_int16():
             for i in range(4):
                 vec_b = ins[1].vload([i*32, 0], "int8x64")
                 pair_reduction = tvm.call_llvm_intrin('int16x32',
-                                                  'llvm.x86.avx512.pmaddubs.w.512',
-                                                  tvm.const(0, 'uint32'),
-                                                  vec_a, vec_b)
+                                                      'llvm.x86.avx512.pmaddubs.w.512',
+                                                      tvm.const(0, 'uint32'),
+                                                      vec_a, vec_b)
                 if index == 0:
                     ib.emit(outs[0].vstore([i*32], pair_reduction))
                 else:
