@@ -24,19 +24,18 @@ import sys
 
 import numpy as np
 
-import mxnet as mx
-from mxnet.gluon.model_zoo.vision import get_model
-from mxnet.gluon.utils import download
-
 import tvm
+from tvm import relay
+from tvm.relay import testing
 from tvm.contrib import graph_runtime, cc
-import nnvm
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description='Resnet build example')
 aa = parser.add_argument
+aa('--build-dir', type=str, required=True, help='directory to put the build artifacts')
+aa('--pretrained', action='store_true', help='use a pretrained resnet')
 aa('--batch-size', type=int, default=1, help='input image batch size')
 aa('--opt-level', type=int, default=3,
    help='level of optimization. 0 is unoptimized and 3 is the highest level')
@@ -45,7 +44,7 @@ aa('--image-shape', type=str, default='3,224,224', help='input image dimensions'
 aa('--image-name', type=str, default='cat.png', help='name of input image to download')
 args = parser.parse_args()
 
-target_dir = osp.dirname(osp.dirname(osp.realpath(__file__)))
+build_dir = args.build_dir
 batch_size = args.batch_size
 opt_level = args.opt_level
 target = tvm.target.create(args.target)
@@ -57,30 +56,42 @@ def build(target_dir):
     deploy_lib = osp.join(target_dir, 'deploy_lib.o')
     if osp.exists(deploy_lib):
         return
-    # download the pretrained resnet18 trained on imagenet1k dataset for
-    # image classification task
-    block = get_model('resnet18_v1', pretrained=True)
 
-    sym, params = nnvm.frontend.from_mxnet(block)
-    # add the softmax layer for prediction
-    net = nnvm.sym.softmax(sym)
+    if args.pretrained:
+        # needs mxnet installed
+        from mxnet.gluon.model_zoo.vision import get_model
+        
+        # if `--pretrained` is enabled, it downloads a pretrained
+        # resnet18 trained on imagenet1k dataset for image classification task
+        block = get_model('resnet18_v1', pretrained=True)
+        net, params = relay.frontend.from_mxnet(block, {"data": data_shape})
+        # we want a probability so add a softmax operator
+        net = relay.Function(net.params, relay.nn.softmax(net.body),
+            None, net.type_params, net.attrs)
+    else:
+        # use random weights from relay.testing
+        net, params = relay.testing.resnet.get_workload(
+            num_layers=18, batch_size=batch_size, image_shape=image_shape)
+
     # compile the model
-    with nnvm.compiler.build_config(opt_level=opt_level):
-        graph, lib, params = nnvm.compiler.build(
-            net, target, shape={"data": data_shape}, params=params)
+    with relay.build_config(opt_level=opt_level):
+            graph, lib, params = relay.build_module.build(net, target, params=params)
+
     # save the model artifacts
     lib.save(deploy_lib)
     cc.create_shared(osp.join(target_dir, "deploy_lib.so"),
                     [osp.join(target_dir, "deploy_lib.o")])
 
     with open(osp.join(target_dir, "deploy_graph.json"), "w") as fo:
-        fo.write(graph.json())
+        fo.write(graph)
 
     with open(osp.join(target_dir,"deploy_param.params"), "wb") as fo:
-        fo.write(nnvm.compiler.save_param_dict(params))
+        fo.write(relay.save_param_dict(params))
 
 def download_img_labels():
     """ Download an image and imagenet1k class labels for test"""
+    from mxnet.gluon.utils import download
+
     img_name = 'cat.png'
     synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '4d0b62f3d01426887599d4f7ede23ee5/raw/',
@@ -97,11 +108,11 @@ def download_img_labels():
         w = csv.writer(fout)
         w.writerows(synset.items())
 
-def test_build(target_dir):
+def test_build(build_dir):
     """ Sanity check with random input"""
-    graph = open(osp.join(target_dir, "deploy_graph.json")).read()
-    lib = tvm.module.load(osp.join(target_dir, "deploy_lib.so"))
-    params = bytearray(open(osp.join(target_dir,"deploy_param.params"), "rb").read())
+    graph = open(osp.join(build_dir, "deploy_graph.json")).read()
+    lib = tvm.module.load(osp.join(build_dir, "deploy_lib.so"))
+    params = bytearray(open(osp.join(build_dir,"deploy_param.params"), "rb").read())
     input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
     ctx = tvm.cpu()
     module = graph_runtime.create(graph, lib, ctx)
@@ -112,10 +123,11 @@ def test_build(target_dir):
 
 if __name__ == '__main__':
     logger.info("building the model")
-    build(target_dir)
+    build(build_dir)
     logger.info("build was successful")
     logger.info("test the build artifacts")
-    test_build(target_dir)
+    test_build(build_dir)
     logger.info("test was successful")
-    download_img_labels()
-    logger.info("image and synset downloads are successful")
+    if args.pretrained:
+        download_img_labels()
+        logger.info("image and synset downloads are successful")

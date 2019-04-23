@@ -63,7 +63,7 @@ from tvm import autotvm
 # --------------------------------
 # In this section, we will rewrite a deterministic tvm schedule code to a
 # tunable schedule template. You can regard the process of search space definition
-# as the parametrization of our exiting schedule code.
+# as the parametrization of our existing schedule code.
 #
 # To begin with, here is how we implement a blocked matrix multiplication in tvm.
 

@@ -161,6 +161,7 @@ def is_gpu_available():
     else:
         return False
 
+
 #######################################################################
 # Pooling
 # -------
@@ -221,6 +222,19 @@ def test_forward_pooling():
                          dilation_rate=[1, 1],
                          strides=[2, 1])
 
+            # Tests involving SpaceToBatchND
+            _test_pooling(input_shape=[1, 1, 2, 1],
+                         window_shape=[1, 1],
+                         padding='VALID',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 2])
+
+            _test_pooling(input_shape=[1, 2, 1],
+                         window_shape=[1],
+                         padding='VALID',
+                         pooling_type=pool_type,
+                         dilation_rate=[2])
+
 #######################################################################
 # Convolution
 # -----------
@@ -229,12 +243,8 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
                       dilations, strides, padding, data_format):
     """ One iteration of convolution with given shapes and attributes """
 
-    total_size_1 = 1
-    total_size_2 = 1
-    for s in tensor_in_sizes:
-        total_size_1 *= s
-    for s in filter_in_sizes:
-        total_size_2 *= s
+    total_size_1 = np.prod(tensor_in_sizes)
+    total_size_2 = np.prod(filter_in_sizes)
     # Initializes the input tensor with array containing incrementing
     # numbers from 1.
     data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
@@ -253,6 +263,7 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
         nn_ops.conv2d(in_data,
                       in_filter,
                       strides=strides,
+                      dilations=dilations,
                       padding=padding,
                       data_format=data_format)
 
@@ -270,6 +281,116 @@ def test_forward_convolution():
     _test_convolution([4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
     _test_convolution([4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution([4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC')
+
+#######################################################################
+# SpaceToBatchND
+# --------------
+def _test_space_to_batch_nd(input_shape, block_shape, paddings, dtype='int32'):
+    data = np.random.uniform(0, 5, size=input_shape).astype(dtype)
+
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype=dtype)
+        out = tf.space_to_batch_nd(in_data, block_shape, paddings)
+
+        compare_tf_with_tvm(data, in_data.name, out.name)
+
+def test_forward_space_to_batch_nd():
+    # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/space-to-batch-n-d
+    _test_space_to_batch_nd(
+        input_shape=[1, 2, 2, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[1, 2, 2, 3],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[1, 4, 4, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [0, 0]]
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[2, 2, 4, 1],
+        block_shape=[2, 2],
+        paddings=[[0, 0], [2, 0]],
+        dtype='int64'
+    )
+
+    # pylint: disable=line-too-long
+    # https://github.com/tensorflow/tensorflow/blob/24f578/tensorflow/python/kernel_tests/spacetobatch_op_test.py
+    _test_space_to_batch_nd(
+        input_shape=[2, 3],
+        block_shape=[2],
+        paddings=[[1, 0]],
+        dtype='float32'
+    )
+
+    _test_space_to_batch_nd(
+        input_shape=[2, 3, 2],
+        block_shape=[2],
+        paddings=[[1, 0]],
+        dtype='float64'
+    )
+
+#######################################################################
+# BatchToSpaceND
+# --------------
+def _test_batch_to_space_nd(input_shape, block_shape, crops, dtype='int32'):
+    data = np.random.uniform(0, 5, size=input_shape).astype(dtype)
+
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype=dtype)
+        out = tf.batch_to_space_nd(in_data, block_shape, crops)
+
+        compare_tf_with_tvm(data, in_data.name, out.name)
+
+def test_forward_batch_to_space_nd():
+    # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d
+    _test_batch_to_space_nd(
+        input_shape=[4, 1, 1, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[4, 1, 1, 3],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[4, 2, 2, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [0, 0]]
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[8, 1, 3, 1],
+        block_shape=[2, 2],
+        crops=[[0, 0], [2, 0]],
+        dtype='int64'
+    )
+
+    # pylint: disable=line-too-long
+    # https://github.com/tensorflow/tensorflow/blob/24f578/tensorflow/python/kernel_tests/batchtospace_op_test.py
+    _test_batch_to_space_nd(
+        input_shape=[18, 2, 1, 2],
+        block_shape=[2, 3],
+        crops=[[1, 1], [0, 0]],
+        dtype='float32'
+    )
+
+    _test_batch_to_space_nd(
+        input_shape=[20, 5, 8, 7],
+        block_shape=[2, 2],
+        crops=[[1, 1], [1, 1]],
+        dtype='float64'
+    )
 
 #######################################################################
 # Reshape
@@ -642,6 +763,24 @@ def test_forward_unstack():
 
 
 #######################################################################
+# Tile
+# ----
+
+def _test_tile(in_shape, multiples, dtype):
+    np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    tf.tile(in_data, multiples=multiples, name="tile")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'tile:0')
+
+def test_forward_tile():
+    '''test Tile'''
+    _test_tile((2, ), (3, ), "int32")
+    _test_tile((2, 2), (2, 3), "float32")
+    _test_tile((2, 4, 6), (6, 7, 8), "float64")
+
+
+#######################################################################
 # Multi Input to graph
 # --------------------
 
@@ -995,6 +1134,27 @@ def test_forward_resnetv2():
                     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# Placeholder
+# -----------
+def test_forward_placeholder():
+    '''test a simple pb with Placeholder node in the end of GraphDef'''
+    with tf.Graph().as_default():
+        graph_def = tf_testing.get_workload("Custom/placeholder.pb")
+        # Call the utility to import the graph definition into default graph.
+        graph_def = tf_testing.ProcessGraphDefParam(graph_def)
+
+        data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
+        out_node = 'mul'
+
+        with tf.Session() as sess:
+            # Add shapes to the graph.
+            graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
+            tf_output = run_tf_graph(sess, data, 'Placeholder:0', out_node + ':0')
+            tvm_output = run_tvm_graph(graph_def, data, 'Placeholder')
+            print("tf_output is {}\ntvm_output is {}".format(tf_output, tvm_output))
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # PTB
 # ---
 dir(tf.contrib)
@@ -1233,6 +1393,53 @@ def test_forward_tanh():
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Tanh:0')
 
 #######################################################################
+# Tensor
+# ------
+
+def test_forward_round():
+    """test Round"""
+    np_data = np.random.uniform(-10, 10, size=(5, 7)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (5, 7), name="in_data")
+    tf.round(in_data, name="round")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'round:0')
+
+def _test_forward_reverse_v2(in_shape, axis, dtype):
+    np_data = np.random.uniform(-10, 10, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    tf.reverse(in_data, axis=[axis], name="reverse")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'reverse:0')
+
+def test_forward_reverse_v2():
+    """test ReverseV2"""
+    _test_forward_reverse_v2((2, 3), 0, "int32")
+    _test_forward_reverse_v2((2, 3, 5), 2, "float32")
+    _test_forward_reverse_v2((2, 3, 5, 7), 1, "float32")
+    _test_forward_reverse_v2((2, 3, 5), -1, "float64")
+    _test_forward_reverse_v2((2, 3, 5), -3, "float64")
+
+def test_forward_sign():
+    """test Sign"""
+    np_data = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (5, 7, 11), name="in_data")
+    tf.sign(in_data, name="sign")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'sign:0')
+
+def test_forward_pow_exp():
+    """test Pow"""
+    np_in1 = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
+    np_in2 = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in1 = tf.placeholder(tf.float32, (5, 7, 11), name="in1")
+    in2 = tf.placeholder(tf.float32, (5, 7, 11), name="in2")
+    out1 = tf.pow(in1, in2, name="pow")
+    out = tf.exp(out1, name='exp')
+    compare_tf_with_tvm([np_in1, np_in2], ['in1:0', 'in2:0'], 'pow:0')
+    compare_tf_with_tvm([np_in1, np_in2], ['in1:0', 'in2:0'], 'exp:0')
+
+#######################################################################
 # Mean
 # ----
 def test_forward_mean():
@@ -1273,6 +1480,7 @@ def test_forward_rel_ops():
 # Main
 # ----
 if __name__ == '__main__':
+
     # Transforms
     test_forward_transpose()
     test_forward_reshape()
@@ -1286,6 +1494,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_split()
     test_forward_unstack()
+    test_forward_tile()
 
     # Activations
     test_forward_sigmoid()
@@ -1294,6 +1503,12 @@ if __name__ == '__main__':
     test_forward_elu()
     test_forward_selu()
     test_forward_tanh()
+
+    # Tensor
+    test_forward_round()
+    test_forward_reverse_v2()
+    test_forward_pow_exp()
+    test_forward_sign()
 
     # Reductions
     test_forward_argminmax()
@@ -1312,12 +1527,15 @@ if __name__ == '__main__':
         _test_forward_concat_v2()
     test_forward_lrn()
     test_forward_l2_normalize()
+    test_forward_space_to_batch_nd()
+    test_forward_batch_to_space_nd()
 
     # End to End
     test_forward_inception_v3()
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
+    test_forward_placeholder()
     test_forward_ptb()
 
     # RNN

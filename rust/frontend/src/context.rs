@@ -47,7 +47,7 @@ use failure::Error;
 
 use tvm_common::ffi;
 
-use crate::function;
+use crate::{function, TVMArgValue};
 
 /// Device type can be from a supported device name. See the supported devices
 /// in [TVM](https://github.com/dmlc/tvm).
@@ -60,7 +60,7 @@ use crate::function;
 ///```
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TVMDeviceType(pub usize);
+pub struct TVMDeviceType(pub i64);
 
 impl Default for TVMDeviceType {
     /// default device is cpu.
@@ -138,6 +138,12 @@ impl<'a> From<&'a str> for TVMDeviceType {
             "rocm" => TVMDeviceType(10),
             _ => panic!("{:?} not supported!", type_str),
         }
+    }
+}
+
+impl<'a> From<&TVMDeviceType> for TVMArgValue<'a> {
+    fn from(dev: &TVMDeviceType) -> Self {
+        Self::Int(dev.0)
     }
 }
 

@@ -56,8 +56,18 @@ struct NodeEntry {
     version(version)
   {}
 
+  explicit NodeEntry(NodePtr node):
+    node(std::move(node)),
+    index(),
+    version()
+  {}
+
+  /**
+   * MXNet assumes that a node with a null ptr doesn't have a gradient attached. Don't change this
+   * constructor.
+   */
   NodeEntry():
-    node(),
+    node(nullptr),
     index(),
     version()
   {}

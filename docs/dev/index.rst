@@ -31,4 +31,5 @@ In this part of documentation, we share the rationale for the specific choices m
    hybrid_script
    relay_intro
    relay_add_op
+   relay_add_pass
    codebase_walkthrough

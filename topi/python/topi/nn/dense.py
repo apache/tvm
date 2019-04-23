@@ -53,7 +53,7 @@ def dense_default(data, weight, bias=None, out_dtype=None):
     matmul = tvm.compute((batch, out_dim), \
                          lambda i, j: tvm.sum(data[i, k].astype(out_dtype) * \
                                               weight[j, k].astype(out_dtype), axis=k), \
-                         tag='dense')
+                         name='T_dense', tag='dense')
     if bias is not None:
         matmul = tvm.compute((batch, out_dim), \
                              lambda i, j: matmul[i, j] + bias[j].astype(out_dtype), \

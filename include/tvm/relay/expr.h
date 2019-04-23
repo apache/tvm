@@ -521,7 +521,7 @@ RELAY_DEFINE_NODE_REF(RefWrite, RefWriteNode, Expr);
  * rewriting pass such as layout or type transformation.
  *
  * Subclass TempExprNode allows us to pattern match on
- * specific kind TempExpr and use them for expression rewriting.
+ * specific kind of TempExpr and use them for expression rewriting.
  *
  * TempExpr should only be used within a pass,
  */

@@ -404,8 +404,14 @@ class Upsample(OnnxOpConverter):
     """
 
     @classmethod
-    def _impl_v7(cls, inputs, attr, params):
+    def _impl_v9(cls, inputs, attr, params):
         scales = attr.get('scales')
+        if not scales:
+            #Here we are going to higher OPSET version.
+            assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
+            input_name = inputs[1].list_input_names()[0]
+            scales = params[input_name].asnumpy()
+            inputs = inputs[:1]
         assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0 and scales[2] == scales[3]
         mode = attr.get('mode')
         if mode == b'nearest':

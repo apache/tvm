@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,14 +24,12 @@ export PYTHONPATH=nnvm/python:python:topi/python
 export OMP_NUM_THREADS=1
 
 # Rebuild cython
-make cython
 make cython3
 
 echo "Running relay TFLite frontend test..."
 python3 -m nose -v tests/python/frontend/tflite
 
 echo "Running nnvm unittest..."
-python -m nose -v nnvm/tests/python/unittest
 python3 -m nose -v nnvm/tests/python/unittest
 
 echo "Running nnvm compiler test..."
@@ -51,6 +49,9 @@ python3 -m nose -v nnvm/tests/python/frontend/tensorflow
 
 echo "Running nnvm CoreML frontend test..."
 python3 -m nose -v nnvm/tests/python/frontend/coreml
+
+echo "Running nnvm Caffe2 frontend test..."
+python3 -m nose -v nnvm/tests/python/frontend/caffe2
 
 echo "Running nnvm DarkNet frontend test..."
 python3 -m nose -v nnvm/tests/python/frontend/darknet || exit -1

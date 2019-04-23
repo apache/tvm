@@ -28,6 +28,7 @@
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/image.h>
 #include <topi/nn.h>
+#include <topi/nn/bias_add.h>
 #include <topi/nn/softmax.h>
 #include <topi/nn/flatten.h>
 #include <vector>
@@ -90,7 +91,12 @@ RELAY_REGISTER_OP("nn.bias_add")
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("bias", "1D Tensor", "Bias.")
 .set_support_level(1)
-.add_type_rel("BiasAdd", BiasAddRel);
+.add_type_rel("BiasAdd", BiasAddRel)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<Tensor>& inputs,
+                                        const Type& out_type, const Target& target) {
+    const auto* param = attrs.as<BiasAddAttrs>();
+    return tvm::Array<tvm::Tensor>{topi::nn::bias_add(inputs[0], inputs[1], param->axis)};
+});
 
 
 // relay.nn.dense
@@ -664,7 +670,7 @@ bool BatchMatmulRel(const Array<Type>& types,
   const auto* x = types[0].as<TensorTypeNode>();
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
-  if (x->shape.size() != 3 || y->shape.size() != 3) return false;
+  CHECK(x->shape.size() == 3 && y->shape.size() == 3);
   CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
       << "BatchDot: batch dimension doesn't match, "
       << " x shape=" << x->shape
