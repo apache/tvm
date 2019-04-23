@@ -425,7 +425,9 @@ Array<LoweredFunc> lower(Schedule sch,
 runtime::Module build(const Array<LoweredFunc>& funcs,
                       const Target& target,
                       const Target& target_host,
-                      const BuildConfig& config) {
+                      const BuildConfig& config,
+                      Array<LoweredFunc>* fhost_ret,
+                      std::vector<runtime::Module>* devmod_ret) {
   std::unordered_set<std::string> all_names;
   for (const auto &x : funcs) {
     CHECK(all_names.count(x->name) == 0) << "Duplicate function name " << x->name;
@@ -464,6 +466,12 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     }
   }
 
+  if (fhost_ret != nullptr) {
+    for (auto f : fhost) {
+      fhost_ret->push_back(f);
+    }
+  }
+
   auto keys = target->keys();
   bool target_is_gpu =
     std::find(keys.begin(), keys.end(), "gpu") != keys.end();
@@ -497,6 +505,9 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
 
   if (fdevice.size() > 0) {
     auto mdev = codegen::Build(fdevice, target->str());
+    if (devmod_ret != nullptr) {
+      devmod_ret->push_back(mdev);
+    }
     mhost.Import(mdev);
   }
 

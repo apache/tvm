@@ -351,12 +351,16 @@ TVM_DLL Array<LoweredFunc> lower(Schedule sch,
 * \param target The target device to build for.
 * \param target_host The target for building host code. To use the default, pass Target()
 * \param config The build configuration.
+* \param (optional) returned host functions
+* \param (optional) returned dev mods
 * \return The built module.
 */
 TVM_DLL runtime::Module build(const Array<LoweredFunc>& funcs,
                               const Target& target,
                               const Target& target_host,
-                              const BuildConfig& config);
+                              const BuildConfig& config,
+                              Array<LoweredFunc>* fhost_ret = nullptr,
+                              std::vector<runtime::Module>* devmod_ret = nullptr);
 
 class GenericFuncNode;
 
