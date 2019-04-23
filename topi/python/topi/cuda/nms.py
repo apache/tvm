@@ -133,9 +133,6 @@ def get_valid_counts_upsweep(data, idx_in, idx, partial):
                     idx[bx * num_anchors + tx * elem_per_thread + i] = \
                     idx[bx * num_anchors + tx * elem_per_thread + i - 1] + \
                     idx_in[bx * num_anchors + tx * elem_per_thread + i]
-                ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                                      tvm.convert(['shared']),
-                                      tvm.expr.Call.Intrinsic, None, 0))
     return ib.get()
 
 def get_valid_counts_scan(data, partial_in, partial):
@@ -190,9 +187,6 @@ def get_valid_counts_scan(data, partial_in, partial):
                                          tx < tvm.min(new_range, num_anchors))):
                     partial[bx * new_range + tx] += \
                     partial[bx * new_range + tx - cast(power(var, k), "int32")]
-            ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                                  tvm.convert(['shared']),
-                                  tvm.expr.Call.Intrinsic, None, 0))
     return ib.get()
 
 def get_valid_counts_downsweep(data, idx_in, partial, idx):
@@ -302,18 +296,12 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
                 with ib.if_scope(base_idx + (idx[tid] - 1) * elem_length + k < size):
                     out[base_idx + (idx[tid] - 1) * elem_length + k] =\
                     data[base_idx + j * elem_length + k]
-                    ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                                          tvm.convert(['shared']),
-                                          tvm.expr.Call.Intrinsic, None, 0))
         with ib.if_scope(j == 0):
             valid_count[i] = idx[tid + num_anchors - 1]
         with ib.if_scope(j >= idx[i * num_anchors + num_anchors - 1]):
             with ib.for_range(0, elem_length) as l:
                 with ib.if_scope(tid * elem_length + l < size):
                     out[tid * elem_length + l] = -1.0
-                    ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
-                                          tvm.convert(['shared']),
-                                          tvm.expr.Call.Intrinsic, None, 0))
     return ib.get()
 
 
