@@ -54,7 +54,6 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   Array<IndexExpr> dilation;
   int groups;
   IndexExpr channels;
-  IndexExpr in_channels;
   Array<IndexExpr> kernel_size;
   std::string data_layout;
   std::string kernel_layout;
@@ -78,11 +77,6 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
     TVM_ATTR_FIELD(channels)
         .describe("The number of output channels in the convolution."
                   " If it is not set, inferred by shape of the weight.")
-        .set_default(NullValue<IndexExpr>());
-    TVM_ATTR_FIELD(in_channels)
-        .describe("The number of input channels in the convolution."
-                  " Its value won't affect the behaviour of standard conv2d and depthwise conv2d,"
-                  " but it is necessary for group conv2d.")
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(kernel_size)
         .describe("Specifies the dimensions of the convolution window.")

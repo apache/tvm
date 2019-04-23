@@ -27,7 +27,7 @@ from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
-from ..nn.conv2d import conv2d, conv2d_NCHWc, \
+from ..nn.conv2d import conv2d, conv2d_NCHWc, _group_conv2d_nchw, \
     conv2d_alter_layout, _get_workload as _get_conv2d_workload
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
@@ -523,3 +523,15 @@ def _schedule_conv2d_NCHWc(cfg, outs):
 
     traverse(outs[0].op)
     return s
+
+@autotvm.register_topi_compute(nn.group_conv2d_nchw, 'cpu', 'direct')
+def _declaration_group_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, groups,
+                                   out_dtype):
+    """ A wrapper for generic group_conv2d_nchw  """
+    out_dtype = data.dtype if out_dtype is None else out_dtype
+    padding = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    dilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+
+    return _group_conv2d_nchw(data, kernel, strides, padding, dilation, groups,
+                              out_dtype=out_dtype)

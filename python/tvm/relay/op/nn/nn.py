@@ -28,7 +28,6 @@ def conv2d(data,
            dilation=(1, 1),
            groups=1,
            channels=None,
-           in_channels=None,
            kernel_size=None,
            data_layout="NCHW",
            kernel_layout="OIHW",
@@ -82,9 +81,6 @@ def conv2d(data,
     channels : int, optional
         Number of output channels of this convolution.
 
-    in_channels : int, optional
-        Number of input channels of this convolution.
-
     kernel_size : tuple of int, optional
         The spatial of the convolution kernel.
 
@@ -106,7 +102,7 @@ def conv2d(data,
         The computed result.
     """
     return _make.conv2d(data, weight, strides, padding, dilation,
-                        groups, channels, in_channels, kernel_size, data_layout,
+                        groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
 
 

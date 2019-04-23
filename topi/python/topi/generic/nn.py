@@ -242,7 +242,7 @@ def schedule_depthwise_conv2d_NCHWc(outs):
 
 @tvm.target.generic_func
 def schedule_group_conv2d_nchw(outs):
-    """Schedule for conv2d_nchw
+    """Schedule for group_conv2d_nchw
 
     Parameters
     ----------

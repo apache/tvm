@@ -561,6 +561,9 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
+    return _group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtype=out_dtype)
+
+def _group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtype=None):
     if out_dtype is None:
         out_dtype = Input.dtype
     assert isinstance(stride, int) or len(stride) == 2
@@ -603,4 +606,4 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
                  yy * stride_h + ry * dilation_h,
                  xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, ry, rx].astype(out_dtype),
-            axis=[rc, ry, rx]), tag="conv2d_nchw")
+            axis=[rc, ry, rx]), tag="group_conv2d_nchw")
