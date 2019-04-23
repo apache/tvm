@@ -85,6 +85,17 @@ reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # conv2d
+def _find_conv2d_op(op):
+    """Find the op with conv2d in its tag by traversing."""
+    if 'conv2d' in op.tag:
+        return op
+    for tensor in op.input_tensors:
+        op_ = _find_conv2d_op(tensor.op)
+        if op_ is not None:
+            return op_
+    return None
+
+
 @reg.register_compute("nn.conv2d")
 def compute_conv2d(attrs, inputs, out_type, target):
     """Compute definition of conv2d"""
@@ -142,18 +153,19 @@ def schedule_conv2d(attrs, outs, target):
             return topi.generic.schedule_conv2d_nhwc(outs)
         if groups != 1:
             # collect in_channels to distinguish depthwise and group conv2d
-            wkl = outs[0].op.attrs['workload']
-            in_channels = wkl[1][1]
-            out_channels = outs[0].shape[1]
+            op = _find_conv2d_op(outs[0].op)
+            assert op is not None
 
-            if layout == "NCHW" and in_channels == groups and in_channels == out_channels:
-                # TODO(leyuan, merrymercy, Huyuwei): fold depthwise topi into conv2d.
-                return topi.generic.schedule_depthwise_conv2d_nchw(outs)
-            if layout == "NHWC" and kernel_layout == "HWOI" and \
-                in_channels == groups and in_channels == out_channels:
-                return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
-            if layout == "NCHW":
-                return topi.generic.schedule_group_conv2d_nchw(outs)
+            is_depthwise = 'depthwise' in op.tag
+            if is_depthwise:
+                if layout == "NCHW":
+                    # TODO(leyuan, merrymercy, Huyuwei): fold depthwise topi into conv2d.
+                    return topi.generic.schedule_depthwise_conv2d_nchw(outs)
+                if layout == "NHWC" and kernel_layout == "HWOI":
+                    return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
+            else:
+                if layout == "NCHW":
+                    return topi.generic.schedule_group_conv2d_nchw(outs)
     raise ValueError("No compatible schedule")
 
 
