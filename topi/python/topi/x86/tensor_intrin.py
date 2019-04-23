@@ -129,11 +129,9 @@ def dot_16x1x16_int8_int8_int16():
         The Skylake int8 TensorIntrin that can be used in tensorizing schedule
     """
 
-    int16_lanes = 32 # 32 int16 lanes in AVX512
-    num_parallel = 8 # data will be multiplied with four different kernel
     num_int8_elements = 2 # 2 int8 elements in int32
     data = tvm.placeholder((num_int8_elements,), dtype='uint8', name='data')
-    kernel = tvm.placeholder((128, 2), dtype='int8', name='kernel')
+    kernel = tvm.placeholder((128, num_int8_elements), dtype='int8', name='kernel')
     k = tvm.reduce_axis((0, num_int8_elements), name='k')
     C = tvm.compute((128, ),
                     lambda i: tvm.sum(data[k].astype('int16') *
@@ -170,7 +168,8 @@ def dot_16x1x16_int8_int8_int16():
                 if index == 0:
                     ib.emit(outs[0].vstore([i*32], pair_reduction))
                 else:
-                    ib.emit(outs[0].vstore([i*32], pair_reduction + outs[0].vload([i*32], 'int16x32')))
+                    ib.emit(outs[0].vstore([i*32], pair_reduction + outs[0].vload([i*32],
+                                                                                  'int16x32')))
             return ib.get()
 
         # body, reset, update
