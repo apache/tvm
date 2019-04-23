@@ -21,7 +21,7 @@ import math
 import tvm
 
 from tvm import api
-from tvm.intrin import if_then_else
+from tvm.intrin import if_then_else, exp
 
 import topi
 
@@ -196,8 +196,7 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
 
     threshold = tvm.make.node("FloatImm", dtype="float32", value=threshold)
 
-    max_threads = int(
-        math.sqrt(tvm.target.current_target(allow_none=False).max_num_threads))
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = (batch_size *  num_anchors) // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -207,28 +206,26 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     tid = bx * max_threads + tx
 
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors # number of batches
-        j = tid % num_anchors # number of anchors
+        i = tid / num_anchors
+        j = tid % num_anchors
         valid_count[i] = 0
-        score[i * num_anchors + j] = -1.0
-        cls_id[i * num_anchors + j] = 0
-        with ib.for_range(0, num_classes-1) as k:
+        score[tid] = -1.0
+        cls_id[tid] = 0
+        with ib.for_range(0, num_classes - 1) as k:
             temp = cls_prob[i * num_classes * num_anchors + (k + 1) * num_anchors + j]
-            cls_id[i * num_anchors + j] = if_then_else(temp > score[i * num_anchors + j], \
-                                                       k + 1, cls_id[i * num_anchors + j])
-            score[i * num_anchors + j] = tvm.max(temp, score[i * num_anchors + j])
-        with ib.if_scope(tvm.all(cls_id[i * num_anchors + j] > 0, \
-                                 score[i * num_anchors + j] < threshold)):
-            cls_id[i * num_anchors + j] = 0
-        with ib.if_scope(cls_id[i * num_anchors + j] > 0):
-            temp_valid_count[i * num_anchors + j] = 1
+            cls_id[tid] = if_then_else(temp > score[tid], k + 1, cls_id[tid])
+            score[tid] = tvm.max(temp, score[tid])
+        with ib.if_scope(tvm.all(cls_id[tid] > 0, score[tid] < threshold)):
+            cls_id[tid] = 0
+        with ib.if_scope(cls_id[tid] > 0):
+            temp_valid_count[tid] = 1
         with ib.else_scope():
-            temp_valid_count[i * num_anchors + j] = 0
+            temp_valid_count[tid] = 0
 
         with ib.if_scope(tid < batch_size):
             with ib.for_range(0, num_anchors) as k:
                 with ib.if_scope(k > 0):
-                    temp_valid_count[tid * num_anchors +k] += \
+                    temp_valid_count[tid * num_anchors + k] += \
                     temp_valid_count[tid * num_anchors + k - 1]
             valid_count[i] = temp_valid_count[tid * num_anchors + num_anchors - 1]
 
@@ -292,12 +289,12 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
         ph = loc[loc_base_idx + 3]
         ox = px * vx * aw + ax
         oy = py * vy * ah + ay
-        ow = tvm.exp(pw * vw) * aw / 2.0
-        oh = tvm.exp(ph * vh) * ah / 2.0
-        return tvm.if_then_else(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, ox - ow)), ox - ow), \
-            tvm.if_then_else(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, oy - oh)), oy - oh), \
-            tvm.if_then_else(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, ox + ow)), ox + ow), \
-            tvm.if_then_else(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, oy + oh)), oy + oh)
+        ow = exp(pw * vw) * aw / 2.0
+        oh = exp(ph * vh) * ah / 2.0
+        return tvm.if_then_else(clip, tvm.max(0.0, tvm.min(1.0, ox - ow)), ox - ow), \
+            tvm.if_then_else(clip, tvm.max(0.0, tvm.min(1.0, oy - oh)), oy - oh), \
+            tvm.if_then_else(clip, tvm.max(0.0, tvm.min(1.0, ox + ow)), ox + ow), \
+            tvm.if_then_else(clip, tvm.max(0.0, tvm.min(1.0, oy + oh)), oy + oh)
 
     ib = tvm.ir_builder.create()
 
@@ -308,8 +305,7 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
     score = ib.buffer_ptr(temp_score)
     out_loc = ib.buffer_ptr(out)
 
-    max_threads = int(
-        math.sqrt(tvm.target.current_target(allow_none=False).max_num_threads))
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = (batch_size * num_anchors) // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -319,19 +315,27 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
     tid = bx * max_threads + tx
 
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors # number of batches
-        j = tid % num_anchors # number of anchors
+        i = tid / num_anchors
+        j = tid % num_anchors
         with ib.if_scope(cls_id[tid] > 0):
             with ib.if_scope(tid == 0):
                 out_base_idx = i * num_anchors * 6
+                out_loc[out_base_idx] = cls_id[tid] - 1.0
+                out_loc[out_base_idx + 1] = score[tid]
+                out_loc[out_base_idx + 2], out_loc[out_base_idx + 3], out_loc[out_base_idx + 4], \
+                    out_loc[out_base_idx + 5] = transform_loc(loc_pred, tid * 4,
+                                                              anchor, j * 4, clip, variances[0],
+                                                              variances[1], variances[2],
+                                                              variances[3])
             with ib.else_scope():
                 out_base_idx = i * num_anchors * 6 + temp_valid_count[tid - 1] * 6
-            out_loc[out_base_idx] = cls_id[tid] - 1.0
-            out_loc[out_base_idx + 1] = score[tid]
-            out_loc[out_base_idx + 2], out_loc[out_base_idx + 3], out_loc[out_base_idx + 4], \
-                out_loc[out_base_idx + 5] = transform_loc(loc_pred, tid * 4,
-                                                          anchor, j * 4, clip, variances[0],
-                                                          variances[1], variances[2], variances[3])
+                out_loc[out_base_idx] = cls_id[tid] - 1.0
+                out_loc[out_base_idx + 1] = score[tid]
+                out_loc[out_base_idx + 2], out_loc[out_base_idx + 3], out_loc[out_base_idx + 4], \
+                    out_loc[out_base_idx + 5] = transform_loc(loc_pred, tid * 4,
+                                                              anchor, j * 4, clip, variances[0],
+                                                              variances[1], variances[2],
+                                                              variances[3])
 
     return ib.get()
 
@@ -380,6 +384,10 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
 
     valid_count_buf = api.decl_buffer((batch_size,), valid_count_dtype,
                                       "valid_count_buf", data_alignment=4)
+    loc_pred_buf = api.decl_buffer(loc_pred.shape, loc_pred.dtype,
+                                   "loc_pred_buf", data_alignment=8)
+    anchor_buf = api.decl_buffer(anchor.shape, anchor.dtype,
+                                 "anchor_buf", data_alignment=8)
 
     temp_valid_count_buf = api.decl_buffer(
         (batch_size, num_anchors,), valid_count_dtype, "temp_valid_count", data_alignment=8)
@@ -404,6 +412,8 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
                    lambda ins, outs: transform_loc_ir(
                        ins[0], ins[1], ins[2], ins[3], ins[4], outs[0], clip, variances, \
                        batch_size, num_anchors),
+                   in_buffers=[loc_pred_buf, anchor_buf, temp_valid_count_buf, \
+                               temp_cls_id_buf, temp_score_buf],
                    dtype=[out_loc_dtype],
                    tag="multibox_transform_loc")
 
