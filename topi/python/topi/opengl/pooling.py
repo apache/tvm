@@ -107,8 +107,8 @@ def schedule_pool(outs, layout):
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
-            for tensor in OP.input_tensors and tensor.op not in scheduled_ops:
-                if tensor.op.input_tensors:
+            for tensor in OP.input_tensors:
+                if tensor.op not in scheduled_ops and tensor.op.input_tensors:
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
