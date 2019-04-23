@@ -1,6 +1,6 @@
 """Utilities for binary file manipulation"""
 import subprocess
-from os.path import join, exists, dirname
+import os
 from . import util
 from .._ffi.base import py_str
 from .._ffi.libinfo import find_include_path

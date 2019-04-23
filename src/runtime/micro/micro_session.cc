@@ -6,6 +6,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <memory>
 #include "micro_session.h"
 #include "low_level_device.h"
 #include "allocator_stream.h"
@@ -15,20 +16,27 @@ namespace tvm {
 namespace runtime {
 
 MicroSession::MicroSession() {
-  text_allocator_ = new MicroSectionAllocator((void*) kTextStart,
-                                              (void*) kDataStart);
-  data_allocator_ = new MicroSectionAllocator((void*) kDataStart,
-                                              (void*) kBssStart);
-  bss_allocator_ = new MicroSectionAllocator((void*) kBssStart,
-                                             (void*) kArgsStart);
-  args_allocator_ = new MicroSectionAllocator((void*) kArgsStart,
-                                              (void*) kStackStart);
-  stack_allocator_ = new MicroSectionAllocator((void*) kStackStart,
-                                               (void*) kHeapStart);
-  heap_allocator_ = new MicroSectionAllocator((void*) kHeapStart,
-                                              (void*) kWorkspaceStart);
-  workspace_allocator_ = new MicroSectionAllocator((void*) kWorkspaceStart,
-                                                   (void*) kMemorySize);
+  text_allocator_ = std::unique_ptr<MicroSectionAllocator>(
+      new MicroSectionAllocator(reinterpret_cast<void*>(kTextStart),
+                                reinterpret_cast<void*>(kDataStart)));
+  data_allocator_ = std::unique_ptr<MicroSectionAllocator>(
+      new MicroSectionAllocator(reinterpret_cast<void*>(kDataStart),
+                                reinterpret_cast<void*>(kBssStart)));
+  bss_allocator_ = std::unique_ptr<MicroSectionAllocator>(
+      new MicroSectionAllocator(reinterpret_cast<void*>(kBssStart),
+                                reinterpret_cast<void*>(kArgsStart)));
+  args_allocator_ = std::unique_ptr<MicroSectionAllocator>(
+      new MicroSectionAllocator(reinterpret_cast<void*>(kArgsStart),
+                                reinterpret_cast<void*>(kStackStart)));
+  stack_allocator_ = std::unique_ptr<MicroSectionAllocator>(
+      new MicroSectionAllocator(reinterpret_cast<void*>(kStackStart),
+                                reinterpret_cast<void*>(kHeapStart)));
+  heap_allocator_ = std::unique_ptr<MicroSectionAllocator>(
+      new MicroSectionAllocator(reinterpret_cast<void*>(kHeapStart),
+                                reinterpret_cast<void*>(kWorkspaceStart)));
+  workspace_allocator_ = std::unique_ptr<MicroSectionAllocator>(
+      new MicroSectionAllocator(reinterpret_cast<void*>(kWorkspaceStart),
+                                reinterpret_cast<void*>(kMemorySize)));
 }
 
 MicroSession::~MicroSession() {

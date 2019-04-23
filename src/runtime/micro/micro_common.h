@@ -9,8 +9,6 @@
 #include <string>
 #include <unordered_map>
 
-#define ROUNDUP(n, align) (((n) | (align)) & ~((align) - 1))
-
 namespace tvm {
 namespace runtime {
 /*!
@@ -65,6 +63,16 @@ constexpr int kDefaultSizeAlignment = 8;
  */
 inline void* GetOffset(const void* addr, const void* base_addr) {
   return (void*) ((uint8_t*) addr - (uint8_t*) base_addr);
+}
+
+/*!
+ * \brief upper-aligns value according to specified alignment
+ * \param value value to be aligned
+ * \param align alignment
+ * \return upper-aligned value
+ */
+inline size_t UpperAlignValue(size_t value, size_t align) {
+  return value + (align - (value % align)) % align;
 }
 
 /*!
@@ -125,7 +133,7 @@ std::string ReadSection(std::string binary, SectionKind section);
  * \return size of the section if it exists, 0 otherwise
  */
 size_t GetSectionSize(std::string binary_name, SectionKind section,
-                      int align = kDefaultSizeAlignment);
+                      size_t align = kDefaultSizeAlignment);
 
 /*!
  * \brief builds a map of symbol to address

@@ -23,8 +23,8 @@ def test_micro_add():
     s = tvm.create_schedule(C.op)
 
     def verify():
-        init_path = micro.get_init_lib("../../../src/runtime/micro/device/utvm_runtime.cc")
-        micro.micro_init("host", init_path)
+        init_lib_path = micro.get_init_lib()
+        micro.init("host", init_lib_path)
         m = tvm.module.load("test.obj", "micro_dev")
         ctx = tvm.micro_dev(0)
         fadd = m['fadd']

@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <string>
 #include <mutex>
+#include <memory>
 #include "low_level_device.h"
 #include "allocator_stream.h"
 #include "micro_common.h"
@@ -139,19 +140,20 @@ class MicroSession {
   /*! \brief low-level device pointer */
   std::shared_ptr<LowLevelDevice> low_level_device_;
   /*! \brief text section allocator */
-  MicroSectionAllocator* text_allocator_;
+  //MicroSectionAllocator* text_allocator_;
+  std::unique_ptr<MicroSectionAllocator> text_allocator_;
   /*! \brief data section allocator */
-  MicroSectionAllocator* data_allocator_;
+  std::unique_ptr<MicroSectionAllocator> data_allocator_;
   /*! \brief bss section allocator */
-  MicroSectionAllocator* bss_allocator_;
+  std::unique_ptr<MicroSectionAllocator> bss_allocator_;
   /*! \brief args section allocator */
-  MicroSectionAllocator* args_allocator_;
+  std::unique_ptr<MicroSectionAllocator> args_allocator_;
   /*! \brief stack section allocator */
-  MicroSectionAllocator* stack_allocator_;
+  std::unique_ptr<MicroSectionAllocator> stack_allocator_;
   /*! \brief heap section allocator */
-  MicroSectionAllocator* heap_allocator_;
+  std::unique_ptr<MicroSectionAllocator> heap_allocator_;
   /*! \brief workspace section allocator */
-  MicroSectionAllocator* workspace_allocator_;
+  std::unique_ptr<MicroSectionAllocator> workspace_allocator_;
   /*! \brief init text start address */
   void* init_text_start_;
   /*! \brief init data start address */

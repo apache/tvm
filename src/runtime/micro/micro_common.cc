@@ -73,14 +73,14 @@ std::string ReadSection(std::string binary_name, SectionKind section) {
   return section_contents;
 }
 
-size_t GetSectionSize(std::string binary_path, SectionKind section, int align) {
+size_t GetSectionSize(std::string binary_path, SectionKind section, size_t align) {
   CHECK(section == kText || section == kData || section == kBss)
     << "GetSectionSize requires section to be one of text, data or bss.";
   const auto* f = Registry::Get("tvm_callback_get_section_size");
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
   size_t size = (*f)(binary_path, SectionToString(section));
-  size = ROUNDUP(size, align);
+  size = UpperAlignValue(size, align);
   return size;
 }
 
