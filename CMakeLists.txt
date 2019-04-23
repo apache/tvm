@@ -153,6 +153,8 @@ if(NOT USE_RTTI)
   add_definitions(-DDMLC_ENABLE_RTTI=0)
 endif()
 
+list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
+
 if(USE_RPC)
   message(STATUS "Build with RPC support...")
   file(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
