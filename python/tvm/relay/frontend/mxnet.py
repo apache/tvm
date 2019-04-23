@@ -186,7 +186,7 @@ def _mx_pooling(inputs, attrs):
         'Operator {} Pooling is not supported for frontend MXNet.'.format(pool_type.capitalize()))
 
 
-def _mx_adaptive_pooling(inputs, attrs):
+def _mx_adaptive_avg_pooling(inputs, attrs):
     output_size = attrs.get_int_tuple("output_size", [])
     if output_size != (1,):
         raise RuntimeError("AdaptiveAvgPooling with output_size other than 1 is not supported yet.")
@@ -806,7 +806,7 @@ _convert_map = {
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
-    "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_pooling,
+    "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #

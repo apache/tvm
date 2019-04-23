@@ -79,7 +79,7 @@ def non_max_suppression(data,
     top_k : int, optional
         Keep maximum top k detections before nms, -1 for no limit.
 
-    coord_start : int, required
+    coord_start : int, optional
         The starting index of the consecutive 4 coordinates.
 
     score_index : int, optional
