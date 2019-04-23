@@ -30,7 +30,9 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pass.h>
 #include <tvm/data_layout.h>
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -72,6 +74,7 @@ int64_t ConvMacCount(const Call& call_node) {
   std::string data_layout = conv_2d_attr->data_layout;
   int32_t C_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('C'));
   int32_t c_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('c'));
+  bool depthwise = IsDepthwiseConv2D(call_node, conv_2d_attr, conv_2d_attr->kernel_layout);
   CHECK(C_ind != -1)
       << "There is no input channel dimension.";
   int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
@@ -84,7 +87,10 @@ int64_t ConvMacCount(const Call& call_node) {
   Array<IndexExpr> output_tensor = expr->shape;
   CHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
       << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
-  int64_t count = input_channel * GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
+  int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
+  if (!depthwise) {
+    count *= input_channel;
+  }
   return count;
 }
 
