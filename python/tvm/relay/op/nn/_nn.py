@@ -163,9 +163,9 @@ def schedule_conv2d(attrs, outs, target):
                     return topi.generic.schedule_depthwise_conv2d_nchw(outs)
                 if layout == "NHWC" and kernel_layout == "HWOI":
                     return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
-            else:
-                if layout == "NCHW":
-                    return topi.generic.schedule_group_conv2d_nchw(outs)
+
+            if layout in ["NCHW", "NCHW4c"]:
+                return topi.generic.schedule_group_conv2d_nchw(outs)
     raise ValueError("No compatible schedule")
 
 
