@@ -100,7 +100,8 @@ def test_conv2d_run():
         dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
         if fref is None:
             ref_res = topi.testing.conv2d_nchw_python(
-                data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding)
+                data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding,
+                groups=groups)
         else:
             ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
 
@@ -116,6 +117,16 @@ def test_conv2d_run():
                     padding=(1, 1), channels=32, groups=32, kernel_size=(3 ,3),
                     fref=lambda x, w: topi.testing.depthwise_conv2d_python_nchw(
                         x, w, (1, 1), "SAME"))
+    # group conv2d
+    dshape = (1, 32, 18, 18)
+    kshape = (32, 2, 3, 3)
+    run_test_conv2d("float32", "float32", 1, dshape, kshape,
+                    padding=(1, 1), channels=32, groups=16, kernel_size=(3 ,3))
+    # also group conv2d
+    dshape = (1, 32, 18, 18)
+    kshape = (64, 1, 3, 3)
+    run_test_conv2d("float32", "float32", 1, dshape, kshape,
+                    padding=(1, 1), channels=64, groups=32, kernel_size=(3 ,3))
 
     # normal conv2d
     dshape = (1, 3, 224, 224)
