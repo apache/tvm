@@ -395,7 +395,7 @@ def adaptive_max_pool2d(data,
                         layout="NCHW"):
     r"""2D adaptive max pooling operator.
 
-    This operator takes data as input and does 2D average value calculation
+    This operator takes data as input and does 2D max value calculation
     across each window represented by WxH.
 
 

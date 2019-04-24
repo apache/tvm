@@ -29,7 +29,7 @@ def schedule_adaptive_pool(outs):
     Parameters
     ----------
     outs: Array of Tensor
-        The computation graph description of adaptive_poo
+        The computation graph description of adaptive_pool
         in the format of an array of tensors.
 
     Returns

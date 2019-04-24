@@ -332,7 +332,7 @@ struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
   }
 };
 
-/*! \brief Attributes for global pool operator */
+/*! \brief Attributes for adaptive pool operator */
 struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
   Array<IndexExpr> output_size;
   std::string layout;
