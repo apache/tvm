@@ -263,6 +263,27 @@ def schedule_global_avg_pool2d(_, outs, target):
 
 reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+
+# adaptive_max_pool2d
+@reg.register_schedule("nn.adaptive_max_pool2d")
+def schedule_adaptive_max_pool2d(_, outs, target):
+    """Schedule definition of adaptive_max_pool2d"""
+    with target:
+        return topi.generic.schedule_adaptive_pool(outs)
+
+reg.register_pattern("nn.adaptive_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_avg_pool2d
+@reg.register_schedule("nn.adaptive_avg_pool2d")
+def schedule_adaptive_avg_pool2d(_, outs, target):
+    """Schedule definition of adaptive_avg_pool2d"""
+    with target:
+        return topi.generic.schedule_adaptive_pool(outs)
+
+reg.register_pattern("nn.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # leaky_relu
 reg.register_schedule("nn.leaky_relu", schedule_broadcast)
 reg.register_pattern("nn.leaky_relu", OpPattern.ELEMWISE)
