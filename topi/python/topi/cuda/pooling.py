@@ -167,5 +167,3 @@ def schedule_pool(outs, layout):
 
     traverse(outs[0].op)
     return s
-
-
