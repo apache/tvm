@@ -455,6 +455,13 @@ TVM_REGISTER_GLOBAL("topi.nn.global_pool")
                         static_cast<nn::PoolType>(static_cast<int>(args[1])));
   });
 
+TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::adaptive_pool(args[0], args[1],
+                          static_cast<nn::PoolType>(static_cast<int>(args[2])),
+                          args[3]);
+});
+
 /* Ops from nn/softmax.h */
 TVM_REGISTER_GLOBAL("topi.nn.softmax")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -665,6 +672,11 @@ TVM_REGISTER_GENERIC_FUNC(schedule_pool)
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_pool));
 
 TVM_REGISTER_GENERIC_FUNC(schedule_global_pool)
+.set_default(WrapSchedule(topi::generic::default_schedule))
+.register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
+.register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_global_pool));
+
+TVM_REGISTER_GENERIC_FUNC(schedule_adaptive_pool)
 .set_default(WrapSchedule(topi::generic::default_schedule))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_global_pool));
