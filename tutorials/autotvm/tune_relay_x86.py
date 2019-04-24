@@ -31,7 +31,6 @@ from tvm import relay
 from tvm.relay import testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
-from tvm.autotvm.graph_tuner.utils import get_conv2d_NCHWc_AVX_workload, infer_conv2d_layout_shape_avx
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
@@ -163,12 +162,9 @@ def tune_kernels(tasks,
 # Use graph tuner to achieve graph level optimal schedules
 # Set use_DP=False if it takes too long to finish.
 def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
-    target_op = "conv2d"
-    data_layout = "NCHWc"
-    graph_wkl_list = get_conv2d_NCHWc_AVX_workload(graph, {"data": dshape}, unique_wkl=False)
+    target_op = [relay.nn.conv2d]
     Tuner = DPTuner if use_DP else PBQPTuner
-    executor = Tuner(graph, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
-                     ("tile_ic", "tile_oc"), infer_conv2d_layout_shape_avx)
+    executor = Tuner(graph, {"data": dshape}, records, target_op, target)
     executor.benchmark_layout_transform(target, min_exec_num=10000)
     executor.run()
     executor.write_opt_sch2record_file(opt_sch_file)
