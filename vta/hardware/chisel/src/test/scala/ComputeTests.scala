@@ -9,6 +9,9 @@ import chisel3.iotesters.{PeekPokeTester, Driver, ChiselFlatSpec}
 class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Parameters)
     extends PeekPokeTester(c) {
 
+  //==============================
+  // ALU Instructions
+  //==============================
   // min
   val insn_min_uop = "h00000001000100010000000000000000".U // uop fetch (uop_compress=true)
   val insn_min_acc = "h00000008000800010000000000000180".U // acc fetch
@@ -30,6 +33,9 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   // finish
   val insn_finish = "h00000000000000000000000000000013".U // finish
 
+  //==============================
+  // ALU Inputs and Outputs
+  //==============================
   // min
   val biases_min_data0 = "fffffff6ffffffc4ffffffc7ffffffefffffffc1ffffffecfffffff30000001e"+
                          "000000040000000a0000000b00000039ffffffeeffffffc6ffffffe9fffffff5"
@@ -92,7 +98,7 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   val biases_max = IndexedSeq(biases_max_data0, biases_max_data1, biases_max_data2, biases_max_data3,
                               biases_max_data4, biases_max_data5, biases_max_data6, biases_max_data7)
 
-  // shr
+  // shr biases
   val biases_shr_data0 = "ffffffd6ffffffc1ffffffd6ffffffeaffffffdfffffffdbffffffc500000010"+
                          "00000037fffffffa000000020000002100000000006646c000007ffff6cd4878"
   val biases_shr_data1 = "00000019ffffffc1ffffffe4ffffffc5fffffff700000012ffffffc600000030"+
@@ -111,6 +117,57 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
                          "00000035ffffffd9ffffffc1fffffffe0000001000000026ffffffd400000034"
   val biases_shr = IndexedSeq(biases_shr_data0, biases_shr_data1, biases_shr_data2, biases_shr_data3,
                               biases_shr_data4, biases_shr_data5, biases_shr_data6, biases_shr_data7)
+
+  // shr outputs
+  val outputs_shr_data0 = "hf5f0f5faf7f6f1040dfe000800b0ff1e".U
+  val outputs_shr_data1 = "h06f0f9f1fd04f10cff0cf1f104fa07f1".U
+  val outputs_shr_data2 = "h0ef5f1f601fafc06f0f5f5f70f0df1f2".U
+  val outputs_shr_data3 = "h030c04fe0c080b0cfd0afbf8f602fcf3".U
+  val outputs_shr_data4 = "h080e080ff50c0a06f2f00001fa00fa07".U
+  val outputs_shr_data5 = "hf10803fd05f6f20f0cfaf40f0bfe0f0f".U
+  val outputs_shr_data6 = "h03f50c0ff4060d0ef60bf50f08040dfb".U
+  val outputs_shr_data7 = "h03f50c0ff4060d0ef60bf50f08040dfb".U
+  val outputs_shr = IndexedSeq(outputs_shr_data0, outputs_shr_data1, outputs_shr_data2, outputs_shr_data3,
+                               outputs_shr_data4, outputs_shr_data5, outputs_shr_data6, outputs_shr_data7)
+
+  //==============================
+  // GEMM Instructions
+  //==============================
+  // blocked gemm
+  val insn_blocked_gemm_uop = "h00000080008000010000000000000000".U // uop fetch
+  val insn_blocked_gemm_acc = "h00000010000400400000000000000180".U // acc fetch
+  val insn_blocked_gemm_out = "h0100100000400800000800200800002a".U // out
+
+  //==============================
+  // GEMM Inputs and Outputs
+  //==============================
+  val uops_blocked_gemm_data0 = "h0000600c000040080000200400000000".U // uops[0~3]
+  val uops_blocked_gemm_data1 = "h0000e01c0000c0180000a01400008010".U // uops[4~7]
+  val uops_blocked_gemm_data2 = "h0001602c000140280001202400010020".U // uops[...]
+  val uops_blocked_gemm_data3 = "h0001e03c0001c0380001a03400018030".U // uops[...]
+  val uops_blocked_gemm_data = IndexedSeq(uops_blocked_gemm_data0, uops_blocked_gemm_data1,
+                                          uops_blocked_gemm_data2, uops_blocked_gemm_data3)
+
+  val biases_blocked_gemm_data0 = "2b543790f8490793c86f73fb0ea27042de47061aef99d4fc2654438fca28f6cb"+
+                                  "2a94845bdd2e1531da0619990b425147f55b7b8bd1226cdecb16ee032db07b57"
+  val biases_blocked_gemm_data1 = "fd6689e1d25d9ca933126e07f8d4d364fb80e61ffd218fa9e104a76e112c9512"+
+                                  "0d76d66e035853c13b4c9c990d41477002a01bb4f84a07b51a3677c8c850ed42"
+  val biases_blocked_gemm_data2 = "e050ef112c7d4f55095c0866346e413dc2d4741d00785477d1612777f8ceb521"+
+                                  "1460e4812ae647b83310a8e732c85a0f2ab2008eee09aeb7f383df0bc93c50ac"
+  val biases_blocked_gemm_data3 = "c69d34f1d8d31dc51631bdb0da3ae2a43bc7d3b52cec72233f9d7693c2d8b0de"+
+                                  "ebe91103381d7565168836bc36a22d18cf2bc45917c224c0c90b62553402809a"
+  val biases_blocked_gemm_data4 = "eedc3012c5d509e5d0d7fd3eff19da2df9d8034811c7272bdf9c486bed16fbee"+
+                                  "0c9ca9252b4e60d3e6a82f11cfac6642dd7ef41636cf346ef8d82ceec8b669d0"
+  val biases_blocked_gemm_data5 = "e395bbc5fdd42162dc323b2a33dd4c2d1cb923f71a6cb5cad17f59693168e7b6"+
+                                  "3b0000d920b491d0d0848f9f3097a500cf442f86e857a01ecd047ae0030de6d3"
+  val biases_blocked_gemm_data6 = "fb68a21c270c5daa0772e44c054a5ebacfd645a20e0c6bfe215756b50580e35b"+
+                                  "07ce6ed0d0c68be92d3046df085792872a1afd2b25cd29ecfba978f31ac1dfe9"
+  val biases_blocked_gemm_data7 = "d8eabfe603c4cbe9cdab7e3efc3931a8cae17eeb10107f85c723f6381b5453c2"+
+                                  "cf5a447a0fb5ce6b01cd440a01a2d1ceff79f645c47c93b626cf60b103ce3716"
+  val biases_blocked_gemm = IndexedSeq(biases_blocked_gemm_data0, biases_blocked_gemm_data1,
+                                       biases_blocked_gemm_data2, biases_blocked_gemm_data3,
+                                       biases_blocked_gemm_data4, biases_blocked_gemm_data5,
+                                       biases_blocked_gemm_data6, biases_blocked_gemm_data7)
 
   def init_compute_min() {
   poke(c.io.gemm_queue.valid, 0.U)
@@ -296,36 +353,68 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   step(1)
   }
 
+  def init_compute_blocked_gemm() {
+  poke(c.io.gemm_queue.valid, 0.U)
+  poke(c.io.uops.readdata, 0.U)
+  step(1)
+
+  poke(c.io.uops.waitrequest, 0.U)
+  poke(c.io.uops.readdata, uops_blocked_gemm_data(0))
+  step(1)
+  poke(c.io.gemm_queue.data, insn_blocked_gemm_uop)
+  poke(c.io.gemm_queue.valid, 1.U)
+  step(1)
+  expect(c.io.gemm_queue.ready, 1.U)
+  step(1)
+  poke(c.io.gemm_queue.valid, 0.U)
+  step(1)
+
+  for (i <- 0 to 31) {
+    expect(c.io.uops.address, ("h"+(BigInt("0010",16)*i).toString(16)).U)
+    poke(c.io.uops.readdata, uops_blocked_gemm_data(i % 4)) // TODO: update uops data here
+    step(1)
+  }
+  step(1)
+  step(1)
+
+  poke(c.io.gemm_queue.data, insn_blocked_gemm_acc)
+  poke(c.io.gemm_queue.valid, 1.U)
+  step(1)
+  expect(c.io.gemm_queue.ready, 1.U)
+  step(1)
+  poke(c.io.gemm_queue.valid, 0.U)
+  step(1)
+  }
+  
+
   def test_compute_min(sram_base: BigInt = 0, dram_base: BigInt = 0) {
 
   poke(c.io.gemm_queue.valid, 0.U)
   expect(c.io.biases.read, 1.U)
 
   for (i <- 0 to 7) {
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 3, 32 * 3 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.waitrequest, 1.U)
-  step(1)
-  poke(c.io.biases.waitrequest, 0.U)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 0, 32 * 0 + 32)).U)
-  poke(c.io.biases.waitrequest, 1.U)
-  step(1)
-  poke(c.io.biases.waitrequest, 0.U)
-  if (i == 6) {
-    poke(c.io.gemm_queue.data, insn_min_out)
-    poke(c.io.gemm_queue.valid, 1.U)
-  }
-  step(1)
-
+    expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
+    poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 3, 32 * 3 + 32)).U)
+    step(1)
+    expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
+    poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 2, 32 * 2 + 32)).U)
+    step(1)
+    poke(c.io.biases.waitrequest, 1.U)
+    step(1)
+    poke(c.io.biases.waitrequest, 0.U)
+    expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
+    poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 1, 32 * 1 + 32)).U)
+    step(1)
+    expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
+    poke(c.io.biases.readdata, ("h"+biases_min(i).substring(32 * 0, 32 * 0 + 32)).U)
+    poke(c.io.biases.waitrequest, 1.U)
+    step(1)
+    poke(c.io.biases.waitrequest, 0.U)
+    if (i == 6) {
+      poke(c.io.gemm_queue.data, insn_min_out)
+      poke(c.io.gemm_queue.valid, 1.U)
+    }
+    step(1)
   } // end of for loop
 
   step(6)
@@ -369,7 +458,6 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
 
   expect(c.io.g2s_dep_queue.valid, 1.U)
   poke(c.io.g2s_dep_queue.ready, 1.U)
-  expect(c.io.g2s_dep_queue.valid, 1.U)
   step(1)
   poke(c.io.g2s_dep_queue.ready, 0.U)
   step(1)
@@ -385,30 +473,28 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   expect(c.io.biases.read, 1.U)
 
   for (i <- 0 to 7) {
-
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 3, 32 * 3 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 2, 32 * 2 + 32)).U)
-  step(1)
-  poke(c.io.biases.waitrequest, 1.U)
-  step(1)
-  poke(c.io.biases.waitrequest, 0.U)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 1, 32 * 1 + 32)).U)
-  step(1)
-  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
-  poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 0, 32 * 0 + 32)).U)
-  poke(c.io.biases.waitrequest, 1.U)
-  step(1)
-  poke(c.io.biases.waitrequest, 0.U)
-  if (i == 6) {
-    poke(c.io.gemm_queue.data, insn_min_nocomp_out)
-    poke(c.io.gemm_queue.valid, 1.U)
-  }
-  step(1)
-
+    expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
+    poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 3, 32 * 3 + 32)).U)
+    step(1)
+    expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
+    poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 2, 32 * 2 + 32)).U)
+    step(1)
+    poke(c.io.biases.waitrequest, 1.U)
+    step(1)
+    poke(c.io.biases.waitrequest, 0.U)
+    expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
+    poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 1, 32 * 1 + 32)).U)
+    step(1)
+    expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
+    poke(c.io.biases.readdata, ("h"+biases_min_nocomp(i).substring(32 * 0, 32 * 0 + 32)).U)
+    poke(c.io.biases.waitrequest, 1.U)
+    step(1)
+    poke(c.io.biases.waitrequest, 0.U)
+    if (i == 6) {
+      poke(c.io.gemm_queue.data, insn_min_nocomp_out)
+      poke(c.io.gemm_queue.valid, 1.U)
+    }
+    step(1)
   } // end of for loop
 
   step(6)
@@ -459,7 +545,6 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   step(1)
   expect(c.io.g2s_dep_queue.valid, 1.U)
   poke(c.io.g2s_dep_queue.ready, 1.U)
-  expect(c.io.g2s_dep_queue.valid, 1.U)
   step(1)
   poke(c.io.g2s_dep_queue.ready, 0.U)
   step(1)
@@ -549,7 +634,6 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   step(1)
   expect(c.io.g2s_dep_queue.valid, 1.U)
   poke(c.io.g2s_dep_queue.ready, 1.U)
-  expect(c.io.g2s_dep_queue.valid, 1.U)
   step(1)
   poke(c.io.g2s_dep_queue.ready, 0.U)
   step(1)
@@ -592,61 +676,113 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   } // end of for loop
 
   step(6)
-
   poke(c.io.gemm_queue.data, 0.U)
   poke(c.io.gemm_queue.valid, 0.U)
   step(1)
   step(1)
-  expect(c.io.out_mem.write, 1.U)
-  expect(c.io.out_mem.address, "h00".U)
-  expect(c.io.out_mem.writedata, "hf5f0f5faf7f6f1040dfe000800b0ff1e".U)
-  step(1)
-  expect(c.io.out_mem.write, 1.U)
-  expect(c.io.out_mem.address, "h10".U)
-  poke(c.io.out_mem.waitrequest, 1.U)
-  step(1)
-  expect(c.io.out_mem.address, "h10".U)
-  expect(c.io.out_mem.writedata, "h06f0f9f1fd04f10cff0cf1f104fa07f1".U)
-  poke(c.io.out_mem.waitrequest, 0.U)
-  step(1)
-  expect(c.io.out_mem.write, 1.U)
-  expect(c.io.out_mem.address, "h20".U)
-  expect(c.io.out_mem.writedata, "h0ef5f1f601fafc06f0f5f5f70f0df1f2".U)
-  step(1)
-  expect(c.io.out_mem.write, 1.U)
-  expect(c.io.out_mem.address, "h30".U)
-  expect(c.io.out_mem.writedata, "h030c04fe0c080b0cfd0afbf8f602fcf3".U)
-  step(1)
-  expect(c.io.out_mem.address, "h40".U)
-  expect(c.io.out_mem.writedata, "h080e080ff50c0a06f2f00001fa00fa07".U)
-  step(1)
-  poke(c.io.out_mem.waitrequest, 1.U)
-  step(1)
-  expect(c.io.out_mem.address, "h50".U)
-  expect(c.io.out_mem.writedata, "hf10803fd05f6f20f0cfaf40f0bfe0f0f".U)
-  poke(c.io.out_mem.waitrequest, 0.U)
-  step(1)
-  expect(c.io.out_mem.address, "h60".U)
-  expect(c.io.out_mem.writedata, "h03f50c0ff4060d0ef60bf50f08040dfb".U)
-  step(1)
+
+  for (i <- 0 to 6) {
+    expect(c.io.out_mem.write, 1.U)
+    expect(c.io.out_mem.address, ("h"+(BigInt("0010",16)*i).toString(16)).U)
+    poke(c.io.out_mem.waitrequest, 1.U)
+    step(1)
+    expect(c.io.out_mem.address, ("h"+(BigInt("0010",16)*i).toString(16)).U)
+    expect(c.io.out_mem.writedata, outputs_shr(i))
+    poke(c.io.out_mem.waitrequest, 0.U)
+    step(1)
+  }
+
   expect(c.io.out_mem.address, "h70".U)
   poke(c.io.out_mem.waitrequest, 0.U)
   step(1)
-
   step(1)
   expect(c.io.out_mem.write, 0.U)
-
   step(1)
   expect(c.io.g2s_dep_queue.valid, 1.U)
   poke(c.io.g2s_dep_queue.ready, 1.U)
-  expect(c.io.g2s_dep_queue.valid, 1.U)
   step(1)
   poke(c.io.g2s_dep_queue.ready, 0.U)
   step(1)
   step(1)
   step(1)
   step(1)
+  }
 
+
+  def test_compute_blocked_gemm(sram_base: BigInt = 0, dram_base: BigInt = 0) {
+
+  poke(c.io.gemm_queue.valid, 0.U)
+  expect(c.io.biases.read, 1.U)
+
+  for (i <- 0 to (64 * 4 - 1)) {
+
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("000",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_blocked_gemm(i%8).substring(32 * 3, 32 * 3 + 32)).U)
+  step(1)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("010",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_blocked_gemm(i%8).substring(32 * 2, 32 * 2 + 32)).U)
+  step(1)
+  poke(c.io.biases.waitrequest, 1.U)
+  step(1)
+  poke(c.io.biases.waitrequest, 0.U)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("020",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_blocked_gemm(i%8).substring(32 * 1, 32 * 1 + 32)).U)
+  step(1)
+  expect(c.io.biases.address, ("h"+(dram_base+BigInt("030",16)+BigInt("040",16)*i).toString(16)).U)
+  poke(c.io.biases.readdata, ("h"+biases_blocked_gemm(i%8).substring(32 * 0, 32 * 0 + 32)).U)
+  poke(c.io.biases.waitrequest, 1.U)
+  step(1)
+  poke(c.io.biases.waitrequest, 0.U)
+  if (i == (64 * 4 - 2)) {
+    poke(c.io.gemm_queue.data, insn_blocked_gemm_out)
+    poke(c.io.gemm_queue.valid, 1.U)
+  }
+  step(1)
+
+  } // end of for loop
+
+  step(6)
+  poke(c.io.gemm_queue.data, 0.U)
+  poke(c.io.gemm_queue.valid, 0.U)
+  step(1)
+  step(1)
+
+  expect(c.io.l2g_dep_queue.ready, 0.U)
+  poke(c.io.l2g_dep_queue.data, 1.U)
+  poke(c.io.l2g_dep_queue.valid, 1.U)
+  step(1)
+  expect(c.io.l2g_dep_queue.ready, 1.U)
+  poke(c.io.l2g_dep_queue.valid, 0.U)
+  step(2)
+  poke(c.io.out_mem.waitrequest, 1.U)
+  step(4)
+
+  for (i <- 0 to 16) {
+    val j = i % 16
+    expect(c.io.out_mem.write, 1.U)
+    expect(c.io.out_mem.address, ("h"+(BigInt("0040",16)*j).toString(16)).U)
+    poke(c.io.out_mem.waitrequest, 1.U)
+    step(1)
+    expect(c.io.out_mem.address, ("h"+(BigInt("0040",16)*j).toString(16)).U)
+    // expect(c.io.out_mem.writedata, outputs_blocked_gemm(i))
+    poke(c.io.out_mem.waitrequest, 0.U)
+    step(1)
+  }
+  
+  // expect(c.io.out_mem.address, "h70".U)
+  // poke(c.io.out_mem.waitrequest, 0.U)
+  // step(1)
+  // step(1)
+  // expect(c.io.out_mem.write, 0.U)
+  // step(1)
+  // expect(c.io.g2s_dep_queue.valid, 1.U)
+  // poke(c.io.g2s_dep_queue.ready, 1.U)
+  // step(1)
+  // poke(c.io.g2s_dep_queue.ready, 0.U)
+  // step(1)
+  // step(1)
+  // step(1)
+  // step(1)
   }
   
   init_compute_min()
@@ -666,6 +802,8 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   init_compute_shr()
   test_compute_shr()
 
+  // init_compute_blocked_gemm()
+  // test_compute_blocked_gemm()
 }
 
 class ComputeTester extends ChiselFlatSpec {

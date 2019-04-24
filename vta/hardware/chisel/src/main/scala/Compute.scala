@@ -106,6 +106,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val biases_data = Reg(Vec(biases_beats + 1, UInt(128.W)))
 
   val out_mem_write  = RegInit(false.B)
+  val out_mem_fifo_ready = Wire(Bool())
 
   // counters
   val uop_cntr_max_val = x_size >> log2Ceil(128 / uop_width).U
@@ -115,7 +116,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val uop_cntr_val = Reg(UInt(16.W))
   val uop_cntr_wrap = ((uop_cntr_val === uop_cntr_max) && uop_cntr_en && busy)
 
-  val acc_cntr_max = x_size * biases_beats.U + 1.U
+  val acc_cntr_max = (x_size * y_size)(15, 0) * biases_beats.U + 1.U
   val acc_cntr_en = (opcode_load_en && memory_type_acc_en && insn_valid)
   val acc_cntr_wait = io.biases.waitrequest
   val acc_cntr_val = Reg(UInt(16.W))
@@ -191,10 +192,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   when (biases_read && !acc_cntr_wait && busy && acc_cntr_val < acc_cntr_max) {
     acc_cntr_val := acc_cntr_val + 1.U
   }
-  // when (out_mem_write && !out_cntr_wait && busy && out_cntr_val < out_cntr_max) {
-  //   out_cntr_val := out_cntr_val + 1.U
-  // }
-  when (out_mem_write && busy && out_cntr_val < out_cntr_max) {
+  when (out_mem_write && out_mem_fifo_ready && busy && (out_cntr_val < out_cntr_max)) {
     out_cntr_val := out_cntr_val + 1.U
   }
 
@@ -271,7 +269,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val uop = RegNext(uop_mem(upc)) // TODO: construct uop as register, and copy from uop_mem block ram
   val dst_offset_out = 0.U(16.W) // it_in
   val src_offset_out = 0.U(16.W) // it_in
-  val it_in = RegNext(out_cntr_val) % (iter_in * iter_out)(15, 0)
+  val it_out = RegNext(out_cntr_val) / (upc_cntr_max * iter_in)(15, 0)
+  val it_in = RegNext(out_cntr_val) / upc_cntr_max
   val dst_offset_in = dst_offset_out + (it_in * dst_factor_in)(15, 0)
   val src_offset_in = src_offset_out + (it_in * src_factor_in)(15, 0)
   val dst_idx = uop(uop_alu_0_1, uop_alu_0_0) + dst_offset_in
@@ -340,7 +339,8 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
       add_val(b) := (lhs + rhs).asSInt
       add_res(b) := add_val(b)
       short_add_res(b) := add_res(b)(out_width - 1, 0)
-      shr_val(b) := Mux(shr_imm_cmp, (lhs >> shr_imm.asUInt).asSInt, (lhs << (-shr_imm).asUInt)(acc_width - 1, 0).asSInt)
+      shr_val(b) := Mux(shr_imm_cmp, (lhs >> shr_imm.asUInt).asSInt,
+                                     (lhs << (-shr_imm).asUInt)(acc_width - 1, 0).asSInt)
       shr_res(b) := shr_val(b)
       short_shr_res(b) := shr_res(b)(out_width - 1, 0)
     }
@@ -351,13 +351,28 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val alu_opcode_add_en = (alu_opcode === alu_opcode_add.U)
   val out_mem_address = Reg(UInt(32.W))
   val out_mem_writedata = Reg(UInt(128.W))
-  val out_mem_fifo = Module(new OutputQueue(UInt((32 + 128).W), 32))
   val out_mem_enq_bits = Mux(alu_opcode_minmax_en, Cat(short_cmp_res.init.reverse),
                          Mux(alu_opcode_add_en, Cat(short_add_res.init.reverse), Cat(short_shr_res.init.reverse)))
-  out_mem_write := opcode_alu_en && busy && (out_cntr_val <= out_cntr_max_val)
-  out_mem_fifo.io.enq.ready <> DontCare
-  out_mem_fifo.io.enq.valid := out_mem_write && (out_cntr_val >= 2.U) && (out_cntr_val <= (out_cntr_max - 1.U))
-  out_mem_fifo.io.enq.bits := Cat(RegNext(dst_idx), out_mem_enq_bits)
+  val out_mem_fifo = Module(new OutputQueue(UInt((32 + 128).W), 8))
+  val out_mem_fifo_ready_next = RegNext(out_mem_fifo_ready)
+  val out_mem_fifo_ready_next_next = RegNext(out_mem_fifo_ready_next)
+  val out_mem_fifo_valid = out_mem_write && (out_cntr_val >= 2.U) && (out_cntr_val <= (out_cntr_max - 1.U))
+  val out_mem_fifo_valid_next = RegNext(out_mem_fifo_valid)
+  val out_mem_fifo_valid_next_next = RegNext(out_mem_fifo_valid_next)
+  val out_mem_fifo_bits = Cat(RegNext(dst_idx), out_mem_enq_bits) // addr (32-bit) + data (128-bit)
+  val out_mem_fifo_bits_next  = RegNext(out_mem_fifo_bits)
+  val out_mem_fifo_bits_next_next = RegNext(out_mem_fifo_bits_next)
+  out_mem_write := out_cntr_en && busy && (out_cntr_val <= out_cntr_max_val)
+  out_mem_fifo_ready := out_mem_fifo.io.enq.ready
+  out_mem_fifo.io.enq.valid := out_mem_fifo_valid
+  out_mem_fifo.io.enq.bits  := out_mem_fifo_bits
+  // when (out_mem_fifo_ready_next) {
+  //   out_mem_fifo.io.enq.valid := out_mem_fifo_valid_next_next
+  //   out_mem_fifo.io.enq.bits  := out_mem_fifo_bits_next_next
+  // } .otherwise {
+  //   out_mem_fifo.io.enq.valid := out_mem_fifo_valid_next_next
+  //   out_mem_fifo.io.enq.bits := out_mem_fifo_bits_next_next
+  // }
 
   // write to out_mem interface
   io.out_mem.address := out_mem_fifo.io.deq.bits(128 + 31 , 128) << 4.U
