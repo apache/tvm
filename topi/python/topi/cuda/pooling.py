@@ -20,23 +20,26 @@ import tvm
 from .. import tag
 from .. import generic
 
-@generic.schedule_global_pool.register(["cuda", "gpu"])
-def schedule_global_pool(outs):
-    """Schedule for global_pool.
+
+
+@generic.schedule_adaptive_pool.register(["cuda", "gpu"])
+def schedule_adaptive_pool(outs):
+    """Schedule for adaptive_pool.
 
     Parameters
     ----------
     outs: Array of Tensor
-        The computation graph description of global_pool
+        The computation graph description of adaptive_poo
         in the format of an array of tensors.
 
     Returns
     -------
     s: Schedule
-        The computation schedule for global_pool.
+        The computation schedule for adaptive_pool.
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
+
     def _schedule(Pool):
         num_thread = 8
         block_x = tvm.thread_axis("blockIdx.x")
@@ -73,7 +76,7 @@ def schedule_global_pool(outs):
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule global_pool
-        elif OP.tag.startswith('global_pool'):
+        elif OP.tag.startswith('adaptive_pool'):
             Pool = OP.output(0)
             _schedule(Pool)
         else:
@@ -83,6 +86,23 @@ def schedule_global_pool(outs):
 
     traverse(outs[0].op)
     return s
+
+@generic.schedule_global_pool.register(["cuda", "gpu"])
+def schedule_global_pool(outs):
+    """Schedule for global_pool.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of global_pool
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for global_pool.
+    """
+    return schedule_adaptive_pool(outs)
 
 
 @generic.schedule_pool.register(["cuda", "gpu"])
@@ -147,3 +167,5 @@ def schedule_pool(outs, layout):
 
     traverse(outs[0].op)
     return s
+
+

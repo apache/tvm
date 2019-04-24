@@ -231,78 +231,6 @@ inline Tensor pool(const Tensor& x,
                    count_include_pad);
 }
 
-/*!
-* \brief Perform global pooling on height and width dimension of data.
-*        It decides the height and width dimension according to the layout string,
-*        in which 'W' and 'H' means width and height respectively.
-*        Width and height dimension cannot be split.
-*        For example, NCHW, NCHW16c, ... are valid for global_pool,
-*        while NCHW16w, NCHW16h are not.
-*        See \a layout for more information of the layout string convention.
-*
-* \param x The input tensor represent as layout
-* \param pool_type The type of pooling operator
-* \param layout The input layout. global-pooling supports any layout as long as 'H' and 'W' appear.
-*        The layout is supposed to be composed of upper cases, lower cases and (optional) numbers,
-*        where upper case indicates a dimension and
-*        the corresponding lower case (with factor size) indicates the sub-dimension.
-*        For example, `NCHW16c` can describe a 5-D tensor of
-*        [batch_size, channel, height, width, channel_block].
-*        (in which factor size `16` will not be used in pooling but for other operators,
-*        it can be used to decide the output shape).
-*        Since pooling does not care about the factor size of
-*        dimensions other than `H` and `W`, one can pass `NCHWc` as well.
-*
-* \return The output tensor in same layout with height and width dimension size of 1.
-*         e.g., for NCHW, the output shape will be [batch, channel, 1, 1]
-*/
-inline Tensor global_pool(const Tensor& x,
-                          PoolType pool_type,
-                          const std::string& layout = "NCHW") {
-  CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
-
-  int height_axis = -1, width_axis = -1;
-  CHECK(find_height_width(layout, &height_axis, &width_axis))
-    << "Unsupported layout " << layout;
-
-  Array<Expr> out_shape = x->shape;
-  out_shape.Set(height_axis, 1);
-  out_shape.Set(width_axis, 1);
-
-  auto height = x->shape[height_axis];
-  auto width = x->shape[width_axis];
-
-  auto dheight = tvm::reduce_axis(Range(0, height), "rv1");
-  auto dwidth = tvm::reduce_axis(Range(0, width), "rv2");
-
-  if (pool_type == kMaxPool) {
-    return tvm::compute(out_shape,
-      [&](const Array<Var>& output) {
-        Array<Expr> indices;
-        for (const Var& var : output) indices.push_back(var);
-        indices.Set(height_axis, dheight);
-        indices.Set(width_axis, dwidth);
-        return tvm::max(x(indices), { dheight, dwidth });  // NOLINT(*)
-      }, "tensor", "global_pool_max");
-  } else if (pool_type == kAvgPool) {
-    auto tsum = tvm::compute(out_shape,
-      [&](const Array<Var>& output) {
-        Array<Expr> indices;
-        for (const Var& var : output) indices.push_back(var);
-        indices.Set(height_axis, dheight);
-        indices.Set(width_axis, dwidth);
-        return tvm::sum(x(indices), { dheight, dwidth });
-      }, "tensor", "global_pool_sum");
-
-    return tvm::compute(out_shape,
-      [&](const Array<Var>& output) {
-        return tsum(output) / tvm::cast(x->dtype, height * width);
-      }, "tensor", kElementWise);
-  } else {
-    LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
-    return x;
-  }
-}
 
 inline Expr start_index(const Var& out_index,
                         const Expr& odim,
@@ -415,6 +343,37 @@ inline Tensor adaptive_pool(const Tensor& x,
   CHECK(find_height_width(layout, &height_axis, &width_axis))
     << "Unsupported layout " << layout;
   return adaptive_pool_impl(x, output_size, pool_type, height_axis, width_axis);
+}
+
+/*!
+* \brief Perform global pooling on height and width dimension of data.
+*        It decides the height and width dimension according to the layout string,
+*        in which 'W' and 'H' means width and height respectively.
+*        Width and height dimension cannot be split.
+*        For example, NCHW, NCHW16c, ... are valid for global_pool,
+*        while NCHW16w, NCHW16h are not.
+*        See \a layout for more information of the layout string convention.
+*
+* \param x The input tensor represent as layout
+* \param pool_type The type of pooling operator
+* \param layout The input layout. global-pooling supports any layout as long as 'H' and 'W' appear.
+*        The layout is supposed to be composed of upper cases, lower cases and (optional) numbers,
+*        where upper case indicates a dimension and
+*        the corresponding lower case (with factor size) indicates the sub-dimension.
+*        For example, `NCHW16c` can describe a 5-D tensor of
+*        [batch_size, channel, height, width, channel_block].
+*        (in which factor size `16` will not be used in pooling but for other operators,
+*        it can be used to decide the output shape).
+*        Since pooling does not care about the factor size of
+*        dimensions other than `H` and `W`, one can pass `NCHWc` as well.
+*
+* \return The output tensor in same layout with height and width dimension size of 1.
+*         e.g., for NCHW, the output shape will be [batch, channel, 1, 1]
+*/
+inline Tensor global_pool(const Tensor& x,
+                          PoolType pool_type,
+                          const std::string& layout = "NCHW") {
+  return adaptive_pool(x, Array<Expr>{1, 1}, pool_type, layout);
 }
 
 }  // namespace nn

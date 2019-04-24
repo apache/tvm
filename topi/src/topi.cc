@@ -676,11 +676,6 @@ TVM_REGISTER_GENERIC_FUNC(schedule_global_pool)
 .register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
 .register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_global_pool));
 
-TVM_REGISTER_GENERIC_FUNC(schedule_adaptive_pool)
-.set_default(WrapSchedule(topi::generic::default_schedule))
-.register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule))
-.register_func({ "cuda", "gpu" }, WrapSchedule(topi::cuda::schedule_global_pool));
-
 TVM_REGISTER_GENERIC_FUNC(schedule_reduce)
 .set_default(WrapSchedule(topi::generic::default_schedule_auto_inline))
 .register_func({ "cpu" }, WrapSchedule(topi::x86::default_schedule_auto_inline))
