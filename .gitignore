@@ -196,6 +196,9 @@ tvm_t.*
 .pytest_cache
 .local
 
+# Visual Studio Code
+.vscode
+
 # tmp file
 .nfs*
 
