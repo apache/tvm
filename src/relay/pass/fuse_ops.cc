@@ -741,19 +741,15 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
     this->RunFuse(graph, post_dom_tree, phase);
   }
   // Fuse intermediate tuples, if any
-  std::unordered_set<Group*> visited;
   for (size_t i = groups_.size(); i != 0; --i) {
     size_t nid = i - 1;
     Group* group = groups_[nid];
-    if (visited.count(group)) continue;
-    visited.insert(group);
     Group* root_group = group->FindRoot();
     if (root_group->pattern == kTuple) continue;
     if (group->pattern == kTuple && root_group->pattern <= kInjective) {
       for (Group* child_group : root_group->inputs) {
         if (child_group->FindRoot()->pattern <= kInjective) {
           MergeFromTo(child_group, group);
-          visited.insert(child_group);
         }
       }
     }

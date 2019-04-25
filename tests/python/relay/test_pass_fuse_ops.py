@@ -341,34 +341,86 @@ def test_tuple_get_root():
 
 
 def test_tuple_intermediate():
-    def before(dshape):
-        x = relay.var("x", shape=dshape)
+    def before(x):
         inj = relay.squeeze(x)
         y1 = relay.add(inj, relay.const(1, "float32"))
-        y2 = relay.squeeze(inj)
+        tmp = relay.squeeze(inj)
+        tmp = relay.add(tmp, relay.const(1, "float32"))
+        y2 = relay.add(tmp, relay.const(1, "float32"))
         y3 = relay.add(inj, relay.const(1, "float32"))
         concat = relay.concatenate((y1, y2, y3), axis=1)
         out_inj = relay.squeeze(concat)
         out = relay.add(out_inj, relay.const(1, "float32"))
         return relay.Function(relay.ir_pass.free_vars(out), out)
 
-    def expected(dshape):
-        p0 = relay.var("p0", shape=dshape)
-        inj = relay.squeeze(p0)
-        y1 = relay.add(inj, relay.const(1, "float32"))
-        y2 = relay.squeeze(inj)
-        y3 = relay.add(inj, relay.const(1, "float32"))
-        concat = relay.concatenate((y1, y2, y3), axis=1)
-        out_inj = relay.squeeze(concat)
-        out = relay.add(out_inj, relay.const(1, "float32"))
-        f0 = relay.Function([p0], out)
-
+    def expected(p0):
+        f0 = before(p0)
         x = relay.var("x", shape=dshape)
         y = relay.Call(f0, [x])
         return relay.Function([x], y)
 
     dshape = (1, 16, 64, 64)
-    z = before(dshape)
+    x = relay.var("x", shape=dshape)
+    z = before(x)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    relay.build(zz, 'llvm')
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(x))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
+def test_tuple_consecutive():
+    def gen_intermediate_tuple(x):
+        y1 = relay.add(x, relay.const(1, "float32"))
+        y2 = relay.add(x, relay.const(1, "float32"))
+        y3 = relay.add(x, relay.const(1, "float32"))
+        concat = relay.concatenate((y1, y2, y3), axis=1)
+        out = relay.add(concat, relay.const(1, "float32"))
+        return out
+
+    def gen_consecutive_tuple(x):
+        y1 = gen_intermediate_tuple(x)
+        y2 = gen_intermediate_tuple(x)
+        y3 = gen_intermediate_tuple(x)
+        concat = relay.concatenate((y1, y2, y3), axis=1)
+        return concat
+
+    def before(x):
+        concat = gen_consecutive_tuple(x)
+        pooled = relay.nn.max_pool2d(concat, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+        out = relay.add(pooled, relay.const(1, "float32"))
+        out2 = relay.add(out, relay.const(1, "float32"))
+        out_tup = relay.Tuple((out, out2))
+        return relay.Function(relay.ir_pass.free_vars(out_tup), out_tup)
+
+    def expected(dshape):
+        p0 = relay.var("p0", shape=dshape)
+        concat = gen_consecutive_tuple(p0)
+        f0 = relay.Function([p0], concat)
+
+        p01 = relay.var("p01", shape=(1, dshape[1]*9, dshape[2], dshape[3]))
+        pooled = relay.nn.max_pool2d(p01, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
+        out = relay.add(pooled, relay.const(1, "float32"))
+        f1 = relay.Function([p01], out)
+
+        p02 = relay.var("p02", shape=(1, dshape[1]*9, dshape[2]//2, dshape[3]//2))
+        out = relay.add(p02, relay.const(1, "float32"))
+        f2 = relay.Function([p02], out)
+
+        x = relay.var("x", shape=dshape)
+        y = relay.Call(f0, [x])
+        z = relay.Call(f1, [y])
+        z2 = relay.Call(f2, [z])
+
+        return relay.Function([x], relay.Tuple((z, z2)))
+
+    dshape = (1, 16, 64, 64)
+    x = relay.var("x", shape=dshape)
+    z = before(x)
     z = relay.ir_pass.infer_type(z)
     zz = relay.ir_pass.fuse_ops(z, opt_level=0)
     assert not relay.ir_pass.free_vars(zz)
@@ -390,3 +442,4 @@ if __name__ == "__main__":
     test_fuse_tuple_get_elemwise()
     test_tuple_get_root()
     test_tuple_intermediate()
+    test_tuple_consecutive()
