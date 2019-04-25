@@ -76,7 +76,7 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
         assert out_channels % groups == 0, "output channels must divide group size"
         assert channels % ic_block_factor == 0, \
             "Number of input channels per group must divide {}".format(ic_block_factor)
-        assert out_channels % 4 == 0, \
+        assert out_channels % oc_block_factor == 0, \
             "Number of output channels per group must divide {}".format(oc_block_factor)
 
         packed_data = tvm.compute((batch, channels // ic_block_factor, height, width,
