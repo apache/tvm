@@ -41,15 +41,18 @@ enum OpPatternKind {
   // for example :code:`out[i, ax1, j, ax2] = input[i, j]`.
   // Note that the axis need to be in order so transpose is not a bcast operator.
   kBroadcast = 1,
+  // The pattern for tuple nodes. Can fuse into subsequent injective ops.
+  kTuple = 2,
   // Injective operator, can always injectively map output axis to a single input axis.
   // All injective operator can still be safely fused to injective and reduction.
-  kTuple = 2,
   kInjective = 3,
   // Communicative reduction operator.
   kCommReduce = 4,
   // Complex operation, can still fuse elemwise operations into its output.
   // but cannot chain another complex op
   kOutEWiseFusable = 5,
+  // The edge pattern between tuple and its fields. Tuple fields can fuse into
+  // a tuple if the tuple is intermediate node in its fusion group.
   kTupleField = 6,
 
   // Opaque operation, cannot fuse anything.

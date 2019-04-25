@@ -493,7 +493,11 @@ class GraphPartitioner {
     OpPatternKind pattern;
     /*! \brief reference to the root node. */
     const tvm::Node* root_ref{nullptr};
-
+    /*!
+     * \brief The input nodes to this group
+     * The group and its inputs are disjoint in the union find forest.
+     * This field is used to keep track of data flow between fusion groups.
+     */
     std::set<Group*> inputs;
     /*!
      * \brief Reference to the master node,
@@ -666,6 +670,9 @@ class GraphPartitioner {
       // no actions needed if the current node have no dominator
       if (dom_node->parent == nullptr) continue;
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
+      // If the edge pattern is kTupleField, then dom_node below is tuple
+      // Do not let tuple fields fuse into the tuple here, but record the data flow between
+      // groups so that we can fuse them later
       if (dom_node->pattern == kTupleField) {
         groups_[dom_parent_gindex]->inputs.insert(group_node);
         continue;
@@ -715,7 +722,7 @@ class GraphPartitioner {
         // defer injective fusion to second phase.
         // so conv2d always finishes fusing.
         if (phase != 1) continue;
-        // Check if all path are injective.
+        // Check if all path are injective. tuple nodes can be fused if its dom_node is injective.
         auto fcond = [](OpPatternKind kind, bool is_sink) {
           return kind <= kInjective;
         };
@@ -747,6 +754,8 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
     Group* root_group = group->FindRoot();
     if (root_group->pattern == kTuple) continue;
     if (group->pattern == kTuple && root_group->pattern <= kInjective) {
+      // Here, we found a tuple node that had been fused into later injective ops.
+      // Complete the fusion by fusing tuple fields into it.
       for (Group* child_group : root_group->inputs) {
         if (child_group->FindRoot()->pattern <= kInjective) {
           MergeFromTo(child_group, group);
