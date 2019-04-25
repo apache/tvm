@@ -72,7 +72,6 @@ bool Pool2DRel(const Array<Type>& types,
 
   CHECK(data != nullptr);
   const auto dshape = data->shape;
-  CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
       << "Pool2D only support input >= 2-D: input must have height and width";
   const auto param = attrs.as<AttrType>();
@@ -284,7 +283,6 @@ bool GlobalPool2DRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) { return false; }
   const auto dshape = data->shape;
-  CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
       << "Pool2D only support input >= 2-D: input must have height and width";
   const auto param = attrs.as<GlobalPool2DAttrs>();
@@ -405,10 +403,9 @@ bool AdaptivePool2DRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) { return false; }
   const auto dshape = data->shape;
-  CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
     << "Pool2D only support input >= 2-D: input must have height and width";
-  const auto param = attrs.as<AdaptivePool2DAttrs>();
+  const auto* param = attrs.as<AdaptivePool2DAttrs>();
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
