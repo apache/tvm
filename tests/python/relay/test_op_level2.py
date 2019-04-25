@@ -150,7 +150,7 @@ def test_conv2d_run():
                     padding=(1, 1), channels=10, kernel_size=(3 ,3))
     kshape = (10, 3, 1, 3)
     # mixed precision.
-    run_test_conv2d("int8", "int8", 1, dshape, kshape,
+    run_test_conv2d("int8", "int32", 1, dshape, kshape,
                     padding=(0, 1), channels=10, kernel_size=(1 ,3))
     # mixed precision group conv2d
     # NOTE(kumasento): This test cannot pass
