@@ -197,6 +197,9 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0
     is_ascend : boolean
         Whether to sort in ascending or descending order.
 
+    flag : boolean
+        Whether this argsort is used in nms operator
+
     Returns
     -------
     out : tvm.Tensor
