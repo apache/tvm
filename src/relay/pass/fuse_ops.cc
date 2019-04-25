@@ -267,10 +267,10 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const TupleNode* op) final {
     CHECK(graph_.node_map.count(op));
     Node* tuple_node = graph_.node_map.at(op);
-    tuple_node->pattern = kInjective;
+    tuple_node->pattern = kTuple;
     for (const Expr& field : op->fields) {
       if (field->checked_type().as<TensorTypeNode>()) {
-        this->Update(field, tuple_node, kInjective);
+        this->Update(field, tuple_node, kTupleField);
       } else {
         this->Update(field, nullptr, kOpaque);
       }
@@ -493,6 +493,8 @@ class GraphPartitioner {
     OpPatternKind pattern;
     /*! \brief reference to the root node. */
     const tvm::Node* root_ref{nullptr};
+
+    std::vector<Group*> inputs;
     /*!
      * \brief Reference to the master node,
      * this field is not nullptr only if pattern is kOutEWiseFusable.
@@ -700,6 +702,8 @@ class GraphPartitioner {
           };
           if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
             CommitFuse(graph_node, dom_node->parent->gnode);
+          } else {
+            groups_[dom_node->parent->gnode->index]->inputs.push_back(groups_[graph_node->index]);
           }
         }
       } else if (group_node->pattern == kInjective) {
@@ -712,6 +716,8 @@ class GraphPartitioner {
         };
         if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
           CommitFuse(graph_node, dom_node->parent->gnode);
+        } else {
+          groups_[dom_node->parent->gnode->index]->inputs.push_back(groups_[graph_node->index]);
         }
       } else {
         // do nothing.
@@ -730,6 +736,24 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
   // run fusion algorithm.
   for (int phase = 0; phase < 2; ++phase) {
     this->RunFuse(graph, post_dom_tree, phase);
+  }
+  // Fuse intermediate tuples, if any
+  std::unordered_set<Group*> visited;
+  for (size_t nid = groups_.size() - 1; nid >= 0; --nid) {
+    Group* group = groups_[nid];
+    if (visited.count(group)) continue;
+    visited.insert(group);
+    if (group->pattern > kInjective) continue;
+    const auto& input_groups = group->inputs;
+    bool fusible = std::all_of(input_groups.begin(), input_groups.end(), [](const Group* g) {
+      return g->pattern <= kInjective || g->pattern == kTupleField;
+    });
+    if (fusible) {
+      for (Group* child_group : input_groups) {
+        MergeFromTo(child_group, group);
+        visited.insert(child_group);
+      }
+    }
   }
   return std::move(groups_);
 }
@@ -821,29 +845,11 @@ class FuseMutator : private ExprMutator {
 
   Expr VisitExpr_(const TupleNode* tuple) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
-    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     if (ret_group == gmap_.at(tuple)) {
-      // This tuple is the root of its group. Check if all fields come from other groups.
-      bool isolated = new_fields.size() == ginfo_[ret_group].params.size();
-      for (size_t i = 0; i < new_fields.size() && isolated; ++i) {
-        isolated &= (new_fields[i].same_as(ginfo_[ret_group].params[i]));
-      }
-      if (isolated) {
-        // Do not put a isolated tuple into a function
-        return ExprMutator::VisitExpr_(tuple);
-      }
-      // This tuple has been fused with other ops before it
-      for (size_t i = 0; i < new_fields.size(); i++) {
-        // Copy function arguments to tuple field of the output because currently graph memory
-        // planer doesn't support inplace operations
-        if (new_fields[i].as<VarNode>()) {
-          auto copy = Copy(new_fields[i]);
-          new_fields.Set(i, copy);
-        }
-      }
-      return MakeNewFunction(ret_group, tuple->checked_type(), TupleNode::make(new_fields));
+      return ExprMutator::VisitExpr_(tuple);
     }
     // This tuple is an intermediate node in the group
+    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     return TupleNode::make(new_fields);
   }
 

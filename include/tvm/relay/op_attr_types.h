@@ -43,12 +43,15 @@ enum OpPatternKind {
   kBroadcast = 1,
   // Injective operator, can always injectively map output axis to a single input axis.
   // All injective operator can still be safely fused to injective and reduction.
-  kInjective = 2,
+  kTuple = 2,
+  kInjective = 3,
   // Communicative reduction operator.
-  kCommReduce = 3,
+  kCommReduce = 4,
   // Complex operation, can still fuse elemwise operations into its output.
   // but cannot chain another complex op
-  kOutEWiseFusable = 4,
+  kOutEWiseFusable = 5,
+  kTupleField = 6,
+
   // Opaque operation, cannot fuse anything.
   kOpaque = 8
 };
