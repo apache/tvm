@@ -576,9 +576,9 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
         dilation_h, dilation_w = dilation
 
     if Input.dtype == 'int8':
-      tag = 'group_conv2d_NCHWc_int8'
+        tag = 'group_conv2d_NCHWc_int8'
     else:
-      tag = 'group_conv2d_nchw'
+        tag = 'group_conv2d_nchw'
 
     batch, in_channel, in_height, in_width = get_const_tuple(Input.shape)
     num_filter, _, kernel_h, kernel_w = get_const_tuple(Filter.shape)
