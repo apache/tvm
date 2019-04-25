@@ -546,16 +546,18 @@ inline Op& Op::set_attr_parser(std::function<void (NodeAttrs* attrs)> fn) {  // 
 // member functions of OpMap
 template<typename ValueType>
 inline int OpMap<ValueType>::count(const Op* op) const {
-  if (contains(op))
+  if (contains(op)) {
     return 1;
-  else
+  } else {
     return 0;
+  }
 }
 
 template<typename ValueType>
 inline bool OpMap<ValueType>::contains(const Op* op) const {
-  if (op == nullptr)
+  if (op == nullptr) {
     return false;
+  }
   const uint32_t idx = op->index_;
   return idx < data_.size() ? (data_[idx].second != 0) : false;
 }
