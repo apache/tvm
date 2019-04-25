@@ -12,8 +12,9 @@ UTVMTask task;
 void UTVMDone() {}
 
 // init stub
-int UTVMMain() {
-  task.func(task.args, task.arg_type_ids, *task.num_args);
+uint64_t UTVMMain() {
+  // TODO(weberlo): Change codegen so we don't need these casts.
+  task.func((void*) task.args->values, (void*) task.args->type_codes, task.args->num_args);
   UTVMDone();
   return 0;
 }

@@ -10,15 +10,23 @@
 extern "C" {
 #endif
 #include <stdint.h>
+#include <tvm/runtime/c_runtime_api.h>
+
+/*!
+ * \brief POD variant of TVMArgs
+ */
+typedef struct {
+  TVMValue* values;
+  int* type_codes;
+  int32_t num_args;
+} UTVMArgs;
 
 /*!
  * \brief task structure for uTVM
  */
 typedef struct {
   int (*func)(void*, void*, int32_t);
-  void* args;
-  void* arg_type_ids;
-  int32_t* num_args;
+  UTVMArgs* args;
 } UTVMTask;
 
 #ifdef __cplusplus

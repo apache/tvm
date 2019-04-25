@@ -4,13 +4,12 @@
  * \brief session to manage multiple micro modules
  */
 
+#include <memory>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <memory>
-#include "micro_session.h"
-#include "low_level_device.h"
-#include "allocator_stream.h"
-#include <cstdio>
+#include "./micro_session.h"
+#include "./low_level_device.h"
+#include "./allocator_stream.h"
 
 namespace tvm {
 namespace runtime {
@@ -115,27 +114,35 @@ void MicroSession::FreeInSection(SectionKind type, void* ptr) {
 }
 
 void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
-  int num_args = args.num_args;
-  int (*func_addr)(void*, void*, int32_t) =
-      (int (*)(void*, void*, int32_t)) GetAddr(func, low_level_device()->base_addr());
-  void* args_addr = AllocateTVMArgs(args);
-  void* arg_type_ids_addr = reinterpret_cast<uint8_t*>(args_addr) +
-                            sizeof(TVMValue*) * num_args;
-  void* num_args_addr = reinterpret_cast<uint8_t*>(arg_type_ids_addr) +
-                        sizeof(const int*) * num_args;
-  void* task_addr = GetSymbol(init_symbol_map_, "task",
-                              low_level_device()->base_addr());
-  UTVMTask task = {.func = func_addr,
-                   .args = args_addr,
-                   .arg_type_ids = arg_type_ids_addr,
-                   .num_args = reinterpret_cast<int32_t*>(num_args_addr)};
-  // TODO(mutinifni): handle bits / endianness
-  low_level_device()->Write(task_addr, &task, sizeof(task));
-  low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
-}
+  int (*func_dev_addr)(void*, void*, int32_t) =
+      reinterpret_cast<int (*)(void*, void*, int32_t)>(
+      GetAddr(func, low_level_device()->base_addr()));
 
-void MicroSession::SetInitBinaryPath(std::string path) {
-  init_binary_path_ = path;
+  // Create an allocator stream for the memory region after the most recent
+  // allocation in the args section.
+  void* args_dev_addr = GetAddr(args_allocator_->section_max(),
+                                low_level_device()->base_addr());
+  AllocatorStream stream(args_dev_addr);
+  UTVMArgs u_args = {
+      .values = const_cast<TVMValue*>(args.values),
+      .type_codes = const_cast<int*>(args.type_codes),
+      .num_args = args.num_args,
+  };
+  StreamWrite(&u_args, &stream);
+  // Flush `stream` to device memory.
+  void* stream_dev_addr = args_allocator_->Allocate(stream.size());
+  low_level_device()->Write(stream_dev_addr, (void*) stream.data(),
+                            stream.size());
+
+  UTVMTask task = {
+      .func = func_dev_addr,
+      .args = reinterpret_cast<UTVMArgs*>(args_dev_addr),
+  };
+  // TODO(mutinifni): handle bits / endianness
+  void* task_dev_addr = GetSymbol(init_symbol_map_, "task",
+                                  low_level_device()->base_addr());
+  low_level_device()->Write(task_dev_addr, &task, sizeof(task));
+  low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
 }
 
 void MicroSession::LoadInitStub() {
@@ -168,54 +175,53 @@ void MicroSession::LoadInitStub() {
   utvm_done_symbol_addr_ = GetSymbol(init_symbol_map_, "UTVMDone", nullptr);
 }
 
-// TODO(mutinifni): overload TargetAwareWrite with different val types as need be
-
-void* MicroSession::TargetAwareWrite(int64_t* val, size_t n,
-                                     AllocatorStream* stream) {
-  Slot arr_slot(stream, stream->AllocInt64Array(n));
-  arr_slot.Write(val, n);
-  return arr_slot.addr();
+void MicroSession::SetInitBinaryPath(std::string path) {
+  init_binary_path_ = path;
 }
 
-void* MicroSession::TargetAwareWrite(TVMArray* val, AllocatorStream* stream) {
-  TVMArray arr = *val;
-  Slot tarr_slot(stream, stream->AllocTVMArray());
-  TargetAwareWrite(val->shape, val->ndim, stream);
-  void* shape_addr = TargetAwareWrite(val->shape, val->ndim, stream);
+// TODO(mutinifni): overload StreamWrite with more val types as needed
+
+void* MicroSession::StreamWrite(TVMArray* arr, AllocatorStream* stream) {
+  Slot tvm_arr_slot = stream->Alloc<TVMArray>();
+  Slot shape_slot = stream->AllocArray<int64_t>(arr->ndim);
+
+  // `shape` and `strides` are stored on the host, so we need to write them to
+  // the device first. The `data` field is already allocated on the device and
+  // is a device pointer, so we don't need to write it.
+  shape_slot.WriteEntire(arr->shape);
+  void* shape_addr = shape_slot.dev_start_addr();
   void* strides_addr = nullptr;
-  if (val->strides != nullptr) {
-    strides_addr = TargetAwareWrite(val->strides, val->ndim, stream);
+  if (arr->strides != nullptr) {
+    Slot stride_slot = stream->AllocArray<int64_t>(arr->ndim);
+    stride_slot.WriteEntire(arr->strides);
+    strides_addr = stride_slot.dev_start_addr();
   }
-  void* data_addr = (uint8_t*) low_level_device()->base_addr() +
-                    reinterpret_cast<std::uintptr_t>(val->data);
-  arr.data = data_addr;
-  arr.shape = static_cast<int64_t*>(shape_addr);
-  arr.strides = static_cast<int64_t*>(strides_addr);
-  tarr_slot.Write(&arr);
-  return tarr_slot.addr();
+
+  // Copy `arr`, update the copy's pointers to be on-device pointers, then write
+  // the copy to `tvm_arr_slot`.
+  TVMArray dev_arr = *arr;
+  dev_arr.data = reinterpret_cast<uint8_t*>(const_cast<void*>(low_level_device()->base_addr())) +
+                 reinterpret_cast<std::uintptr_t>(arr->data);
+  dev_arr.shape = static_cast<int64_t*>(shape_addr);
+  dev_arr.strides = static_cast<int64_t*>(strides_addr);
+  tvm_arr_slot.Write(&dev_arr);
+  return tvm_arr_slot.dev_start_addr();
 }
 
-void* MicroSession::AllocateTVMArgs(TVMArgs args) {
-  std::string args_buf;
-  // TODO(mutinifni): this part is a bit weird
-  void* base_addr = GetAddr(args_allocator_->section_max(),
-                            low_level_device()->base_addr());
-  AllocatorStream* stream = new AllocatorStream(&args_buf, base_addr);
-  const TVMValue* values = args.values;
-  const int* type_codes = args.type_codes;
-  int num_args = args.num_args;
-  size_t args_offset = stream->Allocate(sizeof(TVMValue*) * num_args +
-                                        sizeof(const int*) * num_args +
-                                        sizeof(int));
-  stream->Seek(args_offset + sizeof(TVMValue*) * num_args);
-  stream->Write(type_codes, sizeof(const int*) * num_args);
-  stream->Write(&num_args, sizeof(int));
+void* MicroSession::StreamWrite(UTVMArgs* args, AllocatorStream* stream) {
+  Slot utvm_args_slot = stream->Alloc<UTVMArgs>();
+
+  const int* type_codes = args->type_codes;
+  int num_args = args->num_args;
+
+  Slot tvm_vals_slot = stream->AllocArray<TVMValue*>(num_args);
+  Slot type_codes_slot = stream->AllocArray<const int>(num_args);
+
   for (int i = 0; i < num_args; i++) {
     switch (type_codes[i]) {
       case kNDArrayContainer: {
-        void* val_addr = TargetAwareWrite((TVMArray*) values[i].v_handle, stream);
-        stream->Seek(args_offset + sizeof(TVMValue*) * i);
-        stream->Write(&val_addr, sizeof(void*));
+        void* val_addr = StreamWrite((TVMArray*) args->values[i].v_handle, stream);
+        tvm_vals_slot.Write(&val_addr);
         break;
       }
       // TODO(mutinifni): implement other cases if needed
@@ -224,10 +230,15 @@ void* MicroSession::AllocateTVMArgs(TVMArgs args) {
         break;
     }
   }
-  void* stream_addr = args_allocator_->Allocate(stream->GetBufferSize());
-  low_level_device()->Write(stream_addr, (void*) args_buf.c_str(),
-                            stream->GetBufferSize());
-  return base_addr;
+  type_codes_slot.WriteEntire(type_codes);
+
+  UTVMArgs dev_args = {
+    .values = reinterpret_cast<TVMValue*>(tvm_vals_slot.dev_start_addr()),
+    .type_codes = reinterpret_cast<int*>(type_codes_slot.dev_start_addr()),
+    .num_args = num_args,
+  };
+  utvm_args_slot.Write(&dev_args);
+  return utvm_args_slot.dev_start_addr();
 }
 
 // initializes micro session and low-level device from Python frontend

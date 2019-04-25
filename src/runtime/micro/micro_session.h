@@ -181,33 +181,26 @@ class MicroSession {
   void LoadInitStub();
 
   /*!
-   * \brief writes arguments to args section using allocator_stream
-   * \return start address of the allocated args
-   */
-  void* AllocateTVMArgs(TVMArgs args);
-
-  /*!
    * \brief sets the init stub binary path
    * \param path to init stub binary
    */
   void SetInitBinaryPath(std::string path);
 
   /*!
-   * \brief writes TVMArray to stream
-   * \param val pointer to the TVMArray to be written
+   * \brief writes arguments to args section
+   * \param args pointer to the args to be written
    * \param stream stream for values to be written into
-   * \return real address of the allocated TVMArray
+   * \return device address of the allocated args
    */
-  void* TargetAwareWrite(TVMArray* val, AllocatorStream* stream);
+  void* StreamWrite(UTVMArgs* args, AllocatorStream* stream);
 
   /*!
-   * \brief writes int64_t array to stream
-   * \param val address to the int64_t array
-   * \param n number of elements in the array
+   * \brief writes a `TVMArray` to `stream`
+   * \param arr pointer to the TVMArray to be written
    * \param stream stream for values to be written into
-   * \return real address of the allocated int64_t array
+   * \return device address of the allocated `TVMArray`
    */
-  void* TargetAwareWrite(int64_t* val, size_t n, AllocatorStream* stream);
+  void* StreamWrite(TVMArray* arr, AllocatorStream* stream);
 };
 }  // namespace runtime
 }  // namespace tvm
