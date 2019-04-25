@@ -300,7 +300,7 @@ inline Expr Add(Expr lhs, Expr rhs) {
 }
 
 
-inline Expr Substract(Expr lhs, Expr rhs) {
+inline Expr Subtract(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("subtract");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
