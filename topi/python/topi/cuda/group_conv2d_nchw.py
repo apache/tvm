@@ -99,6 +99,10 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     oc_chunk, _, kernel_h, kernel_w, oc_block, ic_block = get_const_tuple(
         packed_kernel.shape)
 
+    # TODO(kumasento): these assertions ensure that the number of groups
+    # should be larger or equal to the number of blocks, so that each
+    # group will have at least one block.
+    # Shall we pad the channels to avoid raising assertions?
     assert groups >= oc_chunk, \
         ('Number of groups {} should not be less than '
          'output channel chunk size {}'.format(groups, oc_chunk))
@@ -116,9 +120,9 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     else:
         dilation_h, dilation_w = dilation
 
+    # pad the input data
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
-    # compute graph
     pad_before = [0, 0, pad_top, pad_left, 0]
     pad_after = [0, 0, pad_down, pad_right, 0]
     pad_data = pad(packed_data, pad_before, pad_after, name="pad_data")
@@ -136,6 +140,17 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     kh = tvm.reduce_axis((0, kernel_h), name='kh')
     kw = tvm.reduce_axis((0, kernel_w), name='kw')
 
+    # NOTE(kumasento): explanation of this snippet -
+    # oc_chunk//groups and ic_chunk//groups give you the number of blocks,
+    # i.e., chunk, per group.
+    # occ is the ID of the output channel block, so that occ//(oc_chunk//groups)
+    # produces the ID of the group.
+    # Multiplying that result with ic_chunk//groups resulting in the ID
+    # of the beginning block of the corresponding input group.
+    # Adding the block offset (icc) will give you the exact block ID.
+    #
+    # Compared with a normal convolution, group convolution only sums
+    # input channels from the group that an output channel resides in.
     conv = tvm.compute(oshape, lambda n, occ, oh, ow, ocb:
                        tvm.sum(pad_data[n, occ//(oc_chunk//groups)*(ic_chunk//groups)+icc,
                                         oh*stride_h+kh*dilation_h, ow*stride_w+kw*dilation_w, icb]
@@ -145,8 +160,10 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
                                .astype('int32'),
                                axis=[icc, kh, kw, icb]))
 
+    # Type conversion
     output = tvm.compute(oshape, lambda *index: conv(*index).astype(out_dtype),
                          tag='group_conv2d_NCHWc_int8')
+
     num_flop = batch * oc_chunk * oc_block * out_height * out_width * \
         ic_chunk * ic_block * kernel_h * kernel_w * 2 // groups
     cfg.add_flop(num_flop)
