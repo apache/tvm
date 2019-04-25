@@ -82,3 +82,9 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
     if bits > 1:
         return concatenate(output_tuple, axis=bit_axis)
     return output_tuple
+
+def binary_op_multiplier(pack_dtype):
+    """"Returns number of bits packed into 
+    pack_dtype: string
+        pack type for the operator (must be a uint)"""
+    return int(pack_dtype[4:])

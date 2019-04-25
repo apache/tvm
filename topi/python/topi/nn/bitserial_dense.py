@@ -20,7 +20,7 @@ from __future__ import absolute_import
 import tvm
 from tvm import autotvm
 from topi.util import get_const_tuple
-from .bitserial_util import bitpack
+from .bitserial_util import bitpack, binary_op_multiplier
 
 @tvm.target.generic_func
 def bitserial_dense(data, weight, data_bits, weight_bits, pack_dtype='uint32',
@@ -130,16 +130,7 @@ def bitserial_dense_default(cfg, data, weight, data_bits, weight_bits, pack_dtyp
         tvm.popcount(weight_vec[j//VX, wb, j%VX, k] & data_packed[i, db, k]).astype(out_dtype)
         << (db+wb).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense')
 
-    if pack_dtype == 'uint8':
-        binary_op_multiplier = 8
-    elif pack_dtype == 'uint16':
-        binary_op_multiplier = 16
-    elif pack_dtype == 'uint32':
-        binary_op_multiplier = 32
-    elif pack_dtype == 'uint64':
-        binary_op_multiplier = 64
-
-    cfg.add_flop(Y * X * K * binary_op_multiplier)
+    cfg.add_flop(2 * Y * X * K * binary_op_multiplier(pack_dtype))
 
     if unipolar:
         return matmul_unipolar
