@@ -27,7 +27,8 @@ from ..util import traverse_inline, get_const_tuple, get_const_int
 from .. import nn, generic
 
 
-# autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], 'direct', nn.group_conv2d_nchw.fdefault)
+autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], 'direct',
+                              nn.group_conv2d_nchw.fdefault)
 
 @autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], ['int8'])
 def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
