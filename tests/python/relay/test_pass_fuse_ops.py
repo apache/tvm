@@ -151,10 +151,9 @@ def test_concatenate():
     dshape = (1, 16, 64, 64)
     z = before(dshape)
     z = relay.ir_pass.infer_type(z)
-    # zz = relay.ir_pass.fuse_ops(z, opt_level=0)
-    # assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
     zz = relay.ir_pass.fuse_ops(z, opt_level=2)
-    print(zz)
     zz = relay.ir_pass.infer_type(zz)
     assert not relay.ir_pass.free_vars(zz)
     after = relay.ir_pass.infer_type(expected(dshape))
@@ -341,6 +340,46 @@ def test_tuple_get_root():
     assert relay.ir_pass.alpha_equal(zz, after)
 
 
+def test_tuple_intermediate():
+    def before(dshape):
+        x = relay.var("x", shape=dshape)
+        inj = relay.squeeze(x)
+        y1 = relay.add(inj, relay.const(1, "float32"))
+        y2 = relay.squeeze(inj)
+        y3 = relay.add(inj, relay.const(1, "float32"))
+        concat = relay.concatenate((y1, y2, y3), axis=1)
+        out_inj = relay.squeeze(concat)
+        out = relay.add(out_inj, relay.const(1, "float32"))
+        return relay.Function(relay.ir_pass.free_vars(out), out)
+
+    def expected(dshape):
+        p0 = relay.var("p0", shape=dshape)
+        inj = relay.squeeze(p0)
+        y1 = relay.add(inj, relay.const(1, "float32"))
+        y2 = relay.squeeze(inj)
+        y3 = relay.add(inj, relay.const(1, "float32"))
+        concat = relay.concatenate((y1, y2, y3), axis=1)
+        out_inj = relay.squeeze(concat)
+        out = relay.add(out_inj, relay.const(1, "float32"))
+        f0 = relay.Function([p0], out)
+
+        x = relay.var("x", shape=dshape)
+        y = relay.Call(f0, [x])
+        return relay.Function([x], y)
+
+    dshape = (1, 16, 64, 64)
+    z = before(dshape)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    relay.build(zz, 'llvm')
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dshape))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -350,3 +389,4 @@ if __name__ == "__main__":
     test_fuse_myia_regression()
     test_fuse_tuple_get_elemwise()
     test_tuple_get_root()
+    test_tuple_intermediate()
