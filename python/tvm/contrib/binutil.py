@@ -144,8 +144,8 @@ def tvm_callback_get_symbol_map(binary):
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(binary))
     nm_proc = subprocess.Popen(["nm", "-C", "--defined-only", tmp_obj],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
     (out, _) = nm_proc.communicate()
     if nm_proc.returncode != 0:
         msg = "Error in using nm:\n"

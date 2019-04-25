@@ -4,12 +4,12 @@
  * \brief session to manage multiple micro modules
  */
 
-#include <memory>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include "./micro_session.h"
-#include "./low_level_device.h"
-#include "./allocator_stream.h"
+#include <memory>
+#include "micro_session.h"
+#include "low_level_device.h"
+#include "target_data_layout_encoder.h"
 
 namespace tvm {
 namespace runtime {
@@ -122,17 +122,18 @@ void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
   // allocation in the args section.
   void* args_dev_addr = GetAddr(args_allocator_->section_max(),
                                 low_level_device()->base_addr());
-  AllocatorStream stream(args_dev_addr);
+  TargetDataLayoutEncoder encoder(args_dev_addr, low_level_device()->base_addr());
   UTVMArgs u_args = {
       .values = const_cast<TVMValue*>(args.values),
       .type_codes = const_cast<int*>(args.type_codes),
       .num_args = args.num_args,
   };
-  StreamWrite(&u_args, &stream);
+  encoder.Write(&u_args);
   // Flush `stream` to device memory.
-  void* stream_dev_addr = args_allocator_->Allocate(stream.size());
-  low_level_device()->Write(stream_dev_addr, (void*) stream.data(),
-                            stream.size());
+  void* stream_dev_addr = args_allocator_->Allocate(encoder.buf_size());
+  low_level_device()->Write(stream_dev_addr,
+                            reinterpret_cast<void*>(const_cast<uint8_t*>(encoder.data())),
+                            encoder.buf_size());
 
   UTVMTask task = {
       .func = func_dev_addr,
@@ -177,68 +178,6 @@ void MicroSession::LoadInitStub() {
 
 void MicroSession::SetInitBinaryPath(std::string path) {
   init_binary_path_ = path;
-}
-
-// TODO(mutinifni): overload StreamWrite with more val types as needed
-
-void* MicroSession::StreamWrite(TVMArray* arr, AllocatorStream* stream) {
-  Slot tvm_arr_slot = stream->Alloc<TVMArray>();
-  Slot shape_slot = stream->AllocArray<int64_t>(arr->ndim);
-
-  // `shape` and `strides` are stored on the host, so we need to write them to
-  // the device first. The `data` field is already allocated on the device and
-  // is a device pointer, so we don't need to write it.
-  shape_slot.WriteEntire(arr->shape);
-  void* shape_addr = shape_slot.dev_start_addr();
-  void* strides_addr = nullptr;
-  if (arr->strides != nullptr) {
-    Slot stride_slot = stream->AllocArray<int64_t>(arr->ndim);
-    stride_slot.WriteEntire(arr->strides);
-    strides_addr = stride_slot.dev_start_addr();
-  }
-
-  // Copy `arr`, update the copy's pointers to be on-device pointers, then write
-  // the copy to `tvm_arr_slot`.
-  TVMArray dev_arr = *arr;
-  dev_arr.data = reinterpret_cast<uint8_t*>(const_cast<void*>(low_level_device()->base_addr())) +
-                 reinterpret_cast<std::uintptr_t>(arr->data);
-  dev_arr.shape = static_cast<int64_t*>(shape_addr);
-  dev_arr.strides = static_cast<int64_t*>(strides_addr);
-  tvm_arr_slot.Write(&dev_arr);
-  return tvm_arr_slot.dev_start_addr();
-}
-
-void* MicroSession::StreamWrite(UTVMArgs* args, AllocatorStream* stream) {
-  Slot utvm_args_slot = stream->Alloc<UTVMArgs>();
-
-  const int* type_codes = args->type_codes;
-  int num_args = args->num_args;
-
-  Slot tvm_vals_slot = stream->AllocArray<TVMValue*>(num_args);
-  Slot type_codes_slot = stream->AllocArray<const int>(num_args);
-
-  for (int i = 0; i < num_args; i++) {
-    switch (type_codes[i]) {
-      case kNDArrayContainer: {
-        void* val_addr = StreamWrite((TVMArray*) args->values[i].v_handle, stream);
-        tvm_vals_slot.Write(&val_addr);
-        break;
-      }
-      // TODO(mutinifni): implement other cases if needed
-      default:
-        LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
-        break;
-    }
-  }
-  type_codes_slot.WriteEntire(type_codes);
-
-  UTVMArgs dev_args = {
-    .values = reinterpret_cast<TVMValue*>(tvm_vals_slot.dev_start_addr()),
-    .type_codes = reinterpret_cast<int*>(type_codes_slot.dev_start_addr()),
-    .num_args = num_args,
-  };
-  utvm_args_slot.Write(&dev_args);
-  return utvm_args_slot.dev_start_addr();
 }
 
 // initializes micro session and low-level device from Python frontend

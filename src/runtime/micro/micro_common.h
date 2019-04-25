@@ -62,7 +62,8 @@ constexpr int kDefaultSizeAlignment = 8;
  * \return offset from base_addr
  */
 inline void* GetOffset(const void* addr, const void* base_addr) {
-  return (void*) ((uint8_t*) addr - (uint8_t*) base_addr);
+  return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(const_cast<void*>(addr)) -
+                                 reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)));
 }
 
 /*!
@@ -82,8 +83,8 @@ inline size_t UpperAlignValue(size_t value, size_t align) {
  * \return address relative to base_addr
  */
 inline void* GetAddr(const void* offset, const void* base_addr) {
-  return (void*) ((uint8_t*) base_addr +
-                  reinterpret_cast<std::uintptr_t>(offset));
+  return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)) +
+                                 reinterpret_cast<std::uintptr_t>(offset));
 }
 
 /*!

@@ -3,8 +3,8 @@
  * \file utvm_runtime.h
  * \brief utvm runtime headers
  */
-#ifndef UTVM_RUNTIME_H_
-#define UTVM_RUNTIME_H_
+#ifndef TVM_RUNTIME_MICRO_DEVICE_UTVM_RUNTIME_H_
+#define TVM_RUNTIME_MICRO_DEVICE_UTVM_RUNTIME_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,4 +32,4 @@ typedef struct {
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif
-#endif  // UTVM_RUNTIME_H_
+#endif  // TVM_RUNTIME_MICRO_DEVICE_UTVM_RUNTIME_H_

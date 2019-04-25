@@ -1,10 +1,12 @@
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file allocator_stream.h
- * \brief allocator stream utility
+ * \file target_data_layout_encoder.h
+ * \brief uTVM data layout encoder
  */
-#ifndef TVM_RUNTIME_MICRO_ALLOCATOR_STREAM_H_
-#define TVM_RUNTIME_MICRO_ALLOCATOR_STREAM_H_
+#ifndef TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
+#define TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
+
+#include <dmlc/memory_io.h>
 
 #include <algorithm>
 #include <cstring>
@@ -13,13 +15,13 @@
 #include <string>
 #include <vector>
 
-#include <dmlc/memory_io.h>
+#include "device/utvm_runtime.h"
 
 namespace tvm {
 namespace runtime {
 
 /*!
- * \brief helper class for writing into `AllocatorStream`
+ * \brief helper class for writing into `TargetDataLayoutEncoder`
  */
 class Slot {
  public:
@@ -30,13 +32,13 @@ class Slot {
    * \param size size (in bytes) of the memory region allocated for this slot
    * \param dev_start_addr start address of the slot in the device's memory
    */
-  Slot(std::shared_ptr<std::vector<uint8_t>> buf, size_t start_offs, size_t size, void* dev_start_addr)
-    : buf_(buf)
-    , start_offs_(start_offs)
-    , curr_offs_(0)
-    , size_(size)
-    , dev_start_addr_(dev_start_addr) {
-  }
+  Slot(std::shared_ptr<std::vector<uint8_t>> buf, size_t start_offs, size_t size,
+       void* dev_start_addr)
+      : buf_(buf),
+        start_offs_(start_offs),
+        curr_offs_(0),
+        size_(size),
+        dev_start_addr_(dev_start_addr) {}
 
   /*!
    * \brief writes `sizeof(T)` bytes of data from `src_ptr`
@@ -64,7 +66,7 @@ class Slot {
    */
   template <typename T>
   void WriteEntire(const T* src_ptr) {
-    CHECK(curr_offs_ == 0);
+    CHECK(curr_offs_ == 0) << "slot has already been written to";
     Write(src_ptr, size_);
   }
 
@@ -75,7 +77,7 @@ class Slot {
    */
   void Write(const void* src_ptr, size_t size) {
     if (size == 0) return;
-    CHECK(curr_offs_ + size <= size_);
+    CHECK(curr_offs_ + size <= size_) << "not enough space in slot";
     uint8_t* curr_ptr = &(*buf_)[start_offs_ + curr_offs_];
     std::memcpy(curr_ptr, src_ptr, size);
     curr_offs_ += size;
@@ -115,18 +117,20 @@ class Slot {
 };
 
 /*!
- * \brief allocation-based stream for uTVM args allocation
+ * \brief data encoder for uTVM that builds a host-side buffer
  */
-class AllocatorStream {
+class TargetDataLayoutEncoder {
  public:
   /*!
    * \brief constructor
-   * \param dev_start_addr start address of the stream in the device's memory
+   * \param dev_start_addr start address of the encoder in device memory
+   * \param dev_base_addr base address of the device
    */
-  explicit AllocatorStream(void* dev_start_addr)
-      : buf_(std::make_shared<std::vector<uint8_t>>())
-      , curr_offs_(0)
-      , dev_start_addr_(dev_start_addr) {}
+  explicit TargetDataLayoutEncoder(void* dev_start_addr, const void* dev_base_addr)
+      : buf_(std::make_shared<std::vector<uint8_t>>()),
+        curr_offs_(0),
+        dev_start_addr_(dev_start_addr),
+        dev_base_addr_(dev_base_addr) {}
 
   /*!
    * \brief allocates a slot for `sizeof(T)` bytes of data
@@ -162,6 +166,79 @@ class AllocatorStream {
   }
 
   /*!
+   * \brief writes arguments to the host-side buffer
+   * \param args pointer to the args to be written
+   * \return device address of the allocated args
+   */
+  void* Write(UTVMArgs* args) {
+    Slot utvm_args_slot = Alloc<UTVMArgs>();
+
+    const int* type_codes = args->type_codes;
+    int num_args = args->num_args;
+
+    Slot tvm_vals_slot = AllocArray<TVMValue*>(num_args);
+    Slot type_codes_slot = AllocArray<const int>(num_args);
+
+    for (int i = 0; i < num_args; i++) {
+      switch (type_codes[i]) {
+        case kNDArrayContainer: {
+          void* val_addr = Write(reinterpret_cast<TVMArray*>(args->values[i].v_handle));
+          tvm_vals_slot.Write(&val_addr);
+          break;
+        }
+        // TODO(mutinifni): implement other cases if needed
+        default:
+          LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
+          break;
+      }
+    }
+    type_codes_slot.WriteEntire(type_codes);
+
+    UTVMArgs dev_args = {
+      .values = reinterpret_cast<TVMValue*>(tvm_vals_slot.dev_start_addr()),
+      .type_codes = reinterpret_cast<int*>(type_codes_slot.dev_start_addr()),
+      .num_args = num_args,
+    };
+    utvm_args_slot.Write(&dev_args);
+    return utvm_args_slot.dev_start_addr();
+  }
+
+  /*!
+   * \brief writes a `TVMArray` to the host-side buffer
+   * \param arr pointer to the TVMArray to be written
+   * \param dev_base_addr base address of the device
+   * \return device address of the allocated `TVMArray`
+   */
+  void* Write(TVMArray* arr) {
+    Slot tvm_arr_slot = Alloc<TVMArray>();
+    Slot shape_slot = AllocArray<int64_t>(arr->ndim);
+
+    // `shape` and `strides` are stored on the host, so we need to write them to
+    // the device first. The `data` field is already allocated on the device and
+    // is a device pointer, so we don't need to write it.
+    shape_slot.WriteEntire(arr->shape);
+    void* shape_addr = shape_slot.dev_start_addr();
+    void* strides_addr = nullptr;
+    if (arr->strides != nullptr) {
+      Slot stride_slot = AllocArray<int64_t>(arr->ndim);
+      stride_slot.WriteEntire(arr->strides);
+      strides_addr = stride_slot.dev_start_addr();
+    }
+
+    // Copy `arr`, update the copy's pointers to be device pointers, then
+    // write the copy to `tvm_arr_slot`.
+    TVMArray dev_arr = *arr;
+    // Add the base address of the device to the array's data's device offset to
+    // get a device address.
+    dev_arr.data = reinterpret_cast<uint8_t*>(const_cast<void*>(dev_base_addr_)) +
+                   reinterpret_cast<std::uintptr_t>(arr->data);
+    dev_arr.shape = static_cast<int64_t*>(shape_addr);
+    dev_arr.strides = static_cast<int64_t*>(strides_addr);
+    tvm_arr_slot.Write(&dev_arr);
+    return tvm_arr_slot.dev_start_addr();
+  }
+
+  /*!
    * \brief returns the corresponding device address for the offset `offset`
    * \param offset byte offset from the beginning of the backing buffer
    * \return device address
@@ -171,18 +248,18 @@ class AllocatorStream {
   }
 
   /*!
-   * \brief returns the array backing the stream's buffer
-   * \return array backing the stream's buffer
+   * \brief returns the array backing the encoder's buffer
+   * \return array backing the encoder's buffer
    */
   const uint8_t* data() {
     return buf_->data();
   }
 
   /*!
-   * \brief returns current size of the stream buffer
+   * \brief returns current size of the encoder's buffer
    * \return buffer size
    */
-  size_t size() {
+  size_t buf_size() {
     return buf_->size();
   }
 
@@ -191,9 +268,11 @@ class AllocatorStream {
   std::shared_ptr<std::vector<uint8_t>> buf_;
   /*! \brief current offset */
   size_t curr_offs_;
-  /*! \brief on-device start address */
+  /*! \brief start address of the encoder in device memory */
   void* dev_start_addr_;
+  /*! \brief base address of the device */
+  const void* dev_base_addr_;
 };
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_MICRO_ALLOCATOR_STREAM_H_
+#endif  // TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_

@@ -12,8 +12,8 @@
 #include <string>
 #include <mutex>
 #include <memory>
+#include <unordered_map>
 #include "low_level_device.h"
-#include "allocator_stream.h"
 #include "micro_common.h"
 #include "device/utvm_runtime.h"
 
@@ -140,7 +140,6 @@ class MicroSession {
   /*! \brief low-level device pointer */
   std::shared_ptr<LowLevelDevice> low_level_device_;
   /*! \brief text section allocator */
-  //MicroSectionAllocator* text_allocator_;
   std::unique_ptr<MicroSectionAllocator> text_allocator_;
   /*! \brief data section allocator */
   std::unique_ptr<MicroSectionAllocator> data_allocator_;
@@ -185,22 +184,6 @@ class MicroSession {
    * \param path to init stub binary
    */
   void SetInitBinaryPath(std::string path);
-
-  /*!
-   * \brief writes arguments to args section
-   * \param args pointer to the args to be written
-   * \param stream stream for values to be written into
-   * \return device address of the allocated args
-   */
-  void* StreamWrite(UTVMArgs* args, AllocatorStream* stream);
-
-  /*!
-   * \brief writes a `TVMArray` to `stream`
-   * \param arr pointer to the TVMArray to be written
-   * \param stream stream for values to be written into
-   * \return device address of the allocated `TVMArray`
-   */
-  void* StreamWrite(TVMArray* arr, AllocatorStream* stream);
 };
 }  // namespace runtime
 }  // namespace tvm

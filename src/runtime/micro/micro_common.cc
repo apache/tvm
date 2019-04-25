@@ -33,7 +33,8 @@ void* GetSymbol(std::unordered_map<std::string, void*> symbol_map,
                 std::string name,
                 void* base_addr) {
   void* symbol_addr = symbol_map[name];
-  return (void*)((uint8_t*) symbol_addr - (uint8_t*) base_addr);
+  return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(symbol_addr) -
+                                 reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)));
 }
 
 static std::string AddrToString(void* addr) {
