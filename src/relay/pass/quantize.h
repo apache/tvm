@@ -130,7 +130,6 @@ class QConfigNode : public Node {
   bool store_lowbit_output = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
   bool use_stop_fusion = true;
-  Array<Op> quantize_op = NullValue<Array<Op>>();
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("nbit_input", &nbit_input);
@@ -145,7 +144,6 @@ class QConfigNode : public Node {
     v->Visit("store_lowbit_output", &store_lowbit_output);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
     v->Visit("use_stop_fusion", &use_stop_fusion);
-    v->Visit("quantize_op", &quantize_op);
   }
 
   static constexpr const char* _type_key = "relay.quantize.QConfig";
