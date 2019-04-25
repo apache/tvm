@@ -130,6 +130,7 @@ def bitserial_dense_default(cfg, data, weight, data_bits, weight_bits, pack_dtyp
         tvm.popcount(weight_vec[j//VX, wb, j%VX, k] & data_packed[i, db, k]).astype(out_dtype)
         << (db+wb).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense')
 
+    # binary ops
     cfg.add_flop(2 * Y * X * K * binary_op_multiplier(pack_dtype))
 
     if unipolar:

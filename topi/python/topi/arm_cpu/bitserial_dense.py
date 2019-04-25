@@ -25,7 +25,7 @@ from .. import generic
 from .bitserial_conv2d import _intrin_popcount
 from ..nn.pad import pad
 from ..nn.bitserial_dense import bitserial_dense
-from ..nn.bitserial_util import bitpack
+from ..nn.bitserial_util import bitpack, binary_op_multiplier
 
 @autotvm.register_topi_compute(bitserial_dense, ['arm_cpu'], 'direct')
 def bitserial_dense_generic(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_dtype,
@@ -104,16 +104,7 @@ def bitserial_dense_generic(cfg, data, weight, data_bits, weight_bits, pack_dtyp
                      data_packed[x, db, k].astype(out_dtype))
         << (wb+db).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense')
 
-    if pack_dtype == 'uint8':
-        binary_op_multiplier = 8
-    elif pack_dtype == 'uint16':
-        binary_op_multiplier = 16
-    elif pack_dtype == 'uint32':
-        binary_op_multiplier = 32
-    elif pack_dtype == 'uint64':
-        binary_op_multiplier = 64
-
-    cfg.add_flop(batch * out_dim * in_dim * binary_op_multiplier)
+    cfg.add_flop(batch * out_dim * in_dim * binary_op_multiplier(pack_dtype))
 
     if unipolar:
         return matmul_unipolar

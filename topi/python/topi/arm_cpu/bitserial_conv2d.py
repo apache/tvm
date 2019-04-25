@@ -94,7 +94,8 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weigh
                                  policy='candidate', candidate=[
                                      [n, oh, ow, co, vh, vw, kh, kw, ci_o, kb, ib, vc, ci_i],
                                      [n, oh, ow, co, vh, vw, kw, kh, ci_o, kb, ib, vc, ci_i],])
-    cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW * binary_op_multiplier(pack_dtype)) # these are actually binary ops
+    # binary ops
+    cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW * binary_op_multiplier(pack_dtype))
     # ====================
 
     VC = cfg["tile_co"].size[-1]
