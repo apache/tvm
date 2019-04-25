@@ -1325,9 +1325,9 @@ each element in the output array is from x if the corresponding element
 in the condition is true, and from y if false.
 
 If condition does not have the same shape as x, it must be a 1D array whose
-size is the same as x’s first dimension size. Each row of the output array
-is from x’s row if the corresponding element from condition is true, and
-from y’s row if false.
+size is the same as x's first dimension size. Each row of the output array
+is from x's row if the corresponding element from condition is true, and
+from y's row if false.
 
 Note that all non-zero values are interpreted as True in condition.
 
