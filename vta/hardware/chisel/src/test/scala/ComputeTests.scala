@@ -757,7 +757,7 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   poke(c.io.out_mem.waitrequest, 1.U)
   step(4)
 
-  for (i <- 0 to 16) {
+  for (i <- 0 to 31) {
     val j = i % 16
     expect(c.io.out_mem.write, 1.U)
     expect(c.io.out_mem.address, ("h"+(BigInt("0040",16)*j).toString(16)).U)

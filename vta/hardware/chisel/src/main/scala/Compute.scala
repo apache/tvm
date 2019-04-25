@@ -353,26 +353,31 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val out_mem_writedata = Reg(UInt(128.W))
   val out_mem_enq_bits = Mux(alu_opcode_minmax_en, Cat(short_cmp_res.init.reverse),
                          Mux(alu_opcode_add_en, Cat(short_add_res.init.reverse), Cat(short_shr_res.init.reverse)))
-  val out_mem_fifo = Module(new OutputQueue(UInt((32 + 128).W), 8))
+  val out_mem_fifo = Module(new OutputQueue(UInt((32 + 128).W), 4))
   val out_mem_fifo_ready_next = RegNext(out_mem_fifo_ready)
   val out_mem_fifo_ready_next_next = RegNext(out_mem_fifo_ready_next)
+  val out_mem_fifo_ready_next_next_next = RegNext(out_mem_fifo_ready_next_next)
   val out_mem_fifo_valid = out_mem_write && (out_cntr_val >= 2.U) && (out_cntr_val <= (out_cntr_max - 1.U))
   val out_mem_fifo_valid_next = RegNext(out_mem_fifo_valid)
   val out_mem_fifo_valid_next_next = RegNext(out_mem_fifo_valid_next)
+  val out_mem_fifo_valid_next_next_next = RegNext(out_mem_fifo_valid_next_next)
   val out_mem_fifo_bits = Cat(RegNext(dst_idx), out_mem_enq_bits) // addr (32-bit) + data (128-bit)
   val out_mem_fifo_bits_next  = RegNext(out_mem_fifo_bits)
   val out_mem_fifo_bits_next_next = RegNext(out_mem_fifo_bits_next)
+  val out_mem_fifo_bits_next_next_next = RegNext(out_mem_fifo_bits_next_next)
   out_mem_write := out_cntr_en && busy && (out_cntr_val <= out_cntr_max_val)
   out_mem_fifo_ready := out_mem_fifo.io.enq.ready
   out_mem_fifo.io.enq.valid := out_mem_fifo_valid
-  out_mem_fifo.io.enq.bits  := out_mem_fifo_bits
-  // when (out_mem_fifo_ready_next) {
-  //   out_mem_fifo.io.enq.valid := out_mem_fifo_valid_next_next
-  //   out_mem_fifo.io.enq.bits  := out_mem_fifo_bits_next_next
-  // } .otherwise {
-  //   out_mem_fifo.io.enq.valid := out_mem_fifo_valid_next_next
-  //   out_mem_fifo.io.enq.bits := out_mem_fifo_bits_next_next
-  // }
+  out_mem_fifo.io.enq.bits := out_mem_fifo_bits
+  when ((out_mem_fifo_ready === true.B) && (out_mem_fifo_ready_next === false.B)) {
+    when (out_mem_fifo_ready_next_next_next === true.B) {
+      out_mem_fifo.io.enq.valid := out_mem_fifo_valid_next
+      out_mem_fifo.io.enq.bits := out_mem_fifo_bits_next
+    } .otherwise {
+      out_mem_fifo.io.enq.valid := out_mem_fifo_valid_next_next
+      out_mem_fifo.io.enq.bits := out_mem_fifo_bits_next_next
+    }
+  }
 
   // write to out_mem interface
   io.out_mem.address := out_mem_fifo.io.deq.bits(128 + 31 , 128) << 4.U
