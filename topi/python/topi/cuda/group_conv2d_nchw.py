@@ -27,10 +27,12 @@ from ..util import traverse_inline, get_const_tuple, get_const_int
 from .. import nn, generic
 
 
-@autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], ['direct', 'int8'])
+# autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], 'direct', nn.group_conv2d_nchw.fdefault)
+
+@autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], ['int8'])
 def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
                            out_dtype='float32'):
-    """Group convolution operator in NCHW layout.
+    """Group convolution operator for 'group_conv2d_NCHWc_int8'.
 
     Parameters
     ----------
@@ -319,7 +321,7 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
 
 
 @autotvm.register_topi_schedule(generic.schedule_group_conv2d_nchw,
-                                ["cuda", "gpu"], ["direct", "int8"])
+                                ["cuda", "gpu"], ["int8"])
 def schedule_conv2d_nchw_cuda(cfg, outs):
     """TOPI schedule callback of group conv2d for cuda gpu
 
