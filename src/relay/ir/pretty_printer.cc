@@ -156,14 +156,19 @@ class PrettyPrinter :
     */
   Doc PrintOptionalInfo(const Expr& expr) {
     Doc doc;
-    // additional information in comment.
-    if (annotate_ != nullptr) {
-      return doc << " /* " << annotate_(expr) << " */";
-    } else if (expr->checked_type_.defined()) {
-      return doc << " /* ty=" << Print(expr->checked_type()) << " */";
+    // default annotations
+    if (annotate_ == nullptr) {
+      if ((expr.as<ConstantNode>() || expr.as<CallNode>()) && expr->checked_type_.defined()) {
+        doc << " /* ty=" << Print(expr->checked_type()) << " */";
+      }
     } else {
-      return doc;
+      std::string annotated_expr = annotate_(expr);
+      if (annotated_expr != "") {
+        doc << annotated_expr;
+      }
     }
+
+    return doc;
   }
 
   // indent a new body
@@ -361,9 +366,7 @@ class PrettyPrinter :
       printed_expr = VisitExpr(expr);
     }
 
-    if (expr.as<CallNode>()) {
-      printed_expr << PrintOptionalInfo(expr);
-    }
+    printed_expr << PrintOptionalInfo(expr);
 
     // add expr to doc
     if (expr.as<VarNode>()) {
@@ -409,8 +412,7 @@ class PrettyPrinter :
     }
     // default fall-back, record it as meta node.
     Doc doc;
-    return doc << Print(GetRef<NodeRef>(op), true)
-               << PrintOptionalInfo(GetRef<Expr>(op));
+    return doc << Print(GetRef<NodeRef>(op), true);
   }
 
   Doc VisitExpr_(const TupleNode* op) final {

@@ -569,7 +569,7 @@ def conv2d_arm_cpu_winograd_nnpack(
     assert N == 1
     with tvm.tag_scope("winograd_nnpack_conv2d_weight_transform"):
         transformed_kernel = tvm.contrib.nnpack.convolution_inference_weight_transform(
-            kernel, algorithm=tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8)
+            kernel, algorithm=cfg['winograd_nnpack_algorithm'].val)
         if autotvm.GLOBAL_SCOPE.in_tuning:
             transformed_kernel = tvm.compute(transformed_kernel.shape, lambda *args: 0.0)
 
@@ -653,7 +653,7 @@ def conv2d_winograd_nnpack_ww(cfg, data, transformed_kernel, bias, strides,
             bias=bias,
             padding=[HPAD, HPAD, WPAD, WPAD],
             stride=[HSTR, WSTR],
-            algorithm=tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8)
+            algorithm=cfg['winograd_nnpack_algorithm'].val)
 
     # we have to manually assign effective GFLOP for winograd
     cfg.add_flop(2 * N * CI * H * W * KH * KW * CO)

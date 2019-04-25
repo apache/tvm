@@ -52,7 +52,7 @@ def test_env():
     assert "def @myf" in str(env)
     assert "add(%0, %0) /* ty=float32 */" in text
     assert "add(%0, %0) /* ty=float32 */" in str(env)
-    show(env.astext(annotate=lambda x: str(x.checked_type.dtype)))
+    show(env.astext(annotate=lambda x: str(x.checked_type.dtype) if type(x) == relay.Call else ""))
     show(text)
 
 
