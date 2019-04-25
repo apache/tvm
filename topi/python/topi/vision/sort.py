@@ -79,7 +79,7 @@ def argsort(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0):
                        [data],
                        lambda ins, outs: tvm.call_packed(
                            "tvm.contrib.sort.argsort", ins[0],
-                           outs[0], axis, is_ascend, dtype),
+                           outs[0], axis, is_ascend),
                        dtype=dtype,
                        in_buffers=[data_buf],
                        out_buffers=out_buf,
