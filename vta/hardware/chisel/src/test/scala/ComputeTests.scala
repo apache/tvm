@@ -802,8 +802,8 @@ class ComputeTests(c: Compute)(implicit val p: freechips.rocketchip.config.Param
   init_compute_shr()
   test_compute_shr()
 
-  // init_compute_blocked_gemm()
-  // test_compute_blocked_gemm()
+  init_compute_blocked_gemm()
+  test_compute_blocked_gemm()
 }
 
 class ComputeTester extends ChiselFlatSpec {
