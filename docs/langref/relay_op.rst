@@ -41,6 +41,7 @@ This level enables fully connected multi-layer perceptron.
 
    tvm.relay.log
    tvm.relay.sqrt
+   tvm.relay.rsqrt
    tvm.relay.exp
    tvm.relay.sigmoid
    tvm.relay.add
@@ -186,6 +187,7 @@ Level 1 Definitions
 -------------------
 .. autofunction:: tvm.relay.log
 .. autofunction:: tvm.relay.sqrt
+.. autofunction:: tvm.relay.rsqrt
 .. autofunction:: tvm.relay.exp
 .. autofunction:: tvm.relay.sigmoid
 .. autofunction:: tvm.relay.add

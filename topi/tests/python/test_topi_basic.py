@@ -40,6 +40,7 @@ def test_ewise():
     test_apply(topi.sigmoid, "sigmoid")
     test_apply(topi.log, "log")
     test_apply(topi.sqrt, "sqrt")
+    test_apply(topi.rsqrt, "rsqrt")
 
 
 if __name__ == "__main__":
