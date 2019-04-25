@@ -1,4 +1,5 @@
 """Utilities for binary file manipulation"""
+import os
 import subprocess
 import os
 from . import util
@@ -25,17 +26,17 @@ def tvm_callback_get_section_size(binary_path, section):
     size : integer
         size of the section in bytes
     """
+    if not os.path.isfile(binary_path):
+        raise RuntimeError("No such file {}".format(binary_path))
     section_map = {"text": "1", "data": "2", "bss": "3"}
-    proc1 = subprocess.Popen(["size", binary_path], stdout=subprocess.PIPE)
-    proc2 = subprocess.Popen(["awk", "{print $" + section_map[section] + "}"],
-                             stdin=proc1.stdout, stdout=subprocess.PIPE)
-    proc3 = subprocess.Popen(["tail", "-1"],
-                             stdin=proc2.stdout,
-                             stdout=subprocess.PIPE)
-    proc1.stdout.close()
-    proc2.stdout.close()
-    (out, _) = proc3.communicate()
-    if proc3.returncode != 0:
+    size_proc = subprocess.Popen(["size", binary_path], stdout=subprocess.PIPE)
+    awk_proc = subprocess.Popen(["awk", "{print $" + section_map[section] + "}"],
+                                stdin=size_proc.stdout, stdout=subprocess.PIPE)
+    tail_proc = subprocess.Popen(["tail", "-1"], stdin=awk_proc.stdout, stdout=subprocess.PIPE)
+    size_proc.stdout.close()
+    awk_proc.stdout.close()
+    (out, _) = tail_proc.communicate()
+    if tail_proc.returncode != 0:
         msg = "Error in finding section size:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
@@ -67,15 +68,15 @@ def tvm_callback_relocate_binary(binary_path, text, data, bss):
     """
     tmp_dir = util.tempdir()
     rel_obj = tmp_dir.relpath("relocated.o")
-    proc1 = subprocess.Popen(["ld", binary_path,
-                           "-Ttext", text,
-                           "-Tdata", data,
-                           "-Tbss", bss,
-                           "-o", rel_obj],
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT)
-    (out, _) = proc1.communicate()
-    if proc1.returncode != 0:
+    ld_proc = subprocess.Popen(["ld", binary_path,
+                                "-Ttext", text,
+                                "-Tdata", data,
+                                "-Tbss", bss,
+                                "-o", rel_obj],
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
+    (out, _) = ld_proc.communicate()
+    if ld_proc.returncode != 0:
         msg = "Linking error using ld:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
@@ -104,22 +105,23 @@ def tvm_callback_read_binary_section(binary, section):
     tmp_section = tmp_dir.relpath("tmp_section.bin")
     with open(tmp_bin, "wb") as out_file:
         out_file.write(bytes(binary))
-    proc = subprocess.Popen(["objcopy", "--dump-section",
-                           "." + section + "=" + tmp_section,
-                           binary_path],
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT)
-    (out, _) = proc.communicate()
-    if proc.returncode != 0:
+    objcopy_proc = subprocess.Popen(["objcopy", "--dump-section",
+                                     "." + section + "=" + tmp_section,
+                                     tmp_bin],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT)
+    (out, _) = objcopy_proc.communicate()
+    if objcopy_proc.returncode != 0:
         msg = "Error in using objcopy:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
-    try:
-        # get section content if it exits
-        section_bin = bytearray(open(tmp_section, "rb").read())
-    except IOError:
+    if os.path.isfile(tmp_section):
+        # get section content if it exists
+        with open(tmp_section, "rb") as f:
+            section_bin = bytearray(f.read())
+    else:
         # return empty bytearray if the section does not exist
-        section_bin = bytearray("")
+        section_bin = bytearray("", "utf-8")
     return section_bin
 
 
@@ -141,15 +143,15 @@ def tvm_callback_get_symbol_map(binary):
     tmp_obj = tmp_dir.relpath("tmp_obj.bin")
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(binary))
-    proc = subprocess.Popen(["nm", "-C", "--defined-only", tmp_obj],
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT)
-    (out, _) = proc.communicate()
-    if proc.returncode != 0:
+    nm_proc = subprocess.Popen(["nm", "-C", "--defined-only", tmp_obj],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+    (out, _) = nm_proc.communicate()
+    if nm_proc.returncode != 0:
         msg = "Error in using nm:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
-    out = out.splitlines()
+    out = out.decode("utf8").splitlines()
     map_str = ""
     for line in out:
         line = line.split()
