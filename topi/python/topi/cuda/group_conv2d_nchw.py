@@ -99,6 +99,13 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     oc_chunk, _, kernel_h, kernel_w, oc_block, ic_block = get_const_tuple(
         packed_kernel.shape)
 
+    assert groups >= oc_chunk, \
+        ('Number of groups {} should not be less than '
+         'output channel chunk size {}'.format(groups, oc_chunk))
+    assert groups >= ic_chunk, \
+        ('Number of groups {} should not be less than '
+         'input channel chunk size {}'.format(groups, ic_chunk))
+
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:

@@ -119,9 +119,9 @@ def test_conv2d_run():
                         x, w, (1, 1), "SAME"))
     # group conv2d
     dshape = (1, 32, 18, 18)
-    kshape = (32, 2, 3, 3)
+    kshape = (32, 4, 3, 3)
     run_test_conv2d("float32", "float32", 1, dshape, kshape,
-                    padding=(1, 1), channels=32, groups=16, kernel_size=(3 ,3))
+                    padding=(1, 1), channels=32, groups=8, kernel_size=(3 ,3))
     # also group conv2d
     dshape = (1, 32, 18, 18)
     kshape = (64, 1, 3, 3)
