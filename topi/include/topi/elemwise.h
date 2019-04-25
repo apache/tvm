@@ -130,6 +130,24 @@ inline Tensor sign(const Tensor& x,
 }
 
 /*!
+* \brief Creates an operation that returns rsqrt of a given tensor
+*
+* \param x The input tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the rsqrt operation
+*/
+inline Tensor rsqrt(const Tensor& x,
+                       std::string name = "tensor",
+                       std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    Expr one = make_const(x->dtype, 1);
+    return one/tvm::sqrt(x(i));
+  }, name, tag);
+}
+
+/*!
 * \brief Creates an operation that clips each element of a tensor to
 * the interval [a_min, a_max]
 *

@@ -30,6 +30,10 @@ def relu(x):
     np.maximum(x_copy, 0, x_copy)
     return x_copy
 
+def rsqrt(x):
+    one = np.ones_like(x)
+    return one / np.sqrt(x)
+
 def test_unary_op():
     def check_single_op(opfunc, ref):
         shape = (10, 4)
@@ -57,6 +61,7 @@ def test_unary_op():
     for opfunc, ref in [(tvm.relay.log, np.log),
                         (tvm.relay.exp, np.exp),
                         (tvm.relay.sqrt, np.sqrt),
+                        (tvm.relay.rsqrt, rsqrt),
                         (tvm.relay.sigmoid, sigmoid),
                         (tvm.relay.tanh, np.tanh),
                         (relay.nn.relu, relu)]:

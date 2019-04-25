@@ -163,6 +163,11 @@ TVM_REGISTER_GLOBAL("topi.sqrt")
   *rv = sqrt(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.rsqrt")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+*rv = rsqrt(args[0]);
+});
+
 TVM_REGISTER_GLOBAL("topi.log")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = log(args[0]);
