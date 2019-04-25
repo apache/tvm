@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -399,14 +399,13 @@ bool TransposeRel(const Array<Type>& types,
   const int ndim = data->shape.size();
   const Array<Integer>& axes = param->axes;
   // check dimension match
-  CHECK(!axes.defined() || static_cast<int>(axes.size()) == ndim)
+  CHECK(axes.empty() || static_cast<int>(axes.size()) == ndim)
     << "Dimension mismatch: axes has " << axes.size() << " elements"
     << ", but data.ndim = " << ndim;
   // construct int_axes
   std::vector<int> int_axes;
   int_axes.reserve(ndim);
-  // used not defined to check if it is None.
-  if (!axes.defined()) {
+  if (axes.empty()) {
     for (int i = ndim - 1; i >= 0; --i) {
       int_axes.push_back(i);
     }
