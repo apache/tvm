@@ -494,7 +494,7 @@ class GraphPartitioner {
     /*! \brief reference to the root node. */
     const tvm::Node* root_ref{nullptr};
 
-    std::vector<Group*> inputs;
+    std::set<Group*> inputs;
     /*!
      * \brief Reference to the master node,
      * this field is not nullptr only if pattern is kOutEWiseFusable.
@@ -595,6 +595,9 @@ class GraphPartitioner {
     parent = parent->FindRoot();
     if (child == parent) return;
     child->parent = parent;
+    for (Group* g : child->inputs) {
+      parent->inputs.insert(g);
+    }
     // update master ref and pattern
     if (child->master_ref != nullptr) {
       CHECK(parent->master_ref == nullptr);
@@ -662,9 +665,13 @@ class GraphPartitioner {
       if (group_node->pattern == kOpaque) continue;
       // no actions needed if the current node have no dominator
       if (dom_node->parent == nullptr) continue;
+      size_t dom_parent_gindex = dom_node->parent->gnode->index;
+      if (dom_node->pattern == kTupleField) {
+        groups_[dom_parent_gindex]->inputs.insert(group_node);
+        continue;
+      }
       CHECK(!graph_node->extern_ref);
       // Skip if current node is already fused to the parent.
-      size_t dom_parent_gindex = dom_node->parent->gnode->index;
       if (groups_[dom_parent_gindex] != nullptr &&
           group_node->FindRoot() == groups_[dom_parent_gindex]->FindRoot()) {
         continue;
@@ -702,11 +709,9 @@ class GraphPartitioner {
           };
           if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
             CommitFuse(graph_node, dom_node->parent->gnode);
-          } else {
-            groups_[dom_node->parent->gnode->index]->inputs.push_back(groups_[graph_node->index]);
           }
         }
-      } else if (group_node->pattern == kInjective) {
+      } else if (group_node->pattern == kInjective || group_node->pattern == kTuple) {
         // defer injective fusion to second phase.
         // so conv2d always finishes fusing.
         if (phase != 1) continue;
@@ -716,8 +721,6 @@ class GraphPartitioner {
         };
         if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
           CommitFuse(graph_node, dom_node->parent->gnode);
-        } else {
-          groups_[dom_node->parent->gnode->index]->inputs.push_back(groups_[graph_node->index]);
         }
       } else {
         // do nothing.
@@ -739,19 +742,19 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
   }
   // Fuse intermediate tuples, if any
   std::unordered_set<Group*> visited;
-  for (size_t nid = groups_.size() - 1; nid >= 0; --nid) {
+  for (size_t i = groups_.size(); i != 0; --i) {
+    size_t nid = i - 1;
     Group* group = groups_[nid];
     if (visited.count(group)) continue;
     visited.insert(group);
-    if (group->pattern > kInjective) continue;
-    const auto& input_groups = group->inputs;
-    bool fusible = std::all_of(input_groups.begin(), input_groups.end(), [](const Group* g) {
-      return g->pattern <= kInjective || g->pattern == kTupleField;
-    });
-    if (fusible) {
-      for (Group* child_group : input_groups) {
-        MergeFromTo(child_group, group);
-        visited.insert(child_group);
+    Group* root_group = group->FindRoot();
+    if (root_group->pattern == kTuple) continue;
+    if (group->pattern == kTuple && root_group->pattern <= kInjective) {
+      for (Group* child_group : root_group->inputs) {
+        if (child_group->FindRoot()->pattern <= kInjective) {
+          MergeFromTo(child_group, group);
+          visited.insert(child_group);
+        }
       }
     }
   }

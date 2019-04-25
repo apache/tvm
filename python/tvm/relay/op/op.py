@@ -106,12 +106,14 @@ class OpPattern(object):
     ELEMWISE = 0
     # Broadcast operator
     BROADCAST = 1
+    kTuple = 2
     # Injective mapping
-    INJECTIVE = 2
+    INJECTIVE = 3
     # Communication
-    COMM_REDUCE = 3
+    COMM_REDUCE = 4
     # Complex op, can still fuse ewise into it
-    OUT_ELEMWISE_FUSABLE = 4
+    OUT_ELEMWISE_FUSABLE = 5
+    kTupleFiled = 6
     # Not fusable opaque op
     OPAQUE = 8
 
