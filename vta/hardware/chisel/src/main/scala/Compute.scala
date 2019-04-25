@@ -353,7 +353,7 @@ class Compute(implicit val p: Parameters) extends Module with CoreParams {
   val out_mem_writedata = Reg(UInt(128.W))
   val out_mem_enq_bits = Mux(alu_opcode_minmax_en, Cat(short_cmp_res.init.reverse),
                          Mux(alu_opcode_add_en, Cat(short_add_res.init.reverse), Cat(short_shr_res.init.reverse)))
-  val out_mem_fifo = Module(new OutputQueue(UInt((32 + 128).W), 4))
+  val out_mem_fifo = Module(new OutputQueue(UInt((32 + 128).W), 8))
   val out_mem_fifo_ready_next = RegNext(out_mem_fifo_ready)
   val out_mem_fifo_ready_next_next = RegNext(out_mem_fifo_ready_next)
   val out_mem_fifo_ready_next_next_next = RegNext(out_mem_fifo_ready_next_next)
