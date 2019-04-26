@@ -38,11 +38,19 @@ using arith::IntSet;
 using arith::DeduceBound;
 using arith::Intersect;
 
-// a partition means the expr is equal to true in the interval
-struct Partition {
-  Expr expr;
-  IntSet interval;
+using PartitionKey = std::pair<const Node*, bool>;
+struct PartitionKeyHash {
+  std::size_t operator()(PartitionKey const& k) const noexcept {
+    std::size_t h1 = std::hash<const Node*>{}(k.first);
+    std::size_t h2 = std::hash<bool>{}(k.second);
+    return h1 ^ h2;
+  }
 };
+
+// Each mapping (cond, cond_value) -> interval represents the fact that
+// condition cond is proven to have value cond_value (true or false) in interval.
+using Partition = std::unordered_map<PartitionKey, IntSet, PartitionKeyHash>;
+
 
 bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
   bool success = false;
@@ -140,7 +148,9 @@ class CandidateSelector final : public IRVisitor {
   std::unordered_map<const Variable*, VarIsUsed> record_;
 };
 
-// Find valid partition for specific variable
+// Populate partitions data structure, i.e., for a specific variable,
+// find an interval in which each condition
+// (currently, "likely" conditions) has fixed true or false value
 class PartitionFinder : public IRVisitor {
  public:
   explicit PartitionFinder(VarExpr current_var,
@@ -188,10 +198,23 @@ class PartitionFinder : public IRVisitor {
       Expr cond = op->args[0];
       if (ExprUseVars(cond,
           std::unordered_set<const Variable*>({current_var_.get()}))) {
+        // For cond, find out the interval, if exists, in which we can prove that cond is
+        // true. Also find the interval, if exists, in which we can prove that cond is
+        // false.
         IntSet interval =
-          DeduceBound(current_var_, cond, hint_map_, relax_map_);
+                DeduceBound(current_var_, cond, hint_map_, relax_map_);
         if (!interval.is_nothing()) {
-          partitions[cond.get()] = Partition{cond, interval};
+          // cond is true within interval
+          partitions[{cond.get(), true}] = interval;
+        }
+        Expr inverse_cond = InverseCond(cond);
+        if (inverse_cond.defined()) {
+          IntSet interval =
+                  DeduceBound(current_var_, inverse_cond, hint_map_, relax_map_);
+          if (!interval.is_nothing()) {
+            // cond is false within interval
+            partitions[{cond.get(), false}] = interval;
+          }
         }
       }
     } else {
@@ -199,36 +222,59 @@ class PartitionFinder : public IRVisitor {
     }
   }
 
-  std::unordered_map<const Node*, Partition> partitions;
+  Partition partitions;
 
  private:
+  Expr InverseCond(const Expr& cond) {
+    // We expect most condition not to be of EQ or NE form.
+    // Currently we do not handle inversing EQ or NE.
+    Expr inverse_cond;
+    if (const LT* op = cond.as<LT>()) {
+      // a < b -> a >= b
+      inverse_cond = GE::make(op->a, op->b);
+    } else if (const GT* op = cond.as<GT>()) {
+      // a > b -> a <= b
+      inverse_cond = LE::make(op->a, op->b);
+    } else if (const LE* op = cond.as<LE>()) {
+      // a <= b -> a > b
+      inverse_cond = GT::make(op->a, op->b);
+    } else if (const GE* op = cond.as<GE>()) {
+      // a >= b -> a < b
+      inverse_cond = LT::make(op->a, op->b);
+    }
+    return inverse_cond;
+  }
+
   VarExpr current_var_;
   std::unordered_set<const Variable*> out_vars_;
   std::unordered_map<const Variable*, IntSet> hint_map_;
   std::unordered_map<const Variable*, IntSet> relax_map_;
 };
 
-// Eliminate the condition expressions by partitions
+// Replace the set of conditions given by ps with cond_value (true or false)
 class ConditionEliminator : public IRMutator {
  public:
-  explicit ConditionEliminator(const std::unordered_map<const Node*, Partition>& ps)
-    : ps_(ps) {}
+  explicit ConditionEliminator(const std::unordered_set<const Node*>& ps, bool cond_value = true)
+    : ps_(ps), cond_value_(cond_value) {}
 
   using IRMutator::Mutate;
   Expr Mutate(Expr e) final {
-    if (ps_.count(e.get())) return Mutate(const_true());
+    if (ps_.find(e.get()) != ps_.end()) {
+      return Mutate(cond_value_ ? const_true() : const_false());
+    }
     return IRMutator::Mutate(e);
   }
 
  private:
-  const std::unordered_map<const Node*, Partition>& ps_;
+  std::unordered_set<const Node*> ps_;
+  bool cond_value_;
 };
 
 
 // Insert the partition branch at the innermost thread scope
 class ThreadPartitionInserter : public IRMutator {
  public:
-  explicit ThreadPartitionInserter(const std::unordered_map<const Node*, Partition>& ps,
+  explicit ThreadPartitionInserter(const std::unordered_set<const Node*>& ps,
     Expr cond) : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
@@ -250,12 +296,13 @@ class ThreadPartitionInserter : public IRMutator {
   }
 
  private:
-  const std::unordered_map<const Node*, Partition>& ps_;
+  const std::unordered_set<const Node*>& ps_;
   Expr cond_;
   bool innermost_thread_scope_;
 };
 
-// Try to do partition at the candidate IRs
+// Try to partition range of iteration variables in order to remove (some)
+// likely conditions
 class LoopPartitioner : public IRMutator {
  public:
   explicit LoopPartitioner(bool split_const_loop)
@@ -273,7 +320,7 @@ class LoopPartitioner : public IRMutator {
       if (s.defined()) return s;
     }
 
-    // normal path when loop parittion fails
+    // normal path when loop partition fails
     // normal loop variable can be put into hint map.
     hint_map_.insert({op->loop_var.get(),
       IntSet::interval(op->min, op->min + op->extent - 1)});
@@ -316,6 +363,12 @@ class LoopPartitioner : public IRMutator {
  private:
   Stmt TryPartition(const Node* op, const Stmt& stmt, VarExpr var,
       Expr min, Expr max, Stmt body, bool partition_thread_scope);
+
+  std::pair<IntSet, std::unordered_set<const Node*>>
+  GetIntervalAndCondset(const Partition &partitions,
+                        const arith::Interval &for_interval,
+                        bool cond_value);
+
   inline Stmt MakeFor(const Node* op, Expr extent, Stmt body);
 
   /* Candidate IRs that may be partitioned potentially */
@@ -324,6 +377,98 @@ class LoopPartitioner : public IRMutator {
   CandidateSelector selector;
 };
 
+// Returns an interval (in the first component) in which all the conditions
+// given in the second component provably have value given by cond_value
+std::pair<IntSet, std::unordered_set<const Node*>>
+LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
+                                       const arith::Interval &for_interval,
+                                       bool cond_value) {
+  Array<IntSet> sets;
+  std::unordered_set<const Node*> cond_set;
+
+  for (const auto &kv : partitions) {
+    if (kv.first.second == cond_value) {
+      arith::Interval interval = kv.second.as<arith::IntervalSet>()->i;
+      auto intersection = arith::Interval::make_intersection(interval, for_interval);
+
+      // TODO(derisavi): the following if statement needs to be removed as soon as
+      // TVM uses commit a768f2f0 of HalideIR repo
+      if (intersection.min.same_as(arith::Interval::pos_inf) ||
+          intersection.max.same_as(arith::Interval::neg_inf)) {
+        intersection = arith::Interval::nothing();
+      } else if (intersection.min.type() == intersection.max.type() &&
+                 (intersection.min.type().is_int() ||
+                  intersection.min.type().is_uint()) &&
+                 can_prove(intersection.min > intersection.max)) {
+        intersection = arith::Interval::nothing();
+      }
+
+      if (!intersection.is_empty()) {
+        sets.push_back(kv.second);
+        cond_set.insert(kv.first.first);
+      }
+    }
+  }
+  IntSet interval = sets.empty() ? IntSet::nothing() : Intersect(sets);
+  return std::make_pair(interval, cond_set);
+}
+
+Stmt AppendStmts(const Stmt& a, const Stmt& b) {
+  if (!a.defined()) {
+    return b;
+  } else if (!b.defined()) {
+    return a;
+  } else {
+    return Block::make(a, b);
+  }
+}
+
+/*
+ * Tries to recursively partition the range of the variable (given by var) of
+ * the for loop (given by node and stmt) into a
+ * number of disjoint ranges such that in some ranges one or more predicates
+ * in the loopnest are provably true or false in each range. For example, given the
+ * following loop to partition:
+ * for (i = 0; i < 4; i++)
+ *    for (j = 0; j < 10; j++)
+ *        if (likely(i*10 + j < 36))
+ *            A[10*i+j] = B[10*i+j]
+ *
+ * We first partition range of i, i.e., [0,3] into subranges [0,2] and [3,3] because the
+ * likely condition is always true for the first subrange but not always true for the
+ * second subrange. Therefore, we'll have
+ * for (i = 0; i < 3; i++)
+ *    for (j = 0; j < 10; j++)
+ *        if (likely(1))
+ *           A[10*i+j] = B[10*i+j]
+ * for (i = 0; i < 1; i++)
+ *    for (j = 0; j < 10; j++)
+ *        if (likely((i+3)*10 + j < 36))
+ *            A[10*(i+3)+j] = B[10*(i+3)+j]
+ * Which is simplified as:
+ * for (i = 0; i < 3; i++)
+ *    for (j = 0; j < 10; j++)
+ *        A[10*i+j] = B[10*i+j]
+ * for (j = 0; j < 10; j++) // loopnest 1
+ *    if (likely(j < 6))
+ *            A[30+j] = B[30+j]
+ * Now, we recursively partition j in loopnest 1 into subranges [0,5] and [6,9] where the
+ * condition is true for the first subrange and now always true for the second subrange.
+ * for (j = 0; j < 6; j++)
+ *    if (likely(1))
+ *         A[30+j] = B[30+j]
+ * for (j = 0; j < 4; j++) // loop 2
+ *    if (likely(j < 0))
+ *        A[36+j] = B[36+j]
+ * Finally we recursively partition loop 2 above into subrange [0,3] where the
+ * condition is false and empty interval where the condition is not false,
+ * therefore we generate
+ * for (j = 0; j < 4; j++)
+ *    if (likely(0))
+ *        A[36+j] = B[36+j]
+ * which will eventually be simplified to empty code. And because only one loop was generated
+ * from loop 2 we stop recursing.
+ */
 Stmt LoopPartitioner::TryPartition(const Node* node,
                                    const Stmt& stmt,
                                    VarExpr var,
@@ -333,29 +478,51 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
                                    bool partition_thread_scope) {
   PartitionFinder finder(var, hint_map_, relax_map_);
   finder.Visit(body);
-  const auto& partitions = finder.partitions;
-  if (partitions.empty()) return Stmt();
+  if (finder.partitions.empty()) return Stmt();
 
-  Array<IntSet> sets;
-  // merge partitions (take their intersect)
-  for (const auto& kv : partitions) {
-    sets.push_back(kv.second.interval);
+  arith::Interval for_interval(min, max);
+  bool cond_value;
+  IntSet middle_interval;
+  std::unordered_set<const Node*> cond_set;
+  // find an interval in which all conditions on var are true
+  std::tie(middle_interval, cond_set) =
+          GetIntervalAndCondset(finder.partitions, for_interval, true);
+  if (middle_interval.is_nothing()) {
+    // if such interval doesn't exist, find an interval in which all
+    // conditions on var are false
+    std::tie(middle_interval, cond_set) =
+            GetIntervalAndCondset(finder.partitions, for_interval, false);
+    if (middle_interval.is_nothing())
+      // we couldn't find an interval in which the condintions are provably true or false
+      // Therefore, we can't partition the loop based on those conds
+      return Stmt();
+    cond_value = false;
+  } else {
+    cond_value = true;
   }
-  IntSet true_itrv  = Intersect(sets);
 
+  arith::Interval middle_interval_i = middle_interval.as<arith::IntervalSet>()->i;
+  // middle_interval is the subrange of the loop variable range for which a
+  // set of conditions are true (or false resp.)
+  // The part of the loop variable range that is before (after resp.) that
+  // subrange is prefixed with pre- (post- resp.)
+
+  // Calculating pre-subrange and generating code for it.
+  // pre-subrange = [min, body_begin)
   Expr body_begin;
   Stmt pre_stmt;
-  arith::Interval true_itrv_i = true_itrv.as<arith::IntervalSet>()->i;
-  if (true_itrv_i.has_lower_bound()) {
-    body_begin = ir::Simplify(true_itrv.min());
+  bool pre_stmt_recurse = true;
+  if (middle_interval_i.has_lower_bound()) {
+    body_begin = ir::Simplify(middle_interval.min());
     if (!can_prove(body_begin == min)) {
       Expr cond = (body_begin - min >= 0);
       if (!can_prove(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the pre doubt loop";
         body_begin = Max::make(body_begin, min);
+        // stop recursing on this interval if we can't prove it has non-negative length
+        pre_stmt_recurse = false;
       }
-      // [min, body_begin)
       if (!partition_thread_scope) {
         Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
         pre_stmt = MakeFor(node, body_begin - min, pre_body);
@@ -365,31 +532,27 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     body_begin = min;
   }
 
+  // Calculating post-subrange and generating code for it.
+  // post-subrange = [post_doubt_begin, max]
   Expr post_doubt_begin;
   Stmt post_stmt;
-  if (true_itrv_i.has_upper_bound()) {
-    post_doubt_begin = ir::Simplify(true_itrv.max() + 1);
-    if (!can_prove(true_itrv.max() == max)) {
+  bool post_stmt_recurse = true;
+  if (middle_interval_i.has_upper_bound()) {
+    post_doubt_begin = ir::Simplify(middle_interval.max() + 1);
+    if (!can_prove(middle_interval.max() == max)) {
       // require the extent to be non-negative
       Expr cond = (max - post_doubt_begin + 1 >= 0);
       if (!can_prove(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the post doubt loop";
         post_doubt_begin = Min::make(post_doubt_begin, max);
+        // stop recursing on this interval if we can't prove it has non-negative length
+        post_stmt_recurse = false;
       }
-      // [post_doubt_begin, max]
       if (!partition_thread_scope) {
-        Stmt post_body;
-        // If the loop is going from 0 to 1, replace the loop var with min value
-        if (as_const_int(max) && as_const_int(post_doubt_begin)) {
-            if (*as_const_int(max) == *as_const_int(post_doubt_begin)) {
-                post_body = Substitute(body, {{Var{var}, post_doubt_begin}});
-                post_stmt = post_body;
-            }
-        } else {
-            post_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
-            post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
-        }
+        Stmt post_body =
+                Substitute(body, {{Var{var}, var + post_doubt_begin}});
+        post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
       }
     }
   } else {
@@ -397,25 +560,35 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   }
 
   Stmt s;
-  if (!partition_thread_scope) {
-    // [body_begin, post_doubt_begin)
-    Stmt simplified_body = ConditionEliminator(partitions).Mutate(body);
-    Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
-    s = MakeFor(node, post_doubt_begin - body_begin, new_body);
 
-    if (!(pre_stmt.defined() && post_stmt.defined())) s = VisitAndMutate(s);
-    if (pre_stmt.defined()) s = Block::make(pre_stmt, s);
-    if (post_stmt.defined()) {
-      if (as_const_int(max) && as_const_int(post_doubt_begin)) {
-        post_stmt = VisitAndMutate(post_stmt);
+  // Generating code for middle subrange
+  if (!partition_thread_scope) {
+    Stmt mid_stmt;
+    if (!can_prove(body_begin >= post_doubt_begin)) {
+      // [body_begin, post_doubt_begin)
+      Stmt simplified_body = ConditionEliminator(cond_set, cond_value).Mutate(body);
+      Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
+      mid_stmt = MakeFor(node, post_doubt_begin - body_begin, new_body);
+
+      // Recurse for each non-empty subrange only if there are at least
+      // two non-empty subranges
+      if (pre_stmt.defined() || post_stmt.defined()) {
+        mid_stmt = VisitAndMutate(mid_stmt);
+        if (pre_stmt.defined() && pre_stmt_recurse) {
+          pre_stmt = VisitAndMutate(pre_stmt);
+        }
+        if (post_stmt.defined() && post_stmt_recurse) {
+          post_stmt = VisitAndMutate(post_stmt);
+        }
       }
-      s = Block::make(s, post_stmt);
     }
+    s = AppendStmts(pre_stmt, mid_stmt);
+    s = AppendStmts(s, post_stmt);
   } else {
     Expr cond = const_true();
     if (!can_prove(body_begin == min)) cond = cond && (var >= body_begin);
     if (!can_prove(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
-    s = ThreadPartitionInserter(partitions, cond).Mutate(stmt);
+    s = ThreadPartitionInserter(cond_set, cond).Mutate(stmt);
   }
   s = ConvertSSA(s);
   return s;
@@ -424,8 +597,13 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
 inline Stmt LoopPartitioner::MakeFor(const Node *node, Expr extent, Stmt body) {
   const For *for_node = static_cast<const For*>(node);
   CHECK(for_node);
-  return For::make(for_node->loop_var, 0, extent,
-    for_node->for_type, for_node->device_api, body);
+  if (can_prove(extent == make_const(Int(32), 1))) {
+    // If the loop extent is 1, do not create the loop anymore
+    return Substitute(body, {{Var{for_node->loop_var}, make_const(Int(32), 0)}});
+  } else {
+    return For::make(for_node->loop_var, 0, extent,
+                     for_node->for_type, for_node->device_api, body);
+  }
 }
 
 class RemoveLikelyTags : public IRMutator {
