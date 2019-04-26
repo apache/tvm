@@ -270,7 +270,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     tuple_node->pattern = kTuple;
     for (const Expr& field : op->fields) {
       if (field->checked_type().as<TensorTypeNode>()) {
-        this->Update(field, tuple_node, kTupleField);
+        this->Update(field, tuple_node, kInjective);
       } else {
         this->Update(field, nullptr, kOpaque);
       }
@@ -494,12 +494,6 @@ class GraphPartitioner {
     /*! \brief reference to the root node. */
     const tvm::Node* root_ref{nullptr};
     /*!
-     * \brief The input nodes to this group
-     * The group and its inputs are disjoint in the union find forest.
-     * This field is used to keep track of data flow between fusion groups.
-     */
-    std::set<Group*> inputs;
-    /*!
      * \brief Reference to the master node,
      * this field is not nullptr only if pattern is kOutEWiseFusable.
      */
@@ -599,9 +593,6 @@ class GraphPartitioner {
     parent = parent->FindRoot();
     if (child == parent) return;
     child->parent = parent;
-    for (Group* g : child->inputs) {
-      parent->inputs.insert(g);
-    }
     // update master ref and pattern
     if (child->master_ref != nullptr) {
       CHECK(parent->master_ref == nullptr);
@@ -669,20 +660,16 @@ class GraphPartitioner {
       if (group_node->pattern == kOpaque) continue;
       // no actions needed if the current node have no dominator
       if (dom_node->parent == nullptr) continue;
-      size_t dom_parent_gindex = dom_node->parent->gnode->index;
-      // If the edge pattern is kTupleField, then dom_node below is tuple
-      // Do not let tuple fields fuse into the tuple here, but record the data flow between
-      // groups so that we can fuse them later
-      if (dom_node->pattern == kTupleField) {
-        groups_[dom_parent_gindex]->inputs.insert(group_node);
-        continue;
-      }
       CHECK(!graph_node->extern_ref);
       // Skip if current node is already fused to the parent.
+      size_t dom_parent_gindex = dom_node->parent->gnode->index;
       if (groups_[dom_parent_gindex] != nullptr &&
           group_node->FindRoot() == groups_[dom_parent_gindex]->FindRoot()) {
         continue;
       }
+      // Do not fuse into tuple for now
+      if (groups_[dom_parent_gindex]->pattern == kTuple) continue;
+
       // Try to fuse current node to its post-dominator.
       if (group_node->pattern == kOutEWiseFusable) {
         if (phase != 0) continue;
@@ -722,7 +709,7 @@ class GraphPartitioner {
         // defer injective fusion to second phase.
         // so conv2d always finishes fusing.
         if (phase != 1) continue;
-        // Check if all path are injective. tuple nodes can be fused if its dom_node is injective.
+        // Check if all path are injective.
         auto fcond = [](OpPatternKind kind, bool is_sink) {
           return kind <= kInjective;
         };
@@ -748,18 +735,19 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
     this->RunFuse(graph, post_dom_tree, phase);
   }
   // Fuse intermediate tuples, if any
-  for (size_t i = groups_.size(); i != 0; --i) {
-    size_t nid = i - 1;
+  for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
+    auto* dom_node = post_dom_tree.nodes[nid];
     Group* group = groups_[nid];
-    Group* root_group = group->FindRoot();
-    if (root_group->pattern == kTuple) continue;
-    if (group->pattern == kTuple && root_group->pattern <= kInjective) {
-      // Here, we found a tuple node that had been fused into later injective ops.
-      // Complete the fusion by fusing tuple fields into it.
-      for (Group* child_group : root_group->inputs) {
-        if (child_group->FindRoot()->pattern <= kInjective) {
-          MergeFromTo(child_group, group);
-        }
+    if (group->pattern == kOpaque) continue;
+    if (dom_node->parent == nullptr) continue;
+    Group* dom_parent_group = groups_[dom_node->parent->gnode->index];
+    Group* dom_root_group = dom_parent_group->FindRoot();
+    // If dom node group has a tuple as its root, we do not fuse tuple fields into it
+    if (dom_root_group->pattern == kTuple) continue;
+    if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= kInjective) {
+      // Now we know the tuple has been fused into subsequent injective ops
+      if (group->FindRoot()->pattern <= kInjective) {
+        MergeFromTo(group, dom_root_group);
       }
     }
   }

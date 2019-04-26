@@ -51,9 +51,6 @@ enum OpPatternKind {
   // Complex operation, can still fuse elemwise operations into its output.
   // but cannot chain another complex op
   kOutEWiseFusable = 5,
-  // The edge pattern between tuple and its fields. Tuple fields can fuse into
-  // a tuple if the tuple is intermediate node in its fusion group.
-  kTupleField = 6,
 
   // Opaque operation, cannot fuse anything.
   kOpaque = 8

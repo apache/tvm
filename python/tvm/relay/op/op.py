@@ -114,8 +114,6 @@ class OpPattern(object):
     COMM_REDUCE = 4
     # Complex op, can still fuse ewise into it
     OUT_ELEMWISE_FUSABLE = 5
-    # Used to represent edge pattern between tuple and its fields
-    kTupleFiled = 6
     # Not fusable opaque op
     OPAQUE = 8
 
