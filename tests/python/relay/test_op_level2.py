@@ -152,12 +152,6 @@ def test_conv2d_run():
     # mixed precision.
     run_test_conv2d("int8", "int32", 1, dshape, kshape,
                     padding=(0, 1), channels=10, kernel_size=(1 ,3))
-    # mixed precision group conv2d
-    # NOTE(kumasento): This test cannot pass
-    # dshape = (1, 32, 18, 18)
-    # kshape = (32, 4, 3, 3)
-    # run_test_conv2d("int8", "int32", 1, dshape, kshape,
-    #                 padding=(1, 1), channels=32, groups=8, kernel_size=(3, 3))
     # dilated conv2d
     dshape = (1, 3, 18, 18)
     kshape = (10, 3, 3, 3)
