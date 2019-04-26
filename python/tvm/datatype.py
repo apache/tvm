@@ -10,19 +10,19 @@ from . import _api_internal
 
 
 def register(type_name, type_code):
-    _api_internal._custom_datatypes_register(type_name, type_code)
+    _api_internal._datatype_register(type_name, type_code)
 
 
 def get_type_name(type_code):
-    return _api_internal._custom_datatypes_get_type_name(type_code)
+    return _api_internal._datatype_get_type_name(type_code)
 
 
 def get_type_code(type_name):
-    return _api_internal._custom_datatypes_get_type_code(type_name)
+    return _api_internal._datatype_get_type_code(type_name)
 
 
 def get_type_registered(type_code):
-    return _api_internal._custom_datatypes_get_type_registered(type_code)
+    return _api_internal._datatype_get_type_registered(type_code)
 
 
 def register_op(lower_func, op_name, target, type_name, src_type_name=None):
@@ -55,12 +55,11 @@ def register_op(lower_func, op_name, target, type_name, src_type_name=None):
 
     if op_name == "Cast":
         assert src_type_name is not None
-        lower_func_name = "tvm.custom_datatypes.lower." + target + "." \
-                          + op_name + "." + type_name + "." + src_type_name
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
+                          + type_name + "." + src_type_name
     else:
-        lower_func_name = "tvm.custom_datatypes.lower." + target + "." \
-                          + op_name + "." + type_name
-    print(lower_func_name)
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
+                          + type_name
     _register_func(lower_func_name, lower_func)
 
 

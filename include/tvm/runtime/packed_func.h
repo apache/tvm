@@ -36,7 +36,7 @@
 #include <memory>
 #include <utility>
 #include <type_traits>
-#include "../../../src/runtime/custom_datatypes_util.h"
+#include "../../../src/runtime/custom_datatype_util.h"
 #include "c_runtime_api.h"
 #include "module.h"
 #include "ndarray.h"

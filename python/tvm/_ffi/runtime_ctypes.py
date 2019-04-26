@@ -96,8 +96,7 @@ class TVMType(ctypes.Structure):
             if not low or not high or low >= high:
                 raise ValueError("Badly formatted custom type string %s" % type_str)
             type_name = head[low+1:high]
-            self.type_code = _api_internal._custom_datatypes_get_type_code(
-                type_name)
+            self.type_code = _api_internal._datatype_get_type_code(type_name)
             head = head[high+1:]
         else:
             raise ValueError("Do not know how to handle type %s" % type_str)
@@ -112,8 +111,7 @@ class TVMType(ctypes.Structure):
             type_name = TVMType.CODE2STR[self.type_code]
         else:
             type_name = "custom[%s]" % \
-                        _api_internal._custom_datatypes_get_type_name(
-                            self.type_code)
+                        _api_internal._datatype_get_type_name(self.type_code)
         x = "%s%d" % (type_name, self.bits)
         if self.lanes != 1:
             x += "x%d" % self.lanes

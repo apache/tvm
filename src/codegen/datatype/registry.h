@@ -1,11 +1,11 @@
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file tvm/src/codegen/custom_datatypes/registry.h
+ * \file tvm/src/codegen/datatype/registry.h
  * \brief Custom datatypes registry
  */
 
-#ifndef TVM_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
-#define TVM_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
+#ifndef TVM_CODEGEN_DATATYPE_REGISTRY_H_
+#define TVM_CODEGEN_DATATYPE_REGISTRY_H_
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -13,24 +13,24 @@
 #include <unordered_map>
 
 namespace tvm {
-namespace custom_datatypes {
+namespace datatype {
 
 /*!
  * \brief Registry for custom datatypes.
  *
  * Adding custom datatypes currently requires two steps:
  * 1. Register the datatype with the registry via a call to
- *    Registry::RegisterCustomDatatype. This can also be done in Python
+ *    datatype::Registry::Register. This can also be done in Python
  *    directly---see the TVM globals registered in the corresponding .cc file.
  *    Currently, user should manually choose a type name and a type code,
  *    ensuring that neither conflict with existing types.
  * 2. Use TVM_REGISTER_GLOBAL to register the lowering functions needed to
  *    lower the custom datatype. In general, these will look like:
- *      For Casts: tvm.custom_datatypes.lower.cast.<target>.<type>.<src_type>
- *        Example: tvm.custom_datatypes.lower.cast.llvm.myfloat.float for a Cast
- *                 from float to myfloat.
- *  For other ops: tvm.custom_datatypes.lower.<op>.<target>.<type>
- *        Example: tvm.custom_datatypes.lower.add.llvm.myfloat
+ *      For Casts: tvm.datatype.lower.cast.<target>.<type>.<src_type>
+ *        Example: tvm.datatype.lower.cast.llvm.myfloat.float for a Cast from
+ *                 float to myfloat.
+ *      For other ops: tvm.datatype.lower.<op>.<target>.<type>
+ *        Example: tvm.datatype.lower.add.llvm.myfloat
  */
 class Registry {
  public:
@@ -39,7 +39,7 @@ class Registry {
     return &inst;
   }
 
-  void RegisterCustomDatatype(const std::string &type_name, uint8_t type_code);
+  void Register(const std::string &type_name, uint8_t type_code);
 
   uint8_t GetTypeCode(const std::string &type_name);
 
@@ -66,12 +66,11 @@ const runtime::PackedFunc *GetCastLowerFunc(const std::string &target,
                                             uint8_t type_code,
                                             uint8_t src_type_code);
 
-#define DEFINE_GET_LOWER_FUNC_(OP)                                             \
-  inline const runtime::PackedFunc *Get##OP##LowerFunc(                        \
-      const std::string &target, uint8_t type_code) {                          \
-    return runtime::Registry::Get("tvm.custom_datatypes.lower." + target +     \
-                                  "." #OP "." +                                \
-                                  Registry::Global()->GetTypeName(type_code)); \
+#define DEFINE_GET_LOWER_FUNC_(OP)                                                       \
+  inline const runtime::PackedFunc* Get##OP##LowerFunc(const std::string& target,        \
+                                                       uint8_t type_code) {              \
+    return runtime::Registry::Get("tvm.datatype.lower." + target + "." #OP "." +         \
+                                  datatype::Registry::Global()->GetTypeName(type_code)); \
   }
 
 DEFINE_GET_LOWER_FUNC_(Add)
@@ -95,7 +94,7 @@ DEFINE_GET_LOWER_FUNC_(GE)
 // DEFINE_GET_LOWER_FUNC_(Variable)
 // DEFINE_GET_LOWER_FUNC_(Shuffle)
 
-}  // namespace custom_datatypes
+}  // namespace datatype
 }  // namespace tvm
 
-#endif  // TVM_CODEGEN_CUSTOM_DATATYPES_REGISTRY_H_
+#endif  // TVM_CODEGEN_DATATYPE_REGISTRY_H_

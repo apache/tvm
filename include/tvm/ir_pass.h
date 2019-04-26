@@ -503,8 +503,7 @@ LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
 /*!
  * \brief Lower custom datatypes.
  *
- * See tvm::custom_datatypes::Registry for more information on adding custom
- * datatypes.
+ * See tvm::datatypes::Registry for more information on adding custom datatypes.
  *
  * \param f The device function to be lowered.
  * \param target The target device.
