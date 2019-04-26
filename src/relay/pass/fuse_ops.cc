@@ -664,15 +664,19 @@ class GraphPartitioner {
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
 
       if (phase == 2) {
-        // Fuse intermediate tuples, if any
+        // Fuse injective ops into intermediate tuples, if any
+        if (group_node->pattern > kInjective) continue;
         Group* dom_parent_group = groups_[dom_parent_gindex];
         Group* dom_root_group = dom_parent_group->FindRoot();
         // If dom node group has a tuple as its root, we do not fuse tuple fields into it
         if (dom_root_group->pattern == kTuple) continue;
         if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= kInjective) {
           // Now we know the tuple has been fused into subsequent injective ops
-          if (group_node->FindRoot()->pattern <= kInjective) {
-            MergeFromTo(group_node, dom_root_group);
+          auto fcond = [](OpPatternKind kind, bool is_sink) {
+            return kind <= kInjective;
+          };
+          if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
+            CommitFuse(graph_node, dom_node->parent->gnode);
           }
         }
         continue;
