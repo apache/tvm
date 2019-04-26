@@ -103,14 +103,14 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
         packed_kernel.shape)
 
     # TODO(kumasento): these assertions ensure that the number of groups
-    # should be larger or equal to the number of blocks, so that each
+    # should be smaller or equal to the number of blocks, so that each
     # group will have at least one block.
     # Shall we pad the channels to avoid raising assertions?
-    assert groups >= oc_chunk, \
-        ('Number of groups {} should not be less than '
+    assert groups <= oc_chunk, \
+        ('Number of groups {} should be less than '
          'output channel chunk size {}'.format(groups, oc_chunk))
-    assert groups >= ic_chunk, \
-        ('Number of groups {} should not be less than '
+    assert groups <= ic_chunk, \
+        ('Number of groups {} should be less than '
          'input channel chunk size {}'.format(groups, ic_chunk))
 
     if isinstance(stride, int):
