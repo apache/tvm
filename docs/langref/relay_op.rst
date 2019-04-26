@@ -292,6 +292,11 @@ Level 5 Definitions
 .. autofunction:: tvm.relay.vision.yolo_reorg
 
 
+Level 6 Definitions
+-------------------
+.. autofunction:: tvm.relay.argsort
+
+
 Level 10 Definitions
 --------------------
 .. autofunction:: tvm.relay.broadcast_to_like
