@@ -164,6 +164,15 @@ This level enables additional math and transform operators.
    tvm.relay.vision.yolo_reorg
 
 
+**Level 6: Algorithm Operators**
+-------------------
+
+.. autosummary::
+   :nosignatures:
+
+   tvm.relay.argsort
+
+
 **Level 10: Temporary Operators**
 
 This level support backpropagation of broadcast operators. It is temporary.
