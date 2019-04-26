@@ -55,13 +55,44 @@ def test_bfloat():
     #exit(0)
 
     ctx = tvm.context(tgt, 0)
-    x = tvm.nd.array(np.random.uniform(size=3).astype(X.dtype), ctx)
-    y = tvm.nd.array(np.random.uniform(size=3).astype(Y.dtype), ctx)
+
+    # Used float32 calculator at http://www.weitz.de/ieee/. Generated float32s
+    # with at most 7-bit mantissas which, when added, produce a result with at
+    # most 7-bit mantissas. This is to ensure there are no errors due to
+    # float32->bfloat16 conversions.
+    x = tvm.nd.array(
+        np.array([4.4103796E-32, 14942208.0, 1.78125]).astype("float32"),
+        ctx=ctx)
+    y = tvm.nd.array(
+        np.array([-3.330669E-14, 19660800.0, 2.25]).astype("float32"), ctx=ctx)
+    z_expected = np.array([-3.330669E-14, 34603008.0,
+                           4.03125]).astype("float32")
     z = tvm.nd.empty(Z.shape, dtype=Z.dtype, ctx=ctx)
 
-    # TODO(gus) currently this test just ensures that this runs without error; it
-    # doesn't check the sanity of the output
     built_cast(x, y, z)
+
+    assert np.array_equal(z_expected, z.asnumpy())
+
+    # Used float32 calculator at http://www.weitz.de/ieee/. Generated
+    # unconstrained float32s for the operands and copied them in to x and y.
+    # Then, to simulate float32->bfloat16 conversion implemented by the mybfloat
+    # library, I cut off all but 7 bits of the mantissa. I then added the
+    # numbers. To simulate bfloat16 add implemented in mybfloat, I cut off all
+    # but 7 bits of the result's mantissa. I then copied that value into
+    # z_expected.
+    x = tvm.nd.array(
+        np.array([1.2348297, -1.0298302E25, 1.2034023E-30]).astype("float32"),
+        ctx=ctx)
+    y = tvm.nd.array(
+        np.array([-2.4992788, -9.888288E19, 9.342338E-29]).astype("float32"),
+        ctx=ctx)
+    z_expected = np.array([-1.25, -1.027587E25,
+                           9.426888E-29]).astype("float32")
+    z = tvm.nd.empty(Z.shape, dtype=Z.dtype, ctx=ctx)
+
+    built_cast(x, y, z)
+
+    assert np.array_equal(z_expected, z.asnumpy())
 
 
 if __name__ == "__main__":
