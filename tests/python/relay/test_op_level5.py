@@ -304,11 +304,11 @@ def test_multibox_transform_loc():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(np_cls_prob, np_loc_preds,
                                             np_anchors)
-          #  tvm.testing.assert_allclose(op_res1.asnumpy(), expected_np_out, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), expected_np_out, rtol=1e-5)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res2 = intrp2.evaluate(func)(np_cls_prob, np_loc_preds,
                                             np_anchors)
-          #  tvm.testing.assert_allclose(op_res2.asnumpy(), expected_np_out, rtol=1e-5)
+            tvm.testing.assert_allclose(op_res2.asnumpy(), expected_np_out, rtol=1e-5)
 
     def test_threshold():
         num_anchors = 5

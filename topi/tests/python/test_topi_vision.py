@@ -25,7 +25,6 @@ import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 from topi.vision import ssd, non_max_suppression, get_valid_counts
-from topi import argsort
 
 
 def verify_get_valid_counts(dshape, score_threshold):
@@ -398,35 +397,6 @@ def test_proposal():
     verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs)
 
 
-def test_argsort():
-    dshape = (1, 8)
-    valid_count_shape = (2,)
-    data = tvm.placeholder(dshape, name="data", dtype="float32")
-    valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
-    np_data = np.random.rand(dshape[0], dshape[1]).astype(data.dtype)
-    np_valid_count = np.array([4]).astype(valid_count.dtype)
-    np_result = np.argsort(-np_data)
-    def check_device(device):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            print("Skip because %s is not enabled" % device)
-            return
-        print("Running on target: %s" % device)
-        with tvm.target.create(device):
-            out = argsort(data, valid_count, axis = -1, is_ascend = False, flag=False)
-            s = topi.generic.schedule_argsort(out)
-
-        tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype="float32"), ctx)
-        f = tvm.build(s, [data, valid_count, out], device)
-        f(tvm_data, tvm_valid_count, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result.astype("float32"), rtol=1e0)
-
-    for device in ['llvm', 'cuda', 'opencl']:
-        check_device(device)
-
-
 if __name__ == "__main__":
     test_get_valid_counts()
     test_non_max_suppression()
@@ -434,4 +404,3 @@ if __name__ == "__main__":
     test_multibox_detection()
     test_roi_align()
     test_proposal()
-    test_argsort()
