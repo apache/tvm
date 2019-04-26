@@ -1486,8 +1486,10 @@ def _test_forward_expand_dims(data, axis):
 def test_forward_expand_dims():
     _test_forward_expand_dims(np.int32(1), 0)
     _test_forward_expand_dims(np.array([1]), 0)
+    _test_forward_expand_dims(np.array([1]), -1)
     _test_forward_expand_dims(np.array([[1], [2]]), 0)
     _test_forward_expand_dims(np.array([[1], [2]]), 1)
+    _test_forward_expand_dims(np.array([[1], [2]]), -1)
 
 #######################################################################
 # Main
