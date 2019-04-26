@@ -107,7 +107,7 @@ class OpPattern(object):
     # Broadcast operator
     BROADCAST = 1
     # Represents tuple node
-    kTuple = 2
+    TUPLE = 2
     # Injective mapping
     INJECTIVE = 3
     # Communication

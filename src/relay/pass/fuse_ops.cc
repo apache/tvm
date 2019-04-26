@@ -661,15 +661,30 @@ class GraphPartitioner {
       // no actions needed if the current node have no dominator
       if (dom_node->parent == nullptr) continue;
       CHECK(!graph_node->extern_ref);
-      // Skip if current node is already fused to the parent.
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
+
+      if (phase == 2) {
+        // Fuse intermediate tuples, if any
+        Group* dom_parent_group = groups_[dom_parent_gindex];
+        Group* dom_root_group = dom_parent_group->FindRoot();
+        // If dom node group has a tuple as its root, we do not fuse tuple fields into it
+        if (dom_root_group->pattern == kTuple) continue;
+        if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= kInjective) {
+          // Now we know the tuple has been fused into subsequent injective ops
+          if (group_node->FindRoot()->pattern <= kInjective) {
+            MergeFromTo(group_node, dom_root_group);
+          }
+        }
+        continue;
+      }
+
+      // Skip if current node is already fused to the parent.
       if (groups_[dom_parent_gindex] != nullptr &&
           group_node->FindRoot() == groups_[dom_parent_gindex]->FindRoot()) {
         continue;
       }
       // Do not fuse into tuple for now
       if (groups_[dom_parent_gindex]->pattern == kTuple) continue;
-
       // Try to fuse current node to its post-dominator.
       if (group_node->pattern == kOutEWiseFusable) {
         if (phase != 0) continue;
@@ -731,25 +746,8 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
   // get post dominator tree
   auto post_dom_tree = DominatorTree::PostDom(arena_, graph);
   // run fusion algorithm.
-  for (int phase = 0; phase < 2; ++phase) {
+  for (int phase = 0; phase < 3; ++phase) {
     this->RunFuse(graph, post_dom_tree, phase);
-  }
-  // Fuse intermediate tuples, if any
-  for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
-    auto* dom_node = post_dom_tree.nodes[nid];
-    Group* group = groups_[nid];
-    if (group->pattern == kOpaque) continue;
-    if (dom_node->parent == nullptr) continue;
-    Group* dom_parent_group = groups_[dom_node->parent->gnode->index];
-    Group* dom_root_group = dom_parent_group->FindRoot();
-    // If dom node group has a tuple as its root, we do not fuse tuple fields into it
-    if (dom_root_group->pattern == kTuple) continue;
-    if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= kInjective) {
-      // Now we know the tuple has been fused into subsequent injective ops
-      if (group->FindRoot()->pattern <= kInjective) {
-        MergeFromTo(group, dom_root_group);
-      }
-    }
   }
   return std::move(groups_);
 }
