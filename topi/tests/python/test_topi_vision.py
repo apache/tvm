@@ -24,7 +24,8 @@ import topi.testing
 
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
-from topi.vision import ssd, non_max_suppression, get_valid_counts, argsort
+from topi.vision import ssd, non_max_suppression, get_valid_counts
+from topi import argsort
 
 
 def verify_get_valid_counts(dshape, score_threshold):

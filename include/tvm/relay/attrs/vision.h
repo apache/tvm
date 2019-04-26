@@ -30,24 +30,6 @@
 namespace tvm {
 namespace relay {
 
-/*! \brief Attributes used in argsort operators */
-struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
-  int axis;
-  bool is_ascend;
-  DataType dtype;
-
-  TVM_DECLARE_ATTRS(ArgsortAttrs, "relay.attrs.ArgsortAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(-1)
-      .describe("Axis along which to sort the input tensor."
-                "If not given, the flattened array is used.");
-    TVM_ATTR_FIELD(is_ascend).set_default(true)
-      .describe("Whether to sort in ascending or descending order."
-                "By default, sort in ascending order");
-    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
-      .describe("DType of the output indices.");
-  }
-};
-
 /*! \brief Attributes used in multibox_prior operators */
 struct MultiBoxPriorAttrs : public tvm::AttrsNode<MultiBoxPriorAttrs> {
   Array<IndexExpr> sizes;

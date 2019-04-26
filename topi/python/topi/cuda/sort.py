@@ -3,7 +3,7 @@
 import tvm
 
 from tvm import api
-from topi.vision.sort import argsort
+from topi.sort import argsort
 
 def sort_ir(data, output, axis, is_ascend):
     """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.

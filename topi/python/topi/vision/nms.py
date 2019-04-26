@@ -19,7 +19,7 @@
 import tvm
 
 from tvm import hybrid
-from .sort import argsort
+from ..sort import argsort
 
 @hybrid.script
 def hybrid_rearrange_out(data):
