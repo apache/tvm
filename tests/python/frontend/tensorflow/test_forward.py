@@ -580,6 +580,7 @@ def _test_stridedslice(ip_shape, begin, end, stride, dtype,
 def test_forward_stridedslice():
     '''test StridedSlice'''
 
+    _test_stridedslice((2), [1], [1], [1], 'float32', shrink_axis_mask=1)
     _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
     _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=8)
     _test_stridedslice((3, 4, 3), [1, 0], [4, 2], [2, 1], 'float32', ellipsis_mask=2)
