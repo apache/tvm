@@ -432,6 +432,77 @@ def test_tuple_consecutive():
     assert relay.ir_pass.alpha_equal(zz, after)
 
 
+def test_inception_like():
+    def conv(data):
+        y = relay.nn.conv2d(data, relay.var("w"),
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            channels=16)
+        return relay.nn.relu(data=y)
+
+    def inception_like(data):
+        c0 = conv(data)
+        c1 = conv(data)
+        return relay.concatenate((c0, c1), axis=1)
+
+    def before(dshape):
+        x = relay.var("x", shape=dshape)
+        in1 = inception_like(x)
+        in2 = inception_like(in1)
+        return relay.Function(relay.ir_pass.free_vars(in2), in2)
+
+    def expected(dshape):
+        p0 = relay.var("p0", shape=dshape)
+        c = conv(p0)
+        f0 = relay.Function(relay.ir_pass.free_vars(c), c)
+
+        p01 = relay.var("p01", shape=dshape)
+        c = conv(p01)
+        f1 = relay.Function(relay.ir_pass.free_vars(c), c)
+
+        p02 = relay.var("p02", shape=dshape)
+        p12 = relay.var("p12", shape=dshape)
+        concat1 = relay.concatenate((p02, p12), axis=1)
+        f_concat1 = relay.Function([p02, p12], concat1)
+
+        dshape2 = (dshape[0], dshape[1]*2, dshape[2], dshape[3])
+
+        p03 = relay.var("p03", shape=dshape2)
+        c = conv(p03)
+        f2 = relay.Function(relay.ir_pass.free_vars(c), c)
+
+        p04 = relay.var("p04", shape=dshape2)
+        c = conv(p04)
+        f3 = relay.Function(relay.ir_pass.free_vars(c), c)
+
+        p05 = relay.var("p05", shape=dshape)
+        p15 = relay.var("p15", shape=dshape)
+        concat2 = relay.concatenate((p05, p15), axis=1)
+        f_concat2 = relay.Function([p05, p15], concat2)
+
+        x = relay.var("x", shape=dshape)
+        c1 = relay.Call(f0, [x, relay.var("w1")])
+        c2 = relay.Call(f1, [x, relay.var("w2")])
+        concat = relay.Call(f_concat1, [c1, c2])
+        c3 = relay.Call(f2, [concat, relay.var("w3")])
+        c4 = relay.Call(f3, [concat, relay.var("w4")])
+        out = relay.Call(f_concat2, [c3, c4])
+
+        return relay.Function(relay.ir_pass.free_vars(out), out)
+
+    dshape = (1, 16, 64, 64)
+    z = before(dshape)
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    relay.build(zz, 'llvm')
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected(dshape))
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -443,3 +514,4 @@ if __name__ == "__main__":
     test_tuple_get_root()
     test_tuple_intermediate()
     test_tuple_consecutive()
+    test_inception_like()

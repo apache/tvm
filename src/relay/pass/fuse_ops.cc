@@ -675,6 +675,8 @@ class GraphPartitioner {
           auto fcond = [](OpPatternKind kind, bool is_sink) {
             return kind <= kInjective;
           };
+          // dom_root_group can also be tuple, as in inception layers
+          // CheckPath is needed to avoid fusing two intermediate tuples
           if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
             CommitFuse(graph_node, dom_node->parent->gnode);
           }
