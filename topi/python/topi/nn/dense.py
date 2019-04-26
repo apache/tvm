@@ -19,7 +19,7 @@ from __future__ import absolute_import
 import tvm
 from .. import tag
 
-def dense_default(data, weight, bias=None):
+def dense_default(data, weight, bias=None, out_dtype=None):
     """The default implementation of dense in topi.
 
     Parameters
@@ -33,6 +33,9 @@ def dense_default(data, weight, bias=None):
     bias : tvm.Tensor, optional
         1-D with shape [out_dim]
 
+    out_dtype : str
+        The output type. This is used for mixed precision.
+
     Returns
     -------
     output : tvm.Tensor
@@ -42,21 +45,24 @@ def dense_default(data, weight, bias=None):
         "only support 2-dim dense"
     if bias is not None:
         assert len(bias.shape) == 1
+    if out_dtype is None:
+        out_dtype = data.dtype
     batch, in_dim = data.shape
     out_dim, _ = weight.shape
     k = tvm.reduce_axis((0, in_dim), name='k')
     matmul = tvm.compute((batch, out_dim), \
-                         lambda i, j: tvm.sum(data[i, k] * weight[j, k], axis=k), \
+                         lambda i, j: tvm.sum(data[i, k].astype(out_dtype) * \
+                                              weight[j, k].astype(out_dtype), axis=k), \
                          name='T_dense', tag='dense')
     if bias is not None:
         matmul = tvm.compute((batch, out_dim), \
-                             lambda i, j: matmul[i, j] + bias[j], \
+                             lambda i, j: matmul[i, j] + bias[j].astype(out_dtype), \
                              tag=tag.BROADCAST)
     return matmul
 
 
 @tvm.target.override_native_generic_func("dense")
-def dense(data, weight, bias=None):
+def dense(data, weight, bias=None, out_dtype=None):
     """Applies a linear transformation: :math:`Y = XW^T + b`.
 
     Parameters
@@ -70,9 +76,12 @@ def dense(data, weight, bias=None):
     bias : tvm.Tensor, optional
         1-D with shape [out_dim]
 
+    out_dtype : str
+        The output type. This is used for mixed precision.
+
     Returns
     -------
     output : tvm.Tensor
         2-D with shape [batch, out_dim]
     """
-    return dense_default(data, weight, bias)
+    return dense_default(data, weight, bias, out_dtype)

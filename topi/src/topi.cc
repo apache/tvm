@@ -403,7 +403,7 @@ TVM_REGISTER_GLOBAL("topi.nn.binary_dense")
 /* Ops from nn/dense.h */
 TVM_REGISTER_GLOBAL("topi.nn.dense")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::dense(args[0], args[1], args[2]);
+  *rv = nn::dense(args[0], args[1], args[2], args[3]);
   });
 
 /* Ops from nn/bias_add.h */
@@ -544,7 +544,7 @@ TVM_REGISTER_GLOBAL("topi.x86.schedule_injective")
 /* ROCm schedules */
 TVM_REGISTER_GLOBAL("topi.rocm.dense_cuda")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = rocm::dense_rocm(args[0], args[1], args[2], args[3]);
+  *rv = rocm::dense_rocm(args[0], args[1], args[2], args[3], args[4]);
   });
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_dense")
@@ -565,7 +565,7 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_l2_normalize")
 /* CUDA schedules */
 TVM_REGISTER_GLOBAL("topi.cuda.dense_cuda")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = cuda::dense_cuda(args[0], args[1], args[2], args[3]);
+  *rv = cuda::dense_cuda(args[0], args[1], args[2], args[3], args[4]);
   });
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_dense")
@@ -686,7 +686,8 @@ TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
 using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
                                                      const tvm::Tensor& data,
                                                      const tvm::Tensor& weight,
-                                                     const tvm::Tensor& bias)>;
+                                                     const tvm::Tensor& bias,
+                                                     const Type& out_dtype)>;
 
 /*!
 * \brief Helper function for registering dense ops matching the
@@ -703,8 +704,9 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
     Tensor data = args[0];
     Tensor weight = args[1];
     Tensor bias = args[2];
+    Type out_dtype = args[3];
 
-    *ret = builder(target, data, weight, bias);
+    *ret = builder(target, data, weight, bias, out_dtype);
   });
 }
 
@@ -712,8 +714,9 @@ TVM_REGISTER_GENERIC_FUNC(dense)
 .set_default(WrapDenseOp([](const Target& target,
                             const tvm::Tensor& data,
                             const tvm::Tensor& weight,
-                            const tvm::Tensor& bias) {
-  return topi::nn::dense(data, weight, bias);
+                            const tvm::Tensor& bias,
+                            const Type& out_dtype) {
+  return topi::nn::dense(data, weight, bias, out_dtype);
 }))
 .register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))
 .register_func({ "rocm" }, WrapDenseOp(topi::rocm::dense_rocm));

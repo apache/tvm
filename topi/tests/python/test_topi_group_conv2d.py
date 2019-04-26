@@ -25,7 +25,7 @@ import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
-from common import get_all_backend, NCHWcInt8Fallback
+from common import get_all_backend, Int8Fallback
 
 
 def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups, add_bias=False, add_relu=False):
@@ -203,7 +203,7 @@ def test_group_conv2d_nchw():
 
 
 def test_group_conv2d_NCHWc_int8():
-    with NCHWcInt8Fallback():
+    with Int8Fallback():
         # ResNeXt-50 workload
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32)
         verify_group_conv2d_NCHWc_int8(1, 256, 56, 256, 3, 2, 1, 1, 32)
