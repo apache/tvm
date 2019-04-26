@@ -131,8 +131,12 @@ bool DenseRel(const Array<Type>& types,
     oshape.Set((oshape.size() - 1), wshape[0]);
   }
 
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }
 
@@ -140,9 +144,11 @@ bool DenseRel(const Array<Type>& types,
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeDense(Expr data,
                Expr weight,
-               IndexExpr units) {
+               IndexExpr units,
+               DataType out_dtype) {
   auto attrs = make_node<DenseAttrs>();
   attrs->units = units;
+  attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }

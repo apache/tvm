@@ -25,7 +25,7 @@ from .. import tag
 from .. import generic
 
 @dense.register("rocm")
-def dense_rocm(data, weight, bias=None):
+def dense_rocm(data, weight, bias=None, out_dtype=None):
     """Dense operator for rocm backend.
 
     Parameters
@@ -39,6 +39,9 @@ def dense_rocm(data, weight, bias=None):
     bias : tvm.Tensor, optional
         1-D with shape [out_dim]
 
+    out_dtype : str
+        The output type. This is used for mixed precision.
+
     Returns
     -------
     output : tvm.Tensor
@@ -48,17 +51,20 @@ def dense_rocm(data, weight, bias=None):
         "only support 2-dim dense"
     if bias is not None:
         assert len(bias.shape) == 1
+    if out_dtype is None:
+        out_dtype = data.dtype
     batch, in_dim = data.shape
     out_dim, _ = weight.shape
     target = tvm.target.current_target()
     if "rocblas" in target.libs:
+        assert out_dtype == data.dtype, "Mixed precision not supported."
         matmul = rocblas.matmul(data, weight, False, True)
         if bias is not None:
             matmul = tvm.compute((batch, out_dim), \
                                  lambda i, j: matmul[i, j] + bias[j], \
                                  tag=tag.BROADCAST)
         return matmul
-    return dense_default(data, weight, bias)
+    return dense_default(data, weight, bias, out_dtype)
 
 
 @generic.schedule_dense.register(["rocm"])

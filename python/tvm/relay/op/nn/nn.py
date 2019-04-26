@@ -475,7 +475,7 @@ def bias_add(data, bias, axis=1):
     return _make.bias_add(data, bias, axis)
 
 
-def dense(data, weight, units=None):
+def dense(data, weight, units=None, out_dtype=""):
     """Dense operator.
     Applies a linear transformation
 
@@ -494,12 +494,15 @@ def dense(data, weight, units=None):
     units : int, optional
         Number of hidden units of the dense transformation.
 
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.dense(data, weight, units)
+    return _make.dense(data, weight, units, out_dtype)
 
 
 def relu(data):

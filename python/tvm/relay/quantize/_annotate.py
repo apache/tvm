@@ -171,6 +171,26 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
+@register_annotate_function("nn.dense")
+def dense_rewrite(ref_call, new_args, ctx):
+    """Rewrite function for dense. Lhs of dense will be quantized to input field, and rhs of
+    dense will be quantized to weight field. Output would be in activation field."""
+    cnt = _conv_counter()
+    if cnt < current_qconfig().skip_k_conv:
+        return None
+    lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
+    rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
+
+    if lhs_kind is None or lhs_kind != QAnnotateKind.INPUT:
+        lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+
+    assert rhs_kind is None
+    rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+
+    expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+
+
 @register_annotate_function("multiply")
 def multiply_rewrite(ref_call, new_args, ctx):
     """Rewrite function for multiply."""

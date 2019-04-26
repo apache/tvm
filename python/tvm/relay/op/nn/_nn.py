@@ -51,7 +51,9 @@ reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 @reg.register_compute("nn.dense")
 def compute_dense(attrs, inputs, out_type, target):
     """Compute definition of dense"""
-    return [topi.nn.dense(inputs[0], inputs[1])]
+    out_dtype = attrs.out_dtype
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+    return [topi.nn.dense(inputs[0], inputs[1], out_dtype=out_dtype)]
 
 @reg.register_schedule("nn.dense")
 def schedule_dense(attrs, outputs, target):

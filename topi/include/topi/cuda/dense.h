@@ -44,13 +44,15 @@ namespace cuda {
 * \param data Tensor with shape [batch, in_dim]
 * \param weight Tensor with shape [out_dim, in_dim]
 * \param bias Tensor with shape [out_dim]. Optional; to omit bias, pass Tensor()
+* \param out_dtype Output data type. Used for mixed precision.
 *
 * \return Tensor with shape [batch, out_dim]
 */
 inline tvm::Tensor dense_cuda(const Target& target,
                               const tvm::Tensor& data,
                               const tvm::Tensor& weight,
-                              const tvm::Tensor& bias) {
+                              const tvm::Tensor& bias,
+                              const Type& out_dtype) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
@@ -62,6 +64,7 @@ inline tvm::Tensor dense_cuda(const Target& target,
   auto out_dim = weight->shape[0];
 
   if (target->libs().count("cublas")) {
+    CHECK_EQ(data->dtype, out_dtype) << "Mixed precision not supported.";
     auto mm = topi::contrib::cublas_matmul(data, weight, false, true);
     if (bias.defined()) {
       mm = tvm::compute({ batch, out_dim },
@@ -72,7 +75,7 @@ inline tvm::Tensor dense_cuda(const Target& target,
 
     return mm;
   } else {
-    return topi::nn::dense(data, weight, bias);
+    return topi::nn::dense(data, weight, bias, out_dtype);
   }
 }
 
