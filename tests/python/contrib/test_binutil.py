@@ -43,19 +43,35 @@ def test_tvm_callback_relocate_binary(binary):
     with open(tmp_bin, "wb") as f:
         f.write(binary)
     def verify():
-        rel_bin = tvm_callback_relocate_binary(tmp_bin, "0x0", "0x10000", "0x20000")
+        text_loc_str = "0x0"
+        data_loc_str = "0x10000"
+        bss_loc_str = "0x20000"
+        rel_bin = tvm_callback_relocate_binary(tmp_bin, text_loc_str, data_loc_str, bss_loc_str)
         print("Relocated binary section sizes")
         test_tvm_callback_get_section_size(rel_bin)
         relf = tmp_dir.relpath("rel.bin")
         with open(relf, "wb") as f:
             f.write(rel_bin)
-        p1 = subprocess.Popen(["nm", "-C", "--defined-only", relf],
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT)
-        (out, _) = p1.communicate()
-        print("Relocated binary symbols")
-        print(out)
-        print
+        nm_proc = subprocess.Popen(["nm", "-C", "--defined-only", relf],
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT)
+        (out, _) = nm_proc.communicate()
+        # Ensure the relocated symbols are within the ranges we specified.
+        text_loc = int(text_loc_str, 16)
+        data_loc = int(data_loc_str, 16)
+        bss_loc = int(bss_loc_str, 16)
+        symbol_entries = out.decode("utf-8").split("\n")
+        for entry in symbol_entries:
+            if len(entry) == 0:
+                continue
+            sym_loc, section, sym_name = entry.split(' ')
+            sym_loc = int(sym_loc, 16)
+            if section == 'T':  # text
+                assert sym_loc >= text_loc and sym_loc < data_loc
+            elif section == 'D':  # data
+                assert sym_loc >= data_loc and sym_loc < bss_loc
+            elif section == 'B':  # bss
+                assert sym_loc >= bss_loc
     verify()
 
 
@@ -79,8 +95,13 @@ def test_tvm_callback_get_symbol_map(binary):
     def verify():
         rel_bin = tvm_callback_relocate_binary(tmp_bin, "0x0", "0x10000", "0x20000")
         symbol_map = tvm_callback_get_symbol_map(rel_bin)
-        print("Obtained symbol map")
-        print(symbol_map)
+        symbols = set()
+        for i, line in enumerate(symbol_map.split('\n')):
+            # Every other line is the value the symbol maps to.
+            if i % 2 == 0:
+                symbols.add(line)
+        assert "a" in symbols
+        assert "main" in symbols
     verify()
 
 
