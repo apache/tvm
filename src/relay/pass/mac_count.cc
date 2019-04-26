@@ -89,7 +89,7 @@ int64_t ConvMacCount(const Call& call_node) {
       << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
   int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
   if (!depthwise) {
-    CHECK(input_channel % conv_2d_attr->groups == 0);
+    CHECK_EQ(input_channel % conv_2d_attr->groups, 0);
     count *= input_channel/conv_2d_attr->groups;
   }
   return count;
