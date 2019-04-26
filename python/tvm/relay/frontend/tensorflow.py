@@ -99,7 +99,6 @@ class AttrCvt(object):
         self._ignores.append('_node_name')
         self._ignores.append('is_training')
         self._ignores.append('_target_layout')
-        self._ignores.append('_input_0d_mismatch')
 
         # apply custom check
         if self._custom_check:
@@ -458,9 +457,9 @@ def _cast():
 def _expand_dims():
     def _impl(inputs, attr, params):
         dim_input = inputs.pop(1)
-        axis = params[dim_input.name_hint]
-        params.pop(dim_input.name_hint)
-        return _expand_dims_0d_aware(inputs[0], attr, axis=axis.asnumpy()[0])
+        axis = params.pop(_get_name_hint(dim_input)).asnumpy()[0]
+        return AttrCvt(op_name="expand_dims", ignores=['Tdim', 'N'],
+                       extras={'axis': int(axis), 'num_newaxis': 1})(inputs, attr)
     return _impl
 
 def _resize_bilinear():
@@ -528,7 +527,7 @@ def _concat():
 def _pack():
     def _impl(inputs, attr, params):
         axis = int(attr["axis"])
-        inputs_reshaped = [_expand_dims_0d_aware(i, attr, axis=axis, num_newaxis=1) for i in inputs]
+        inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
         return _op.concatenate(inputs_reshaped, axis)
     return _impl
 
@@ -820,9 +819,9 @@ def _stridedSlice():
                 pass
             else:
                 final_output.append(out_shape[gather_index])
-        # Prevent 0-dim tensors which are not accepted by Relay
+
         if not final_output:
-            final_output.append(1)
+            return out
         return _op.reshape(out, newshape=tuple(final_output))
     return _impl
 
@@ -983,16 +982,6 @@ def _unpack():
             _expr.Tuple([_op.squeeze(split_item, axis=axis) \
             for split_item in splitted]), len(splitted))
     return _impl
-
-def _expand_dims_0d_aware(data, attr, axis, num_newaxis=1):
-    if data in attr['_input_0d_mismatch']:
-        return data if num_newaxis == 1 else \
-            AttrCvt(op_name="expand_dims", ignores=['Tdim', 'N'],
-                    extras={'axis': int(axis), 'num_newaxis': int(num_newaxis-1)})([data], attr)
-
-    return AttrCvt(op_name="expand_dims", ignores=['Tdim', 'N'],
-                   extras={'axis': int(axis), 'num_newaxis': int(num_newaxis)})([data], attr)
-
 
 def _softmax():
     def _impl(inputs, attr, params):
@@ -1647,7 +1636,6 @@ class GraphProto(object):
         self._output_shapes = {}
         self._num_param = 0
         self._num_rnn_layer = False
-        self._outputs_are_0d = {}
         self._input_shapes = {}
         self._loops = {}
         self._branches = {}
@@ -1737,7 +1725,6 @@ class GraphProto(object):
             # Operator name 'Const' is treated as a parameter to build params dict.
 
             input_shapes = {}
-            input_0d_mismatch = set()
             attr = self._parse_attr(node.attr)
 
             # Variable converted to Const will not have only value attr
@@ -1752,10 +1739,6 @@ class GraphProto(object):
                 # Actual value will be filled after node creation.
                 # Will infer shapes if the graph is not frozen with add_shapes=True
                 self._output_shapes[node.name] = [None]
-
-            self._outputs_are_0d[node.name] = [ \
-                not shape if isinstance(tshape, list) else False \
-                for tshape in self._output_shapes[node.name]]
 
             if node.op == "Const":
                 # All Const nodes are Param nodes, lets parse
@@ -1810,14 +1793,8 @@ class GraphProto(object):
                             input_shape = self._output_shapes[node_name][0]
                         inputs.append(in_sym[0])
                         input_shapes[in_sym[0]] = input_shape
-                        # This means the node is 1d in Relay and 0d in TF.
-                        # See `_expand_dims_0d_aware`.
-                        if node_name in self._outputs_are_0d \
-                                and self._outputs_are_0d[node_name][tensor_slot] and input_shape:
-                            input_0d_mismatch.add(in_sym[0])
 
                 attr['_input_shapes'] = input_shapes
-                attr['_input_0d_mismatch'] = input_0d_mismatch
 
                 if node.op in _control_flow_nodes:
                     op = self._convert_control_flow_operator(node, inputs,

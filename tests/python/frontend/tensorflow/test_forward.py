@@ -580,6 +580,7 @@ def _test_stridedslice(ip_shape, begin, end, stride, dtype,
 def test_forward_stridedslice():
     '''test StridedSlice'''
 
+    _test_stridedslice((2), [1], [1], [1], 'float32', shrink_axis_mask=1)
     _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
     _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=8)
     _test_stridedslice((3, 4, 3), [1, 0], [4, 2], [2, 1], 'float32', ellipsis_mask=2)
@@ -1475,6 +1476,21 @@ def test_forward_rel_ops():
     _test_forward_rel_op([t1, t2], math_ops.equal)
     _test_forward_rel_op([t1, t2], math_ops.not_equal)
 
+#######################################################################
+# ExpandDims
+# ----------
+def _test_forward_expand_dims(data, axis):
+    in1 = tf.placeholder(shape=data.shape, dtype=data.dtype, name='in1')
+    out = tf.expand_dims(in1, axis)
+    compare_tf_with_tvm([data], [in1.name], out.name)
+
+def test_forward_expand_dims():
+    _test_forward_expand_dims(np.int32(1), 0)
+    _test_forward_expand_dims(np.array([1]), 0)
+    _test_forward_expand_dims(np.array([1]), -1)
+    _test_forward_expand_dims(np.array([[1], [2]]), 0)
+    _test_forward_expand_dims(np.array([[1], [2]]), 1)
+    _test_forward_expand_dims(np.array([[1], [2]]), -1)
 
 #######################################################################
 # Main
@@ -1509,6 +1525,7 @@ if __name__ == '__main__':
     test_forward_reverse_v2()
     test_forward_pow_exp()
     test_forward_sign()
+    test_forward_expand_dims()
 
     # Reductions
     test_forward_argminmax()
