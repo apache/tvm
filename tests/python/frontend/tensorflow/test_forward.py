@@ -1429,16 +1429,16 @@ def test_forward_sign():
     compare_tf_with_tvm([np_data], ['in_data:0'], 'sign:0')
 
 def test_forward_pow_exp():
-    """test Pow"""
-    np_in1 = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
-    np_in2 = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
+    """test Pow and Exp """
+    np_in1 = np.random.uniform(-2, 2, size=(5, 7, 11)).astype(np.float32)
+    np_in2 = np.random.uniform(-2, 2, size=(5, 7, 11)).astype(np.float32)
     tf.reset_default_graph()
     in1 = tf.placeholder(tf.float32, (5, 7, 11), name="in1")
     in2 = tf.placeholder(tf.float32, (5, 7, 11), name="in2")
     out1 = tf.pow(in1, in2, name="pow")
-    out = tf.exp(out1, name='exp')
+    out = tf.exp(in1, name='exp')
     compare_tf_with_tvm([np_in1, np_in2], ['in1:0', 'in2:0'], 'pow:0')
-    compare_tf_with_tvm([np_in1, np_in2], ['in1:0', 'in2:0'], 'exp:0')
+    compare_tf_with_tvm([np_in1], ['in1:0'], 'exp:0')
 
 #######################################################################
 # Mean
