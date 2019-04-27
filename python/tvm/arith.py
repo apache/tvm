@@ -32,21 +32,21 @@ class IntSet(NodeBase):
         return _api_internal._IntSetIsEverything(self)
 
 
-@register_node
+@register_node("arith.IntervalSet")
 class IntervalSet(IntSet):
-    """Represent set of continuous interval"""
-    def min(self):
-        """get the minimum value"""
-        return _api_internal._IntervalSetGetMin(self)
+    """Represent set of continuous interval [min_value, max_value]
 
-    def max(self):
-        """get the maximum value"""
-        return _api_internal._IntervalSetGetMax(self)
+    Parameters
+    ----------
+    min_value : Expr
+        The minimum value in the interval.
 
-
-@register_node
-class StrideSet(IntSet):
-    """Represent set of strided integers"""
+    max_value : Expr
+        The maximum value in the interval.
+    """
+    def __init__(self, min_value, max_value):
+        self.__init_handle_by_constructor__(
+            _make_IntervalSet, min_value, max_value)
 
 
 @register_node("arith.ModularSet")
@@ -114,6 +114,7 @@ class Analyzer:
         self._modular_set = _mod("modular_set")
         self._rewrite_simplify = _mod("rewrite_simplify")
         self._canonical_simplify = _mod("canonical_simplify")
+        self._int_set = _mod("int_set")
         self._enter_constraint_context = _mod("enter_constraint_context")
 
     def const_int_bound(self, expr):
@@ -175,6 +176,24 @@ class Analyzer:
             The result.
         """
         return self._canonical_simplify(expr)
+
+    def int_set(self, expr, dom_map):
+        """Compute a symbolic IntSet that covers expr for all values in dom_map.
+
+        Parameters
+        ----------
+        expr : tvm.Expr
+            The expression.
+
+        dom_map : Dict[Var, tvm.arith.IntSet]
+            The domain for variables to be relaxed.
+
+        Returns
+        -------
+        result : IntSet
+            The result.
+        """
+        return self._int_set(expr, dom_map)
 
     def bind(self, var, expr):
         """Bind a variable to the expression.

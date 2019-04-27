@@ -31,7 +31,8 @@ Analyzer::Analyzer()
     : const_int_bound(this),
       modular_set(this),
       rewrite_simplify(this),
-      canonical_simplify(this) {
+      canonical_simplify(this),
+      int_set(this) {
 }
 
 void Analyzer::Bind(const VarExpr& v, const Expr& expr) {
@@ -77,6 +78,7 @@ bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
     return ptr->value > lower_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
+  LOG(INFO) << bd;
   if (bd->min_value >= lower_bound) return true;
   return false;
 }

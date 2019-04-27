@@ -39,6 +39,7 @@ TVM_REGISTER_API("arith.intset_vector")
 TVM_REGISTER_API("arith.intset_interval")
 .set_body_typed(IntSet::interval);
 
+
 TVM_REGISTER_API("arith.DetectLinearEquation")
 .set_body_typed(DetectLinearEquation);
 
@@ -109,6 +110,10 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
       } else if (name == "canonical_simplify") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             *ret = self->canonical_simplify(args[0]);
+        });
+      } else if (name == "int_set") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            *ret = self->int_set(args[0], args[1]);
         });
       } else if (name == "bind") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {

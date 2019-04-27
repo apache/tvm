@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file canonical_simplify.cc
  * \brief Canonical form based simplification.
  */
