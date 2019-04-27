@@ -14,7 +14,7 @@ def test_bfloat():
 
     # TODO(gus) having numbers in typenames causes some weird parsing bug somewhere
     #tvm.register_datatype("bfloat16", 24)
-    tvm.datatype.register("bfloat", 24)
+    tvm.datatype.register("bfloat", 129)
 
     tvm.datatype.register_op(
         tvm.datatype.create_lower_func("FloatToBFloat16_wrapper"), "Cast",
