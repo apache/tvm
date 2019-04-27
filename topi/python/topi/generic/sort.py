@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name, no-member
 """Generic vision operators"""
 from __future__ import absolute_import as _abs
-from .vision import _default_schedule
 import tvm
+from .vision import _default_schedule
 
 @tvm.target.generic_func
 def schedule_argsort(outs):
