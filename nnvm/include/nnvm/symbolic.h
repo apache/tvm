@@ -99,6 +99,10 @@ class NNVM_DLL Symbol {
    * \sa ListInputOption
    */
   std::vector<NodePtr> ListInputs(ListInputOption option) const;
+
+
+  static std::vector<NodePtr> ListInputs(ListInputOption option,
+                                         const std::vector<NodeEntry>& nodes);
   /*!
    * \brief List the input names.
    *
