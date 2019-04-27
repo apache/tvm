@@ -315,12 +315,16 @@ inline void DFSVisit(const std::vector<NodeEntry>& heads,
                  });
   PostOrderDFSVisit<GNode, Node*>(
       head_nodes,
-      [fvisit](GNode n) { fvisit(*n); },  // FVisit
-      [](GNode n)->Node* { return n->get(); },  // HashFunc
+      [fvisit](GNode n) {
+        fvisit(*n);
+        },  // FVisit
+      [](GNode n)->Node* {
+        return n->get();
+        },  // HashFunc
       [](GNode n)->uint32_t {  // InDegree
         if (!(*n)) return 0;
         return (*n)->inputs.size() + (*n)->control_deps.size();
-      },
+        },
       [](GNode n, uint32_t index)->GNode {  // GetInput
         if (index < (*n)->inputs.size()) {
           return &(*n)->inputs.at(index).node;
