@@ -27,10 +27,13 @@ from ..util import traverse_inline, get_const_tuple, get_const_int
 from .. import nn, generic
 
 
-@autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], ['direct', 'int8'])
+autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], 'direct',
+                              nn.group_conv2d_nchw.fdefault)
+
+@autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], ['int8'])
 def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
                            out_dtype='float32'):
-    """Group convolution operator in NCHW layout.
+    """Group convolution operator for 'group_conv2d_NCHWc_int8'.
 
     Parameters
     ----------
@@ -76,7 +79,7 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
         assert out_channels % groups == 0, "output channels must divide group size"
         assert channels % ic_block_factor == 0, \
             "Number of input channels per group must divide {}".format(ic_block_factor)
-        assert out_channels % 4 == 0, \
+        assert out_channels % oc_block_factor == 0, \
             "Number of output channels per group must divide {}".format(oc_block_factor)
 
         packed_data = tvm.compute((batch, channels // ic_block_factor, height, width,
@@ -99,6 +102,17 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     oc_chunk, _, kernel_h, kernel_w, oc_block, ic_block = get_const_tuple(
         packed_kernel.shape)
 
+    # TODO(kumasento): these assertions ensure that the number of groups
+    # should be smaller or equal to the number of blocks, so that each
+    # group will have at least one block.
+    # Shall we pad the channels to avoid raising assertions?
+    assert groups <= oc_chunk, \
+        ('Number of groups {} should be less than '
+         'output channel chunk size {}'.format(groups, oc_chunk))
+    assert groups <= ic_chunk, \
+        ('Number of groups {} should be less than '
+         'input channel chunk size {}'.format(groups, ic_chunk))
+
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -109,9 +123,9 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     else:
         dilation_h, dilation_w = dilation
 
+    # pad the input data
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
-    # compute graph
     pad_before = [0, 0, pad_top, pad_left, 0]
     pad_after = [0, 0, pad_down, pad_right, 0]
     pad_data = pad(packed_data, pad_before, pad_after, name="pad_data")
@@ -129,6 +143,17 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     kh = tvm.reduce_axis((0, kernel_h), name='kh')
     kw = tvm.reduce_axis((0, kernel_w), name='kw')
 
+    # NOTE(kumasento): explanation of this snippet -
+    # oc_chunk//groups and ic_chunk//groups give you the number of blocks,
+    # i.e., chunk, per group.
+    # occ is the ID of the output channel block, so that occ//(oc_chunk//groups)
+    # produces the ID of the group.
+    # Multiplying that result with ic_chunk//groups resulting in the ID
+    # of the beginning block of the corresponding input group.
+    # Adding the block offset (icc) will give you the exact block ID.
+    #
+    # Compared with a normal convolution, group convolution only sums
+    # input channels from the group that an output channel resides in.
     conv = tvm.compute(oshape, lambda n, occ, oh, ow, ocb:
                        tvm.sum(pad_data[n, occ//(oc_chunk//groups)*(ic_chunk//groups)+icc,
                                         oh*stride_h+kh*dilation_h, ow*stride_w+kw*dilation_w, icb]
@@ -138,8 +163,10 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
                                .astype('int32'),
                                axis=[icc, kh, kw, icb]))
 
+    # Type conversion
     output = tvm.compute(oshape, lambda *index: conv(*index).astype(out_dtype),
                          tag='group_conv2d_NCHWc_int8')
+
     num_flop = batch * oc_chunk * oc_block * out_height * out_width * \
         ic_chunk * ic_block * kernel_h * kernel_w * 2 // groups
     cfg.add_flop(num_flop)
@@ -295,7 +322,7 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
 
 
 @autotvm.register_topi_schedule(generic.schedule_group_conv2d_nchw,
-                                ["cuda", "gpu"], ["direct", "int8"])
+                                ["cuda", "gpu"], ["int8"])
 def schedule_conv2d_nchw_cuda(cfg, outs):
     """TOPI schedule callback of group conv2d for cuda gpu
 
