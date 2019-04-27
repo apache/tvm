@@ -111,6 +111,37 @@ def sum(data, axis=None, keepdims=False, exclude=False):
     return _make.sum(data, axis, keepdims, exclude)
 
 
+def all(data, axis=None, keepdims=False, exclude=False):
+    """Computes the logical and of array elements over given axes.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    axis : None or int or tuple of int
+        Axis or axes along which a sum is performed. The default, axis=None,
+        will sum all of the elements of the input array. If axis is
+        negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as
+        dimensions with size one. With this option, the result will broadcast
+        correctly against the input array.
+
+    exclude : bool
+        If `exclude` is true, reduction will be performed on the axes that are
+      NOT in axis instead.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    axis = [axis] if axis and isinstance(axis, int) else axis
+    return _make.all(data, axis, keepdims, exclude)
+
+
 def max(data, axis=None, keepdims=False, exclude=False):
     """ Computes the max of array elements over given axes.
 
