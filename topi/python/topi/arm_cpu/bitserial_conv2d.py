@@ -21,7 +21,8 @@ import tvm
 from tvm import autotvm
 from .. import tag
 from ..nn.pad import pad
-from ..nn.bitserial_conv2d import bitpack, bitserial_conv2d_nhwc
+from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc
+from ..nn.bitserial_util import bitpack, binary_op_multiplier
 from ..nn.util import get_pad_tuple
 from ..util import get_const_int, get_const_tuple
 from .. import generic
@@ -93,7 +94,8 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weigh
                                  policy='candidate', candidate=[
                                      [n, oh, ow, co, vh, vw, kh, kw, ci_o, kb, ib, vc, ci_i],
                                      [n, oh, ow, co, vh, vw, kw, kh, ci_o, kb, ib, vc, ci_i],])
-    cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW) # these are actually binary ops
+    # binary ops
+    cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW * binary_op_multiplier(pack_dtype))
     # ====================
 
     VC = cfg["tile_co"].size[-1]
@@ -310,7 +312,6 @@ def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,
 
     s[conv_out].compute_at(s[last], co)
     s[last].parallel(oh)
-    s = s.normalize()
     return s
 
 @autotvm.register_topi_schedule(generic.nn.schedule_bitserial_conv2d_nhwc, 'arm_cpu', 'direct')
