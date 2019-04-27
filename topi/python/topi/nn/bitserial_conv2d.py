@@ -14,16 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, too-many-locals, too-many-arguments, unused-argument
+# pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Bitserial Conv2D operators"""
 from __future__ import absolute_import as _abs
-import numpy as np
 import tvm
 from tvm import autotvm
-from topi.transform import concatenate
 from .pad import pad
 from .util import get_pad_tuple
-from ..util import get_const_tuple, get_const_int
+from .bitserial_util import bitpack, binary_op_multiplier
+from ..util import get_const_tuple
 
 @tvm.target.generic_func
 def bitserial_conv2d_nchw(data, kernel, stride, padding, activation_bits, weight_bits,
@@ -68,7 +67,7 @@ def bitserial_conv2d_nchw(data, kernel, stride, padding, activation_bits, weight
     Input_q = bitpack(data, activation_bits, pack_axis=1, bit_axis=2, pack_type=pack_dtype)
     Filter_q = bitpack(filter, weight_bits, pack_axis=1, bit_axis=4, pack_type=pack_dtype)
     batch, in_channel, activation_bits, in_height, in_width = Input_q.shape
-    num_filter, channel, kernel_h, kernel_w, weight_bits = Filter_q.shape
+    num_filter, _, kernel_h, kernel_w, weight_bits = Filter_q.shape
 
     if isinstance(padding, int) or (isinstance(padding, (tuple, list)) and len(padding) == 2):
         TPAD, LPAD, DPAD, RPAD = get_pad_tuple(padding, kernel)
@@ -259,10 +258,11 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
                               filter=lambda x: max(x.size[1:]) <= 16)
     cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
 
-    re_axes = cfg.define_reorder("reorder_0",
-                                 [n, co, oh, ow, vc, vh, vw, kh, kw, kb, ib, ci],
-                                 policy='interval_all', interval=(6, 11))
-    cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW) # these are actually binary ops
+    cfg.define_reorder("reorder_0",
+                       [n, co, oh, ow, vc, vh, vw, kh, kw, kb, ib, ci],
+                       policy='interval_all', interval=(6, 11))
+    # binary ops
+    cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW * binary_op_multiplier(pack_dtype))
     # ====================
 
     VC = cfg["tile_co"].size[-1]
@@ -275,7 +275,7 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     oshape = (1, CO, OH, OW)
 
     if (TPAD != 0 and RPAD != 0):
-        data_pad = pad(data_q, (0, 0, 0, TPAD, LPAD), (0, 0, 0, DPAD, RPAD), name="data_pad")
+        data_pad = pad(data_q, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data_q
 
@@ -361,10 +361,11 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     ow, vw = cfg.define_split('tile_ow', ow, policy='all', num_outputs=2,
                               filter=lambda x: max(x.size[1:]) <= 16)
     cfg.define_annotate('ann_reduce', [ib, kb, kh, kw], policy='try_unroll')
-    re_axes = cfg.define_reorder("reorder_0",
-                                 [n, oh, ow, co, vh, vw, kh, kw, kb, ib, vc, ci],
-                                 policy='interval_all', interval=(3, 7))
-    cfg.add_flop(2 * N * OH * OW * CO * CI * 8 * KH * KW) # these are actually binary ops
+    cfg.define_reorder("reorder_0",
+                       [n, oh, ow, co, vh, vw, kh, kw, kb, ib, vc, ci],
+                       policy='interval_all', interval=(3, 7))
+    # binary ops
+    cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW * binary_op_multiplier(pack_dtype))
     # ====================
 
     VC = cfg["tile_co"].size[-1]
@@ -377,7 +378,7 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     oshape = (1, OH, OW, CO)
 
     if (DPAD != 0 and RPAD != 0):
-        data_pad = pad(data_q, (0, TPAD, LPAD, 0, 0), (0, DPAD, RPAD, 0, 0), name="data_pad")
+        data_pad = pad(data_q, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data_q
 
@@ -413,66 +414,3 @@ def spatial_pack_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     return tvm.compute(oshape, lambda n, h, w, co:
                        conv[n][h//VH][w//VW][co//VC][h%VH][w%VW][co%VC],
                        name='output_unpack', tag='spatial_bitserial_conv_nhwc')
-
-
-def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
-    """Packs data into format necessary for bitserial computation
-    pack_axis : int
-       index of the axis to pack in data
-    bit_axis : int
-       index of axis to place bit axis in resulting packed data"""
-    ishape = data.shape
-    n = len(ishape)
-    if pack_type == 'uint8':
-        data_width = 8
-    elif pack_type == 'uint16':
-        data_width = 16
-    elif pack_type == 'uint32':
-        data_width = 32
-    elif pack_type == 'uint64':
-        data_width = 64
-
-    # Data must be in multiples of the data_width
-    assert get_const_int(ishape[pack_axis]) % data_width == 0, "Not a multiple of word size"
-
-    shape_vec = list(ishape)
-    shape_vec[pack_axis] = (shape_vec[pack_axis] // data_width)
-    shape_vec.insert(bit_axis, 1)
-    bitserial_oshape = tuple(shape_vec)
-    masks = np.array([0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80])
-
-    # pack axis shifts if bit axis comes before
-    if bit_axis <= pack_axis:
-        pack_axis += 1
-
-    def _bitpack(*indices):
-        packed_data = [tvm.const(0, pack_type)] * bits
-        for k in range(data_width):
-            # Translate indices for packed data back to original
-            idx = [0] * n
-            j = 0
-            for i in range(n+1):
-                if i == bit_axis:
-                    continue
-                elif i == pack_axis:
-                    idx[j] = indices[i] * data_width + k
-                else:
-                    idx[j] = indices[i]
-                j += 1
-
-            element = data(*idx)
-            for b in range(bits):
-                extracted_bit = ((element & tvm.const(masks[b], "int32")) >> b).astype(pack_type)
-                packed_data[b] = (packed_data[b] | extracted_bit)
-                if k < data_width - 1:
-                    packed_data[b] = packed_data[b] << 1
-
-            if k == data_width - 1:
-                return tuple(packed_data)
-        return tuple(packed_data)
-
-    output_tuple = tvm.compute(bitserial_oshape, _bitpack, name=name, tag='bitpack')
-
-    if bits > 1:
-        return concatenate(output_tuple, axis=bit_axis)
-    return output_tuple
