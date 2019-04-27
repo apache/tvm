@@ -36,7 +36,6 @@
 #include <memory>
 #include <utility>
 #include <type_traits>
-#include "../../../src/runtime/custom_datatype_util.h"
 #include "c_runtime_api.h"
 #include "module.h"
 #include "ndarray.h"
@@ -945,12 +944,20 @@ inline const char* TypeCode2Str(int type_code) {
   }
 }
 
+// Get the name of a TVMType corresponding to a custom (user-defined) datatype
+TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
+TVM_DLL uint8_t GetCustomTypeCode(const std::string& type_name);
+
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  os << TypeCode2Str(t.code);
+  if (t.code > kExtEnd) {
+    os << "custom[" << GetCustomTypeName(t.code) << "]";
+  } else {
+    os << TypeCode2Str(t.code);
+  }
   if (t.code == kHandle) return os;
   os << static_cast<int>(t.bits);
   if (t.lanes != 1) {
@@ -971,7 +978,11 @@ inline std::string TVMType2String(TVMType t) {
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     return "bool";
   }
-  repr += TypeCode2Str(t.code);
+  if (t.code > kExtEnd) {
+    repr += "custom[" + GetCustomTypeName(t.code) + "]";
+  } else {
+    repr += TypeCode2Str(t.code);
+  }
   if (t.code == kHandle) return repr;
   repr += std::to_string(static_cast<int>(t.bits));
   if (t.lanes != 1) {
@@ -1020,7 +1031,7 @@ inline TVMType String2TVMType(std::string s) {
     scan += custom_name_len + 1;
 
     auto type_name = s.substr(7, custom_name_len);
-    t.code = GetTypeCode(type_name);
+    t.code = GetCustomTypeCode(type_name);
   } else {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;
