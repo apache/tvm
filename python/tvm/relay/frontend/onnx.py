@@ -299,7 +299,6 @@ class MaxPool(Pool):
             },
             # very weird attributes here in onnx, force check
             ignores=['dilations', 'auto_pad'],
-            # TODO(higumachan): make sure ceil_mode in onnx, and layout?
             custom_check=dimension_constraint())(inputs, attr, params)
 
 class Mul(Elemwise):
