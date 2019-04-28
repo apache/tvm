@@ -40,7 +40,7 @@ namespace nn {
 *
 * \param data Tensor with shape [batch, in_dim]
 * \param bias Tensor with shape [batch].
-*
+* \param axis The axis to add the bias to.
 * \return Tensor with shape [batch, in_dim]
 */
 inline tvm::Tensor bias_add(const tvm::Tensor& data, const tvm::Tensor& bias, int axis) {

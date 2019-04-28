@@ -117,6 +117,9 @@ header_groovystyle = """
 """.strip()
 
 FMT_MAP = {
+    "cc" : header_cstyle,
+    "h" : header_cstyle,
+    "py" : header_pystyle,
     "toml" : header_pystyle,
     "yml": header_pystyle,
     "yaml": header_pystyle,
@@ -149,6 +152,8 @@ def main(args):
         print("Usage: python add_asf_header.py <file_list>")
 
     for l in open(args[1]):
+        if l.startswith("-----"):
+            continue
         if l.find("File:") != -1:
             l = l.split(":")[-1]
         fname = l.strip()
