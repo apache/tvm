@@ -27,6 +27,13 @@ from .onnx_caffe2_utils import dimension_picker, dimension_constraint, \
 __all__ = ['from_onnx']
 
 
+def onnx_storage_order2layout(storage_order):
+    if storage_order not in (0, 1):
+        raise tvm.error.OpAttributeInvalid('Mode of storage_order must be either 0 or 1')
+
+     return ['NCHW', 'MHWC'][storage_order]
+
+
 class OnnxOpConverter(object):
     """ A helper class for holding onnx op converters.
     """
