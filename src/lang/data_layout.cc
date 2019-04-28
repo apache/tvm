@@ -94,7 +94,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
   LayoutNode *node = operator->();
   node->name = name;
 
-  if (name.empty()) return; // scalar
+  if (name.empty()) return;  // scalar
 
   // parse layout string
   int32_t factor = 0;
