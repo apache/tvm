@@ -38,7 +38,7 @@ namespace nnvm {
 /*! \brief any type */
 using dmlc::any;
 
-/*! \brief array_veiw type  */
+/*! \brief array_view type  */
 using dmlc::array_view;
 
 /*!\brief getter function of any type */
