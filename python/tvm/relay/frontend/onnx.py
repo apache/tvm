@@ -54,10 +54,11 @@ def revert_caffe2_pad(pads):
 
 
 def onnx_storage_order2layout(storage_order):
+    """converter of onnx storage order parameter to tvm storage order format"""
     if storage_order not in (0, 1):
         raise tvm.error.OpAttributeInvalid('Mode of storage_order must be either 0 or 1')
 
-    return ['NCHW', 'MHWC'][storage_order]
+    return ('NCHW', 'NHWC')[storage_order]
 
 
 def dimension_constraint():
@@ -67,6 +68,7 @@ def dimension_constraint():
         return False
 
     return _dim_check, "Only 2d kernel supported."
+
 
 class OnnxOpConverter(object):
     """ A helper class for holding onnx op converters.
