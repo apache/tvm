@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -617,6 +617,7 @@ inline Array<Tensor> split_sections(const Tensor& x,
 * \param a The source array.
 * \param indices The indices of the values to extract.
 * \param name The name of the operation.
+* \param mode The mode of to handle out of bound indices.
 * \param tag The tag to mark the operation.
 *
 * \return A Tensor whose op member is the take operation
@@ -655,6 +656,7 @@ inline Tensor take(const Tensor& a,
 * \param indices The indices of the values to extract.
 * \param axis The axis over which to select values. By default,
 * the flattened input array is used.
+* \param mode The mode of to handle out of bound indices.
 * \param name The name of the operation.
 * \param tag The tag to mark the operation.
 *
