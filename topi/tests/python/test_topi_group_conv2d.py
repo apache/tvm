@@ -194,7 +194,7 @@ def test_group_conv2d_nchw():
                              add_bias=True)
 
     # dilation
-    verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 2, 32)
+    verify_group_conv2d_nchw(1, 128, 56, 128, 3, 1, 1, 2, 32)
 
     # batch size
     verify_group_conv2d_nchw(2, 128, 56, 128, 3, 1, 1, 1, 32)
