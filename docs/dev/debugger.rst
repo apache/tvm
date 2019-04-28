@@ -155,7 +155,7 @@ folder specified while creating the runtime.
 Sample Output
 ***************************************
 
-The below is the output of running  ``tvm/nnvm/tutorials/from_onnnx.py`` with debugger.
+The below is the output of running  ``tvm/nnvm/tutorials/from_onnx.py`` with debugger.
 
 ::
 
