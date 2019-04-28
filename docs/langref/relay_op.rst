@@ -165,7 +165,6 @@ This level enables additional math and transform operators.
 
 
 **Level 6: Algorithm Operators**
--------------------
 
 .. autosummary::
    :nosignatures:
