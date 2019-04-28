@@ -20,10 +20,8 @@ set -e
 set -u
 set -o pipefail
 
-wget -q https://sdk.lunarg.com/sdk/download/1.0.65.0/linux/vulkansdk-linux-x86_64-1.0.65.0.run
-
-bash vulkansdk-linux-x86_64-1.0.65.0.run
-mv VulkanSDK /usr/local/VulkanSDK
-cd /usr/local/VulkanSDK/1.0.65.0
-./build_tools.sh
-./build_samples.sh
+cd /tmp
+wget -q http://www.trieuvan.com/apache//creadur/apache-rat-0.12/apache-rat-0.12-bin.tar.gz
+tar xf apache-rat-0.12-bin.tar.gz
+mv apache-rat-0.12/apache-rat-0.12.jar /bin/apache-rat.jar
+rm -rf apache-rat-0.12-bin.tar.gz apache-rat-0.12
