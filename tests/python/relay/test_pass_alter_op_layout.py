@@ -370,7 +370,7 @@ def test_alter_layout_scalar():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "actual = \n" + str(a)
 
 def test_alter_layout_concatenate():
     """ """
