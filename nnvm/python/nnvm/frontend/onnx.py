@@ -209,6 +209,35 @@ class Gemm(OnnxOpConverter):
 class MaxPool(Pool):
     name = 'max_pool'
 
+    @classmethod
+    def _impl_v8(cls, inputs, attr, params):
+        return AttrCvt(
+            op_name=dimension_picker(cls.name),
+            transforms={
+                'kernel_shape': 'pool_size',
+                'pads': ('padding', (0, 0), revert_caffe2_pad),
+                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
+            },
+            # very weird attributes here in onnx, force check
+            ignores=['dilations', 'auto_pad'],
+            # TODO(higumachan): make sure ceil_mode in onnx, and layout?
+            extras={'ceil_mode': False},
+            custom_check=dimension_constraint())(inputs, attr, params)
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        return AttrCvt(
+            op_name=dimension_picker(cls.name),
+            transforms={
+                'kernel_shape': 'pool_size',
+                'pads': ('padding', (0, 0), revert_caffe2_pad),
+                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
+                'ceil_mode': 'ceil_mode'
+            },
+            # very weird attributes here in onnx, force check
+            ignores=['dilations', 'auto_pad'],
+            # TODO(higumachan): make sure ceil_mode in onnx, and layout?
+            custom_check=dimension_constraint())(inputs, attr, params)
 
 class Mul(Elemwise):
     name = 'mul'
