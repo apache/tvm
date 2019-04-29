@@ -34,11 +34,11 @@ class TargetDataLayoutEncoder {
     /*!
      * \brief constructor
      * \param parent pointer to parent encoder
-     * \param start_offs start byte offset of the slot in the backing buffer
+     * \param start_offset start byte offset of the slot in the backing buffer
      * \param size size (in bytes) of the memory region allocated for this slot
      * \param dev_start_addr start address of the slot in the device's memory
      */
-    Slot(TargetDataLayoutEncoder* parent, size_t start_offs, size_t size, void* dev_start_addr);
+    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, void* dev_start_addr);
 
     ~Slot();
 
@@ -47,7 +47,7 @@ class TargetDataLayoutEncoder {
      * \param src_ptr address of the buffer to be read from
      * \param num_elems number of elements in array (defaults to 1)
      */
-    void Write(const T* src_ptr, size_t num_elems=1);
+    void Write(const T* src_ptr, size_t num_elems = 1);
 
     /*!
      * \brief returns start address of the slot in device memory
@@ -91,14 +91,14 @@ class TargetDataLayoutEncoder {
    * \return slot of size `sizeof(T) * num_elems` bytes
    */
   template <typename T>
-  Slot<T> Alloc(size_t num_elems=1) {
+  Slot<T> Alloc(size_t num_elems = 1) {
     size_t size = sizeof(T) * num_elems;
     if (curr_offset_ + size > buf_.size()) {
       buf_.resize(curr_offset_ + size);
     }
-    size_t slot_start_offs = curr_offset_;
+    size_t slot_start_offset = curr_offset_;
     curr_offset_ += size;
-    return Slot<T>(this, slot_start_offs, size, GetDevAddr(slot_start_offs));
+    return Slot<T>(this, slot_start_offset, size, GetDevAddr(slot_start_offset));
   }
 
   /*!
@@ -138,10 +138,10 @@ class TargetDataLayoutEncoder {
 };
 
 template <typename T>
-TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent, size_t start_offs,
+TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent, size_t start_offset,
                                        size_t size, void* dev_start_addr)
     : parent_(parent),
-      start_offset_(start_offs),
+      start_offset_(start_offset),
       curr_offset_(0),
       size_(size),
       dev_start_addr_(dev_start_addr) {}
