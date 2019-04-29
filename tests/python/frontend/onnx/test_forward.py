@@ -724,10 +724,15 @@ def verify_constantfill(is_shape, input_dim, out_dim, value, dtype, **kwargs):
     else:
         fill_node = helper.make_node("ConstantFill", ["input_a"], ["out"], value=value, dtype=dtype, **kwargs)
 
+    if is_shape == True:
+        inputs = []
+    else:
+        inputs = [helper.make_tensor_value_info("input_a",
+                  TensorProto.FLOAT, list(input_dim))]
+
     graph = helper.make_graph([fill_node],
                               "fill_test",
-                              inputs = [helper.make_tensor_value_info("input_a",
-                                            TensorProto.FLOAT, list(input_dim))],
+                              inputs,
                               outputs = [helper.make_tensor_value_info("out",
                                             TensorProto.FLOAT, list(out.shape))])
 
