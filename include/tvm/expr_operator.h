@@ -552,10 +552,13 @@ inline Expr MakeConstScalar(Type t, ValueType value) {
   if (t.is_int()) return ir::IntImm::make(t, static_cast<int64_t>(value));
   if (t.is_uint()) return ir::UIntImm::make(t, static_cast<uint64_t>(value));
   if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
+  // TODO(gus) document how we check for custom type (>128)
   if (datatype::Registry::Global()->GetTypeRegistered(static_cast<uint8_t>(t.code()))) {
     return ir::UIntImm::make(t, datatype::ConvertConstScalar(static_cast<uint8_t>(t.code()),
                                                              static_cast<double>(value)));
   }
+  // TODO(gus) do we need to worry about a type being >128, but not being registered? Should we
+  // catch that here, or later?
   LOG(FATAL) << "cannot make const for type " << t;
   return Expr();
 }
