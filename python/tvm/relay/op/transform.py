@@ -315,28 +315,6 @@ def arange(start, stop=None, step=1, dtype="float32"):
     return _make.arange(start, stop, step, dtype)
 
 
-def stack(data, axis):
-    """Join a sequence of arrays along a new axis.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data to the operator.
-
-    axis : int
-        The axis in the result array along which the input arrays are stacked.
-
-    .. note::
-        Each array in the input array sequence must have the same shape.
-
-    Returns
-    -------
-    ret : relay.Expr
-        The computed result.
-    """
-    return _make.stack(data, axis)
-
-
 def repeat(data, repeats, axis):
     """Repeats elements of an array.
     By default, repeat flattens the input array into 1-D and then repeats the elements.
@@ -698,5 +676,4 @@ def gather_nd(data, indices):
         indices = [[0, 1], [1, 0]]
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
     """
-
     return _make.gather_nd(data, indices)

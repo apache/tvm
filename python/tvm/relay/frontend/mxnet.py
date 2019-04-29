@@ -186,6 +186,13 @@ def _mx_pooling(inputs, attrs):
         'Operator {} Pooling is not supported for frontend MXNet.'.format(pool_type.capitalize()))
 
 
+def _mx_adaptive_avg_pooling(inputs, attrs):
+    output_size = attrs.get_int_tuple("output_size", [])
+    if output_size != (1,):
+        raise RuntimeError("AdaptiveAvgPooling with output_size other than 1 is not supported yet.")
+    return _op.nn.global_avg_pool2d(inputs[0])
+
+
 def _mx_dropout(inputs, attrs):
     rate = attrs.get_float("p", 0.5)
     return _op.nn.dropout(inputs[0], rate=rate)
@@ -529,15 +536,6 @@ def _mx_box_nms(inputs, attrs):
     id_index = attrs.get_int('id_index', -1)
     in_format = attrs.get_str('in_format', 'corner')
     out_format = attrs.get_str('out_format', 'corner')
-    if coord_start != 2:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "coord_start" must equal 2 for operator box_nms.')
-    if score_index != 1:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "score_index" must equal 1 for operator box_nms.')
-    if id_index != -1 and int(id_index) != 0:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "id_index" must equal either -1 or 0 for operator box_nms.')
     if in_format != 'corner':
         raise tvm.error.OpAttributeInvalid(
             'Value of attribute "in_format" must equal "corner" for operator box_nms.')
@@ -551,6 +549,8 @@ def _mx_box_nms(inputs, attrs):
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
                                              top_k=top_k,
+                                             coord_start=coord_start,
+                                             score_index=score_index,
                                              id_index=id_index,
                                              return_indices=False,
                                              invalid_to_bottom=True)
@@ -646,6 +646,15 @@ def _mx_deformable_convolution(inputs, attrs):
         assert len(inputs) == 4
         res = _op.nn.bias_add(res, inputs[3])
     return res
+
+
+def _mx_argsort(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
+    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    return _op.argsort(inputs[0], **new_attrs)
 
 
 # Note: due to attribute conversion constraint
@@ -783,6 +792,7 @@ _convert_map = {
     "BlockGrad"     : _mx_BlockGrad,
     "shape_array"   : _mx_shape_array,
     "Embedding"     : _mx_embedding,
+    "argsort"       : _mx_argsort,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "smooth_l1"     : _mx_smooth_l1,
@@ -796,6 +806,7 @@ _convert_map = {
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
+    "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #

@@ -24,11 +24,11 @@ def test_sort():
     data = tvm.placeholder((n, l, m), name='data')
     sort_num = tvm.placeholder((n, m), name="sort_num", dtype="int32")
     axis = 1
-    is_descend = True
+    is_ascend = False
     out = tvm.extern(data.shape, [data, sort_num],
                      lambda ins, outs: tvm.call_packed(
-                         "tvm.contrib.sort.argsort", ins[0],
-                         ins[1], outs[0], axis, is_descend),
+                         "tvm.contrib.sort.argsort_nms", ins[0],
+                         ins[1], outs[0], axis, is_ascend),
                      dtype='int32', name="sort_tensor")
     input = [[[1, 2, 3], [2, 4.5, 3.5], [1.1, 0.5, 1], [3.2, -5, 0.5], [1.5, 0, 0]],
              [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15]]]
@@ -50,13 +50,13 @@ def test_sort_np():
     dshape = (1, 2, 3, 4, 5, 6)
     axis = 4
     reduced_shape = (1, 2, 3, 4, 6)
-    is_descend = False
+    is_ascend = True
     data = tvm.placeholder(dshape, name='data')
     sort_num = tvm.placeholder(reduced_shape, name="sort_num", dtype="int32")
     out = tvm.extern(data.shape, [data, sort_num],
                      lambda ins, outs: tvm.call_packed(
-                         "tvm.contrib.sort.argsort", ins[0],
-                         ins[1], outs[0], axis, is_descend),
+                         "tvm.contrib.sort.argsort_nms", ins[0],
+                         ins[1], outs[0], axis, is_ascend),
                      dtype='int32', name="sort_tensor")
 
     ctx = tvm.cpu(0)
