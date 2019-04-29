@@ -267,7 +267,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const TupleNode* op) final {
     CHECK(graph_.node_map.count(op));
     Node* tuple_node = graph_.node_map.at(op);
-    tuple_node->pattern = kInjective;
+    tuple_node->pattern = kTuple;
     for (const Expr& field : op->fields) {
       if (field->checked_type().as<TensorTypeNode>()) {
         this->Update(field, tuple_node, kInjective);
@@ -661,12 +661,36 @@ class GraphPartitioner {
       // no actions needed if the current node have no dominator
       if (dom_node->parent == nullptr) continue;
       CHECK(!graph_node->extern_ref);
-      // Skip if current node is already fused to the parent.
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
+
+      if (phase == 2) {
+        // Fuse injective ops into intermediate tuples, if any
+        if (group_node->pattern > kInjective) continue;
+        Group* dom_parent_group = groups_[dom_parent_gindex];
+        Group* dom_root_group = dom_parent_group->FindRoot();
+        // If dom node group has a tuple as its root, we do not fuse tuple fields into it
+        if (dom_root_group->pattern == kTuple) continue;
+        if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= kInjective) {
+          // Now we know the tuple has been fused into subsequent injective ops
+          auto fcond = [](OpPatternKind kind, bool is_sink) {
+            return kind <= kInjective;
+          };
+          // dom_root_group can also be tuple, as in inception layers
+          // CheckPath is needed to avoid fusing two intermediate tuples
+          if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
+            CommitFuse(graph_node, dom_node->parent->gnode);
+          }
+        }
+        continue;
+      }
+
+      // Skip if current node is already fused to the parent.
       if (groups_[dom_parent_gindex] != nullptr &&
           group_node->FindRoot() == groups_[dom_parent_gindex]->FindRoot()) {
         continue;
       }
+      // Do not fuse into tuple for now
+      if (groups_[dom_parent_gindex]->pattern == kTuple) continue;
       // Try to fuse current node to its post-dominator.
       if (group_node->pattern == kOutEWiseFusable) {
         if (phase != 0) continue;
@@ -702,7 +726,7 @@ class GraphPartitioner {
             CommitFuse(graph_node, dom_node->parent->gnode);
           }
         }
-      } else if (group_node->pattern == kInjective) {
+      } else if (group_node->pattern == kInjective || group_node->pattern == kTuple) {
         // defer injective fusion to second phase.
         // so conv2d always finishes fusing.
         if (phase != 1) continue;
@@ -728,7 +752,7 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
   // get post dominator tree
   auto post_dom_tree = DominatorTree::PostDom(arena_, graph);
   // run fusion algorithm.
-  for (int phase = 0; phase < 2; ++phase) {
+  for (int phase = 0; phase < 3; ++phase) {
     this->RunFuse(graph, post_dom_tree, phase);
   }
   return std::move(groups_);
@@ -821,29 +845,11 @@ class FuseMutator : private ExprMutator {
 
   Expr VisitExpr_(const TupleNode* tuple) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
-    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     if (ret_group == gmap_.at(tuple)) {
-      // This tuple is the root of its group. Check if all fields come from other groups.
-      bool isolated = new_fields.size() == ginfo_[ret_group].params.size();
-      for (size_t i = 0; i < new_fields.size() && isolated; ++i) {
-        isolated &= (new_fields[i].same_as(ginfo_[ret_group].params[i]));
-      }
-      if (isolated) {
-        // Do not put a isolated tuple into a function
-        return ExprMutator::VisitExpr_(tuple);
-      }
-      // This tuple has been fused with other ops before it
-      for (size_t i = 0; i < new_fields.size(); i++) {
-        // Copy function arguments to tuple field of the output because currently graph memory
-        // planer doesn't support inplace operations
-        if (new_fields[i].as<VarNode>()) {
-          auto copy = Copy(new_fields[i]);
-          new_fields.Set(i, copy);
-        }
-      }
-      return MakeNewFunction(ret_group, tuple->checked_type(), TupleNode::make(new_fields));
+      return ExprMutator::VisitExpr_(tuple);
     }
     // This tuple is an intermediate node in the group
+    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     return TupleNode::make(new_fields);
   }
 
