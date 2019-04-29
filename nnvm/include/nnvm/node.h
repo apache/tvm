@@ -50,6 +50,13 @@ using NodePtr = std::shared_ptr<Node>;
 
 /*! \brief an entry that represents output data from a node */
 struct NodeEntry {
+  NodeEntry(NodePtr node, size_t index, uint32_t version):
+      node(std::move(node)),
+      index(static_cast<uint32_t>(index)),
+      version(version)
+  {
+    CHECK(index <= std::numeric_limits<uint32_t>::max());
+  }
   NodeEntry(NodePtr node, uint32_t index, uint32_t version):
     node(std::move(node)),
     index(index),
