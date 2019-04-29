@@ -393,7 +393,7 @@ def global_avg_pool2d(data,
 def adaptive_max_pool2d(data,
                         output_size=None,
                         layout="NCHW"):
-    r"""2D adaptive max pooling operator.
+    r"""2D adaptive max pooling operator. This operator is experimental.
 
     This operator takes data as input and does 2D max value calculation
     across each window represented by WxH.
@@ -439,7 +439,7 @@ def adaptive_max_pool2d(data,
 def adaptive_avg_pool2d(data,
                         output_size=None,
                         layout="NCHW"):
-    r"""2D adaptive average pooling operator.
+    r"""2D adaptive average pooling operator. This operator is experimental.
 
     This operator takes data as input and does 2D average value calculation
     across each window represented by WxH.
