@@ -486,14 +486,14 @@ Expr MakeAdaptiveAvgPool2D(Expr data,
   auto attrs = make_node<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
-  static const Op& op = Op::Get("nn.adaptive_avg_pool2d");
+  static const Op& op = Op::Get("nn.contrib_adaptive_avg_pool2d");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.adaptive_avg_pool2d")
+TVM_REGISTER_API("relay.op.nn._make.contrib_adaptive_avg_pool2d")
 .set_body_typed(MakeAdaptiveAvgPool2D);
 
-RELAY_REGISTER_OP("nn.adaptive_avg_pool2d")
+RELAY_REGISTER_OP("nn.contrib_adaptive_avg_pool2d")
   .describe(R"code(Adaptive average pooling operation for 2D data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
@@ -525,14 +525,14 @@ Expr MakeAdaptiveMaxPool2D(Expr data,
   auto attrs = make_node<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
-  static const Op& op = Op::Get("nn.adaptive_max_pool2d");
+  static const Op& op = Op::Get("nn.contrib_adaptive_max_pool2d");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.adaptive_max_pool2d")
+TVM_REGISTER_API("relay.op.nn._make.contrib_adaptive_max_pool2d")
 .set_body_typed(MakeAdaptiveMaxPool2D);
 
-RELAY_REGISTER_OP("nn.adaptive_max_pool2d")
+RELAY_REGISTER_OP("nn.contrib_adaptive_max_pool2d")
   .describe(R"code(Adaptive max pooling operation for 2D data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape

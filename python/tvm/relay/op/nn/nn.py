@@ -390,9 +390,9 @@ def global_avg_pool2d(data,
     return _make.global_avg_pool2d(data, layout)
 
 
-def adaptive_max_pool2d(data,
-                        output_size=None,
-                        layout="NCHW"):
+def contrib_adaptive_max_pool2d(data,
+                                output_size=None,
+                                layout="NCHW"):
     r"""2D adaptive max pooling operator. This operator is experimental.
 
     This operator takes data as input and does 2D max value calculation
@@ -434,11 +434,11 @@ def adaptive_max_pool2d(data,
         The computed result.
     """
     output_size = [] or output_size
-    return _make.adaptive_max_pool2d(data, output_size, layout)
+    return _make.contrib_adaptive_max_pool2d(data, output_size, layout)
 
-def adaptive_avg_pool2d(data,
-                        output_size=None,
-                        layout="NCHW"):
+def contrib_adaptive_avg_pool2d(data,
+                                output_size=None,
+                                layout="NCHW"):
     r"""2D adaptive average pooling operator. This operator is experimental.
 
     This operator takes data as input and does 2D average value calculation
@@ -480,7 +480,7 @@ def adaptive_avg_pool2d(data,
         The computed result.
     """
     output_size = [] or output_size
-    return _make.adaptive_avg_pool2d(data, output_size, layout)
+    return _make.contrib_adaptive_avg_pool2d(data, output_size, layout)
 
 
 def upsampling(data,

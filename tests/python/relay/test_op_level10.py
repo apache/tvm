@@ -233,7 +233,7 @@ def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="fl
                     l_sl = slice(l_start, l_end)
                     np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
 
-    opfunc = relay.nn.adaptive_avg_pool2d if pool_type == "avg" else relay.nn.adaptive_max_pool2d
+    opfunc = relay.nn.contrib_adaptive_avg_pool2d if pool_type == "avg" else relay.nn.contrib_adaptive_max_pool2d
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = opfunc(x, out_size, layout)
     func = relay.Function([x], y)
