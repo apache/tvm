@@ -88,11 +88,13 @@ Layout::Layout(const Array<IterVar>& axes) {
 }
 
 Layout::Layout(const std::string& name) { // NOLINT(*)
-  if (name.empty() || name == "__undef__") return;
+  if (name == "__undef__") return;
 
   node_ = make_node<LayoutNode>();
   LayoutNode *node = operator->();
   node->name = name;
+
+  if (name.empty()) return;  // scalar
 
   // parse layout string
   int32_t factor = 0;
@@ -146,6 +148,7 @@ Layout LayoutNode::make(const std::string& layout) {
 
 Layout Layout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return Layout::Undef();
+  if (len == 0) return Layout(Array<IterVar>());
   if (pos + len > ndim()) len = ndim() - pos;
   Array<IterVar> new_layout;
   const auto axes = operator->()->axes;
@@ -195,6 +198,10 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
 inline bool GetStoreRule(Array<Expr>* rule,
                          const Layout& src_layout,
                          const Layout& dst_layout) {
+  if (!src_layout.defined() || src_layout.name().empty() ||
+      !dst_layout.defined() || dst_layout.name().empty()) {
+    return false;
+  }
   for (size_t i = 0; i < dst_layout.ndim(); ++i) {
     const auto& store_axis = dst_layout[i];
     const IterVar& store_axis_impl = dst_layout->axes[i];
