@@ -57,7 +57,7 @@ def test_alter_op():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_return_none():
@@ -81,7 +81,7 @@ def test_alter_return_none():
 
     b = before()
     b = infer_type(b)
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
 
@@ -147,7 +147,7 @@ def test_alter_layout():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_dual_path():
@@ -213,7 +213,7 @@ def test_alter_layout_dual_path():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_resnet():
     """Test alternating the layout of a residual block
@@ -273,7 +273,7 @@ def test_alter_layout_resnet():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_broadcast_op():
@@ -323,7 +323,7 @@ def test_alter_layout_broadcast_op():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_scalar():
     """Test alternating the layout of a conv2d.
@@ -370,7 +370,7 @@ def test_alter_layout_scalar():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_concatenate():
     """ """
@@ -425,7 +425,7 @@ def test_alter_layout_concatenate():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_nchw_upsamping_op():
@@ -469,7 +469,7 @@ def test_alter_layout_nchw_upsamping_op():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_strided_slice():
@@ -511,7 +511,7 @@ def test_alter_layout_strided_slice():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 if __name__ == "__main__":
