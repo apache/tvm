@@ -60,9 +60,9 @@ def _darknet_maxpooling(inputs, params, attrs, prefix):
     extra_pad_size = attrs.get('extra_pad_size', 0)
     if extra_pad_size:
         pad_width = ((0, 0), (0, 0), (0, extra_pad_size), (0, extra_pad_size))
-        inputs = get_relay_op('pad')(*inputs,
-                                     pad_width=pad_width,
-                                     pad_value=np.finfo(np.float32).min)
+        inputs = [get_relay_op('pad')(*inputs,
+                                      pad_width=pad_width,
+                                      pad_value=np.finfo(np.float32).min)]
     return get_relay_op('max_pool2d')(*inputs, **new_attrs)
 
 def _darknet_avgpooling(inputs, params, attrs, prefix):
