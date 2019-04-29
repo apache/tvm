@@ -16,6 +16,7 @@
 #include "low_level_device.h"
 #include "micro_common.h"
 #include "device/utvm_runtime.h"
+#include "target_data_layout_encoder.h"
 
 namespace tvm {
 namespace runtime {
@@ -184,6 +185,22 @@ class MicroSession {
    * \param path to init stub binary
    */
   void SetInitBinaryPath(std::string path);
+
+  /*!
+   * \brief writes arguments to the host-side buffer of `encoder`
+   * \param encoder encoder being used to write `args`
+   * \param args pointer to the args to be written
+   * \return device address of the allocated args
+   */
+  void* EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* args);
+
+  /*!
+   * \brief writes a `TVMArray` to the host-side buffer of `encoder`
+   * \param encoder encoder being used to write `arr`
+   * \param arr pointer to the TVMArray to be written
+   * \return device address of the allocated `TVMArray`
+   */
+  void* EncoderWrite(TargetDataLayoutEncoder* encoder, TVMArray* arr);
 };
 }  // namespace runtime
 }  // namespace tvm

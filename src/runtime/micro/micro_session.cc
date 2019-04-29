@@ -128,7 +128,7 @@ void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
       .type_codes = const_cast<int*>(args.type_codes),
       .num_args = args.num_args,
   };
-  encoder.Write(&u_args);
+  EncoderWrite(&encoder, &u_args);
   // Flush `stream` to device memory.
   void* stream_dev_addr = args_allocator_->Allocate(encoder.buf_size());
   low_level_device()->Write(stream_dev_addr,
@@ -178,6 +178,69 @@ void MicroSession::LoadInitStub() {
 
 void MicroSession::SetInitBinaryPath(std::string path) {
   init_binary_path_ = path;
+}
+
+void* MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* args) {
+  auto utvm_args_slot = encoder->Alloc<UTVMArgs>();
+
+  const int* type_codes = args->type_codes;
+  int num_args = args->num_args;
+
+  auto tvm_vals_slot = encoder->Alloc<TVMValue*>(num_args);
+  auto type_codes_slot = encoder->Alloc<const int>(num_args);
+
+  for (int i = 0; i < num_args; i++) {
+    switch (type_codes[i]) {
+      case kNDArrayContainer: {
+        TVMValue* val_addr = reinterpret_cast<TVMValue*>(
+            EncoderWrite(encoder, reinterpret_cast<TVMArray*>(args->values[i].v_handle)));
+        tvm_vals_slot.Write(&val_addr);
+        break;
+      }
+      // TODO(mutinifni): implement other cases if needed
+      default:
+        LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
+        break;
+    }
+  }
+  type_codes_slot.Write(type_codes, num_args);
+
+  UTVMArgs dev_args = {
+    .values = reinterpret_cast<TVMValue*>(tvm_vals_slot.dev_start_addr()),
+    .type_codes = reinterpret_cast<int*>(type_codes_slot.dev_start_addr()),
+    .num_args = num_args,
+  };
+  utvm_args_slot.Write(&dev_args);
+  return utvm_args_slot.dev_start_addr();
+}
+
+void* MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, TVMArray* arr) {
+  auto tvm_arr_slot = encoder->Alloc<TVMArray>();
+  auto shape_slot = encoder->Alloc<int64_t>(arr->ndim);
+
+  // `shape` and `strides` are stored on the host, so we need to write them to
+  // the device first. The `data` field is already allocated on the device and
+  // is a device pointer, so we don't need to write it.
+  shape_slot.Write(arr->shape, arr->ndim);
+  void* shape_addr = shape_slot.dev_start_addr();
+  void* strides_addr = nullptr;
+  if (arr->strides != nullptr) {
+    auto stride_slot = encoder->Alloc<int64_t>(arr->ndim);
+    stride_slot.Write(arr->strides, arr->ndim);
+    strides_addr = stride_slot.dev_start_addr();
+  }
+
+  // Copy `arr`, update the copy's pointers to be device pointers, then
+  // write the copy to `tvm_arr_slot`.
+  TVMArray dev_arr = *arr;
+  // Add the base address of the device to the array's data's device offset to
+  // get a device address.
+  dev_arr.data = reinterpret_cast<uint8_t*>(const_cast<void*>(low_level_device()->base_addr())) +
+                  reinterpret_cast<std::uintptr_t>(arr->data);
+  dev_arr.shape = static_cast<int64_t*>(shape_addr);
+  dev_arr.strides = static_cast<int64_t*>(strides_addr);
+  tvm_arr_slot.Write(&dev_arr);
+  return tvm_arr_slot.dev_start_addr();
 }
 
 // initializes micro session and low-level device from Python frontend
