@@ -50,18 +50,14 @@ using NodePtr = std::shared_ptr<Node>;
 
 /*! \brief an entry that represents output data from a node */
 struct NodeEntry {
-  NodeEntry(NodePtr node, size_t index, uint32_t version):
+  NodeEntry(NodePtr node, size_t index, size_t version):
       node(std::move(node)),
       index(static_cast<uint32_t>(index)),
       version(version)
   {
     CHECK(index <= std::numeric_limits<uint32_t>::max());
+    CHECK(version <= std::numeric_limits<uint32_t>::max());
   }
-  NodeEntry(NodePtr node, uint32_t index, uint32_t version):
-    node(std::move(node)),
-    index(index),
-    version(version)
-  {}
 
   explicit NodeEntry(NodePtr node):
     node(std::move(node)),
@@ -224,7 +220,7 @@ inline NodeEntry MakeNode(
     p->attrs.op->attr_parser(&(p->attrs));
   }
   p->inputs = std::move(inputs);
-  return NodeEntry(p, 0, 0);
+  return NodeEntry(p);
 }
 
 // implementation of functions.
