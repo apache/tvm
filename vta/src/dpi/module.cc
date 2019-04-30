@@ -2,8 +2,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include <vta/dpi/dpi_module.h>
-#include <vta/dpi/tsim_dpi.h>
+#include <vta/dpi/module.h>
+#include <vta/dpi/tsim.h>
 #if defined(_WIN32)
 #include <windows.h>
 #else

@@ -63,7 +63,7 @@ elseif(PYTHON)
 
   # DPI module
   include_directories("vta/include")
-  file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/dpi_module.cc)
+  file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
 else()
   message(STATUS "Cannot found python in env, VTA build is skipped..")

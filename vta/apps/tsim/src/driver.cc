@@ -1,6 +1,6 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
-#include <vta/dpi/dpi_module.h>
+#include <vta/dpi/module.h>
 
 namespace vta {
 namespace driver {

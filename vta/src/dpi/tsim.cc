@@ -1,4 +1,4 @@
-#include <vta/dpi/tsim_dpi.h>
+#include <vta/dpi/tsim.h>
 
 #if VM_TRACE
 #include <verilated_vcd_c.h>

@@ -110,7 +110,7 @@ else()
       endif()
 
       file(GLOB VERILATOR_GEN_SRC ${VERILATOR_TARGET_DIR}/*.cpp)
-      file(GLOB VERILATOR_SRC ${VTA_DPI_DIR}/tsim_dpi.cc)
+      file(GLOB VERILATOR_SRC ${VTA_DPI_DIR}/tsim.cc)
       add_library(tsim SHARED ${VERILATOR_LIB_SRC} ${VERILATOR_GEN_SRC} ${VERILATOR_SRC})
 
       set(VERILATOR_DEF VL_TSIM_NAME=V${TSIM_TOP_NAME} VL_PRINTF=printf VM_COVERAGE=0 VM_SC=0)
