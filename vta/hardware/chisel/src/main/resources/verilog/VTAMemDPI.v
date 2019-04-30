@@ -81,7 +81,7 @@ module VTAMemDPI #
   assign __req_len    = dpi_req_len;
   assign __req_addr   = dpi_req_addr;
   assign __wr_valid   = dpi8_t ' (dpi_wr_valid);
-  assign __wr_value    = dpi_wr_bits;
+  assign __wr_value   = dpi_wr_bits;
   assign __rd_ready   = dpi8_t ' (dpi_rd_ready);
 
   // evaluate DPI function
