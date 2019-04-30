@@ -560,7 +560,8 @@ inline Expr MakeConstScalar(Type t, ValueType value) {
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
   // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (tvm::runtime::GetCustomTypeRegistered(t.code())) return ir::FloatImm::make(t, static_cast<double>(value));
+  if (tvm::runtime::GetCustomTypeRegistered(t.code()))
+    return ir::FloatImm::make(t, static_cast<double>(value));
   LOG(FATAL) << "cannot make const for type " << t;
   return Expr();
 }
