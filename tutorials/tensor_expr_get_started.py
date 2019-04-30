@@ -143,10 +143,10 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 # We provide an minimum array API in python to aid quick testing and prototyping.
 # The array API is based on `DLPack <https://github.com/dmlc/dlpack>`_ standard.
 #
-# - We first create a gpu context.
-# - Then tvm.nd.array copies the data to gpu.
+# - We first create a GPU context.
+# - Then tvm.nd.array copies the data to GPU.
 # - fadd runs the actual computation.
-# - asnumpy() copies the gpu array back to CPU and we can use this to verify correctness
+# - asnumpy() copies the GPU array back to CPU and we can use this to verify correctness
 #
 ctx = tvm.context(tgt, 0)
 
