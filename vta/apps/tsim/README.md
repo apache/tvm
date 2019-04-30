@@ -31,6 +31,11 @@ sudo apt install verilator sbt
 ```bash
 git clone git@github.com:vegaluisjose/tvm.git
 git checkout tsim
+mkdir build
+cp cmake/config.cmake build # enable USE_VTA_TSIM
+cd build
+cmake ..
+make
 ```
 
 2. Add-by-one Verilog example
