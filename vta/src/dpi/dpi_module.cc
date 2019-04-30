@@ -194,7 +194,7 @@ class DPIModule final : public DPIModuleNode {
         GetSymbol("VTADPIInit"));
     CHECK(finit != nullptr);
     finit(this, VTAHostDPI, VTAMemDPI);
-    fvsim_ = reinterpret_cast<VTASimFunc>(GetSymbol("VTASim"));
+    fvsim_ = reinterpret_cast<VTADPISimFunc>(GetSymbol("VTADPISim"));
     CHECK(fvsim_ != nullptr);
   }
 
@@ -222,7 +222,7 @@ class DPIModule final : public DPIModuleNode {
   }
 
  protected:
-  VTASimFunc fvsim_;
+  VTADPISimFunc fvsim_;
   HostDevice host_device_;
   MemDevice mem_device_;
   std::thread vsim_thread_;

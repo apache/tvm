@@ -64,8 +64,8 @@ typedef void (*VTADPIInitFunc)(VTAContextHandle handle,
                             VTAMemDPIFunc mem_dpi);
 
 
-/*! \brief The type of VTASim function pointer */
-typedef int (*VTASimFunc)(uint64_t max_cycles);
+/*! \brief The type of VTADPISim function pointer */
+typedef int (*VTADPISimFunc)(uint64_t max_cycles);
 
 /*!
  * \brief Set Host and Memory DPI functions
@@ -80,7 +80,7 @@ TVM_DLL void VTADPIInit(VTAContextHandle handle,
  * \brief Instantiate VTA design and generate clock/reset.
  * \param max_cycles The maximum number of simulation cycles.
  */
-TVM_DLL int VTASim(uint64_t max_cycles);
+TVM_DLL int VTADPISim(uint64_t max_cycles);
 
 #ifdef __cplusplus
 }

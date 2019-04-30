@@ -51,7 +51,7 @@ void VTADPIInit(VTAContextHandle handle,
   _mem_dpi = mem_dpi;
 }
 
-int VTASim(uint64_t max_cycles) {
+int VTADPISim(uint64_t max_cycles) {
   uint64_t trace_count = 0;
 
 #if VM_TRACE
