@@ -4,10 +4,10 @@ import topi
 import tvm.ir_pass as ir_pass
 import numpy as np
 
+tgt = "llvm"
 
-def test_bfloat():
-    tgt = "llvm"
 
+def setup():
     # You must first load the library containing the datatype implementation.
     # In this case, we have built the test functions used below right into TVM.
     # CDLL("libmybfloat16.so", RTLD_GLOBAL)
@@ -26,6 +26,8 @@ def test_bfloat():
         tvm.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
         "bfloat")
 
+
+def test_bfloat_add_and_cast_1():
     X = tvm.placeholder((3, ), name="X")
     Y = tvm.placeholder((3, ), name="Y")
     Z = topi.cast(
@@ -39,20 +41,8 @@ def test_bfloat():
     s = tvm.create_schedule([Z.op])
     flist = tvm.lower(s, [X, Y, Z])
     flist = [flist]
-    # print(flist[0].body)
-    # def callback(stmt):
-    #     if isinstance(stmt, tvm.expr.Load):
-    #         print(stmt)
-    # tvm.ir_pass.PostOrderVisit(flist[0].body, callback)
-    #def callback(stmt):
-    #if isinstance(stmt, tvm.expr.Call):
-    #print(stmt.name + " " + stmt.dtype)
     flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
-    #print(flist[0].body)
-    #tvm.ir_pass.PostOrderVisit(flist[0].body, callback)
     built_cast = tvm.build(flist[0], target=tgt)
-    #print(built_cast.get_source())
-    #exit(0)
 
     ctx = tvm.context(tgt, 0)
 
@@ -72,6 +62,26 @@ def test_bfloat():
     built_cast(x, y, z)
 
     assert np.array_equal(z_expected, z.asnumpy())
+
+
+def test_bfloat_add_and_cast_2():
+    X = tvm.placeholder((3, ), name="X")
+    Y = tvm.placeholder((3, ), name="Y")
+    Z = topi.cast(
+        topi.cast(X, dtype="custom[bfloat]16") +
+        topi.cast(Y, dtype="custom[bfloat]16"),
+        dtype="float")
+
+    # Create schedule and lower, manually lowering datatypes. Once datatype
+    # lowering is integrated directly into TVM's lower/build process, we won't
+    # need to do this manually.
+    s = tvm.create_schedule([Z.op])
+    flist = tvm.lower(s, [X, Y, Z])
+    flist = [flist]
+    flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
+    built_cast = tvm.build(flist[0], target=tgt)
+
+    ctx = tvm.context(tgt, 0)
 
     # Used float32 calculator at http://www.weitz.de/ieee/. Generated
     # unconstrained float32s for the operands and copied them in to x and y.
@@ -96,4 +106,6 @@ def test_bfloat():
 
 
 if __name__ == "__main__":
-    test_bfloat()
+    setup()
+    test_bfloat_add_and_cast_1()
+    test_bfloat_add_and_cast_2()
