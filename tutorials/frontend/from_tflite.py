@@ -151,7 +151,7 @@ func, params = relay.frontend.from_tflite(tflite_model,
                                           shape_dict={input_tensor: input_shape},
                                           dtype_dict={input_tensor: input_dtype})
 
-# targt x86 cpu
+# target x86 CPU
 target = "llvm"
 with relay.build_module.build_config(opt_level=3):
     graph, lib, params = relay.build(func, target, params=params)

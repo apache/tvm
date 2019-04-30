@@ -288,7 +288,7 @@ logging.getLogger('autotvm').setLevel(logging.DEBUG)
 logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 
 # There are two steps for measuring a config: build and run.
-# By default, we use all cpu cores to compile program. Then measure them sequentially.
+# By default, we use all CPU cores to compile program. Then measure them sequentially.
 # We measure 5 times and take average to reduce variance.
 measure_option = autotvm.measure_option(
     builder='local',

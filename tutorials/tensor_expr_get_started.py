@@ -146,7 +146,7 @@ fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 # - We first create a gpu context.
 # - Then tvm.nd.array copies the data to gpu.
 # - fadd runs the actual computation.
-# - asnumpy() copies the gpu array back to cpu and we can use this to verify correctness
+# - asnumpy() copies the gpu array back to CPU and we can use this to verify correctness
 #
 ctx = tvm.context(tgt, 0)
 
