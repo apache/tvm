@@ -17,7 +17,7 @@
 """
 Tuning High Performance Convolution on NVIDIA GPUs
 =========================================================================
-**Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
+**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 This is an advanced tutorial for writing high performance tunable template for
 NVIDIA GPU. By running auto-tuner on this template, we can outperform the
