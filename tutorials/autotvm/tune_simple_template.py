@@ -17,7 +17,7 @@
 """
 Writing tunable template and Using auto-tuner
 =============================================
-**Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
+**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 This is an introduction tutorial to the auto-tuning module in tvm.
 
