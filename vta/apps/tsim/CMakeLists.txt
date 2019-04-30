@@ -7,7 +7,7 @@ set(VTA_DIR ${TVM_DIR}/vta)
 include_directories("${TVM_DIR}/include")
 include_directories("${TVM_DIR}/3rdparty/dlpack/include")
 include_directories("${TVM_DIR}/3rdparty/dmlc-core/include")
-include_directories("${TVM_DIR}/vta/src/verilator")
+include_directories("${TVM_DIR}/vta/src/dpi")
 
 set(CMAKE_C_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden")
 set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden -std=c++11")

@@ -19,7 +19,7 @@ class DPIModuleNode : public tvm::runtime::ModuleNode {
   static tvm::runtime::Module Load(std::string dll_name);
 };
 
-}  // namespace verilator
+}  // namespace dpi
 }  // namespace vta
 #endif // VTA_DPI_MODULE_H_
 
