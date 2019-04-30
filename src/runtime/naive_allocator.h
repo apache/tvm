@@ -19,32 +19,46 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file tvm/runtime/memory_manager.cc
- * \brief Allocate and manage memory for the runtime.
+ * \file src/runtime/naive_allocator.h
  */
-#include <utility>
+#ifndef TVM_RUNTIME_NAIVE_ALLOCATOR_H_
+#define TVM_RUNTIME_NAIVE_ALLOCATOR_H_
+
+#include <tvm/runtime/device_api.h>
+#include <atomic>
+
 #include "memory_manager.h"
-#include "naive_allocator.h"
-#include "pooled_allocator.h"
 
 namespace tvm {
 namespace runtime {
 
-MemoryManager* MemoryManager::Global() {
-  static MemoryManager memory_manager;
-  return &memory_manager;
-}
+class NaiveAllocator final : public Allocator {
+ public:
+  explicit NaiveAllocator(TVMContext ctx) : Allocator(ctx), used_memory_(0) {}
 
-Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
-  std::lock_guard<std::mutex> lock(mu_);
-  if (allocators_.find(ctx) == allocators_.end()) {
-    // LOG(INFO) << "New allocator for " << DeviceName(ctx.device_type) << "("
-    //           << ctx.device_id << ")";
-    std::unique_ptr<Allocator> alloc(new NaiveAllocator(ctx));
-    allocators_.emplace(ctx, std::move(alloc));
+  Buffer Alloc(size_t nbytes, size_t alignment, TVMType type_hint) override {
+    Buffer buf;
+    buf.ctx = ctx_;
+    buf.size = nbytes;
+    buf.data = DeviceAPI::Get(ctx_)->AllocDataSpace(ctx_, nbytes, alignment, type_hint);
+    used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
+    // LOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
+    return buf;
   }
-  return allocators_.at(ctx).get();
-}
+
+  void Free(const Buffer& buffer) override {
+    DeviceAPI::Get(ctx_)->FreeDataSpace(buffer.ctx, buffer.data);
+    used_memory_.fetch_sub(buffer.size, std::memory_order_relaxed);
+    // LOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
+  }
+
+  size_t UsedMemory() override { return used_memory_.load(std::memory_order_relaxed); }
+
+ private:
+  std::atomic<size_t> used_memory_;
+};
 
 }  // namespace runtime
 }  // namespace tvm
+
+#endif  // TVM_RUNTIME_NAIVE_ALLOCATOR_H_
