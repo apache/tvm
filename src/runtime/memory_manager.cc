@@ -23,6 +23,7 @@
  * \brief Allocate and manage memory for the runtime.
  */
 #include <utility>
+#include <memory>
 #include "memory_manager.h"
 #include "naive_allocator.h"
 #include "pooled_allocator.h"

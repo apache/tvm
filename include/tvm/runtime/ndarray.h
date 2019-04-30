@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/runtime/ndarray.h
- * \brief Abstract device memory management API
+ * \brief A device-independent managed NDArray abstraction.
  */
 #ifndef TVM_RUNTIME_NDARRAY_H_
 #define TVM_RUNTIME_NDARRAY_H_
@@ -32,6 +32,10 @@
 
 namespace tvm {
 namespace runtime {
+
+class Allocator;
+struct Buffer;
+
 /*!
  * \brief Managed NDArray.
  *  The array is backed by reference counted blocks.
@@ -163,11 +167,13 @@ class NDArray {
    * \param shape The shape of the new array.
    * \param dtype The data type of the new array.
    * \param ctx The context of the Array.
+   * \param allocator The memory allocator.
    * \return The created Array
    */
   TVM_DLL static NDArray Empty(std::vector<int64_t> shape,
                                DLDataType dtype,
-                               DLContext ctx);
+                               DLContext ctx,
+                               Allocator* allocator = nullptr);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *
@@ -281,6 +287,10 @@ class NDArray::Container {
   int32_t array_type_code_{0};
   /*! \brief The internal reference counter */
   std::atomic<int> ref_counter_{0};
+
+  /*! \brief Buffer allocated by allocator */
+  Buffer* buffer_;
+
   /*!
    * \brief The shape container,
    *  can be used used for shape data.
