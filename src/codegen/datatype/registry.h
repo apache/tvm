@@ -26,11 +26,11 @@ namespace datatype {
  *    ensuring that neither conflict with existing types.
  * 2. Use TVM_REGISTER_GLOBAL to register the lowering functions needed to
  *    lower the custom datatype. In general, these will look like:
- *      For Casts: tvm.datatype.lower.cast.<target>.<type>.<src_type>
- *        Example: tvm.datatype.lower.cast.llvm.myfloat.float for a Cast from
+ *      For Casts: tvm.datatype.lower.Cast.<target>.<type>.<src_type>
+ *        Example: tvm.datatype.lower.Cast.llvm.myfloat.float for a Cast from
  *                 float to myfloat.
- *      For other ops: tvm.datatype.lower.<op>.<target>.<type>
  *        Example: tvm.datatype.lower.add.llvm.myfloat
+ *  For other ops: tvm.datatype.lower.<op>.<target>.<type>
  */
 class Registry {
  public:
