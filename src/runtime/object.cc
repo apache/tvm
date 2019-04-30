@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file object.cc
  * \brief A managed object in the TVM runtime.
  */
