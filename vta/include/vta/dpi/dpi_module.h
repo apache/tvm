@@ -7,7 +7,7 @@
 #include <tvm/runtime/module.h>
 
 namespace vta {
-namespace verilator {
+namespace dpi {
 
 class DPIModuleNode : public tvm::runtime::ModuleNode {
  public:

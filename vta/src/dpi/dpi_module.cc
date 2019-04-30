@@ -2,8 +2,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include <vta/verilator/dpi_module.h>
-#include <vta/verilator/tsim.h>
+#include <vta/dpi/dpi_module.h>
+#include <vta/dpi/tsim_dpi.h>
 #if defined(_WIN32)
 #include <windows.h>
 #else
@@ -16,7 +16,7 @@
 #include <condition_variable>
 
 namespace vta {
-namespace verilator {
+namespace dpi {
 
 using namespace tvm::runtime;
 
@@ -349,5 +349,5 @@ TVM_REGISTER_GLOBAL("module.loadfile_vta-tsim")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = DPIModuleNode::Load(args[0]);
   });
-}  // namespace verilator
+}  // namespace dpi
 }  // namespace vta

@@ -1,5 +1,5 @@
 # vta software components
-file(GLOB TSIM_SW_SRC src/test_driver.cc)
+file(GLOB TSIM_SW_SRC src/driver.cc)
 add_library(driver SHARED ${TSIM_SW_SRC})
 target_include_directories(driver PRIVATE ${VTA_DIR}/include)
 

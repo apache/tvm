@@ -1,6 +1,6 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
-#include <vta/verilator/dpi_module.h>
+#include <vta/dpi/dpi_module.h>
 
 namespace vta {
 namespace driver {
@@ -13,7 +13,7 @@ uint32_t get_half_addr(void *p, bool upper) {
   }
 }
 
-using vta::verilator::DPIModuleNode;
+using vta::dpi::DPIModuleNode;
 using tvm::runtime::Module;
 
 class TestDriver {
