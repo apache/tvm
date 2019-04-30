@@ -31,7 +31,6 @@
 #include <type_traits>
 #include "expr.h"
 #include "ir.h"
-#include "../../src/codegen/datatype/registry.h"
 
 namespace tvm {
 /*!
@@ -547,18 +546,21 @@ inline bool is_no_op(const Stmt& stmt) {
   return false;
 }
 
+TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
+
 template<typename ValueType>
 inline Expr MakeConstScalar(Type t, ValueType value) {
   if (t.is_int()) return ir::IntImm::make(t, static_cast<int64_t>(value));
   if (t.is_uint()) return ir::UIntImm::make(t, static_cast<uint64_t>(value));
   if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
   // TODO(gus) document how we check for custom type (>128)
-  if (datatype::Registry::Global()->GetTypeRegistered(static_cast<uint8_t>(t.code()))) {
-    return ir::UIntImm::make(t, datatype::ConvertConstScalar(static_cast<uint8_t>(t.code()),
-                                                             static_cast<double>(value)));
-  }
   // TODO(gus) do we need to worry about a type being >128, but not being registered? Should we
   // catch that here, or later?
+  // For now, we store const scalar values of custom datatypes within doubles; later, during the
+  // datatypes lowering pass, we will lower the value to its true representation in the format
+  // specified by the datatype.
+  // TODO(gus) when do we need to start worrying about doubles not being precise enough?
+  if (tvm::runtime::GetCustomTypeRegistered(t.code())) return ir::FloatImm::make(t, static_cast<double>(value));
   LOG(FATAL) << "cannot make const for type " << t;
   return Expr();
 }

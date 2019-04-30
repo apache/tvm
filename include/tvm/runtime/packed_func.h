@@ -947,13 +947,14 @@ inline const char* TypeCode2Str(int type_code) {
 // Get the name of a TVMType corresponding to a custom (user-defined) datatype
 TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
 TVM_DLL uint8_t GetCustomTypeCode(const std::string& type_name);
+TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
 
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  if (t.code > kExtEnd) {
+  if (GetCustomTypeRegistered(t.code)) {
     os << "custom[" << GetCustomTypeName(t.code) << "]";
   } else {
     os << TypeCode2Str(t.code);
@@ -978,7 +979,7 @@ inline std::string TVMType2String(TVMType t) {
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     return "bool";
   }
-  if (t.code > kExtEnd) {
+  if (GetCustomTypeRegistered(t.code)) {
     repr += "custom[" + GetCustomTypeName(t.code) + "]";
   } else {
     repr += TypeCode2Str(t.code);
