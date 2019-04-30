@@ -40,7 +40,7 @@ class CustomDatatypesLowerer : public IRMutator {
       CHECK(lower) << "Cast lowering function for target " << target_
                    << " destination type " << static_cast<unsigned>(type_code)
                    << " source type " << static_cast<unsigned>(src_type_code)
-                   << "not found";
+                   << " not found";
       return (*lower)(expr);
     }
     return expr;
@@ -54,7 +54,7 @@ class CustomDatatypesLowerer : public IRMutator {
     if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {             \
       auto lower = datatype::Get##OP##LowerFunc(target_, type_code);              \
       CHECK(lower) << #OP " lowering function for target " << target_ << " type " \
-                   << static_cast<unsigned>(type_code) << "not found";            \
+                   << static_cast<unsigned>(type_code) << " not found";           \
       return (*lower)(expr);                                                      \
     }                                                                             \
     return expr;                                                                  \
