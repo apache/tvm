@@ -778,6 +778,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
   void Visit(const char* key, runtime::Object* obj) final {
     LOG(FATAL) << "do not allow Object as argument";
   }
+
  private:
   Doc& doc_;
   PrettyPrinter* parent_;
