@@ -161,7 +161,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # Inspect the Generated Code
 # --------------------------
 # You can inspect the generated code in TVM. The result of tvm.build
-# is a tvm Module. fadd is the host module that contains the host wrapper,
+# is a TVM Module. fadd is the host module that contains the host wrapper,
 # it also contains a device module for the CUDA (GPU) function.
 #
 # The following code fetches the device module and prints the content code.

@@ -38,8 +38,8 @@ The whole workflow is illustrated by a matrix multiplication example.
 #
 #   pip3 install --user psutil xgboost
 #
-# To make tvm run faster in tuning, it is recommended to use cython
-# as FFI of tvm. In the root directory of tvm, execute
+# To make TVM run faster in tuning, it is recommended to use cython
+# as FFI of TVM. In the root directory of TVM, execute
 # (change "3" to "2" if you use python2):
 #
 # .. code-block:: bash
@@ -61,7 +61,7 @@ from tvm import autotvm
 ######################################################################
 # Step 1:  Define the search space
 # --------------------------------
-# In this section, we will rewrite a deterministic tvm schedule code to a
+# In this section, we will rewrite a deterministic TVM schedule code to a
 # tunable schedule template. You can regard the process of search space definition
 # as the parameterization of our existing schedule code.
 #
