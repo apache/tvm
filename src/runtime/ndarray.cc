@@ -80,10 +80,11 @@ struct NDArray::Internal {
   }
 
   static void BufferDeleter(NDArray::Container* ptr) {
-    CHECK(ptr->buffer_ != nullptr);
-    MemoryManager::Global()->GetAllocator(ptr->buffer_->ctx)->
-        Free(*(ptr->buffer_));
-    delete ptr->buffer_;
+    CHECK(ptr->manager_ctx != nullptr);
+    Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
+    MemoryManager::Global()->GetAllocator(buffer->ctx)->
+        Free(*(buffer));
+    delete buffer;
     delete ptr;
   }
   // Local create function which allocates tensor metadata
@@ -167,9 +168,11 @@ NDArray NDArray::Empty(std::vector<int64_t> shape,
         DeviceAPI::Get(ret->ctx)->AllocDataSpace(
             ret->ctx, size, alignment, ret->dtype);
   } else {
-    ret.data_->buffer_ = new Buffer;
-    *ret.data_->buffer_ = allocator->Alloc(size, alignment, ret->dtype);
-    ret.data_->dl_tensor.data = ret.data_->buffer_->data;
+    Buffer *buffer = new Buffer;
+    ret.data_->manager_ctx = new Buffer;
+    *buffer = allocator->Alloc(size, alignment, ret->dtype);
+    ret.data_->manager_ctx = reinterpret_cast<void*>(buffer);
+    ret.data_->dl_tensor.data = buffer->data;
   }
   return ret;
 }

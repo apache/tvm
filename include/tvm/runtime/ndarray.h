@@ -254,6 +254,7 @@ class NDArray::Container {
    *  The head ptr of this struct can be viewed as DLTensor*.
    */
   DLTensor dl_tensor;
+
   /*!
    * \brief addtional context, reserved for recycling
    * \note We can attach additional content here
@@ -287,9 +288,6 @@ class NDArray::Container {
   int32_t array_type_code_{0};
   /*! \brief The internal reference counter */
   std::atomic<int> ref_counter_{0};
-
-  /*! \brief Buffer allocated by allocator */
-  Buffer* buffer_;
 
   /*!
    * \brief The shape container,
