@@ -69,7 +69,7 @@ class PooledAllocator final : public Allocator {
       memory_pool_.emplace(buffer.size, std::vector<Buffer>{});
     }
     memory_pool_.at(buffer.size).push_back(buffer);
-    LOG(INFO) << "reclaim buffer " << buffer.size;
+    LOG(DEBUG) << "reclaim buffer " << buffer.size;
   }
 
   size_t UsedMemory() override { return used_memory_.load(std::memory_order_relaxed); }
