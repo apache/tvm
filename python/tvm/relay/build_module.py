@@ -26,6 +26,7 @@ from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import ir_pass
 from . import expr as _expr
+from . import ty as _ty
 from .backend import interpreter as _interpreter
 from .backend import graph_runtime_codegen as _graph_gen
 
@@ -427,6 +428,8 @@ class GraphExecutor(_interpreter.Executor):
         self.target = target
 
     def _make_executor(self, func):
+        ret_type = ir_pass.infer_type(func).ret_type
+        num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         graph_json, mod, params = build(func, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
         if params:
@@ -440,7 +443,12 @@ class GraphExecutor(_interpreter.Executor):
             # Run the module, and fetch the output.
             gmodule.run()
             # make a copy so multiple invocation won't hurt perf.
-            return gmodule.get_output(0).copyto(_nd.cpu(0))
+            if num_outputs == 1:
+                return gmodule.get_output(0).copyto(_nd.cpu(0))
+            outputs = []
+            for i in range(num_outputs):
+                outputs.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
+            return outputs
 
         return _graph_wrapper
 
