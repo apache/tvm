@@ -144,7 +144,7 @@ print(tvm.lower(s, [A, B], simple_mode=True))
 ######################################################################
 # compute_at
 # ----------
-# For a schedule consists of multiple operators, TVM will compute
+# For a schedule that consists of multiple operators, TVM will compute
 # tensors at the root separately by default.
 A = tvm.placeholder((m,), name='A')
 B = tvm.compute((m,), lambda i: A[i]+1, name='B')
