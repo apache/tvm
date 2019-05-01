@@ -110,7 +110,7 @@ class Tensor(NodeBase, _expr.ExprOp):
 
     @property
     def value_index(self):
-        """The output value index the tensor corressponds to."""
+        """The output value index the tensor corresponds to."""
         return self.__getattr__("value_index")
 
     @property
