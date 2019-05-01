@@ -197,7 +197,7 @@ class ScanOp(Operation):
 
 @register_node
 class ExternOp(Operation):
-    """Extern operation."""
+    """External operation."""
 
 
 @register_node
