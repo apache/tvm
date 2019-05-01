@@ -34,7 +34,7 @@ namespace runtime {
 
 class NaiveAllocator final : public Allocator {
  public:
-  explicit NaiveAllocator(TVMContext ctx) : Allocator(ctx), used_memory_(0) {}
+  explicit NaiveAllocator(TVMContext ctx) : Allocator(), used_memory_(0) {}
 
   Buffer Alloc(size_t nbytes, size_t alignment, TVMType type_hint) override {
     Buffer buf;
@@ -52,10 +52,13 @@ class NaiveAllocator final : public Allocator {
     DLOG(INFO) << "free " << buffer.size << " B, used memory " << used_memory_ << " B";
   }
 
-  size_t UsedMemory() override { return used_memory_.load(std::memory_order_relaxed); }
+  size_t UsedMemory() const override {
+    return used_memory_.load(std::memory_order_relaxed);
+  }
 
  private:
   std::atomic<size_t> used_memory_;
+  TVMContext ctx_;
 };
 
 }  // namespace runtime

@@ -47,5 +47,28 @@ Allocator* MemoryManager::GetAllocator(TVMContext ctx) {
   return allocators_.at(ctx).get();
 }
 
+static void BufferDeleter(NDArray::Container* ptr) {
+  CHECK(ptr->manager_ctx != nullptr);
+  Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
+  MemoryManager::Global()->GetAllocator(buffer->ctx)->
+      Free(*(buffer));
+  delete buffer;
+  delete ptr;
+}
+
+NDArray Allocator::EmptyNDArray(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
+  VerifyDataType(dtype);
+  NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, ctx);
+  container->deleter = BufferDeleter;
+  size_t size = GetDataSize(container->dl_tensor);
+  size_t alignment = GetDataAlignment(container->dl_tensor);
+  Buffer *buffer = new Buffer;
+  container->manager_ctx = new Buffer;
+  *buffer = this->Alloc(size, alignment, dtype);
+  container->manager_ctx = reinterpret_cast<void*>(buffer);
+  container->dl_tensor.data = buffer->data;
+  return NDArray(container);
+}
+
 }  // namespace runtime
 }  // namespace tvm

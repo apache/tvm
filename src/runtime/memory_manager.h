@@ -53,25 +53,26 @@ namespace tvm {
 namespace runtime {
 
 struct Buffer {
-  // data pointer
+  /*! \brief The pointer to the allocated block of memory. */
   void* data{nullptr};
-  // Buffer size in bytes
+  /*! \brief The size of the block. */
   size_t size{0};
-  // TVM Context
+  /*! \brief The context of the allocated buffers. */
   TVMContext ctx;
 };
 
 class Allocator {
  public:
-  explicit Allocator(TVMContext ctx) : ctx_(ctx) {}
+  explicit Allocator() {}
+
+  NDArray EmptyNDArray(std::vector<int64_t> shape,
+                       DLDataType dtype,
+                       DLContext ctx);
 
   virtual Buffer Alloc(size_t nbytes, size_t alignment, TVMType type_hint) = 0;
   virtual void Free(const Buffer& buffer) = 0;
-  virtual size_t UsedMemory() = 0;
+  virtual size_t UsedMemory() const = 0;
   virtual ~Allocator() = default;
-
- protected:
-  TVMContext ctx_;
 };
 
 class MemoryManager {
@@ -85,7 +86,7 @@ class MemoryManager {
 
  private:
   std::mutex mu_;
-  std::unordered_map<TVMContext, std::unique_ptr<Allocator>> allocators_;
+  std::unordered_map<TVMContext, std::unique_ptr<Allocator> > allocators_;
 };
 
 }  // namespace runtime

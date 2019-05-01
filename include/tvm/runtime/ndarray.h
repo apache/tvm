@@ -33,9 +33,6 @@
 namespace tvm {
 namespace runtime {
 
-class Allocator;
-struct Buffer;
-
 /*!
  * \brief Managed NDArray.
  *  The array is backed by reference counted blocks.
@@ -167,13 +164,11 @@ class NDArray {
    * \param shape The shape of the new array.
    * \param dtype The data type of the new array.
    * \param ctx The context of the Array.
-   * \param allocator The memory allocator.
    * \return The created Array
    */
   TVM_DLL static NDArray Empty(std::vector<int64_t> shape,
                                DLDataType dtype,
-                               DLContext ctx,
-                               Allocator* allocator = nullptr);
+                               DLContext ctx);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
    *
@@ -304,6 +299,19 @@ class NDArray::Container {
     dl_tensor.strides = nullptr;
     dl_tensor.byte_offset = 0;
   }
+
+  Container(void* data,
+            std::vector<int64_t> shape,
+            DLDataType dtype,
+            DLContext ctx) {
+    dl_tensor.data = data;
+    shape_ = std::move(shape);
+    dl_tensor.shape = dmlc::BeginPtr(shape);
+    dl_tensor.ndim = static_cast<int>(shape.size());
+    dl_tensor.dtype = dtype;
+    dl_tensor.ctx = ctx;
+  }
+
   /*! \brief developer function, increases reference counter */
   void IncRef() {
     ref_counter_.fetch_add(1, std::memory_order_relaxed);

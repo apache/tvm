@@ -91,15 +91,11 @@ struct NDArray::Internal {
   // but does not allocate space for the data.
   static NDArray Create(std::vector<int64_t> shape,
                         DLDataType dtype,
-                        DLContext ctx, bool with_allocator = false) {
+                        DLContext ctx) {
     VerifyDataType(dtype);
     // critical zone
     NDArray::Container* data = new NDArray::Container();
-    if (with_allocator) {
-      data->deleter = BufferDeleter;
-    } else {
-      data->deleter = DefaultDeleter;
-    }
+    data->deleter = DefaultDeleter;
     NDArray ret(data);
     ret.data_ = data;
     // RAII now in effect
@@ -157,23 +153,13 @@ DLManagedTensor* NDArray::ToDLPack() const {
 
 NDArray NDArray::Empty(std::vector<int64_t> shape,
                        DLDataType dtype,
-                       DLContext ctx,
-                       Allocator* allocator) {
-  NDArray ret = Internal::Create(shape, dtype, ctx, (allocator != nullptr));
+                       DLContext ctx) {
+  NDArray ret = Internal::Create(shape, dtype, ctx);
   // setup memory content
   size_t size = GetDataSize(ret.data_->dl_tensor);
   size_t alignment = GetDataAlignment(ret.data_->dl_tensor);
-  if (allocator == nullptr) {
-    ret.data_->dl_tensor.data =
-        DeviceAPI::Get(ret->ctx)->AllocDataSpace(
-            ret->ctx, size, alignment, ret->dtype);
-  } else {
-    Buffer *buffer = new Buffer;
-    ret.data_->manager_ctx = new Buffer;
-    *buffer = allocator->Alloc(size, alignment, ret->dtype);
-    ret.data_->manager_ctx = reinterpret_cast<void*>(buffer);
-    ret.data_->dl_tensor.data = buffer->data;
-  }
+  ret.data_->dl_tensor.data =
+      DeviceAPI::Get(ret->ctx)->AllocDataSpace(ret->ctx, size, alignment, ret->dtype);
   return ret;
 }
 
