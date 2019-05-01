@@ -102,8 +102,8 @@ class Stage : public NodeRef {
    */
   EXPORT Stage& bind(IterVar ivar, IterVar thread_ivar);
   /*!
-   * \brief Set predicate under which store to the array can be performed.
-   *  Use this when there are duplicated threads doing the same store and we only
+   * \brief Set the predicate to determine whether a store to the array should be performed.
+   *  Use this when there are multiple threads performing the same store and we only
    *  need one of them to do the store.
    *
    * \note This is a dangerous scheduling primitive that can change behavior of program.
