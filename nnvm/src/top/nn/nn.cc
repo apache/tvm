@@ -525,7 +525,6 @@ inline bool PReluInferShape(const nnvm::NodeAttrs &attrs,
   NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 0, dshape);
 
   // The case of parametric relu
-  CHECK_EQ(dshape.ndim(), 4) << "Input data should be 4D, but got " << dshape.ndim();
   CHECK(size_t(param.axis) < dshape.Size())
       << "Wrong axis ("  << param.axis << ")value.";
 
