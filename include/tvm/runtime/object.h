@@ -318,16 +318,20 @@ struct ClosureCell;
  */
 class Object {
  public:
-  ObjectPtr<ObjectCell> ptr;
-  explicit Object(ObjectPtr<ObjectCell> ptr) : ptr(ptr) {}
-  explicit Object(ObjectCell* ptr) : ptr(ptr) {}
-  Object() : ptr() {}
-  Object(const Object& obj) : ptr(obj.ptr) {}
-  ObjectCell* operator->() { return this->ptr.operator->(); }
+  ObjectPtr<ObjectCell> ptr_;
+  explicit Object(ObjectPtr<ObjectCell> ptr) : ptr_(ptr) {}
+  explicit Object(ObjectCell* ptr) : ptr_(ptr) {}
+  Object() : ptr_() {}
+  Object(const Object& obj) : ptr_(obj.ptr_) {}
+  ObjectCell* operator->() { return this->ptr_.operator->(); }
 
+  /*! \brief Construct a tensor object. */
   static Object Tensor(const NDArray& data);
+  /*! \brief Construct a datatype object. */
   static Object Datatype(size_t tag, const std::vector<Object>& fields);
+  /*! \brief Construct a tuple object. */
   static Object Tuple(const std::vector<Object>& fields);
+  /*! \brief Construct a closure object. */
   static Object Closure(size_t func_index, const std::vector<Object>& free_vars);
 
   ObjectPtr<TensorCell> AsTensor() const;
@@ -335,27 +339,36 @@ class Object {
   ObjectPtr<ClosureCell> AsClosure() const;
 };
 
+/*! \brief An object containing an NDArray. */
 struct TensorCell : public ObjectCell {
+  /*! \brief The NDArray. */
   NDArray data;
   explicit TensorCell(const NDArray& data) : ObjectCell(ObjectTag::kTensor), data(data) {}
 };
 
+/*! \brief An object representing a structure or enumeration. */
 struct DatatypeCell : public ObjectCell {
+  /*! \brief The tag representing the constructor used. */
   size_t tag;
+  /*! \brief The fields of the structure. */
   std::vector<Object> fields;
 
   DatatypeCell(size_t tag, const std::vector<Object>& fields)
       : ObjectCell(ObjectTag::kDatatype), tag(tag), fields(fields) {}
 };
 
+/*! \brief An object representing a closure. */
 struct ClosureCell : public ObjectCell {
+  /*! \brief The index into the VM function table. */
   size_t func_index;
+  /*! \brief The free variables of the closure. */
   std::vector<Object> free_vars;
 
   ClosureCell(size_t func_index, const std::vector<Object>& free_vars)
       : ObjectCell(ObjectTag::kClosure), func_index(func_index), free_vars(free_vars) {}
 };
 
+/*! \brief Extract the NDArray from a tensor object. */
 NDArray ToNDArray(const Object& obj);
 
 /*!

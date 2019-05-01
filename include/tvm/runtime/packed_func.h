@@ -745,8 +745,8 @@ class TVMRetValue : public TVMPODValue_ {
   TVMRetValue& operator=(Object other) {
     this->Clear();
     type_code_ = kObject;
-    value_.v_handle = other.ptr.data_;
-    other.ptr.data_ = nullptr;
+    value_.v_handle = other.ptr_.data_;
+    other.ptr_.data_ = nullptr;
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {

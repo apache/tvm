@@ -87,7 +87,7 @@ class NodeIndexer : public AttrVisitor {
   }
 
   void Visit(const char* key, Object* value) final {
-    ObjectCell* ptr = value->ptr.get();
+    ObjectCell* ptr = value->ptr_.get();
     if (vm_obj_index.count(ptr)) return;
     CHECK_EQ(vm_obj_index.size(), vm_obj_list.size());
     vm_obj_index[ptr] = vm_obj_list.size();
@@ -214,7 +214,7 @@ class JSONAttrGetter : public AttrVisitor {
   }
   void Visit(const char* key, Object* value) final {
     node_->attrs[key] = std::to_string(
-        vm_obj_index_->at(value->ptr.get()));
+        vm_obj_index_->at(value->ptr_.get()));
   }
   // Get the node
   void Get(Node* node) {
