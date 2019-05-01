@@ -63,7 +63,8 @@ class OperatorConverter(object):
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
             'CONCATENATION': self.convert_concatenation,
-            'ADD': self.convert_add
+            'ADD': self.convert_add,
+            'FULLY_CONNECTED': self.convert_fully_connected,
         }
 
     def check_unsupported_ops(self):
@@ -350,6 +351,71 @@ class OperatorConverter(object):
                 raise tvm.error.OpAttributeInvalid(msg.format(input_shape_length))
 
         out = _op.add(lhs_expr, rhs_expr)
+        return out
+
+    def convert_fully_connected(self, op):
+        """Convert TFLite fully connected"""
+        try:
+            from tflite.Operator import Operator
+            from tflite.FullyConnectedOptions import FullyConnectedOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.TensorType import TensorType
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) >= 2, "input tensors length should be >= 2"
+
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        weight_tensor = input_tensors[1]
+
+        input_tensor_shape = input_tensor.tensor.ShapeAsNumpy()
+        weight_tensor_shape = weight_tensor.tensor.ShapeAsNumpy()
+
+        # reshape input tensor from N H W C to N H*W*C
+        input_size_per_batch = 1
+        for s in range(1, len(input_tensor_shape)):
+            input_size_per_batch *= input_tensor_shape[s]
+        assert input_size_per_batch == weight_tensor_shape[1], \
+            "input size and weight size are mismatched"
+        target_shape = tuple((input_tensor_shape[0], input_size_per_batch))
+        in_expr = self.get_expr(input_tensor_idx)
+        in_expr = _op.reshape(in_expr, target_shape)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.FullyConnectedOptions
+        op_options = op.BuiltinOptions()
+        fully_connected_options = FullyConnectedOptions()
+        fully_connected_options.Init(op_options.Bytes, op_options.Pos)
+        fused_activation_fn = fully_connected_options.FusedActivationFunction()
+
+        # weight tensor type should be UINT8 (quantization) or FLOAT32
+        weight_tensor_type = weight_tensor.tensor.Type()
+        assert weight_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
+        weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
+
+        weight_value = self.get_tensor_value(weight_tensor)
+        weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
+
+        out = _op.nn.dense(in_expr, weight_expr)
+
+        # if we have bias
+        if len(input_tensors) == 3:
+            bias_tensor = input_tensors[2]
+            bias_tensor_type = bias_tensor.tensor.Type()
+            # bias tensor type should be INT32 (quantization) or FLOAT32
+            assert bias_tensor_type in (TensorType.INT32, TensorType.FLOAT32)
+            bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
+            bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
+                                               dtype=bias_tensor_type_str)
+            out = _op.nn.bias_add(out, bias_expr)
+
+        # If we have fused activations
+        if fused_activation_fn != ActivationFunctionType.NONE:
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
+
         return out
 
     def convert_squeeze(self, op):

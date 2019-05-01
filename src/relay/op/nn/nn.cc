@@ -131,8 +131,12 @@ bool DenseRel(const Array<Type>& types,
     oshape.Set((oshape.size() - 1), wshape[0]);
   }
 
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }
 
@@ -140,9 +144,11 @@ bool DenseRel(const Array<Type>& types,
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeDense(Expr data,
                Expr weight,
-               IndexExpr units) {
+               IndexExpr units,
+               DataType out_dtype) {
   auto attrs = make_node<DenseAttrs>();
   attrs->units = units;
+  attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
@@ -232,6 +238,23 @@ bool PReluRel(const Array<Type>& types,
   return true;
 }
 
+template<typename T>
+Array<Array<Layout> > PReluInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+
+  CHECK_EQ(old_in_layouts.size(), 2U);
+  CHECK_EQ(old_in_shapes.size(), 2U);
+  Layout data_layout = old_in_layouts[0];
+  if (new_in_layouts.defined()) {
+    CHECK_EQ(new_in_layouts.size(), 2U);
+  }
+  return Array<Array<Layout> >{{data_layout, Layout("C")},
+                               {data_layout}};
+}
+
 // Positional relay function to create prelu operator used by frontend FFI.
 Expr MakePRelu(Expr data,
                Expr alpha,
@@ -259,7 +282,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 .add_argument("alpha", "Tensor", "Input channelwise alpha.")
 .set_support_level(3)
 .add_type_rel("PRelu", PReluRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout<PReluAttrs>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
                     const Array<Tensor>& inputs,

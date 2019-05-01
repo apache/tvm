@@ -17,7 +17,7 @@
 """
 Writing tunable template and Using auto-tuner
 =============================================
-**Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
+**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 This is an introduction tutorial to the auto-tuning module in tvm.
 
@@ -63,7 +63,7 @@ from tvm import autotvm
 # --------------------------------
 # In this section, we will rewrite a deterministic tvm schedule code to a
 # tunable schedule template. You can regard the process of search space definition
-# as the parametrization of our existing schedule code.
+# as the parameterization of our existing schedule code.
 #
 # To begin with, here is how we implement a blocked matrix multiplication in tvm.
 

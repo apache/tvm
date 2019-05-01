@@ -49,6 +49,9 @@ enum OpPatternKind {
   // Complex operation, can still fuse elemwise operations into its output.
   // but cannot chain another complex op
   kOutEWiseFusable = 4,
+  // The pattern for tuple nodes. Can fuse into subsequent injective ops,
+  // but treated specially
+  kTuple = 7,
   // Opaque operation, cannot fuse anything.
   kOpaque = 8
 };

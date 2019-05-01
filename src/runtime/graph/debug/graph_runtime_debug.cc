@@ -110,7 +110,8 @@ class GraphRuntimeDebug : public GraphRuntime {
       for (size_t index = 0; index < time_per_op.size(); index++) {
         if (op_execs_[index]) {
           time_per_op[index] /= number;
-          LOG(INFO) << "Op #" << op++ << ": " << time_per_op[index] << " ms/iter";
+          LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": "
+            << time_per_op[index] << " ms/iter";
         }
       }
     }

@@ -327,9 +327,9 @@ class Analyzer {
   ConstIntBoundAnalyzer const_int_bound;
   /*! \brief sub-analyzer: modular set */
   ModularSetAnalyzer modular_set;
-  /*! \brief sub-analyzer rewrite simplfy */
+  /*! \brief sub-analyzer rewrite simplify */
   RewriteSimplifier rewrite_simplify;
-  /*! \brief sub-analyzer rewrite simplfy */
+  /*! \brief sub-analyzer canonical simplify */
   CanonicalSimplifier canonical_simplify;
   /*! \brief constructor */
   Analyzer();

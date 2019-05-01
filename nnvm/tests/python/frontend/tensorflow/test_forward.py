@@ -941,6 +941,29 @@ def test_forward_resnetv2():
                     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# Placeholder
+# -----------
+def test_forward_placeholder():
+    '''test a simple pb with Placeholder node in the end of GraphDef'''
+    with tf.Graph().as_default():
+        graph_def = tf_testing.get_workload("Custom/placeholder.pb")
+
+        # Call the utility to import the graph definition into default graph.
+        graph_def = tf_testing.ProcessGraphDefParam(graph_def)
+
+
+        data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
+        out_node = 'mul'
+
+        with tf.Session() as sess:
+            # Add shapes to the graph.
+            graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
+            tf_output = run_tf_graph(sess, data, 'Placeholder:0', out_node + ':0')
+            tvm_output = run_tvm_graph(graph_def, data, 'Placeholder')
+            print("tf_output is {}\ntvm_output is {}".format(tf_output, tvm_output))
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # PTB
 # ---
 dir(tf.contrib)
@@ -1261,6 +1284,7 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
+    test_forward_placeholder()
     test_forward_ptb()
 
     # RNN

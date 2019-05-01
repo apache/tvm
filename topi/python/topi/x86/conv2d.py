@@ -323,12 +323,11 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
 
 @conv2d_alter_layout.register("cpu")
 def _alter_conv2d_layout(attrs, inputs, tinfo, F):
-    import nnvm.symbol as sym
 
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
 
-    if F == tvm.relay.op:
+    if F.__name__ == 'tvm.relay.op':
         # Derive channels for frontends (e.g ONNX) that miss "channel" field.
         new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
 
@@ -336,13 +335,14 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     batch_size, in_channel, height, width = get_const_tuple(data.shape)
 
     groups = attrs.get_int("groups")
-    out_channel = attrs.get_int("channels") if F == sym else new_attrs["channels"]
+    out_channel = attrs.get_int("channels") \
+        if F.__name__ == 'nnvm.symbol' else new_attrs["channels"]
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     out_dtype = attrs["out_dtype"]
 
-    layout_name = 'layout' if F == sym else 'data_layout'
+    layout_name = 'layout' if F.__name__ == 'nnvm.symbol' else 'data_layout'
 
     layout = attrs[layout_name]
     kh, kw = attrs.get_int_tuple("kernel_size")
@@ -399,12 +399,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     dispatch_ctx.update(target, new_workload, cfg)
 
     if is_depthwise:
-        if F == sym:
+        if F.__name__ == 'nnvm.symbol':
             logging.warning("Use native layout for depthwise convolution on NNVM.")
             return None
         return F.nn.contrib_depthwise_conv2d_nchwc(*copy_inputs, **new_attrs)
     else:
-        if F == sym:
+        if F.__name__ == 'nnvm.symbol':
             return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
         return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
 

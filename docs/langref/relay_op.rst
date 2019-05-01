@@ -41,6 +41,7 @@ This level enables fully connected multi-layer perceptron.
 
    tvm.relay.log
    tvm.relay.sqrt
+   tvm.relay.rsqrt
    tvm.relay.exp
    tvm.relay.sigmoid
    tvm.relay.add
@@ -164,6 +165,14 @@ This level enables additional math and transform operators.
    tvm.relay.vision.yolo_reorg
 
 
+**Level 6: Algorithm Operators**
+
+.. autosummary::
+   :nosignatures:
+
+   tvm.relay.argsort
+
+
 **Level 10: Temporary Operators**
 
 This level support backpropagation of broadcast operators. It is temporary.
@@ -186,6 +195,7 @@ Level 1 Definitions
 -------------------
 .. autofunction:: tvm.relay.log
 .. autofunction:: tvm.relay.sqrt
+.. autofunction:: tvm.relay.rsqrt
 .. autofunction:: tvm.relay.exp
 .. autofunction:: tvm.relay.sigmoid
 .. autofunction:: tvm.relay.add
@@ -290,6 +300,11 @@ Level 5 Definitions
 .. autofunction:: tvm.relay.vision.multibox_transform_loc
 .. autofunction:: tvm.relay.vision.nms
 .. autofunction:: tvm.relay.vision.yolo_reorg
+
+
+Level 6 Definitions
+-------------------
+.. autofunction:: tvm.relay.argsort
 
 
 Level 10 Definitions

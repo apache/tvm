@@ -580,6 +580,7 @@ def _test_stridedslice(ip_shape, begin, end, stride, dtype,
 def test_forward_stridedslice():
     '''test StridedSlice'''
 
+    _test_stridedslice((2), [1], [1], [1], 'float32', shrink_axis_mask=1)
     _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
     _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=8)
     _test_stridedslice((3, 4, 3), [1, 0], [4, 2], [2, 1], 'float32', ellipsis_mask=2)
@@ -760,6 +761,24 @@ def test_forward_unstack():
     # negative axis
     _test_unstack((1, 4), -1, 'int32')
     _test_unstack((3, 6, 4), -2, 'float32')
+
+
+#######################################################################
+# Tile
+# ----
+
+def _test_tile(in_shape, multiples, dtype):
+    np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    tf.tile(in_data, multiples=multiples, name="tile")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'tile:0')
+
+def test_forward_tile():
+    '''test Tile'''
+    _test_tile((2, ), (3, ), "int32")
+    _test_tile((2, 2), (2, 3), "float32")
+    _test_tile((2, 4, 6), (6, 7, 8), "float64")
 
 
 #######################################################################
@@ -1116,6 +1135,27 @@ def test_forward_resnetv2():
                     tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# Placeholder
+# -----------
+def test_forward_placeholder():
+    '''test a simple pb with Placeholder node in the end of GraphDef'''
+    with tf.Graph().as_default():
+        graph_def = tf_testing.get_workload("Custom/placeholder.pb")
+        # Call the utility to import the graph definition into default graph.
+        graph_def = tf_testing.ProcessGraphDefParam(graph_def)
+
+        data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
+        out_node = 'mul'
+
+        with tf.Session() as sess:
+            # Add shapes to the graph.
+            graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
+            tf_output = run_tf_graph(sess, data, 'Placeholder:0', out_node + ':0')
+            tvm_output = run_tvm_graph(graph_def, data, 'Placeholder')
+            print("tf_output is {}\ntvm_output is {}".format(tf_output, tvm_output))
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # PTB
 # ---
 dir(tf.contrib)
@@ -1354,6 +1394,53 @@ def test_forward_tanh():
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Tanh:0')
 
 #######################################################################
+# Tensor
+# ------
+
+def test_forward_round():
+    """test Round"""
+    np_data = np.random.uniform(-10, 10, size=(5, 7)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (5, 7), name="in_data")
+    tf.round(in_data, name="round")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'round:0')
+
+def _test_forward_reverse_v2(in_shape, axis, dtype):
+    np_data = np.random.uniform(-10, 10, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    tf.reverse(in_data, axis=[axis], name="reverse")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'reverse:0')
+
+def test_forward_reverse_v2():
+    """test ReverseV2"""
+    _test_forward_reverse_v2((2, 3), 0, "int32")
+    _test_forward_reverse_v2((2, 3, 5), 2, "float32")
+    _test_forward_reverse_v2((2, 3, 5, 7), 1, "float32")
+    _test_forward_reverse_v2((2, 3, 5), -1, "float64")
+    _test_forward_reverse_v2((2, 3, 5), -3, "float64")
+
+def test_forward_sign():
+    """test Sign"""
+    np_data = np.random.uniform(-10, 10, size=(5, 7, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (5, 7, 11), name="in_data")
+    tf.sign(in_data, name="sign")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'sign:0')
+
+def test_forward_pow_exp():
+    """test Pow and Exp """
+    np_in1 = np.random.uniform(-2, 2, size=(5, 7, 11)).astype(np.float32)
+    np_in2 = np.random.uniform(-2, 2, size=(5, 7, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in1 = tf.placeholder(tf.float32, (5, 7, 11), name="in1")
+    in2 = tf.placeholder(tf.float32, (5, 7, 11), name="in2")
+    out1 = tf.pow(in1, in2, name="pow")
+    out = tf.exp(in1, name='exp')
+    compare_tf_with_tvm([np_in1, np_in2], ['in1:0', 'in2:0'], 'pow:0')
+    compare_tf_with_tvm([np_in1], ['in1:0'], 'exp:0')
+
+#######################################################################
 # Mean
 # ----
 def test_forward_mean():
@@ -1389,11 +1476,27 @@ def test_forward_rel_ops():
     _test_forward_rel_op([t1, t2], math_ops.equal)
     _test_forward_rel_op([t1, t2], math_ops.not_equal)
 
+#######################################################################
+# ExpandDims
+# ----------
+def _test_forward_expand_dims(data, axis):
+    in1 = tf.placeholder(shape=data.shape, dtype=data.dtype, name='in1')
+    out = tf.expand_dims(in1, axis)
+    compare_tf_with_tvm([data], [in1.name], out.name)
+
+def test_forward_expand_dims():
+    _test_forward_expand_dims(np.int32(1), 0)
+    _test_forward_expand_dims(np.array([1]), 0)
+    _test_forward_expand_dims(np.array([1]), -1)
+    _test_forward_expand_dims(np.array([[1], [2]]), 0)
+    _test_forward_expand_dims(np.array([[1], [2]]), 1)
+    _test_forward_expand_dims(np.array([[1], [2]]), -1)
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
+
     # Transforms
     test_forward_transpose()
     test_forward_reshape()
@@ -1407,6 +1510,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_split()
     test_forward_unstack()
+    test_forward_tile()
 
     # Activations
     test_forward_sigmoid()
@@ -1415,6 +1519,13 @@ if __name__ == '__main__':
     test_forward_elu()
     test_forward_selu()
     test_forward_tanh()
+
+    # Tensor
+    test_forward_round()
+    test_forward_reverse_v2()
+    test_forward_pow_exp()
+    test_forward_sign()
+    test_forward_expand_dims()
 
     # Reductions
     test_forward_argminmax()
@@ -1441,6 +1552,7 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
+    test_forward_placeholder()
     test_forward_ptb()
 
     # RNN

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -45,7 +45,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 /*!
 * \brief Construct a Target node from the given name and options.
 * \param target_name The major target name. Should be one of
-* {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "opengl", "ext_dev"}
+* {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hybrid", "llvm", "metal",
+*  "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
 * \param options Additional options appended to the target
 * \return The constructed Target
 */

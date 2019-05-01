@@ -169,7 +169,6 @@ class Conv(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # get number of channels
         out = AttrCvt(op_name=dimension_picker('conv'),
                       transforms={
                           'kernel_shape': 'kernel_size',
@@ -945,7 +944,10 @@ class GraphProto(object):
                                               dtype=self._params[i_name].dtype)
             else:
                 self._num_input += 1
-                tshape = self._shape[i_name] if i_name in self._shape else ()
+                if i_name in self._shape:
+                    tshape = self._shape[i_name]
+                else:
+                    raise ValueError("Must provide an input shape for `{0}`.".format(i_name))
                 if isinstance(self._dtype, dict):
                     dtype = self._dtype[i_name] if i_name in self._dtype else d_type
                 else:

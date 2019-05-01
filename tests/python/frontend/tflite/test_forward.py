@@ -459,12 +459,63 @@ def test_forward_softmax():
     """ Softmax """
     _test_softmax(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
+
+#######################################################################
+# Fully Connected
+# -------
+
+def _test_fully_connected(tensor_in_sizes, filter_in_sizes, bias_in_size=None):
+    """ One iteration of fully connected """
+
+    total_size_1 = 1
+    total_size_2 = 1
+    for s in tensor_in_sizes:
+        total_size_1 *= s
+    for s in filter_in_sizes:
+        total_size_2 *= s
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+    assert int(total_size_1 / tensor_in_sizes[0]) == filter_in_sizes[0], \
+        "input size and filter size are mismatched"
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
+
+        # reshape N H W C into N H*W*C
+        in_data_reshape = array_ops.reshape(in_data, [tensor_in_sizes[0], -1])
+
+        out = math_ops.mat_mul(in_data_reshape, in_filter)
+
+        # if we have bias
+        if bias_in_size:
+            assert bias_in_size[0] == filter_in_sizes[1], "bias and filter size are mismatched"
+            bias_array = [f * 1.0 for f in range(1, bias_in_size[0] + 1)]
+            in_bias = constant_op.constant(bias_array, shape=bias_in_size, dtype='float32')
+            out = nn_ops.bias_add(out, in_bias)
+
+        tflite_data_array = np.reshape(data_array, tensor_in_sizes).astype('float32')
+        tvm_data_array = np.transpose(tflite_data_array, axes=(0, 3, 1, 2))
+        compare_tflite_with_tvm(tflite_data_array, tvm_data_array,
+                                'Placeholder:0', [in_data], [out])
+
+
+def test_forward_fully_connected():
+    """ Fully Connected """
+    _test_fully_connected([1, 1, 1, 150], [150, 100])
+    _test_fully_connected([1, 1, 1, 150], [150, 100], [100])
+    _test_fully_connected([5, 1, 1, 150], [150, 100])
+    _test_fully_connected([5, 1, 1, 150], [150, 100], [100])
+
+
 #######################################################################
 # Mobilenet
 # ---------
 
 def test_forward_mobilenet_v1():
-    '''test mobilenet v1 tflite model'''
+    """Test the Mobilenet V1 TF Lite model."""
     # MobilenetV1
     tflite_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224.tgz",
@@ -479,7 +530,7 @@ def test_forward_mobilenet_v1():
                                 rtol=1e-5, atol=1e-5)
 
 def test_forward_mobilenet_v2():
-    '''test mobilenet v2 tflite model'''
+    """Test the Mobilenet V2 TF Lite model."""
     # MobilenetV2
     tflite_model_file = tf_testing.get_workload_official(
         "http://download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz",
@@ -494,15 +545,30 @@ def test_forward_mobilenet_v2():
                                 rtol=1e-5, atol=1e-5)
 
 #######################################################################
-# Inception V3
+# Inception
 # ------------
 
 def test_forward_inception_v3_net():
-    '''test inception v3 tflite model'''
+    """Test the Inception V3 TF Lite model."""
     # InceptionV3
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v3_2018_04_27.tgz",
         "inception_v3.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 299, 299, 3)).astype('float32')
+    tvm_data = np.transpose(data, axes=(0, 3, 1, 2))
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, tvm_data, 'input')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+
+def test_forward_inception_v4_net():
+    """Test the Inception V4 TF Lite model."""
+    # InceptionV4
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/model_zoo/upload_20180427/inception_v4_2018_04_27.tgz",
+        "inception_v4.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
     data = np.random.uniform(size=(1, 299, 299, 3)).astype('float32')
@@ -525,6 +591,7 @@ if __name__ == '__main__':
     test_forward_convolution()
     test_forward_pooling()
     test_forward_softmax()
+    test_forward_fully_connected()
 
     # Math
     test_forward_add()
@@ -533,3 +600,4 @@ if __name__ == '__main__':
     test_forward_mobilenet_v1()
     test_forward_mobilenet_v2()
     test_forward_inception_v3_net()
+    test_forward_inception_v4_net()

@@ -112,6 +112,8 @@ class OpPattern(object):
     COMM_REDUCE = 3
     # Complex op, can still fuse ewise into it
     OUT_ELEMWISE_FUSABLE = 4
+    # Represents tuple node
+    TUPLE = 7
     # Not fusable opaque op
     OPAQUE = 8
 

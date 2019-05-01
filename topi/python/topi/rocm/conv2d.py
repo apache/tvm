@@ -71,7 +71,7 @@ def conv2d_rocm(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
                     ((KW - 1) * dilation_w + 1))
 
         return miopen.conv2d_forward(data,
-                                     kernel_before_dilation,
+                                     kernel,
                                      stride_h,
                                      stride_w,
                                      pad_h,

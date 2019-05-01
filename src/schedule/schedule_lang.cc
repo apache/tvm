@@ -712,6 +712,10 @@ void ScheduleNode::InitCache() {
   CHECK_EQ(op2stage_cache_.size(), stages.size());
 }
 
+bool ScheduleNode::Contain(const Operation& op) const {
+  return stage_map.find(op) != stage_map.end();
+}
+
 Schedule ScheduleNode::make(Array<Operation> ops) {
   auto n = make_node<ScheduleNode>();
   Schedule sch(n);

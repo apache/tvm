@@ -25,7 +25,7 @@ import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
-from common import get_all_backend, NCHWcInt8Fallback
+from common import get_all_backend, Int8Fallback
 
 oc_block_factor = 4
 
@@ -105,7 +105,7 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
 
 
 def test_conv2d_nchw():
-    with NCHWcInt8Fallback():
+    with Int8Fallback():
         # ResNet18 workloads where channels in / out are multiple of oc_block_factor
         verify_conv2d_NCHWc_int8(1,  64,  56,  64, 3, 1, 1)
         verify_conv2d_NCHWc_int8(1,  64,  56,  64, 1, 1, 0)

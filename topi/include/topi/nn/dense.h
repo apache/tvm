@@ -40,12 +40,14 @@ using namespace tvm;
 * \param data Tensor with shape [batch, in_dim]
 * \param weight Tensor with shape [out_dim, in_dim]
 * \param bias Tensor with shape [out_dim]. Optional; to omit bias, pass Tensor()
+* \param out_dtype Output data type. Used for mixed precision.
 *
 * \return Tensor with shape [batch, out_dim]
 */
 inline tvm::Tensor dense(const tvm::Tensor& data,
                          const tvm::Tensor& weight,
-                         const tvm::Tensor& bias) {
+                         const tvm::Tensor& bias,
+                         const Type& out_dtype) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
@@ -60,14 +62,15 @@ inline tvm::Tensor dense(const tvm::Tensor& data,
   auto matmul = tvm::compute(
     { batch, out_dim },
     [&](Var i, Var j) {
-      return tvm::sum(data(i, k) * weight(j, k), { k });
+      return tvm::sum(tvm::cast(out_dtype, data(i, k)) *
+                      tvm::cast(out_dtype, weight(j, k)), { k });
     }, "tensor", "dense");
 
   if (bias.defined()) {
     matmul = tvm::compute(
       { batch, out_dim },
       [&](Var i, Var j) {
-        return matmul(i, j) + bias(j);
+        return matmul(i, j) + tvm::cast(out_dtype, bias(j));
       }, "tensor", kBroadcast);
   }
 
