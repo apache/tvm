@@ -23,13 +23,15 @@ def test_fuse_simple():
         x = relay.var("x", shape=(10, 20))
         y = relay.add(x, relay.const(1, "float32"))
         z = relay.exp(y)
-        return relay.Function([x], z)
+        w = relay.squeeze(z)
+        return relay.Function([x], w)
 
     def expected():
         x = relay.var("p", shape=(10, 20))
         y = relay.add(x, relay.const(1, "float32"))
         z = relay.exp(y)
-        f1 = relay.Function([x], z)
+        w = relay.squeeze(z)
+        f1 = relay.Function([x], w)
         x = relay.var("x", shape=(10, 20))
         y = relay.Call(f1, [x])
         return relay.Function([x], y)
@@ -503,6 +505,38 @@ def test_inception_like():
     assert relay.ir_pass.alpha_equal(zz, after)
 
 
+def test_fuse_parallel_injective():
+    """Test fusing parallel injective ops to an elemwise op."""
+    def before():
+        x = relay.var("x", shape=(10, 20))
+        y = relay.add(x, relay.const(1, "float32"))
+        z = relay.squeeze(y)
+        u = relay.transpose(y, axes=[0, 1])
+        w = relay.left_shift(z, u)
+        return relay.Function([x], w)
+
+    def expected():
+        x = relay.var("p", shape=(10, 20))
+        y = relay.add(x, relay.const(1, "float32"))
+        z = relay.squeeze(y)
+        u = relay.transpose(y, axes=[0, 1])
+        w = relay.left_shift(z, u)
+        f1 = relay.Function([x], w)
+        x = relay.var("x", shape=(10, 20))
+        y = relay.Call(f1, [x])
+        return relay.Function([x], y)
+
+    z = before()
+    z = relay.ir_pass.infer_type(z)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
+    assert not relay.ir_pass.free_vars(zz)
+    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
+    zz = relay.ir_pass.infer_type(zz)
+    assert not relay.ir_pass.free_vars(zz)
+    after = relay.ir_pass.infer_type(expected())
+    assert relay.ir_pass.alpha_equal(zz, after)
+
+
 if __name__ == "__main__":
     test_fuse_simple()
     test_conv2d_fuse()
@@ -515,3 +549,4 @@ if __name__ == "__main__":
     test_tuple_intermediate()
     test_tuple_consecutive()
     test_inception_like()
+    test_fuse_parallel_injective()
