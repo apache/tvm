@@ -84,7 +84,7 @@ void ParseLLVMTargetOptions(const std::string& target_str,
     size_t pos = key.find('=');
     if (pos != std::string::npos) {
       CHECK_GE(key.length(), pos + 1)
-          << "inavlid argument " << key;
+          << "invalid argument " << key;
       value = key.substr(pos + 1, key.length() - 1);
       key = key.substr(0, pos);
     } else {
