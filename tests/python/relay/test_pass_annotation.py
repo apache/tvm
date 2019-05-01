@@ -278,6 +278,7 @@ def run_fusible_network(dev, tgt):
             graph_json = json.loads(graph)
             if "device_index" in graph_json["attrs"]:
                 device_index = graph_json["attrs"]["device_index"][1]
+                assert device_index == expected_index
             mod = graph_runtime.create(graph, lib, contexts)
             mod.set_input(**params)
             mod.run()
@@ -290,7 +291,6 @@ def run_fusible_network(dev, tgt):
         target = {"cpu": "llvm", device: tgt}
         cpu_ctx = fallback_device
         dev_ctx = tvm.context(device)
-        dev_ty = dev_ctx.device_type
 
         def annotated():
             add = relay.add(x, y)
@@ -372,7 +372,6 @@ def run_fusible_network(dev, tgt):
         target = {"cpu": "llvm", device: tgt}
         cpu_ctx = fallback_device
         dev_ctx = tvm.context(device)
-        dev_ty = dev_ctx.device_type
 
         def annotated():
             add = relay.add(x, y)
