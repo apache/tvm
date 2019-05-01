@@ -47,15 +47,8 @@ except IMPORT_EXCEPT:
     from ._ctypes.function import convert_to_tvm_func
 
 class Object(_ObjectBase):
-    def to_value(self):
-        # fix me
-        from ..relay import _vm
-        return _vm._ObjectToValue(self)
-
-    def tag(self):
-        # fix me
-        from ..relay import _vm
-        return _vm._ObjectTag(self)
+    # TODO(@jroesch): Eventually add back introspection functionality.
+    pass
 
 _set_class_object(Object)
 
