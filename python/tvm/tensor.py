@@ -128,7 +128,7 @@ class Tensor(NodeBase, _expr.ExprOp):
 
 
 class Operation(NodeBase):
-    """Represent an operation that generate a tensor"""
+    """Represent an operation that generates a tensor"""
 
     def output(self, index):
         """Get the index-th output of the operation
