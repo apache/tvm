@@ -65,15 +65,15 @@ class Allocator {
  public:
   Allocator() {}
 
-  /*! \brief Allocate an EmptyNDArray using from the allocator.
+  /*! \brief Allocate an empty NDArray using from the allocator.
    *  \param shape The shape of the NDArray.
    *  \param alignment The datatype of the NDArray.
    *  \param ctx The context where the array is allocated.
    *  \return The empty NDArray.
    */
-  NDArray EmptyNDArray(std::vector<int64_t> shape,
-                       DLDataType dtype,
-                       DLContext ctx);
+  NDArray Empty(std::vector<int64_t> shape,
+                DLDataType dtype,
+                DLContext ctx);
   /*! \brief Allocate a buffer given a size, alignment and type.
    *  \param nbytes The size of the buffer.
    *  \param alignment The alignment of the buffer.

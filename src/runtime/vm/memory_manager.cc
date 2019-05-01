@@ -56,7 +56,7 @@ static void BufferDeleter(NDArray::Container* ptr) {
   delete ptr;
 }
 
-NDArray Allocator::EmptyNDArray(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
+NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext ctx) {
   VerifyDataType(dtype);
   NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, ctx);
   container->deleter = BufferDeleter;
