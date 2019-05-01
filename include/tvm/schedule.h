@@ -94,7 +94,7 @@ class Stage : public NodeRef {
    */
   EXPORT Stage& compute_root();  // NOLINT(*)
   /*!
-   * \brief Bind the ivar to thread index.
+   * \brief Bind the IterVar to thread index.
    *
    * \param ivar The IterVar to be bound.
    * \param thread_ivar The thread axis to be bound.
@@ -155,7 +155,7 @@ class Stage : public NodeRef {
    * \param p_target The result target domain.
    *
    * \note axes can be an empty array,
-   *       in that case, a singleton itervar is created and
+   *       in that case, a singleton IterVar is created and
    *       inserted to the outermost loop.
    *       The fuse of empty array is used to support zero-dimension tensors.
    *
