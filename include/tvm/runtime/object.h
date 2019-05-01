@@ -37,7 +37,14 @@ template <typename T>
 class ObjectPtr;
 class Object;
 
-enum struct ObjectTag { kTensor, kClosure, kDatatype, kExternalFunc };
+enum struct ObjectTag {
+  /*! \brief The tag of a tensor. */
+  kTensor = 0U,
+  /*! \brief The tag of a closure. */
+  kClosure = 1U,
+  /*! \brief The tag of a structure. */
+  kDatatype = 2U,
+};
 
 std::ostream& operator<<(std::ostream& os, const ObjectTag&);
 
