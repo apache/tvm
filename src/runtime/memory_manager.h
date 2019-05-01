@@ -69,6 +69,12 @@ class Allocator {
                        DLDataType dtype,
                        DLContext ctx);
 
+  /*! \brief Allocate a buffer given a size, alignment and type.
+   *  \param nbytes The size of the buffer.
+   *  \param alignment The alignment of the buffer.
+   *  \param type_hint A type hint to the allocator.
+   *  \return A sized allocation in the form of a buffer.
+  */
   virtual Buffer Alloc(size_t nbytes, size_t alignment, TVMType type_hint) = 0;
   virtual void Free(const Buffer& buffer) = 0;
   virtual size_t UsedMemory() const = 0;

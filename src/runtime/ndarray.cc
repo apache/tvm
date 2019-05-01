@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * 
  *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,8 +26,6 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
-
-#include "memory_manager.h"
 #include "runtime_base.h"
 
 // deleter for arrays used by DLPack exporter
@@ -76,15 +74,6 @@ struct NDArray::Internal {
     if (tensor->deleter != nullptr) {
       (*tensor->deleter)(tensor);
     }
-    delete ptr;
-  }
-
-  static void BufferDeleter(NDArray::Container* ptr) {
-    CHECK(ptr->manager_ctx != nullptr);
-    Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-    MemoryManager::Global()->GetAllocator(buffer->ctx)->
-        Free(*(buffer));
-    delete buffer;
     delete ptr;
   }
   // Local create function which allocates tensor metadata
@@ -159,7 +148,8 @@ NDArray NDArray::Empty(std::vector<int64_t> shape,
   size_t size = GetDataSize(ret.data_->dl_tensor);
   size_t alignment = GetDataAlignment(ret.data_->dl_tensor);
   ret.data_->dl_tensor.data =
-      DeviceAPI::Get(ret->ctx)->AllocDataSpace(ret->ctx, size, alignment, ret->dtype);
+      DeviceAPI::Get(ret->ctx)->AllocDataSpace(
+          ret->ctx, size, alignment, ret->dtype);
   return ret;
 }
 
