@@ -42,6 +42,9 @@ def setup():
     tvm.datatype.register_op(
         tvm.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
         "bfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
+        "llvm", "bfloat")
 
 
 def test_bfloat_add_and_cast_1():
@@ -122,7 +125,36 @@ def test_bfloat_add_and_cast_2():
     assert np.array_equal(z_expected, z.asnumpy())
 
 
+def test_bfloat_add_and_cast_FloatImm():
+    X = tvm.placeholder((3, ), name="X")
+    Z = topi.cast(
+        topi.add(
+            topi.cast(X, dtype="custom[bfloat]16"),
+            tvm.expr.FloatImm("custom[bfloat]16", 1.5)),
+        dtype="float")
+
+    # Create schedule and lower, manually lowering datatypes. Once datatype
+    # lowering is integrated directly into TVM's lower/build process, we won't
+    # need to do this manually.
+    s = tvm.create_schedule([Z.op])
+    flist = tvm.lower(s, [X, Z])
+    flist = [flist]
+    flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
+    built_cast = tvm.build(flist[0], target=tgt)
+
+    ctx = tvm.context(tgt, 0)
+
+    x = tvm.nd.array(np.array([0.0, 1.0, 1.5]).astype("float32"), ctx=ctx)
+    z_expected = np.array([1.5, 2.5, 3.0]).astype("float32")
+    z = tvm.nd.empty(Z.shape, dtype=Z.dtype, ctx=ctx)
+
+    built_cast(x, z)
+
+    assert np.array_equal(z_expected, z.asnumpy())
+
+
 if __name__ == "__main__":
     setup()
     test_bfloat_add_and_cast_1()
     test_bfloat_add_and_cast_2()
+    test_bfloat_add_and_cast_FloatImm()

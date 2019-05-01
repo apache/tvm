@@ -21,7 +21,7 @@ from __future__ import absolute_import as _abs
 from ._ffi.function import register_func as _register_func
 from . import make as _make
 from .api import convert
-from .expr import Call as _Call, Cast as _Cast
+from .expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
 from ._ffi.runtime_ctypes import TVMType as _TVMType
 from . import _api_internal
 
@@ -97,7 +97,7 @@ def create_lower_func(extern_func_name):
             dtype = "uint" + str(t.bits)
             if t.lanes > 1:
                 dtype += "x" + str(t.lanes)
-        if isinstance(op, _Cast):
+        if isinstance(op, (_Cast, _FloatImm)):
             return _make.Call(dtype, extern_func_name, convert([op.value]),
                               _Call.Extern, None, 0)
         return _make.Call(dtype, extern_func_name, convert([op.a, op.b]),

@@ -155,6 +155,31 @@ class LoadLowerer : public IRMutator {
   }
 };
 
+/*!
+ * \brief Mutator for lowering immediates of custom datatypes
+ *
+ * As with the other ops, immediates are lowered using a user-provided function. We separate them
+ * into their own IRMutator as they must be mutated after all other ops.
+ */
+class FloatImmLowerer : public IRMutator {
+ public:
+  explicit FloatImmLowerer(const std::string& target) : target_(target) {}
+
+  inline Expr Mutate_(const FloatImm* imm, const Expr& e) final {
+    auto type_code = imm->type.code();
+    if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
+      auto lower = datatype::GetFloatImmLowerFunc(target_, type_code);
+      CHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
+                   << static_cast<unsigned>(type_code) << " not found";
+      return (*lower)(e);
+    }
+    return e;
+  }
+
+ private:
+  std::string target_;
+};
+
 LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target) {
   auto n = make_node<LoweredFuncNode>(*f.operator->());
   // We lower in stages. First, we lower all operations (e.g. casts, binary ops,
@@ -167,6 +192,7 @@ LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target) {
   n->body = CustomDatatypesLowerer(target).Mutate(n->body);
   n->body = AllocateLowerer().Mutate(n->body);
   n->body = LoadLowerer().Mutate(n->body);
+  n->body = FloatImmLowerer(target).Mutate(n->body);
   return LoweredFunc(n);
 }
 

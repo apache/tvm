@@ -39,11 +39,12 @@ namespace datatype {
  *    ensuring that neither conflict with existing types.
  * 2. Use TVM_REGISTER_GLOBAL to register the lowering functions needed to
  *    lower the custom datatype. In general, these will look like:
- *      For Casts: tvm.datatype.lower.Cast.<target>.<type>.<src_type>
- *        Example: tvm.datatype.lower.Cast.llvm.myfloat.float for a Cast from
+ *      For Casts: tvm.datatype.lower.<target>.Cast.<type>.<src_type>
+ *        Example: tvm.datatype.lower.llvm.Cast.myfloat.float for a Cast from
  *                 float to myfloat.
- *        Example: tvm.datatype.lower.add.llvm.myfloat
- *  For other ops: tvm.datatype.lower.<op>.<target>.<type>
+ *  For other ops: tvm.datatype.lower.<target>.<op>.<type>
+ *       Examples: tvm.datatype.lower.llvm.Add.myfloat
+ *                 tvm.datatype.lower.llvm.FloatImm.posit
  */
 class Registry {
  public:
@@ -78,6 +79,8 @@ uint64_t ConvertConstScalar(uint8_t type_code, double value);
 const runtime::PackedFunc *GetCastLowerFunc(const std::string &target,
                                             uint8_t type_code,
                                             uint8_t src_type_code);
+
+const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8_t type_code);
 
 #define DEFINE_GET_LOWER_FUNC_(OP)                                                       \
   inline const runtime::PackedFunc* Get##OP##LowerFunc(const std::string& target,        \

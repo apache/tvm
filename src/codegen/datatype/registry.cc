@@ -83,6 +83,15 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   return runtime::Registry::Get(ss.str());
 }
 
+const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8_t type_code) {
+  std::ostringstream ss;
+  ss << "tvm.datatype.lower.";
+  ss << target;
+  ss << ".FloatImm.";
+  ss << datatype::Registry::Global()->GetTypeName(type_code);
+  return runtime::Registry::Get(ss.str());
+}
+
 uint64_t ConvertConstScalar(uint8_t type_code, double value) {
   std::ostringstream ss;
   ss << "tvm.datatype.convertconstscalar.float.";
