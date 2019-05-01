@@ -133,7 +133,7 @@ def matmul_v1(N, L, M, dtype):
 # Here we make four modifications to the previous schedule code and get
 # a tunable "template". We can explain the modifications one by one.
 #
-# 1. Use a decorator to mark this function as a simple template
+# 1. Use a decorator to mark this function as a simple template.
 # 2. Get a config object:
 #    You can regard this :code:`cfg` as an argument of this function but
 #    we obtain it in a different way. With this argument, this function is no longer
