@@ -96,8 +96,8 @@ class Stage : public NodeRef {
   /*!
    * \brief Bind the ivar to thread index.
    *
-   * \param ivar The IterVar to be binded.
-   * \param thread_ivar The thread axis to be binded.
+   * \param ivar The IterVar to be bound.
+   * \param thread_ivar The thread axis to be bound.
    * \return reference to self.
    */
   EXPORT Stage& bind(IterVar ivar, IterVar thread_ivar);
