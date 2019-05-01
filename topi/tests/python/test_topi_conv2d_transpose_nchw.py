@@ -72,10 +72,11 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
 
 
 def test_conv2d_transpose_nchw():
-    verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 1, 0)
-    verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 2, 1)
-    verify_conv2d_transpose_nchw(1, 32, 32, 128, 5, 1, 0)
-    verify_conv2d_transpose_nchw(1, 32, 32, 128, 5, 2, 1)
+    #verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 1, 0)
+    #verify_conv2d_transpose_nchw(1, 3, 224, 32, 3, 2, 1)
+    #verify_conv2d_transpose_nchw(1, 32, 32, 128, 5, 1, 0)
+    #verify_conv2d_transpose_nchw(1, 32, 32, 128, 5, 2, 1)
+    verify_conv2d_transpose_nchw(1000, 2048, 7, 256, 2, 2, 0)
 
 
 if __name__ == "__main__":

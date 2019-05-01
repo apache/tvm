@@ -174,7 +174,7 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
             by, vy, ty, yi = cfg["tile_y"].apply(s, output, y)
             bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
-            bf = s[output].fuse(n, bf)
+#            bf = s[output].fuse(n, bf)
             s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
             s[output].bind(by, tvm.thread_axis("blockIdx.y"))
             s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
@@ -184,7 +184,7 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
             s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
             s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
             s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
-            s[output].reorder(bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
+            s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
             s[OL].compute_at(s[output], tx)
 
             # tile reduction axes
