@@ -552,6 +552,22 @@ class ScheduleNode : public Node {
   void InvalidateCache();
 
   /*!
+   * \brief Check if the schedule contains an Operation.
+   * \param op The candidate Operation.
+   * \return true if the schedule has the Operation. Otherwise, false.
+   */
+  EXPORT bool Contain(const Operation& op) const;
+
+  /*!
+   * \brief Check if the schedule contains a Tensor.
+   * \param tensor The candidate tensor.
+   * \return true if the schedule has the tensor. Otherwise, false.
+   */
+  EXPORT bool Contain(const Tensor& tensor) const {
+    return Contain(tensor->op);
+  }
+
+  /*!
    * \brief Create a schedule for array of ops(and their dependencies).
    * \param ops The ops to be scheduled.
    * \return sch The created Schedule.
