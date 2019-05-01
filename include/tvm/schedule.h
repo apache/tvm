@@ -560,7 +560,7 @@ class ScheduleNode : public Node {
 
   /*!
    * \brief Check if the schedule contains a Tensor.
-   * \param op The candidate tensor.
+   * \param tensor The candidate tensor.
    * \return true if the schedule has the tensor. Otherwise, false.
    */
   EXPORT bool Contain(const Tensor& tensor) const {
