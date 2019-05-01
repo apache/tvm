@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -251,6 +251,9 @@ class BuiltinLower : public IRMutator {
           stack_value_, static_cast<int>(arg_stack_begin + i - 1),
           intrinsic::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
+      if (api_type.is_handle() && arg.as<StringImm>()) {
+        arg_tcode = kStr;
+      }
       if (IsArrayHandle(arg)) arg_tcode = kArrayHandle;
       prep_seq_.emplace_back(
           Store::make(stack_tcode_,
