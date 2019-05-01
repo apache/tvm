@@ -22,8 +22,8 @@
  * \file src/runtime/memory_manager.h
  * \brief Abstract device memory management API
  */
-#ifndef TVM_RUNTIME_MEMORY_MANAGER_H_
-#define TVM_RUNTIME_MEMORY_MANAGER_H_
+#ifndef TVM_RUNTIME_VM_MEMORY_MANAGER_H_
+#define TVM_RUNTIME_VM_MEMORY_MANAGER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <functional>
@@ -63,7 +63,7 @@ struct Buffer {
 
 class Allocator {
  public:
-  explicit Allocator() {}
+  Allocator() {}
 
   /*! \brief Allocate an EmptyNDArray using from the allocator.
    *  \param shape The shape of the NDArray.
@@ -109,4 +109,4 @@ class MemoryManager {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_MEMORY_MANAGER_H_
+#endif  // TVM_RUNTIME_VM_MEMORY_MANAGER_H_

@@ -21,8 +21,8 @@
  *  Copyright (c) 2019 by Contributors
  * \file src/runtime/naive_allocator.h
  */
-#ifndef TVM_RUNTIME_NAIVE_ALLOCATOR_H_
-#define TVM_RUNTIME_NAIVE_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
+#define TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
 #include <atomic>
@@ -64,4 +64,4 @@ class NaiveAllocator final : public Allocator {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_NAIVE_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_

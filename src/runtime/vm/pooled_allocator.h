@@ -21,8 +21,8 @@
  *  Copyright (c) 2019 by Contributors
  * \file runtime/pooled_allocator.h
  */
-#ifndef TVM_RUNTIME_POOLED_ALLOCATOR_H_
-#define TVM_RUNTIME_POOLED_ALLOCATOR_H_
+#ifndef TVM_RUNTIME_VM_POOLED_ALLOCATOR_H_
+#define TVM_RUNTIME_VM_POOLED_ALLOCATOR_H_
 
 #include <tvm/runtime/device_api.h>
 #include <atomic>
@@ -99,4 +99,4 @@ class PooledAllocator final : public Allocator {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_POOLED_ALLOCATOR_H_
+#endif  // TVM_RUNTIME_VM_POOLED_ALLOCATOR_H_
