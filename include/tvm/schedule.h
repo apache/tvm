@@ -107,7 +107,7 @@ class Stage : public NodeRef {
    *  need one of them to do the store.
    *
    * \note This is a dangerous scheduling primitive that can change behavior of program.
-   *    Only do when we are certain that thare are duplicated store.
+   *    Only do when we are certain that thare are duplicated stores.
    * \param predicate The condition to be checked.
    * \return reference to self.
    */
