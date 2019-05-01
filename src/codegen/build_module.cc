@@ -45,7 +45,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 /*!
 * \brief Construct a Target node from the given name and options.
 * \param target_name The major target name. Should be one of
-* {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "opengl", "ext_dev"}
+* {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hybrid", "llvm", "metal",
+*  "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
 * \param options Additional options appended to the target
 * \return The constructed Target
 */
