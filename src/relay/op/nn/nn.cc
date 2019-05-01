@@ -238,6 +238,23 @@ bool PReluRel(const Array<Type>& types,
   return true;
 }
 
+template<typename T>
+Array<Array<Layout> > PReluInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+
+  CHECK_EQ(old_in_layouts.size(), 2U);
+  CHECK_EQ(old_in_shapes.size(), 2U);
+  Layout data_layout = old_in_layouts[0];
+  if (new_in_layouts.defined()) {
+    CHECK_EQ(new_in_layouts.size(), 2U);
+  }
+  return Array<Array<Layout> >{{data_layout, Layout("C")},
+                               {data_layout}};
+}
+
 // Positional relay function to create prelu operator used by frontend FFI.
 Expr MakePRelu(Expr data,
                Expr alpha,
@@ -265,7 +282,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 .add_argument("alpha", "Tensor", "Input channelwise alpha.")
 .set_support_level(3)
 .add_type_rel("PRelu", PReluRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout<PReluAttrs>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
                     const Array<Tensor>& inputs,
