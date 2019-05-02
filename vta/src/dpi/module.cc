@@ -72,10 +72,10 @@ class ThreadSafeQueue {
     queue_.pop();
   }
 
-  bool TryPop(T& item, bool pop) {
+  bool TryPop(T *item, bool pop) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (queue_.empty()) return false;
-    item = std::move(queue_.front());
+    *item = std::move(queue_.front());
     if (pop) queue_.pop();
     return true;
   }
@@ -89,7 +89,7 @@ class ThreadSafeQueue {
 class HostDevice {
  public:
   void PushRequest(uint8_t opcode, uint8_t addr, uint32_t value);
-  bool TryPopRequest(HostRequest &r, bool pop);
+  bool TryPopRequest(HostRequest *r, bool pop);
   void PushResponse(uint32_t value);
   void WaitPopResponse(HostResponse &r);
   void Exit();
@@ -124,10 +124,10 @@ void HostDevice::PushRequest(uint8_t opcode, uint8_t addr, uint32_t value) {
   req_.Push(r);
 }
 
-bool HostDevice::TryPopRequest(HostRequest &r, bool pop) {
-  r.opcode = 0xad;
-  r.addr = 0xad;
-  r.value = 0xbad;
+bool HostDevice::TryPopRequest(HostRequest *r, bool pop) {
+  r->opcode = 0xad;
+  r->addr = 0xad;
+  r->value = 0xbad;
   return req_.TryPop(r, pop);
 }
 
@@ -254,15 +254,16 @@ class DPIModule final : public DPIModuleNode {
                unsigned char req_deq,
                unsigned char resp_valid,
                unsigned int resp_value) {
-    HostRequest r;
+    HostRequest *r = new HostRequest;
     *exit = host_device_.GetExitStatus();
     *req_valid = host_device_.TryPopRequest(r, req_deq);
-    *req_opcode = r.opcode;
-    *req_addr = r.addr;
-    *req_value = r.value;
+    *req_opcode = r->opcode;
+    *req_addr = r->addr;
+    *req_value = r->value;
     if (resp_valid) {
       host_device_.PushResponse(resp_value);
     }
+    delete r;
   }
 
   void MemDPI(
