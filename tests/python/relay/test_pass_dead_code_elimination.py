@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from nose.tools import nottest
+
 import tvm
 from tvm import relay
 from tvm.relay.ir_pass import dead_code_elimination, alpha_equal
@@ -51,7 +53,7 @@ def test_used_let():
     orig = relay.Let(e.c, e.one, e.c + e.c)
     assert alpha_equal(dead_code_elimination(orig), relay.Let(e.c, e.one, e.c + e.c))
 
-
+@nottest
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
     assert alpha_equal(dead_code_elimination(orig), e.d)

@@ -103,6 +103,7 @@ typedef enum {
   kStr = 11U,
   kBytes = 12U,
   kNDArrayContainer = 13U,
+  kObject = 14U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.

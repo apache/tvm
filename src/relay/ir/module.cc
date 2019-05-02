@@ -59,9 +59,13 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
 
 GlobalVar ModuleNode::GetGlobalVar(const std::string& name) {
   auto it = global_var_map_.find(name);
-  CHECK(it != global_var_map_.end())
-      << "Cannot find global var " << name << " in the Module";
-  return (*it).second;
+  if (it == global_var_map_.end()) {
+    auto gvar = GlobalVarNode::make(name);
+    global_var_map_.Set(name, gvar);
+    return gvar;
+  } else {
+    return (*it).second;
+  }
 }
 
 void ModuleNode::AddUnchecked(const GlobalVar& var,
@@ -215,6 +219,10 @@ TVM_REGISTER_API("relay._module.Module_LookupDef_str")
     return mod->LookupDef(var);
   });
 
+TVM_REGISTER_API("relay._module.Module_FromExpr")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = ModuleNode::FromExpr(args[0]);
+  });
 TVM_REGISTER_API("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {
     mod->Update(from);

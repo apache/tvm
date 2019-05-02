@@ -944,10 +944,7 @@ class GraphProto(object):
                                               dtype=self._params[i_name].dtype)
             else:
                 self._num_input += 1
-                if i_name in self._shape:
-                    tshape = self._shape[i_name]
-                else:
-                    raise ValueError("Must provide an input shape for `{0}`.".format(i_name))
+                tshape = self._shape[i_name] if i_name in self._shape else ()
                 if isinstance(self._dtype, dict):
                     dtype = self._dtype[i_name] if i_name in self._dtype else d_type
                 else:

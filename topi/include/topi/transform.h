@@ -616,6 +616,7 @@ inline Array<Tensor> split_sections(const Tensor& x,
 *
 * \param a The source array.
 * \param indices The indices of the values to extract.
+* \param mode The mode of the operation.
 * \param name The name of the operation.
 * \param mode The mode of to handle out of bound indices.
 * \param tag The tag to mark the operation.
@@ -656,7 +657,7 @@ inline Tensor take(const Tensor& a,
 * \param indices The indices of the values to extract.
 * \param axis The axis over which to select values. By default,
 * the flattened input array is used.
-* \param mode The mode of to handle out of bound indices.
+* \param mode The mode for handling out of bound indices.
 * \param name The name of the operation.
 * \param tag The tag to mark the operation.
 *

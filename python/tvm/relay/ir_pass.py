@@ -391,6 +391,23 @@ def backward_fold_scale_axis(expr):
     """
     return _ir_pass.backward_fold_scale_axis(expr)
 
+def eta_expand(expr, mod):
+    """Add abstraction over a function.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, we expect that expr's types
+        should be fully inferred by infer_type.
+    mod : tvm.relay.Module
+         The global module.
+
+    Returns
+    -------
+    expanded_expr : tvm.relay.Expr
+        The expression after eta expansion.
+    """
+    return _ir_pass.eta_expand(expr, mod)
 
 def forward_fold_scale_axis(expr):
     """Fold the scaling of axis into weights of conv2d/dense.
@@ -703,7 +720,7 @@ def fold_constant(expr):
     return _ir_pass.FoldConstant(expr)
 
 
-def fuse_ops(expr, opt_level=1):
+def fuse_ops(expr, opt_level=1, mod=None):
     """Fuse operators in expr together.
 
     Parameters
@@ -714,12 +731,15 @@ def fuse_ops(expr, opt_level=1):
     opt_level : int
         The level of fuse optimization.
 
+    mod : tvm.relay.Module
+        The module to perform fusion over.
+
     Returns
     -------
     transformed_expr : tvm.relay.Expr
         Transformed expression, containing fused result.
     """
-    return _ir_pass.FuseOps(expr, opt_level)
+    return _ir_pass.FuseOps(expr, opt_level, mod)
 
 
 def combine_parallel_conv2d(expr, min_num_branches=3):
