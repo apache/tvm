@@ -592,6 +592,7 @@ void VirtualMachine::Run() {
         shape.assign(dims, dims + instr.ndim);
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
         auto data = allocator->Empty(shape, instr.dtype, ctxs[0]);
+        // auto data = NDArray::Empty(shape, instr.dtype, ctxs[0]);
         auto obj = Object::Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;

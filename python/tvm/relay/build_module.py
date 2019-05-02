@@ -29,7 +29,7 @@ from . import expr as _expr
 from . import ty as _ty
 from .backend import interpreter as _interpreter
 from .backend import graph_runtime_codegen as _graph_gen
-from .vm import VMExecutor
+from .backend.vm import VMExecutor
 
 # List of optimization pass and level when switch on
 OPT_PASS_LEVEL = {

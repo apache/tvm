@@ -26,7 +26,7 @@ from ... import register_func, nd
 from ..base import NodeBase, register_relay_node
 from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
 from ..scope_builder import ScopeBuilder
-from .. import _vm
+from . import _vm
 
 class Value(NodeBase):
     """Base class of all values.

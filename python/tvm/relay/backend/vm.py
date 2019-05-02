@@ -23,9 +23,9 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import tvm
 from tvm._ffi.function import Object
 import numpy as np
-from ..relay import ir_pass
-from ..relay.backend.interpreter import Executor
-from ..relay.expr import GlobalVar, Function, Expr
+from .. import ir_pass
+from ..backend.interpreter import Executor
+from ..expr import GlobalVar, Function, Expr
 from . import _vm
 
 Object = Object
