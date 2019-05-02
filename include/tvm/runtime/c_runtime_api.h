@@ -112,7 +112,8 @@ typedef enum {
   kNNVMLast = 20U,
   // The following section of code is used for non-reserved types.
   kExtReserveEnd = 64U,
-  kExtEnd = 128U
+  kExtEnd = 128U,
+  kObject = 14U,
 } TVMTypeCode;
 
 /*!
