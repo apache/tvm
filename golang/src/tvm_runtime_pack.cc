@@ -36,6 +36,9 @@
 // NOTE: all the files after this are optional modules
 // that you can include remove, depending on how much feature you use.
 
+// Custom datatype utilities
+#include "src/runtime/custom_datatype_util.cc"
+
 // Likely we only need to enable one of the following
 // If you use Module::Load, use dso_module
 // For system packed library, use system_lib_module
