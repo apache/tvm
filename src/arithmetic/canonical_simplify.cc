@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -453,6 +453,9 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<SplitExprNode>()) {
       return GetRef<SplitExpr>(op);
     }
+    if (const auto* op = expr.as<SumExprNode>()) {
+      if (op->base == 0 && op->args.size() == 1) return op->args[0];
+    }
     if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
       expr = op->Normalize();
     }
@@ -763,6 +766,16 @@ Mutate_(const Mod* op, const Expr& self) {
             return SplitModConst(ToSplitExpr(temp), cval);
           }
         }
+      }
+      // Simplify the offset constant if necessary.
+      // (x - 5) % 3 => (x - 2) % 3 if x - 5 >= 0
+      auto cbound = parent_->const_int_bound(Normalize(a));
+      int64_t new_base = psum->base % cval;
+      if (cbound->min_value >= 0 &&
+          cbound->min_value - psum->base + new_base >= 0) {
+        SumExpr sum_expr(std::move(a.node_));
+        sum_expr.CopyOnWrite()->base = new_base;
+        return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval);
       }
     } else {
       // if a >= 0 && a < cval, then result == 0
