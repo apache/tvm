@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/runtime/ndarray.h
- * \brief Abstract device memory management API
+ * \brief A device-independent managed NDArray abstraction.
  */
 #ifndef TVM_RUNTIME_NDARRAY_H_
 #define TVM_RUNTIME_NDARRAY_H_
@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace runtime {
+
 /*!
  * \brief Managed NDArray.
  *  The array is backed by reference counted blocks.
@@ -248,6 +249,7 @@ class NDArray::Container {
    *  The head ptr of this struct can be viewed as DLTensor*.
    */
   DLTensor dl_tensor;
+
   /*!
    * \brief addtional context, reserved for recycling
    * \note We can attach additional content here
@@ -281,6 +283,7 @@ class NDArray::Container {
   int32_t array_type_code_{0};
   /*! \brief The internal reference counter */
   std::atomic<int> ref_counter_{0};
+
   /*!
    * \brief The shape container,
    *  can be used used for shape data.
@@ -296,6 +299,19 @@ class NDArray::Container {
     dl_tensor.strides = nullptr;
     dl_tensor.byte_offset = 0;
   }
+
+  Container(void* data,
+            std::vector<int64_t> shape,
+            DLDataType dtype,
+            DLContext ctx) {
+    dl_tensor.data = data;
+    shape_ = std::move(shape);
+    dl_tensor.shape = dmlc::BeginPtr(shape);
+    dl_tensor.ndim = static_cast<int>(shape.size());
+    dl_tensor.dtype = dtype;
+    dl_tensor.ctx = ctx;
+  }
+
   /*! \brief developer function, increases reference counter */
   void IncRef() {
     ref_counter_.fetch_add(1, std::memory_order_relaxed);
