@@ -1475,7 +1475,7 @@ def test_forward_mean():
 # All
 # ---
 def test_forward_all():
-    """test All"""
+    """Test the All operator."""
     np_data = np.random.choice([True, False], size=(5, 7, 11))
     tf.reset_default_graph()
     in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
