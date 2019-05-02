@@ -118,7 +118,7 @@ else()
       endif()
 
       # Build shared library (.so)
-      set(VTA_DPI_DIR ${VTA_DIR}/src/dpi)
+      set(VTA_HW_DPI_DIR ${VTA_DIR}/hardware/dpi)
       set(VERILATOR_INC_DIR /usr/local/share/verilator/include)
       set(VERILATOR_LIB_SRC ${VERILATOR_INC_DIR}/verilated.cpp ${VERILATOR_INC_DIR}/verilated_dpi.cpp)
 
@@ -127,7 +127,7 @@ else()
       endif()
 
       file(GLOB VERILATOR_GEN_SRC ${VERILATOR_TARGET_DIR}/*.cpp)
-      file(GLOB VERILATOR_SRC ${VTA_DPI_DIR}/tsim.cc)
+      file(GLOB VERILATOR_SRC ${VTA_HW_DPI_DIR}/tsim_device.cc)
       add_library(tsim SHARED ${VERILATOR_LIB_SRC} ${VERILATOR_GEN_SRC} ${VERILATOR_SRC})
 
       set(VERILATOR_DEF VL_TSIM_NAME=V${TSIM_TOP_NAME} VL_PRINTF=printf VM_COVERAGE=0 VM_SC=0)

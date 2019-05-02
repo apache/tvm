@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef VTA_SIM_H_
-#define VTA_SIM_H_
+#ifndef VTA_DPI_TSIM_H_
+#define VTA_DPI_TSIM_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 
@@ -104,4 +104,4 @@ TVM_DLL int VTADPISim(uint64_t max_cycles);
 #ifdef __cplusplus
 }
 #endif
-#endif // VTA_SIM_H_
+#endif // VTA_DPI_TSIM_H_
