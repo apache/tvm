@@ -20,7 +20,7 @@
 Code Guide and Tips
 ===================
 
-This is a document used to record tips in tvm codebase for reviewers and contributors.
+This is a document used to record tips in TVM codebase for reviewers and contributors.
 Most of them are summarized through lessons during the contributing and process.
 
 
@@ -42,7 +42,7 @@ Python Code Styles
 
 Handle Integer Constant Expression
 ----------------------------------
-We often need to handle constant integer expressions in tvm. Before we do so, the first question we want to ask is that is it really necessary to get a constant integer. If symbolic expression also works and let the logic flow, we should use symbolic expression as much as possible. So the generated code works for shapes that are not known ahead of time.
+We often need to handle constant integer expressions in TVM. Before we do so, the first question we want to ask is that is it really necessary to get a constant integer. If symbolic expression also works and let the logic flow, we should use symbolic expression as much as possible. So the generated code works for shapes that are not known ahead of time.
 
 Note that in some cases we cannot know certain information, e.g. sign of symbolic variable, it is ok to make assumptions in certain cases. While adding precise support if the variable is constant.
 

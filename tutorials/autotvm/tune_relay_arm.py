@@ -27,7 +27,7 @@ The operator implementation for ARM CPU in TVM is written in template form.
 The template has many tunable knobs (tile factor, vectorization, unrolling, etc).
 We will tune all convolution and depthwise convolution operators
 in the neural network. After tuning, we produce a log file which stores
-the best knob values for all required operators. When the tvm compiler compiles
+the best knob values for all required operators. When the TVM compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
@@ -45,8 +45,8 @@ to see the results.
 #
 #   pip3 install --user psutil xgboost tornado
 #
-# To make tvm run faster during tuning, it is recommended to use cython
-# as FFI of tvm. In the root directory of tvm, execute
+# To make TVM run faster during tuning, it is recommended to use cython
+# as FFI of TVM. In the root directory of TVM, execute
 # (change "3" to "2" if you use python2):
 #
 # .. code-block:: bash
@@ -134,11 +134,11 @@ def get_network(name, batch_size):
 # Register devices to RPC Tracker
 # -----------------------------------
 # Now we can register our devices to the tracker. The first step is to
-# build tvm runtime for the ARM devices.
+# build the TVM runtime for the ARM devices.
 #
 # * For Linux:
 #   Follow this section :ref:`build-tvm-runtime-on-device` to build
-#   tvm runtime on the device. Then register the device to tracker by
+#   the TVM runtime on the device. Then register the device to tracker by
 #
 #   .. code-block:: bash
 #
@@ -148,7 +148,7 @@ def get_network(name, batch_size):
 #
 # * For Android:
 #   Follow this `readme page <https://github.com/dmlc/tvm/tree/master/apps/android_rpc>`_ to
-#   install tvm rpc apk on the android device. Make sure you can pass the android rpc test.
+#   install the TVM RPC APK on the android device. Make sure you can pass the android rpc test.
 #   Then you have already registred your device. During tuning, you have to go to developer option
 #   and enable "Keep screen awake during changing" and charge your phone to make it stable.
 #

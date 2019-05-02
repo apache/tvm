@@ -38,7 +38,7 @@ from tvm.contrib.download import download_testdata
 # Build TVM Runtime on Device
 # ---------------------------
 #
-# The first step is to build tvm runtime on the remote device.
+# The first step is to build the TVM runtime on the remote device.
 #
 # .. note::
 #

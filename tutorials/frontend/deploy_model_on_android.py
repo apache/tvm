@@ -52,7 +52,7 @@ from tvm.contrib.download import download_testdata
 #   docker run --pid=host -h tvm -v $PWD:/workspace \
 #          -w /workspace -p 9190:9190 --name tvm -it tvm.demo_android bash
 #
-# You are now inside the container. The cloned tvm directory is mounted on /workspace.
+# You are now inside the container. The cloned TVM directory is mounted on /workspace.
 # At this time, mount the 9190 port used by RPC described later.
 #
 # .. note::
@@ -74,7 +74,7 @@ from tvm.contrib.download import download_testdata
 #         ..
 #   make -j10
 #
-# After building tvm successfully, Please set PYTHONPATH.
+# After building TVM successfully, Please set PYTHONPATH.
 #
 # .. code-block:: bash
 #
@@ -106,7 +106,7 @@ from tvm.contrib.download import download_testdata
 # Now we can register our Android device to the tracker.
 #
 # Follow this `readme page <https://github.com/dmlc/tvm/tree/master/apps/android_rpc>`_ to
-# install tvm rpc apk on the android device.
+# install TVM RPC APK on the android device.
 #
 # Here is an example of config.mk. I enabled OpenCL and Vulkan.
 #

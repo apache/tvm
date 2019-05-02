@@ -110,7 +110,7 @@ class Tensor(NodeBase, _expr.ExprOp):
 
     @property
     def value_index(self):
-        """The output value index the tensor corressponds to."""
+        """The output value index the tensor corresponds to."""
         return self.__getattr__("value_index")
 
     @property
@@ -128,7 +128,7 @@ class Tensor(NodeBase, _expr.ExprOp):
 
 
 class Operation(NodeBase):
-    """Represent an operation that generate a tensor"""
+    """Represent an operation that generates a tensor"""
 
     def output(self, index):
         """Get the index-th output of the operation
@@ -197,7 +197,7 @@ class ScanOp(Operation):
 
 @register_node
 class ExternOp(Operation):
-    """Extern operation."""
+    """External operation."""
 
 
 @register_node
