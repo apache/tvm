@@ -249,14 +249,14 @@ class DPIModule final : public DPIModuleNode {
   MemDevice mem_device_;
   std::thread vsim_thread_;
 
-  void HostDPI(unsigned char *exit,
-               unsigned char *req_valid,
-               unsigned char *req_opcode,
-               unsigned char *req_addr,
-               unsigned int *req_value,
-               unsigned char req_deq,
-               unsigned char resp_valid,
-               unsigned int resp_value) {
+  void HostDPI(dpi8_t *exit,
+               dpi8_t *req_valid,
+               dpi8_t *req_opcode,
+               dpi8_t *req_addr,
+               dpi32_t *req_value,
+               dpi8_t req_deq,
+               dpi8_t resp_valid,
+               dpi32_t resp_value) {
     HostRequest *r = new HostRequest;
     *exit = host_device_.GetExitStatus();
     *req_valid = host_device_.TryPopRequest(r, req_deq);
@@ -270,15 +270,15 @@ class DPIModule final : public DPIModuleNode {
   }
 
   void MemDPI(
-      unsigned char req_valid,
-      unsigned char req_opcode,
-      unsigned char req_len,
-      unsigned long long req_addr,
-      unsigned char wr_valid,
-      unsigned long long wr_value,
-      unsigned char *rd_valid,
-      unsigned long long *rd_value,
-      unsigned char rd_ready) {
+      dpi8_t req_valid,
+      dpi8_t req_opcode,
+      dpi8_t req_len,
+      dpi64_t req_addr,
+      dpi8_t wr_valid,
+      dpi64_t wr_value,
+      dpi8_t *rd_valid,
+      dpi64_t *rd_value,
+      dpi8_t rd_ready) {
     MemResponse r = mem_device_.ReadData(rd_ready);
     *rd_valid = r.valid;
     *rd_value = r.value;
@@ -292,14 +292,14 @@ class DPIModule final : public DPIModuleNode {
 
   static void VTAHostDPI(
       VTAContextHandle self,
-      unsigned char *exit,
-      unsigned char *req_valid,
-      unsigned char *req_opcode,
-      unsigned char *req_addr,
-      unsigned int *req_value,
-      unsigned char req_deq,
-      unsigned char resp_valid,
-      unsigned int resp_value) {
+      dpi8_t *exit,
+      dpi8_t *req_valid,
+      dpi8_t *req_opcode,
+      dpi8_t *req_addr,
+      dpi32_t *req_value,
+      dpi8_t req_deq,
+      dpi8_t resp_valid,
+      dpi32_t resp_value) {
     static_cast<DPIModule*>(self)->HostDPI(
         exit, req_valid, req_opcode, req_addr,
         req_value, req_deq, resp_valid, resp_value);
@@ -307,15 +307,15 @@ class DPIModule final : public DPIModuleNode {
 
   static void VTAMemDPI(
     VTAContextHandle self,
-    unsigned char req_valid,
-    unsigned char req_opcode,
-    unsigned char req_len,
-    unsigned long long req_addr,
-    unsigned char wr_valid,
-    unsigned long long wr_value,
-    unsigned char *rd_valid,
-    unsigned long long *rd_value,
-    unsigned char rd_ready) {
+    dpi8_t req_valid,
+    dpi8_t req_opcode,
+    dpi8_t req_len,
+    dpi64_t req_addr,
+    dpi8_t wr_valid,
+    dpi64_t wr_value,
+    dpi8_t *rd_valid,
+    dpi64_t *rd_value,
+    dpi8_t rd_ready) {
     static_cast<DPIModule*>(self)->MemDPI(
         req_valid, req_opcode, req_len,
         req_addr, wr_valid, wr_value,

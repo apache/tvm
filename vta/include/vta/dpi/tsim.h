@@ -21,12 +21,17 @@
 #define VTA_DPI_TSIM_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
+typedef unsigned char dpi8_t;
+
+typedef unsigned int dpi32_t;
+
+typedef unsigned long long dpi64_t; // NOLINT(*)
 
 /*! \brief the context handle */
 typedef void* VTAContextHandle;
@@ -45,14 +50,14 @@ typedef void* VTAContextHandle;
  */
 typedef void (*VTAHostDPIFunc)(
     VTAContextHandle self,
-    unsigned char *exit,
-    unsigned char *req_valid,
-    unsigned char *req_opcode,
-    unsigned char *req_addr,
-    unsigned int *req_value,
-    unsigned char req_deq,
-    unsigned char resp_valid,
-    unsigned int resp_value);
+    dpi8_t *exit,
+    dpi8_t *req_valid,
+    dpi8_t *req_opcode,
+    dpi8_t *req_addr,
+    dpi32_t *req_value,
+    dpi8_t req_deq,
+    dpi8_t resp_valid,
+    dpi32_t resp_value);
 
 /*!
  * \brief Memory DPI callback function that is invoked in VTAMemDPI.v every clock cycle
@@ -67,15 +72,15 @@ typedef void (*VTAHostDPIFunc)(
  */
 typedef void (*VTAMemDPIFunc)(
     VTAContextHandle self,
-    unsigned char req_valid,
-    unsigned char req_opcode,
-    unsigned char req_len,
-    unsigned long long req_addr,
-    unsigned char wr_valid,
-    unsigned long long wr_value,
-    unsigned char *rd_valid,
-    unsigned long long *rd_value,
-    unsigned char rd_ready);
+    dpi8_t req_valid,
+    dpi8_t req_opcode,
+    dpi8_t req_len,
+    dpi64_t req_addr,
+    dpi8_t wr_valid,
+    dpi64_t wr_value,
+    dpi8_t *rd_valid,
+    dpi64_t *rd_value,
+    dpi8_t rd_ready);
 
 /*! \brief The type of VTADPIInit function pointer */
 typedef void (*VTADPIInitFunc)(VTAContextHandle handle,
