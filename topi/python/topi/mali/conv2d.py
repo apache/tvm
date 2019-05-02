@@ -352,9 +352,10 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     # unpack output
     output = tvm.compute((N, CO, H, W), lambda n, co, h, w:
                          Y[co][n * nH * nW + (h//m) * nW + w//m][h % m][w % m]
-                         # thw following term is used to make the padding effective,
-                         # otherwise the padding will be eliminated by bound inference
-                         + tvm.const(0, out_dtype) * M[alpha-1][alpha-1][CO-1][P_round-1],
+                         # thw following hack term is used to make the padding in batch gemm ("M")
+                         # effective, otherwise the padding will be eliminated by bound inference
+                         + tvm.expr.Mul(tvm.const(0, out_dtype),
+                                        M[alpha-1][alpha-1][CO-1][P_round-1]),
                          name='output', tag='winograd_conv2d_output')
 
     # we have to manually assign effective GFLOP for winograd
