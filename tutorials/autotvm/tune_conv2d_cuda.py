@@ -34,7 +34,7 @@ vendor provided library CuDNN in many cases.
 #
 #   pip3 install --user psutil xgboost tornado
 #
-# To make tvm run faster in tuning, it is recommended to use cython
+# To make TVM run faster in tuning, it is recommended to use cython
 # as FFI of tvm. In the root directory of tvm, execute
 #
 # .. code-block:: bash

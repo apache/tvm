@@ -25,7 +25,7 @@ the pipeline. For example, we might want to use cuDNN for
 some of the convolution kernels and define the rest of the stages.
 
 TVM supports these black box function calls natively.
-Specfically, tvm support all the tensor functions that are DLPack compatible.
+Specfically, TVM support all the tensor functions that are DLPack compatible.
 Which means we can call any function with POD types(pointer, int, float)
 or pointer to DLTensor as argument.
 """
@@ -46,7 +46,7 @@ from tvm.contrib import cblas
 # The compute function takes list of symbolic placeholder for the inputs,
 # list of symbolic placeholder for the outputs and returns the executing statement.
 #
-# In this case we simply call a registered tvm function, which invokes a CBLAS call.
+# In this case we simply call a registered TVM function, which invokes a CBLAS call.
 # TVM does not control internal of the extern array function and treats it as blackbox.
 # We can further mix schedulable TVM calls that add a bias term to the result.
 #
@@ -95,7 +95,7 @@ s = tvm.create_schedule(D.op)
 # Since we can call into any PackedFunc in TVM. We can use the extern
 # function to callback into python.
 #
-# The following example registers a python function into tvm runtime system
+# The following example registers a python function into TVM runtime system
 # and use it to complete one stage of the computation.
 # This makes TVM much more flexible. For example, we can insert front-end
 # callbacks to inspect the intermediate results or mix customized code

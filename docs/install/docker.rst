@@ -19,13 +19,13 @@
 
 Docker Images
 =============
-We provide several prebuilt docker images to quickly try out tvm.
+We provide several prebuilt docker images to quickly try out TVM.
 These images are also helpful run through TVM demo and tutorials.
 You can get the docker images via the following steps.
 We need `docker <https://docs.docker.com/engine/installation/>`_ and
 `nvidia-docker <https://github.com/NVIDIA/nvidia-docker/>`_ if we want to use cuda.
 
-First, clone tvm repo to get the auxiliary scripts
+First, clone TVM repo to get the auxiliary scripts
 
 .. code:: bash
 

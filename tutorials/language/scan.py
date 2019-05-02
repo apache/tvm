@@ -77,7 +77,7 @@ print(tvm.lower(s, [X, s_scan], simple_mode=True))
 ######################################################################
 # Build and Verify
 # ----------------
-# We can build the scan kernel like other tvm kernels, here we use
+# We can build the scan kernel like other TVM kernels, here we use
 # numpy to verify the correctness of the result.
 #
 fscan = tvm.build(s, [X, s_scan], "cuda", name="myscan")

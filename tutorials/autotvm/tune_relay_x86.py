@@ -20,7 +20,7 @@ Auto-tuning a convolutional network for x86 CPU
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Eddie Yan <https://github.com/eqy>`_
 
 This is a tutorial about how to tune convolution neural network
-for x86 cpu.
+for x86 CPU.
 """
 import os
 import numpy as np
@@ -70,7 +70,7 @@ def get_network(name, batch_size):
 
     return net, params, input_shape, output_shape
 
-# Replace "llvm" with the correct target of your cpu.
+# Replace "llvm" with the correct target of your CPU.
 # For example, for AWS EC2 c5 instance with Intel Xeon
 # Platinum 8000 series, the target should be "llvm -mcpu=skylake-avx512".
 # For AWS EC2 c4 instance with Intel Xeon E5-2666 v3, it should be
@@ -83,7 +83,7 @@ model_name = "resnet-18"
 log_file = "%s.log" % model_name
 
 # Set number of threads used for tuning based on the number of
-# physical cpu cores on your machine.
+# physical CPU cores on your machine.
 num_threads = 1
 os.environ["TVM_NUM_THREADS"] = str(num_threads)
 
@@ -91,7 +91,7 @@ os.environ["TVM_NUM_THREADS"] = str(num_threads)
 #################################################################
 # Configure tensor tuning settings and create tasks
 # -------------------------------------------------
-# To get better kernel execution performance on x86 cpu,
+# To get better kernel execution performance on x86 CPU,
 # we need to change data layout of convolution kernel from
 # "NCHW" to "NCHWc". To deal with this situation, we define
 # conv2d_NCHWc operator in topi. We will tune this operator
