@@ -34,7 +34,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "../../../runtime/naive_allocator.h"
+#include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
 
 namespace tvm {

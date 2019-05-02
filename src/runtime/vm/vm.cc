@@ -30,8 +30,8 @@
 #include <iostream>
 #include <vector>
 
-#include "../../runtime/memory_manager.h"
-#include "../../runtime/naive_allocator.h"
+#include "../../runtime/vm/memory_manager.h"
+#include "../../runtime/vm/naive_allocator.h"
 
 using namespace tvm::runtime;
 
@@ -591,7 +591,7 @@ void VirtualMachine::Run() {
         auto shape = std::vector<int64_t>(instr.ndim);
         shape.assign(dims, dims + instr.ndim);
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
-        auto data = NDArray::Empty(shape, instr.dtype, ctxs[0], allocator);
+        auto data = allocator->Empty(shape, instr.dtype, ctxs[0]);
         auto obj = Object::Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;

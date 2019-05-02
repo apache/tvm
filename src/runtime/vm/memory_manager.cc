@@ -19,7 +19,7 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file tvm/runtime/memory_manager.cc
+ * \file tvm/runtime/vm/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
 #include <utility>
@@ -31,6 +31,24 @@
 namespace tvm {
 namespace runtime {
 namespace vm {
+
+inline void VerifyDataType(DLDataType dtype) {
+  CHECK_GE(dtype.lanes, 1);
+  if (dtype.code == kDLFloat) {
+    CHECK_EQ(dtype.bits % 8, 0);
+  } else {
+    // allow uint1 as a special flag for bool.
+    if (dtype.bits == 1 && dtype.code == kDLUInt) return;
+    CHECK_EQ(dtype.bits % 8, 0);
+  }
+  CHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
+}
+
+inline size_t GetDataAlignment(const DLTensor& arr) {
+  size_t align = (arr.dtype.bits / 8) * arr.dtype.lanes;
+  if (align < kAllocAlignment) return kAllocAlignment;
+  return align;
+}
 
 MemoryManager* MemoryManager::Global() {
   static MemoryManager memory_manager;
