@@ -16,6 +16,7 @@
   limitations under the License.
   ==============================================================================*/
 
+#include <tvm/runtime/c_runtime_api.h>
 #include <cstddef>
 #include <cstdint>
 
@@ -58,20 +59,22 @@ void BFloat16Add(const uint16_t* a, const uint16_t* b, uint16_t* dst,
   FloatToBFloat16(&out_f, dst, 1);
 }
 
-extern "C" uint16_t FloatToBFloat16_wrapper(float in) {
+extern "C" {
+TVM_DLL TVM_DLL uint16_t FloatToBFloat16_wrapper(float in) {
   uint16_t out;
   FloatToBFloat16(&in, &out, 1);
   return out;
 }
 
-extern "C" float BFloat16ToFloat_wrapper(uint16_t in) {
+TVM_DLL float BFloat16ToFloat_wrapper(uint16_t in) {
   float out;
   BFloat16ToFloat(&in, &out, 1);
   return out;
 }
 
-extern "C" uint16_t BFloat16Add_wrapper(uint16_t a, uint16_t b) {
+TVM_DLL uint16_t BFloat16Add_wrapper(uint16_t a, uint16_t b) {
   uint16_t out;
   BFloat16Add(&a, &b, &out, 1);
   return out;
+}
 }
