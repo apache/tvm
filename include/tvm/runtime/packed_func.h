@@ -929,18 +929,8 @@ inline const char* TypeCode2Str(int type_code) {
     case kModuleHandle: return "ModuleHandle";
     case kNDArrayContainer: return "NDArrayContainer";
     case kObject: return "Object";
-    default:
-      // This is (potentially) the case of a custom type code.
-      // TODO(gus): should only a range of codes be allowed for customs?
-
-      if (GetTypeRegistered(type_code)) {
-        std::ostringstream ss;
-        ss << "custom[" << GetTypeName(type_code) << "]";
-        return ss.str().c_str();
-      } else {
-        LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
-        return "";
-      }
+    default: LOG(FATAL) << "unknown type_code="
+                        << static_cast<int>(type_code); return "";
   }
 }
 
