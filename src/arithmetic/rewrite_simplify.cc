@@ -1244,6 +1244,12 @@ Mutate_(const Call* op, const Expr& self) {
       ConstraintContext constraint(parent_, Mutate(Not::make(cond)));
       false_value = Mutate(op->args[2]);
     }
+    if (is_zero(cond)) {
+      return false_value;
+    }
+    if (is_one(cond)) {
+      return true_value;
+    }
     if (cond.same_as(op->args[0]) &&
         true_value.same_as(op->args[1]) &&
         false_value.same_as(op->args[2])) {

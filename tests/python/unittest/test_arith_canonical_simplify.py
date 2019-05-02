@@ -177,6 +177,15 @@ def test_simplify_if_then_else():
     expected = tvm.expr.Select(tvm.all(x >= -1, y >= 0), (x + y + 1) % 3, (x + 100) % 3)
     ck.verify(res, ck.analyzer.canonical_simplify(expected))
 
+    res = tvm.expr.Select(x >= 10,
+                          tvm.if_then_else(x / 3 > 2, x, 0), 0)
+    expected = tvm.expr.Select(x >= 10, x, 0)
+    ck.verify(res, ck.analyzer.canonical_simplify(expected))
+
+    res = tvm.expr.Select(x >= 10,
+                          tvm.if_then_else(x / 3 < 2, x, 0), 0)
+    ck.verify(res, 0)
+
 
 if __name__ == "__main__":
     test_simplify_if_then_else()
