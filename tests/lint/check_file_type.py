@@ -62,6 +62,10 @@ ALLOW_EXTENSION = {
     "plist",
     "xcworkspacedata",
     "storyboard",
+    # hw/chisel
+    "sbt",
+    "properties",
+    "v",
     }
 
 # List of file names allowed
