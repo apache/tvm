@@ -78,11 +78,6 @@ class CustomDatatypesLowerer : public IRMutator {
     return expr;                                                                  \
   }
 
-  // TODO(gus) this list should be the same as the list of DEFINE_GET_LOWER_FUNC_ in
-  // codegen/datatypes/registry.h. We should avoid the duplication.
-  // TODO(gus) what should be included in this list? See the commentary below
-  // on the Load case. Some of these things may not actually need to be lowered,
-  // or perhaps they all need to be lowered but special cases need to be added.
   DEFINE_MUTATE__(Add)
   DEFINE_MUTATE__(Sub)
   DEFINE_MUTATE__(Mul)

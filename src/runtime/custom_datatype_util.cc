@@ -22,7 +22,6 @@
 namespace tvm {
 namespace runtime {
 
-// Public function (needed in packed_func.h) for getting a name from a custom type's code
 TVM_DLL std::string GetCustomTypeName(uint8_t type_code) {
   auto f = tvm::runtime::Registry::Get("_datatype_get_type_name");
   CHECK(f) << "Function not found";

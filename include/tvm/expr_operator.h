@@ -33,6 +33,12 @@
 #include "ir.h"
 
 namespace tvm {
+
+namespace runtime {
+// Datatype utilities needed at runtime. See src/runtime/custom_datatype_util.cc.
+TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
+}  // namespace runtime
+
 /*!
  * \brief Make a const value with certain data type.
  * \param t The target type.
@@ -546,16 +552,11 @@ inline bool is_no_op(const Stmt& stmt) {
   return false;
 }
 
-TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
-
 template<typename ValueType>
 inline Expr MakeConstScalar(Type t, ValueType value) {
   if (t.is_int()) return ir::IntImm::make(t, static_cast<int64_t>(value));
   if (t.is_uint()) return ir::UIntImm::make(t, static_cast<uint64_t>(value));
   if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
-  // TODO(gus) document how we check for custom type (>128)
-  // TODO(gus) do we need to worry about a type being >128, but not being registered? Should we
-  // catch that here, or later?
   // For now, we store const scalar values of custom datatypes within doubles; later, during the
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.

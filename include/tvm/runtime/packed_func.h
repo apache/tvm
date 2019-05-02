@@ -60,6 +60,12 @@ namespace tvm {
 class Integer;
 
 namespace runtime {
+
+// Datatype utilities needed at runtime. See src/runtime/custom_datatype_util.cc.
+TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
+TVM_DLL uint8_t GetCustomTypeCode(const std::string& type_name);
+TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
+
 // forward declarations
 class TVMArgs;
 class TVMArgValue;
@@ -933,11 +939,6 @@ inline const char* TypeCode2Str(int type_code) {
                         << static_cast<int>(type_code); return "";
   }
 }
-
-// Get the name of a TVMType corresponding to a custom (user-defined) datatype
-TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
-TVM_DLL uint8_t GetCustomTypeCode(const std::string& type_name);
-TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
 
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)

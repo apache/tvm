@@ -29,8 +29,6 @@ def setup():
     # In this case, we have built the test functions used below right into TVM.
     # CDLL("libmybfloat16.so", RTLD_GLOBAL)
 
-    # TODO(gus) having numbers in typenames causes some weird parsing bug somewhere
-    #tvm.register_datatype("bfloat16", 24)
     tvm.datatype.register("bfloat", 129)
 
     tvm.datatype.register_op(
