@@ -51,6 +51,7 @@ struct equal_to<TVMContext> {
 
 namespace tvm {
 namespace runtime {
+namespace vm {
 
 struct Buffer {
   /*! \brief The pointer to the allocated block of memory. */
@@ -106,6 +107,7 @@ class MemoryManager {
   std::unordered_map<TVMContext, std::unique_ptr<Allocator> > allocators_;
 };
 
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 

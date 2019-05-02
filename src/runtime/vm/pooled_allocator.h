@@ -34,6 +34,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace vm {
 
 class PooledAllocator final : public Allocator {
  public:
@@ -96,6 +97,7 @@ class PooledAllocator final : public Allocator {
   TVMContext ctx_;
 };
 
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 

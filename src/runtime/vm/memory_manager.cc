@@ -30,6 +30,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace vm {
 
 MemoryManager* MemoryManager::Global() {
   static MemoryManager memory_manager;
@@ -63,12 +64,12 @@ NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLContext
   size_t size = GetDataSize(container->dl_tensor);
   size_t alignment = GetDataAlignment(container->dl_tensor);
   Buffer *buffer = new Buffer;
-  container->manager_ctx = new Buffer;
   *buffer = this->Alloc(size, alignment, dtype);
   container->manager_ctx = reinterpret_cast<void*>(buffer);
   container->dl_tensor.data = buffer->data;
   return NDArray(container);
 }
 
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

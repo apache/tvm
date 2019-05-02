@@ -31,6 +31,7 @@
 
 namespace tvm {
 namespace runtime {
+namespace vm {
 
 class NaiveAllocator final : public Allocator {
  public:
@@ -61,6 +62,7 @@ class NaiveAllocator final : public Allocator {
   TVMContext ctx_;
 };
 
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
