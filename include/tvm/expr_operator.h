@@ -36,7 +36,7 @@ namespace tvm {
 
 namespace runtime {
 // Datatype utilities needed at runtime. See src/runtime/custom_datatype_util.cc.
-bool GetCustomTypeRegistered(uint8_t type_code);
+TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
 }  // namespace runtime
 
 /*!
