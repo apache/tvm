@@ -62,9 +62,9 @@ class Integer;
 namespace runtime {
 
 // Datatype utilities needed at runtime. See src/runtime/custom_datatype_util.cc.
-TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
-TVM_DLL uint8_t GetCustomTypeCode(const std::string& type_name);
-TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
+std::string GetCustomTypeName(uint8_t type_code);
+uint8_t GetCustomTypeCode(const std::string& type_name);
+bool GetCustomTypeRegistered(uint8_t type_code);
 
 // forward declarations
 class TVMArgs;
