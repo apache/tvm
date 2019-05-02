@@ -65,10 +65,10 @@ class ThreadSafeQueue {
     cond_.notify_one();
   }
 
-  void WaitPop(T& item) {
+  void WaitPop(T *item) {
     std::unique_lock<std::mutex> lock(mutex_);
     cond_.wait(lock, [this]{return !queue_.empty();});
-    item = std::move(queue_.front());
+    *item = std::move(queue_.front());
     queue_.pop();
   }
 
@@ -91,7 +91,7 @@ class HostDevice {
   void PushRequest(uint8_t opcode, uint8_t addr, uint32_t value);
   bool TryPopRequest(HostRequest *r, bool pop);
   void PushResponse(uint32_t value);
-  void WaitPopResponse(HostResponse &r);
+  void WaitPopResponse(HostResponse *r);
   void Exit();
   uint8_t GetExitStatus();
 
@@ -137,7 +137,7 @@ void HostDevice::PushResponse(uint32_t value) {
   resp_.Push(r);
 }
 
-void HostDevice::WaitPopResponse(HostResponse &r) {
+void HostDevice::WaitPopResponse(HostResponse *r) {
   resp_.WaitPop(r);
 }
 
@@ -229,10 +229,13 @@ class DPIModule final : public DPIModuleNode {
   }
 
   uint32_t ReadReg(int addr) {
-    HostResponse r;
+    uint32_t value;
+    HostResponse *r = new HostResponse;
     host_device_.PushRequest(0, addr, 0);
     host_device_.WaitPopResponse(r);
-    return r.value;
+    value = r->value;
+    delete r;
+    return value;
   }
 
   void Finish(uint32_t length) {
