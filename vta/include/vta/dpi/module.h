@@ -20,10 +20,11 @@
 #ifndef VTA_DPI_MODULE_H_
 #define VTA_DPI_MODULE_H_
 
+#include <tvm/runtime/module.h>
 #include <mutex>
 #include <queue>
 #include <condition_variable>
-#include <tvm/runtime/module.h>
+#include <string>
 
 namespace vta {
 namespace dpi {
@@ -40,5 +41,5 @@ class DPIModuleNode : public tvm::runtime::ModuleNode {
 
 }  // namespace dpi
 }  // namespace vta
-#endif // VTA_DPI_MODULE_H_
+#endif  // VTA_DPI_MODULE_H_
 
