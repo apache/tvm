@@ -37,6 +37,7 @@ cdef enum TVMTypeCode:
     kStr = 11
     kBytes = 12
     kNDArrayContainer = 13
+    kObject = 14
     kExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
@@ -76,6 +77,7 @@ ctypedef DLTensor* DLTensorHandle
 ctypedef void* TVMStreamHandle
 ctypedef void* TVMRetValueHandle
 ctypedef void* TVMFunctionHandle
+ctypedef void* ObjectHandle
 ctypedef void* NodeHandle
 
 ctypedef struct TVMNDArrayContainer:
