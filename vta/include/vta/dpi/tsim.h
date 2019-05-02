@@ -104,4 +104,4 @@ TVM_DLL int VTADPISim(uint64_t max_cycles);
 #ifdef __cplusplus
 }
 #endif
-#endif // VTA_DPI_TSIM_H_
+#endif  // VTA_DPI_TSIM_H_
