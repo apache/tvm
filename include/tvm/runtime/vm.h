@@ -177,7 +177,7 @@ struct Instruction {
    * \param op1 The true register.
    * \param op2 The false register.
    * \param dst The destination register.
-   * \ret The select instruction.
+   * \return The select instruction.
    */
   static Instruction Select(RegName cond, RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a return instruction.
