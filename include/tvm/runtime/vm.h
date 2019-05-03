@@ -181,7 +181,7 @@ struct Instruction {
    */
   static Instruction Select(RegName cond, RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a return instruction.
-   *  \param result The register containing the return value.
+   *  \param return_reg The register containing the return value.
    *  \return The return instruction.
    * */
   static Instruction Ret(RegName return_reg);
@@ -207,6 +207,7 @@ struct Instruction {
    *  \param tag The datatype tag.
    *  \param num_fields The number of fields for the datatype.
    *  \param fields The registers containing the fields.
+   *  \param dst The register name of the destination.
    *  \return The allocate instruction tensor.
    */
   static Instruction AllocDatatype(Index tag, Index num_fields, const std::vector<RegName>& fields,
@@ -381,7 +382,7 @@ struct VirtualMachine {
    *  \param reg The register to read from.
    *   \return The read object.
    */
-  inline Object ReadRegister(RegName r);
+  inline Object ReadRegister(RegName reg);
 
   /*! \brief Invoke a VM function.
    * \param func The function.
