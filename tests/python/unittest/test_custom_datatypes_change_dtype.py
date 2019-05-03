@@ -14,20 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Frontends for constructing Relay programs.
 
-Contains the model importers currently defined
-for Relay.
-"""
+"""Utilities for changing datatypes of models."""
 
-from __future__ import absolute_import
+import tvm
+from tvm import relay
+from tvm.relay.testing.inception_v3 import get_workload
 
-from .mxnet import from_mxnet
-from .keras import from_keras
-from .onnx import from_onnx
-from .tflite import from_tflite
-from .coreml import from_coreml
-from .caffe2 import from_caffe2
-from .tensorflow import from_tensorflow
-from .change_datatype import ChangeDatatype
+def test_change_dtype_inception_v3():
+    expr, params = get_workload()
+
+    def change_dtype(src, dst, expr, params):
+        cdtype = relay.frontend.ChangeDatatype(src, dst)
+        expr = cdtype.visit(expr)
+        expr = relay.ir_pass.infer_type(expr)
+        params = dict((p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
+        return expr, params
+
+    expr, params = change_dtype('float32', 'float16', expr, params)
+
+if __name__ == "__main__":
+    test_change_dtype_inception_v3()
