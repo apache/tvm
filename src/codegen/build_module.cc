@@ -422,12 +422,10 @@ Array<LoweredFunc> lower(Schedule sch,
   return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
 
-runtime::Module build(const Array<LoweredFunc>& funcs,
-                      const Target& target,
-                      const Target& target_host,
-                      const BuildConfig& config,
-                      Array<LoweredFunc>* fhost_ret,
-                      std::vector<runtime::Module>* devmod_ret) {
+Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
+                                                const Target& target,
+                                                const Target& target_host,
+                                                const BuildConfig& config) {
   std::unordered_set<std::string> all_names;
   for (const auto &x : funcs) {
     CHECK(all_names.count(x->name) == 0) << "Duplicate function name " << x->name;
@@ -466,12 +464,6 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     }
   }
 
-  if (fhost_ret != nullptr) {
-    for (auto f : fhost) {
-      fhost_ret->push_back(f);
-    }
-  }
-
   auto keys = target->keys();
   bool target_is_gpu =
     std::find(keys.begin(), keys.end(), "gpu") != keys.end();
@@ -500,14 +492,22 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }
+  return {fhost, fdevice};
+}
+
+runtime::Module build(const Array<LoweredFunc>& funcs,
+                      const Target& target,
+                      const Target& target_host,
+                      const BuildConfig& config) {
+  auto target_host_val = target_host.defined() ? target_host : DefaultTargetHost(target);
+  auto host_dev_funcs = split_dev_host_funcs(funcs, target, target_host, config);
+  auto& fhost = host_dev_funcs[0];
+  auto& fdevice = host_dev_funcs[1];
 
   auto mhost = codegen::Build(fhost, target_host_val->str());
 
   if (fdevice.size() > 0) {
     auto mdev = codegen::Build(fdevice, target->str());
-    if (devmod_ret != nullptr) {
-      devmod_ret->push_back(mdev);
-    }
     mhost.Import(mdev);
   }
 
