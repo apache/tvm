@@ -196,9 +196,9 @@ struct Instruction {
                            const std::vector<RegName>& args);
   /*! \brief Construct an allocate tensor instruction.
    *  \param shape_register The register containing the shape.
-   *  \param The shape to place in the register.
-   *  \param The dtype of the tensor.
-   *  \param The destination register.
+   *  \param shape The shape to place in the register.
+   *  \param dtype The dtype of the tensor.
+   *  \param dst The destination register.
    *  \return The allocate tensor instruction.
    */
   static Instruction AllocTensor(RegName shape_register, const std::vector<int64_t>& shape,
@@ -222,7 +222,7 @@ struct Instruction {
                            const std::vector<RegName>& free_vars, RegName dst);
   /*! \brief Construct a get field instruction.
    *  \param object_reg The register containing the object to project from.
-   *  \param field_indecx The field to read out of the object.
+   *  \param field_index The field to read out of the object.
    *  \param dst The destination register.
    *  \return The get field instruction.
    */
@@ -246,18 +246,17 @@ struct Instruction {
    *  \return The invoke instruction.
    */
   static Instruction Invoke(Index func_index, const std::vector<RegName>& args, RegName dst);
-  /*! \brief Construct an invoke instruction.
-   *  \param func_index The index of the function to invoke.
-   *  \param args The registers containing the arguments.
-   *  \param dst The destination register.
-   *  \return The invoke instruction.
-   */
-  static Instruction InvokeClosure(RegName closure, const std::vector<RegName>& args, RegName dst);
   /*! \brief Construct an load constant instruction.
    *  \param closure The register of the closure to invoke.
    *  \param args The registers containing the arguments.
    *  \param dst The destination register.
    *  \return The invoke closure instruction.
+   */
+  static Instruction InvokeClosure(RegName closure, const std::vector<RegName>& args, RegName dst);
+  /*! \brief Construct an load constant instruction.
+   *  \param const_index The index of the constant.
+   *  \param dst The destination register.
+   *  \return The load constant instruction.
    */
   static Instruction LoadConst(Index const_index, RegName dst);
   /*! \brief Construct a move instruction.
@@ -354,7 +353,6 @@ struct VirtualMachine {
   std::vector<VMFrame> frames;
   /*! \brief The global constant pool. */
   std::vector<Object> constants;
-
   /*! \brief The fuction table index of the current function. */
   Index func_index;
   /*! \brief The current pointer to the code section. */
