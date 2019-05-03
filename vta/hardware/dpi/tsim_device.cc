@@ -32,11 +32,11 @@ static VTAContextHandle _ctx = nullptr;
 static VTAMemDPIFunc _mem_dpi = nullptr;
 static VTAHostDPIFunc _host_dpi = nullptr;
 
-void VTAHostDPI(dpi8_t *exit,
-                dpi8_t *req_valid,
-                dpi8_t *req_opcode,
-                dpi8_t *req_addr,
-                dpi32_t *req_value,
+void VTAHostDPI(dpi8_t* exit,
+                dpi8_t* req_valid,
+                dpi8_t* req_opcode,
+                dpi8_t* req_addr,
+                dpi32_t* req_value,
                 dpi8_t req_deq,
                 dpi8_t resp_valid,
                 dpi32_t resp_value) {
@@ -52,8 +52,8 @@ void VTAMemDPI(dpi8_t req_valid,
                dpi64_t req_addr,
                dpi8_t wr_valid,
                dpi64_t wr_value,
-               dpi8_t *rd_valid,
-               dpi64_t *rd_value,
+               dpi8_t* rd_valid,
+               dpi64_t* rd_value,
                dpi8_t rd_ready) {
   assert(_mem_dpi != nullptr);
   (*_mem_dpi)(_ctx, req_valid, req_opcode, req_len,
@@ -77,7 +77,7 @@ int VTADPISim(uint64_t max_cycles) {
   uint64_t start = 0;
 #endif
 
-  VL_TSIM_NAME *top = new VL_TSIM_NAME;
+  VL_TSIM_NAME* top = new VL_TSIM_NAME;
 
 #if VM_TRACE
   Verilated::traceEverOn(true);

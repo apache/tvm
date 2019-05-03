@@ -39,7 +39,7 @@ namespace dpi {
 
 using namespace tvm::runtime;
 
-typedef void * DeviceHandle;
+typedef void* DeviceHandle;
 
 struct HostRequest {
   uint8_t opcode;
@@ -65,14 +65,14 @@ class ThreadSafeQueue {
     cond_.notify_one();
   }
 
-  void WaitPop(T *item) {
+  void WaitPop(T* item) {
     std::unique_lock<std::mutex> lock(mutex_);
     cond_.wait(lock, [this]{return !queue_.empty();});
     *item = std::move(queue_.front());
     queue_.pop();
   }
 
-  bool TryPop(T *item, bool pop) {
+  bool TryPop(T* item, bool pop) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (queue_.empty()) return false;
     *item = std::move(queue_.front());
@@ -89,9 +89,9 @@ class ThreadSafeQueue {
 class HostDevice {
  public:
   void PushRequest(uint8_t opcode, uint8_t addr, uint32_t value);
-  bool TryPopRequest(HostRequest *r, bool pop);
+  bool TryPopRequest(HostRequest* r, bool pop);
   void PushResponse(uint32_t value);
-  void WaitPopResponse(HostResponse *r);
+  void WaitPopResponse(HostResponse* r);
   void Exit();
   uint8_t GetExitStatus();
 
@@ -109,8 +109,8 @@ class MemDevice {
   void WriteData(uint64_t value);
 
  private:
-  uint64_t *raddr_{0};
-  uint64_t *waddr_{0};
+  uint64_t* raddr_{0};
+  uint64_t* waddr_{0};
   uint32_t rlen_{0};
   uint32_t wlen_{0};
   std::mutex mutex_;
@@ -124,7 +124,7 @@ void HostDevice::PushRequest(uint8_t opcode, uint8_t addr, uint32_t value) {
   req_.Push(r);
 }
 
-bool HostDevice::TryPopRequest(HostRequest *r, bool pop) {
+bool HostDevice::TryPopRequest(HostRequest* r, bool pop) {
   r->opcode = 0xad;
   r->addr = 0xad;
   r->value = 0xbad;
@@ -137,7 +137,7 @@ void HostDevice::PushResponse(uint32_t value) {
   resp_.Push(r);
 }
 
-void HostDevice::WaitPopResponse(HostResponse *r) {
+void HostDevice::WaitPopResponse(HostResponse* r) {
   resp_.WaitPop(r);
 }
 
@@ -230,7 +230,7 @@ class DPIModule final : public DPIModuleNode {
 
   uint32_t ReadReg(int addr) {
     uint32_t value;
-    HostResponse *r = new HostResponse;
+    HostResponse* r = new HostResponse;
     host_device_.PushRequest(0, addr, 0);
     host_device_.WaitPopResponse(r);
     value = r->value;
@@ -249,15 +249,15 @@ class DPIModule final : public DPIModuleNode {
   MemDevice mem_device_;
   std::thread vsim_thread_;
 
-  void HostDPI(dpi8_t *exit,
-               dpi8_t *req_valid,
-               dpi8_t *req_opcode,
-               dpi8_t *req_addr,
-               dpi32_t *req_value,
+  void HostDPI(dpi8_t* exit,
+               dpi8_t* req_valid,
+               dpi8_t* req_opcode,
+               dpi8_t* req_addr,
+               dpi32_t* req_value,
                dpi8_t req_deq,
                dpi8_t resp_valid,
                dpi32_t resp_value) {
-    HostRequest *r = new HostRequest;
+    HostRequest* r = new HostRequest;
     *exit = host_device_.GetExitStatus();
     *req_valid = host_device_.TryPopRequest(r, req_deq);
     *req_opcode = r->opcode;
@@ -276,8 +276,8 @@ class DPIModule final : public DPIModuleNode {
       dpi64_t req_addr,
       dpi8_t wr_valid,
       dpi64_t wr_value,
-      dpi8_t *rd_valid,
-      dpi64_t *rd_value,
+      dpi8_t* rd_valid,
+      dpi64_t* rd_value,
       dpi8_t rd_ready) {
     MemResponse r = mem_device_.ReadData(rd_ready);
     *rd_valid = r.valid;
@@ -292,11 +292,11 @@ class DPIModule final : public DPIModuleNode {
 
   static void VTAHostDPI(
       VTAContextHandle self,
-      dpi8_t *exit,
-      dpi8_t *req_valid,
-      dpi8_t *req_opcode,
-      dpi8_t *req_addr,
-      dpi32_t *req_value,
+      dpi8_t* exit,
+      dpi8_t* req_valid,
+      dpi8_t* req_opcode,
+      dpi8_t* req_addr,
+      dpi32_t* req_value,
       dpi8_t req_deq,
       dpi8_t resp_valid,
       dpi32_t resp_value) {
@@ -313,8 +313,8 @@ class DPIModule final : public DPIModuleNode {
     dpi64_t req_addr,
     dpi8_t wr_valid,
     dpi64_t wr_value,
-    dpi8_t *rd_valid,
-    dpi64_t *rd_value,
+    dpi8_t* rd_valid,
+    dpi64_t* rd_value,
     dpi8_t rd_ready) {
     static_cast<DPIModule*>(self)->MemDPI(
         req_valid, req_opcode, req_len,

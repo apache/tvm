@@ -50,11 +50,11 @@ typedef void* VTAContextHandle;
  */
 typedef void (*VTAHostDPIFunc)(
     VTAContextHandle self,
-    dpi8_t *exit,
-    dpi8_t *req_valid,
-    dpi8_t *req_opcode,
-    dpi8_t *req_addr,
-    dpi32_t *req_value,
+    dpi8_t* exit,
+    dpi8_t* req_valid,
+    dpi8_t* req_opcode,
+    dpi8_t* req_addr,
+    dpi32_t* req_value,
     dpi8_t req_deq,
     dpi8_t resp_valid,
     dpi32_t resp_value);
@@ -78,8 +78,8 @@ typedef void (*VTAMemDPIFunc)(
     dpi64_t req_addr,
     dpi8_t wr_valid,
     dpi64_t wr_value,
-    dpi8_t *rd_valid,
-    dpi64_t *rd_value,
+    dpi8_t* rd_valid,
+    dpi64_t* rd_value,
     dpi8_t rd_ready);
 
 /*! \brief The type of VTADPIInit function pointer */
