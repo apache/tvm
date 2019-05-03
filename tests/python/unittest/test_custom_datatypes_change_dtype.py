@@ -16,6 +16,7 @@
 # under the License.
 """Utilities for changing datatypes of models."""
 import tvm
+import numpy as np
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload
 
@@ -32,6 +33,15 @@ def test_change_dtype_inception_v3():
 
     module, params = change_dtype('float32', 'float16', module, params)
 
+
+    
+    ex = relay.create_executor("graph")
+    input = tvm.nd.array(np.random.rand(3, 299, 299).astype('float32'))
+    x = relay.var("x", shape=(3, 299, 299))
+    castR = relay.Function([x], x.astype('float16'))
+    input = ex.evaluate(castR)(input) 
+    result = ex.evaluate(expr)(input, **params)
+    import pdb; pdb.set_trace()
 
 if __name__ == "__main__":
     test_change_dtype_inception_v3()
