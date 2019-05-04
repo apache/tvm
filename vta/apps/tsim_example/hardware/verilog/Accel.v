@@ -68,6 +68,7 @@ module Accel #
 
   RegFile #
   (
+    .MEM_ADDR_BITS(MEM_ADDR_BITS),
     .HOST_ADDR_BITS(HOST_ADDR_BITS),
     .HOST_DATA_BITS(HOST_DATA_BITS)
   )
@@ -95,7 +96,8 @@ module Accel #
   (
     .MEM_LEN_BITS(MEM_LEN_BITS),
     .MEM_ADDR_BITS(MEM_ADDR_BITS),
-    .MEM_DATA_BITS(MEM_DATA_BITS)
+    .MEM_DATA_BITS(MEM_DATA_BITS),
+    .HOST_DATA_BITS(HOST_DATA_BITS)
   )
   comp
   (

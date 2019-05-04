@@ -33,7 +33,8 @@ module Compute #
 (
   parameter MEM_LEN_BITS = 8,
   parameter MEM_ADDR_BITS = 64,
-  parameter MEM_DATA_BITS = 64
+  parameter MEM_DATA_BITS = 64,
+  parameter HOST_DATA_BITS = 32
 )
 (
   input                         clock,
@@ -51,9 +52,9 @@ module Compute #
 
   input                         launch,
   output                        finish,
-  input                  [31:0] length,
-  input                  [63:0] inp_baddr,
-  input                  [63:0] out_baddr
+  input    [HOST_DATA_BITS-1:0] length,
+  input     [MEM_ADDR_BITS-1:0] inp_baddr,
+  input     [MEM_ADDR_BITS-1:0] out_baddr
 );
 
   typedef enum logic [2:0] {IDLE,

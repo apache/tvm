@@ -40,7 +40,8 @@
   * ------------------------------
   */
 module RegFile #
-( parameter HOST_ADDR_BITS = 8,
+ (parameter MEM_ADDR_BITS = 64,
+  parameter HOST_ADDR_BITS = 8,
   parameter HOST_DATA_BITS = 32
 )
 (
@@ -57,9 +58,9 @@ module RegFile #
 
   output                        launch,
   input                         finish,
-  output                 [31:0] length,
-  output                 [63:0] inp_baddr,
-  output                 [63:0] out_baddr
+  output   [HOST_DATA_BITS-1:0] length,
+  output    [MEM_ADDR_BITS-1:0] inp_baddr,
+  output    [MEM_ADDR_BITS-1:0] out_baddr
 );
 
   typedef enum logic {IDLE, READ} state_t;
