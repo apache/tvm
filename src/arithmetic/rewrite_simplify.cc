@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -1197,14 +1197,32 @@ Mutate_(const Or* op, const Expr& self) {
 
 Expr RewriteSimplifier::Impl::
 Mutate_(const Select* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+  Expr cond = Mutate(op->condition);
+  Expr true_value, false_value;
+  {
+    ConstraintContext constraint(parent_, cond);
+    true_value = Mutate(op->true_value);
+  }
+  {
+    ConstraintContext constraint(parent_, Mutate(Not::make(cond)));
+    false_value = Mutate(op->false_value);
+  }
+  if (is_zero(cond)) {
+    return false_value;
+  }
+  if (is_one(cond)) {
+    return true_value;
+  }
+  // normal path
+  Expr ret;
+  if (cond.same_as(op->condition) &&
+      true_value.same_as(op->true_value) &&
+      false_value.same_as(op->false_value)) {
+    ret = self;
+  } else {
+    ret = Select::make(cond, true_value, false_value);
+  }
   op = ret.as<Select>();
-  if (is_zero(op->condition)) {
-    return op->false_value;
-  }
-  if (is_one(op->condition)) {
-    return op->true_value;
-  }
   // Pattern var to match any expression
   PVar<Expr> x, y;
   TVM_TRY_REWRITE(select(x, y, y), y);
@@ -1213,7 +1231,37 @@ Mutate_(const Select* op, const Expr& self) {
 
 Expr RewriteSimplifier::Impl::
 Mutate_(const Call* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+  // add condition context to if_then_else
+  Expr ret;
+  if (op->is_intrinsic(ir::intrinsic::tvm_if_then_else)) {
+    Expr cond = Mutate(op->args[0]);
+    Expr true_value, false_value;
+    {
+      ConstraintContext constraint(parent_, cond);
+      true_value = Mutate(op->args[1]);
+    }
+    {
+      ConstraintContext constraint(parent_, Mutate(Not::make(cond)));
+      false_value = Mutate(op->args[2]);
+    }
+    if (is_zero(cond)) {
+      return false_value;
+    }
+    if (is_one(cond)) {
+      return true_value;
+    }
+    if (cond.same_as(op->args[0]) &&
+        true_value.same_as(op->args[1]) &&
+        false_value.same_as(op->args[2])) {
+      ret = self;
+    } else {
+      ret = Call::make(op->type, op->name,
+                        {cond, true_value, false_value},
+                        op->call_type);
+    }
+  } else {
+    ret = IRMutator::Mutate_(op, self);
+  }
   op = ret.as<Call>();
   if (op->is_intrinsic(Call::likely) && is_const(op->args[0])) {
     return op->args[0];
