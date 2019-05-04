@@ -68,13 +68,13 @@ make vta
 
 ## VTA TSIM Installation
 
-*TSIM* is a cycle accurate hardware simulation environment for VTA accelerators that can be invoked and managed directly from TVM.
+*TSIM* is a cycle accurate hardware simulation environment for VTA and other deep learning accelerators that can be invoked and managed directly from TVM.
 This simulation environment can be used in both OSX and Linux.
-There are two dependencies required to make *TSIM* works: [Verilator](https://www.veripool.org/wiki/verilator) and [sbt](https://www.scala-sbt.org/) for accelerators designed in [Chisel3](https://github.com/freechipsproject/chisel3)
+There are two dependencies required to make *TSIM* works: [Verilator](https://www.veripool.org/wiki/verilator) and [sbt](https://www.scala-sbt.org/) for accelerators designed in [Chisel3](https://github.com/freechipsproject/chisel3).
 
 ### OSX Dependencies
 
-Install `sbt` and `verilator` using [Homebrew](https://brew.sh/)
+Install `sbt` and `verilator` using [Homebrew](https://brew.sh/).
 
 ```bash
 brew install verilator sbt
@@ -99,13 +99,13 @@ sudo apt install verilator sbt
 ### Setup in TVM
 
 1. Install `verilator` and `sbt` as described above
-2. Build tvm and enable VTA TSIM by turning on the switch `USE_VTA_TSIM` in config.cmake
+2. Enable VTA TSIM by turning on the switch `USE_VTA_TSIM` in config.cmake
 3. Build tvm
 
 ### How to run VTA TSIM examples
 
 There are two sample VTA accelerators (add-by-one) designed in Chisel3 and Verilog to show how *TSIM* works.
-These examples are located at `<tvm-root>/vta/apps/tsim_example`
+These examples are located at `<tvm-root>/vta/apps/tsim_example`.
 
 * Instructions
     * Open `<tvm-root>/vta/apps/tsim_example/python/tsim/config.json`
