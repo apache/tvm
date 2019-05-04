@@ -93,8 +93,9 @@ typedef int (*VTADPISimFunc)(uint64_t max_cycles);
 
 /*!
  * \brief Set Host and Memory DPI functions
+ * \param handle DPI Context handle
  * \param host_dpi Host DPI function
- * \param memory_dpi Memory DPI function
+ * \param mem_dpi Memory DPI function
  */
 TVM_DLL void VTADPIInit(VTAContextHandle handle,
                 VTAHostDPIFunc host_dpi,
