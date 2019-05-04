@@ -101,8 +101,8 @@ TVM_DLL void VTADPIInit(VTAContextHandle handle,
                 VTAMemDPIFunc mem_dpi);
 
 /*!
- * \brief Instantiate VTA design and generate clock/reset.
- * \param max_cycles The maximum number of simulation cycles.
+ * \brief Instantiate VTA design and generate clock/reset
+ * \param max_cycles The maximum number of simulation cycles
  */
 TVM_DLL int VTADPISim(uint64_t max_cycles);
 
