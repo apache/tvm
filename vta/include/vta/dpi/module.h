@@ -29,6 +29,9 @@
 namespace vta {
 namespace dpi {
 
+/*!
+ * \brief DPI driver module for managing the accelerator
+ */
 class DPIModuleNode : public tvm::runtime::ModuleNode {
  public:
   virtual void Launch(uint64_t max_cycles) = 0;
