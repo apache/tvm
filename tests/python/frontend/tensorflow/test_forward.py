@@ -1440,6 +1440,23 @@ def test_forward_pow_exp():
     compare_tf_with_tvm([np_in1, np_in2], ['in1:0', 'in2:0'], 'pow:0')
     compare_tf_with_tvm([np_in1], ['in1:0'], 'exp:0')
 
+def test_forward_log():
+    """test Log """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.log(in_data, name="log")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'log:0')
+
+def test_forward_rsqrt():
+    """test Rsqrt """
+    np_data = np.random.uniform(1, 100, size=(5, 7, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (5, 7, 11), name="in_data")
+    tf.rsqrt(in_data, name="rsqrt")
+    print(tf.get_default_graph().as_graph_def())
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'rsqrt:0')
+
 #######################################################################
 # Mean
 # ----
@@ -1525,6 +1542,8 @@ if __name__ == '__main__':
     test_forward_reverse_v2()
     test_forward_pow_exp()
     test_forward_sign()
+    test_forward_log()
+    test_forward_rsqrt()
     test_forward_expand_dims()
 
     # Reductions

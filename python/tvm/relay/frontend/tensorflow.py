@@ -1094,6 +1094,7 @@ _convert_map = {
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'AvgPool'                           : _pooling('avg_pool'),
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
+    'BatchToSpaceND'                    : _batch_to_space_nd(),
     'BiasAdd'                           : _bias_add(),
     'Cast'                              : _cast(),
     'Ceil'                              : AttrCvt('ceil'),
@@ -1119,6 +1120,7 @@ _convert_map = {
     'LeakyRelu'                         : AttrCvt('leaky_relu'),
     'Less'                              : _broadcast('less'),
     'LessEqual'                         : _broadcast('less_equal'),
+    'Log'                               : AttrCvt('log'),
     'LogicalAnd'                        : _logical('logical_and'),
     'LogicalOr'                         : _logical('logical_or'),
     'LogicalNot'                        : _logical('logical_not'),
@@ -1151,6 +1153,7 @@ _convert_map = {
     'Sign'                              : AttrCvt('sign'),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
+    'SpaceToBatchND'                    : _space_to_batch_nd(),
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
     'Square'                            : _square(),
@@ -1162,8 +1165,7 @@ _convert_map = {
     'Tile'                              : _tile(),
     'Transpose'                         : _transpose(),
     'Unpack'                            : _unpack(),
-    'SpaceToBatchND'                    : _space_to_batch_nd(),
-    'BatchToSpaceND'                    : _batch_to_space_nd(),
+
 }
 
 def _LSTMBlockCell():
