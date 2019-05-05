@@ -11,6 +11,7 @@ from .group_conv2d_nchw import schedule_conv2d_nchw_cuda
 from .reduction import schedule_reduce
 from .softmax import schedule_softmax
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
+from .dense import schedule_dense
 from .pooling import schedule_pool, schedule_global_pool
 from .extern import schedule_extern
 from .nn import schedule_lrn, schedule_l2_normalize
