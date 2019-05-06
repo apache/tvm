@@ -81,7 +81,7 @@ int64_t ConvMacCount(const Call& call_node) {
     input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImm>()->value);
   Array<IndexExpr> kernel_size = conv_2d_attr->kernel_size;
   CHECK(kernel_size.size() == 2)
-    << "The dimension of the kernel size in Conv 2D should be 2.";
+    << "The dimension of the kernel in Conv 2D should be 2.";
   const auto* expr = call_node->checked_type().as<TensorTypeNode>();
   Array<IndexExpr> output_tensor = expr->shape;
   CHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
