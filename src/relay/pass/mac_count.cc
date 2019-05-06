@@ -74,7 +74,6 @@ int64_t ConvMacCount(const Call& call_node) {
   std::string data_layout = conv_2d_attr->data_layout;
   int32_t C_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('C'));
   int32_t c_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('c'));
-  bool depthwise = IsDepthwiseConv2D(call_node, conv_2d_attr, conv_2d_attr->kernel_layout);
   CHECK(C_ind != -1)
     << "There is no input channel dimension.";
   int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
@@ -88,11 +87,9 @@ int64_t ConvMacCount(const Call& call_node) {
   CHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
     << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
   int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
-  if (!depthwise) {
-    CHECK_EQ(input_channel % conv_2d_attr->groups, 0)
-    << "Input channels not divisble by groups.";
-    count *= input_channel/conv_2d_attr->groups;
-  }
+  CHECK_EQ(input_channel % conv_2d_attr->groups, 0)
+  << "Input channels not divisble by groups.";
+  count *= input_channel/conv_2d_attr->groups;
   return count;
 }
 
