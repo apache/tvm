@@ -117,24 +117,15 @@ plt.imshow(resized_image)
 plt.show()
 image_data = np.asarray(resized_image).astype("float32")
 
-# convert HWC to CHW
-image_data = image_data.transpose((2, 0, 1))
-
-# after expand_dims, we have format NCHW
+# after expand_dims, we have format NHWC
 image_data = np.expand_dims(image_data, axis=0)
 
 # preprocess image as described here:
 # https://github.com/tensorflow/models/blob/edb6ed22a801665946c63d650ab9a0b23d98e1b1/research/slim/preprocessing/inception_preprocessing.py#L243
-image_data[:, 0, :, :] = 2.0 / 255.0 * image_data[:, 0, :, :] - 1
-image_data[:, 1, :, :] = 2.0 / 255.0 * image_data[:, 1, :, :] - 1
-image_data[:, 2, :, :] = 2.0 / 255.0 * image_data[:, 2, :, :] - 1
+image_data[:, :, :, 0] = 2.0 / 255.0 * image_data[:, :, :, 0] - 1
+image_data[:, :, :, 1] = 2.0 / 255.0 * image_data[:, :, :, 1] - 1
+image_data[:, :, :, 2] = 2.0 / 255.0 * image_data[:, :, :, 2] - 1
 print('input', image_data.shape)
-
-####################################################################
-#
-# .. note:: Input layout:
-#
-#   Currently, TVM TFLite frontend accepts ``NCHW`` as input layout.
 
 ######################################################################
 # Compile the model with relay
@@ -142,7 +133,7 @@ print('input', image_data.shape)
 
 # TFLite input tensor name, shape and type
 input_tensor = "input"
-input_shape = (1, 3, 224, 224)
+input_shape = (1, 224, 224, 3)
 input_dtype = "float32"
 
 # parse TFLite model and convert into Relay computation graph
