@@ -36,20 +36,20 @@ class DPIModuleNode : public tvm::runtime::ModuleNode {
  public:
 
 /*!
- * \brief Launch until it finishes or reach wait_cycles
+ * \brief Launch accelerator until it finishes or reach wait_cycles
  * \param wait_cycles The maximum of cycles to wait
  */
   virtual void Launch(uint64_t max_cycles) = 0;
 
 /*!
- * \brief Write a accelerator register
+ * \brief Write an accelerator register
  * \param addr The register address
  * \param addr The register value
  */
   virtual void WriteReg(int addr, uint32_t value) = 0;
 
 /*!
- * \brief Read a accelerator register
+ * \brief Read an accelerator register
  * \param addr The register address
  */
   virtual uint32_t ReadReg(int addr) = 0;
