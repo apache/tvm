@@ -65,7 +65,7 @@ def my_clip(x, a_min, a_max):
 
 def run_conv2d(env, remote, wl, target,
                check_correctness=True, print_ir=False,
-               samples=4, profileOnly=False):
+               samples=4):
 
     # Workload assertions
     assert wl.hpad == wl.wpad
@@ -177,14 +177,10 @@ def run_conv2d(env, remote, wl, target,
         local_rpc = int(os.environ.get("VTA_LOCAL_SIM_RPC", "0"))
         if local_rpc:
             remote.get_function("vta.simulator.profiler_clear")()
-            if profileOnly:
-                remote.get_function("vta.simulator.profiler_debug_mode")(1)
             cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
             stats = json.loads(remote.get_function("vta.simulator.profiler_status")())
         else:
             simulator.clear_stats()
-            if profileOnly:
-                simulator.debug_mode(1)
             cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
             stats = simulator.stats()
     else:
