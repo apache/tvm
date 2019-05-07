@@ -65,10 +65,10 @@ module Compute #
 
   state_t state_n, state_r;
 
-  logic [63:0] data;
   logic [31:0] cnt;
-  logic [63:0] raddr;
-  logic [63:0] waddr;
+  logic [MEM_DATA_BITS-1:0] data;
+  logic [MEM_ADDR_BITS-1:0] raddr;
+  logic [MEM_ADDR_BITS-1:0] waddr;
 
   always_ff @(posedge clock) begin
     if (reset) begin

@@ -60,11 +60,11 @@ module Accel #
   output                        mem_rd_ready
 );
 
-  logic        launch;
-  logic        finish;
-  logic [31:0] length;
-  logic [63:0] inp_baddr;
-  logic [63:0] out_baddr;
+  logic                      launch;
+  logic                      finish;
+  logic [HOST_DATA_BITS-1:0] length;
+  logic  [MEM_ADDR_BITS-1:0] inp_baddr;
+  logic  [MEM_ADDR_BITS-1:0] out_baddr;
 
   RegFile #
   (
