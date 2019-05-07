@@ -485,9 +485,9 @@ void VirtualMachine::Run() {
   main_loop:
     auto const& instr = this->code[this->pc];
     DLOG(INFO) << "\nExecuting(" << pc << "): ";
-#if USE_RELAY_LOG
+#if USE_RELAY_DEBUG
     InstructionPrint(std::cout, instr);
-#endif  // USE_RELAY_LOG
+#endif  // USE_RELAY_DEBUG
 
     switch (instr.op) {
       case Opcode::Move: {
@@ -499,7 +499,7 @@ void VirtualMachine::Run() {
         }
         WriteRegister(instr.dst, from_obj);
         pc++;
-        main_loop;
+        goto main_loop;
       }
       case Opcode::LoadConst: {
         WriteRegister(instr.dst, this->constants[instr.const_index]);
