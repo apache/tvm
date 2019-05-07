@@ -33,13 +33,17 @@ def test_change_dtype_inception_v3():
 
     module, params = change_dtype('float32', 'float16', module, params)
 
+    src_dtype = 'float32'
+    dst_dtype = 'custom[bfloat]16'
+    module, params = change_dtype(src_dtype, dst_dtype, module, params)
 
-    
     ex = relay.create_executor("graph")
-    input = tvm.nd.array(np.random.rand(3, 299, 299).astype('float32'))
+    # Convert the input into the correct format.
+    input = tvm.nd.array(np.random.rand(3, 299, 299).astype(src_dtype))
     x = relay.var("x", shape=(3, 299, 299))
-    castR = relay.Function([x], x.astype('float16'))
-    input = ex.evaluate(castR)(input) 
+    castR = relay.Function([x], x.astype(dst_dtype))
+    input = ex.evaluate(castR)(input)
+    # Execute the model in the new datatype.
     result = ex.evaluate(expr)(input, **params)
     import pdb; pdb.set_trace()
 
