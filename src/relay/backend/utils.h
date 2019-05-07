@@ -150,7 +150,8 @@ inline std::string DType2String(const tvm::DataType dtype) {
   } else if (dtype.is_uint()) {
     os << "uint";
   } else {
-    LOG(FATAL) << "Unknown type";
+    LOG(FATAL) << "Unknown type with code "
+      << static_cast<unsigned>(tvm_type.code);
   }
   os << dtype.bits();
   return os.str();
