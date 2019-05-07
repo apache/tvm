@@ -19,19 +19,19 @@ Writing tunable template and Using auto-tuner
 =============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
-This is an introduction tutorial to the auto-tuning module in tvm.
+This is an introduction tutorial to the auto-tuning module in TVM.
 
 There are two steps in auto-tuning.
 The first step is defining a search space.
 The second step is running a search algorithm to explore through this space.
-In this tutorial, you can learn how to perform these two steps in tvm.
+In this tutorial, you can learn how to perform these two steps in TVM.
 The whole workflow is illustrated by a matrix multiplication example.
 """
 
 ######################################################################
 # Install dependencies
 # --------------------
-# To use autotvm package in tvm, we need to install some extra dependencies.
+# To use autotvm package in TVM, we need to install some extra dependencies.
 # (change "3" to "2" if you use python2):
 #
 # .. code-block:: bash
@@ -65,7 +65,7 @@ from tvm import autotvm
 # tunable schedule template. You can regard the process of search space definition
 # as the parameterization of our existing schedule code.
 #
-# To begin with, here is how we implement a blocked matrix multiplication in tvm.
+# To begin with, here is how we implement a blocked matrix multiplication in TVM.
 
 # Matmul V0: Constant tiling factor
 def matmul_v0(N, L, M, dtype):
@@ -236,7 +236,7 @@ def matmul(N, L, M, dtype):
 # In step 1, we build the search space by extending our old schedule code
 # into a template. The next step is to pick a tuner and explore in this space.
 #
-# Auto-tuners in tvm
+# Auto-tuners in TVM
 # ^^^^^^^^^^^^^^^^^^
 # The job for a tuner can be described by following pseudo code
 #
