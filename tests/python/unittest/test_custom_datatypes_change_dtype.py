@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 """Utilities for changing datatypes of models."""
 
 import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload
+
 
 def test_change_dtype_inception_v3():
     expr, params = get_workload()
@@ -29,7 +29,8 @@ def test_change_dtype_inception_v3():
         cdtype = relay.frontend.ChangeDatatype(src, dst)
         expr = cdtype.visit(expr)
         expr = relay.ir_pass.infer_type(expr)
-        params = dict((p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
+        params = dict(
+            (p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
         return expr, params
 
     src_dtype = 'float32'
@@ -44,7 +45,9 @@ def test_change_dtype_inception_v3():
     input = ex.evaluate(castR)(input)
     # Execute the model in the new datatype.
     result = ex.evaluate(expr)(input, **params)
-    import pdb; pdb.set_trace()
+    import pdb
+    pdb.set_trace()
+
 
 if __name__ == "__main__":
     test_change_dtype_inception_v3()
