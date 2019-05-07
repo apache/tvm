@@ -34,7 +34,6 @@ namespace dpi {
  */
 class DPIModuleNode : public tvm::runtime::ModuleNode {
  public:
-
 /*!
  * \brief Launch accelerator until it finishes or reach wait_cycles
  * \param wait_cycles The maximum of cycles to wait
