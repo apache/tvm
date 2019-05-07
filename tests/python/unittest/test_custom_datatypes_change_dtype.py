@@ -19,9 +19,31 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload
+from tvm.target.datatype import register, register_op, create_lower_func
+
+tgt = "llvm"
+
+
+def setup():
+    # You must first load the library containing the datatype implementation.
+    # In this case, we have built the test functions used below right into TVM.
+    # CDLL("libmybfloat16.so", RTLD_GLOBAL)
+
+    register("bfloat", 129)
+
+    register_op(create_lower_func("FloatToBFloat16_wrapper"), "Cast", "llvm",
+                "bfloat", "float")
+    register_op(create_lower_func("BFloat16ToFloat_wrapper"), "Cast", "llvm",
+                "float", "bfloat")
+    register_op(create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
+                "bfloat")
+    register_op(create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
+                "llvm", "bfloat")
 
 
 def test_change_dtype_inception_v3():
+    setup()
+
     module, params = get_workload()
 
     def change_dtype(src, dst, module, params):
@@ -45,7 +67,7 @@ def test_change_dtype_inception_v3():
     input = ex.evaluate(castR)(input)
     # Execute the model in the new datatype.
     result = ex.evaluate(expr)(input, **params)
-    import pdb; pdb.set_trace()
+
 
 if __name__ == "__main__":
     test_change_dtype_inception_v3()
