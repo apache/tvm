@@ -193,16 +193,14 @@ struct Instruction {
    *  \return The invoke packed instruction.
    */
   static Instruction InvokePacked(Index packed_index, Index arity, Index output_size,
-                           const std::vector<RegName>& args);
+                                  const std::vector<RegName>& args);
   /*! \brief Construct an allocate tensor instruction.
    *  \param shape_register The register containing the shape.
-   *  \param shape The shape to place in the register.
    *  \param dtype The dtype of the tensor.
    *  \param dst The destination register.
    *  \return The allocate tensor instruction.
    */
-  static Instruction AllocTensor(RegName shape_register, const std::vector<int64_t>& shape,
-                          DLDataType dtype, RegName dst);
+  static Instruction AllocTensor(RegName shape_register, DLDataType dtype, RegName dst);
   /*! \brief Construct an allocate datatype instruction.
    *  \param tag The datatype tag.
    *  \param num_fields The number of fields for the datatype.
@@ -211,7 +209,7 @@ struct Instruction {
    *  \return The allocate instruction tensor.
    */
   static Instruction AllocDatatype(Index tag, Index num_fields, const std::vector<RegName>& fields,
-                            RegName dst);
+                                   RegName dst);
   /*! \brief Construct an allocate closure instruction.
    *  \param func_index The index of the function table.
    *  \param num_freevar The number of free variables.
@@ -220,7 +218,7 @@ struct Instruction {
    *  \return The allocate closure instruction.
    */
   static Instruction AllocClosure(Index func_index, Index num_freevar,
-                           const std::vector<RegName>& free_vars, RegName dst);
+                                  const std::vector<RegName>& free_vars, RegName dst);
   /*! \brief Construct a get field instruction.
    *  \param object_reg The register containing the object to project from.
    *  \param field_index The field to read out of the object.
@@ -273,8 +271,6 @@ struct Instruction {
 
   friend std::ostream& operator<<(std::ostream& os, const Instruction&);
 };
-
-
 
 /*! \brief A representation of a Relay function in the VM.
  *
