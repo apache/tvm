@@ -608,8 +608,8 @@ def _depth_to_space():
             # Finally reshape to proper output.
             new_h = in_h * block_size
             new_w = in_w * block_size
-            out = _op.reshape(transposed, newshape=(in_n, new_h, new_w, new_c))
-            return out
+            newshape = (in_n, new_h, new_w, new_c)
+
         else: # Handle NCHW layout
             in_n, in_c, in_h, in_w = input_shape
             new_c = int(in_c / (block_size * block_size))
@@ -618,8 +618,12 @@ def _depth_to_space():
             transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
             new_h = in_h * block_size
             new_w = in_w * block_size
-            out = _op.reshape(transposed, newshape=(in_n, new_c, new_h, new_w))
-            return out
+            newshape = (in_n, new_c, new_h, new_w)
+
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr)
 
     return _impl
 
