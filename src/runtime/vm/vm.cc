@@ -377,7 +377,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::Select: {
-      os << "phi " << instr.dst << " " << instr.select_cond << " " << instr.select_op1 << " "
+      os << "select " << instr.dst << " " << instr.select_cond << " " << instr.select_op1 << " "
          << instr.select_op2;
       break;
     }
@@ -412,7 +412,7 @@ void VirtualMachine::PushFrame(Index arg_count, Index ret_pc, const VMFunction& 
 }
 
 Index VirtualMachine::PopFrame() {
-  CHECK_NE(frames.size(), 0);
+  CHECK_GT(frames.size(), 0);
   const VMFrame& fr = frames.back();
   func_index = fr.func_index;
   code = fr.code;
@@ -499,7 +499,7 @@ void VirtualMachine::Run() {
         }
         WriteRegister(instr.dst, from_obj);
         pc++;
-        goto main_loop;
+        main_loop;
       }
       case Opcode::LoadConst: {
         WriteRegister(instr.dst, this->constants[instr.const_index]);
