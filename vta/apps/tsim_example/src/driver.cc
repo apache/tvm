@@ -47,7 +47,7 @@ class TestDriver {
     uint32_t wait_cycles = 100000000;
     this->Launch(wait_cycles, length, inp, out);
     this->WaitForCompletion(wait_cycles);
-    dpi_->Finish(length);
+    dpi_->Finish();
     return 0;
   }
 

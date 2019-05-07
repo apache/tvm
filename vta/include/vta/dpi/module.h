@@ -34,10 +34,28 @@ namespace dpi {
  */
 class DPIModuleNode : public tvm::runtime::ModuleNode {
  public:
+
+/*!
+ * \brief Launch until it finishes or reach wait_cycles
+ * \param wait_cycles The maximum of cycles to wait
+ */
   virtual void Launch(uint64_t max_cycles) = 0;
+
+/*!
+ * \brief Write a accelerator register
+ * \param addr The register address
+ * \param addr The register value
+ */
   virtual void WriteReg(int addr, uint32_t value) = 0;
+
+/*!
+ * \brief Read a accelerator register
+ * \param addr The register address
+ */
   virtual uint32_t ReadReg(int addr) = 0;
-  virtual void Finish(uint32_t length) = 0;
+
+/*! \brief Kill or Exit() the accelerator */
+  virtual void Finish() = 0;
 
   static tvm::runtime::Module Load(std::string dll_name);
 };

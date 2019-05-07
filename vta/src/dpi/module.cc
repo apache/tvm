@@ -238,7 +238,7 @@ class DPIModule final : public DPIModuleNode {
     return value;
   }
 
-  void Finish(uint32_t length) {
+  void Finish() {
     host_device_.Exit();
     vsim_thread_.join();
   }
