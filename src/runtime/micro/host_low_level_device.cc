@@ -25,37 +25,38 @@ class HostLowLevelDevice final : public LowLevelDevice {
     size_t size_in_pages = (num_bytes + kPageSize - 1) / kPageSize;
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
     int mmap_flags = MAP_ANONYMOUS | MAP_PRIVATE;
-    base_addr_ = mmap(nullptr, size_in_pages * kPageSize,
-                      mmap_prot, mmap_flags, -1, 0);
+    base_addr_ = dev_base_addr((std::uintptr_t) mmap(nullptr, size_in_pages * kPageSize,
+                                                     mmap_prot, mmap_flags, -1, 0));
   }
 
   /*!
    * \brief destructor to deallocate on-host device region
    */
   ~HostLowLevelDevice() {
-    munmap(base_addr_, size_);
+    munmap((void*) base_addr_.val_, size_);
   }
 
-  void Write(void* offset,
+  void Write(dev_base_offset offset,
              void* buf,
              size_t num_bytes) final {
-    void* addr = GetAddr(offset, base_addr_);
+    void* addr = (void*) GetAddr(offset, base_addr_).val_;
     std::memcpy(addr, buf, num_bytes);
   }
 
-  void Read(void* offset,
+  void Read(dev_base_offset offset,
             void* buf,
             size_t num_bytes) final {
-    void* addr = GetAddr(offset, base_addr_);
+    void* addr = (void*) GetAddr(offset, base_addr_).val_;
     std::memcpy(buf, addr, num_bytes);
   }
 
-  void Execute(void* func_addr, void* breakpoint) final {
-    void (*func)(void) = (void (*)(void)) func_addr;
-    func();
+  void Execute(dev_base_offset func_offset, dev_base_offset breakpoint) final {
+    dev_addr func_addr = GetAddr(func_offset, base_addr_);
+    uint64_t (*func)(void) = (uint64_t (*)(void)) func_addr.val_;
+    std::cout << "RETURN CODE WAS " << std::hex << func() << std::endl;
   }
 
-  const void* base_addr() const final {
+  const dev_base_addr base_addr() const final {
     return base_addr_;
   }
 
@@ -65,7 +66,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
 
  private:
   /*! \brief base address of the micro device memory region */
-  void* base_addr_;
+  dev_base_addr base_addr_;
   /*! \brief size of memory region */
   size_t size_;
 };

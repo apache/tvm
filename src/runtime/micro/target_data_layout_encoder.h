@@ -36,9 +36,9 @@ class TargetDataLayoutEncoder {
      * \param parent pointer to parent encoder
      * \param start_offset start byte offset of the slot in the backing buffer
      * \param size size (in bytes) of the memory region allocated for this slot
-     * \param dev_start_addr start address of the slot in the device's memory
+     * \param start_addr start address of the slot in the device's memory
      */
-    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, void* dev_start_addr);
+    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, dev_addr start_addr);
 
     ~Slot();
 
@@ -53,7 +53,7 @@ class TargetDataLayoutEncoder {
      * \brief returns start address of the slot in device memory
      * \return device start address
      */
-    void* dev_start_addr();
+    dev_addr start_addr();
 
     /*!
      * \brief returns number of bytes allocated for this slot
@@ -71,19 +71,17 @@ class TargetDataLayoutEncoder {
     /*! \brief size (in bytes) of the memory region allocated for this slot */
     size_t size_;
     /*! \brief start address of the slot in the device's memory */
-    void* dev_start_addr_;
+    dev_addr start_addr_;
   };
 
   /*!
    * \brief constructor
-   * \param dev_start_addr start address of the encoder in device memory
-   * \param dev_base_addr base address of the device
+   * \param start_addr start address of the encoder in device memory
    */
-  explicit TargetDataLayoutEncoder(void* dev_start_addr, const void* dev_base_addr)
+  explicit TargetDataLayoutEncoder(dev_addr start_addr)
       : buf_(std::vector<uint8_t>()),
         curr_offset_(0),
-        dev_start_addr_(dev_start_addr),
-        dev_base_addr_(dev_base_addr) {}
+        start_addr_(start_addr) {}
 
   /*!
    * \brief allocates a slot for `sizeof(T) * num_elems` bytes of data
@@ -106,8 +104,8 @@ class TargetDataLayoutEncoder {
    * \param offset byte offset from the beginning of the backing buffer
    * \return device address
    */
-  void* GetDevAddr(size_t offset) {
-    return reinterpret_cast<uint8_t*>(dev_start_addr_) + offset;
+  dev_addr GetDevAddr(size_t offset) {
+    return dev_addr(start_addr_.val_ + offset);
   }
 
   /*!
@@ -132,19 +130,17 @@ class TargetDataLayoutEncoder {
   /*! \brief current offset */
   size_t curr_offset_;
   /*! \brief start address of the encoder in device memory */
-  void* dev_start_addr_;
-  /*! \brief base address of the device */
-  const void* dev_base_addr_;
+  dev_addr start_addr_;
 };
 
 template <typename T>
 TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent, size_t start_offset,
-                                       size_t size, void* dev_start_addr)
+                                       size_t size, dev_addr start_addr)
     : parent_(parent),
       start_offset_(start_offset),
       curr_offset_(0),
       size_(size),
-      dev_start_addr_(dev_start_addr) {}
+      start_addr_(start_addr) {}
 
 template <typename T>
 TargetDataLayoutEncoder::Slot<T>::~Slot() {
@@ -162,8 +158,8 @@ void TargetDataLayoutEncoder::Slot<T>::Write(const T* src_ptr, size_t num_elems)
 }
 
 template <typename T>
-void* TargetDataLayoutEncoder::Slot<T>::dev_start_addr() {
-  return dev_start_addr_;
+dev_addr TargetDataLayoutEncoder::Slot<T>::start_addr() {
+  return start_addr_;
 }
 
 template <typename T>

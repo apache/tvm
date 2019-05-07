@@ -25,7 +25,7 @@ typedef struct {
  * \brief task structure for uTVM
  */
 typedef struct {
-  int (*func)(void*, void*, int32_t);
+  uint64_t (*func)(void*, void*, int32_t);
   UTVMArgs* args;
 } UTVMTask;
 

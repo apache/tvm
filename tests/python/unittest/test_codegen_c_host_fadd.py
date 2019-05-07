@@ -31,6 +31,7 @@ def test_add():
         temp = util.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
+        print(mhost.get_source())
         m = tvm.module.load(path_dso)
         fadd = m['fadd']
         ctx = tvm.cpu(0)
@@ -41,7 +42,7 @@ def test_add():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         fadd(a, b, c)
         tvm.testing.assert_allclose(
-            c.asnumpy(), a.asnumpy() + b.asnumpy())
+           c.asnumpy(), a.asnumpy() + b.asnumpy())
     check_c()
 
 def test_add_pipeline():

@@ -5,9 +5,11 @@
 #ifndef TVM_RUNTIME_MICRO_MICRO_COMMON_H_
 #define TVM_RUNTIME_MICRO_MICRO_COMMON_H_
 
+#include <sstream>
 #include <stdio.h>
 #include <string>
 #include <unordered_map>
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace runtime {
@@ -24,32 +26,97 @@ enum SectionKind : int {
   kWorkspace = 6,
 };
 
+/*! \brief absolute device address */
+struct dev_addr {
+  std::uintptr_t val_;
+
+  explicit dev_addr(std::uintptr_t val) : val_(val) {}
+  dev_addr() : val_(0) {}
+  explicit dev_addr(std::nullptr_t) : val_(0) {}
+  ~dev_addr() {}
+};
+
+/*! \brief TODO */
+struct dev_base_addr {
+  std::uintptr_t val_;
+
+  explicit dev_base_addr(std::uintptr_t val) : val_(val) {}
+  dev_base_addr() : val_(0) {}
+  explicit dev_base_addr(std::nullptr_t) : val_(0) {}
+  ~dev_base_addr() {}
+};
+
+/*! \brief offset from device base address */
+struct dev_base_offset {
+  std::uintptr_t val_;
+
+  explicit dev_base_offset(std::uintptr_t val) : val_(val) {}
+  dev_base_offset() : val_(0) {}
+  explicit dev_base_offset(std::nullptr_t) : val_(0) {}
+  ~dev_base_offset() {}
+};
+
+class SymbolMap {
+ public:
+  SymbolMap() {}
+
+  SymbolMap(std::string binary, dev_base_addr base_addr) {
+    const auto* f = Registry::Get("tvm_callback_get_symbol_map");
+    CHECK(f != nullptr) << "Require tvm_callback_get_symbol_map to exist in registry";
+    TVMByteArray arr;
+    arr.data = &binary[0];
+    arr.size = binary.length();
+    std::string map_str = (*f)(arr);
+    // parse symbols and addresses from returned string
+    std::stringstream stream;
+    stream << map_str;
+    std::string name;
+    std::uintptr_t addr;
+    stream >> name;
+    stream >> std::hex >> addr;
+    while (stream) {
+      map_[name] = dev_base_offset(addr - base_addr.val_);
+      stream >> name;
+      stream >> std::hex >> addr;
+    }
+  }
+
+  dev_base_offset operator[](std::string name) {
+    auto result = map_.find(name);
+    CHECK(result != map_.end()) << "\"" << name << "\" not in symbol map";
+    return result->second;
+  }
+
+ private:
+  std::unordered_map<std::string, dev_base_offset> map_;
+};
+
 /*! \brief number of bytes in each page */
 constexpr int kPageSize = 4096;
 
 /*! \brief memory offset at which text section starts  */
-constexpr int kTextStart = 64;
+const dev_base_offset kTextStart = dev_base_offset(64);
 
 /*! \brief memory offset at which data section starts  */
-constexpr int kDataStart = 50000;
+const dev_base_offset kDataStart = dev_base_offset(50000);
 
 /*! \brief memory offset at which bss section starts  */
-constexpr int kBssStart = 100000;
+const dev_base_offset kBssStart = dev_base_offset(100000);
 
 /*! \brief memory offset at which args section starts  */
-constexpr int kArgsStart = 150000;
+const dev_base_offset kArgsStart = dev_base_offset(150000);
 
 /*! \brief memory offset at which stack section starts  */
-constexpr int kStackStart = 250000;
+const dev_base_offset kStackStart = dev_base_offset(250000);
 
 /*! \brief memory offset at which heap section starts  */
-constexpr int kHeapStart = 300000;
+const dev_base_offset kHeapStart = dev_base_offset(300000);
 
 /*! \brief memory offset at which workspace section starts  */
-constexpr int kWorkspaceStart = 350000;
+const dev_base_offset kWorkspaceStart = dev_base_offset(350000);
 
 /*! \brief total memory size */
-constexpr int kMemorySize = 409600;
+constexpr int kMemorySize = 450000;
 
 /*! \brief default size alignment */
 constexpr int kDefaultSizeAlignment = 8;
@@ -61,10 +128,10 @@ constexpr int kDefaultSizeAlignment = 8;
  * \param base_addr base address
  * \return offset from base_addr
  */
-inline void* GetOffset(const void* addr, const void* base_addr) {
-  return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(const_cast<void*>(addr)) -
-                                 reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)));
-}
+// inline void* GetOffset(const void* addr, const void* base_addr) {
+//   return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(const_cast<void*>(addr)) -
+//                                  reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)));
+// }
 
 /*!
  * \brief upper-aligns value according to specified alignment
@@ -79,12 +146,14 @@ inline size_t UpperAlignValue(size_t value, size_t align) {
 /*!
  * \brief converts offset to actual address
  * \param offset offset from base_addr
- * \param base_addr base address
+ * \param base base address
  * \return address relative to base_addr
  */
-inline void* GetAddr(const void* offset, const void* base_addr) {
-  return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)) +
-                                 reinterpret_cast<std::uintptr_t>(offset));
+inline dev_addr GetAddr(const dev_base_offset offset, const dev_base_addr base) {
+  // return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)) +
+                                //  reinterpret_cast<std::uintptr_t>(offset));
+  // TODO: replace with operator overloading
+  return dev_addr(base.val_ + offset.val_);
 }
 
 /*!
@@ -94,16 +163,19 @@ inline void* GetAddr(const void* offset, const void* base_addr) {
  */
 const char* SectionToString(SectionKind section);
 
+dev_addr GetSymbol(std::unordered_map<std::string, void*> symbol_map,
+                   std::string name);
+
 /*!
  * \brief get relative address of the symbol from the symbol map
  * \param map of symbols to addresses
  * \param name symbol name
- * \param base_addr base address to obtain offset from
+ * \param base base address to obtain offset from
  * \return address of the symbol relative to base_addr
  */
-void* GetSymbol(std::unordered_map<std::string, void*> symbol_map,
+dev_base_offset GetSymbolOffset(std::unordered_map<std::string, void*> symbol_map,
                 std::string name,
-                const void* base_addr);
+                const dev_base_addr base);
 
 /*!
  * \brief links binary by repositioning section addresses
@@ -113,6 +185,7 @@ void* GetSymbol(std::unordered_map<std::string, void*> symbol_map,
  * \param bss new bss section address
  * \return relocated binary file contents
  */
+// TODO: Convert to dev_base_offset or dev_addr arg types
 std::string RelocateBinarySections(std::string binary_name,
                                    void* text,
                                    void* data,
@@ -141,7 +214,7 @@ size_t GetSectionSize(std::string binary_name, SectionKind section,
  * \param binary contents of the binary file
  * \return map of symbols to their addresses
  */
-std::unordered_map<std::string, void*> GetSymbolMap(std::string binary);
+//std::unordered_map<std::string, dev_base_offset> GetSymbolMap(std::string binary, dev_base_addr base_addr);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_MICRO_MICRO_COMMON_H_

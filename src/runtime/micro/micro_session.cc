@@ -16,26 +16,28 @@ namespace runtime {
 
 MicroSession::MicroSession() {
   text_allocator_ = std::unique_ptr<MicroSectionAllocator>(
-      new MicroSectionAllocator(reinterpret_cast<void*>(kTextStart),
-                                reinterpret_cast<void*>(kDataStart)));
+      new MicroSectionAllocator(kTextStart,
+                                kDataStart));
   data_allocator_ = std::unique_ptr<MicroSectionAllocator>(
-      new MicroSectionAllocator(reinterpret_cast<void*>(kDataStart),
-                                reinterpret_cast<void*>(kBssStart)));
+      new MicroSectionAllocator(kDataStart,
+                                kBssStart));
   bss_allocator_ = std::unique_ptr<MicroSectionAllocator>(
-      new MicroSectionAllocator(reinterpret_cast<void*>(kBssStart),
-                                reinterpret_cast<void*>(kArgsStart)));
+      new MicroSectionAllocator(kBssStart,
+                                kArgsStart));
   args_allocator_ = std::unique_ptr<MicroSectionAllocator>(
-      new MicroSectionAllocator(reinterpret_cast<void*>(kArgsStart),
-                                reinterpret_cast<void*>(kStackStart)));
+      new MicroSectionAllocator(kArgsStart,
+                                kStackStart));
   stack_allocator_ = std::unique_ptr<MicroSectionAllocator>(
-      new MicroSectionAllocator(reinterpret_cast<void*>(kStackStart),
-                                reinterpret_cast<void*>(kHeapStart)));
+      new MicroSectionAllocator(kStackStart,
+                                kHeapStart));
   heap_allocator_ = std::unique_ptr<MicroSectionAllocator>(
-      new MicroSectionAllocator(reinterpret_cast<void*>(kHeapStart),
-                                reinterpret_cast<void*>(kWorkspaceStart)));
+      new MicroSectionAllocator(kHeapStart,
+                                kWorkspaceStart));
+  // TODO(weberlo): We shouldn't need a workspace allocator, because every
+  // library will share the same one.
   workspace_allocator_ = std::unique_ptr<MicroSectionAllocator>(
-      new MicroSectionAllocator(reinterpret_cast<void*>(kWorkspaceStart),
-                                reinterpret_cast<void*>(kMemorySize)));
+      new MicroSectionAllocator(kWorkspaceStart,
+                                dev_base_offset(kMemorySize)));
 }
 
 MicroSession::~MicroSession() {
@@ -55,37 +57,29 @@ void MicroSession::InitSession(TVMArgs args) {
   LoadInitStub();
 }
 
-void* MicroSession::AllocateInSection(SectionKind type, size_t size) {
-  void* alloc_ptr = nullptr;
+dev_base_offset MicroSession::AllocateInSection(SectionKind type, size_t size) {
   switch (type) {
     case kText:
-      alloc_ptr = text_allocator_->Allocate(size);
-      break;
+      return text_allocator_->Allocate(size);
     case kData:
-      alloc_ptr = data_allocator_->Allocate(size);
-      break;
+      return data_allocator_->Allocate(size);
     case kBss:
-      alloc_ptr = bss_allocator_->Allocate(size);
-      break;
+      return bss_allocator_->Allocate(size);
     case kArgs:
-      alloc_ptr = args_allocator_->Allocate(size);
-      break;
+      return args_allocator_->Allocate(size);
     case kStack:
-      alloc_ptr = stack_allocator_->Allocate(size);
-      break;
+      return stack_allocator_->Allocate(size);
     case kHeap:
-      alloc_ptr = heap_allocator_->Allocate(size);
-      break;
+      return heap_allocator_->Allocate(size);
     case kWorkspace:
-      alloc_ptr = workspace_allocator_->Allocate(size);
-      break;
+      return workspace_allocator_->Allocate(size);
     default:
       LOG(FATAL) << "Unsupported section type during allocation";
+      return dev_base_offset(nullptr);
   }
-  return alloc_ptr;
 }
 
-void MicroSession::FreeInSection(SectionKind type, void* ptr) {
+void MicroSession::FreeInSection(SectionKind type, dev_base_offset ptr) {
   switch (type) {
     case kText:
       text_allocator_->Free(ptr);
@@ -113,16 +107,36 @@ void MicroSession::FreeInSection(SectionKind type, void* ptr) {
   }
 }
 
-void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
-  int (*func_dev_addr)(void*, void*, int32_t) =
-      reinterpret_cast<int (*)(void*, void*, int32_t)>(
-      GetAddr(func, low_level_device()->base_addr()));
+std::string MicroSession::ReadString(dev_base_offset str_offset) {
+  std::stringstream result;
+  dev_base_offset str_data_offset;
+  low_level_device()->Read(str_offset, (void*) (&str_data_offset.val_), sizeof(void*));
+  std::cout << "str_data_offset: " << std::hex << str_data_offset.val_ << std::endl;
+  static char buf[256];
+  size_t i = 256;
+  while (i == 256) {
+    low_level_device()->Read(str_data_offset, (void*) buf, 256);
+    i = 0;
+    while (i < 256) {
+      if (buf[i] == 0) break;
+      result << buf[i];
+      i++;
+    }
+    str_offset.val_ += i;
+  }
+  return result.str();
+}
+
+void MicroSession::PushToExecQueue(dev_base_offset func, TVMArgs args) {
+  uint64_t (*func_dev_addr)(void*, void*, int32_t) =
+      reinterpret_cast<uint64_t (*)(void*, void*, int32_t)>(
+      GetAddr(func, low_level_device()->base_addr()).val_);
 
   // Create an allocator stream for the memory region after the most recent
   // allocation in the args section.
-  void* args_dev_addr = GetAddr(args_allocator_->section_max(),
-                                low_level_device()->base_addr());
-  TargetDataLayoutEncoder encoder(args_dev_addr, low_level_device()->base_addr());
+  dev_addr args_addr = GetAddr(args_allocator_->section_max(), low_level_device()->base_addr());
+  TargetDataLayoutEncoder encoder(args_addr);
+
   UTVMArgs u_args = {
       .values = const_cast<TVMValue*>(args.values),
       .type_codes = const_cast<int*>(args.type_codes),
@@ -130,18 +144,17 @@ void MicroSession::PushToExecQueue(void* func, TVMArgs args) {
   };
   EncoderWrite(&encoder, &u_args);
   // Flush `stream` to device memory.
-  void* stream_dev_addr = args_allocator_->Allocate(encoder.buf_size());
-  low_level_device()->Write(stream_dev_addr,
+  dev_base_offset stream_dev_offset = args_allocator_->Allocate(encoder.buf_size());
+  low_level_device()->Write(stream_dev_offset,
                             reinterpret_cast<void*>(const_cast<uint8_t*>(encoder.data())),
                             encoder.buf_size());
 
   UTVMTask task = {
       .func = func_dev_addr,
-      .args = reinterpret_cast<UTVMArgs*>(args_dev_addr),
+      .args = reinterpret_cast<UTVMArgs*>(args_addr.val_),
   };
   // TODO(mutinifni): handle bits / endianness
-  void* task_dev_addr = GetSymbol(init_symbol_map_, "task",
-                                  low_level_device()->base_addr());
+  dev_base_offset task_dev_addr = init_symbol_map_["task"];
   low_level_device()->Write(task_dev_addr, &task, sizeof(task));
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
 }
@@ -152,18 +165,20 @@ void MicroSession::LoadInitStub() {
   init_text_size_ = GetSectionSize(init_binary_path_, kText);
   init_data_size_ = GetSectionSize(init_binary_path_, kData);
   init_bss_size_ = GetSectionSize(init_binary_path_, kBss);
+
   init_text_start_ = AllocateInSection(kText, init_text_size_);
   init_data_start_ = AllocateInSection(kData, init_data_size_);
   init_bss_start_ = AllocateInSection(kBss, init_bss_size_);
-  CHECK(init_text_start_ != nullptr &&
-        init_data_start_ != nullptr &&
-        init_bss_start_ != nullptr)
+  CHECK(init_text_start_.val_ != 0 &&
+        init_data_start_.val_ != 0 &&
+        init_bss_start_.val_ != 0)
       << "Not enough space to load init binary on device";
+  const dev_base_addr base_addr = low_level_device()->base_addr();
   std::string relocated_bin = RelocateBinarySections(
       init_binary_path_,
-      GetAddr(init_text_start_, low_level_device()->base_addr()),
-      GetAddr(init_data_start_, low_level_device()->base_addr()),
-      GetAddr(init_bss_start_, low_level_device()->base_addr()));
+      (void*) GetAddr(init_text_start_, base_addr).val_,
+      (void*) GetAddr(init_data_start_, base_addr).val_,
+      (void*) GetAddr(init_bss_start_, base_addr).val_);
   std::string text_contents = ReadSection(relocated_bin, kText);
   std::string data_contents = ReadSection(relocated_bin, kData);
   std::string bss_contents = ReadSection(relocated_bin, kBss);
@@ -171,16 +186,16 @@ void MicroSession::LoadInitStub() {
   low_level_device()->Write(init_data_start_, &data_contents[0], init_data_size_);
   low_level_device()->Write(init_bss_start_, &bss_contents[0], init_bss_size_);
   // obtain init stub binary metadata
-  init_symbol_map_ = GetSymbolMap(relocated_bin);
-  utvm_main_symbol_addr_ = GetSymbol(init_symbol_map_, "UTVMMain", nullptr);
-  utvm_done_symbol_addr_ = GetSymbol(init_symbol_map_, "UTVMDone", nullptr);
+  init_symbol_map_ = SymbolMap(relocated_bin, base_addr);
+  utvm_main_symbol_addr_ = init_symbol_map_["UTVMMain"];
+  utvm_done_symbol_addr_ = init_symbol_map_["UTVMDone"];
 }
 
 void MicroSession::SetInitBinaryPath(std::string path) {
   init_binary_path_ = path;
 }
 
-void* MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* args) {
+dev_addr MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* args) {
   auto utvm_args_slot = encoder->Alloc<UTVMArgs>();
 
   const int* type_codes = args->type_codes;
@@ -193,7 +208,7 @@ void* MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* arg
     switch (type_codes[i]) {
       case kNDArrayContainer: {
         TVMValue* val_addr = reinterpret_cast<TVMValue*>(
-            EncoderWrite(encoder, reinterpret_cast<TVMArray*>(args->values[i].v_handle)));
+            EncoderWrite(encoder, reinterpret_cast<TVMArray*>(args->values[i].v_handle)).val_);
         tvm_vals_slot.Write(&val_addr);
         break;
       }
@@ -206,15 +221,15 @@ void* MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* arg
   type_codes_slot.Write(type_codes, num_args);
 
   UTVMArgs dev_args = {
-    .values = reinterpret_cast<TVMValue*>(tvm_vals_slot.dev_start_addr()),
-    .type_codes = reinterpret_cast<int*>(type_codes_slot.dev_start_addr()),
+    .values = reinterpret_cast<TVMValue*>(tvm_vals_slot.start_addr().val_),
+    .type_codes = reinterpret_cast<int*>(type_codes_slot.start_addr().val_),
     .num_args = num_args,
   };
   utvm_args_slot.Write(&dev_args);
-  return utvm_args_slot.dev_start_addr();
+  return utvm_args_slot.start_addr();
 }
 
-void* MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, TVMArray* arr) {
+dev_addr MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, TVMArray* arr) {
   auto tvm_arr_slot = encoder->Alloc<TVMArray>();
   auto shape_slot = encoder->Alloc<int64_t>(arr->ndim);
 
@@ -222,12 +237,12 @@ void* MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, TVMArray* arr
   // the device first. The `data` field is already allocated on the device and
   // is a device pointer, so we don't need to write it.
   shape_slot.Write(arr->shape, arr->ndim);
-  void* shape_addr = shape_slot.dev_start_addr();
-  void* strides_addr = nullptr;
+  dev_addr shape_addr = shape_slot.start_addr();
+  dev_addr strides_addr = dev_addr(nullptr);
   if (arr->strides != nullptr) {
     auto stride_slot = encoder->Alloc<int64_t>(arr->ndim);
     stride_slot.Write(arr->strides, arr->ndim);
-    strides_addr = stride_slot.dev_start_addr();
+    strides_addr = stride_slot.start_addr();
   }
 
   // Copy `arr`, update the copy's pointers to be device pointers, then
@@ -235,12 +250,12 @@ void* MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, TVMArray* arr
   TVMArray dev_arr = *arr;
   // Add the base address of the device to the array's data's device offset to
   // get a device address.
-  dev_arr.data = reinterpret_cast<uint8_t*>(const_cast<void*>(low_level_device()->base_addr())) +
+  dev_arr.data = reinterpret_cast<uint8_t*>(low_level_device()->base_addr().val_) +
                   reinterpret_cast<std::uintptr_t>(arr->data);
-  dev_arr.shape = static_cast<int64_t*>(shape_addr);
-  dev_arr.strides = static_cast<int64_t*>(strides_addr);
+  dev_arr.shape = reinterpret_cast<int64_t*>(shape_addr.val_);
+  dev_arr.strides = reinterpret_cast<int64_t*>(strides_addr.val_);
   tvm_arr_slot.Write(&dev_arr);
-  return tvm_arr_slot.dev_start_addr();
+  return tvm_arr_slot.start_addr();
 }
 
 // initializes micro session and low-level device from Python frontend

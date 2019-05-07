@@ -125,6 +125,9 @@ def tvm_callback_read_binary_section(binary, section):
     return section_bin
 
 
+# TODO(weberlo): If TVM supports serializing dicts, we should do the string ->
+# dict conversion here in python. The docs even say we're supposed to return a
+# dict, but we don't.
 @register_func("tvm_callback_get_symbol_map")
 def tvm_callback_get_symbol_map(binary):
     """Obtains a map of symbols to addresses in the passed binary

@@ -29,14 +29,6 @@ const char* SectionToString(SectionKind section) {
   }
 }
 
-void* GetSymbol(std::unordered_map<std::string, void*> symbol_map,
-                std::string name,
-                void* base_addr) {
-  void* symbol_addr = symbol_map[name];
-  return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(symbol_addr) -
-                                 reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)));
-}
-
 static std::string AddrToString(void* addr) {
   std::stringstream stream;
   if (addr != nullptr)
@@ -76,7 +68,7 @@ std::string ReadSection(std::string binary_name, SectionKind section) {
 
 size_t GetSectionSize(std::string binary_path, SectionKind section, size_t align) {
   CHECK(section == kText || section == kData || section == kBss)
-    << "GetSectionSize requires section to be one of text, data or bss.";
+    << "GetSectionSize requires section to be one of text, data, or bss.";
   const auto* f = Registry::Get("tvm_callback_get_section_size");
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
@@ -85,7 +77,8 @@ size_t GetSectionSize(std::string binary_path, SectionKind section, size_t align
   return size;
 }
 
-std::unordered_map<std::string, void*> GetSymbolMap(std::string binary) {
+/*
+std::unordered_map<std::string, dev_base_offset> GetSymbolMap(std::string binary, dev_base_addr base_addr) {
   const auto* f = Registry::Get("tvm_callback_get_symbol_map");
   CHECK(f != nullptr) << "Require tvm_callback_get_symbol_map to exist in registry";
   TVMByteArray arr;
@@ -93,19 +86,20 @@ std::unordered_map<std::string, void*> GetSymbolMap(std::string binary) {
   arr.size = binary.length();
   std::string map_str = (*f)(arr);
   // parse symbols and addresses from returned string
-  std::unordered_map<std::string, void*> symbol_map;
+  std::unordered_map<std::string, dev_base_offset> symbol_map;
   std::stringstream stream;
   stream << map_str;
   std::string name;
-  void* addr;
+  std::uintptr_t addr;
   stream >> name;
   stream >> std::hex >> addr;
   while (stream) {
-    symbol_map[name] = addr;
+    symbol_map[name] = dev_base_offset(addr - base_addr.val_);
     stream >> name;
     stream >> std::hex >> addr;
   }
   return symbol_map;
 }
+*/
 }  // namespace runtime
 }  // namespace tvm

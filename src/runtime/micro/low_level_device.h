@@ -9,6 +9,8 @@
 #include <cstddef>
 #include <memory>
 
+#include "micro_common.h"
+
 namespace tvm {
 namespace runtime {
 /*!
@@ -25,7 +27,7 @@ class LowLevelDevice {
    * \param buffer on-host buffer to be written
    * \param num_bytes number of bytes to be written
    */
-  virtual void Write(void* offset,
+  virtual void Write(dev_base_offset offset,
                      void* buffer,
                      size_t num_bytes) = 0;
 
@@ -35,22 +37,22 @@ class LowLevelDevice {
    * \param buffer on-host buffer to be read into
    * \param num_bytes number of bytes to be read
    */
-  virtual void Read(void* offset,
+  virtual void Read(dev_base_offset offset,
                     void* buffer,
                     size_t num_bytes) = 0;
 
   /*!
    * \brief starts execution of device at offset
-   * \param func_addr address of the init stub function
+   * \param func_addr offset of the init stub function
    * \param breakpoint breakpoint at which to stop function execution
    */
-  virtual void Execute(void* func_addr, void* breakpoint) = 0;
+  virtual void Execute(dev_base_offset func_offset, dev_base_offset breakpoint) = 0;
 
   /*!
    * \brief getter function for base_addr
    * \return the base address of the device memory region
    */
-  virtual const void* base_addr() const = 0;
+  virtual const dev_base_addr base_addr() const = 0;
 
   /*!
    * \brief getter function for low-level device type

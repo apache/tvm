@@ -24,7 +24,7 @@ def init(device_type, runtime_lib_path, port=0):
         path to runtime lib binary
 
     port : integer, optional
-        port number of OpenOCD server 
+        port number of OpenOCD server
     """
     _MicroInit(device_type, runtime_lib_path, port)
 
