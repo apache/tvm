@@ -235,7 +235,7 @@ class OperatorConverter(object):
         return out
 
     def convert_concatenation(self, op):
-        """ convert TFLite concatenation"""
+        """Convert TFLite concatenation"""
         try:
             from tflite.Operator import Operator
             from tflite.ConcatenationOptions import ConcatenationOptions
