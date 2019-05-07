@@ -23,7 +23,7 @@
  * \brief The Relay virtual machine.
  */
 
-#include <tvm/relay/logging.h>
+#include <tvm/logging.h>
 #include <tvm/runtime/vm.h>
 
 #include <chrono>
@@ -426,32 +426,32 @@ Index VirtualMachine::PopFrame() {
 }
 
 void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Object>& args) {
-  RELAY_LOG(INFO) << "===================\nInvoking global " << func.name << " " << args.size()
+  DLOG(INFO) << "===================\nInvoking global " << func.name << " " << args.size()
                   << std::endl;
 
   PushFrame(func.params, this->pc + 1, func);
   for (size_t i = 0; i < args.size(); ++i) {
     WriteRegister(i, args[i]);
   }
-  RELAY_LOG(INFO) << "func.params= " << func.params << std::endl;
+  DLOG(INFO) << "func.params= " << func.params << std::endl;
 
   code = func.instructions.data();
   pc = 0;
 }
 
 Object VirtualMachine::Invoke(const VMFunction& func, const std::vector<Object>& args) {
-  RELAY_LOG(INFO) << "Executing Function: " << std::endl << func << std::endl;
+  DLOG(INFO) << "Executing Function: " << std::endl << func << std::endl;
 
   InvokeGlobal(func, args);
   Run();
   auto alloc = MemoryManager::Global()->GetAllocator(ctxs[0]);
-  RELAY_LOG(INFO) << "Memory used: " << alloc->UsedMemory() << " B\n";
+  DLOG(INFO) << "Memory used: " << alloc->UsedMemory() << " B\n";
   return return_register;
 }
 
 Object VirtualMachine::Invoke(const std::string& name, const std::vector<Object>& args) {
   auto func_index = this->global_map_[name];
-  RELAY_LOG(INFO) << "Invoke Global " << name << " at index " << func_index << std::endl;
+  DLOG(INFO) << "Invoke Global " << name << " at index " << func_index << std::endl;
   return Invoke(this->functions[func_index], args);
 }
 
@@ -485,7 +485,7 @@ void VirtualMachine::Run() {
   while (true) {
   main_loop:
     auto const& instr = this->code[this->pc];
-    RELAY_LOG(INFO) << "\nExecuting(" << pc << "): ";
+    DLOG(INFO) << "\nExecuting(" << pc << "): ";
 #if USE_RELAY_LOG
     InstructionPrint(std::cout, instr);
 #endif  // USE_RELAY_LOG
@@ -592,7 +592,6 @@ void VirtualMachine::Run() {
         shape.assign(dims, dims + instr.ndim);
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
         auto data = allocator->Empty(shape, instr.dtype, ctxs[0]);
-        // auto data = NDArray::Empty(shape, instr.dtype, ctxs[0]);
         auto obj = Object::Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;

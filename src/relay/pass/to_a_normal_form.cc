@@ -26,7 +26,7 @@
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/logging.h>
+#include <tvm/logging.h>
 #include "let_list.h"
 #include "../../common/arena.h"
 #include "pass_util.h"
@@ -307,7 +307,7 @@ Expr ToANormalFormAux(const Expr& e,
 Expr ToANormalForm(const Expr& e,
                    const Module& m,
                    std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv) {
-  RELAY_LOG(INFO)
+  DLOG(INFO)
   << "ToANF:" << std::endl
   << AsText(e, false);
 
@@ -318,7 +318,7 @@ Expr ToANormalForm(const Expr& e,
 
   CHECK_EQ(FreeVars(ret).size(), 0);
 
-  RELAY_LOG(INFO)
+  DLOG(INFO)
     << "ToANF: transformed" << std::endl
     << AsText(ret, false);
 
