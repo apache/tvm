@@ -20,6 +20,7 @@ from ..expr_functor import ExprMutator
 from ..transform.transform import function_pass
 from ..expr import var, bind
 
+
 # TODO(@gussmith23) what's the right opt level here?
 @function_pass(opt_level=0)
 class ChangeDatatype(ExprMutator):
@@ -38,7 +39,6 @@ class ChangeDatatype(ExprMutator):
         return expr, params
     ```
     """
-
     def __init__(self, src, dst):
         self.src = src
         self.dst = dst
@@ -65,8 +65,7 @@ class ChangeDatatype(ExprMutator):
                 dtype = var_type.dtype
 
             # Generate new variable.
-            new_param = var(
-                param.name_hint, shape=var_type.shape, dtype=dtype)
+            new_param = var(param.name_hint, shape=var_type.shape, dtype=dtype)
 
             new_params.append(new_param)
             binds[param] = new_param
