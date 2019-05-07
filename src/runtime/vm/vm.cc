@@ -67,7 +67,6 @@ Instruction::Instruction(const Instruction& instr) {
     case Opcode::AllocTensor:
       this->shape_register = instr.shape_register;
       this->dtype = instr.dtype;
-      this->ndim = instr.ndim;
       return;
     case Opcode::AllocDatatype:
       this->constructor_tag = instr.constructor_tag;
@@ -163,13 +162,11 @@ Instruction Instruction::InvokePacked(Index packed_index, Index arity, Index out
   return instr;
 }
 
-Instruction Instruction::AllocTensor(RegName shape_register, const std::vector<int64_t>& shape,
-                                     DLDataType dtype, Index dst) {
+Instruction Instruction::AllocTensor(RegName shape_register, DLDataType dtype, Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensor;
   instr.dst = dst;
   instr.shape_register = shape_register;
-  instr.ndim = shape.size();
   instr.dtype = dtype;
   return instr;
 }
@@ -588,8 +585,9 @@ void VirtualMachine::Run() {
         NDArray shape_tensor = ToNDArray(shape_tensor_obj).CopyTo(cpu_ctx);
 
         int64_t* dims = static_cast<int64_t*>(shape_tensor->data);
-        auto shape = std::vector<int64_t>(instr.ndim);
-        shape.assign(dims, dims + instr.ndim);
+        auto num_dims = shape_tensor->shape[0];
+        auto shape = std::vector<int64_t>(shape_tensor->shape[0]);
+        shape.assign(dims, dims + num_dims);
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
         auto data = allocator->Empty(shape, instr.dtype, ctxs[0]);
         auto obj = Object::Tensor(data);

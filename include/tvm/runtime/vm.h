@@ -85,8 +85,6 @@ struct Instruction {
     struct /* AllocTensor Operands */ {
       /*! \brief The register to read the shape out of. */
       RegName shape_register;
-      /*! \brief The number of dimensions of the shapes. */
-      Index ndim;
       /*! \brief The datatype of tensor to be allocated. */
       DLDataType dtype;
     };
