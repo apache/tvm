@@ -55,12 +55,16 @@ class MicroModuleNode final : public ModuleNode {
  private:
   /*! \brief loaded module text start address */
   dev_base_offset text_start_;
+  /*! \brief loaded module rodata start address */
+  dev_base_offset rodata_start_;
   /*! \brief loaded module data start address */
   dev_base_offset data_start_;
   /*! \brief loaded module bss start address */
   dev_base_offset bss_start_;
   /*! \brief size of module text section */
   size_t text_size_;
+  /*! \brief size of module rodata section */
+  size_t rodata_size_;
   /*! \brief size of module data section */
   size_t data_size_;
   /*! \brief size of module bss section */
@@ -115,10 +119,12 @@ class MicroModuleNode final : public ModuleNode {
 
   void LoadBinary() {
     text_size_ = GetSectionSize(binary_, kText);
+    rodata_size_ = GetSectionSize(binary_, kRodata);
     data_size_ = GetSectionSize(binary_, kData);
     bss_size_ = GetSectionSize(binary_, kBss);
 
     text_start_ = session_->AllocateInSection(kText, text_size_);
+    rodata_start_ = session_->AllocateInSection(kRodata, rodata_size_);
     data_start_ = session_->AllocateInSection(kData, data_size_);
     bss_start_ = session_->AllocateInSection(kBss, bss_size_);
     CHECK(text_start_.val_ != 0 && data_start_.val_ != 0 && bss_start_.val_ != 0)
@@ -127,12 +133,15 @@ class MicroModuleNode final : public ModuleNode {
     std::string relocated_bin = RelocateBinarySections(
         binary_,
         (void*) GetAddr(text_start_, base_addr).val_,
+        (void*) GetAddr(rodata_start_, base_addr).val_,
         (void*) GetAddr(data_start_, base_addr).val_,
         (void*) GetAddr(bss_start_, base_addr).val_);
     std::string text_contents = ReadSection(relocated_bin, kText);
+    std::string rodata_contents = ReadSection(relocated_bin, kRodata);
     std::string data_contents = ReadSection(relocated_bin, kData);
     std::string bss_contents = ReadSection(relocated_bin, kBss);
     low_level_device_->Write(text_start_, &text_contents[0], text_size_);
+    low_level_device_->Write(rodata_start_, &rodata_contents[0], rodata_size_);
     low_level_device_->Write(data_start_, &data_contents[0], data_size_);
     low_level_device_->Write(bss_start_, &bss_contents[0], bss_size_);
     symbol_map_ = SymbolMap(relocated_bin, base_addr);

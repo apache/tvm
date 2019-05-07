@@ -28,7 +28,7 @@ def tvm_callback_get_section_size(binary_path, section):
     """
     if not os.path.isfile(binary_path):
         raise RuntimeError("No such file {}".format(binary_path))
-    section_map = {"text": "1", "data": "2", "bss": "3"}
+    section_map = {"text": "1", "rodata": "2", "data": "3", "bss": "4"}
     size_proc = subprocess.Popen(["size", binary_path], stdout=subprocess.PIPE)
     awk_proc = subprocess.Popen(["awk", "{print $" + section_map[section] + "}"],
                                 stdin=size_proc.stdout, stdout=subprocess.PIPE)
@@ -44,7 +44,7 @@ def tvm_callback_get_section_size(binary_path, section):
 
 
 @register_func("tvm_callback_relocate_binary")
-def tvm_callback_relocate_binary(binary_path, text, data, bss):
+def tvm_callback_relocate_binary(binary_path, text, rodata, data, bss):
     """Relocates sections in the binary to new addresses
 
     Parameters
@@ -54,6 +54,9 @@ def tvm_callback_relocate_binary(binary_path, text, data, bss):
 
     text : str
         text section address
+
+    rodata : str
+        rodata section address
 
     data : str
         data section address
@@ -70,6 +73,7 @@ def tvm_callback_relocate_binary(binary_path, text, data, bss):
     rel_obj = tmp_dir.relpath("relocated.o")
     ld_proc = subprocess.Popen(["ld", binary_path,
                                 "-Ttext", text,
+                                "-Trodata", rodata,
                                 "-Tdata", data,
                                 "-Tbss", bss,
                                 "-o", rel_obj],

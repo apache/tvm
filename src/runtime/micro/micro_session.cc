@@ -17,6 +17,9 @@ namespace runtime {
 MicroSession::MicroSession() {
   text_allocator_ = std::unique_ptr<MicroSectionAllocator>(
       new MicroSectionAllocator(kTextStart,
+                                kRodataStart));
+  rodata_allocator_ = std::unique_ptr<MicroSectionAllocator>(
+      new MicroSectionAllocator(kRodataStart,
                                 kDataStart));
   data_allocator_ = std::unique_ptr<MicroSectionAllocator>(
       new MicroSectionAllocator(kDataStart,
@@ -61,6 +64,8 @@ dev_base_offset MicroSession::AllocateInSection(SectionKind type, size_t size) {
   switch (type) {
     case kText:
       return text_allocator_->Allocate(size);
+    case kRodata:
+      return rodata_allocator_->Allocate(size);
     case kData:
       return data_allocator_->Allocate(size);
     case kBss:
@@ -83,25 +88,28 @@ void MicroSession::FreeInSection(SectionKind type, dev_base_offset ptr) {
   switch (type) {
     case kText:
       text_allocator_->Free(ptr);
-      break;
+      return;
+    case kRodata:
+      rodata_allocator_->Free(ptr);
+      return;
     case kData:
       data_allocator_->Free(ptr);
-      break;
+      return;
     case kBss:
       bss_allocator_->Free(ptr);
-      break;
+      return;
     case kArgs:
       args_allocator_->Free(ptr);
-      break;
+      return;
     case kStack:
       stack_allocator_->Free(ptr);
-      break;
+      return;
     case kHeap:
       heap_allocator_->Free(ptr);
-      break;
+      return;
     case kWorkspace:
       workspace_allocator_->Free(ptr);
-      break;
+      return;
     default:
       LOG(FATAL) << "Unsupported section type during free";
   }
@@ -159,17 +167,22 @@ void MicroSession::PushToExecQueue(dev_base_offset func, TVMArgs args) {
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
 }
 
+// TODO(weberlo): Refactor commonalities from here and in
+// `MicroModule::LoadBinary`. Shit's egregious.
 void MicroSession::LoadInitStub() {
   CHECK(!init_binary_path_.empty()) << "init library not initialized";
   // relocate and load binary on low-level device
   init_text_size_ = GetSectionSize(init_binary_path_, kText);
+  init_rodata_size_ = GetSectionSize(init_binary_path_, kRodata);
   init_data_size_ = GetSectionSize(init_binary_path_, kData);
   init_bss_size_ = GetSectionSize(init_binary_path_, kBss);
 
   init_text_start_ = AllocateInSection(kText, init_text_size_);
+  init_rodata_start_ = AllocateInSection(kRodata, init_rodata_size_);
   init_data_start_ = AllocateInSection(kData, init_data_size_);
   init_bss_start_ = AllocateInSection(kBss, init_bss_size_);
   CHECK(init_text_start_.val_ != 0 &&
+        init_rodata_start_.val_ != 0 &&
         init_data_start_.val_ != 0 &&
         init_bss_start_.val_ != 0)
       << "Not enough space to load init binary on device";
@@ -177,12 +190,15 @@ void MicroSession::LoadInitStub() {
   std::string relocated_bin = RelocateBinarySections(
       init_binary_path_,
       (void*) GetAddr(init_text_start_, base_addr).val_,
+      (void*) GetAddr(init_rodata_start_, base_addr).val_,
       (void*) GetAddr(init_data_start_, base_addr).val_,
       (void*) GetAddr(init_bss_start_, base_addr).val_);
   std::string text_contents = ReadSection(relocated_bin, kText);
+  std::string rodata_contents = ReadSection(relocated_bin, kRodata);
   std::string data_contents = ReadSection(relocated_bin, kData);
   std::string bss_contents = ReadSection(relocated_bin, kBss);
   low_level_device()->Write(init_text_start_, &text_contents[0], init_text_size_);
+  low_level_device()->Write(init_rodata_start_, &rodata_contents[0], init_rodata_size_);
   low_level_device()->Write(init_data_start_, &data_contents[0], init_data_size_);
   low_level_device()->Write(init_bss_start_, &bss_contents[0], init_bss_size_);
   // obtain init stub binary metadata

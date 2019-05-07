@@ -18,12 +18,13 @@ namespace runtime {
  */
 enum SectionKind : int {
   kText = 0,
-  kData = 1,
-  kBss = 2,
-  kArgs = 3,
-  kStack = 4,
-  kHeap = 5,
-  kWorkspace = 6,
+  kRodata = 1,
+  kData = 2,
+  kBss = 3,
+  kArgs = 4,
+  kStack = 5,
+  kHeap = 6,
+  kWorkspace = 7,
 };
 
 /*! \brief absolute device address */
@@ -91,29 +92,33 @@ class SymbolMap {
   std::unordered_map<std::string, dev_base_offset> map_;
 };
 
+// TODO(weberlo): should this be here?
 /*! \brief number of bytes in each page */
 constexpr int kPageSize = 4096;
 
 /*! \brief memory offset at which text section starts  */
 const dev_base_offset kTextStart = dev_base_offset(64);
 
+/*! \brief memory offset at which rodata section starts  */
+const dev_base_offset kRodataStart = dev_base_offset(50000);
+
 /*! \brief memory offset at which data section starts  */
-const dev_base_offset kDataStart = dev_base_offset(50000);
+const dev_base_offset kDataStart = dev_base_offset(100000);
 
 /*! \brief memory offset at which bss section starts  */
-const dev_base_offset kBssStart = dev_base_offset(100000);
+const dev_base_offset kBssStart = dev_base_offset(150000);
 
 /*! \brief memory offset at which args section starts  */
-const dev_base_offset kArgsStart = dev_base_offset(150000);
+const dev_base_offset kArgsStart = dev_base_offset(200000);
 
 /*! \brief memory offset at which stack section starts  */
-const dev_base_offset kStackStart = dev_base_offset(250000);
+const dev_base_offset kStackStart = dev_base_offset(300000);
 
 /*! \brief memory offset at which heap section starts  */
-const dev_base_offset kHeapStart = dev_base_offset(300000);
+const dev_base_offset kHeapStart = dev_base_offset(350000);
 
 /*! \brief memory offset at which workspace section starts  */
-const dev_base_offset kWorkspaceStart = dev_base_offset(350000);
+const dev_base_offset kWorkspaceStart = dev_base_offset(400000);
 
 /*! \brief total memory size */
 constexpr int kMemorySize = 450000;
@@ -181,13 +186,15 @@ dev_base_offset GetSymbolOffset(std::unordered_map<std::string, void*> symbol_ma
  * \brief links binary by repositioning section addresses
  * \param binary_name input binary filename
  * \param text new text section address
+ * \param rodata new rodata section address
  * \param data new data section address
  * \param bss new bss section address
  * \return relocated binary file contents
  */
-// TODO: Convert to dev_base_offset or dev_addr arg types
+// TODO(weberlo): Convert to dev_base_offset or dev_addr arg types
 std::string RelocateBinarySections(std::string binary_name,
                                    void* text,
+                                   void* rodata,
                                    void* data,
                                    void* bss);
 

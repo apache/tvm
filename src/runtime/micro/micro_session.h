@@ -149,6 +149,8 @@ class MicroSession {
   std::shared_ptr<LowLevelDevice> low_level_device_;
   /*! \brief text section allocator */
   std::unique_ptr<MicroSectionAllocator> text_allocator_;
+  /*! \brief rodata section allocator */
+  std::unique_ptr<MicroSectionAllocator> rodata_allocator_;
   /*! \brief data section allocator */
   std::unique_ptr<MicroSectionAllocator> data_allocator_;
   /*! \brief bss section allocator */
@@ -163,12 +165,16 @@ class MicroSession {
   std::unique_ptr<MicroSectionAllocator> workspace_allocator_;
   /*! \brief init text start address */
   dev_base_offset init_text_start_;
+  /*! \brief init rodata start address */
+  dev_base_offset init_rodata_start_;
   /*! \brief init data start address */
   dev_base_offset init_data_start_;
   /*! \brief init bss start address */
   dev_base_offset init_bss_start_;
   /*! \brief size of init text section */
   size_t init_text_size_;
+  /*! \brief size of init rodata section */
+  size_t init_rodata_size_;
   /*! \brief size of init data section */
   size_t init_data_size_;
   /*! \brief size of init bss section */
