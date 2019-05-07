@@ -363,7 +363,9 @@ struct VirtualMachine {
 
   /*! \brief Push a call frame on to the call stack. */
   void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);
-  /*! \brief Pop a frame off the call stack. */
+  /*! \brief Pop a frame off the call stack.
+   *  \return The number of frames left.
+   */
   Index PopFrame();
 
   /*! \brief Write to a VM register.
