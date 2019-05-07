@@ -18,7 +18,7 @@
 VTA TSIM Installation
 ======================
 
-*TSIM* is a cycle accurate hardware simulation environment for VTA and other deep learning accelerators that can be invoked and managed directly from TVM.
+*TSIM* is a cycle-accurate hardware simulation environment that can be invoked and managed directly from TVM. It aims to enable cycle accurate simulation of deep learning accelerators including VTA.
 This simulation environment can be used in both OSX and Linux.
 There are two dependencies required to make *TSIM* works: [Verilator](https://www.veripool.org/wiki/verilator) and [sbt](https://www.scala-sbt.org/) for accelerators designed in [Chisel3](https://github.com/freechipsproject/chisel3).
 
