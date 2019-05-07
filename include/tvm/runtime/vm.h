@@ -224,7 +224,7 @@ struct Instruction {
    *  \return The get field instruction.
    */
   static Instruction GetField(RegName object_reg, Index field_index, RegName dst);
-  /*! \brief Construct a if instruction.
+  /*! \brief Construct an if instruction.
    *  \param cond_reg The register containing the condition.
    *  \param true_branch The offset to the true branch.
    *  \param false_branch The offset to the false branch.
@@ -250,7 +250,7 @@ struct Instruction {
    *  \return The invoke closure instruction.
    */
   static Instruction InvokeClosure(RegName closure, const std::vector<RegName>& args, RegName dst);
-  /*! \brief Construct an load constant instruction.
+  /*! \brief Construct a load constant instruction.
    *  \param const_index The index of the constant.
    *  \param dst The destination register.
    *  \return The load constant instruction.
@@ -363,7 +363,7 @@ struct VirtualMachine {
 
   /*! \brief Push a call frame on to the frame stack. */
   void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);
-  /*! \brief Pop a frame off of the call stack. */
+  /*! \brief Pop a frame off the call stack. */
   Index PopFrame();
 
   /*! \brief Write to a VM register.
@@ -374,9 +374,9 @@ struct VirtualMachine {
 
   /*! \brief Read a VM register.
    *  \param reg The register to read from.
-   *   \return The read object.
+   *  \return The read object.
    */
-  inline Object ReadRegister(RegName reg);
+  inline Object ReadRegister(RegName reg) const;
 
   /*! \brief Invoke a VM function.
    * \param func The function.
