@@ -934,7 +934,7 @@ class GraphProto(object):
         self._renames = {}
         self._num_input = 0
         self._num_param = 0
-        self._shape = shape
+        self._shape = shape if shape else {}
         self._dtype = dtype
 
     def from_onnx(self, graph, opset):
@@ -966,6 +966,9 @@ class GraphProto(object):
             if not init_tensor.name.strip():
                 raise ValueError("Tensor's name is required.")
             self._params[init_tensor.name] = self._parse_array(init_tensor)
+            self._nodes[init_tensor.name] = new_var(init_tensor.name,
+                                                    shape=self._params[init_tensor.name].shape,
+                                                    dtype=self._params[init_tensor.name].dtype)
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
