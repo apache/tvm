@@ -361,7 +361,7 @@ struct VirtualMachine {
   /*! \brief The set of TVM contexts the VM is currently executing on. */
   std::vector<TVMContext> ctxs;
 
-  /*! \brief Push a call frame on to the frame stack. */
+  /*! \brief Push a call frame on to the call stack. */
   void PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func);
   /*! \brief Pop a frame off the call stack. */
   Index PopFrame();
