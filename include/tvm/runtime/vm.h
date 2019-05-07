@@ -229,7 +229,7 @@ struct Instruction {
    *  \param true_branch The offset to the true branch.
    *  \param false_branch The offset to the false branch.
    *  \return The if instruction.
-   * */
+   */
   static Instruction If(RegName cond_reg, Index true_branch, Index false_branch);
   /*! \brief Construct a goto instruction.
    *  \param pc_offset The offset from the current pc.
