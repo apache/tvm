@@ -370,7 +370,7 @@ struct VirtualMachine {
    *  \param reg The register to write to.
    *  \param obj The object to write to.
    */
-  inline void WriteRegister(RegName reg, Object obj);
+  inline void WriteRegister(RegName reg, const Object& obj);
 
   /*! \brief Read a VM register.
    *  \param reg The register to read from.

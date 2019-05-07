@@ -220,9 +220,9 @@ TVM_REGISTER_API("relay._module.Module_LookupDef_str")
   });
 
 TVM_REGISTER_API("relay._module.Module_FromExpr")
-.set_body_typed<Module(Expr)>([](TVMArgs args, TVMRetValue *ret) {
-    *ret = ModuleNode::FromExpr(args[0]);
-  });
+.set_body_typed<Module(Expr)>([](Expr e) {
+    return ModuleNode::FromExpr(e);
+});
 
 TVM_REGISTER_API("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {

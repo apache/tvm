@@ -469,11 +469,13 @@ void InvokePacked(const PackedFunc& func, Index arg_count, Index output_size,
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) { this->ctxs = ctxs; }
 
-inline void VirtualMachine::WriteRegister(Index r, Object val) {
+inline void VirtualMachine::WriteRegister(Index r, const Object& val) {
   frames.back().register_file[r] = val;
 }
 
-inline Object VirtualMachine::ReadRegister(Index r) { return frames.back().register_file[r]; }
+inline Object VirtualMachine::ReadRegister(Index r) const {
+  return frames.back().register_file[r];
+}
 
 void VirtualMachine::Run() {
   CHECK(this->code);
