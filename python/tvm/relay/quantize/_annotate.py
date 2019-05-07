@@ -20,6 +20,7 @@ from __future__ import absolute_import
 import warnings
 
 import topi
+from tvm import relay
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig
 from .quantize import _conv_counter, _set_conv_counter
@@ -153,9 +154,22 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     input field, and rhs of conv will be quantized to weight field.
     Output would be in activation field"""
     cnt = _conv_counter()
+    print(cnt)
     if cnt < current_qconfig().skip_k_conv:
         _set_conv_counter(cnt + 1)
         return None
+    print(cnt)
+
+    boundary_node = False
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt not in leave_alone_indices and (cnt + 1) in leave_alone_indices:
+            # If this node is quantized and the next node isn't, we need to handle the boundary.
+            boundary_node = True
+        if cnt in leave_alone_indices:
+            _set_conv_counter(cnt + 1)
+            return None
+
     _set_conv_counter(cnt + 1)
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
@@ -168,6 +182,17 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+
+    # If this is a boundary node, also need to attach dequantization.
+    #if boundary_node:
+        # first transpose extra channel back into main channel.
+        #expr = relay.transpose(expr, [0, 1, 4, 2, 3])
+        # Next we reshape to fuse channel and subchannel. Then convert to float.
+        #expr = relay.reshape(expr, [0, -3, 0, 0]).astype('float32')
+
+        # just see if this even works.
+        #expr = relay.add(expr, expr)
+
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
@@ -178,6 +203,11 @@ def dense_rewrite(ref_call, new_args, ctx):
     cnt = _conv_counter()
     if cnt < current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt in leave_alone_indices or (cnt + 1) in leave_alone_indices:
+            return None
+
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
@@ -194,8 +224,13 @@ def dense_rewrite(ref_call, new_args, ctx):
 @register_annotate_function("multiply")
 def multiply_rewrite(ref_call, new_args, ctx):
     """Rewrite function for multiply."""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt in leave_alone_indices or (cnt + 1) in leave_alone_indices:
+            return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -216,8 +251,13 @@ def multiply_rewrite(ref_call, new_args, ctx):
 @register_annotate_function("add")
 def add_rewrite(ref_call, new_args, ctx):
     """Rewrite function for add."""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt in leave_alone_indices or (cnt + 1) in leave_alone_indices:
+            return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -244,8 +284,13 @@ def add_rewrite(ref_call, new_args, ctx):
 
 def identity_rewrite(ref_call, new_args, ctx):
     """Simply forward the original operation"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt in leave_alone_indices or (cnt + 1) in leave_alone_indices:
+            return None
 
     x_expr, x_kind = _get_expr_kind(new_args[0])
     if x_kind is None:
@@ -262,8 +307,14 @@ register_annotate_function("nn.avg_pool2d", identity_rewrite)
 
 def pool2d_rewrite(ref_call, new_args, ctx):
     """Rewrite function for max pool2d"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt in leave_alone_indices or (cnt + 1) in leave_alone_indices:
+            return None
+
     expr, x_kind = _get_expr_kind(new_args[0])
 
     if x_kind is None:
@@ -280,8 +331,13 @@ register_annotate_function("nn.max_pool2d", pool2d_rewrite)
 @register_annotate_function("concatenate")
 def concatenate_rewrite(ref_call, new_args, ctx):
     """Rewrite function for concatenate"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt in leave_alone_indices:
+            return None
 
     input_tuple = new_args[0]
     expr_list = [_get_expr_kind(x)[0] for x in input_tuple]
