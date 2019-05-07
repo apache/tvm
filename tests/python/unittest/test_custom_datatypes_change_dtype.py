@@ -52,6 +52,8 @@ def test_change_dtype_inception_v3():
         cdtype = relay.frontend.ChangeDatatype(src, dst)
         expr = cdtype.visit(expr)
         expr = relay.ir_pass.infer_type(expr)
+        import pdb
+        pdb.set_trace()
         params = dict(
             (p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
         return expr, params
