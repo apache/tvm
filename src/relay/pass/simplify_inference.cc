@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -37,10 +37,11 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
                             Expr moving_var,
                             Type tdata) {
   const auto param = attrs.as<BatchNormAttrs>();
-  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
+  auto dtype = Downcast<TensorType>(tdata)->dtype;
+  Expr epsilon = MakeConstantScalar(dtype, static_cast<float>(param->epsilon));
   Expr var_add_eps = Add(moving_var, epsilon);
   Expr sqrt_var = Sqrt(var_add_eps);
-  Expr scale = Divide(MakeConstantScalar(Float(32), 1.0f), sqrt_var);
+  Expr scale = Divide(MakeConstantScalar(dtype, 1.0f), sqrt_var);
 
   if (param->scale) {
     scale = Multiply(scale, gamma);

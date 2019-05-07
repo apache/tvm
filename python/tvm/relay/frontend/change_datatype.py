@@ -40,6 +40,9 @@ class ChangeDatatype(ExprMutator):
         self.dst = dst
         super().__init__()
 
+    def visit_constant(self, const):
+        raise "need to rewrite embedded constants"
+
     def visit_function(self, func):
         new_params = []
         binds = {}
@@ -61,8 +64,9 @@ class ChangeDatatype(ExprMutator):
             new_params.append(new_param)
             binds[param] = new_param
 
+        new_body = self.visit(func.body)
         # Rewrite the body to use new parameters.
-        new_body = bind(func.body, binds)
+        new_body = bind(new_body, binds)
 
         # Construct the updated function and return.
         return Function(
