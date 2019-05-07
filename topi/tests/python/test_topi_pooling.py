@@ -120,7 +120,7 @@ def verify_global_pool(n, c, h, w, pool_type):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_global_pool(B)
+            s = topi.generic.schedule_adaptive_pool(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         f = tvm.build(s, [A, B], device)

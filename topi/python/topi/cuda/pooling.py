@@ -87,23 +87,6 @@ def schedule_adaptive_pool(outs):
     traverse(outs[0].op)
     return s
 
-@generic.schedule_global_pool.register(["cuda", "gpu"])
-def schedule_global_pool(outs):
-    """Schedule for global_pool.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-        The computation graph description of global_pool
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for global_pool.
-    """
-    return schedule_adaptive_pool(outs)
-
 
 @generic.schedule_pool.register(["cuda", "gpu"])
 def schedule_pool(outs, layout):

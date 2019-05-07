@@ -117,7 +117,7 @@ def schedule_adaptive_pool(outs):
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of adaptive  pool
+          The computation graph description of adaptive pool
           in the format of an array of tensors.
 
     Returns
@@ -149,21 +149,3 @@ def schedule_adaptive_pool(outs):
 
     traverse(outs[0].op)
     return s
-
-
-@generic.schedule_global_pool.register(["cpu"])
-def schedule_global_pool(outs):
-    """Schedule for global pool
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-          The computation graph description of pool
-          in the format of an array of tensors.
-
-    Returns
-    -------
-    sch: Schedule
-        The computation schedule for the op.
-    """
-    return schedule_adaptive_pool(outs)
