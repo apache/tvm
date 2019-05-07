@@ -187,7 +187,7 @@ struct Instruction {
   static Instruction Ret(RegName return_reg);
   /*! \brief Construct a invoke packed instruction.
    *  \param packed_index The index of the packed function.
-   *  \param arity The The arity of the function.
+   *  \param arity The arity of the function.
    *  \param output_size The number of outputs of the packed function.
    *  \param args The argument registers.
    *  \return The invoke packed instruction.
