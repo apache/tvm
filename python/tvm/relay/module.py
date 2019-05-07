@@ -80,6 +80,7 @@ class Module(RelayNode):
             if isinstance(var, _base.string_types):
                 var = _expr.GlobalVar(var)
 
+            # TODO(@jroesch): Port this logic to C++.
             if not isinstance(val, _expr.Function):
                 if isinstance(val, _expr.GlobalVar):
                     val = ir_pass.eta_expand(val, self)

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -220,9 +220,10 @@ TVM_REGISTER_API("relay._module.Module_LookupDef_str")
   });
 
 TVM_REGISTER_API("relay._module.Module_FromExpr")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+.set_body_typed<Module(Expr)>([](TVMArgs args, TVMRetValue *ret) {
     *ret = ModuleNode::FromExpr(args[0]);
   });
+
 TVM_REGISTER_API("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {
     mod->Update(from);
