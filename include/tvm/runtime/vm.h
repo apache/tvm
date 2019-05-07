@@ -245,7 +245,7 @@ struct Instruction {
    *  \return The invoke instruction.
    */
   static Instruction Invoke(Index func_index, const std::vector<RegName>& args, RegName dst);
-  /*! \brief Construct an load constant instruction.
+  /*! \brief Construct an invoke closure instruction.
    *  \param closure The register of the closure to invoke.
    *  \param args The registers containing the arguments.
    *  \param dst The destination register.
