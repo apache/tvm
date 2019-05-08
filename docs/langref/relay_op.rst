@@ -189,6 +189,8 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.annotation.on_device
    tvm.relay.reverse_reshape
    tvm.relay.nn.batch_matmul
+   tvm.relay.contrib.adaptive_max_pool2d
+   tvm.relay.contrib.adaptive_avg_pool2d
 
 
 Level 1 Definitions
