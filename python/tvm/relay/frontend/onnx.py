@@ -19,8 +19,8 @@
 from __future__ import absolute_import as _abs
 
 import logging
-import tvm
 import numpy as np
+import tvm
 from ... import nd as _nd
 from .. import ir_pass
 from .. import expr as _expr
