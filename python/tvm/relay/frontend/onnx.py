@@ -1182,6 +1182,13 @@ def from_onnx(model,
     params : dict of str to tvm.NDArray
         The parameter dict to be used by relay
     """
+    try:
+        from onnx import checker
+        if hasattr(checker, 'check_model'):
+            # try use onnx's own model checker before converting any model
+            checker.check_model(model)
+    except ImportError:
+            pass
     g = GraphProto(shape, dtype)
     graph = model.graph
     try:
