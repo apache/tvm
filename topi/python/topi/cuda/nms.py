@@ -133,6 +133,9 @@ def get_valid_counts_upsweep(data, idx_in, idx, partial):
                     idx[bx * num_anchors + tx * elem_per_thread + i] = \
                     idx[bx * num_anchors + tx * elem_per_thread + i - 1] + \
                     idx_in[bx * num_anchors + tx * elem_per_thread + i]
+            ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
+                                  tvm.convert(['shared']),
+                                  tvm.expr.Call.Intrinsic, None, 0))
     return ib.get()
 
 def get_valid_counts_scan(data, partial_in, partial):
