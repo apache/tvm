@@ -134,3 +134,6 @@ set(USE_SORT ON)
 set(USE_TENSORRT OFF)
 # Build ANTLR parser for Relay text format
 set(USE_ANTLR OFF)
+
+# Build TSIM for VTA
+set(USE_VTA_TSIM OFF)
