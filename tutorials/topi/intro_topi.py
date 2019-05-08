@@ -50,8 +50,8 @@ print(tvm.lower(s, [A], simple_mode=True))
 
 ######################################################################
 # However, for such a common operation we had to define the reduce axis ourselves as well as explicit computation with
-# :code: `tvm.compute`. Imagine for more complicated operations how much details we need to provide.
-# Fortunately, we can replace those two lines with simple :code:`topi.sum` much like :code`numpy.sum`
+# :code:`tvm.compute`. Imagine for more complicated operations how much details we need to provide.
+# Fortunately, we can replace those two lines with simple :code:`topi.sum` much like :code:`numpy.sum`
 #
 C = topi.sum(A, axis=1)
 ts = tvm.create_schedule(C.op)
