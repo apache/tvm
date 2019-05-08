@@ -286,7 +286,8 @@ struct VMFunction {
   /*! \brief The size of the frame for this function */
   Index register_file_size;
 
-  VMFunction(std::string name, Index params, std::vector<Instruction> instructions,
+  VMFunction(const std::string& name, Index params,
+             const std::vector<Instruction>& instructions,
              Index register_file_size)
       : name(name),
         params(params),
