@@ -265,6 +265,7 @@ struct Instruction {
 
   Instruction();
   Instruction(const Instruction& instr);
+  Instruction& operator=(const Instruction& instr) = delete;
   ~Instruction();
 
   friend std::ostream& operator<<(std::ostream& os, const Instruction&);
