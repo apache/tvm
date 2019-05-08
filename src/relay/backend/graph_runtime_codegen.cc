@@ -416,7 +416,12 @@ class GraphRuntimeCodegen
     } else {
       // heterogeneous execution.
       const auto call_dev_key = std::to_string(call_dev_type);
-      const auto call_dev_name = runtime::DeviceName(call_dev_type);
+      std::string call_dev_name;
+      if (call_dev_type == 0) {
+        call_dev_name = "llvm";
+      } else {
+        call_dev_name = runtime::DeviceName(call_dev_type);
+      }
       if (targets_.count(call_dev_name) == 0 && targets_.count(call_dev_key) == 0) {
         LOG(FATAL) << "No target is provided for device "
                    << call_dev_name;
