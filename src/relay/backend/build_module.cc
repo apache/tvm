@@ -604,7 +604,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   void BuildModule(const Map<std::string, Array<LoweredFunc> >& lowered_funcs,
                    const Map<HalideIR::Expr, HalideIR::Expr>& targets,
                    const BuildConfig& cfg) {
-    auto target_host = Target::create(cfg_.fallback_device);
+    auto target_host = Target::create(target_host_);
     for (const auto& kv : lowered_funcs) {
       std::unordered_set<std::string> fname_set;
       for (auto f : kv.second) {
