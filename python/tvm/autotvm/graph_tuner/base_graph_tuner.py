@@ -309,7 +309,7 @@ class BaseGraphTuner(object):
     def benchmark_layout_transform(self, min_exec_num=100, timeout=10,
                                    use_rpc=False, device_key=None, host="localhost",
                                    port=9190, n_parallel=1, build_func='default',
-                                   records=None, target_host=None, infer_layout=False):
+                                   layout_records=None, target_host=None, infer_layout=False):
         """Benchmark all possible layout transformation in the graph,
         given a set of schedule candidates for each workload of target operator.
 
@@ -348,7 +348,7 @@ class BaseGraphTuner(object):
             callable: customized build function for other backends (e.g. VTA).
                       See autotvm/measure/measure_methods.py::default_build_func for example.
 
-        records : str or iterator of (MeasureInput, MeasureResult). optional
+        layout_records : str or iterator of (MeasureInput, MeasureResult). optional
             Collection of layout_transform benchmarking records.
             If is str, then it should be the filename of a records log file.
                    Each row of this file is an encoded record pair.
@@ -374,19 +374,19 @@ class BaseGraphTuner(object):
             This might bring performance loss comparing to benchmarking layout transformation.
         """
         self._logger.info("Start to benchmark layout transformation...")
-        if records is None and infer_layout:
+        if layout_records is None and infer_layout:
             raise RuntimeError("Requires some records to infer layout transformation time.")
 
-        if isinstance(records, str):
-            records = load_from_file(records)
-            if not records and infer_layout:
+        if isinstance(layout_records, str):
+            layout_records = load_from_file(layout_records)
+            if not layout_records and infer_layout:
                 raise RuntimeError("Records must be non-empty to infer layout transformation time.")
 
-        if isinstance(records, str):
-            records = load_from_file(records)
+        if isinstance(layout_records, str):
+            layout_records = load_from_file(layout_records)
         num_flops, total_time = 0, 0
-        if records is not None:
-            for record in records:
+        if layout_records is not None:
+            for record in layout_records:
                 ltf_wkl = record[0].task.workload
                 self._layout_transform_dict[ltf_wkl] = record
                 input_shape = ltf_wkl[1][1]
