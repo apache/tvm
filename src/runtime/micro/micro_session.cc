@@ -57,7 +57,30 @@ void MicroSession::InitSession(TVMArgs args) {
   } else {
     LOG(FATAL) << "Unsupported micro low-level device";
   }
-  LoadInitStub();
+  CHECK(!init_binary_path_.empty()) << "init library not initialized";
+  init_stub_info_ = LoadBinary(init_binary_path_);
+  utvm_main_symbol_addr_ = init_stub_info_.symbol_map["UTVMMain"];
+  utvm_done_symbol_addr_ = init_stub_info_.symbol_map["UTVMDone"];
+
+  // TODO(weberlo): Move the patching below to the init stub.
+  dev_base_offset workspace_start_hole_offset = init_symbol_map()["workspace_start"];
+  dev_base_offset workspace_curr_hole_offset = init_symbol_map()["workspace_curr"];
+  void* workspace_hole_fill = (void*) (kWorkspaceStart.val_ + low_level_device_->base_addr().val_);
+
+  void* tmp;
+  low_level_device()->Read(workspace_start_hole_offset, &tmp, sizeof(void*));
+  std::cout << "workspace start addr (before): 0x" << std::hex << tmp << std::endl;
+  low_level_device()->Write(workspace_start_hole_offset, &workspace_hole_fill, sizeof(void*));
+  low_level_device()->Read(workspace_start_hole_offset, &tmp, sizeof(void*));
+  std::cout << "workspace start addr (after): 0x" << std::hex << tmp << std::endl;
+
+  low_level_device()->Read(workspace_curr_hole_offset, &tmp, sizeof(void*));
+  std::cout << "workspace curr addr (before): 0x" << std::hex << tmp << std::endl;
+  low_level_device()->Write(workspace_curr_hole_offset, &workspace_hole_fill, sizeof(void*));
+  low_level_device()->Read(workspace_curr_hole_offset, &tmp, sizeof(void*));
+  std::cout << "workspace curr addr (after): 0x" << std::hex << tmp << std::endl;
+
+  std::cout << "SESSION INIT SUCCESS" << std::endl;
 }
 
 dev_base_offset MicroSession::AllocateInSection(SectionKind type, size_t size) {
@@ -162,49 +185,55 @@ void MicroSession::PushToExecQueue(dev_base_offset func, TVMArgs args) {
       .args = reinterpret_cast<UTVMArgs*>(args_addr.val_),
   };
   // TODO(mutinifni): handle bits / endianness
-  dev_base_offset task_dev_addr = init_symbol_map_["task"];
+  dev_base_offset task_dev_addr = init_symbol_map()["task"];
   low_level_device()->Write(task_dev_addr, &task, sizeof(task));
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
 }
 
-// TODO(weberlo): Refactor commonalities from here and in
-// `MicroModule::LoadBinary`. Shit's egregious.
-void MicroSession::LoadInitStub() {
-  CHECK(!init_binary_path_.empty()) << "init library not initialized";
-  // relocate and load binary on low-level device
-  init_text_size_ = GetSectionSize(init_binary_path_, kText);
-  init_rodata_size_ = GetSectionSize(init_binary_path_, kRodata);
-  init_data_size_ = GetSectionSize(init_binary_path_, kData);
-  init_bss_size_ = GetSectionSize(init_binary_path_, kBss);
+BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
+  SectionLocation text;
+  SectionLocation rodata;
+  SectionLocation data;
+  SectionLocation bss;
 
-  init_text_start_ = AllocateInSection(kText, init_text_size_);
-  init_rodata_start_ = AllocateInSection(kRodata, init_rodata_size_);
-  init_data_start_ = AllocateInSection(kData, init_data_size_);
-  init_bss_start_ = AllocateInSection(kBss, init_bss_size_);
-  CHECK(init_text_start_.val_ != 0 &&
-        init_rodata_start_.val_ != 0 &&
-        init_data_start_.val_ != 0 &&
-        init_bss_start_.val_ != 0)
-      << "Not enough space to load init binary on device";
-  const dev_base_addr base_addr = low_level_device()->base_addr();
+  text.size = GetSectionSize(binary_path, kText);
+  rodata.size = GetSectionSize(binary_path, kRodata);
+  data.size = GetSectionSize(binary_path, kData);
+  bss.size = GetSectionSize(binary_path, kBss);
+
+  text.start = AllocateInSection(kText, text.size);
+  rodata.start = AllocateInSection(kRodata, rodata.size);
+  data.start = AllocateInSection(kData, data.size);
+  bss.start = AllocateInSection(kBss, bss.size);
+  std::cout << "binary path: " << binary_path << std::endl;
+  std::cout << "  text size: " << text.size << std::endl;
+  std::cout << "  rodata size: " << rodata.size << std::endl;
+  std::cout << "  data size: " << data.size << std::endl;
+  std::cout << "  bss size: " << bss.size << std::endl;
+  std::cout << std::endl;
+  CHECK(text.start.val_ != 0 && rodata.start.val_ != 0 && data.start.val_ != 0 && bss.start.val_ != 0)
+      << "not enough space to load module on device";
+  const dev_base_addr base_addr = low_level_device_->base_addr();
   std::string relocated_bin = RelocateBinarySections(
-      init_binary_path_,
-      (void*) GetAddr(init_text_start_, base_addr).val_,
-      (void*) GetAddr(init_rodata_start_, base_addr).val_,
-      (void*) GetAddr(init_data_start_, base_addr).val_,
-      (void*) GetAddr(init_bss_start_, base_addr).val_);
+      binary_path, (void*)GetAddr(text.start, base_addr).val_,
+      (void*)GetAddr(rodata.start, base_addr).val_, (void*)GetAddr(data.start, base_addr).val_,
+      (void*)GetAddr(bss.start, base_addr).val_);
   std::string text_contents = ReadSection(relocated_bin, kText);
   std::string rodata_contents = ReadSection(relocated_bin, kRodata);
   std::string data_contents = ReadSection(relocated_bin, kData);
   std::string bss_contents = ReadSection(relocated_bin, kBss);
-  low_level_device()->Write(init_text_start_, &text_contents[0], init_text_size_);
-  low_level_device()->Write(init_rodata_start_, &rodata_contents[0], init_rodata_size_);
-  low_level_device()->Write(init_data_start_, &data_contents[0], init_data_size_);
-  low_level_device()->Write(init_bss_start_, &bss_contents[0], init_bss_size_);
-  // obtain init stub binary metadata
-  init_symbol_map_ = SymbolMap(relocated_bin, base_addr);
-  utvm_main_symbol_addr_ = init_symbol_map_["UTVMMain"];
-  utvm_done_symbol_addr_ = init_symbol_map_["UTVMDone"];
+  low_level_device_->Write(text.start, &text_contents[0], text.size);
+  low_level_device_->Write(rodata.start, &rodata_contents[0], rodata.size);
+  low_level_device_->Write(data.start, &data_contents[0], data.size);
+  low_level_device_->Write(bss.start, &bss_contents[0], bss.size);
+  SymbolMap symbol_map {relocated_bin, base_addr};
+  return BinaryInfo{
+      .text = text,
+      .rodata = rodata,
+      .data = data,
+      .bss = bss,
+      .symbol_map = symbol_map,
+  };
 }
 
 void MicroSession::SetInitBinaryPath(std::string path) {

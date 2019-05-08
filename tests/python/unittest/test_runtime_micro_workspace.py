@@ -32,10 +32,9 @@ def test_micro_add():
         fadd_workspace(a, c)
         print(a)
         print(c)
-
-        import struct
-        ba = bytearray(struct.pack('f', c.asnumpy()[0]))
-        print(ba)
+        # import struct
+        # ba = bytearray(struct.pack('f', c.asnumpy()[0]))
+        # print(ba)
 
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + 2.0)

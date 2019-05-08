@@ -18,11 +18,17 @@ def test_micro_add():
     s = tvm.create_schedule(C.op)
 
     def verify():
+        print("A")
         init_lib_path = micro.get_init_lib()
+        print("B")
         micro.init("host", init_lib_path)
+        print("C")
         m = tvm.module.load("fadd.obj", "micro_dev")
+        print("D")
         ctx = tvm.micro_dev(0)
+        print("E")
         fadd = m['fadd']
+        print("F")
         n = nn
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
@@ -31,6 +37,7 @@ def test_micro_add():
         print(b)
         print(c)
         fadd(a, b, c)
+        print("G")
         print(a)
         print(b)
         print(c)

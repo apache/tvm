@@ -92,6 +92,28 @@ class SymbolMap {
   std::unordered_map<std::string, dev_base_offset> map_;
 };
 
+/*! \brief TODO */
+struct SectionLocation {
+  /*! \brief section start offset */
+  dev_base_offset start;
+  /*! \brief size of section */
+  size_t size;
+};
+
+/*! \brief TODO */
+struct BinaryInfo {
+  /*! \brief text section location */
+  SectionLocation text;
+  /*! \brief rodata section location */
+  SectionLocation rodata;
+  /*! \brief data section location */
+  SectionLocation data;
+  /*! \brief bss section location */
+  SectionLocation bss;
+  /*! \brief symbol map to offsets */
+  SymbolMap symbol_map;
+};
+
 // TODO(weberlo): should this be here?
 /*! \brief number of bytes in each page */
 constexpr int kPageSize = 4096;
@@ -215,13 +237,6 @@ std::string ReadSection(std::string binary, SectionKind section);
  */
 size_t GetSectionSize(std::string binary_name, SectionKind section,
                       size_t align = kDefaultSizeAlignment);
-
-/*!
- * \brief builds a map of symbol to address
- * \param binary contents of the binary file
- * \return map of symbols to their addresses
- */
-//std::unordered_map<std::string, dev_base_offset> GetSymbolMap(std::string binary, dev_base_addr base_addr);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_MICRO_MICRO_COMMON_H_

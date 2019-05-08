@@ -85,6 +85,7 @@ class MicroSectionAllocator {
   /*! \brief end address of last allocation */
   dev_base_offset section_max_;
   /*! \brief allocation map for allocation sizes */
+  // TODO(weberlo): Replace `void*` with `dev_base_offset`.
   std::unordered_map<void*, size_t> alloc_map_;
 };
 
@@ -130,18 +131,22 @@ class MicroSession {
    */
   void PushToExecQueue(dev_base_offset func, TVMArgs args);
 
+  /*! TODO */
+  BinaryInfo LoadBinary(std::string binary_path);
+
   /*!
    * \brief returns low-level device pointer
    * \note assumes low_level_device_ is initialized
    */
   // TODO(weberlo): remove &
-  const std::shared_ptr<LowLevelDevice>& low_level_device() const {
+  const std::shared_ptr<LowLevelDevice> low_level_device() const {
+    // TODO(weberlo): Assert `low_level_device_` is initialized
     return low_level_device_;
   }
 
-  // TODO(weberlo): add back const
-  SymbolMap init_symbol_map() const {
-    return init_symbol_map_;
+  // TODO(weberlo): Make this return a ref?
+  SymbolMap init_symbol_map() {
+    return init_stub_info_.symbol_map;
   }
 
  private:
@@ -163,24 +168,8 @@ class MicroSession {
   std::unique_ptr<MicroSectionAllocator> heap_allocator_;
   /*! \brief workspace section allocator */
   std::unique_ptr<MicroSectionAllocator> workspace_allocator_;
-  /*! \brief init text start address */
-  dev_base_offset init_text_start_;
-  /*! \brief init rodata start address */
-  dev_base_offset init_rodata_start_;
-  /*! \brief init data start address */
-  dev_base_offset init_data_start_;
-  /*! \brief init bss start address */
-  dev_base_offset init_bss_start_;
-  /*! \brief size of init text section */
-  size_t init_text_size_;
-  /*! \brief size of init rodata section */
-  size_t init_rodata_size_;
-  /*! \brief size of init data section */
-  size_t init_data_size_;
-  /*! \brief size of init bss section */
-  size_t init_bss_size_;
-  /*! \brief symbol map for init stub */
-  SymbolMap init_symbol_map_;
+  /*! \brief init stub binary info */
+  BinaryInfo init_stub_info_;
   /*! \brief path to init stub source code */
   std::string init_binary_path_;
   /*! \brief offset of the init stub entry function */

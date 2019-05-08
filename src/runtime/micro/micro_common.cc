@@ -79,30 +79,5 @@ size_t GetSectionSize(std::string binary_path, SectionKind section, size_t align
   size = UpperAlignValue(size, align);
   return size;
 }
-
-/*
-std::unordered_map<std::string, dev_base_offset> GetSymbolMap(std::string binary, dev_base_addr base_addr) {
-  const auto* f = Registry::Get("tvm_callback_get_symbol_map");
-  CHECK(f != nullptr) << "Require tvm_callback_get_symbol_map to exist in registry";
-  TVMByteArray arr;
-  arr.data = &binary[0];
-  arr.size = binary.length();
-  std::string map_str = (*f)(arr);
-  // parse symbols and addresses from returned string
-  std::unordered_map<std::string, dev_base_offset> symbol_map;
-  std::stringstream stream;
-  stream << map_str;
-  std::string name;
-  std::uintptr_t addr;
-  stream >> name;
-  stream >> std::hex >> addr;
-  while (stream) {
-    symbol_map[name] = dev_base_offset(addr - base_addr.val_);
-    stream >> name;
-    stream >> std::hex >> addr;
-  }
-  return symbol_map;
-}
-*/
 }  // namespace runtime
 }  // namespace tvm
