@@ -434,6 +434,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
     all_names.insert(x->name);
   }
 
+  Array<LoweredFunc> fhost;
   Array<LoweredFunc> fdevice;
 
   for (const auto& x : funcs) {
@@ -451,12 +452,12 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
       func = ir::ThreadSync(func, "warp");
       func = ir::LowerThreadAllreduce(func, target->thread_warp_size);
       auto fsplits = ir::SplitHostDevice(func);
-      fhost->push_back(fsplits[0]);
+      fhost.push_back(fsplits[0]);
       for (auto f = fsplits.begin() + 1; f != fsplits.end(); ++f) {
         fdevice.push_back(*f);
       }
     } else if (x->func_type == kHostFunc) {
-      fhost->push_back(x);
+      fhost.push_back(x);
     } else if (x->func_type == kDeviceFunc) {
       fdevice.push_back(x);
     } else {
@@ -492,18 +493,18 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
                            << "\n";
   }
 
-  for (size_t i = 0; i < fhost->size(); ++i) {
-    auto func = (*fhost)[i];
+  for (size_t i = 0; i < fhost.size(); ++i) {
+    auto func = fhost[i];
     func = ir::BindDeviceType(func, target->device_type);
     func = ir::LowerTVMBuiltin(func);
-    fhost->Set(i, func);
+    fhost.Set(i, func);
   }
 
-  for (size_t i = 0; i < fhost->size(); ++i) {
-    auto func = (*fhost)[i];
+  for (size_t i = 0; i < fhost.size(); ++i) {
+    auto func = fhost[i];
     func = ir::LowerIntrin(func, target_host->target_name);
     func = ir::CombineContextCall(func);
-    fhost->Set(i, func);
+    fhost.Set(i, func);
   }
   return {fhost, fdevice};
 }
@@ -517,7 +518,7 @@ runtime::Module DeviceBuild(const Array<LoweredFunc>& funcs,
                             Array<LoweredFunc>* fhost) {
   auto target_host_val = target_host.defined() ? target_host : DefaultTargetHost(target);
   auto host_dev_funcs = split_dev_host_funcs(funcs, target, target_host, config);
-  auto& fhost = host_dev_funcs[0];
+  *fhost = host_dev_funcs[0];
   auto& fdevice = host_dev_funcs[1];
 
   if (!fdevice.empty()) {
@@ -566,6 +567,18 @@ runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
     }
   }
   return mhost;
+}
+
+// Build for heterogeneous execution when target is a string.
+runtime::Module build(const Map<std::string, Array<LoweredFunc>>& inputs,
+                      const Target& target_host,
+                      const BuildConfig& config) {
+  Map<Target, Array<LoweredFunc>> updated_input;
+  for (const auto& it : inputs) {
+    auto target = Target::create(it.first);
+    updated_input.Set(target, it.second);
+  }
+  return build(updated_input, target_host, config);
 }
 
 // Build for homogeneous execution.
