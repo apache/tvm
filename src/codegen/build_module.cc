@@ -511,16 +511,8 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
 
 // Create a module for a specific device (target). The lowered functions
 // associated with the host is returned as well.
-runtime::Module DeviceBuild(const Array<LoweredFunc>& funcs,
-                            const Target& target,
-                            const Target& target_host,
-                            const BuildConfig& config,
-                            Array<LoweredFunc>* fhost) {
-  auto target_host_val = target_host.defined() ? target_host : DefaultTargetHost(target);
-  auto host_dev_funcs = split_dev_host_funcs(funcs, target, target_host, config);
-  *fhost = host_dev_funcs[0];
-  auto& fdevice = host_dev_funcs[1];
-
+runtime::Module DeviceBuild(const Array<LoweredFunc>& fdevice,
+                            const Target& target) {
   if (!fdevice.empty()) {
     return codegen::Build(fdevice, target->str());
   } else {
@@ -550,9 +542,12 @@ runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
   }
 
   for (const auto& it : inputs) {
-    Array<LoweredFunc> fhost;
-    runtime::Module mdev =
-        DeviceBuild(it.second, it.first, target_host_val, config, &fhost);
+    auto host_dev_funcs =
+        split_dev_host_funcs(it.second, it.first, target_host_val, config);
+    auto& fhost = host_dev_funcs[0];
+    auto& fdevice = host_dev_funcs[1];
+    // Get the module for a certain target.
+    runtime::Module mdev = DeviceBuild(fdevice, it.first);
     for (const auto& it : fhost) {
       fhost_all.push_back(it);
     }
