@@ -28,6 +28,8 @@
 
 #include <chrono>
 #include <iostream>
+#include <sstream>
+#include <stdexcept>
 #include <vector>
 
 #include "../../runtime/vm/memory_manager.h"
@@ -109,6 +111,10 @@ Instruction::Instruction(const Instruction& instr) {
     case Opcode::Goto:
       this->pc_offset = instr.pc_offset;
       return;
+    default:
+      std::ostringstream out;
+      out << "Invalid instruction " << static_cast<int>(instr.op);
+      throw std::runtime_error(out.str());
   }
 }
 
@@ -138,6 +144,10 @@ Instruction::~Instruction() {
     case Opcode::Invoke:
       delete this->invoke_args_registers;
       return;
+    default:
+      std::ostringstream out;
+      out << "Invalid instruction " << static_cast<int>(this->op);
+      throw std::runtime_error(out.str());
   }
 }
 

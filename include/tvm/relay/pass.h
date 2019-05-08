@@ -322,8 +322,8 @@ TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
 
 /*! \brief Add abstraction over a function
  *
- * For example: `abs` is transformed to
- * `fun x -> abs x`.
+ * For example: `square` is transformed to
+ * `fun x -> square x`.
  *
  * See https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B7-conversion
  * for more details.
