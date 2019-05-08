@@ -593,6 +593,8 @@ _convert_map = {
     'Reshape'                  : _convert_reshape,
     'Concatenate'              : _convert_concat,
     'BatchNormalization'       : _convert_batchnorm,
+    'BatchNormalizationV1'     : _convert_batchnorm,
+    'BatchNormalizationV2'     : _convert_batchnorm,
 
     'Add'                      : _convert_merge,
     'Subtract'                 : _convert_merge,
@@ -689,8 +691,11 @@ def from_keras(model, shape=None):
     try:
         import keras
     except ImportError:
-        raise ImportError('Keras must be installed')
-    assert isinstance(model, keras.engine.training.Model)
+        try:
+            import tensorflow.keras as keras
+        except ImportError:
+            raise ImportError('Keras must be installed')
+    assert isinstance(model, keras.Model)
     if keras.backend.backend() != 'tensorflow':
         raise ValueError("Keras frontend currently supports tensorflow backend only.")
     if keras.backend.image_data_format() != 'channels_last':
@@ -704,7 +709,7 @@ def from_keras(model, shape=None):
 
     etab = ExprTable()
     for keras_layer in model.layers:
-        if isinstance(keras_layer, keras.engine.InputLayer):
+        if isinstance(keras_layer, keras.layers.InputLayer):
             _convert_input_layer(keras_layer)
         else:
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
@@ -717,7 +722,7 @@ def from_keras(model, shape=None):
                 # If some nodes in imported model is not relevant to the current model,
                 # skip such layers. model._network_nodes contains keys of all nodes relevant
                 # to the current model.
-                if not model._node_key(keras_layer, node_idx) in model._network_nodes:
+                if not keras_layer.name + '_ib-' + str(node_idx) in model._network_nodes:
                     continue
                 inexpr = []
                 # Since Keras allows creating multiple layers from the same name instance,
@@ -727,7 +732,7 @@ def from_keras(model, shape=None):
                 # they are named uniquely to input_1, input_2, input_3... by default.
                 zip_node = zip(node.node_indices, node.tensor_indices, node.inbound_layers)
                 for n_idx, t_idx, inbound_layer in zip_node:
-                    if isinstance(inbound_layer, keras.engine.InputLayer):
+                    if isinstance(inbound_layer, keras.layers.InputLayer):
                         expr_name = inbound_layer.name
                         _convert_input_layer(inbound_layer)
                     else:
