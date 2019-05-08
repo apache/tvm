@@ -92,10 +92,13 @@ def make(docker_type, path, make_flag) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
+      // always run cpp test when build
+      sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
     } catch (exc) {
       echo 'Incremental compilation failed. Fall back to build from scratch'
       sh "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}"
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
+      sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
     }
   }
 }
@@ -183,7 +186,6 @@ stage('Build') {
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_cpp_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
