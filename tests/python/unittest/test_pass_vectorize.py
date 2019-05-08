@@ -69,6 +69,28 @@ def test_vectorize_with_if():
     assert stmt.then_case.value.dtype == "float32x4"
     assert isinstance(stmt.else_case, tvm.stmt.For)
 
+def test_vectorize_with_le_cond():
+    n = tvm.var('n')
+    ib = tvm.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    with ib.for_range(0, 4, for_type="vectorize") as i:
+        with ib.if_scope(i <= n):
+            A[i] = A[i] + 1
+    stmt = ib.get()
+    stmt = tvm.ir_pass.VectorizeLoop(stmt)
+    assert isinstance(stmt, tvm.stmt.For)
+
+def test_vectorize_with_ge_cond():
+    n = tvm.var('n')
+    ib = tvm.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    with ib.for_range(0, 4, for_type="vectorize") as i:
+        with ib.if_scope(i >= n):
+            A[i] = A[i] + 1
+    stmt = ib.get()
+    stmt = tvm.ir_pass.VectorizeLoop(stmt)
+    assert isinstance(stmt, tvm.stmt.For)
+
 def test_vectorize_if_then_else():
     n = tvm.var('n')
     x = tvm.var('x')
@@ -102,3 +124,5 @@ if __name__ == "__main__":
     test_vectorize_with_if()
     test_vectorize_loop()
     test_vectorize_if_then_else()
+    test_vectorize_with_le_cond()
+    test_vectorize_with_ge_cond()
