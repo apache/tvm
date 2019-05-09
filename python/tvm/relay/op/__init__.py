@@ -29,6 +29,7 @@ from . import nn
 from . import annotation
 from . import image
 from . import vision
+from . import contrib
 from . import op_attrs
 
 

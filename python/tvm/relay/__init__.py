@@ -40,6 +40,7 @@ from .op.algorithm import *
 from . import nn
 from . import annotation
 from . import vision
+from . import contrib
 from . import image
 from . import frontend
 from . import backend

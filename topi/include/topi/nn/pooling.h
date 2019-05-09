@@ -231,6 +231,120 @@ inline Tensor pool(const Tensor& x,
                    count_include_pad);
 }
 
+
+inline Expr start_index(const Var& out_index,
+                        const Expr& odim,
+                        const Expr& idim) {
+  return out_index * idim / odim;
+}
+
+inline Expr end_index(const Var& out_index,
+                      const Expr& odim,
+                      const Expr& idim) {
+  Expr tmp = (out_index + 1) * idim / odim;
+  return tvm::ir::Select::make((out_index + 1) * idim % odim == 0,
+                               tmp, tmp + 1);
+}
+
+/*!
+* \brief Perform adaptive pooling on height and width dimension of data.
+*
+* \param x The input tensor
+* \param output_size Vector of two ints: {output_height, output_width}
+* \param pool_type The type of pooling operator
+* \param height_axis index of the height dimension
+* \param width_axis index of the width dimension
+*
+* \return The output tensor in same layout order
+*/
+inline Tensor adaptive_pool_impl(const Tensor& x,
+                                 const Array<Expr>& output_size,
+                                 PoolType pool_type,
+                                 const size_t height_axis,
+                                 const size_t width_axis) {
+  CHECK_EQ(output_size.size(), 2) << "Pooling kernel_size must have 2 elements";
+
+  auto height = x->shape[height_axis];
+  auto width = x->shape[width_axis];
+
+  auto out_height = output_size[0];
+  auto out_width = output_size[1];
+  Array<Expr> out_shape = x->shape;
+  out_shape.Set(height_axis, out_height);
+  out_shape.Set(width_axis, out_width);
+
+  if (pool_type == kMaxPool) {
+    return tvm::compute(out_shape, [&](const Array<Var>& output) {
+      Array<Expr> indices;
+      for (const Var& var : output) indices.push_back(var);
+      auto i_start_h = start_index(output[height_axis], out_height, height);
+      auto i_end_h = end_index(output[height_axis], out_height, height);
+      auto i_start_w = start_index(output[width_axis], out_width, width);
+      auto i_end_w = end_index(output[width_axis], out_width, width);
+      auto dheight = tvm::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
+      auto dwidth = tvm::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
+      indices.Set(height_axis, i_start_h + dheight);
+      indices.Set(width_axis, i_start_w + dwidth);
+      return tvm::max(x(indices), { dheight, dwidth });  // NOLINT(*)
+    }, "tensor", "adaptive_pool_max");
+  } else if (pool_type == kAvgPool) {
+    return tvm::compute(out_shape, [&](const Array<Var>& output) {
+      Array<Expr> indices;
+      for (const Var& var : output) indices.push_back(var);
+      auto i_start_h = start_index(output[height_axis], out_height, height);
+      auto i_end_h = end_index(output[height_axis], out_height, height);
+      auto i_start_w = start_index(output[width_axis], out_width, width);
+      auto i_end_w = end_index(output[width_axis], out_width, width);
+      auto divide_factor = tvm::cast(x->dtype, (i_end_h - i_start_h)
+                                               * (i_end_w - i_start_w));
+      auto dheight = tvm::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
+      auto dwidth = tvm::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
+      indices.Set(height_axis, i_start_h + dheight);
+      indices.Set(width_axis, i_start_w + dwidth);
+      return tvm::sum(x(indices) / divide_factor, { dheight, dwidth });
+    }, "tensor", "adaptive_pool_avg");
+  } else {
+    LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
+    return x;
+  }
+}
+
+/*!
+* \brief Adaptively perform pooling on height and width dimension of data.
+*        The pooling kernel and stride sizes are automatically chosen for desired output sizes.
+*        It decides the height and width dimension according to the layout string,
+*        in which 'W' and 'H' means width and height respectively.
+*        Width and height dimension cannot be split.
+*        For example, NCHW, NCHW16c, etc. are valid for pool,
+*        while NCHW16w, NCHW16h are not.
+*        See \a layout for more information of the layout string convention.
+*
+* \param x The input tensor
+* \param output_size Vector of two ints: {output_height, output_width}
+* \param pool_type The type of pooling operator
+* \param layout The input layout. Pooling supports any layout as long as 'H' and 'W' appear.
+*        The layout is supposed to be composed of upper cases, lower cases and (optional) numbers,
+*        where upper case indicates a dimension and
+*        the corresponding lower case (with factor size) indicates the split dimension.
+*        For example, NCHW16c can describe a 5-D tensor of
+*        [batch_size, channel, height, width, channel_block].
+*        (in which factor size `16` will not be used in pooling but for other operators,
+*        it can be used to decide the output shape).
+*        Since pooling does not care about the factor size of dimensions
+*        other than `H` and `W`, one can pass `NCHWc` as well.
+*
+* \return The output tensor in same layout order
+*/
+inline Tensor adaptive_pool(const Tensor& x,
+                            const Array<Expr>& output_size,
+                            PoolType pool_type,
+                            const std::string& layout = "NCHW") {
+  int height_axis = -1, width_axis = -1;
+  CHECK(find_height_width(layout, &height_axis, &width_axis))
+    << "Unsupported layout " << layout;
+  return adaptive_pool_impl(x, output_size, pool_type, height_axis, width_axis);
+}
+
 /*!
 * \brief Perform global pooling on height and width dimension of data.
 *        It decides the height and width dimension according to the layout string,
@@ -259,49 +373,7 @@ inline Tensor pool(const Tensor& x,
 inline Tensor global_pool(const Tensor& x,
                           PoolType pool_type,
                           const std::string& layout = "NCHW") {
-  CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
-
-  int height_axis = -1, width_axis = -1;
-  CHECK(find_height_width(layout, &height_axis, &width_axis))
-    << "Unsupported layout " << layout;
-
-  Array<Expr> out_shape = x->shape;
-  out_shape.Set(height_axis, 1);
-  out_shape.Set(width_axis, 1);
-
-  auto height = x->shape[height_axis];
-  auto width = x->shape[width_axis];
-
-  auto dheight = tvm::reduce_axis(Range(0, height), "rv1");
-  auto dwidth = tvm::reduce_axis(Range(0, width), "rv2");
-
-  if (pool_type == kMaxPool) {
-    return tvm::compute(out_shape,
-      [&](const Array<Var>& output) {
-        Array<Expr> indices;
-        for (const Var& var : output) indices.push_back(var);
-        indices.Set(height_axis, dheight);
-        indices.Set(width_axis, dwidth);
-        return tvm::max(x(indices), { dheight, dwidth });  // NOLINT(*)
-      }, "tensor", "global_pool_max");
-  } else if (pool_type == kAvgPool) {
-    auto tsum = tvm::compute(out_shape,
-      [&](const Array<Var>& output) {
-        Array<Expr> indices;
-        for (const Var& var : output) indices.push_back(var);
-        indices.Set(height_axis, dheight);
-        indices.Set(width_axis, dwidth);
-        return tvm::sum(x(indices), { dheight, dwidth });
-      }, "tensor", "global_pool_sum");
-
-    return tvm::compute(out_shape,
-      [&](const Array<Var>& output) {
-        return tsum(output) / tvm::cast(x->dtype, height * width);
-      }, "tensor", kElementWise);
-  } else {
-    LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
-    return x;
-  }
+  return adaptive_pool(x, Array<Expr>{1, 1}, pool_type, layout);
 }
 
 }  // namespace nn
