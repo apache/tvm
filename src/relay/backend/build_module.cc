@@ -640,7 +640,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    auto target_host = Target::create(cfg_.fallback_device);
+    auto target_host = Target::create(target_host_);
     ret_.mod = tvm::build(graph_codegen_->GetLoweredFunc(), target_host, tvm_cfg_);
   }
 
