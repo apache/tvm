@@ -510,7 +510,7 @@ Mutate_(const Add* op, const Expr& self) {
   } else {
     ret.CopyOnWrite()->AddToSelf(ToSplitExpr(b), 1);
   }
-  return ret;
+  return std::move(ret);
 }
 
 Expr CanonicalSimplifier::Impl::
@@ -536,7 +536,7 @@ Mutate_(const Sub* op, const Expr& self) {
   } else {
     ret.CopyOnWrite()->AddToSelf(ToSplitExpr(b), -1);
   }
-  return ret;
+  return std::move(ret);
 }
 
 
@@ -561,11 +561,11 @@ Mutate_(const Mul* op, const Expr& self) {
     if (a.as<SumExprNode>()) {
       SumExpr ret(std::move(a.node_));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
-      return ret;
+      return std::move(ret);
     } else {
       SplitExpr ret = ToSplitExpr(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
-      return ret;
+      return std::move(ret);
     }
   }
 
@@ -684,7 +684,7 @@ Mutate_(const Div* op, const Expr& self) {
                 SplitDivConst(ToSplitExpr(temp), cval), 1);
           }
         }
-        return lhs;
+        return std::move(lhs);
       }
     } else {
       // if a >= 0 && a < cval, then result == 0
