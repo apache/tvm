@@ -32,6 +32,7 @@ tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" O
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
+tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_SGX "Build with SGX" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
@@ -140,7 +141,10 @@ file(GLOB TOPI_SRCS
 )
 file(GLOB_RECURSE HALIDEIR_SRCS 3rdparty/HalideIR/src/*.cpp)
 list(APPEND COMPILER_SRCS ${HALIDEIR_SRCS})
-file(GLOB RUNTIME_SRCS src/runtime/*.cc)
+file(GLOB RUNTIME_SRCS
+  src/runtime/*.cc
+  src/runtime/vm/*.cc
+)
 
 # Package runtime rules
 if(NOT USE_RTTI)
@@ -197,6 +201,13 @@ include(cmake/modules/contrib/HybridDump.cmake)
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
+
+if(USE_RELAY_DEBUG)
+  message(STATUS "Building Relay in debug mode...")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
+endif(USE_RELAY_DEBUG)
+
 if(NOT USE_SGX STREQUAL "OFF")
   add_dependencies(tvm sgx_edl)
   add_dependencies(tvm_runtime sgx_edl tvm_t)

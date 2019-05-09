@@ -306,9 +306,11 @@ class NDArray::Container {
             DLContext ctx) {
     dl_tensor.data = data;
     shape_ = std::move(shape);
-    dl_tensor.shape = dmlc::BeginPtr(shape);
-    dl_tensor.ndim = static_cast<int>(shape.size());
+    dl_tensor.ndim = static_cast<int>(shape_.size());
+    dl_tensor.shape = dmlc::BeginPtr(shape_);
     dl_tensor.dtype = dtype;
+    dl_tensor.strides = nullptr;
+    dl_tensor.byte_offset = 0;
     dl_tensor.ctx = ctx;
   }
 
