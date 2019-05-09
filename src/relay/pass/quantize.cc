@@ -439,7 +439,7 @@ Expr AddRealize(const Call& ref_call,
     Expr ret = ForwardOp(ref_call, ret_args);
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   }
-  CHECK(!new_args[0]->derived_from<TempExprNode>() && !new_args[1]->derived_from<TempExprNode>());
+  //CHECK(!new_args[0]->derived_from<TempExprNode>() && !new_args[1]->derived_from<TempExprNode>());
   return Expr(nullptr);
 }
 
@@ -596,6 +596,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "nbit_activation=" << op->nbit_activation << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
   p->stream << "skip_k_conv==" << op->skip_k_conv << ", ";
+  p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
   p->stream << "store_lowbit_output==" << op->store_lowbit_output << ", ";
   p->stream << "debug_enabled_ops==" << op->debug_enabled_ops << ", ";

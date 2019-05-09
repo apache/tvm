@@ -71,6 +71,7 @@ class QConfig(NodeBase):
         "dtype_activation": "int32",
         "global_scale": 8.0,
         "skip_k_conv": 1,
+        "skip_conv_layers": None,
         "round_for_shift": True,
         "store_lowbit_output": True,
         "debug_enabled_ops": None,
@@ -138,6 +139,10 @@ def qconfig(**kwargs):
 
     skip_k_conv: int
         The number of skipped conv2d.
+
+    skip_conv_layers: list
+        Different way of specifying which layers to avoid. Provide a list of indices
+        that indicate which conv2d layers to leave untouched.
 
     round_for_shift: boolean
         Whether to add bias for rounding during shift.
