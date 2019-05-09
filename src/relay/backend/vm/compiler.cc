@@ -173,10 +173,12 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
 
   VMCompiler(VMCompilerContext* context)
       : instructions(),
+        var_register_map(),
         last_register(0),
         registers_num(0),
         engine(CompileEngine::Global()),
-        context(context) {}
+        context(context)
+        {}
 
   size_t NewRegister() { return registers_num++; }
 
