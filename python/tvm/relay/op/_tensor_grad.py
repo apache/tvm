@@ -98,7 +98,7 @@ def divide_grad(orig, grad):
 @register_gradient("zeros_like")
 def zeros_like_grad(orig, grad):
     """Returns [0]"""
-    return [orig]
+    return [zeros_like(orig.args[0])]
 
 @register_gradient("ones_like")
 def ones_like_grad(orig, grad):
