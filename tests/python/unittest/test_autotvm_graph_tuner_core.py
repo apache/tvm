@@ -118,7 +118,7 @@ def test_graph_tuner_layout_transform():
 
     g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
     executor = DPTuner(g, {"data": dshape}, records, target_ops, target=target, log_file=log_file)
-    executor.benchmark_layout_transform(records=ltf_records, infer_layout=True)
+    executor.benchmark_layout_transform(layout_records=ltf_records, infer_layout=True)
     out = executor._layout_transform_dict
 
     for key in ltf_keys:
@@ -169,7 +169,7 @@ def test_DPTuner_run():
         records.append((ms_input, ms_output))
 
     executor = DPTuner(g, {"data": dshape}, records, target_ops, target, log_file=log_file)
-    executor.benchmark_layout_transform(records=ltf_records, infer_layout=True)
+    executor.benchmark_layout_transform(layout_records=ltf_records, infer_layout=True)
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
@@ -220,7 +220,7 @@ def test_PBQPTuner_run():
         records.append((ms_input, ms_output))
 
     executor = PBQPTuner(g, {"data": dshape}, records, target_ops, target)
-    executor.benchmark_layout_transform(records=ltf_records, infer_layout=True)
+    executor.benchmark_layout_transform(layout_records=ltf_records, infer_layout=True)
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
