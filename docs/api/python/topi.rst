@@ -57,6 +57,7 @@ List of operators
    topi.nn.dilate
    topi.nn.pool
    topi.nn.global_pool
+   topi.nn.adaptive_pool
    topi.nn.upsampling
    topi.nn.softmax
    topi.nn.dense

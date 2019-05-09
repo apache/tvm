@@ -316,7 +316,6 @@ def test_avg_pool2d_no_count_pad():
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
-
 def test_flatten_infer_type():
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
     x = relay.var("x", relay.TensorType((d1, d2, d3, d4), "float32"))

@@ -72,7 +72,6 @@ bool Pool2DRel(const Array<Type>& types,
 
   CHECK(data != nullptr);
   const auto dshape = data->shape;
-  CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
       << "Pool2D only support input >= 2-D: input must have height and width";
   const auto param = attrs.as<AttrType>();
@@ -284,7 +283,6 @@ bool GlobalPool2DRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) { return false; }
   const auto dshape = data->shape;
-  CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
       << "Pool2D only support input >= 2-D: input must have height and width";
   const auto param = attrs.as<GlobalPool2DAttrs>();
@@ -392,6 +390,171 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                Pool2DInferCorrectLayout<GlobalPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kMaxPool>);
+
+
+// relay.nn.adaptive_pool_2d
+TVM_REGISTER_NODE_TYPE(AdaptivePool2DAttrs);
+
+bool AdaptivePool2DRel(const Array<Type>& types,
+                       int num_inputs,
+                       const Attrs& attrs,
+                       const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) { return false; }
+  const auto dshape = data->shape;
+  CHECK_GE(dshape.size(), 2U)
+    << "Pool2D only support input >= 2-D: input must have height and width";
+  const auto* param = attrs.as<AdaptivePool2DAttrs>();
+  CHECK(param != nullptr);
+
+  Layout layout(param->layout);
+  CHECK(layout.Contains(LayoutAxis::Get('H')) && layout.Contains(LayoutAxis::Get('W')) &&
+        !layout.Contains(LayoutAxis::Get('h')) && !layout.Contains(LayoutAxis::Get('w')))
+    << "Invalid layout " << layout
+    << ". Pool2D layout must have H and W, which cannot be split";
+
+  const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
+  const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
+  Array<IndexExpr> oshape(dshape);
+  auto output_size = param->output_size;
+  CHECK_LE(output_size.size(), 2U)
+    << "output_size can have up to 2 elements.";
+  IndexExpr output_height, output_width;
+  if (output_size.empty()) {
+    output_height = dshape[hidx];
+    output_width = dshape[widx];
+  } else if (output_size.size() == 1) {
+    output_height = output_size[0];
+    output_width = output_size[0];
+  } else {
+    output_height = output_size[0];
+    output_width = output_size[1];
+  }
+
+  oshape.Set(hidx, output_height);
+  oshape.Set(widx, output_width);
+
+  // assign output type
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+template<topi::nn::PoolType mode>
+Array<Tensor> AdaptivePool2DCompute(const Attrs& attrs,
+                                    const Array<Tensor>& inputs,
+                                    const Type& out_type,
+                                    const Target& target) {
+  static const Layout kNCHW("NCHW");
+  const auto* param = attrs.as<AdaptivePool2DAttrs>();
+  CHECK(param != nullptr);
+  Layout layout(param->layout);
+  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
+    << "Adaptive pool2d currently only supports layouts that are convertible from NCHW";
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
+    << "Adaptive pool2d does not support input split on height";
+  CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
+    << "Adaptive pool2d does not support input split on width";
+
+  CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
+    << "Pool2D only support 4-D input (e.g., NCHW)"
+    << " or 5-D input (last dimension is a split of channel)";
+
+  auto output_size = param->output_size;
+  const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
+  const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
+  IndexExpr output_height, output_width;
+  if (output_size.empty()) {
+    output_height = inputs[0]->shape[hidx];
+    output_width = inputs[0]->shape[widx];
+  } else if (output_size.size() == 1) {
+    output_height = output_size[0];
+    output_width = output_size[0];
+  } else {
+    output_height = output_size[0];
+    output_width = output_size[1];
+  }
+  return Array<Tensor>{
+    topi::nn::adaptive_pool(inputs[0], Array<IndexExpr>{ output_height, output_width },
+                            mode, layout.name()) };
+}
+
+// relay.contrib.adaptive_avg_pool2d
+Expr MakeAdaptiveAvgPool2D(Expr data,
+                           Array<IndexExpr> output_size,
+                           std::string layout) {
+  auto attrs = make_node<AdaptivePool2DAttrs>();
+  attrs->output_size = std::move(output_size);
+  attrs->layout = std::move(layout);
+  static const Op& op = Op::Get("contrib.adaptive_avg_pool2d");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.contrib._make.adaptive_avg_pool2d")
+.set_body_typed(MakeAdaptiveAvgPool2D);
+
+RELAY_REGISTER_OP("contrib.adaptive_avg_pool2d")
+  .describe(R"code(Adaptive average pooling operation for 2D data.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, channels, height, width) if `layout` is `NCHW`.
+- **output_size**: If this argument is not provided, input height and width will be used
+                   as output height and width.
+                   If a single integer is provided for output_size, the output size is
+                   (N x C x output_size x output_size) for any input (NCHW).
+                   If a tuple of integers (height, width) are provided for output_size,
+                   the output size is (N x C x height x width) for any input (NCHW).
+- **out**: This depends on the `layout` parameter. Output is 4D array of shape
+           (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.AdaptivePool2DAttrs")
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(10)
+.add_type_rel("AdaptiveAvgPool2D", AdaptivePool2DRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               Pool2DInferCorrectLayout<AdaptivePool2DAttrs>)
+.set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kAvgPool>);
+
+
+// relay.contrib.adaptive_max_pool2d
+Expr MakeAdaptiveMaxPool2D(Expr data,
+                           Array<IndexExpr> output_size,
+                           std::string layout) {
+  auto attrs = make_node<AdaptivePool2DAttrs>();
+  attrs->output_size = std::move(output_size);
+  attrs->layout = std::move(layout);
+  static const Op& op = Op::Get("contrib.adaptive_max_pool2d");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.contrib._make.adaptive_max_pool2d")
+.set_body_typed(MakeAdaptiveMaxPool2D);
+
+RELAY_REGISTER_OP("contrib.adaptive_max_pool2d")
+  .describe(R"code(Adaptive max pooling operation for 2D data.
+
+- **data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, channels, height, width) if `layout` is `NCHW`.
+- **output_size**: If this argument is not provided, input height and width will be used
+                   as output height and width.
+                   If a single integer is provided for output_size, the output size is
+                   (N x C x output_size x output_size) for any input (NCHW).
+                   If a tuple of integers (height, width) are provided for output_size,
+                   the output size is (N x C x height x width) for any input (NCHW).
+- **out**: This depends on the `layout` parameter. Output is 4D array of shape
+           (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.AdaptivePool2DAttrs")
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(10)
+.add_type_rel("AdaptiveMaxPool2D", AdaptivePool2DRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               Pool2DInferCorrectLayout<AdaptivePool2DAttrs>)
+.set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kMaxPool>);
 
 }  // namespace relay
 }  // namespace tvm

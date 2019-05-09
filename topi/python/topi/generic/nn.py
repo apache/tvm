@@ -403,14 +403,14 @@ def schedule_pool(outs, layout):
     return _default_schedule(outs, False)
 
 
-@tvm.target.override_native_generic_func("schedule_global_pool")
-def schedule_global_pool(outs):
-    """Schedule for global pool
+@tvm.target.override_native_generic_func("schedule_adaptive_pool")
+def schedule_adaptive_pool(outs):
+    """Schedule for adaptive pool
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of global pool
+          The computation graph description of adaptive pool
           in the format of an array of tensors.
 
     Returns
@@ -419,6 +419,7 @@ def schedule_global_pool(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
 
 @tvm.target.override_native_generic_func("schedule_binarize_pack")
 def schedule_binarize_pack(outs):

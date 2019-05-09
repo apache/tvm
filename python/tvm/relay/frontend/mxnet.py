@@ -190,10 +190,7 @@ def _mx_pooling(inputs, attrs):
 
 def _mx_adaptive_avg_pooling(inputs, attrs):
     output_size = attrs.get_int_tuple("output_size", [])
-    if output_size != (1,):
-        raise tvm.error.OpAttributeUnimplemented(
-            "AdaptiveAvgPooling with output_size other than 1 is not supported yet.")
-    return _op.nn.global_avg_pool2d(inputs[0])
+    return _op.contrib.adaptive_avg_pool2d(inputs[0], output_size)
 
 
 def _mx_dropout(inputs, attrs):

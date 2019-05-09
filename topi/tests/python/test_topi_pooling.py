@@ -120,7 +120,7 @@ def verify_global_pool(n, c, h, w, pool_type):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_global_pool(B)
+            s = topi.generic.schedule_adaptive_pool(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         f = tvm.build(s, [A, B], device)
@@ -136,7 +136,58 @@ def test_global_pool():
     verify_global_pool(1, 1024, 7, 7, 'max')
     verify_global_pool(4, 1024, 7, 7, 'max')
 
+def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
+    def start_index(index, odim, idim):
+        return int(np.floor(index * idim / odim))
+
+    def end_index(index, odim, idim):
+        return int(np.ceil((index + 1) * idim / odim))
+
+    np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
+    n, c, h, w = dshape
+    oh, ow = out_size
+    oshape = (n, c) + out_size
+    np_out = np.zeros(oshape).astype(dtype)
+    np_op = np.mean if pool_type == "avg" else np.max
+    for i in range(n):
+        for j in range(c):
+            for k in range(oh):
+                k_start = start_index(k, oh, h)
+                k_end = end_index(k, oh, h)
+                k_sl = slice(k_start, k_end)
+                for l in range(ow):
+                    l_start = start_index(l, ow, w)
+                    l_end = end_index(l, ow, w)
+                    l_sl = slice(l_start, l_end)
+                    np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
+
+    data = tvm.placeholder(dshape, name="data", dtype=dtype)
+    out = topi.nn.adaptive_pool(data, out_size, pool_type, layout)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_adaptive_pool(out)
+        a = tvm.nd.array(np_data, ctx)
+        b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), ctx)
+        f = tvm.build(s, [data, out], device)
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), np_out, rtol=1e-5)
+
+    for device in get_all_backend():
+        check_device(device)
+
+def test_adaptive_pool():
+    verify_adaptive_pool((1, 3, 224, 224), (1, 1), "max")
+    verify_adaptive_pool((1, 3, 224, 224), (1, 1), "avg")
+    verify_adaptive_pool((1, 14, 56, 78), (34, 13), "max")
+    verify_adaptive_pool((1, 5, 46, 97), (4, 96), "avg")
+
 
 if __name__ == "__main__":
     test_pool()
     test_global_pool()
+    test_adaptive_pool()
