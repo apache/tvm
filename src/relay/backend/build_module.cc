@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -39,7 +39,7 @@ namespace relay {
 namespace backend {
 
 /*!
- * \brief Context name / index 
+ * \brief Context name / index
  *        See: python/tvm/_ffi/runtime_ctypes.py
  */
 struct ContextMap {
@@ -91,13 +91,13 @@ const std::unordered_map<std::string, int> ContextMap::str2mask = {
 /*!
  * \brief A data structure to map the names of specific optimizations to
  *        numeric optimization levels
- * 
+ *
  */
 struct OptPassLevel {
   static const std::unordered_map<std::string, int> _data;
   /*!
    * \brief Get level for an optimization pass
-   * 
+   *
    * \param key pass name
    * \return int level
    */
@@ -123,7 +123,7 @@ const std::unordered_map<std::string, int> OptPassLevel::_data = {
 
 /*!
  * \brief Output of building module
- * 
+ *
  */
 struct BuildOutput {
   std::string graph_json;
@@ -133,7 +133,7 @@ struct BuildOutput {
 
 /*!
  * \brief Relay building config
- * 
+ *
  */
 struct RelayBuildConfig {
   int opt_level{2};
@@ -153,8 +153,8 @@ struct RelayBuildConfig {
 };
 
 /*!
- * \brief GraphCodegen module wrapper 
- * 
+ * \brief GraphCodegen module wrapper
+ *
  */
 struct GraphCodegen {
  public:
@@ -225,7 +225,7 @@ Function CallPackedFunc(const std::string &name, Args... args) {
 
 /*!
  * \brief Relay build module
- * 
+ *
  */
 class RelayBuildModule : public runtime::ModuleNode {
  public:
@@ -309,23 +309,23 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
   /*!
    * \brief Add extra pass into build cfg
-   * 
-   * \param pass_name name of pass 
+   *
+   * \param pass_name name of pass
    */
   void AddPass(const std::string& pass_name) {
     cfg_.enabled_pass.insert(pass_name);
   }
   /*!
    * \brief Disable a specific pass in cfg
-   * 
+   *
    * \param pass_name name of pass
    */
   void DisablePass(const std::string& pass_name) {
     cfg_.disabled_pass.insert(pass_name);
   }
   /*!
-   * \brief Set the Fallback device 
-   * 
+   * \brief Set the Fallback device
+   *
    * \param device name
    */
   void SetFallBackDev(const std::string& dev) {
@@ -342,7 +342,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
   /*!
    * \brief List all paramter names
-   * 
+   *
    * \return Array<StringImm> names of params
    */
   Array<HalideIR::Expr> ListParamNames() {
@@ -355,7 +355,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
   /*!
    * \brief Get params dictionary
-   * 
+   *
    * \return Map<std::string, Constant> params dictionary
    */
   Map<std::string, Constant> GetParams() {
@@ -527,10 +527,10 @@ class RelayBuildModule : public runtime::ModuleNode {
    * compilation. CPU is used as the fallback device if it wasn't provided.
    * Meanwhile, a CPU device type and "llvm" pair will be added to the target
    * dictionary in this case.
-   * 
+   *
    * \param targets dictionary
-   * \param cfg 
-   * \return Map<HalideIR::Expr, HalideIR::Expr> 
+   * \param cfg
+   * \return Map<HalideIR::Expr, HalideIR::Expr>
    */
   Map<HalideIR::Expr, HalideIR::Expr> UpdateHeterogeneousInputs(
     const std::unordered_map<std::string, std::string>& targets,
@@ -555,11 +555,11 @@ class RelayBuildModule : public runtime::ModuleNode {
   /*!
    * \brief Execute the device annotation passes to update the input program and
    *        target information.
-   * 
-   * \param func 
-   * \param cfg 
-   * \param targets_map_ptr 
-   * \return Function 
+   *
+   * \param func
+   * \param cfg
+   * \param targets_map_ptr
+   * \return Function
    */
   Function RunDeviceAnnotationPass(
       Function func,
@@ -603,7 +603,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
   /*!
    * \brief Build module given lowered functions for each target
-   * 
+   *
    * \param lowered_funcs target_str -> Array<LoweredFunc> map
    * \param targets Targets map
    * \param cfg Building configuration
@@ -674,8 +674,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (device_target.size() > 1) {
       func = RunDeviceAnnotationPass(func, cfg, &device_target);
     }
+    // TODO(@jroesch): use the passes directly.
     func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-    func = CallPackedFunc("relay._ir_pass.FuseOps", func, cfg.opt_level);
+    func = CallPackedFunc("relay._ir_pass.FuseOps", func, cfg.opt_level, nullptr);
     func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
 
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
