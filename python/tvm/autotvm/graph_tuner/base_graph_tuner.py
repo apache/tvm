@@ -104,6 +104,7 @@ class BaseGraphTuner(object):
         self._layout_transform_matrix_dict = {}
         self._input_shapes = input_shapes
         self._target_ops = [op.__name__ for op in target_ops]
+
         self._name = name
         self._max_sch_num = max_sch_num
         self._optimal_sch_dict = {}

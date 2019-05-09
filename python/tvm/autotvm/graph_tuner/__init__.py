@@ -18,6 +18,7 @@
 from __future__ import absolute_import as _abs
 
 from . import _base
+from . import base_graph_tuner
 
 from .base_graph_tuner import BaseGraphTuner
 from .dynamic_programming_tuner import DPTuner

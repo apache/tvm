@@ -18,6 +18,8 @@
 """API for graph traversing."""
 import threading
 
+import topi
+
 from tvm import relay, autotvm
 from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant, Tuple
 from tvm.relay.ty import TupleType, TensorType
@@ -25,6 +27,13 @@ from tvm.autotvm.task import TaskExtractEnv
 
 from .._base import RULE_OUT_NODE_NAMES
 from .utils import has_multiple_inputs, is_input_node
+
+
+# Setup relay op base name -> topi compute functions
+# NOTE: To add more ops, change the following dictionary.
+OP2COMPUTE = {
+    "conv2d" : [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw],
+}
 
 
 def expr2graph(expr, target_ops, node_dict, node_list):
@@ -45,13 +54,15 @@ def expr2graph(expr, target_ops, node_dict, node_list):
     node_list : list of dictionary
     """
     env = TaskExtractEnv.get(allow_duplicate=True)
-    env.task_collection = []
+    topi_funcs = []
+    for op_name in target_ops:
+        if op_name not in OP2COMPUTE:
+            raise RuntimeError("Not supported relay op in graph tuner: %s"
+                               % op_name)
+        topi_funcs += OP2COMPUTE[op_name]
+    env.reset(topi_funcs)
     _expr2graph_impl(expr, target_ops, node_dict, node_list)
     task_pos = 0
-    a = 0
-    for node_entry in node_list:
-        if node_entry["op"] in target_ops:
-            a += 1
     for node_entry in node_list:
         if node_entry["op"] in target_ops:
             task_name, args = env.task_collection[task_pos]

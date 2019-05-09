@@ -44,11 +44,11 @@ def test_has_multiple_inputs():
     data = relay.var("data")
     out1 = data * relay.expr.const(3.0)
     w0 = relay.var("w0")
-    out2 = relay.nn.dense(data, w0, units=5)
+    out2 = relay.nn.conv2d(data, w0)
     out = relay.add(out1, out2)
     net = relay.Function(relay.ir_pass.free_vars(out), out)
-    net = bind_inputs(net, {"data": (4, 5), "w0": (5, 5)})
-    target_ops = ["dense"]
+    net = bind_inputs(net, {"data": (1, 16, 224, 224), "w0": (16, 16, 1, 1)})
+    target_ops = ["conv2d"]
     node_list = []
     node_dict = {}
     expr2graph(net, target_ops, node_dict, node_list)
@@ -87,14 +87,14 @@ def test_expr2graph():
 def test_get_direct_ancestor():
     data = relay.var("data")
     w0 = relay.var("w0")
-    out1 = relay.nn.dense(data, w0, units=5)
+    out1 = relay.nn.conv2d(data, w0)
     out2 = relay.add(out1, data * relay.expr.const(5.0))
     out3 = out2 + relay.expr.const(2.5)
     w1 = relay.var("w1")
-    out = relay.nn.dense(out3, w1, units=20)
+    out = relay.nn.conv2d(out3, w1)
     net = relay.Function(relay.ir_pass.free_vars(out), out)
-    net = bind_inputs(net, {"data": (4, 5), "w0": (5, 5), "w1": (20, 5)})
-    target_ops = ["dense"]
+    net = bind_inputs(net, {"data": (1, 16, 224, 224), "w0": (16, 16, 1, 1), "w1": (16, 16, 1, 1)})
+    target_ops = ["conv2d"]
     node_list = []
     node_dict = {}
     expr2graph(net, target_ops, node_dict, node_list)
@@ -108,14 +108,14 @@ def test_get_direct_ancestor():
 def test_get_in_nodes():
     data = relay.var("data")
     w0 = relay.var("w0")
-    out1 = relay.nn.dense(data, w0, units=5)
+    out1 = relay.nn.conv2d(data, w0)
     out2 = relay.add(out1, data)
     out3 = out2 + relay.expr.const(2.5)
     w1 = relay.var("w1")
-    out = relay.nn.dense(out3, w1, units=20)
+    out = relay.nn.conv2d(out3, w1)
     net = relay.Function(relay.ir_pass.free_vars(out), out)
-    net = bind_inputs(net, {"data": (4, 5), "w0": (5, 5), "w1": (20, 5)})
-    target_ops = ["dense"]
+    net = bind_inputs(net, {"data": (1, 16, 224, 224), "w0": (16, 16, 1, 1), "w1": (16, 16, 1, 1)})
+    target_ops = ["conv2d"]
     input_names = ["data"]
     node_list = []
     node_dict = {}
