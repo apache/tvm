@@ -226,7 +226,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
  private:
   void LazyInitJIT() {
-    CHECK(ee_ == nullptr);
     std::lock_guard<std::mutex> lock(mutex_);
     if (ee_) {
       return;
