@@ -37,7 +37,7 @@ from io import BytesIO
 
 import numpy as np
 import requests
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 from PIL import Image
 
 import tvm
@@ -82,67 +82,6 @@ def classify(m, image):
     tcost = "t={0:.2f}s".format(tcost.mean)
     return tcost + " {}".format(synset[top])
 
-# Helper function to compile the NNVM graph
-# Takes in a path to a graph file, params file, and device target
-# Returns the NNVM graph object, a compiled library object, and the params dict
-def generate_graph(graph_fn, params_fn, device="vta"):
-    # Measure build start time
-    build_start = time.time()
-
-    # Derive the TVM target
-    target = tvm.target.create("llvm -device={}".format(device))
-
-    # Derive the LLVM compiler flags
-    # When targetting the Pynq, cross-compile to ARMv7 ISA
-    if env.TARGET == "sim":
-        target_host = "llvm"
-    elif env.TARGET == "pynq":
-        target_host = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+neon"
-
-    # Load the ResNet-18 graph and parameters
-    sym = nnvm.graph.load_json(open(graph_fn).read())
-    params = nnvm.compiler.load_param_dict(open(params_fn, 'rb').read())
-
-    # Populate the shape and data type dictionary
-    shape_dict = {"data": (1, 3, 224, 224)}
-    dtype_dict = {"data": 'float32'}
-    shape_dict.update({k: v.shape for k, v in params.items()})
-    dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
-
-    # Apply NNVM graph optimization passes
-    sym = vta.graph.clean_cast(sym)
-    sym = vta.graph.clean_conv_fuse(sym)
-    if target.device_name == "vta":
-        assert env.BLOCK_IN == env.BLOCK_OUT
-        sym = vta.graph.pack(sym, shape_dict, env.BATCH, env.BLOCK_OUT)
-
-    # Compile NNVM graph
-    with nnvm.compiler.build_config(opt_level=3):
-        if target.device_name != "vta":
-            graph, lib, params = nnvm.compiler.build(
-                sym, target, shape_dict, dtype_dict,
-                params=params, target_host=target_host)
-        else:
-            with vta.build_config():
-                graph, lib, params = nnvm.compiler.build(
-                    sym, target, shape_dict, dtype_dict,
-                    params=params, target_host=target_host)
-
-    # Save the compiled inference graph library
-    assert tvm.module.enabled("rpc")
-    temp = util.tempdir()
-    lib.save(temp.relpath("graphlib.o"))
-
-    # Send the inference library over to the remote RPC server
-    remote.upload(temp.relpath("graphlib.o"))
-    lib = remote.load_module("graphlib.o")
-
-    # Measure build time
-    build_time = time.time() - build_start
-    print("ResNet-18 inference graph built in {0:.2f}s!".format(build_time))
-
-    return graph, lib, params
-
 
 ######################################################################
 # Download ResNet Model
@@ -169,7 +108,7 @@ for file in [categ_fn, graph_fn, params_fn]:
 synset = eval(open(os.path.join(data_dir, categ_fn)).read())
 
 # Download pre-tuned op parameters of conv2d for ARM CPU used in VTA
-autotvm.tophub.check_backend('vta')
+# autotvm.tophub.check_backend('vta')
 
 
 ######################################################################
@@ -213,21 +152,74 @@ elif env.TARGET == "sim":
 # ------------------------
 # Build the ResNet graph runtime, and configure the parameters.
 
-# Set ``device=vtacpu`` to run inference on the CPU
+# Set ``device=arm_cpu`` to run inference on the CPU
 # or ``device=vta`` to run inference on the FPGA.
 device = "vta"
 
-# Device context
-ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
+# Derive the TVM target
+if device == "vta":
+    target = env.target
+elif device == "arm_cpu":
+    target = env.target_vta_cpu
+ctx = remote.context(str(target))
 
-# Build the graph runtime
-graph, lib, params = generate_graph(os.path.join(data_dir, graph_fn),
-                                    os.path.join(data_dir, params_fn),
-                                    device)
-m = graph_runtime.create(graph, lib, ctx)
+# TVM module
+m = None
 
-# Set the parameters
-m.set_input(**params)
+with autotvm.tophub.context(target):
+
+    graph_fn = os.path.join(data_dir, graph_fn)
+    params_fn= os.path.join(data_dir, params_fn)
+
+    # Measure build start time
+    build_start = time.time()
+
+    # Load the ResNet-18 graph and parameters
+    sym = nnvm.graph.load_json(open(graph_fn).read())
+    params = nnvm.compiler.load_param_dict(open(params_fn, 'rb').read())
+
+    # Populate the shape and data type dictionary
+    shape_dict = {"data": (1, 3, 224, 224)}
+    dtype_dict = {"data": 'float32'}
+    shape_dict.update({k: v.shape for k, v in params.items()})
+    dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
+
+    # Apply NNVM graph optimization passes
+    sym = vta.graph.clean_cast(sym)
+    sym = vta.graph.clean_conv_fuse(sym)
+    if target.device_name == "vta":
+        assert env.BLOCK_IN == env.BLOCK_OUT
+        sym = vta.graph.pack(sym, shape_dict, env.BATCH, env.BLOCK_OUT)
+
+    # Compile NNVM graph
+    with nnvm.compiler.build_config(opt_level=3):
+        if target.device_name != "vta":
+            graph, lib, params = nnvm.compiler.build(
+                sym, target, shape_dict, dtype_dict,
+                params=params, target_host=env.target_host)
+        else:
+            with vta.build_config():
+                graph, lib, params = nnvm.compiler.build(
+                    sym, target, shape_dict, dtype_dict,
+                    params=params, target_host=env.target_host)
+
+    # Save the compiled inference graph library
+    assert tvm.module.enabled("rpc")
+    temp = util.tempdir()
+    lib.save(temp.relpath("graphlib.o"))
+
+    # Send the inference library over to the remote RPC server
+    remote.upload(temp.relpath("graphlib.o"))
+    lib = remote.load_module("graphlib.o")
+
+    # Measure build time
+    build_time = time.time() - build_start
+    print("ResNet-18 inference graph built in {0:.2f}s!".format(build_time))
+
+    m = graph_runtime.create(graph, lib, ctx)
+
+    # Set the parameters
+    m.set_input(**params)
 
 ######################################################################
 # Run ResNet-18 inference on a sample image
@@ -241,8 +233,8 @@ image_url = 'https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg'
 response = requests.get(image_url)
 image = Image.open(BytesIO(response.content)).resize((224, 224))
 # Show Image
-plt.imshow(image)
-plt.show()
+# plt.imshow(image)
+# plt.show()
 # Set the input
 image = process_image(image)
 m.set_input('data', image)
@@ -271,60 +263,60 @@ print("Performed inference in {0:.2f}s".format(tcost.mean))
 # Comment the `if False:` out to run the demo
 
 # Early exit - remove for Demo
-if False:
+# if False:
 
-    import cv2
-    import pafy
-    from IPython.display import clear_output
+#     import cv2
+#     import pafy
+#     from IPython.display import clear_output
 
-    # Helper to crop an image to a square (224, 224)
-    # Takes in an Image object, returns an Image object
-    def thumbnailify(image, pad=15):
-        w, h = image.size
-        crop = ((w-h)//2+pad, pad, h+(w-h)//2-pad, h-pad)
-        image = image.crop(crop)
-        image = image.resize((224, 224))
-        return image
+#     # Helper to crop an image to a square (224, 224)
+#     # Takes in an Image object, returns an Image object
+#     def thumbnailify(image, pad=15):
+#         w, h = image.size
+#         crop = ((w-h)//2+pad, pad, h+(w-h)//2-pad, h-pad)
+#         image = image.crop(crop)
+#         image = image.resize((224, 224))
+#         return image
 
-    # 16:16 inches
-    plt.rcParams['figure.figsize'] = [16, 16]
+#     # 16:16 inches
+#     plt.rcParams['figure.figsize'] = [16, 16]
 
-    # Stream the video in
-    url = "https://www.youtube.com/watch?v=PJlmYh27MHg&t=2s"
-    video = pafy.new(url)
-    best = video.getbest(preftype="mp4")
-    cap = cv2.VideoCapture(best.url)
+#     # Stream the video in
+#     url = "https://www.youtube.com/watch?v=PJlmYh27MHg&t=2s"
+#     video = pafy.new(url)
+#     best = video.getbest(preftype="mp4")
+#     cap = cv2.VideoCapture(best.url)
 
-    # Process one frame out of every 48 for variety
-    count = 0
-    guess = ""
-    while(count<2400):
+#     # Process one frame out of every 48 for variety
+#     count = 0
+#     guess = ""
+#     while(count<2400):
 
-        # Capture frame-by-frame
-        ret, frame = cap.read()
+#         # Capture frame-by-frame
+#         ret, frame = cap.read()
 
-        # Process one every 48 frames
-        if count % 48 == 1:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = Image.fromarray(frame)
-            # Crop and resize
-            thumb = np.array(thumbnailify(frame))
-            image = process_image(thumb)
-            guess = classify(m, image)
+#         # Process one every 48 frames
+#         if count % 48 == 1:
+#             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+#             frame = Image.fromarray(frame)
+#             # Crop and resize
+#             thumb = np.array(thumbnailify(frame))
+#             image = process_image(thumb)
+#             guess = classify(m, image)
 
-            # Insert guess in frame
-            frame = cv2.rectangle(thumb,(0,0),(200,0),(0,0,0),50)
-            cv2.putText(frame, guess, (5,15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (256,256,256), 1, cv2.LINE_AA)
+#             # Insert guess in frame
+#             frame = cv2.rectangle(thumb,(0,0),(200,0),(0,0,0),50)
+#             cv2.putText(frame, guess, (5,15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (256,256,256), 1, cv2.LINE_AA)
 
-            plt.imshow(thumb)
-            plt.axis('off')
-            plt.show()
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-            clear_output(wait=True)
+#             plt.imshow(thumb)
+#             plt.axis('off')
+#             plt.show()
+#             if cv2.waitKey(1) & 0xFF == ord('q'):
+#                 break
+#             clear_output(wait=True)
 
-        count += 1
+#         count += 1
 
-    # When everything done, release the capture
-    cap.release()
-    cv2.destroyAllWindows()
+#     # When everything done, release the capture
+#     cap.release()
+#     cv2.destroyAllWindows()
