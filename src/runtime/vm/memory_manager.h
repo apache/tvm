@@ -26,6 +26,7 @@
 #define TVM_RUNTIME_VM_MEMORY_MANAGER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/ndarray.h>
 #include <functional>
 #include <memory>
 #include <mutex>

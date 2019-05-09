@@ -113,6 +113,7 @@ void ErrorReporter::RenderErrors(const Module& module, bool use_color) {
     annotated_prog << AsText(func, false, [&err_map](tvm::relay::Expr expr) {
       auto it = err_map.find(expr);
       if (it != err_map.end()) {
+        CHECK_NE(it->second.size(), 0);
         return it->second;
       } else {
         return std::string("");

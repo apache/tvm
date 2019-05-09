@@ -320,6 +320,22 @@ TVM_DLL bool AlphaEqual(const Expr& e1, const Expr& e2);
  */
 TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
 
+/*! \brief Add abstraction over a function
+ *
+ * For example: `square` is transformed to
+ * `fun x -> square x`.
+ *
+ * See https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B7-conversion
+ * for more details.
+ *
+ * \param e The original function.
+ * \param mod The module used for referencing global functions, can be
+ * None.
+ *
+ * \return the new function with abstraction
+ */
+TVM_DLL Expr EtaExpand(const Expr& e, const Module& mod);
+
 /*! \brief Check that each Var is only bound once.
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
@@ -467,9 +483,10 @@ TVM_DLL Expr FoldConstant(const Expr& expr);
  * \brief Fuse operations into expr into seperate functions.
  * \param expr The expression.
  * \param fuse_opt_level Optimization level.
+ * \param mod the module.
  * \return The optimized expression.
  */
-TVM_DLL Expr FuseOps(const Expr& expr, int fuse_opt_level);
+TVM_DLL Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& mod);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order.

@@ -26,6 +26,7 @@ from ... import register_func, nd
 from ..base import NodeBase, register_relay_node
 from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
 from ..scope_builder import ScopeBuilder
+from . import _vm
 
 class Value(NodeBase):
     """Base class of all values.
@@ -35,6 +36,9 @@ class Value(NodeBase):
     def from_scalar(value, dtype=None):
         """Convert a Python scalar to a Relay scalar."""
         return TensorValue(const(value, dtype).data)
+
+    def to_vm(self):
+        return _vm._ValueToVM(self)
 
 
 @register_relay_node
@@ -278,7 +282,7 @@ class Interpreter(Executor):
         ck_expr = ir_pass.infer_type(wrapped_expr, mod=self.mod)
         simp_expr = ir_pass.simplify_inference(ck_expr)
         ck_simp = ir_pass.infer_type(simp_expr, mod=self.mod)
-        fused_expr = ir_pass.fuse_ops(ck_simp)
+        fused_expr = ir_pass.fuse_ops(ck_simp, 0, mod=self.mod)
         ck_fused = ir_pass.infer_type(fused_expr, mod=self.mod)
         return ck_fused if isinstance(expr, Function) else Call(ck_fused, [])
 

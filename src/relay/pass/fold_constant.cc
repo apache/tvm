@@ -156,7 +156,7 @@ class ConstantFolder : public ExprMutator {
   // Constant evaluate a expression.
   Expr ConstEvaluate(Expr expr) {
     expr = InferType(expr, Module(nullptr));
-    expr = FuseOps(expr, 0);
+    expr = FuseOps(expr, 0, Module(nullptr));
     expr = InferType(expr, Module(nullptr));
     return ValueToExpr(executor_(expr));
   }

@@ -28,6 +28,7 @@
 
 #include <tvm/lowered_func.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/pass.h>
 #include <string>
 #include <functional>
 
