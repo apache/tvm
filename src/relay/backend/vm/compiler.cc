@@ -19,7 +19,7 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file src/relay/vm/compiler.cc
+ * \file src/relay/backend/vm/compiler.cc
  * \brief A compiler from relay::Module to the VM byte code.
  */
 
@@ -583,12 +583,12 @@ VirtualMachine CompileModule(const Module& mod_ref) {
     vm.functions[func_index] = vm_func;
   }
 
-#ifdef USE_RELAY_LOG
+#ifdef USE_RELAY_DEBUG
   for (auto vm_func : vm.functions) {
     std::cout << "Function: " << vm_func.name << std::endl
               << vm_func << "-------------" << std::endl;
   }
-#endif  // USE_RELAY_LOG
+#endif  // USE_RELAY_DEBUG
 
   PopulatePackedFuncMap(context.lowered_funcs, &vm.packed_funcs);
 

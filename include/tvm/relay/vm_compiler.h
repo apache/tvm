@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/vm_compiler.h
  * \brief Relay byte code compiler.
  */
