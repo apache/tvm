@@ -108,7 +108,7 @@ class PythonConverter(ExprFunctor):
         return name
 
 
-    # returns an variable AST node for the given Relay var depending on
+    # returns n variable AST node for the given Relay var depending on
     # whether it must appear in an assignment or not
     def include_var(self, var: Expr, assign=False):
         name = self.get_var_name(var)
@@ -359,7 +359,7 @@ def to_python(expr: Expr, mod=relay.Module()) -> str:
 def run_as_python(expr: Expr, mod=relay.Module()):
     '''Converts the given Relay expression into a Python script and
     executes it.'''
-    py_ast = to_python_ast(expr, mod)
+    py_ast = to_python(expr, mod)
     code = compile(py_ast, '<string>', 'exec')
     output_map = {OUTPUT_VAR_NAME : None}
     #pylint: disable=exec-used
