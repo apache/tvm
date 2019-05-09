@@ -88,7 +88,7 @@ int64_t ConvMacCount(const Call& call_node) {
     << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
   int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
   CHECK_EQ(input_channel % conv_2d_attr->groups, 0)
-  << "Input channels not divisble by groups.";
+  << "The number of input channels is not divisble by groups.";
   count *= input_channel/conv_2d_attr->groups;
   return count;
 }
