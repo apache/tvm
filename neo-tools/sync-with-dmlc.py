@@ -67,6 +67,9 @@ def main():
     with open(last_commit_file, 'w') as f:
         f.write(head_commit)
 
+    repo.git.add(last_commit_file)
+    repo.git.commit("Update " + last_commit_file)
+
     logging.info("Update successfully")
 
 if __name__ == '__main__':
