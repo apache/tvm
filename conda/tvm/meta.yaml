@@ -36,6 +36,7 @@ requirements:
     - numpy
     - setuptools
     - decorator
+    - astor
     - tvm-libs =={{ version }}
   run:
     - python
