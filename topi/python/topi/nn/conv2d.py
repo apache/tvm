@@ -106,11 +106,10 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout='NCHW'):
     else:
         raise ValueError("not support this layout {} yet".format(data_layout))
 
-
-    if data_layout == 'NHWC':
-        KH, KW, CO, CIG = [x.value for x in kernel.shape]
-    else:
+    if data_layout == 'NCHW':
         CO, CIG, KH, KW = [x.value for x in kernel.shape]
+    else:
+        KH, KW, CO, CIG = [x.value for x in kernel.shape]
 
     HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
     GRPS = CI // CIG

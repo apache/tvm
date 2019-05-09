@@ -65,7 +65,7 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
         oc, _, kh, kw = kshape
     elif layout == 'NHWC':
         n, h, w, ic = dshape
-        oc, _, kh, kw = kshape
+        kh, kw, oc, _ = kshape
     elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
         if data.dtype == 'uint8':
@@ -104,13 +104,14 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     dilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
 
-    _, _, kh, kw = get_const_tuple(kernel.shape)
     if layout == 'NCHW':
         _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
         if cfg.is_fallback:
             _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
         return _declaration_conv_impl(cfg, data, kernel, strides,
                                       padding, dilation, layout, out_dtype)
+    # KHOI kernel layout is for NHWC and HWCN
+    kh, kw, _, _ = get_const_tuple(kernel.shape)
     if layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
     elif layout == 'NHWC' and kh == 1 and kw == 1 and kernel.dtype == "int8":
@@ -280,10 +281,10 @@ def schedule_conv2d_nhwc_pack(cfg, outs):
                     conv2d_avx_1x1._schedule_conv_nhwc_pack_int8(*args)
                 else:
                     raise ValueError("Only support 1x1 kernel with "
-                                     "schedule template.")
+                                     "schedule_conv2d_nhwc_pack.")
             else:
                 raise ValueError("Not support this data type {} with "
-                                 "schedule template.".format(data.dtype))
+                                 "schedule_conv2d_nhwc_pack. Only support int8".format(data.dtype))
 
         scheduled_ops.append(op)
     traverse(output_op)
