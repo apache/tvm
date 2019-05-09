@@ -28,7 +28,6 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/logging.h>
 #include <tvm/relay/pass.h>
-#include <tvm/relay/vm_compiler.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
 #include <unordered_map>
@@ -43,6 +42,11 @@ namespace vm {
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::vm;
+
+// (@jroesch): VM passes, eventually declare as passes.
+bool IsClosure(const Function& func);
+Module LambdaLift(const Module& module);
+Module InlinePrimitives(const Module& module);
 
 template <typename T, typename U>
 using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;

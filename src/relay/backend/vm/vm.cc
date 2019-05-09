@@ -28,6 +28,7 @@
 #include <tvm/logging.h>
 #include <tvm/relay/module.h>
 #include <tvm/runtime/vm.h>
+#include <tvm/relay/pass.h>
 
 namespace tvm {
 namespace relay {
@@ -37,8 +38,6 @@ using tvm::runtime::Object;
 using tvm::runtime::ObjectTag;
 using tvm::runtime::vm::VirtualMachine;
 
-// TODO(@jroesch): where should we expose this function.
-VirtualMachine CompileModule(const Module& mod_ref);
 
 VirtualMachine FromModule(const Module& module, const std::vector<TVMContext>& ctxs) {
   auto vm = CompileModule(module);
