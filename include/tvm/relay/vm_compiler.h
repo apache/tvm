@@ -26,7 +26,7 @@
 #define TVM_RELAY_VM_COMPILER_H_
 
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/logging.h>
+#include <tvm/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm.h>
 #include <memory>

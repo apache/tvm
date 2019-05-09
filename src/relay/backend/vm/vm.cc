@@ -25,7 +25,7 @@
  */
 
 #include <tvm/relay/interpreter.h>
-#include <tvm/relay/logging.h>
+#include <tvm/logging.h>
 #include <tvm/relay/module.h>
 #include <tvm/runtime/vm.h>
 
@@ -52,7 +52,7 @@ Object EvaluateModule(const Module& module, const std::vector<TVMContext> ctxs,
   // TODO(zhiics): This measurement is for temporary usage. Remove it later. We
   // need to introduce a better profiling method.
 #if ENABLE_PROFILING
-  RELAY_LOG(INFO) << "Entry function is " << module->entry_func << std::endl;
+  DLOG(INFO) << "Entry function is " << module->entry_func << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
 #endif  // ENABLE_PROFILING
   Object res = vm.Invoke(module->entry_func->name_hint, vm_args);
@@ -144,7 +144,7 @@ TVM_REGISTER_API("relay._vm._evaluate_vm").set_body([](TVMArgs args, TVMRetValue
   }
 
   auto result = EvaluateModule(module, {ctx}, vm_args);
-  RELAY_LOG(INFO) << "Returning results\n";
+  DLOG(INFO) << "Returning results\n";
   *ret = VMToValue(module, return_type, result);
 });
 

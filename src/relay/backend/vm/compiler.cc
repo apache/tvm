@@ -26,7 +26,7 @@
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
-#include <tvm/relay/logging.h>
+#include <tvm/logging.h>
 #include <tvm/relay/pass.h>
 #include <tvm/relay/vm_compiler.h>
 #include <tvm/runtime/vm.h>
@@ -181,7 +181,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   size_t NewRegister() { return registers_num++; }
 
   inline void Emit(const Instruction& instr) {
-    RELAY_LOG(INFO) << "VMCompiler::Emit: instr=" << instr;
+    DLOG(INFO) << "VMCompiler::Emit: instr=" << instr;
     CHECK((int)instr.op < 100) << "Invalid opcode " << (int)instr.op;
     switch (instr.op) {
       case Opcode::AllocDatatype:
@@ -244,9 +244,9 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const LetNode* let_node) {
-    RELAY_LOG(INFO) << let_node->value << std::endl;
+    DLOG(INFO) << let_node->value << std::endl;
     this->VisitExpr(let_node->value);
-    RELAY_LOG(INFO) << this->last_register << std::endl;
+    DLOG(INFO) << this->last_register << std::endl;
     var_register_map.insert({let_node->var, this->last_register});
     this->VisitExpr(let_node->body);
   }
@@ -306,22 +306,18 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   Instruction AllocTensorFromType(const TensorTypeNode* ttype) {
-    std::vector<int64_t> shapes;
-    for (auto sh : ttype->shape) {
-      shapes.push_back(Downcast<tvm::Integer>(sh)->value);
-    }
     DataType dtype = ttype->dtype;
     TVMType dltype = Type2TVMType(dtype);
 
     auto tensor_type = GetRef<TensorType>(ttype);
     auto it = this->context->const_tensor_shape_map.find(tensor_type);
     if (it == this->context->const_tensor_shape_map.end()) {
-      RELAY_LOG(INFO) << "Can not find constant shape for " << tensor_type;
+      DLOG(INFO) << "Can not find constant shape for " << tensor_type;
     } else {
       Emit(Instruction::LoadConst(it->second.first, NewRegister()));
     }
 
-    return Instruction::AllocTensor(last_register, shapes, dltype, NewRegister());
+    return Instruction::AllocTensor(last_register, dltype, NewRegister());
   }
 
   void EmitInvokePrimitive(const Function& func, std::vector<Index> args_registers,
@@ -400,7 +396,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
       auto global = GetRef<GlobalVar>(global_node);
       auto it = this->context->global_map.find(global);
       CHECK(it != this->context->global_map.end());
-      RELAY_LOG(INFO) << "VisitExpr_: generating invoke for " << global->name_hint
+      DLOG(INFO) << "VisitExpr_: generating invoke for " << global->name_hint
                       << " with func_index=" << it->second;
 
       auto func = this->context->module->Lookup(global);
@@ -506,7 +502,7 @@ void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
 }
 
 VMFunction CompileFunc(VMCompilerContext* context, const GlobalVar& var, const Function& func) {
-  RELAY_LOG(INFO) << "CompileFunc: " << std::endl << AsText(func, false) << std::endl;
+  DLOG(INFO) << "CompileFunc: " << std::endl << AsText(func, false) << std::endl;
   size_t params = func->params.size();
   VMCompiler compiler(context);
   compiler.Compile(func);

@@ -25,7 +25,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/logging.h>
+#include <tvm/logging.h>
 #include <tvm/relay/pass.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
@@ -62,7 +62,7 @@ struct PrimitiveInliner : ExprMutator {
     // in w(...)
     while ((var_node = op.as<VarNode>())) {
       auto var = GetRef<Var>(var_node);
-      RELAY_LOG(INFO) << "Var: " << var << std::endl;
+      DLOG(INFO) << "Var: " << var << std::endl;
       auto it = var_map.find(GetRef<Var>(var_node));
       if (it != var_map.end()) {
         op = it->second;
@@ -93,7 +93,7 @@ struct PrimitiveInliner : ExprMutator {
   }
 
   Function Inline(const Function& func) {
-    RELAY_LOG(INFO) << "Before inlining primitives: " << std::endl
+    DLOG(INFO) << "Before inlining primitives: " << std::endl
                     << "func= " << AsText(func, false) << std::endl;
 
     auto inlined = FunctionNode::make(func->params, VisitExpr(func->body), func->ret_type,
@@ -101,7 +101,7 @@ struct PrimitiveInliner : ExprMutator {
 
     inlined = Downcast<Function>(DeadCodeElimination(inlined));
 
-    RELAY_LOG(INFO) << "After inlining primitives" << std::endl
+    DLOG(INFO) << "After inlining primitives" << std::endl
                     << "after_func= " << AsText(inlined, false) << std::endl;
     return inlined;
   }

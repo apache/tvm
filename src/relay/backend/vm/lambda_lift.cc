@@ -25,7 +25,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/logging.h>
+#include <tvm/logging.h>
 #include <tvm/relay/pass.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
@@ -126,7 +126,7 @@ struct LambdaLifter : ExprMutator {
   }
 
   Function Lift(const Function& func) {
-    RELAY_LOG(INFO) << "Lifting: " << AsText(func, false) << std::endl;
+    DLOG(INFO) << "Lifting: " << AsText(func, false) << std::endl;
     return FunctionNode::make(func->params, VisitExpr(func->body), func->ret_type,
                               func->type_params, func->attrs);
   }
