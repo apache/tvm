@@ -137,3 +137,4 @@ set(USE_VTA_TSIM OFF)
 
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
+
