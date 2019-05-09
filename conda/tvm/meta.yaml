@@ -41,6 +41,7 @@ requirements:
     - python
     - {{ pin_compatible('numpy') }}
     - decorator
+    - astor
     - tvm-libs =={{ version }}
 
 test:
