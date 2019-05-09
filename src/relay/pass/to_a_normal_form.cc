@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,6 +26,7 @@
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/logging.h>
 #include "let_list.h"
 #include "../../common/arena.h"
 #include "pass_util.h"
@@ -306,7 +307,22 @@ Expr ToANormalFormAux(const Expr& e,
 Expr ToANormalForm(const Expr& e,
                    const Module& m,
                    std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv) {
-  return TransformF([&](const Expr& e) { return ToANormalFormAux(e, m, gv); }, e);
+  DLOG(INFO)
+  << "ToANF:" << std::endl
+  << AsText(e, false);
+
+  Expr ret =
+    TransformF([&](const Expr& e) {
+      return ToANormalFormAux(e, m, gv);
+    }, e);
+
+  CHECK_EQ(FreeVars(ret).size(), 0);
+
+  DLOG(INFO)
+    << "ToANF: transformed" << std::endl
+    << AsText(ret, false);
+
+  return ret;
 }
 
 Expr ToANormalForm(const Expr& e, const Module& m) {

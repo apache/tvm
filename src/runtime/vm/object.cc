@@ -41,9 +41,6 @@ std::ostream& operator<<(std::ostream& os, const ObjectTag& tag) {
     case ObjectTag::kTensor:
       os << "Tensor";
       break;
-    case ObjectTag::kExternalFunc:
-      os << "ExternalFunction";
-      break;
     default:
       LOG(FATAL) << "Invalid object tag: found " << static_cast<int>(tag);
   }
@@ -68,21 +65,21 @@ Object Object::Closure(size_t func_index, const std::vector<Object>& free_vars) 
 }
 
 ObjectPtr<TensorCell> Object::AsTensor() const {
-  CHECK(ptr.get());
-  CHECK(ptr.get()->tag == ObjectTag::kTensor);
-  return ptr.As<TensorCell>();
+  CHECK(ptr_.get());
+  CHECK(ptr_.get()->tag == ObjectTag::kTensor);
+  return ptr_.As<TensorCell>();
 }
 
 ObjectPtr<DatatypeCell> Object::AsDatatype() const {
-  CHECK(ptr.get());
-  CHECK(ptr.get()->tag == ObjectTag::kDatatype);
-  return ptr.As<DatatypeCell>();
+  CHECK(ptr_.get());
+  CHECK(ptr_.get()->tag == ObjectTag::kDatatype);
+  return ptr_.As<DatatypeCell>();
 }
 
 ObjectPtr<ClosureCell> Object::AsClosure() const {
-  CHECK(ptr.get());
-  CHECK(ptr.get()->tag == ObjectTag::kClosure);
-  return ptr.As<ClosureCell>();
+  CHECK(ptr_.get());
+  CHECK(ptr_.get()->tag == ObjectTag::kClosure);
+  return ptr_.As<ClosureCell>();
 }
 
 NDArray ToNDArray(const Object& obj) {

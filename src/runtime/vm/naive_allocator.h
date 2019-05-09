@@ -35,7 +35,7 @@ namespace vm {
 
 class NaiveAllocator final : public Allocator {
  public:
-  explicit NaiveAllocator(TVMContext ctx) : Allocator(), used_memory_(0) {}
+  explicit NaiveAllocator(TVMContext ctx) : Allocator(), used_memory_(0), ctx_(ctx) {}
 
   Buffer Alloc(size_t nbytes, size_t alignment, TVMType type_hint) override {
     Buffer buf;

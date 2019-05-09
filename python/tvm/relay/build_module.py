@@ -29,6 +29,7 @@ from . import expr as _expr
 from . import ty as _ty
 from .backend import interpreter as _interpreter
 from .backend import graph_runtime_codegen as _graph_gen
+from .backend.vm import VMExecutor
 
 # List of optimization pass and level when switch on
 OPT_PASS_LEVEL = {
@@ -484,4 +485,7 @@ def create_executor(kind="debug",
         return _interpreter.Interpreter(mod, ctx, target)
     if kind == "graph":
         return GraphExecutor(mod, ctx, target)
-    raise RuntimeError("unknown mode {0}".format(mode))
+    elif kind == "vm":
+        return VMExecutor(mod, ctx, target)
+    else:
+        raise RuntimeError("unknown execution strategy: {0}".format(kind))

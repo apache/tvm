@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -278,17 +278,19 @@ class Interpreter :
     return TupleValueNode::make(values);
   }
 
-  // TODO(@jroesch): this doesn't support mutual letrec.
-  Value MakeClosure(const Function& func, const Var& letrec_name = Var()) {
+  // TODO(@jroesch): this doesn't support mututal letrec
+  inline Value MakeClosure(const Function& func, Var letrec_name = Var()) {
     tvm::Map<Var, Value> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
     for (const auto& var : free_vars) {
       // Evaluate the free var (which could be a function call) if it hasn't
       // shown up in a letting binding that has invoked the function.
-      if (!letrec_name.defined() || letrec_name != var) {
-        captured_mod.Set(var, Eval(var));
+      if (letrec_name.defined() && letrec_name == var) {
+        continue;
       }
+
+      captured_mod.Set(var, Eval(var));
     }
 
     // We must use mutation here to build a self referential closure.
@@ -296,7 +298,7 @@ class Interpreter :
     auto mut_closure =
         static_cast<ClosureNode*>(const_cast<Node*>(closure.get()));
     mut_closure->env.Set(letrec_name, closure);
-    return closure;
+    return std::move(closure);
   }
 
   Value VisitExpr_(const FunctionNode* func_node) final {

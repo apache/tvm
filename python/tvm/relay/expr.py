@@ -126,6 +126,20 @@ class Expr(RelayNode):
     def __rtruediv__(self, other):
         return self.__rdiv__(other)
 
+    def __call__(self, *args):
+        """Call the variable (if it represents a function).
+
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            The arguments to the call.
+
+        Returns
+        -------
+        call: Call
+            A call taking the variable as a function.
+        """
+        return Call(self, args)
 
 @register_relay_node
 class Constant(Expr):
@@ -191,20 +205,6 @@ class Var(Expr):
         name = self.vid.name_hint
         return name
 
-    def __call__(self, *args):
-        """Call the variable (if it represents a function).
-
-        Parameters
-        ----------
-        args: List[relay.Expr]
-            The arguments to the call.
-
-        Returns
-        -------
-        call: Call
-            A call taking the variable as a function.
-        """
-        return Call(self, args)
 
 @register_relay_node
 class GlobalVar(Expr):

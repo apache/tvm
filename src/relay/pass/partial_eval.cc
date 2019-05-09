@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -585,7 +585,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   // Constant evaluate a expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
     Expr infered = InferType(expr, Module(nullptr));
-    Expr fused = FuseOps(infered, 0);
+    Expr fused = FuseOps(infered, 0, Module(nullptr));
     Expr fused_infered = InferType(fused, Module(nullptr));
     return Reify(executor_(fused_infered), ll);
   }
