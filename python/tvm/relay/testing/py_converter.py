@@ -45,10 +45,10 @@ PROLOGUE = [
                     alias('ConstructorValue', None)],
                    0),
     ast.ImportFrom('tvm.relay', [alias('create_executor', None)], 0),
-    Assign(Name(INTERPRETER_VAR, Store()),
-               ast.Call(Name('create_executor', Load()),
-                        [], [keyword('mod',
-                                     Name(MODULE_NAME, Load()))]))
+    Assign([Name(INTERPRETER_VAR, Store())],
+           ast.Call(Name('create_executor', Load()),
+                    [], [keyword('mod',
+                                 Name(MODULE_NAME, Load()))]))
 ]
 
 class PythonConverter(ExprFunctor):
@@ -82,7 +82,7 @@ class PythonConverter(ExprFunctor):
 
         # we finally must assign the final expression to the output var
         # so it can be read after running EXEC
-        body.append(Assign(Name(OUTPUT_VAR_NAME, Store()), prog_body))
+        body.append(Assign([Name(OUTPUT_VAR_NAME, Store())], prog_body))
 
         return ast.fix_missing_locations(ast.Module(body=body))
 
@@ -183,9 +183,7 @@ class PythonConverter(ExprFunctor):
     def convert_to_thunk(self, name_hint: str, expr: Expr):
         body, defs = self.visit(expr)
         thunk_name = self.generate_function_name(name_hint)
-        thunk = ast.FunctionDef(thunk_name,
-                                ast.arguments([]),
-                                defs + [Return(body)])
+        thunk = self.create_def(thunk_name, [], defs + [Return(body)])
         return (thunk, thunk_name)
 
 
@@ -194,8 +192,7 @@ class PythonConverter(ExprFunctor):
         func_name = self.generate_function_name(name_hint)
         var_names = [self.get_var_name(var) for var in func.params]
         body, defs = self.visit(func.body)
-        ret = ast.FunctionDef(func_name, ast.arguments(var_names),
-                              defs + [Return(body)])
+        ret = self.create_def(func_name, var_names, defs + [Return(body)])
         return (ret, func_name)
 
 
@@ -208,14 +205,24 @@ class PythonConverter(ExprFunctor):
             defs.append(converted_func)
             # need to add this assignment so references to the global var in the program
             # go to the function!
-            defs.append(Assign(Name(var.name_hint, Store()),
-                                   Name(func_name, Load())))
+            defs.append(Assign([Name(var.name_hint, Store())],
+                               Name(func_name, Load())))
         return defs
 
 
     # simple function call
     def create_call(self, func_name: str, arguments):
-        return ast.Call(Name(func_name, Load()), arguments, [])
+        return ast.Call(self.parse_name(func_name), arguments, [])
+
+
+    # wrapper over raw AST node, whose constructor is inconvenient
+    def create_def(self, func_name: str, arguments: [str], body):
+        return ast.FunctionDef(
+            func_name,
+            ast.arguments([ast.arg(argument, None)
+                           for argument in arguments],
+                          None, [], None, [], []),
+            body, [], None)
 
 
     def create_op_call(self, op: Expr, num_args: int, attrs):
@@ -231,14 +238,14 @@ class PythonConverter(ExprFunctor):
 
         body = [
             Assign(
-                Name(name, Store()),
-                ast.Call(self.parse_name('relay.var'), [Str(name)], []))
+                [Name(name, Store())],
+                self.create_call('relay.var', [Str(name)]))
             for name in var_names
         ]
 
         # equiv: call = relay.op(relay_vars, attr=value)
         call_assignment = Assign(
-            Name(call_name, Store()),
+            [Name(call_name, Store())],
             ast.Call(self.parse_name('relay.' + op.name),
                      [Name(name, Store()) for name in var_names],
                      [keyword(key, convert_attr(attrs[key])) for key in attrs.keys()]))
@@ -254,7 +261,7 @@ class PythonConverter(ExprFunctor):
         body.append(Return(intrp_call))
 
         func_name = self.generate_function_name('_op_call_{}'.format(op_name))
-        func = ast.FunctionDef(func_name, ast.arguments(arg_names), body)
+        func = self.create_def(func_name, arg_names, body)
         return (func, func_name)
 
 
@@ -271,8 +278,8 @@ class PythonConverter(ExprFunctor):
 
         # reference to type var: mod.get_global_type_var({var name})
         # reference to constructor object: mod[{type_var}].constructors[{index}]
-        type_var_ref = ast.Call(self.parse_name('{}.get_global_type_var').format(MODULE_NAME),
-                                [Str(type_name)]. [])
+        type_var_ref = self.create_call('{}.get_global_type_var'.format(MODULE_NAME),
+                                        [Str(type_name)])
         type_data_ref = ast.Subscript(Name(MODULE_NAME, Load()),
                                       ast.Index(type_var_ref),
                                       Load())
@@ -296,7 +303,7 @@ class PythonConverter(ExprFunctor):
         # wildcard or var match everything
         if isinstance(pattern, (relay.PatternWildcard, relay.PatternVar)):
             return ([
-                ast.FunctionDef(func_name, ast.arguments([arg_name]),
+                self.create_def(func_name, [arg_name],
                                 [Return(NameConstant('True'))])
             ],
                     func_name)
@@ -337,7 +344,7 @@ class PythonConverter(ExprFunctor):
         # after all checks, we return True if we have a final match
         body.append(Return(NameConstant(True)))
 
-        final_def = ast.FunctionDef(func_name, ast.arguments([arg_name]), body)
+        final_def = self.create_def(func_name, [arg_name], body)
         defs.append(final_def)
         return (defs, func_name)
 
@@ -361,9 +368,9 @@ class PythonConverter(ExprFunctor):
         # w = a.fields[2].fields[0]
         def collect_var_assignments(pat, val):
             if isinstance(pat, relay.PatternWildcard):
-                return [Assign(Name('_', Store()), val)]
+                return [Assign([Name('_', Store())], val)]
             if isinstance(pat, relay.PatternVar):
-                return [Assign(self.include_var(pat.var, assign=True), val)]
+                return [Assign([self.include_var(pat.var, assign=True)], val)]
             # constructor pattern: assign each field of the value
             # based on subpatterns
             assignments = []
@@ -380,7 +387,7 @@ class PythonConverter(ExprFunctor):
         clause_body, defs = self.visit(body)
         assignments = collect_var_assignments(pattern, Name(arg_name, Load()))
 
-        func_def = ast.FunctionDef(func_name, ast.arguments([arg_name]),
+        func_def = self.create_def(func_name, [arg_name],
                                    defs + assignments + [Return(clause_body)])
         return ([func_def], func_name)
 
@@ -420,7 +427,7 @@ class PythonConverter(ExprFunctor):
         value_body, value_defs = self.visit(letexp.value)
 
         func_name = self.generate_function_name('_let_func')
-        binding_func = ast.FunctionDef(func_name, ast.arguments([self.get_var_name(letexp.var)]),
+        binding_func = self.create_def(func_name, [self.get_var_name(letexp.var)],
                                        value_defs + [Return(value_body)])
 
         # we call the binding func with the intended value for the bound variable
@@ -509,11 +516,10 @@ class PythonConverter(ExprFunctor):
         ref, ref_defs = self.visit(write.ref)
         val, val_defs = self.visit(write.value)
         thunk_name = self.generate_function_name('_ref_write_thunk')
-        thunk = ast.FunctionDef(thunk_name,
-                                ast.arguments([]),
+        thunk = self.create_def(thunk_name, [],
                                 ref_defs + val_defs + [
                                     Assign(
-                                        ast.Attribute(ref, 'value', Store()),
+                                        [ast.Attribute(ref, 'value', Store())],
                                         val),
                                     Return(self.create_call('TupleValue', []))
                                 ])
@@ -547,7 +553,7 @@ class PythonConverter(ExprFunctor):
                           Str('Match was not exhaustive'))
 
         thunk_name = self.generate_func_name('_match_thunk')
-        thunk_def = ast.FunctionDef(thunk_name, ast.arguments([]),
+        thunk_def = self.create_def(thunk_name, [],
                                     defs + thunk_body)
         return (self.create_call(thunk_name, []), [thunk_def])
 
