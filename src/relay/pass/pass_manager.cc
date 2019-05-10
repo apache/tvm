@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -201,7 +201,7 @@ class FunctionPassNode : public PassNode {
    * `pass_func` and let it run on a given module. The same `pass_func` will
    * then be applied on each function in the module.
    */
-  runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func;
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func;
 
   FunctionPassNode() = default;
 
@@ -225,7 +225,7 @@ class FunctionPassNode : public PassNode {
   PassInfo Info() const { return pass_info; }
 
   TVM_DLL static FunctionPass make(
-      runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func,
+      runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func,
       PassInfo pass_info);
 
   static constexpr const char* _type_key = "relay.FunctionPass";
@@ -363,7 +363,7 @@ Module ModulePassNode::operator()(const Module& mod,
 }
 
 FunctionPass FunctionPassNode::make(
-    runtime::TypedPackedFunc<Function(Function, PassContext)> pass_func,
+    runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func,
     PassInfo pass_info) {
   auto n = make_node<FunctionPassNode>();
   n->pass_func = std::move(pass_func);
@@ -383,8 +383,7 @@ Module FunctionPassNode::operator()(const Module& mod,
 
   // Execute the pass function and return a new module.
   for (const auto& it : mod->functions) {
-    auto updated_func =
-        SkipFunction(it.second) ? it.second : pass_func(it.second, pass_ctx);
+    auto updated_func = SkipFunction(it.second) ? it.second : pass_func(it.second, mod, pass_ctx);
     new_mod->Add(it.first, updated_func);
   }
 
@@ -501,7 +500,7 @@ Pass CreateModulePass(
 }
 
 Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, PassContext)>& pass_func,
+    const runtime::TypedPackedFunc<Function(Function, Module, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
     const tvm::Array<tvm::Expr>& required) {
@@ -589,7 +588,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                                  tvm::IRPrinter* p) {
   const PassInfoNode* seq_pn = node->Info().operator->();
   p->stream << "Run Sequential pass: " << seq_pn->name
-            << " at the optimization level. " << seq_pn->opt_level;
+            << " at the optimization level " << seq_pn->opt_level << ". ";
   p->stream << "The passes will be executed are: [";
   for (const auto& it : node->passes) {
     const PassNode* pn = it.operator->();

@@ -801,5 +801,17 @@ TVM_REGISTER_API("relay._ir_pass.partial_evaluate")
     *ret = PartialEval(args[0]);
   });
 
+namespace transform {
+
+Pass PartialEval() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(PartialEval(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "partial_eval", {});
+}
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm

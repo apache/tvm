@@ -550,6 +550,18 @@ TVM_REGISTER_API("relay._ir_pass.RewriteDeviceAnnotation")
 TVM_REGISTER_API("relay._ir_pass.CollectDeviceAnnotationOps")
 .set_body_typed(CollectDeviceAnnotationOps);
 
+namespace transform {
+
+Pass RewriteAnnotatedOps(int fallback_device) {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(RewriteAnnotatedOps(f, fallback_device));
+  };
+  return CreateFunctionPass(pass_func, 1, "rewrite_annotated_ops", {});
+}
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm
 

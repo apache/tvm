@@ -204,7 +204,7 @@ def test_function_pass():
     pass_ctx = None
 
     @_transform.function_pass(opt_level=opt_level, name=pass_name)
-    def transform(expr, ctx):
+    def transform(expr, mod, ctx):
         return opt_tester.transform(expr, ctx)
 
     def get_ref_log():
@@ -303,7 +303,7 @@ def test_sequential_pass():
 
     # Register a function pass.
     @_transform.function_pass(opt_level=1)
-    def func_transform(expr, ctx):
+    def func_transform(expr, mod, ctx):
         return opt_tester.transform(expr, ctx)
 
     function_pass = func_transform
