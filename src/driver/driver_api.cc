@@ -210,6 +210,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
       BindTarget(target_host),
       tir::transform::LowerTVMBuiltin(),
       tir::transform::LowerIntrin(),
+      tir::transform::LowerCustomDatatypes(),
       tir::transform::LowerDeviceStorageAccessInfo(),
       tir::transform::CombineContextCall(),
   };
@@ -226,6 +227,7 @@ std::pair<IRModule, IRModule> SplitDevHostFuncs(IRModule mod_mixed, const Target
       tir::transform::LowerWarpMemory(),
       tir::transform::Simplify(),
       tir::transform::LowerIntrin(),
+      tir::transform::LowerCustomDatatypes(),
       tir::transform::LowerDeviceStorageAccessInfo(),
   };
   auto opt_device = transform::Sequential(device_pass_list);
