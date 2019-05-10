@@ -97,7 +97,19 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;
   }
 
-#define DEFINE_MUTATE(OP, NodeName)                                                \
+  inline PrimExpr VisitExpr_(const CallNode* call) final {
+    // I'm actually unsure as to what makes sense when lowering a call of a custom datatype.
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(call->dtype.code());
+    PrimExpr expr = StmtExprMutator::VisitExpr_(call);
+    call = expr.as<CallNode>();
+    if (toBeLowered) {
+      auto new_call_type = DataType::UInt(call->dtype.bits(), call->dtype.lanes());
+      return CallNode::make(new_call_type, call->name, call->args, call->call_type);
+    }
+    return expr;
+  }
+
+#define DEFINE_MUTATE(OP, NodeName)                                              \
   inline PrimExpr VisitExpr_(const NodeName* op) final {                           \
     auto type_code = op->dtype.code();                                             \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
