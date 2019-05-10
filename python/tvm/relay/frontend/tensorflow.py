@@ -48,6 +48,20 @@ def _get_relay_op(op_name):
             'Operator {} is not supported for frontend TensorFlow.'.format(op_name))
     return op
 
+def _get_numpy_op(op_name):
+    try:
+        op = getattr(np, op_name)
+    except AttributeError:
+        try:
+            op = getattr(np.random, op_name)
+        except AttributeError:
+            op = getattr(np.linalg, op_name)
+
+    if not op:
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend TensorFlow.'.format(op_name))
+    return op
+
 class AttrCvt(object):
     """Common attribute conveter. An AttrConverter instance is a callable:
     ```
@@ -240,7 +254,18 @@ def _argx(func, func_name):
 def _elemwise(name):
     def _impl(inputs, attr, *args):
         assert len(inputs) == 2, "{} take 2 inputs, {} given".format(name, len(inputs))
-        return _get_relay_op(name)(*inputs)
+        # Figure out if inputs are constants or not. If so, evaluate using numpy.
+        if type(inputs[0]) == tvm.relay.expr.Var and type(inputs[1]) == tvm.relay.expr.Var:
+            params = args[0]
+            if inputs[0].name_hint in params.keys() and inputs[1].name_hint in params.keys():
+                # Both inputs are defined and can be used for numpy.
+                in0 = params.pop(inputs[0].name_hint).asnumpy()
+                in1 = params.pop(inputs[1].name_hint).asnumpy()
+                np_op = _get_numpy_op(name)
+                output = np_op(in0, in1)
+                return output
+        else:
+            return _get_relay_op(name)(*inputs)
     return _impl
 
 def _pooling(name):
@@ -465,6 +490,14 @@ def _expand_dims():
 
 def _resize_bilinear():
     def _impl(inputs, attr, params):
+        # Need to handle constant shape inputs to determine output shape.
+        if type(inputs[1]) == tvm.relay.expr.Var:
+            if inputs[1].name_hint in params.keys():
+                #attr['_output_shapes'][0] = list(params.pop(inputs[1].name_hint).asnumpy())
+                H_out, W_out = list(params.pop(inputs[1].name_hint).asnumpy())
+                attr["_output_shapes"][0][1] = H_out
+                attr["_output_shapes"][0][2] = W_out
+
         attr['size'] = attr['_output_shapes'][0][1:3]
         inputs.pop(1)
         # NHWC
@@ -527,9 +560,25 @@ def _concat():
 
 def _pack():
     def _impl(inputs, attr, params):
+        # If the inputs are constant numpy expressions,
+        # we should treat the output as one as well.
+        use_constant = True
+        for i in inputs:
+            if not (type(i) == tvm.relay.expr.Var):
+                use_constant = False
+            elif i.name_hint not in params.keys():
+                use_constant = False
+        # If all inputs are constants, then we should output using numpy.
         axis = int(attr["axis"])
-        inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
-        return _op.concatenate(inputs_reshaped, axis)
+        if use_constant:
+            inputs_reshaped = [np.expand_dims(params[i.name_hint].asnumpy()[0], axis) for i in inputs]
+            inputs_reshaped = np.asarray(inputs_reshaped)
+            output = np.concatenate(inputs_reshaped, axis)
+            return output
+
+        else:
+            inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
+            return _op.concatenate(inputs_reshaped, axis)
     return _impl
 
 def _tile():
@@ -709,9 +758,14 @@ def _shape():
 
 def _fill():
     def _impl(inputs, attr, params):
+        output_shape = attr['_output_shapes'][0]
+        # If shape arg input is a constant then we should use to set output shape.
+        if type(inputs[0]) == tvm.relay.expr.Var:
+            if inputs[0].name_hint in params.keys():
+               output_shape = list(params[inputs[0].name_hint].asnumpy())
         fill_arg = params.pop(inputs.pop(1).name_hint)
         return _op.full(tvm.relay.const(fill_arg.asnumpy()[0], attr['T'].name),
-                        attr['_output_shapes'][0], attr['T'].name)
+                        output_shape, attr['T'].name)
     return _impl
 
 def _lrn():
@@ -784,6 +838,14 @@ def _stridedSlice():
         data_shape = attr['_input_shapes'][inputs[0]]
         data_dim = len(data_shape)
         stride_dim = len(stride)
+
+        # There are certain cases where a stridedslice is actually just picking out a constant. In these cases
+        # we treat the output as a constant rather than a function. This is important for the shape inference
+        # of other functions.
+        if inputs[0].name_hint in params.keys() and len(begin) == 1 and len(end) ==1 and len(stride) == 1:
+            input_data = params[inputs[0].name_hint].asnumpy()
+            output_data = input_data[begin[0]:end[0]:stride[0]]
+            return output_data
 
         def _transform_mask(stride_dim, ellipsis_mask):
             """Handle mask inputs to create new begin, end, stride and output shape"""
@@ -1187,6 +1249,7 @@ _convert_map = {
     'Relu6'                             : _relu6(),
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
+    'ResizeBicubic'                     : _resize_bilinear(),
     'ReverseV2'                         : _reverse_v2(),
     'Round'                             : AttrCvt('round'),
     'Rsqrt'                             : _rsqrt(),
@@ -1874,7 +1937,7 @@ class GraphProto(object):
                 else:
                     op = self._convert_operator(node.op, inputs, attr, graph)
 
-                # Check if op is converted to param
+                # Check if op is converted to param Why convert to param? Shouldnt it just be a constant?
                 if isinstance(op, np.ndarray):
                     self._params[node.name] = tvm.nd.array(op)
                     op = [_expr.var(node.name,
