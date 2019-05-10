@@ -27,18 +27,53 @@ from . import _api_internal
 
 
 def register(type_name, type_code):
+    """Register a custom datatype with the given type name and type code
+    Currently, the type code is manually allocated by the user, and the
+    user must ensure that no two custom types share the same code.
+    Generally, this should be straightforward, as the user will be
+    manually registering all of their custom types.
+
+    Parameters
+    ----------
+    type_name : str
+        The name of the custom datatype
+
+    type_code : int
+        The type's code, which should be >= kCustomBegin
+    """
     _api_internal._datatype_register(type_name, type_code)
 
 
 def get_type_name(type_code):
+    """Get the type name from the type code
+
+    Parameters
+    ----------
+    type_code : int
+        The type code
+    """
     return _api_internal._datatype_get_type_name(type_code)
 
 
 def get_type_code(type_name):
+    """Get the type code from the type name
+
+    Parameters
+    ----------
+    type_name : str
+        The type name
+    """
     return _api_internal._datatype_get_type_code(type_name)
 
 
 def get_type_registered(type_code):
+    """Get a boolean representing whether the type is registered
+
+    Parameters
+    ----------
+    type_code: int
+        The type code
+    """
     return _api_internal._datatype_get_type_registered(type_code)
 
 
@@ -81,7 +116,13 @@ def register_op(lower_func, op_name, target, type_name, src_type_name=None):
 
 
 def create_lower_func(extern_func_name):
-    """Returns a function which lowers an operation to a function call."""
+    """Returns a function which lowers an operation to a function call.
+
+    Parameters
+    ----------
+    extern_func_name : str
+        The name of the extern "C" function to lower to
+    """
 
     def lower(op):
         """
