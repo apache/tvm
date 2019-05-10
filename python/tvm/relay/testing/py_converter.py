@@ -463,8 +463,8 @@ class PythonConverter(ExprFunctor):
         code (whether it be a Python scalar or a Numpy array)'''
 
         value = constant.data.asnumpy()
-        const_expr = ast.Call(self.parse_name('numpy.array'),
-                              [self.parse_numpy_array(value)], [])
+        const_expr = self.create_call('numpy.array',
+                                      [self.parse_numpy_array(value)])
         return (self.create_call('TensorValue', [const_expr]), [])
 
 
@@ -516,13 +516,12 @@ class PythonConverter(ExprFunctor):
         ref, ref_defs = self.visit(write.ref)
         val, val_defs = self.visit(write.value)
         thunk_name = self.generate_function_name('_ref_write_thunk')
-        thunk = self.create_def(thunk_name, [],
-                                ref_defs + val_defs + [
-                                    Assign(
-                                        [ast.Attribute(ref, 'value', Store())],
-                                        val),
-                                    Return(self.create_call('TupleValue', []))
-                                ])
+        thunk = self.create_def(
+            thunk_name, [],
+            ref_defs + val_defs + [
+                Assign([ast.Attribute(ref, 'value', Store())], val),
+                Return(self.create_call('TupleValue', []))
+            ])
         return (self.create_call(thunk_name, []), [thunk])
 
 
@@ -553,8 +552,7 @@ class PythonConverter(ExprFunctor):
                           Str('Match was not exhaustive'))
 
         thunk_name = self.generate_func_name('_match_thunk')
-        thunk_def = self.create_def(thunk_name, [],
-                                    defs + thunk_body)
+        thunk_def = self.create_def(thunk_name, [], defs + thunk_body)
         return (self.create_call(thunk_name, []), [thunk_def])
 
     # these are both handled in the "call" case
