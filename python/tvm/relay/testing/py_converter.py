@@ -87,7 +87,7 @@ class PythonConverter(ExprFunctor):
         assert relay.ir_pass.well_formed(check)
         # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
         # and fusion (to get primitive functions)
-        simplify = relay.ir_pass.simplify_inference(expr)
+        simplify = relay.ir_pass.simplify_inference(check)
         simplify_checked = relay.ir_pass.infer_type(simplify, self.mod)
         fused = relay.ir_pass.fuse_ops(simplify_checked)
         fused_checked = relay.ir_pass.infer_type(fused, self.mod)
@@ -143,7 +143,7 @@ class PythonConverter(ExprFunctor):
     def parse_name(self, name: str):
         attributes = name.split('.')
         ret = Name(attributes[0], Load())
-        for i in range(len(attributes - 1)):
+        for i in range(len(attributes) - 1):
             ret = ast.Attribute(ret, attributes[i+1], Load())
         return ret
 
@@ -627,4 +627,4 @@ def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
     var_map = {OUTPUT_VAR_NAME : None, MODULE_NAME : mod}
     #pylint: disable=exec-used
     exec(code, {}, var_map)
-    return output_map[OUTPUT_VAR_NAME]
+    return var_map[OUTPUT_VAR_NAME]
