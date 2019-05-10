@@ -59,6 +59,41 @@ void BFloat16Add(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t siz
   FloatToBFloat16(&out_f, dst, 1);
 }
 
+void BFloat16Sub(const uint16_t* a, const uint16_t* b, uint16_t* dst,
+                 size_t size) {
+  float a_f, b_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  BFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f - b_f;
+  FloatToBFloat16(&out_f, dst, 1);
+}
+
+void BFloat16Mul(const uint16_t* a, const uint16_t* b, uint16_t* dst,
+                 size_t size) {
+  float a_f, b_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  BFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f * b_f;
+  FloatToBFloat16(&out_f, dst, 1);
+}
+
+void BFloat16Div(const uint16_t* a, const uint16_t* b, uint16_t* dst,
+                 size_t size) {
+  float a_f, b_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  BFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f / b_f;
+  FloatToBFloat16(&out_f, dst, 1);
+}
+
+void BFloat16Max(const uint16_t* a, const uint16_t* b, uint16_t* dst,
+                 size_t size) {
+  float a_f, b_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  BFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f > b_f ? a_f : b_f;
+  FloatToBFloat16(&out_f, dst, 1);
+}
 extern "C" {
 TVM_DLL uint16_t FloatToBFloat16_wrapper(float in) {
   uint16_t out;
@@ -75,6 +110,30 @@ float BFloat16ToFloat_wrapper(uint16_t in) {
 uint16_t BFloat16Add_wrapper(uint16_t a, uint16_t b) {
   uint16_t out;
   BFloat16Add(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Sub_wrapper(uint16_t a, uint16_t b) {
+  uint16_t out;
+  BFloat16Sub(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Mul_wrapper(uint16_t a, uint16_t b) {
+  uint16_t out;
+  BFloat16Mul(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Div_wrapper(uint16_t a, uint16_t b) {
+  uint16_t out;
+  BFloat16Div(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Max_wrapper(uint16_t a, uint16_t b) {
+  uint16_t out;
+  BFloat16Max(&a, &b, &out, 1);
   return out;
 }
 }
