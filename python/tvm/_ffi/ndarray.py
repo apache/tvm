@@ -283,12 +283,6 @@ class NDArrayBase(_NDArrayBase):
         check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
         return np_arr
 
-    def copybytesto(self, target):
-        assert target.flags['C_CONTIGUOUS']
-        data = target.ctypes.data_as(ctypes.c_void_p)
-        nbytes = ctypes.c_size_t(target.size * target.dtype.itemsize)
-        _LIB.TVMArrayCopyToBytes(self.handle, data, nbytes)
-
     def copyto(self, target):
         """Copy array to target
 
