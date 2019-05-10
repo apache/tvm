@@ -64,23 +64,6 @@ TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code) {
   return (*f)(type_code).operator bool();
 }
 
-TVM_DLL uint8_t ParseCustomDatatype(std::string s) {
-  // TODO(gus): too much hardcoding here.
-  // TODO(gus) possibly replace with a regex.
-  auto scan = s.c_str() + 6;
-  if (*scan != '[') LOG(FATAL) << "expected opening brace after 'custom' type in" << s;
-  ++scan;
-  size_t custom_name_len = 0;
-  while (scan + custom_name_len <= s.c_str() + s.length() && *(scan + custom_name_len) != ']')
-    ++custom_name_len;
-  if (*(scan + custom_name_len) != ']')
-    LOG(FATAL) << "expected closing brace after 'custom' type in" << s;
-  scan += custom_name_len + 1;
-
-  auto type_name = s.substr(7, custom_name_len);
-  return GetCustomTypeCode(type_name);
-}
-
 class DeviceAPIManager {
  public:
   static const int kMaxDeviceAPI = 32;
