@@ -70,6 +70,38 @@ class Expr(RelayNode):
     def __neg__(self):
         return _op_make.negative(self)
 
+    def __lt__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.less(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __gt__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.greater(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __ge__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.greater_equal(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __le__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.less_equal(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
     def __add__(self, other):
         if isinstance(other, Expr):
             return _op_make.add(self, other)
