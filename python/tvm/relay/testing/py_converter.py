@@ -27,6 +27,7 @@ from tvm.relay.expr import Expr, Function
 from tvm.relay.expr_functor import ExprFunctor
 
 OUTPUT_VAR_NAME = '_py_out'
+MODULE_NAME = '_mod'
 
 # corresponds to:
 #     import tvm
@@ -623,7 +624,7 @@ def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
     executes it.'''
     py_ast = to_python(expr, mod, target)
     code = compile(py_ast, '<string>', 'exec')
-    var_map = {OUTPUT_VAR_NAME : None}
+    var_map = {OUTPUT_VAR_NAME : None, MODULE_NAME : mod}
     #pylint: disable=exec-used
     exec(code, {}, var_map)
     return output_map[OUTPUT_VAR_NAME]
