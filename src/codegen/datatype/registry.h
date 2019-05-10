@@ -60,16 +60,16 @@ class Registry {
   std::string GetTypeName(uint8_t type_code);
 
   inline bool GetTypeRegistered(uint8_t type_code) {
-    return code_to_name.find(type_code) != code_to_name.end();
+    return code_to_name_.find(type_code) != code_to_name_.end();
   }
   inline bool GetTypeRegistered(std::string type_name) {
-    return name_to_code.find(type_name) != name_to_code.end();
+    return name_to_code_.find(type_name) != name_to_code_.end();
   }
 
  private:
   // TODO(gus) is there a typedef for the code?
-  std::unordered_map<uint8_t, std::string> code_to_name;
-  std::unordered_map<std::string, uint8_t> name_to_code;
+  std::unordered_map<uint8_t, std::string> code_to_name_;
+  std::unordered_map<std::string, uint8_t> name_to_code_;
 };
 
 // For the custom datatype specified by type_code, convert the value to this

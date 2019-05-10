@@ -42,20 +42,20 @@ TVM_REGISTER_GLOBAL("_datatype_get_type_registered").set_body([](TVMArgs args, T
 void Registry::Register(const std::string& type_name, uint8_t type_code) {
   CHECK(type_code > kExtEnd) << "Please choose a type code above "
                              << static_cast<unsigned>(type_code) << " for custom types";
-  code_to_name[type_code] = type_name;
-  name_to_code[type_name] = type_code;
+  code_to_name_[type_code] = type_name;
+  name_to_code_[type_name] = type_code;
 }
 
 uint8_t Registry::GetTypeCode(const std::string& type_name) {
-  CHECK(name_to_code.find(type_name) != name_to_code.end())
+  CHECK(name_to_code_.find(type_name) != name_to_code_.end())
       << "Type name " << type_name << " not registered";
-  return name_to_code[type_name];
+  return name_to_code_[type_name];
 }
 
 std::string Registry::GetTypeName(uint8_t type_code) {
-  CHECK(code_to_name.find(type_code) != code_to_name.end())
+  CHECK(code_to_name_.find(type_code) != code_to_name_.end())
       << "Type code " << static_cast<unsigned>(type_code) << " not registered";
-  return code_to_name[type_code];
+  return code_to_name_[type_code];
 }
 
 const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t type_code,
