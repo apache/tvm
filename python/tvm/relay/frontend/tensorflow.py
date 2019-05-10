@@ -1080,6 +1080,15 @@ def _batch_to_space_nd():
 
     return _impl
 
+
+def _prod():
+    def _impl(inputs, attr, params):
+        axis = params.pop(inputs[1].name_hint).asnumpy()[0]
+        keepdims = attr['keep_dims']
+        return _op.prod(inputs[0], int(axis), keepdims=keepdims)
+    return _impl
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1136,6 +1145,7 @@ _convert_map = {
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
     'Pow'                               : _elemwise('power'),
+    'Prod'                              : _prod(),
     'Range'                             : _range(),
     'Rank'                              : _rank(),
     'RealDiv'                           : _elemwise('div'),

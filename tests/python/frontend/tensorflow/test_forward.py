@@ -161,7 +161,6 @@ def is_gpu_available():
     else:
         return False
 
-
 #######################################################################
 # Pooling
 # -------
@@ -1509,6 +1508,25 @@ def test_forward_expand_dims():
     _test_forward_expand_dims(np.array([[1], [2]]), 1)
     _test_forward_expand_dims(np.array([[1], [2]]), -1)
 
+
+#######################################################################
+# Prod
+# ----
+def _test_forward_reduce_prod(shape, axis, keepdims):
+    inp_array1 = np.random.uniform(-5, 5, size=shape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array1.shape, dtype=inp_array1.dtype)
+        out = tf.math.reduce_prod(in1, axis, keepdims)
+        compare_tf_with_tvm(inp_array1, in1.name, out.name)
+
+def test_forward_reduce_prod():
+    _test_forward_reduce_prod((5,), 0, False)
+    _test_forward_reduce_prod((5, 5), 0, False)
+    _test_forward_reduce_prod((5, 5), 1, False)
+    _test_forward_reduce_prod((5,), 0, True)
+    _test_forward_reduce_prod((5, 5), 0, True)
+    _test_forward_reduce_prod((5, 5), 1, True)
+
 #######################################################################
 # Main
 # ----
@@ -1550,6 +1568,7 @@ if __name__ == '__main__':
     test_forward_argminmax()
     test_forward_reduce()
     test_forward_mean()
+    test_forward_reduce_prod()
 
     # General
     test_forward_multi_input()
