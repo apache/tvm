@@ -256,7 +256,7 @@ def _elemwise(name):
         assert len(inputs) == 2, "{} take 2 inputs, {} given".format(name, len(inputs))
 
         # Figure out if inputs are constants or not. If so, evaluate using numpy.
-        if type(inputs[0]) == tvm.relay.expr.Var and type(inputs[1]) == tvm.relay.expr.Var:
+        if isinstance(inputs[0], tvm.relay.expr.Var) and isinstance(inputs[1], tvm.relay.expr.Var):
             params = args[0]
             if inputs[0].name_hint in params.keys() and inputs[1].name_hint in params.keys():
                 # Both inputs are defined and can be used for numpy.
@@ -492,7 +492,7 @@ def _expand_dims():
 def _resize_bilinear():
     def _impl(inputs, attr, params):
         # Need to handle constant shape inputs to determine output shape.
-        if type(inputs[1]) == tvm.relay.expr.Var:
+        if isinstance(inputs[1], tvm.relay.expr.Var):
             if inputs[1].name_hint in params.keys():
                 H_out, W_out = list(params[inputs[1].name_hint].asnumpy())
                 attr["_output_shapes"][0][1] = H_out
@@ -564,21 +564,21 @@ def _pack():
         # we should treat the output as one as well.
         use_constant = True
         for i in inputs:
-            if not (type(i) == tvm.relay.expr.Var):
+            if not isinstance(i, tvm.relay.expr.Var):
                 use_constant = False
             elif i.name_hint not in params.keys():
                 use_constant = False
         # If all inputs are constants, then we should output using numpy.
         axis = int(attr["axis"])
         if use_constant:
-            inputs_reshaped = [np.expand_dims(params[i.name_hint].asnumpy()[0], axis) for i in inputs]
+            inputs_reshaped = [np.expand_dims(
+                params[i.name_hint].asnumpy()[0], axis) for i in inputs]
             inputs_reshaped = np.asarray(inputs_reshaped)
             output = np.concatenate(inputs_reshaped, axis)
             return output
 
-        else:
-            inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
-            return _op.concatenate(inputs_reshaped, axis)
+        inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
+        return _op.concatenate(inputs_reshaped, axis)
     return _impl
 
 def _tile():
@@ -649,7 +649,8 @@ def _depth_to_space():
             new_c = int(in_c / (block_size * block_size))
 
             # First expand input to larger dimension.
-            expanded = _op.reshape(inputs[0], newshape=(in_n, in_h, in_w, block_size, block_size, new_c))
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_h, in_w, block_size, block_size, new_c))
             # Now reorder to expand spatial blocks.
             transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
             # Finally reshape to proper output.
@@ -661,7 +662,8 @@ def _depth_to_space():
             in_n, in_c, in_h, in_w = input_shape
             new_c = int(in_c / (block_size * block_size))
 
-            expanded = _op.reshape(inputs[0], newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
             transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
             new_h = in_h * block_size
             new_w = in_w * block_size
@@ -757,9 +759,9 @@ def _fill():
     def _impl(inputs, attr, params):
         output_shape = attr['_output_shapes'][0]
         # If shape arg input is a constant then we should use to set output shape.
-        if type(inputs[0]) == tvm.relay.expr.Var:
+        if isinstance(inputs[0], tvm.relay.expr.Var):
             if inputs[0].name_hint in params.keys():
-               output_shape = list(params[inputs[0].name_hint].asnumpy())
+                output_shape = list(params[inputs[0].name_hint].asnumpy())
         fill_arg = params.pop(inputs.pop(1).name_hint)
         return _op.full(tvm.relay.const(fill_arg.asnumpy()[0], attr['T'].name),
                         output_shape, attr['T'].name)
@@ -836,10 +838,12 @@ def _stridedSlice():
         data_dim = len(data_shape)
         stride_dim = len(stride)
 
-        # There are certain cases where a stridedslice is actually just picking out a constant. In these cases
-        # we treat the output as a constant rather than a function. This is important for the shape inference
-        # of other functions.
-        if inputs[0].name_hint in params.keys() and len(begin) == 1 and len(end) ==1 and len(stride) == 1:
+        # There are certain cases where a stridedslice is actually just picking out a constant.
+        # In these cases we treat the output as a constant rather than a function.
+        # This is important for the shape inference of other functions.
+        if (inputs[0].name_hint in params.keys() and
+                len(begin) == 1 and len(end) == 1 and len(stride) == 1):
+
             input_data = params[inputs[0].name_hint].asnumpy()
             output_data = input_data[begin[0]:end[0]:stride[0]]
             return output_data
