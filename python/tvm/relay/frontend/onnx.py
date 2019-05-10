@@ -1188,7 +1188,7 @@ def from_onnx(model,
             # try use onnx's own model checker before converting any model
             checker.check_model(model)
     except ImportError:
-            pass
+        pass
     g = GraphProto(shape, dtype)
     graph = model.graph
     try:
