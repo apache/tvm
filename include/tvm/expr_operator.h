@@ -34,11 +34,6 @@
 
 namespace tvm {
 
-namespace runtime {
-// Datatype utilities needed at runtime. See src/runtime/custom_datatype_util.cc.
-TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
-}  // namespace runtime
-
 /*!
  * \brief Make a const value with certain data type.
  * \param t The target type.
@@ -561,7 +556,7 @@ inline Expr MakeConstScalar(Type t, ValueType value) {
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
   // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (tvm::runtime::GetCustomTypeRegistered(t.code()))
+  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(kCustomBegin))
     return ir::FloatImm::make(t, static_cast<double>(value));
   LOG(FATAL) << "cannot make const for type " << t;
   return Expr();

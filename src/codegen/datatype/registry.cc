@@ -40,8 +40,7 @@ TVM_REGISTER_GLOBAL("_datatype_get_type_registered").set_body([](TVMArgs args, T
 });
 
 void Registry::Register(const std::string& type_name, uint8_t type_code) {
-  CHECK(type_code > kExtEnd) << "Please choose a type code above "
-                             << static_cast<unsigned>(type_code) << " for custom types";
+  CHECK(type_code >= kCustomBegin) << "Please choose a type code >= kCustomBegin for custom types";
   code_to_name_[type_code] = type_name;
   name_to_code_[type_name] = type_code;
 }
