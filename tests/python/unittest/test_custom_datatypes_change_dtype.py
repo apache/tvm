@@ -40,38 +40,58 @@ def setup():
         tvm.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
         "bfloat")
     tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("BFloat16Sub_wrapper"), "Sub", "llvm",
+        "bfloat")
+    tvm.datatype.register_op(
         tvm.datatype.create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
         "llvm", "bfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("BFloat16Mul_wrapper"), "Mul", "llvm",
+        "bfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("BFloat16Div_wrapper"), "Div", "llvm",
+        "bfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
+        "bfloat")
 
 def test_change_dtype_inception_v3():
     setup()
 
     expr, params = get_workload()
 
+    ex = relay.create_executor("graph")
+
+    def convert_ndarray(dst_dtype, array):
+        x = relay.var(str(array) + dst_dtype, shape=array.shape)
+        cast = relay.Function([x], x.astype(dst_dtype))
+        return ex.evaluate(cast)(array)
+
     def change_dtype(src, dst, expr, params):
         cdtype = relay.frontend.ChangeDatatype(src, dst)
         expr = cdtype.visit(expr)
         expr = relay.ir_pass.infer_type(expr)
-        import pdb
-        pdb.set_trace()
+        #raise "pause"
         params = dict(
-            (p, tvm.nd.array(params[p].asnumpy().astype(dst))) for p in params)
+            (p, convert_ndarray(dst, params[p])) for p in params)
         return expr, params
 
     src_dtype = 'float32'
     dst_dtype = 'custom[bfloat]16' # Change me to posit.
     expr, params = change_dtype(src_dtype, dst_dtype, expr, params)
 
-    ex = relay.create_executor("graph")
     # Convert the input into the correct format.
     input = tvm.nd.array(np.random.rand(3, 299, 299).astype(src_dtype))
-    x = relay.var("x", shape=(3, 299, 299))
-    castR = relay.Function([x], x.astype(dst_dtype))
-    input = ex.evaluate(castR)(input)
+    input = convert_ndarray(dst_dtype, input)
+
+    def print_info(node):
+        if not isinstance(node, relay.op.op.Op):
+            if ("custom[bfloat]32" not in str(node.checked_type())):
+                print(node.checked_type())
+    relay.ir_pass.post_order_visit(expr, print_info)
+
     # Execute the model in the new datatype.
     result = ex.evaluate(expr)(input, **params)
-    import pdb
-    pdb.set_trace()
 
 
 if __name__ == "__main__":
