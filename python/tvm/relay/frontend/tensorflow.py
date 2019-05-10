@@ -34,6 +34,17 @@ from ..expr_functor import ExprMutator
 
 __all__ = ['from_tensorflow']
 
+def _infer_value(input, params):
+    from tvm.contrib import graph_runtime
+    func = _expr.Function(ir_pass.free_vars(input), input)
+    with tvm.relay.build_config(opt_level=0):
+        graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+    ctx = tvm.context("llvm", 0)
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**params)
+    m.run()
+    return m.get_output(0)
+
 def _get_relay_op(op_name):
     try:
         op = getattr(_op, op_name)
@@ -465,7 +476,12 @@ def _expand_dims():
 
 def _resize_bilinear():
     def _impl(inputs, attr, params):
-        attr['size'] = attr['_output_shapes'][0][1:3]
+        size = attr['_output_shapes'][0][1:3]
+        # Important that the size is defined. If an axis is not, we need to infer what
+        # the shape should be.
+        if -1 in size:
+            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
+        attr['size'] = size
         inputs.pop(1)
         # NHWC
         attr['layout'] = 'NHWC'
@@ -574,15 +590,7 @@ def _reshape():
         except AttributeError:
             # Shape operator is already pruned, hence
             # try to infer shape by precompute prune if possible.
-            func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
-            with tvm.relay.build_config(opt_level=0):
-                graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
-            ctx = tvm.context("llvm", 0)
-            from tvm.contrib import graph_runtime
-            m = graph_runtime.create(graph, lib, ctx)
-            m.set_input(**params)
-            m.run()
-            params_new = m.get_output(0)
+            params_new = _infer_value(inputs[1], params)
             inputs.pop(1)
             return AttrCvt(
                 op_name="reshape",
@@ -709,9 +717,15 @@ def _shape():
 
 def _fill():
     def _impl(inputs, attr, params):
+        output_shape = attr['_output_shapes'][0]
+        # Output shape must be defined to avoid errors. If any axis is not, we must
+        # try to compute its shape.
+        if -1 in output_shape:
+            output_shape = _infer_value(inputs[0], params).asnumpy().reshape([-1]).tolist()
+
         fill_arg = params.pop(inputs.pop(1).name_hint)
         return _op.full(tvm.relay.const(fill_arg.asnumpy()[0], attr['T'].name),
-                        attr['_output_shapes'][0], attr['T'].name)
+                        output_shape, attr['T'].name)
     return _impl
 
 def _lrn():
@@ -1207,6 +1221,7 @@ _convert_map = {
     'Relu6'                             : _relu6(),
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
+    'ResizeBicubic'                     : _resize_bilinear(),
     'ReverseV2'                         : _reverse_v2(),
     'Round'                             : AttrCvt('round'),
     'Rsqrt'                             : _rsqrt(),
