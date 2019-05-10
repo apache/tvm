@@ -39,15 +39,30 @@ def setup():
 
     register("bfloat", 129)
 
-    register_op(create_lower_func("FloatToBFloat16_wrapper"), "Cast", "llvm",
-                "bfloat", "float")
-    register_op(create_lower_func("BFloat16ToFloat_wrapper"), "Cast", "llvm",
-                "float", "bfloat")
-    register_op(create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
-                "bfloat")
-    register_op(create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
-                "llvm", "bfloat")
-
+    register_op(
+        create_lower_func("FloatToBFloat16_wrapper"), "Cast",
+        "llvm", "bfloat", "float")
+    register_op(
+        create_lower_func("BFloat16ToFloat_wrapper"), "Cast",
+        "llvm", "float", "bfloat")
+    register_op(
+        create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
+        "bfloat")
+    register_op(
+        create_lower_func("BFloat16Sub_wrapper"), "Sub", "llvm",
+        "bfloat")
+    register_op(
+        create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
+        "llvm", "bfloat")
+    register_op(
+        create_lower_func("BFloat16Mul_wrapper"), "Mul", "llvm",
+        "bfloat")
+    register_op(
+        create_lower_func("BFloat16Div_wrapper"), "Div", "llvm",
+        "bfloat")
+    register_op(
+        create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
+        "bfloat")
 
 def test_change_dtype_inception_v3():
     setup()
@@ -60,7 +75,7 @@ def test_change_dtype_inception_v3():
         ex = relay.create_executor()
         params = dict(
             (p, convert_ndarray(dst, params[p], ex)) for p in params)
-        return module, params
+        return expr, params
 
     src_dtype = 'float32'
     dst_dtype = 'custom[bfloat]16'

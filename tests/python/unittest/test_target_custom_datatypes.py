@@ -93,6 +93,7 @@ def test_bfloat_add_and_cast_1():
 
     built_cast(x, y, z)
 
+    print(z)
     assert np.array_equal(z_expected, z.asnumpy())
 
 
