@@ -1009,7 +1009,8 @@ inline TVMType String2TVMType(std::string s) {
     t.lanes = 1;
     return t;
   } else if (s.substr(0, 6) == "custom") {
-    // TODO(gus): too much hardcoding here.
+    // TODO(gus) this should be separated out into its own parsing function and cleaned up, or
+    // replaced by a regex.
     scan = s.c_str() + 6;
     if (*scan != '[')
       LOG(FATAL) << "expected opening brace after 'custom' type in" << s;
