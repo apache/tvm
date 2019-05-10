@@ -487,6 +487,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fdevice.size(); ++i) {
     auto func = fdevice[i];
     func = ir::LowerIntrin(func, target->target_name);
+    func = ir::LowerCustomDatatypes(func, target->target_name);
     fdevice.Set(i, func);
   }
 
@@ -507,6 +508,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::LowerIntrin(func, target_host->target_name);
+    func = ir::LowerCustomDatatypes(func, target_host->target_name);
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }
