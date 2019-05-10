@@ -768,6 +768,24 @@ def test_schedule():
 
     # Test loop binds
 
+def test_capture():
+    n = 8
+
+    constant_tuple = (10, n)
+    constant_list = [[1, 2], [3, n]]
+    const_value = 1
+
+    @tvm.hybrid.script
+    def add_something(a):
+        c = output_tensor((constant_tuple[1],), 'int32')
+        for i in range(constant_tuple[1]):
+            c[i] = a[i] + constant_list[1][const_value]
+        return c
+
+    a = tvm.placeholder((n, ), dtype='int32', name='a')
+
+    func, ins, outs = run_and_check(add_something, [a])
+    run_and_check(func, ins, outs=outs)
 
 if __name__ == "__main__":
     test_outer_product()
@@ -786,5 +804,6 @@ if __name__ == "__main__":
     test_bool()
     test_const_range()
     test_schedule()
+    test_capture()
     # TODO:
     # test_inplace()
