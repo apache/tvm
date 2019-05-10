@@ -20,7 +20,6 @@ from __future__ import absolute_import
 import warnings
 
 import topi
-from tvm import relay
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig
 from .quantize import _conv_counter, _set_conv_counter
@@ -189,7 +188,7 @@ def dense_rewrite(ref_call, new_args, ctx):
         return None
     if current_qconfig().skip_conv_layers is not None:
         leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if (cnt - 1) in leave_alone_indices:
+        if cnt - 1 in leave_alone_indices:
             return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
@@ -213,7 +212,7 @@ def multiply_rewrite(ref_call, new_args, ctx):
         return None
     if current_qconfig().skip_conv_layers is not None:
         leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if (cnt - 1) in leave_alone_indices:
+        if cnt - 1 in leave_alone_indices:
             return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
@@ -240,7 +239,7 @@ def add_rewrite(ref_call, new_args, ctx):
         return None
     if current_qconfig().skip_conv_layers is not None:
         leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if (cnt - 1) in leave_alone_indices:
+        if cnt - 1 in leave_alone_indices:
             return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
@@ -273,7 +272,7 @@ def identity_rewrite(ref_call, new_args, ctx):
         return None
     if current_qconfig().skip_conv_layers is not None:
         leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if (cnt - 1) in leave_alone_indices:
+        if cnt - 1 in leave_alone_indices:
             return None
 
     x_expr, x_kind = _get_expr_kind(new_args[0])
@@ -296,7 +295,7 @@ def pool2d_rewrite(ref_call, new_args, ctx):
         return None
     if current_qconfig().skip_conv_layers is not None:
         leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if (cnt - 1) in leave_alone_indices:
+        if cnt - 1 in leave_alone_indices:
             return None
 
     expr, x_kind = _get_expr_kind(new_args[0])
@@ -320,7 +319,7 @@ def concatenate_rewrite(ref_call, new_args, ctx):
         return None
     if current_qconfig().skip_conv_layers is not None:
         leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if (cnt - 1) in leave_alone_indices:
+        if cnt - 1 in leave_alone_indices:
             return None
 
     input_tuple = new_args[0]
