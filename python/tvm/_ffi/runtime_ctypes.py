@@ -95,7 +95,7 @@ class TVMType(ctypes.Structure):
             low, high = head.find('['), head.find(']')
             if not low or not high or low >= high:
                 raise ValueError("Badly formatted custom type string %s" % type_str)
-            type_name = head[low+1:high]
+            type_name = head[low + 1:high]
             self.type_code = _api_internal._datatype_get_type_code(type_name)
             head = head[high+1:]
         else:
