@@ -26,14 +26,14 @@ class PyVariableUsage(ast.NodeVisitor):
     """The vistor class to determine the declaration, r/w status, and last use of each variable"""
     #pylint: disable=invalid-name
     #pylint: disable=missing-docstring
-    def __init__(self, args, symbols):
+    def __init__(self, args, symbols, closure_vars):
         self.status = {}
         self.scope_level = []
         self._args = {}
         self.args = args
         self.aug_assign_ = False
         self.symbols = symbols
-
+        self.closure_vars = closure_vars
 
     def visit_FunctionDef(self, node):
         self.scope_level.append(node)
@@ -89,6 +89,14 @@ class PyVariableUsage(ast.NodeVisitor):
                          "Iter var cannot be overwritten")
 
         if node.id not in self.status.keys():
+            # It is a captured value in closure
+            if node.id in self.closure_vars:
+                try:
+                    ast.literal_eval(str(self.closure_vars[node.id]))
+                except ValueError:
+                    raise ValueError("Only support capturing constant values in closure")
+                return
+
             _internal_assert(isinstance(node.ctx, ast.Store), \
                              'Undeclared variable %s' % node.id)
             if self.aug_assign_:
@@ -102,8 +110,8 @@ class PyVariableUsage(ast.NodeVisitor):
             self.status[node.id] = (decl, loop, usage)
 
 
-def determine_variable_usage(root, args, symbols):
+def determine_variable_usage(root, args, symbols, closure_vars):
     """The helper function for calling the dedicated visitor."""
-    visitor = PyVariableUsage(args, symbols)
+    visitor = PyVariableUsage(args, symbols, closure_vars)
     visitor.visit(root)
     return visitor.status
