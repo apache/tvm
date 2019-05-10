@@ -118,6 +118,13 @@ Instruction::Instruction(const Instruction& instr) {
   }
 }
 
+template<typename T>
+static inline void FreeIf(T* t) {
+  if (t != nullptr) {
+    delete t;
+  }
+}
+
 Instruction& Instruction::operator=(const Instruction& instr) {
   this->op = instr.op;
   this->dst = instr.dst;
@@ -141,27 +148,32 @@ Instruction& Instruction::operator=(const Instruction& instr) {
     case Opcode::AllocDatatype:
       this->constructor_tag = instr.constructor_tag;
       this->num_fields = instr.num_fields;
+      FreeIf(this->datatype_fields);
       this->datatype_fields = Duplicate<RegName>(instr.datatype_fields, instr.num_fields);
       return *this;
     case Opcode::AllocClosure:
       this->clo_index = instr.clo_index;
       this->num_freevar = instr.num_freevar;
+      FreeIf(this->free_vars);
       this->free_vars = Duplicate<RegName>(instr.free_vars, instr.num_freevar);
       return *this;
     case Opcode::InvokePacked:
       this->packed_index = instr.packed_index;
       this->arity = instr.arity;
       this->output_size = instr.output_size;
+      FreeIf(this->packed_args);
       this->packed_args = Duplicate<RegName>(instr.packed_args, instr.arity);
       return *this;
     case Opcode::InvokeClosure:
       this->closure = instr.closure;
       this->closure_args_num = instr.closure_args_num;
+      FreeIf(this->closure_args);
       this->closure_args = Duplicate<RegName>(instr.closure_args, instr.closure_args_num);
       return *this;
     case Opcode::Invoke:
       this->func_index = instr.func_index;
       this->num_args = instr.num_args;
+      FreeIf(this->invoke_args_registers);
       this->invoke_args_registers = Duplicate<RegName>(instr.invoke_args_registers, instr.num_args);
       return *this;
     case Opcode::If:

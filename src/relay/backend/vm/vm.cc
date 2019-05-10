@@ -112,10 +112,17 @@ TVM_REGISTER_API("relay._vm._ObjectTag").set_body([](TVMArgs args, TVMRetValue* 
   *ret = ToString(obj->tag);
 });
 
-// TVM_REGISTER_API("relay._vm._Datatype")
-// .set_body([](TVMArgs args, TVMRetValue* ret) {
-//     *ret = DatatypeObj(args[0]);
-// });
+TVM_REGISTER_API("relay._vm._Datatype")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    int itag = args[0];
+    size_t tag = static_cast<size_t>(itag);
+    std::vector<Object> fields;
+    for (size_t i = 1; i < args.size(); i++) {
+      fields.push_back(args[i]);
+    }
+
+    *ret = Object::Datatype(tag, fields);
+});
 
 TVM_REGISTER_API("relay._vm._evaluate_vm").set_body([](TVMArgs args, TVMRetValue* ret) {
   NodeRef to_compile = args[0];
@@ -143,7 +150,7 @@ TVM_REGISTER_API("relay._vm._evaluate_vm").set_body([](TVMArgs args, TVMRetValue
   }
 
   auto result = EvaluateModule(module, {ctx}, vm_args);
-  DLOG(INFO) << "Returning results\n";
+  DLOG(INFO) << "Evaluate VM returning: result=" << result->tag;
   *ret = VMToValue(module, return_type, result);
 });
 
