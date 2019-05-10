@@ -17,6 +17,7 @@
 """Utility for converting Relay code into a Python script with equivalent semantics"""
 import ast
 from ast import alias, Assign, Load, Name, NameConstant, Num, Return, Store, Str
+import numpy
 import re
 
 import astor
@@ -30,10 +31,12 @@ OUTPUT_VAR_NAME = '_py_out'
 MODULE_NAME = '_mod'
 
 # corresponds to:
+#     import numpy
 #     import tvm
 #     from tvm import relay
 #     from tvm.relay.backend.interpreter import RefValue, TupleValue, TensorValue, ConstructorValue
 PROLOGUE = [
+    ast.Import([alias('numpy', None)]),
     ast.Import([alias('tvm', None)]),
     ast.ImportFrom('tvm', [alias('relay', None)], 0),
     ast.ImportFrom('tvm.relay.backend.interpreter',
@@ -105,7 +108,7 @@ class PythonConverter(ExprFunctor):
 
     # generates a unique variable name starting from the hint
     def generate_var_name(self, name_hint: str):
-        if not check_safe_name(name_hint):
+        if not self.check_safe_name(name_hint):
             raise Exception('Name hint contains invalid characters: {}'.format(name_hint))
         name = '{}_var_{}'.format(name_hint, self.var_no)
         self.var_no += 1
@@ -114,7 +117,7 @@ class PythonConverter(ExprFunctor):
 
     # generates a unique function name starting from the hint
     def generate_function_name(self, name_hint: str):
-        if not check_safe_name(name_hint):
+        if not self.check_safe_name(name_hint):
             raise Exception('Name hint contains invalid characters: {}'.format(name_hint))
         name = '{}_fun_{}'.format(name_hint, self.fun_no)
         self.fun_no += 1
@@ -232,7 +235,7 @@ class PythonConverter(ExprFunctor):
             func_name,
             ast.arguments([ast.arg(argument, None)
                            for argument in arguments],
-                          None, [], None, [], []),
+                          None, [], [], None, []),
             body, [], None)
 
 
@@ -463,24 +466,24 @@ class PythonConverter(ExprFunctor):
         # we translate the let binding as a function that we call with the value we intend to bind.
         # Yes, this is somewhat ugly.
         '''
-        let var = body in value
+        let var = value in body
         =======================
         def let_thunk(var):
-            return value
-        let_thunk(body)
+            return body
+        let_thunk(value)
         '''
-        value_body, value_defs = self.visit(letexp.value)
+        bind_body, bind_defs = self.visit(letexp.body)
 
         func_name = self.generate_function_name('_let_func')
         binding_func = self.create_def(func_name, [self.get_var_name(letexp.var)],
-                                       value_defs + [Return(value_body)])
+                                       bind_defs + [Return(bind_body)])
 
         # we call the binding func with the intended value for the bound variable
-        bind_body, bind_defs = self.visit(letexp.body)
-        bind_defs.append(binding_func)
-        binding_call = self.create_call(func_name, [bind_body])
+        value_body, value_defs = self.visit(letexp.value)
+        value_defs.append(binding_func)
+        binding_call = self.create_call(func_name, [value_body])
 
-        return (binding_call, bind_defs)
+        return (binding_call, value_defs)
 
 
     def visit_tuple(self, tup: Expr):

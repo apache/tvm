@@ -17,11 +17,48 @@
 import tvm
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
-from tvm.relay.prelude import Prelude
-from tvm.relay.backend.interpreter import TensorValue, TupleValue, ConstructorValue, RefValue
 
 def test_create_empty_tuple():
     empty = relay.Tuple([])
     tup_val = run_as_python(empty)
     assert isinstance(tup_val, TupleValue)
     assert len(tup_val.fields) == 0
+
+
+def test_create_scalar():
+    scalar = relay.const(1)
+    tensor_val = run_as_python(scalar)
+    assert isinstance(tensor_val, TensorValue)
+    assert tensor_val.data.asnumpy() == 1
+
+
+def test_create_nested_tuple():
+    relay_tup = relay.Tuple([
+        relay.const(1), relay.const(2),
+        relay.Tuple([
+            relay.const(3),
+            relay.const(4)
+        ])
+    ])
+    tup_val = run_as_python(relay_tup)
+    assert isinstance(tup_val, TupleValue)
+    assert len(tup_val.fields) == 3
+    for i in range(2):
+        assert isinstance(tup_val.fields[i], TensorValue)
+        assert tup_val.fields[i].data.asnumpy() == i + 1
+    assert isinstance(tup_val.fields[2], TupleValue)
+    for i in range(2):
+        assert isinstance(tup_val.fields[2].fields[i], TensorValue)
+        assert tup_val.fields[2].fields[i].data.asnumpy() == i + 3
+
+
+def test_create_let():
+    v = relay.Var('v')
+    let = relay.Let(v, relay.Tuple([]), relay.Tuple([v, v]))
+    tup_val = run_as_python(let)
+    assert isinstance(tup_val, TupleValue)
+    assert len(tup_val).fields == 2
+    assert isinstance(tup_val.fields[0], TupleValue)
+    assert len(tup_val.fields[0].fields) == 0
+    assert isinstance(tup_val.fields[1], TupleValue)
+    assert len(tup_val.fields[1].fields) == 0
