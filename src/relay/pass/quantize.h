@@ -141,7 +141,7 @@ class QConfigNode : public Node {
     v->Visit("dtype_activation", &dtype_activation);
     v->Visit("global_scale", &global_scale);
     v->Visit("skip_k_conv", &skip_k_conv);
-	v->Visit("skip_conv_layers", &skip_conv_layers);
+    v->Visit("skip_conv_layers", &skip_conv_layers);
     v->Visit("round_for_shift", &round_for_shift);
     v->Visit("store_lowbit_output", &store_lowbit_output);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
