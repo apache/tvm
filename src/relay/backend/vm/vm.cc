@@ -117,7 +117,7 @@ TVM_REGISTER_API("relay._vm._Datatype")
     int itag = args[0];
     size_t tag = static_cast<size_t>(itag);
     std::vector<Object> fields;
-    for (size_t i = 1; i < args.size(); i++) {
+    for (int i = 1; i < args.size(); i++) {
       fields.push_back(args[i]);
     }
 

@@ -326,7 +326,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     return Instruction::AllocTensor(last_register, dltype, NewRegister());
   }
 
-  void EmitInvokePrimitive(const Function& func, const std::vector<Index>& args_registers,
+  void EmitInvokePrimitive(const Function& func, std::vector<Index> args_registers,
                            const Type& ret_type) {
     std::vector<Instruction> allocs;
     size_t return_num = 0;
