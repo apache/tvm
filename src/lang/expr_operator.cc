@@ -27,6 +27,7 @@
 #include <cmath>
 // Centralized header for constant folders.
 #include "../arithmetic/const_fold.h"
+#include "../codegen/datatype/registry.h"
 
 namespace tvm {
 
@@ -58,7 +59,9 @@ void BinaryOpMatchTypes(Expr& lhs, Expr& rhs) {  // NOLINT(*)
   if (!lhs.type().is_float() && rhs.type().is_float()) {
     // int->float
     lhs = cast(rhs.type(), lhs);
-  } else if (lhs.type().is_float() && !rhs.type().is_float()) {
+  } else if ((lhs.type().is_float() ||
+              datatype::Registry::Global()->GetTypeRegistered(lhs.type().code())
+              ) && !rhs.type().is_float()) {
     // int->float
     rhs = cast(lhs.type(), rhs);
   } else if ((lhs.type().is_int() && rhs.type().is_int()) ||
