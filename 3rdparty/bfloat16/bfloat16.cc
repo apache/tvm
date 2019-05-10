@@ -60,11 +60,7 @@ void BFloat16Add(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t siz
 }
 
 extern "C" {
-TVM_DLL uint16_t FloatToBFloat16_wrapper(float in);
-TVM_DLL float BFloat16ToFloat_wrapper(uint16_t in);
-TVM_DLL uint16_t BFloat16Add_wrapper(uint16_t a, uint16_t b);
-
-uint16_t FloatToBFloat16_wrapper(float in) {
+TVM_DLL uint16_t FloatToBFloat16_wrapper(float in) {
   uint16_t out;
   FloatToBFloat16(&in, &out, 1);
   return out;
