@@ -259,8 +259,8 @@ def _elemwise(name):
             params = args[0]
             if inputs[0].name_hint in params.keys() and inputs[1].name_hint in params.keys():
                 # Both inputs are defined and can be used for numpy.
-                in0 = params.pop(inputs[0].name_hint).asnumpy()
-                in1 = params.pop(inputs[1].name_hint).asnumpy()
+                in0 = params[inputs[0].name_hint].asnumpy()
+                in1 = params[inputs[1].name_hint].asnumpy()
                 np_op = _get_numpy_op(name)
                 output = np_op(in0, in1)
                 return output
@@ -493,8 +493,7 @@ def _resize_bilinear():
         # Need to handle constant shape inputs to determine output shape.
         if type(inputs[1]) == tvm.relay.expr.Var:
             if inputs[1].name_hint in params.keys():
-                #attr['_output_shapes'][0] = list(params.pop(inputs[1].name_hint).asnumpy())
-                H_out, W_out = list(params.pop(inputs[1].name_hint).asnumpy())
+                H_out, W_out = list(params[inputs[1].name_hint].asnumpy())
                 attr["_output_shapes"][0][1] = H_out
                 attr["_output_shapes"][0][2] = W_out
 
@@ -639,8 +638,6 @@ def _reshape():
                 ignores=['Tshape'])(inputs, attr)
     return _impl
 
-
-# Currently only supports NHWC, TODO add NCHW support.
 def _depth_to_space():
     def _impl(inputs, attr, params):
         # Need to handle data layouts differently.
@@ -675,7 +672,6 @@ def _depth_to_space():
             ignores=['data_format', 'block_size'])([transposed], attr)
 
     return _impl
-
 
 def _bias_add():
     def _impl(inputs, attr, params):
