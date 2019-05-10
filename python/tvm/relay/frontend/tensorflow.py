@@ -254,6 +254,7 @@ def _argx(func, func_name):
 def _elemwise(name):
     def _impl(inputs, attr, *args):
         assert len(inputs) == 2, "{} take 2 inputs, {} given".format(name, len(inputs))
+
         # Figure out if inputs are constants or not. If so, evaluate using numpy.
         if type(inputs[0]) == tvm.relay.expr.Var and type(inputs[1]) == tvm.relay.expr.Var:
             params = args[0]
@@ -264,8 +265,8 @@ def _elemwise(name):
                 np_op = _get_numpy_op(name)
                 output = np_op(in0, in1)
                 return output
-        else:
-            return _get_relay_op(name)(*inputs)
+
+        return _get_relay_op(name)(*inputs)
     return _impl
 
 def _pooling(name):
@@ -1933,7 +1934,7 @@ class GraphProto(object):
                 else:
                     op = self._convert_operator(node.op, inputs, attr, graph)
 
-                # Check if op is converted to param Why convert to param? Shouldnt it just be a constant?
+                # Check if op is converted to param
                 if isinstance(op, np.ndarray):
                     self._params[node.name] = tvm.nd.array(op)
                     op = [_expr.var(node.name,
