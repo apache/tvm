@@ -411,7 +411,7 @@ def run_fusible_network(dev, tgt):
                      expected_index)
 
     def test_fallback_all_operators(device, tgt):
-        target = {device: tgt}
+        target = {device: tgt, "cpu": "llvm"}
         annotated_func = get_func()
         expected_func = get_func()
         check_annotated_graph(annotated_func, expected_func)
