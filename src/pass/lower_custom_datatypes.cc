@@ -96,6 +96,19 @@ class CustomDatatypesLowerer : public IRMutator {
     return expr;
   }
 
+  inline Expr Mutate_(const Call* call, const Expr& e) final {
+    // I'm actually unsure as to what makes sense when lowering a call of a custom datatype.
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(call->type.code());
+    Expr expr = IRMutator::Mutate_(call, e);
+    call = expr.as<Call>();
+    if (toBeLowered) {
+      auto new_call_type = UInt(call->type.bits(), call->type.lanes());
+      return Call::make(new_call_type, call->name, call->args, call->call_type, call->func,
+                        call->value_index);
+    }
+    return e;
+  }
+
 #define DEFINE_MUTATE__(OP)                                                        \
   inline Expr Mutate_(const OP* op, const Expr& e) final {                         \
     auto type_code = op->type.code();                                              \
