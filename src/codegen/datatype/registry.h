@@ -51,10 +51,7 @@ class Registry {
   /*!
    * \brief Get the global custom datatype registry singleton
    */
-  static inline Registry *Global() {
-    static Registry inst;
-    return &inst;
-  }
+  static Registry* Global();
 
   /*!
    * \brief Register custom datatype

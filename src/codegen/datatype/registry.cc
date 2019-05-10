@@ -39,6 +39,11 @@ TVM_REGISTER_GLOBAL("_datatype_get_type_registered").set_body([](TVMArgs args, T
   *ret = Registry::Global()->GetTypeRegistered(args[0].operator int());
 });
 
+Registry* Registry::Global() {
+  static Registry inst;
+  return &inst;
+}
+
 void Registry::Register(const std::string& type_name, uint8_t type_code) {
   CHECK(type_code >= kCustomBegin) << "Please choose a type code >= kCustomBegin for custom types";
   code_to_name_[type_code] = type_name;
