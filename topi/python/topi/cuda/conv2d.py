@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name
 """Compute definition for conv2d with cuda backend"""
 import tvm
-import topi
 from tvm import autotvm
 from tvm.contrib import cudnn
 
