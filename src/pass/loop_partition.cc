@@ -389,20 +389,7 @@ LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
   for (const auto &kv : partitions) {
     if (kv.first.second == cond_value) {
       arith::Interval interval = kv.second.as<arith::IntervalSet>()->i;
-      auto intersection = arith::Interval::make_intersection(interval, for_interval);
-
-      // TODO(derisavi): the following if statement needs to be removed as soon as
-      // TVM uses commit a768f2f0 of HalideIR repo
-      if (intersection.min.same_as(arith::Interval::pos_inf) ||
-          intersection.max.same_as(arith::Interval::neg_inf)) {
-        intersection = arith::Interval::nothing();
-      } else if (intersection.min.type() == intersection.max.type() &&
-                 (intersection.min.type().is_int() ||
-                  intersection.min.type().is_uint()) &&
-                 can_prove(intersection.min > intersection.max)) {
-        intersection = arith::Interval::nothing();
-      }
-
+      arith::Interval intersection = arith::Interval::make_intersection(interval, for_interval);
       if (!intersection.is_empty()) {
         sets.push_back(kv.second);
         cond_set.insert(kv.first.first);
