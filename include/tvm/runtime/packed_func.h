@@ -61,9 +61,25 @@ class Integer;
 
 namespace runtime {
 
-// Datatype utilities needed at runtime. See src/runtime/custom_datatype_util.cc.
+/*!
+ * \brief Runtime utility for getting custom type name from code
+ * \param type_code Custom type code
+ * \return Custom type name
+ */
 TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
+
+/*!
+  * \brief Runtime utility for getting custom type code from name
+  * \param type_name Custom type name
+  * \return Custom type code
+  */
 TVM_DLL uint8_t GetCustomTypeCode(const std::string& type_name);
+
+  /*!
+   * \brief Runtime utility for checking whether custom type is registered
+   * \param type_code Custom type code
+   * \return Bool representing whether type is registered
+   */
 TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
 
 // forward declarations
