@@ -601,52 +601,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
     return func;
   }
-  /*!
-   * \brief Build module given lowered functions for each target
-   *
-   * \param lowered_funcs target_str -> Array<LoweredFunc> map
-   * \param targets Targets map
-   * \param cfg Building configuration
-   */
-  void BuildModule(const Map<std::string, Array<LoweredFunc> >& lowered_funcs,
-                   const Map<HalideIR::Expr, HalideIR::Expr>& targets,
-                   const BuildConfig& cfg) {
-    auto target_host = Target::create(cfg_.fallback_device);
-    for (const auto& kv : lowered_funcs) {
-      std::unordered_set<std::string> fname_set;
-      for (auto f : kv.second) {
-        if (fname_set.count(f->name)) {
-          LOG(FATAL) << "Duplicate function name "
-                     << f->name;
-        }
-        fname_set.insert(f->name);
-      }
-    }
-    std::unordered_map<std::string, Target> target_map;
-    for (const auto& kv : lowered_funcs) {
-      target_map[kv.first] = Target::create(kv.first);
-    }
-    Array<LoweredFunc> fhost_all;
-    std::vector<runtime::Module> device_module;
-    for (const auto& kv : lowered_funcs) {
-      auto target = target_map[kv.first];
-      auto host_dev_funcs = split_dev_host_funcs(kv.second, target, target_host, cfg);
-      for (auto f : host_dev_funcs[0]) {
-        fhost_all.push_back(f);
-      }
-      if (host_dev_funcs[1].size()) {
-        auto mdev = codegen::Build(host_dev_funcs[1], target->str());
-        device_module.push_back(mdev);
-      }
-    }
-
-    auto mhost = codegen::Build(fhost_all, target_host->str());
-
-    for (auto mdev : device_module) {
-      mhost.Import(mdev);
-    }
-    ret_.mod = mhost;
-  }
 
   /*!
    * \brief Build relay function to runtime module
@@ -686,9 +640,8 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    BuildModule(graph_codegen_->GetLoweredFunc(),
-                device_target,
-                tvm_cfg_);
+    auto target_host = Target::create(target_host_);
+    ret_.mod = tvm::build(graph_codegen_->GetLoweredFunc(), target_host, tvm_cfg_);
   }
 
  protected:

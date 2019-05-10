@@ -89,7 +89,7 @@ def test_build():
         tgt: tgt
     }
     m_bld.set_opt_level(3)
-    m_bld.build(func, targets, "llvm -mcpu=sse3", params=params)
+    m_bld.build(func, targets, "llvm", params=params)
     g_json = m_bld.get_json()
     mmod = m_bld.get_module()
     params = m_bld.get_params()

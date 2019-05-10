@@ -371,6 +371,35 @@ TVM_DLL runtime::Module build(const Array<LoweredFunc>& funcs,
                               const Target& target_host,
                               const BuildConfig& config);
 
+/*!
+ * \brief Build a device and host module for a specific target from a map
+ * contains target to a list of lowered functions pairs. This function is used
+ * for heterogeneous build.
+ * \param input The map contains target to a list of lowered functions pairs.
+ * \param target_host The target for building host code. To use the default,
+ *        pass Target().
+ * \param config The build configuration.
+ * \return The built module that contains code for different processors.
+ */
+TVM_DLL runtime::Module build(const Map<Target, Array<LoweredFunc>>& input,
+                              const Target& target_host,
+                              const BuildConfig& config);
+
+/*!
+ * \brief Build a device and host module for a specific target from a map
+ * contains target to a list of lowered functions pairs. This function is used
+ * for heterogeneous build.
+ * \param input The map contains target string to a list of lowered functions
+ *        pairs.
+ * \param target_host The target for building host code. To use the default,
+ *        pass Target().
+ * \param config The build configuration.
+ * \return The built module that contains code for different processors.
+ */
+TVM_DLL runtime::Module build(const Map<std::string, Array<LoweredFunc>>& input,
+                              const Target& target_host,
+                              const BuildConfig& config);
+
 class GenericFuncNode;
 
 /*!
