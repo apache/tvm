@@ -27,6 +27,7 @@
 #ifndef TVM_RELAY_PASS_PATTERN_UTIL_H_
 #define TVM_RELAY_PASS_PATTERN_UTIL_H_
 
+#include <tvm/runtime/registry.h>
 #include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
@@ -42,39 +43,42 @@ namespace relay {
  * \brief Dispatch DataType to the C++ data type
  *  during runtime.
  */
-#define TVM_DTYPE_DISPATCH(type, DType, ...)            \
-  if (type == Float(64)) {                              \
-    typedef double DType;                               \
-    {__VA_ARGS__}                                       \
-  } else if (type == Float(32)) {                       \
-    typedef float DType;                                \
-    {__VA_ARGS__}                                       \
-  } else if (type == Int(64)) {                         \
-    typedef int64_t DType;                              \
-    {__VA_ARGS__}                                       \
-  } else if (type == Int(32)) {                         \
-    typedef int32_t DType;                              \
-    {__VA_ARGS__}                                       \
-  } else if (type == Int(16)) {                         \
-    typedef int16_t DType;                              \
-    {__VA_ARGS__}                                       \
-  } else if (type == Int(8)) {                          \
-    typedef int8_t DType;                               \
-    {__VA_ARGS__}                                       \
-  } else if (type == UInt(64)) {                        \
-    typedef uint64_t DType;                             \
-    {__VA_ARGS__}                                       \
-  } else if (type == UInt(32)) {                        \
-    typedef uint32_t DType;                             \
-    {__VA_ARGS__}                                       \
-  } else if (type == UInt(16)) {                        \
-    typedef uint16_t DType;                             \
-    {__VA_ARGS__}                                       \
-  } else if (type == UInt(8)) {                         \
-    typedef uint8_t DType;                              \
-    {__VA_ARGS__}                                       \
-  } else {                                              \
-    LOG(FATAL) << "unknown data type " << type;         \
+#define TVM_DTYPE_DISPATCH(type, DType, ...)                                                 \
+  if (type == Float(64)) {                                                                   \
+    typedef double DType;                                                                    \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == Float(32)) {                                                            \
+    typedef float DType;                                                                     \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == Int(64)) {                                                              \
+    typedef int64_t DType;                                                                   \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == Int(32)) {                                                              \
+    typedef int32_t DType;                                                                   \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == Int(16)) {                                                              \
+    typedef int16_t DType;                                                                   \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == Int(8)) {                                                               \
+    typedef int8_t DType;                                                                    \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == UInt(64)) {                                                             \
+    typedef uint64_t DType;                                                                  \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == UInt(32)) {                                                             \
+    typedef uint32_t DType;                                                                  \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == UInt(16)) {                                                             \
+    typedef uint16_t DType;                                                                  \
+    { __VA_ARGS__ }                                                                          \
+  } else if (type == UInt(8)) {                                                              \
+    typedef uint8_t DType;                                                                   \
+    { __VA_ARGS__ }                                                                          \
+  } else if ((*tvm::runtime::Registry::Get("_datatype_get_type_registered"))(static_cast<uint8_t>(type.code()))) { \
+    typedef double DType;                                                                    \
+    { __VA_ARGS__ }                                                                          \
+  } else {                                                                                   \
+    LOG(FATAL) << "unknown data type " << type;                                              \
   }
 
 /*!
