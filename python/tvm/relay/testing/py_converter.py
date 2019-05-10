@@ -232,7 +232,7 @@ class PythonConverter(ExprFunctor):
         body = [
             Assign(
                 Name(name, Store()),
-                ast.Call(self.parse_name('relay.var'), [Str(name)]))
+                ast.Call(self.parse_name('relay.var'), [Str(name)], []))
             for name in var_names
         ]
 
@@ -272,7 +272,7 @@ class PythonConverter(ExprFunctor):
         # reference to type var: mod.get_global_type_var({var name})
         # reference to constructor object: mod[{type_var}].constructors[{index}]
         type_var_ref = ast.Call(self.parse_name('{}.get_global_type_var').format(MODULE_NAME),
-                                [Str(type_name)])
+                                [Str(type_name)]. [])
         type_data_ref = ast.Subscript(Name(MODULE_NAME, Load()),
                                       ast.Index(type_var_ref),
                                       Load())
@@ -457,7 +457,7 @@ class PythonConverter(ExprFunctor):
 
         value = constant.data.asnumpy()
         const_expr = ast.Call(self.parse_name('numpy.array'),
-                              [self.parse_numpy_array(value)])
+                              [self.parse_numpy_array(value)], [])
         return (self.create_call('TensorValue', [const_expr]), [])
 
 
