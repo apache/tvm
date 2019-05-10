@@ -35,6 +35,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/data_layout.h>
 
 #include <limits>
@@ -85,6 +86,10 @@ namespace relay {
   } else if (type == DataType::UInt(8)) {       \
     typedef uint8_t DType;                      \
     { __VA_ARGS__ }                             \
+  } else if ((*tvm::runtime::Registry::Get("_datatype_get_type_registered"))( \
+                 static_cast<uint8_t>(type.code()))) {                        \
+    typedef double DType;                                                     \
+    { __VA_ARGS__ }                                                           \
   } else {                                      \
     LOG(FATAL) << "unknown data type " << type; \
   }
