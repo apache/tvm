@@ -48,20 +48,53 @@ namespace datatype {
  */
 class Registry {
  public:
+  /*!
+   * \brief Get the global custom datatype registry singleton
+   */
   static inline Registry *Global() {
     static Registry inst;
     return &inst;
   }
 
-  void Register(const std::string &type_name, uint8_t type_code);
+  /*!
+   * \brief Register custom datatype
+   * Register a custom datatype with the given type name and type code. Currently, the type code is
+   * manually allocated by the user, and the user must ensure that no two custom types share the
+   * same code. Generally, this should be straightforward, as the user will be manually registering
+   * all of their custom types.
+   * \param type_name The name of the type, e.g. "bfloat"
+   * \param type_code The type code, which should be greater than TVMTypeCode::kExtEnd
+   */
+  void Register(const std::string& type_name, uint8_t type_code);
 
+  /*!
+   * \brief Get type code from type name
+   * \param type_name The type name
+   * \return The type code
+   */
   uint8_t GetTypeCode(const std::string &type_name);
 
+  /*!
+   * \brief Get type name from type code
+   * \param type_code The type code
+   * \return The type name
+   */
   std::string GetTypeName(uint8_t type_code);
 
+  /*!
+   * \brief Get bool representing whether type is registered, given the type code
+   * \param type_code The type code
+   * \return bool representing whether the type is registered
+   */
   inline bool GetTypeRegistered(uint8_t type_code) {
     return code_to_name_.find(type_code) != code_to_name_.end();
   }
+
+  /*!
+   * \brief Get bool representing whether type is registered, given the type name
+   * \param type_name The type name
+   * \return bool representing whether the type is registered
+   */
   inline bool GetTypeRegistered(std::string type_name) {
     return name_to_code_.find(type_name) != name_to_code_.end();
   }
@@ -72,16 +105,35 @@ class Registry {
   std::unordered_map<std::string, uint8_t> name_to_code_;
 };
 
-// For the custom datatype specified by type_code, convert the value to this
-// datatype and return the bits within a uint64_t.
+/*!
+ * \brief Convert scalar value to a custom datatype format
+ * \param type_code The custom datatype to convert to, specified by type code
+ * \param value The floating point value to convert
+ * \return The value, encoded in the bits of a uint64_t
+ */
 uint64_t ConvertConstScalar(uint8_t type_code, double value);
 
-const runtime::PackedFunc *GetCastLowerFunc(const std::string &target,
-                                            uint8_t type_code,
+/*!
+ * \brief Get lowering function for Cast ops
+ * \param target The target we are lowering to, e.g. "llvm"
+ * \param type_code The datatype being cast to
+ * \param src_type_code The datatype being cast from
+ */
+const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t type_code,
                                             uint8_t src_type_code);
 
+/*!
+ * \brief Get lowering function for FloatImms
+ * \param target The target we are lowering to, e.g. "llvm"
+ * \param type_code The datatype of the FloatImm
+ */
 const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8_t type_code);
 
+/*!
+ * \brief Get lowering function for other ops
+ * \param target The target we are lowering to, e.g. "llvm"
+ * \param type_code The datatype of the op
+ */
 #define DEFINE_GET_LOWER_FUNC_(OP)                                                       \
   inline const runtime::PackedFunc* Get##OP##LowerFunc(const std::string& target,        \
                                                        uint8_t type_code) {              \
