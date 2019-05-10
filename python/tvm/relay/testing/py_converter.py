@@ -16,25 +16,22 @@
 # under the License.
 """Utility for converting Relay code into a Python script with equivalent semantics"""
 import ast
-from ast import alias, Assign, keyword, Load, Name, NameConstant, Num, Return, Store, Str
+from ast import alias, Assign, Load, Name, NameConstant, Num, Return, Store, Str
 import re
 
 import astor
 from tvm import relay
 from tvm.relay.adt import Constructor, Pattern
+from tvm.relay.backend import compile_engine
 from tvm.relay.expr import Expr, Function
 from tvm.relay.expr_functor import ExprFunctor
 
-INTERPRETER_VAR = '_INTRP'
 OUTPUT_VAR_NAME = '_py_out'
-MODULE_NAME = '_mod'
 
 # corresponds to:
 #     import tvm
 #     from tvm import relay
 #     from tvm.relay.backend.interpreter import RefValue, TupleValue, TensorValue, ConstructorValue
-#     from tvm.relay import create_executor
-#     _INTRP = create_executor(mod=_mod)
 PROLOGUE = [
     ast.Import([alias('tvm', None)]),
     ast.ImportFrom('tvm', [alias('relay', None)], 0),
@@ -43,20 +40,17 @@ PROLOGUE = [
                     alias('TupleValue', None),
                     alias('TensorValue', None),
                     alias('ConstructorValue', None)],
-                   0),
-    ast.ImportFrom('tvm.relay', [alias('create_executor', None)], 0),
-    Assign([Name(INTERPRETER_VAR, Store())],
-           ast.Call(Name('create_executor', Load()),
-                    [], [keyword('mod',
-                                 Name(MODULE_NAME, Load()))]))
+                   0)
 ]
 
 class PythonConverter(ExprFunctor):
     '''Functor for translating Relay programs into Python ASTs.'''
 
-    def __init__(self, mod) -> None:
+    def __init__(self, mod, target) -> None:
         super().__init__()
         self.mod = mod
+        self.tgt = target
+        self.engine = compile_engine.get()
         self.fun_no = 0
         self.var_no = 0
         self.var_map = {}
@@ -69,15 +63,14 @@ class PythonConverter(ExprFunctor):
         The Python AST can be executed using exec(); it can be turned
         into text and inspected using astor.
         '''
-        check = relay.ir_pass.infer_type(prog, self.mod)
-        assert relay.ir_pass.well_formed(check)
+        optimized = self.optimize(prog)
 
         # start with conversion prelude (imports) and convert global defs
         body = []
         body += PROLOGUE
         body += self.convert_module()
 
-        prog_body, extra_defs = self.visit(check)
+        prog_body, extra_defs = self.visit(optimized)
         body += extra_defs
 
         # we finally must assign the final expression to the output var
@@ -85,6 +78,20 @@ class PythonConverter(ExprFunctor):
         body.append(Assign([Name(OUTPUT_VAR_NAME, Store())], prog_body))
 
         return ast.fix_missing_locations(ast.Module(body=body))
+
+
+    def optimize(self, prog: Expr):
+        '''Performs optimizations necessary to be able to generate code for prog.'''
+        check = relay.ir_pass.infer_type(prog, self.mod)
+        assert relay.ir_pass.well_formed(check)
+        # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
+        # and fusion (to get primitive functions)
+        simplify = relay.ir_pass.simplify_inference(expr)
+        simplify_checked = relay.ir_pass.infer_type(simplify, self.mod)
+        fused = relay.ir_pass.fuse_ops(simplify_checked)
+        fused_checked = relay.ir_pass.infer_type(fused, self.mod)
+        assert relay.ir_pass.well_formed(fused_checked)
+        return fused_checked
 
 
     # Only checks that the name does not contain invalid characters
@@ -149,11 +156,9 @@ class PythonConverter(ExprFunctor):
             return Num(attr)
         if isinstance(attr, (list, tuple)):
             return ast.List([self.parse_attr(mem) for mem in attr], Load())
-        if isinstance(attr, str):
-            return Str(attr)
         # this may fail on exotic attributes, but most cases that are
         # not the above are, in fact, strings
-        return Str(repr(attr))
+        return Str(attr)
 
 
     # Given a Numpy array, produces an appropriate Python array
@@ -199,12 +204,14 @@ class PythonConverter(ExprFunctor):
         return (ret, func_name)
 
 
-    # converts all the global functions defined in the module and returns
-    # them as a list of definitions
     def convert_module(self):
+        '''Converts all the global functions defined in the module and returns
+        them as a list of definitions'''
         defs = []
         for var, func in self.mod.functions.items():
-            converted_func, func_name = self.convert_func_node(var.name_hint, func)
+            # optimize the definition so any operators used are lowered
+            opt_func = self.optimize(func)
+            converted_func, func_name = self.convert_func_node(var.name_hint, opt_func)
             defs.append(converted_func)
             # need to add this assignment so references to the global var in the program
             # go to the function!
@@ -228,44 +235,78 @@ class PythonConverter(ExprFunctor):
             body, [], None)
 
 
-    def create_op_call(self, op: Expr, num_args: int, attrs):
-        '''Wraps a call to an operator with an invocation of the interpreter,
-        like in the tests. This is pretty dirty but is the simplest way to
-        invoke operators from Python code'''
+    def create_op_call(self, op: Function, relay_args, py_args):
+        '''Lowers the passed primitive function, registers it in TVM's
+        global compiler, and produces a call to the lowered function in
+        the generated Python code.'''
 
-        arg_names = [self.generate_var_name('_{}_arg_{}'.format(op.name, i))
-                     for i in range(num_args)]
-        var_names = [self.generate_var_name('_{}_var_{}'.format(op.name, i))
-                     for i in range(num_args)]
-        call_name = self.generate_var_name('_{}_call'.format(op.name))
+        # compile the function and register globally
+        cc_key = compile_engine.CCacheKey(func, self.tgt)
+        func_hash = relay.ir_pass.structural_hash(func)
+        op_name = '_lowered_op_{}'.format(func_hash)
+        if not tvm.get_global_func(op_name, allow_missing=True):
+            jitted = self.engine.jit(cc_key, self.tgt)
+            tvm.register_func(op_name, jitted)
 
-        body = [
-            Assign(
-                [Name(name, Store())],
-                self.create_call('relay.var', [Str(name)]))
-            for name in var_names
-        ]
+        # use the types of the function arguments to determine whether we expect
+        # a tensor or tuple (returns list of inputs to the lowered op call)
+        def convert_input(py_input, arg_type):
+            # equivalent: input.data
+            if isinstance(arg_type, relay.TensorType):
+                return [Attribute(py_input, 'data', Load())]
+            assert isinstance(arg_type, relay.TupleType)
+            # convert each input.fields[i]
+            return [
+                convert_input(
+                    ast.Subscript(ast.Attribute(py_input, 'fields', Load()),
+                                  ast.Index(Num(i)), Load()),
+                    type.fields[i])
+                for i in range(len(input_fields))
+            ]
 
-        # equiv: call = relay.op(relay_vars, attr=value)
-        call_assignment = Assign(
-            [Name(call_name, Store())],
-            ast.Call(self.parse_name('relay.' + op.name),
-                     [Name(name, Load()) for name in var_names],
-                     [keyword(key, convert_attr(attrs[key])) for key in attrs.keys()]))
-        body.append(call_assignment)
+        # use the function return type to produce auxiliary variables to store outputs
+        # returns: ([assignments of output vars],
+        #           [extra arguments to pass to op call],
+        #           expression collecting output)
+        def convert_output(ret_type):
+            if isinstance(ret_type, relay.TensorType):
+                output_var_name = self.generate_var_name('_{}_out_var'.format(op_name))
+                output_var = Name(output_var_name, Load())
+                shape = ast.Tuple([dim for dim in type.concrete_shape()], Load())
+                # create a new ND array of the right shape and dtype
+                assign_output = Assign(
+                    [Name(output_var_name, Store())],
+                    self.create_call('numpy.empty', [shape, Str(type.dtype)]))
+                # we pass the data field as an argument
+                extra_arg = ast.Attribute(output_var, 'data', Load())
+                return ([assign_output], [extra_arg], output_var)
+            assert isinstance(ret_type, relay.TupleType)
+            assignments = []
+            extra_args = []
+            fields = []
+            for t in type.fields:
+                inner_assignments, inner_args, inner_output = convert_output(t)
+                assignments += inner_assignments
+                extra_args += inner_args
+                fields.append(inner_output)
+            return (assignments, extra_args, self.create_call('TupleValue', fields))
 
-        # equiv: return _INTRP.evaluate(call, { relay_var : argument })
-        arg_dict = ast.Dict([Name(name, Load()) for name in var_names],
-                            [Name(name, Load()) for name in arg_names])
-        intrp_call = self.create_call(INTERPRETER_VAR, [
-            Name(call_name, Load()),
-            arg_dict
-        ])
-        body.append(Return(intrp_call))
+        # create a function to wrap the call of the lowered op and return
+        # a call to that function
+        wrap_name = self.generate_func_name('_{}_wrapper'.format(op_name))
+        wrap_args = [self.generate_var_name('_{}_wrapper_arg_i'.format(op_name)) for
+                     i in range(len(py_args))]
 
-        func_name = self.generate_function_name('_op_call_{}'.format(op_name))
-        func = self.create_def(func_name, arg_names, body)
-        return (func, func_name)
+        inner_call_args = [convert_input(Name(wrap_args[i], Load()),
+                                         relay_args[i].checked_type)
+                           for i in range(len(py_args))]
+        output_assignments, aux_args, output = convert_output(op.checked_type.ret_type)
+        # equiv: tvm.get_global_func(op_name)
+        op_call = self.create_call('tvm.get_global_func', [Str(op_name)])
+        inner_call = ast.Call(op_call, inner_call_args + aux_args, [])
+        body = output_assignments + [ast.Expression(inner_call), Return(output)]
+        wrap_def = self.create_def(wrap_name, wrap_args, body)
+        return wrap_def, self.create_call(wrap_name, py_args)
 
 
     def create_constructor(self, ctor: Constructor):
@@ -482,10 +523,9 @@ class PythonConverter(ExprFunctor):
         operators, and constructor calls.'''
         func = call.op
         fields, field_defs = self.convert_fields(call.args)
+
         if isinstance(func, relay.Op):
-            op_func, op_call = self.create_op_call(func, len(call.args), call.attrs)
-            defs = [op_func] + field_defs
-            return (self.create_call(op_call, fields), defs)
+            raise Exception('Operators should have been lowered and eliminated')
 
         if isinstance(func, relay.Constructor):
             # produce a constructor value
@@ -493,6 +533,12 @@ class PythonConverter(ExprFunctor):
                                      [self.create_constructor(func),
                                       ast.List(fields, Load())]),
                     field_defs)
+
+        # lowered operator: generate a call to a function that gets the PackedFunc
+        # from TVM's registry
+        if func.attrs and func.attrs.Primitive.value == 1:
+            op_call_def, op_call = self.create_op_call(func, call.args, fields)
+            return (op_call, field_defs + [op_call_def])
 
         # ordinary function
         converted_func, defs = self.visit(func)
@@ -565,19 +611,19 @@ class PythonConverter(ExprFunctor):
         pass
 
 
-def to_python(expr: Expr, mod=relay.Module()) -> str:
+def to_python(expr: Expr, mod=relay.Module(), target='llvm') -> str:
     '''Converts the given Relay expression into a Python script.'''
-    converter = PythonConverter(mod)
+    converter = PythonConverter(mod, target)
     py_ast = converter.convert(expr)
     return astor.to_source(py_ast)
 
 
-def run_as_python(expr: Expr, mod=relay.Module()):
+def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
     '''Converts the given Relay expression into a Python script and
     executes it.'''
-    py_ast = to_python(expr, mod)
+    py_ast = to_python(expr, mod, target)
     code = compile(py_ast, '<string>', 'exec')
-    var_map = {OUTPUT_VAR_NAME : None, MODULE_NAME : mod}
+    var_map = {OUTPUT_VAR_NAME : None}
     #pylint: disable=exec-used
     exec(code, {}, var_map)
     return output_map[OUTPUT_VAR_NAME]
