@@ -143,11 +143,14 @@ class PythonConverter(ExprFunctor):
     # given an attribute to a call node, generates a Python constant
     # corresponding to that attr
     def parse_attr(self, attr):
+        if isinstance(attr, bool):
+            return NameConstant(attr)
         if isinstance(attr, (int, long, float)):
             return Num(attr)
         if isinstance(attr, (list, tuple)):
-            return ast.List([self.parse_attr(mem) for mem in attr],
-                            Load())
+            return ast.List([self.parse_attr(mem) for mem in attr], Load())
+        if isinstance(attr, str):
+            return Str(attr)
         # this may fail on exotic attributes, but most cases that are
         # not the above are, in fact, strings
         return Str(repr(attr))
@@ -247,7 +250,7 @@ class PythonConverter(ExprFunctor):
         call_assignment = Assign(
             [Name(call_name, Store())],
             ast.Call(self.parse_name('relay.' + op.name),
-                     [Name(name, Store()) for name in var_names],
+                     [Name(name, Load()) for name in var_names],
                      [keyword(key, convert_attr(attrs[key])) for key in attrs.keys()]))
         body.append(call_assignment)
 
