@@ -841,12 +841,13 @@ def _stridedSlice():
         # There are certain cases where a stridedslice is actually just picking out a constant.
         # In these cases we treat the output as a constant rather than a function.
         # This is important for the shape inference of other functions.
-        if (inputs[0].name_hint in params.keys() and
-                len(begin) == 1 and len(end) == 1 and len(stride) == 1):
+        if isinstance(inputs[0], tvm.relay.expr.Var):
+            if (inputs[0].name_hint in params.keys() and
+                    len(begin) == 1 and len(end) == 1 and len(stride) == 1):
 
-            input_data = params[inputs[0].name_hint].asnumpy()
-            output_data = input_data[begin[0]:end[0]:stride[0]]
-            return output_data
+                input_data = params[inputs[0].name_hint].asnumpy()
+                output_data = input_data[begin[0]:end[0]:stride[0]]
+                return output_data
 
         def _transform_mask(stride_dim, ellipsis_mask):
             """Handle mask inputs to create new begin, end, stride and output shape"""
