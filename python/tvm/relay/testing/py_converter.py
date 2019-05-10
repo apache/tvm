@@ -36,17 +36,19 @@ MODULE_NAME = '_mod'
 #     from tvm.relay import create_executor
 #     _INTRP = create_executor(mod=_mod)
 PROLOGUE = [
-    ast.Import([alias('tvm')]),
-    ast.ImportFrom('tvm', [alias('relay')]),
+    ast.Import([alias('tvm', None)]),
+    ast.ImportFrom('tvm', [alias('relay', None)], 0),
     ast.ImportFrom('tvm.relay.backend.interpreter',
-                   [alias('RefValue'), alias('TupleValue'),
-                    alias('TensorValue'), alias('ConstructorValue')]),
-    ast.ImportFrom('tvm.relay', [alias('create_executor')]),
-    Assign(Name(INTERPRETER_VAR, ctx=Store()),
-               ast.Call(Name('create_executor', ctx=Load()),
+                   [alias('RefValue', None),
+                    alias('TupleValue', None),
+                    alias('TensorValue', None),
+                    alias('ConstructorValue', None)],
+                   0),
+    ast.ImportFrom('tvm.relay', [alias('create_executor', None)], 0),
+    Assign(Name(INTERPRETER_VAR, Store()),
+               ast.Call(Name('create_executor', Load()),
                         [], [keyword('mod',
-                                     Name(MODULE_NAME),
-                                     ctx=Load())]))
+                                     Name(MODULE_NAME, Load()))]))
 ]
 
 class PythonConverter(ExprFunctor):
@@ -124,7 +126,7 @@ class PythonConverter(ExprFunctor):
     # whether it must appear in an assignment or not
     def include_var(self, var: Expr, assign=False):
         name = self.get_var_name(var)
-        return Name(id=name, ctx=Store() if assign else Load())
+        return Name(name, Store() if assign else Load())
 
 
     # Given the name of a Python method with dots (e.g.,
@@ -132,9 +134,9 @@ class PythonConverter(ExprFunctor):
     # to that name
     def parse_name(self, name: str):
         attributes = name.split('.')
-        ret = Name(attributes[0], ctx=Load())
+        ret = Name(attributes[0], Load())
         for i in range(len(attributes - 1)):
-            ret = ast.Attribute(ret, attributes[i+1], ctx=Load())
+            ret = ast.Attribute(ret, attributes[i+1], Load())
         return ret
 
 
@@ -145,7 +147,7 @@ class PythonConverter(ExprFunctor):
             return Num(attr)
         if isinstance(attr, (list, tuple)):
             return ast.List([self.parse_attr(mem) for mem in attr],
-                            ctx=Load())
+                            Load())
         # this may fail on exotic attributes, but most cases that are
         # not the above are, in fact, strings
         return Str(repr(attr))
@@ -157,12 +159,12 @@ class PythonConverter(ExprFunctor):
         if arr.ndim == 0:
             return Num(arr.item())
         if arr.ndim == 1:
-            return ast.List([Num(i) for i in arr], ctx=Load())
+            return ast.List([Num(i) for i in arr], Load())
 
         elts = []
         for row in arr:
             elts.append(numpy_to_array(row))
-        return ast.List(elts, ctx=Load())
+        return ast.List(elts, Load())
 
 
     # Given a list of call args or tuple fields, converts each
@@ -206,14 +208,14 @@ class PythonConverter(ExprFunctor):
             defs.append(converted_func)
             # need to add this assignment so references to the global var in the program
             # go to the function!
-            defs.append(Assign(Name(var.name_hint, ctx=Store()),
-                                   Name(func_name, ctx=Load())))
+            defs.append(Assign(Name(var.name_hint, Store()),
+                                   Name(func_name, Load())))
         return defs
 
 
     # simple function call
     def create_call(self, func_name: str, arguments):
-        return ast.Call(Name(func_name, ctx=Load()), arguments, [])
+        return ast.Call(Name(func_name, Load()), arguments, [])
 
 
     def create_op_call(self, op: Expr, num_args: int, attrs):
@@ -229,24 +231,24 @@ class PythonConverter(ExprFunctor):
 
         body = [
             Assign(
-                Name(name, ctx=Store()),
+                Name(name, Store()),
                 ast.Call(self.parse_name('relay.var'), [Str(name)]))
             for name in var_names
         ]
 
         # equiv: call = relay.op(relay_vars, attr=value)
         call_assignment = Assign(
-            Name(call_name, ctx=Store()),
+            Name(call_name, Store()),
             ast.Call(self.parse_name('relay.' + op.name),
-                     [Name(name, ctx=Store()) for name in var_names],
+                     [Name(name, Store()) for name in var_names],
                      [keyword(key, convert_attr(attrs[key])) for key in attrs.keys()]))
         body.append(call_assignment)
 
         # equiv: return _INTRP.evaluate(call, { relay_var : argument })
-        arg_dict = ast.Dict([Name(name, ctx=Load()) for name in var_names],
-                            [Name(name, ctx=Load()) for name in arg_names])
+        arg_dict = ast.Dict([Name(name, Load()) for name in var_names],
+                            [Name(name, Load()) for name in arg_names])
         intrp_call = self.create_call(INTERPRETER_VAR, [
-            Name(call_name, ctx=Load()),
+            Name(call_name, Load()),
             arg_dict
         ])
         body.append(Return(intrp_call))
@@ -271,13 +273,13 @@ class PythonConverter(ExprFunctor):
         # reference to constructor object: mod[{type_var}].constructors[{index}]
         type_var_ref = ast.Call(self.parse_name('{}.get_global_type_var').format(MODULE_NAME),
                                 [Str(type_name)])
-        type_data_ref = ast.Subscript(Name(MODULE_NAME, ctx=Load()),
+        type_data_ref = ast.Subscript(Name(MODULE_NAME, Load()),
                                       ast.Index(type_var_ref),
-                                      ctx=Load())
-        constructors_list_ref = ast.Attribute(type_data_ref, 'constructors', ctx=Load())
+                                      Load())
+        constructors_list_ref = ast.Attribute(type_data_ref, 'constructors', Load())
         return ast.Subscript(constructors_list_ref,
                              ast.Index(Num(ctor_index)),
-                             ctx=Load())
+                             Load())
 
 
     def create_match_check(self, pattern: Pattern):
@@ -303,7 +305,7 @@ class PythonConverter(ExprFunctor):
         # and also the matches of any nested patterns
         defs = []
         pattern_ctor = self.create_constructor(pattern.constructor)
-        test = ast.Compare(Name(arg_name, ctx=Load()),
+        test = ast.Compare(Name(arg_name, Load()),
                            [ast.NotEq()], [pattern_ctor])
 
         comparison = ast.If(test, [Return(NameConstant(False))], [])
@@ -325,7 +327,7 @@ class PythonConverter(ExprFunctor):
             # equiv: if not match_func(arg.fields[i]): return False
             field_index = ast.Subscript(self.parse_name('{}.fields'.format(arg_name)),
                                         ast.Index(Num(i)),
-                                        ctx=Load())
+                                        Load())
             nested_test = ast.UnaryOp(ast.Not(),
                                       self.create_call(nested_func,
                                                        [field_index]))
@@ -359,7 +361,7 @@ class PythonConverter(ExprFunctor):
         # w = a.fields[2].fields[0]
         def collect_var_assignments(pat, val):
             if isinstance(pat, relay.PatternWildcard):
-                return [Assign(Name('_', ctx=Store()), val)]
+                return [Assign(Name('_', Store()), val)]
             if isinstance(pat, relay.PatternVar):
                 return [Assign(self.include_var(pat.var, assign=True), val)]
             # constructor pattern: assign each field of the value
@@ -367,7 +369,7 @@ class PythonConverter(ExprFunctor):
             assignments = []
             for i in range(len(pat.patterns)):
                 # we want the assignments for val.fields[i]
-                field = ast.Subscript(ast.Attribute(val, 'fields', ctx=Load()),
+                field = ast.Subscript(ast.Attribute(val, 'fields', Load()),
                                       ast.Index(Num(i)), ctx.Load())
                 assignments += collect_var_assignments(pat, field)
             return assignments
@@ -376,7 +378,7 @@ class PythonConverter(ExprFunctor):
         arg_name = self.generate_var_name('_match_clause_body')
 
         clause_body, defs = self.visit(body)
-        assignments = collect_var_assignments(pattern, Name(arg_name, ctx=Load()))
+        assignments = collect_var_assignments(pattern, Name(arg_name, Load()))
 
         func_def = ast.FunctionDef(func_name, ast.arguments([arg_name]),
                                    defs + assignments + [Return(clause_body)])
@@ -401,7 +403,7 @@ class PythonConverter(ExprFunctor):
     def visit_global_var(self, gvar: Expr):
         # we don't need to add numbers to global var names because
         # the *names* are checked for uniqueness in the mod
-        return (Name(id=gvar.name_hint, ctx=Load()), [])
+        return (Name(gvar.name_hint, Load()), [])
 
 
     def visit_let(self, letexp: Expr):
@@ -436,7 +438,7 @@ class PythonConverter(ExprFunctor):
 
     def visit_tuple_getitem(self, tgi: Expr):
         tup, tup_defs = self.visit(tgi.tuple_value)
-        ret = ast.Subscript(tup, ast.Index(Num(tgi.index)), ctx=Load())
+        ret = ast.Subscript(tup, ast.Index(Num(tgi.index)), Load())
         return (ret, tup_defs)
 
 
@@ -479,8 +481,7 @@ class PythonConverter(ExprFunctor):
             # produce a constructor value
             return (self.create_call('ConstructorValue',
                                      [self.create_constructor(func),
-                                      ast.List(fields, ctx=Load()),
-                                      ast.List([], ctx=Load())]),
+                                      ast.List(fields, Load())]),
                     field_defs)
 
         # ordinary function
@@ -496,7 +497,7 @@ class PythonConverter(ExprFunctor):
 
     def visit_ref_read(self, read: Expr):
         ref, defs = self.visit(read.ref)
-        return (ast.Attribute(ref, attr='value', ctx=Load()), defs)
+        return (ast.Attribute(ref, 'value', Load()), defs)
 
 
     def visit_ref_write(self, write: Expr):
@@ -512,7 +513,7 @@ class PythonConverter(ExprFunctor):
                                 ast.arguments([]),
                                 ref_defs + val_defs + [
                                     Assign(
-                                        ast.Attribute(ref, attr='value', ctx=Store()),
+                                        ast.Attribute(ref, 'value', Store()),
                                         val),
                                     Return(self.create_call('TupleValue', []))
                                 ])
