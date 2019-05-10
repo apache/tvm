@@ -29,6 +29,7 @@
 #include <unordered_map>
 #include <vector>
 #include "../arithmetic/compute_expr.h"
+#include "../codegen/datatype/registry.h"
 
 namespace tvm {
 namespace ir {
@@ -101,6 +102,13 @@ class Vectorizer : public IRMutator {
   }
   // user mutate from parent.
   using IRMutator::Mutate;
+
+  // Don't run on custom datatypes.
+  Expr Mutate(Expr expr) final {
+    if (tvm::datatype::Registry::Global()->GetTypeRegistered(expr.type().code()))
+      return expr;
+    return IRMutator::Mutate(expr);
+  }
 
   Stmt Mutate(Stmt stmt) final {
     CHECK(!need_scalarize_);
