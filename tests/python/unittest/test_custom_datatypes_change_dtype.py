@@ -64,6 +64,19 @@ def setup():
         create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
         "bfloat")
 
+def test_change_dtype_simple():
+    a = relay.expr.var("a", dtype="float32", shape=[3,1])
+    b = relay.expr.var("b", dtype="float32", shape=[3,1])
+    c = a + b
+
+    A = tvm.nd.array(np.random.rand(3,1))
+    B = tvm.nd.array(np.random.rand(3,1))
+
+
+    ex = relay.create_executor("graph")
+    # Execute the model in the new datatype.
+    result = ex.evaluate(c)([("a", A), ("b", B)])
+
 def test_change_dtype_inception_v3():
     setup()
 
@@ -92,4 +105,5 @@ def test_change_dtype_inception_v3():
 
 
 if __name__ == "__main__":
-    test_change_dtype_inception_v3()
+    # test_change_dtype_inception_v3()
+    test_change_dtype_simple()
