@@ -17,10 +17,11 @@
 """Utility for converting Relay code into a Python script with equivalent semantics"""
 import ast
 from ast import alias, Assign, Load, Name, NameConstant, Num, Return, Store, Str
-import numpy
 import re
 
 import astor
+import numpy
+import tvm
 from tvm import relay
 from tvm.relay.adt import Constructor, Pattern
 from tvm.relay.backend import compile_engine
@@ -627,7 +628,18 @@ def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
     executes it.'''
     py_ast = to_python(expr, mod, target)
     code = compile(py_ast, '<string>', 'exec')
+    # must pass in imports in globals dict or else nested functions
+    # won't be able to call them (weird quirk of Python ASTs)
+    imports = {
+        'numpy': numpy,
+        'tvm': tvm,
+        'relay': relay,
+        'TensorValue': relay.backend.interpreter.TensorValue,
+        'TupleValue': relay.backend.interpreter.TupleValue,
+        'ConstructorValue': relay.backend.interpreter.ConstructorValue,
+        'RefValue': relay.backend.interpreter.RefValue
+    }
     var_map = {OUTPUT_VAR_NAME : None, MODULE_NAME : mod}
     #pylint: disable=exec-used
-    exec(code, {}, var_map)
+    exec(code, imports, var_map)
     return var_map[OUTPUT_VAR_NAME]

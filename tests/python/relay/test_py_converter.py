@@ -17,6 +17,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
+from tvm.relay.backend.interpreter import TensorValue, TupleValue
 
 def test_create_empty_tuple():
     empty = relay.Tuple([])
@@ -57,7 +58,7 @@ def test_create_let():
     let = relay.Let(v, relay.Tuple([]), relay.Tuple([v, v]))
     tup_val = run_as_python(let)
     assert isinstance(tup_val, TupleValue)
-    assert len(tup_val).fields == 2
+    assert len(tup_val.fields) == 2
     assert isinstance(tup_val.fields[0], TupleValue)
     assert len(tup_val.fields[0].fields) == 0
     assert isinstance(tup_val.fields[1], TupleValue)
