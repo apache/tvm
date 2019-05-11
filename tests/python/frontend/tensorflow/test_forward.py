@@ -411,6 +411,23 @@ def test_forward_reshape():
     _test_reshape(np.arange(6), [-1])
 
 #######################################################################
+# DepthToSpace
+# -------
+
+def _test_depthtospace(data, block_size):
+    """ One iteration of depth_to_space operation with given data and block size """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        array_ops.depth_to_space(in_data, block_size)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'DepthToSpace:0')
+
+def test_forward_depthtospace():
+    _test_depthtospace(np.random.normal(size=[1, 32, 32, 4]), 2)
+    _test_depthtospace(np.random.normal(size=[1, 16, 8, 32]), 4)
+
+
 #######################################################################
 # Squeeze
 # -------
@@ -1549,6 +1566,7 @@ if __name__ == '__main__':
     # Transforms
     test_forward_transpose()
     test_forward_reshape()
+    test_forward_depthtospace()
     test_forward_squeeze()
     test_forward_pack()
     test_forward_resize_bilinear()
