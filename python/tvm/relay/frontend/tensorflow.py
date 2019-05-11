@@ -34,9 +34,9 @@ from ..expr_functor import ExprMutator
 
 __all__ = ['from_tensorflow']
 
-def _infer_value(input, params):
+def _infer_value(input_val, params):
     from tvm.contrib import graph_runtime
-    func = _expr.Function(ir_pass.free_vars(input), input)
+    func = _expr.Function(ir_pass.free_vars(input_val), input_val)
     with tvm.relay.build_config(opt_level=0):
         graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
     ctx = tvm.context("llvm", 0)
@@ -610,7 +610,8 @@ def _depth_to_space():
             new_c = int(in_c / (block_size * block_size))
 
             # First expand input to larger dimension.
-            expanded = _op.reshape(inputs[0], newshape=(in_n, in_h, in_w, block_size, block_size, new_c))
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_h, in_w, block_size, block_size, new_c))
             # Now reorder to expand spatial blocks.
             transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
             # Finally reshape to proper output.
@@ -622,7 +623,8 @@ def _depth_to_space():
             in_n, in_c, in_h, in_w = input_shape
             new_c = int(in_c / (block_size * block_size))
 
-            expanded = _op.reshape(inputs[0], newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
             transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
             new_h = in_h * block_size
             new_w = in_w * block_size
