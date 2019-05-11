@@ -65,6 +65,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/adt.h>
+#include <tvm/runtime/vm.h>
 #include <string>
 #include <vector>
 
@@ -593,6 +594,18 @@ TVM_DLL Expr ToGraphNormalForm(const Expr& e);
  * As a side effect, code size will explode.
  */
 Expr PartialEval(const Expr& e);
+
+namespace vm {
+
+/*! \brief Compile a module, and construct the virtual machine.
+ *
+ * \param mod The module to compile.
+ * \return The constructed virtual machine.
+ */
+runtime::vm::VirtualMachine CompileModule(const Module& mod);
+
+}  // namespace vm
+
 }  // namespace relay
 }  // namespace tvm
 

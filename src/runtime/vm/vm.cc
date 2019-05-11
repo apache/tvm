@@ -118,6 +118,86 @@ Instruction::Instruction(const Instruction& instr) {
   }
 }
 
+template<typename T>
+static inline void FreeIf(T* t) {
+  if (t != nullptr) {
+    delete t;
+  }
+}
+
+Instruction& Instruction::operator=(const Instruction& instr) {
+  this->op = instr.op;
+  this->dst = instr.dst;
+
+  switch (instr.op) {
+    case Opcode::Move:
+      this->from = instr.from;
+      return *this;
+    case Opcode::Select:
+      this->select_cond = instr.select_cond;
+      this->select_op1 = instr.select_op1;
+      this->select_op2 = instr.select_op2;
+      return *this;
+    case Opcode::Ret:
+      this->result = instr.result;
+      return *this;
+    case Opcode::AllocTensor:
+      this->shape_register = instr.shape_register;
+      this->dtype = instr.dtype;
+      return *this;
+    case Opcode::AllocDatatype:
+      this->constructor_tag = instr.constructor_tag;
+      this->num_fields = instr.num_fields;
+      FreeIf(this->datatype_fields);
+      this->datatype_fields = Duplicate<RegName>(instr.datatype_fields, instr.num_fields);
+      return *this;
+    case Opcode::AllocClosure:
+      this->clo_index = instr.clo_index;
+      this->num_freevar = instr.num_freevar;
+      FreeIf(this->free_vars);
+      this->free_vars = Duplicate<RegName>(instr.free_vars, instr.num_freevar);
+      return *this;
+    case Opcode::InvokePacked:
+      this->packed_index = instr.packed_index;
+      this->arity = instr.arity;
+      this->output_size = instr.output_size;
+      FreeIf(this->packed_args);
+      this->packed_args = Duplicate<RegName>(instr.packed_args, instr.arity);
+      return *this;
+    case Opcode::InvokeClosure:
+      this->closure = instr.closure;
+      this->closure_args_num = instr.closure_args_num;
+      FreeIf(this->closure_args);
+      this->closure_args = Duplicate<RegName>(instr.closure_args, instr.closure_args_num);
+      return *this;
+    case Opcode::Invoke:
+      this->func_index = instr.func_index;
+      this->num_args = instr.num_args;
+      FreeIf(this->invoke_args_registers);
+      this->invoke_args_registers = Duplicate<RegName>(instr.invoke_args_registers, instr.num_args);
+      return *this;
+    case Opcode::If:
+      this->if_cond = instr.if_cond;
+      this->true_offset = instr.true_offset;
+      this->false_offset = instr.false_offset;
+      return *this;
+    case Opcode::LoadConst:
+      this->const_index = instr.const_index;
+      return *this;
+    case Opcode::GetField:
+      this->object = instr.object;
+      this->field_index = instr.field_index;
+      return *this;
+    case Opcode::Goto:
+      this->pc_offset = instr.pc_offset;
+      return *this;
+    default:
+      std::ostringstream out;
+      out << "Invalid instruction " << static_cast<int>(instr.op);
+      throw std::runtime_error(out.str());
+  }
+}
+
 Instruction::~Instruction() {
   switch (this->op) {
     case Opcode::Move:
