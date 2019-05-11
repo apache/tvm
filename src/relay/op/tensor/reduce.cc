@@ -154,6 +154,9 @@ Array<Tensor> ReduceCompute(const Attrs& attrs,
                             F f) {
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   CHECK(param != nullptr);
+  if (inputs[0]->shape.size() == 0) {
+    return { topi::identity(inputs[0]) };
+  }
   auto axes = param->axis;
   if (param->exclude) {
     axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
@@ -251,7 +254,6 @@ bool ReduceRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
-  CHECK(static_cast<int>(data->shape.size()) != 0);
   std::vector<IndexExpr>&& in_shape = AsVector(data->shape);
 
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
