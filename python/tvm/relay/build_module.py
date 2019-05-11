@@ -227,10 +227,7 @@ class BuildModule(object):
         for name, param in params.items():
             if isinstance(param, np.ndarray):
                 param = _nd.array(param)
-            if not isinstance(param, _nd.NDArray):
-                raise TypeError("param is expected to be tvm.nd.NDArray, " +
-                                "but received {}".format(type(param)))
-            inputs[name] = _expr.Constant(param)
+            inputs[name] = _expr.const(param)
         self._set_params_func(inputs)
 
     def add_pass(self, pass_name):
