@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name
 """Runtime NDArray api"""
 from __future__ import absolute_import
@@ -24,6 +40,8 @@ def _from_dlpack(dltensor):
     dltensor = ctypes.py_object(dltensor)
     if ctypes.pythonapi.PyCapsule_IsValid(dltensor, _c_str_dltensor):
         ptr = ctypes.pythonapi.PyCapsule_GetPointer(dltensor, _c_str_dltensor)
+        # enforce type to make sure it works for all ctypes
+        ptr = ctypes.cast(ptr, ctypes.c_void_p)
         handle = TVMArrayHandle()
         check_call(_LIB.TVMArrayFromDLPack(ptr, ctypes.byref(handle)))
         ctypes.pythonapi.PyCapsule_SetName(dltensor, _c_str_used_dltensor)
@@ -36,6 +54,8 @@ def _dlpack_deleter(pycapsule):
     pycapsule = ctypes.cast(pycapsule, ctypes.py_object)
     if ctypes.pythonapi.PyCapsule_IsValid(pycapsule, _c_str_dltensor):
         ptr = ctypes.pythonapi.PyCapsule_GetPointer(pycapsule, _c_str_dltensor)
+        # enforce type to make sure it works for all ctypes
+        ptr = ctypes.cast(ctypes.c_void_p, ptr)
         _LIB.TVMDLManagedTensorCallDeleter(ptr)
         ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
 

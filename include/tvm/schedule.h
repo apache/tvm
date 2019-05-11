@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file tvm/schedule.h
  * \brief Define a schedule.
  */
@@ -7,6 +25,7 @@
 #define TVM_SCHEDULE_H_
 
 #include <string>
+#include <unordered_map>
 #include "base.h"
 #include "expr.h"
 #include "tensor.h"
@@ -75,10 +94,10 @@ class Stage : public NodeRef {
    */
   EXPORT Stage& compute_root();  // NOLINT(*)
   /*!
-   * \brief Bind the ivar to thread index.
+   * \brief Bind the IterVar to thread index.
    *
-   * \param ivar The IterVar to be binded.
-   * \param thread_ivar The thread axis to be binded.
+   * \param ivar The IterVar to be bound.
+   * \param thread_ivar The thread axis to be bound.
    * \return reference to self.
    */
   EXPORT Stage& bind(IterVar ivar, IterVar thread_ivar);
@@ -88,7 +107,7 @@ class Stage : public NodeRef {
    *  need one of them to do the store.
    *
    * \note This is a dangerous scheduling primitive that can change behavior of program.
-   *    Only do when we are certain that thare are duplicated store.
+   *    Only do when we are certain that thare are duplicated stores.
    * \param predicate The condition to be checked.
    * \return reference to self.
    */
@@ -136,7 +155,7 @@ class Stage : public NodeRef {
    * \param p_target The result target domain.
    *
    * \note axes can be an empty array,
-   *       in that case, a singleton itervar is created and
+   *       in that case, a singleton IterVar is created and
    *       inserted to the outermost loop.
    *       The fuse of empty array is used to support zero-dimension tensors.
    *
@@ -531,6 +550,22 @@ class ScheduleNode : public Node {
   void InitCache();
   /*! \brief Invalidate temp cache. */
   void InvalidateCache();
+
+  /*!
+   * \brief Check if the schedule contains an Operation.
+   * \param op The candidate Operation.
+   * \return true if the schedule has the Operation. Otherwise, false.
+   */
+  EXPORT bool Contain(const Operation& op) const;
+
+  /*!
+   * \brief Check if the schedule contains a Tensor.
+   * \param tensor The candidate tensor.
+   * \return true if the schedule has the tensor. Otherwise, false.
+   */
+  EXPORT bool Contain(const Tensor& tensor) const {
+    return Contain(tensor->op);
+  }
 
   /*!
    * \brief Create a schedule for array of ops(and their dependencies).

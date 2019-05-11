@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 
 import tvm
@@ -7,6 +23,7 @@ from tvm.relay.ir_pass import infer_type
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.op import add
 from tvm.relay.module import Module
+from tvm.relay.testing.config import ctx_list
 
 # @tq, @jr should we put this in testing ns?
 def check_rts(expr, args, expected_result, mod=None):
@@ -127,9 +144,47 @@ def test_plan_memory():
     assert len(device_types) == 1
 
 
+def test_gru_like():
+    def unit(rnn_dim):
+        X = relay.var("X", shape=(1, rnn_dim))
+        W = relay.var("y", shape=(3 * rnn_dim, rnn_dim))
+        matmul = relay.nn.dense(X, W)
+        splitted = relay.split(matmul, indices_or_sections=3, axis=1)
+        out = relay.sigmoid(splitted[0]) + relay.tanh(splitted[1]) * relay.exp(splitted[2])
+        return relay.Function([X, W], out)
+
+    def sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+
+    def unit_numpy(X, W):
+        prod = np.dot(X, W.transpose())
+        splits = np.split(prod, indices_or_sections=3, axis=1)
+        return sigmoid(splits[0]) + np.tanh(splits[1]) * np.exp(splits[2])
+
+    dtype = "float32"
+    rnn_dim = 1000
+    x = np.random.rand(1, rnn_dim).astype(dtype)
+    y = np.random.rand(3*rnn_dim, rnn_dim).astype(dtype) * 0.01 - 0.005
+    out_shape = (1, rnn_dim)
+    z = unit(rnn_dim)
+
+    for target, ctx in ctx_list():
+        with relay.build_config(opt_level=2):
+            graph, lib, params = relay.build(z, target)
+            m = graph_runtime.create(graph, lib, ctx)
+            m.set_input("X", tvm.nd.array(x.astype(dtype)))
+            m.set_input("y", tvm.nd.array(y.astype(dtype)))
+            m.set_input(**params)
+            m.run()
+            out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+            ref = unit_numpy(x, y)
+            tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
 if __name__ == "__main__":
     test_plan_memory()
     test_with_params()
     test_add_op_scalar()
     test_add_op_tensor()
     test_add_op_broadcast()
+    test_gru_like()

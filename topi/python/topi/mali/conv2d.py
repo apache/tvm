@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """conv2d schedule on ARM Mali GPU"""
 import numpy as np
@@ -336,9 +352,11 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     # unpack output
     output = tvm.compute((N, CO, H, W), lambda n, co, h, w:
                          Y[co][n * nH * nW + (h//m) * nW + w//m][h % m][w % m]
-                         # thw following term is used to make the padding effective,
-                         # otherwise the padding will be eliminated by bound inference
-                         + tvm.const(0, out_dtype) * M[alpha-1][alpha-1][CO-1][P_round-1],
+                         # The following hack term is used to make the padding in batch gemm ("M")
+                         # effective, otherwise the padding will be eliminated by bound inference.
+                         # Use `tvm.expr.Mul` instead of `*` to avoid issues in const folding.
+                         + tvm.expr.Mul(tvm.const(0, out_dtype),
+                                        M[alpha-1][alpha-1][CO-1][P_round-1]),
                          name='output', tag='winograd_conv2d_output')
 
     # we have to manually assign effective GFLOP for winograd

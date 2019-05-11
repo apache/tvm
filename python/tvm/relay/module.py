@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, wildcard-import
 """A global module storing everything needed to interpret or compile a Relay program."""
 from .base import register_relay_node, RelayNode
@@ -5,7 +21,6 @@ from .._ffi import base as _base
 from . import _make
 from . import _module
 from . import expr as _expr
-
 from . import ty as _ty
 
 @register_relay_node
@@ -61,9 +76,18 @@ class Module(RelayNode):
         return self._add(var, val)
 
     def _add(self, var, val, update=False):
-        if isinstance(val, _expr.Function):
+        if isinstance(val, _expr.Expr):
             if isinstance(var, _base.string_types):
                 var = _expr.GlobalVar(var)
+
+            # TODO(@jroesch): Port this logic to C++.
+            if not isinstance(val, _expr.Function):
+                if isinstance(val, _expr.GlobalVar):
+                    val = ir_pass.eta_expand(val, self)
+                else:
+                    val = _expr.Function([], val)
+
+
             _make.Module_Add(self, var, val, update)
         else:
             assert isinstance(val, _ty.Type)
@@ -140,3 +164,7 @@ class Module(RelayNode):
         tvm.TVMError if we cannot find corresponding global type var.
         """
         return _module.Module_GetGlobalTypeVar(self, name)
+
+    @staticmethod
+    def from_expr(expr):
+        return _module.Module_FromExpr(expr)

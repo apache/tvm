@@ -161,7 +161,7 @@ final class Base {
 
   // helper function definitions
   /**
-   * Check the return value of C API call
+   * Check the return value of C API call.
    * <p>
    * This function will raise exception when error occurs.
    * Wrap every API call with this function

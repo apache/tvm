@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file bound_deducer.cc
@@ -188,24 +207,53 @@ void BoundDeducer::Init() {
 }
 
 void BoundDeducer::Transform() {
+  // We will ensure to set expr_ such that it contains target_
   if (const LT* op = expr_.as<LT>()) {
-    is_greater = false;
-    expr_      = op->a;
-    // a < b -> a <= b - 1
-    result     = op->b - 1;
+    if (GetPath(target_, op->a).empty()) {
+      // a < b -> b >= a + 1
+      is_greater = true;
+      expr_ = op->b;
+      result = op->a + 1;
+    } else {
+      // a < b -> a <= b - 1
+      is_greater = false;
+      expr_ = op->a;
+      result = op->b - 1;
+    }
   } else if (const LE* op = expr_.as<LE>()) {
-    is_greater = false;
-    expr_      = op->a;
-    result     = op->b;
+    if (GetPath(target_, op->a).empty()) {
+      // a <= b -> b >= a
+      is_greater = true;
+      expr_ = op->b;
+      result = op->a;
+    } else {
+      is_greater = false;
+      expr_ = op->a;
+      result = op->b;
+    }
   } else if (const GT* op = expr_.as<GT>()) {
-    is_greater = true;
-    expr_      = op->a;
-    // a > b -> a >= b + 1
-    result     = op->b + 1;
+    if (GetPath(target_, op->a).empty()) {
+      // a > b -> b <= a - 1
+      is_greater = false;
+      expr_ = op->b;
+      result = op->a - 1;
+    } else {
+      // a > b -> a >= b + 1
+      is_greater = true;
+      expr_ = op->a;
+      result = op->b + 1;
+    }
   } else if (const GE* op = expr_.as<GE>()) {
-    is_greater = true;
-    expr_      = op->a;
-    result     = op->b;
+    if (GetPath(target_, op->a).empty()) {
+      // a >= b -> b <= a
+      is_greater = false;
+      expr_ = op->b;
+      result = op->a;
+    } else {
+      is_greater = true;
+      expr_ = op->a;
+      result = op->b;
+    }
   } else {
     success = false;
   }

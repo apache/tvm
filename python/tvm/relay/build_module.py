@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 Construct the necessary state for the TVM graph runtime
 from a Relay expression.
@@ -9,9 +25,11 @@ from ..build_module import build as _tvm_build_module
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import ir_pass
-from . import expr
+from . import expr as _expr
+from . import ty as _ty
 from .backend import interpreter as _interpreter
 from .backend import graph_runtime_codegen as _graph_gen
+from .backend.vm import VMExecutor
 
 # List of optimization pass and level when switch on
 OPT_PASS_LEVEL = {
@@ -22,6 +40,7 @@ OPT_PASS_LEVEL = {
     "FoldScaleAxis": 3,
     "AlterOpLayout": 3,
     "CanonicalizeOps": 3,
+    "EliminateCommonSubexpr": 3,
 }
 
 
@@ -126,8 +145,8 @@ def _bind_params_by_name(func, params):
         arg = name_dict[k]
         if arg is None:
             raise ValueError("Multiple args in the function have name %s" % k)
-        bind_dict[arg] = expr.const(v)
-    return expr.bind(func, bind_dict)
+        bind_dict[arg] = _expr.const(v)
+    return _expr.bind(func, bind_dict)
 
 
 def optimize(func, target=None, params=None):
@@ -161,6 +180,16 @@ def optimize(func, target=None, params=None):
     if cfg.pass_enabled("SimplifyInference"):
         func = ir_pass.infer_type(func)
         func = ir_pass.simplify_inference(func)
+
+    if cfg.pass_enabled("EliminateCommonSubexpr"):
+        def fskip(expr):
+            if isinstance(expr, _expr.Call) and expr.op.name == 'cast' and \
+               expr.attrs.dtype == 'int32':
+                return True
+            return False
+
+        func = ir_pass.infer_type(func)
+        func = ir_pass.eliminate_common_subexpr(func, fskip)
 
     if cfg.pass_enabled("CombineParallelConv2D"):
         func = ir_pass.infer_type(func)
@@ -400,6 +429,8 @@ class GraphExecutor(_interpreter.Executor):
         self.target = target
 
     def _make_executor(self, func):
+        ret_type = ir_pass.infer_type(func).ret_type
+        num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         graph_json, mod, params = build(func, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
         if params:
@@ -413,7 +444,12 @@ class GraphExecutor(_interpreter.Executor):
             # Run the module, and fetch the output.
             gmodule.run()
             # make a copy so multiple invocation won't hurt perf.
-            return gmodule.get_output(0).copyto(_nd.cpu(0))
+            if num_outputs == 1:
+                return gmodule.get_output(0).copyto(_nd.cpu(0))
+            outputs = []
+            for i in range(num_outputs):
+                outputs.append(gmodule.get_output(i).copyto(_nd.cpu(0)))
+            return outputs
 
         return _graph_wrapper
 
@@ -449,4 +485,7 @@ def create_executor(kind="debug",
         return _interpreter.Interpreter(mod, ctx, target)
     if kind == "graph":
         return GraphExecutor(mod, ctx, target)
-    raise RuntimeError("unknown mode {0}".format(mode))
+    elif kind == "vm":
+        return VMExecutor(mod, ctx, target)
+    else:
+        raise RuntimeError("unknown execution strategy: {0}".format(kind))

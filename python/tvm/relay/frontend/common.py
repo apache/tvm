@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Common utilities"""
 from __future__ import absolute_import as _abs
 import logging
@@ -255,7 +271,11 @@ class ExprTable(object):
 
     def set_expr(self, name, expr):
         assert isinstance(expr, _expr.Expr)
-        self.exprs[name] = expr
+        if name not in self.exprs:
+            self.exprs[name] = expr
+
+    def has_expr(self, name):
+        return True if name in self.exprs else False
 
     def set_padding(self, paddings):
         self.paddings = paddings
@@ -320,6 +340,10 @@ class AttrCvt(object):
         else:
             assert callable(self._op_name), "op_name can either be string or callable"
             op_name = self._op_name(attrs)
+
+        # ignore 'tvm_custom' always
+        self._ignores.append('tvm_custom')
+
         # convert attributes
         new_attrs = {}
         for k in attrs.keys():
@@ -328,7 +352,8 @@ class AttrCvt(object):
             elif k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.sym.%s", k, op_name)
             elif k in self._ignores:
-                logging.debug("Attribute %s is ignored in relay.sym.%s", k, op_name)
+                if k != 'tvm_custom':
+                    logging.warning("Attribute %s is ignored in relay.sym.%s", k, op_name)
             elif k in self._transforms:
                 new_name, defaults, transform = self._parse_default(self._transforms[k])
                 if defaults is None:
@@ -415,4 +440,6 @@ class Renamer(object):
         self._new_name = new_name
 
     def __call__(self, inputs, attrs, *args):
+        if 'tvm_custom' in attrs:
+            attrs.pop('tvm_custom')
         return get_relay_op(self._new_name)(*inputs, **attrs)

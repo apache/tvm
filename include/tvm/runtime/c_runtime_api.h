@@ -1,5 +1,23 @@
-/*!
- *  Copyright (c) 2016 by Contributors
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
  * \file tvm/runtime/c_runtime_api.h
  * \brief TVM runtime library.
  *
@@ -43,7 +61,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.5.dev"
+#define TVM_VERSION "0.6.dev"
 
 
 // TVM Runtime is DLPack compatible.
@@ -85,6 +103,7 @@ typedef enum {
   kStr = 11U,
   kBytes = 12U,
   kNDArrayContainer = 13U,
+  kObject = 14U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
@@ -94,7 +113,7 @@ typedef enum {
   kNNVMLast = 20U,
   // The following section of code is used for non-reserved types.
   kExtReserveEnd = 64U,
-  kExtEnd = 128U
+  kExtEnd = 128U,
 } TVMTypeCode;
 
 /*!

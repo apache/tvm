@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Test feature extraction"""
 
 import numpy as np
@@ -44,6 +60,23 @@ def test_iter_feature_gemm():
                 continue
             assert ans[pair[0]] == pair[1:], "%s: %s vs %s" % (pair[0], ans[pair[0]], pair[1:])
 
+
+def test_curve_feature_gemm():
+    N = 128
+
+    k = tvm.reduce_axis((0, N), 'k')
+    A = tvm.placeholder((N, N), name='A')
+    B = tvm.placeholder((N, N), name='B')
+    C = tvm.compute(
+        A.shape,
+        lambda y, x: tvm.sum(A[y, k] * B[k, x], axis=k),
+        name='C')
+
+    s = tvm.create_schedule(C.op)
+
+    feas = feature.get_buffer_curve_sample_flatten(s, [A, B, C], sample_n=30)
+    # sample_n * #buffers * #curves * 2 numbers per curve
+    assert len(feas) == 30 * 3 * 4 * 2
 
 def test_feature_shape():
     """test the dimensions of flatten feature are the same"""
@@ -96,4 +129,6 @@ def test_feature_shape():
 
 if __name__ == "__main__":
     test_iter_feature_gemm()
+    test_curve_feature_gemm()
     test_feature_shape()
+

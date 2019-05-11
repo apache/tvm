@@ -1,7 +1,23 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """
 Writing tunable template and Using auto-tuner
 =============================================
-**Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
+**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 This is an introduction tutorial to the auto-tuning module in tvm.
 
@@ -22,8 +38,8 @@ The whole workflow is illustrated by a matrix multiplication example.
 #
 #   pip3 install --user psutil xgboost
 #
-# To make tvm run faster in tuning, it is recommended to use cython
-# as FFI of tvm. In the root directory of tvm, execute
+# To make TVM run faster in tuning, it is recommended to use cython
+# as FFI of TVM. In the root directory of TVM, execute
 # (change "3" to "2" if you use python2):
 #
 # .. code-block:: bash
@@ -45,9 +61,9 @@ from tvm import autotvm
 ######################################################################
 # Step 1:  Define the search space
 # --------------------------------
-# In this section, we will rewrite a deterministic tvm schedule code to a
+# In this section, we will rewrite a deterministic TVM schedule code to a
 # tunable schedule template. You can regard the process of search space definition
-# as the parametrization of our exiting schedule code.
+# as the parameterization of our existing schedule code.
 #
 # To begin with, here is how we implement a blocked matrix multiplication in tvm.
 
@@ -261,7 +277,7 @@ print(task.config_space)
 ################################################################
 # Then we need to define how to measure the generated code and pick a tuner.
 # Since our space is small, a random tuner is just okay.
-# 
+#
 # We only make 10 trials in this tutorial for demonstration. In practice,
 # you can do more trials according to your time budget.
 # We will log the tuning results into a log file. This file can be
@@ -272,7 +288,7 @@ logging.getLogger('autotvm').setLevel(logging.DEBUG)
 logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 
 # There are two steps for measuring a config: build and run.
-# By default, we use all cpu cores to compile program. Then measure them sequentially.
+# By default, we use all CPU cores to compile program. Then measure them sequentially.
 # We measure 5 times and take average to reduce variance.
 measure_option = autotvm.measure_option(
     builder='local',
@@ -286,9 +302,9 @@ tuner.tune(n_trial=10,
 
 #########################################################################
 # Finally we apply history best from the cache file and check its correctness.
-# We can call the function :code:`matmul` directly under the 
+# We can call the function :code:`matmul` directly under the
 # :any:`autotvm.apply_history_best` context. When we call this function,
-# it will query the dispatch context with its argument and get the best config 
+# it will query the dispatch context with its argument and get the best config
 # with the same argument.
 
 # apply history best from log file

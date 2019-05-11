@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Arithmetic data structure and utility"""
 from __future__ import absolute_import as _abs
 
@@ -96,6 +112,8 @@ class Analyzer:
         self._const_int_bound_update = _mod("const_int_bound_update")
         self._bind = _mod("bind")
         self._modular_set = _mod("modular_set")
+        self._rewrite_simplify = _mod("rewrite_simplify")
+        self._canonical_simplify = _mod("canonical_simplify")
         self._enter_constraint_context = _mod("enter_constraint_context")
 
     def const_int_bound(self, expr):
@@ -127,6 +145,36 @@ class Analyzer:
             The result.
         """
         return self._modular_set(expr)
+
+    def rewrite_simplify(self, expr):
+        """Simplify expression via rewriting rules.
+
+        Parameters
+        ----------
+        expr : tvm.Expr
+            The expression.
+
+        Returns
+        -------
+        result : Expr
+            The result.
+        """
+        return self._rewrite_simplify(expr)
+
+    def canonical_simplify(self, expr):
+        """Simplify expression via canonicalization.
+
+        Parameters
+        ----------
+        expr : tvm.Expr
+            The expression.
+
+        Returns
+        -------
+        result : Expr
+            The result.
+        """
+        return self._canonical_simplify(expr)
 
     def bind(self, var, expr):
         """Bind a variable to the expression.

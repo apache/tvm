@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file tvm/runtime/packed_func.h
  * \brief Type-erased function used across TVM API.
  */
@@ -16,10 +34,12 @@
 #include <string>
 #include <limits>
 #include <memory>
+#include <utility>
 #include <type_traits>
 #include "c_runtime_api.h"
 #include "module.h"
 #include "ndarray.h"
+#include "object.h"
 #include "node_base.h"
 
 namespace HalideIR {
@@ -28,6 +48,7 @@ namespace HalideIR {
 struct Type;
 struct Expr;
 }
+
 
 // Whether use TVM runtime in header only mode.
 #ifndef TVM_RUNTIME_HEADER_ONLY
@@ -451,6 +472,11 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kNDArrayContainer);
     return NDArray(static_cast<NDArray::Container*>(value_.v_handle));
   }
+  operator Object() const {
+    if (type_code_ == kNull) return Object();
+    TVM_CHECK_TYPE_CODE(type_code_, kObject);
+    return Object(static_cast<ObjectCell*>(value_.v_handle));
+  }
   operator TVMContext() const {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
     return value_.v_ctx;
@@ -523,6 +549,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator Object;
 
   // conversion operator.
   operator std::string() const {
@@ -618,6 +645,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator NDArray;
+  using TVMPODValue_::operator Object;
   TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {
     this->Assign(other);
   }
@@ -712,6 +740,13 @@ class TVMRetValue : public TVMPODValue_ {
     type_code_ = kNDArrayContainer;
     value_.v_handle = other.data_;
     other.data_ = nullptr;
+    return *this;
+  }
+  TVMRetValue& operator=(Object other) {
+    this->Clear();
+    type_code_ = kObject;
+    value_.v_handle = other.ptr_.data_;
+    other.ptr_.data_ = nullptr;
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {
@@ -809,6 +844,10 @@ class TVMRetValue : public TVMPODValue_ {
             kNodeHandle, *other.template ptr<NodePtr<Node> >());
         break;
       }
+      case kObject: {
+        *this = other.operator Object();
+        break;
+      }
       default: {
         if (other.type_code() < kExtBegin) {
           SwitchToPOD(other.type_code());
@@ -856,6 +895,10 @@ class TVMRetValue : public TVMPODValue_ {
         static_cast<NDArray::Container*>(value_.v_handle)->DecRef();
         break;
       }
+      case kObject: {
+        static_cast<ObjectCell*>(value_.v_handle)->DecRef();
+        break;
+      }
     }
     if (type_code_ > kExtBegin) {
 #if TVM_RUNTIME_HEADER_ONLY
@@ -885,6 +928,7 @@ inline const char* TypeCode2Str(int type_code) {
     case kFuncHandle: return "FunctionHandle";
     case kModuleHandle: return "ModuleHandle";
     case kNDArrayContainer: return "NDArrayContainer";
+    case kObject: return "Object";
     default: LOG(FATAL) << "unknown type_code="
                         << static_cast<int>(type_code); return "";
   }

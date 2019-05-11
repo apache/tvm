@@ -1,4 +1,21 @@
-{% set version = "0.5.dev" %}
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+{% set version = "0.6.dev" %}
 
 package:
   name: tvm-libs
@@ -8,21 +25,17 @@ source:
   path: ../..
 
 build:
-  number: 1
+  number: 0
   string: cuda{{ cuda_version }}_{{ PKG_BUILDNUM }}  # [cuda]
 
 requirements:
   build:
-    - {{ compiler('cxx') }}  # [linux]
-    - llvmdev ==6.0.0  # [osx]
-  host:
     # The OS X build will require some manual setup or it will break
-    # See https://conda.io/docs/user-guide/tasks/build-packages/compiler-tools.html#macos-sdk
-    # It is also ass-backward because of llvm brokeness when mixed with the
-    # conda OS X compiler
-    - {{ compiler('cxx') }}  # [osx]
+    # See https://docs.conda.io/projects/conda-build/en/latest/source/resources/compiler-tools.html#macos-sdk
+    - {{ compiler('cxx') }}
+  host:
     - cmake
-    - llvmdev ==6.0.0  # [linux]
+    - llvmdev ==6.0.0
     - zlib  # [linux]
   run:
     - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]

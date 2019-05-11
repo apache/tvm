@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name
 """Conv2d transpose template for cuda backend"""
 
@@ -158,7 +174,6 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
             by, vy, ty, yi = cfg["tile_y"].apply(s, output, y)
             bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
-            bf = s[output].fuse(n, bf)
             s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
             s[output].bind(by, tvm.thread_axis("blockIdx.y"))
             s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
@@ -168,7 +183,7 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
             s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
             s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
             s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
-            s[output].reorder(bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
+            s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
             s[OL].compute_at(s[output], tx)
 
             # tile reduction axes
@@ -177,13 +192,13 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
             rco, rcm, rci = cfg['tile_rc'].apply(s, OL, rc)
             s[OL].reorder(rco, rcm, ry, rx, rci, n, f, y, x)
 
-            s[AA].compute_at(s[OL], rcm)
-            s[WW].compute_at(s[OL], rcm)
+            s[AA].compute_at(s[OL], rx)
+            s[WW].compute_at(s[OL], rx)
 
             # cooperative fetching
             for load in [AA, WW]:
                 n, f, y, x = s[load].op.axis
-                fused = s[load].fuse(n, f, y, x)
+                fused = s[load].fuse(f, y, x)
                 tz, fused = s[load].split(fused, nparts=cfg["tile_f"].size[2])
                 ty, fused = s[load].split(fused, nparts=cfg["tile_y"].size[2])
                 tx, fused = s[load].split(fused, nparts=cfg["tile_x"].size[2])

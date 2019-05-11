@@ -1,7 +1,25 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file tvm/runtime/ndarray.h
- * \brief Abstract device memory management API
+ * \brief A device-independent managed NDArray abstraction.
  */
 #ifndef TVM_RUNTIME_NDARRAY_H_
 #define TVM_RUNTIME_NDARRAY_H_
@@ -14,6 +32,7 @@
 
 namespace tvm {
 namespace runtime {
+
 /*!
  * \brief Managed NDArray.
  *  The array is backed by reference counted blocks.
@@ -230,6 +249,7 @@ class NDArray::Container {
    *  The head ptr of this struct can be viewed as DLTensor*.
    */
   DLTensor dl_tensor;
+
   /*!
    * \brief addtional context, reserved for recycling
    * \note We can attach additional content here
@@ -263,6 +283,7 @@ class NDArray::Container {
   int32_t array_type_code_{0};
   /*! \brief The internal reference counter */
   std::atomic<int> ref_counter_{0};
+
   /*!
    * \brief The shape container,
    *  can be used used for shape data.
@@ -278,6 +299,21 @@ class NDArray::Container {
     dl_tensor.strides = nullptr;
     dl_tensor.byte_offset = 0;
   }
+
+  Container(void* data,
+            std::vector<int64_t> shape,
+            DLDataType dtype,
+            DLContext ctx) {
+    dl_tensor.data = data;
+    shape_ = std::move(shape);
+    dl_tensor.ndim = static_cast<int>(shape_.size());
+    dl_tensor.shape = dmlc::BeginPtr(shape_);
+    dl_tensor.dtype = dtype;
+    dl_tensor.strides = nullptr;
+    dl_tensor.byte_offset = 0;
+    dl_tensor.ctx = ctx;
+  }
+
   /*! \brief developer function, increases reference counter */
   void IncRef() {
     ref_counter_.fetch_add(1, std::memory_order_relaxed);

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
  /*!
  *  Copyright (c) 2018 by Contributors
  *  Code mainly used for test purposes.
@@ -39,6 +58,30 @@ TVM_REGISTER_API("_nop")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
   });
 
+TVM_REGISTER_API("_test_wrap_callback")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    PackedFunc pf = args[0];
+    *ret = runtime::TypedPackedFunc<void()>([pf](){
+        pf();
+      });
+  });
+
+TVM_REGISTER_API("_test_raise_error_callback")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    std::string msg = args[0];
+    *ret = runtime::TypedPackedFunc<void()>([msg](){
+        LOG(FATAL) << msg;
+      });
+  });
+
+TVM_REGISTER_API("_test_check_eq_callback")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    std::string msg = args[0];
+    *ret = runtime::TypedPackedFunc<void(int x, int y)>([msg](int x, int y){
+        CHECK_EQ(x, y) << msg;
+      });
+  });
+
 TVM_REGISTER_API("_context_test")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     DLContext ctx = args[0];
@@ -48,6 +91,20 @@ TVM_REGISTER_API("_context_test")
     CHECK_EQ(static_cast<int>(ctx.device_id), did);
     *ret = ctx;
   });
+
+
+// in src/api_test.cc
+void ErrorTest(int x, int y) {
+  // raise ValueError
+  CHECK_EQ(x, y) << "ValueError: expect x and y to be equal.";
+  if (x == 1) {
+    // raise InternalError.
+    LOG(FATAL) << "InternalError: cannot reach here";
+  }
+}
+
+TVM_REGISTER_API("_ErrorTest")
+.set_body_typed<void(int, int)>(ErrorTest);
 
 // internal function used for debug and testing purposes
 TVM_REGISTER_API("_ndarray_use_count")

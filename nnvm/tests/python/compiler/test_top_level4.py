@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import math
 import numpy as np
 import tvm
@@ -527,14 +543,13 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1),
     if clip:
         np_out = np.clip(np_out, 0, 1)
 
-    target = "llvm"
-    ctx = tvm.cpu()
-    graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
-    m = graph_runtime.create(graph, lib, ctx)
-    m.set_input("data", np.random.uniform(size=dshape).astype(dtype))
-    m.run()
-    out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
-    tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.set_input("data", np.random.uniform(size=dshape).astype(dtype))
+        m.run()
+        tvm_out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
 
 def test_multibox_prior():
     verify_multibox_prior((1, 3, 50, 50))
@@ -550,7 +565,7 @@ def test_multibox_transform_loc():
     anchors = sym.Variable("anchors")
     transform_loc_data, valid_count = sym.multibox_transform_loc(cls_prob=cls_prob, loc_pred=loc_preds,
                                                                  anchor=anchors)
-    out = sym.nms(data=transform_loc_data, valid_count=valid_count)
+    out = sym.non_max_suppression(data=transform_loc_data, valid_count=valid_count, return_indices=False)
 
     # Manually create test case
     np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
@@ -561,45 +576,43 @@ def test_multibox_transform_loc():
                                  [0, 0.44999999, 1, 1, 1, 1],
                                  [0, 0.30000001, 0, 0, 0.22903419, 0.20435292]]])
 
-    target = "llvm"
     dtype = "float32"
-    ctx = tvm.cpu()
-    graph, lib, _ = nnvm.compiler.build(out, target, {"cls_prob": (batch_size, num_anchors, num_classes),
-                                                      "loc_preds": (batch_size, num_anchors * 4),
-                                                      "anchors": (1, num_anchors, 4)})
-    m = graph_runtime.create(graph, lib, ctx)
-    m.set_input(**{"cls_prob": np_cls_prob.astype(dtype), "loc_preds": np_loc_preds.astype(dtype), "anchors": np_anchors.astype(dtype)})
-    m.run()
-    out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
-    tvm.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(out, target, {"cls_prob": (batch_size, num_anchors, num_classes),
+                                                          "loc_preds": (batch_size, num_anchors * 4),
+                                                          "anchors": (1, num_anchors, 4)})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.set_input(**{"cls_prob": np_cls_prob.astype(dtype), "loc_preds": np_loc_preds.astype(dtype), "anchors": np_anchors.astype(dtype)})
+        m.run()
+        tvm_out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
 
-def test_nms():
+def test_non_max_suppression():
     dshape = (1, 5, 6)
     data = sym.Variable("data")
     valid_count = sym.Variable("valid_count", dtype="int32")
-    nms_threshold = 0.7
+    iou_threshold = 0.7
     force_suppress = True
-    nms_topk = 2
-    out = sym.nms(data=data, valid_count=valid_count, nms_threshold=nms_threshold,
-                  force_suppress=force_suppress, nms_topk=nms_topk)
+    top_k = 2
+    out = sym.non_max_suppression(data=data, valid_count=valid_count, return_indices=False,
+                                  iou_threshold=iou_threshold, force_suppress=force_suppress, top_k=top_k)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
                          [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
     np_valid_count = np.array([4]).astype("int32")
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [0, 0.4, 4, 21, 19, 40], [-1, 0.9, 35, 61, 52, 79],
+                           [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
 
-    target = "llvm"
-    ctx = tvm.cpu()
-    graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape, "valid_count": (dshape[0],)},
-                                        dtype={"data": "float32", "valid_count": "int32"})
-    m = graph_runtime.create(graph, lib, ctx)
-    m.set_input(**{"data": np_data, "valid_count": np_valid_count})
-    m.run()
-    out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
-    tvm.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape, "valid_count": (dshape[0],)},
+                                            dtype={"data": "float32", "valid_count": "int32"})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.set_input(**{"data": np_data, "valid_count": np_valid_count})
+        m.run()
+        tvm_out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
 def np_slice_like(np_data, np_shape_like, axis=[]):
     begin_idx = [0 for _ in np_data.shape]
@@ -726,7 +739,7 @@ if __name__ == "__main__":
     test_flip()
     test_multibox_prior()
     test_multibox_transform_loc()
-    test_nms()
+    test_non_max_suppression()
     test_slice_like()
     test_where()
     test_argmax()

@@ -1,9 +1,24 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return, too-many-arguments, too-many-locals, too-many-statements, no-member, too-many-branches, too-many-boolean-expressions
 """conv2d schedule on Intel Graphics"""
 
 from __future__ import absolute_import as _abs
 
-import warnings
 import tvm
 
 from .. import generic
@@ -39,11 +54,6 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
 
 @conv2d_alter_layout.register(["intel_graphics"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, F):
-    import nnvm.symbol as sym
-    if F != sym:
-        warnings.warn("Only support alter layout for intel graphics in NNVM now. "
-                      "This pass is ignored in relay.")
-        return None
 
     copy_inputs = [s for s in inputs]
 
@@ -51,8 +61,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     kernel = tinfos[1]
 
     import ast
-    padding = ast.literal_eval(attrs['padding'])
-    stride = ast.literal_eval(attrs['strides'])
+    padding = ast.literal_eval(str(attrs['padding']))
+    stride = ast.literal_eval(str(attrs['strides']))
 
     wkl = _get_workload(data, kernel, stride, padding, data.dtype)
     oc_bn = 1
@@ -62,9 +72,18 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
             break
 
     new_attrs = {k: attrs[k] for k in attrs.keys()}
-    new_attrs['kernel_layout'] = 'OIHW%do' % (oc_bn)
+    new_attrs["kernel_layout"] = 'OIHW%do' % (oc_bn)
 
-    return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+    if F.__name__ == 'tvm.relay.op':
+        # Derive channels for frontends (e.g ONNX) that miss "channel" field.
+        new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
+
+    if F.__name__ == 'nnvm.symbol':
+        out = F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+    else:
+        out = F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
+
+    return out
 
 @conv2d_NCHWc.register(["intel_graphics"])
 def _decl_conv2d(data, kernel, stride, padding, dilation, layout, out_layout, out_dtype='float32'):

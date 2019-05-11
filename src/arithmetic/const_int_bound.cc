@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file tvm/arithmetic/const_int_bound.cc
@@ -6,6 +25,7 @@
 #include <tvm/ir_functor_ext.h>
 #include <algorithm>
 #include "int_op_overflow.h"
+#include "pattern_match.h"
 
 namespace tvm {
 namespace arith {
@@ -37,11 +57,28 @@ struct ConstIntBoundAnalyzer::Entry {
   bool is_const(int64_t value) const {
     return min_value == max_value && min_value == value;
   }
+
+  bool operator==(const Entry& other) const {
+    return min_value == other.min_value && max_value == other.max_value;
+  }
 };
 
 class ConstIntBoundAnalyzer::Impl :
       public ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
  public:
+  /*! \brief additional bound info about expr \in bound */
+  struct BoundInfo {
+    /*! \brief The expr */
+    Expr expr;
+    /*! \brief The additional bound */
+    Entry bound;
+
+    BoundInfo() {}
+    BoundInfo(Expr expr, Entry bound)
+        : expr(expr), bound(bound) {
+    }
+  };
+
   void Bind(const Var& var, const Range& range) {
     Entry a = VisitExpr(range->min);
     Entry b = VisitExpr(range->extent);
@@ -55,7 +92,11 @@ class ConstIntBoundAnalyzer::Impl :
               const Entry& info,
               bool override) {
     if (!override) {
-      CHECK(!var_map_.count(var));
+      auto it = var_map_.find(var);
+      if (it != var_map_.end()) {
+        CHECK(it->second == info)
+          << "var \'" << var << "\' already updated.";
+      }
     }
     var_map_[var] = info;
   }
@@ -70,6 +111,18 @@ class ConstIntBoundAnalyzer::Impl :
   Entry VisitExprDefault_(const Node* op) final {
     return Everything(
         static_cast<const ir::BaseExprNode*>(op)->type);
+  }
+
+  Entry VisitExpr(const Expr& expr) final {
+    Entry res = ExprFunctor::VisitExpr(expr);
+    // a linear search over additional info
+    // assume we won't have a lot of conditions
+    for (const BoundInfo& info : additional_info_) {
+      if (ir::Equal(expr, info.expr)) {
+        res = Intersect(res, info.bound);
+      }
+    }
+    return res;
   }
 
   Entry VisitExpr_(const Cast* op) final {
@@ -216,9 +269,24 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
+  std::function<void()> EnterConstraint(const Expr& constraint) {
+    std::vector<BoundInfo> info = DetectBoundInfo(constraint);
+    if (info.size() == 0) return nullptr;
+    size_t old_size = additional_info_.size();
+    additional_info_.insert(additional_info_.end(), info.begin(), info.end());
+    size_t new_size = old_size + info.size();
+    auto frecover = [old_size, new_size, this]() {
+      CHECK_EQ(additional_info_.size(), new_size);
+      additional_info_.resize(old_size);
+    };
+    return frecover;
+  }
+
  private:
   // internal variable map
   std::unordered_map<Var, Entry, ExprHash, ExprEqual> var_map_;
+  // additional bound info
+  std::vector<BoundInfo> additional_info_;
   // constants: the limit value means umlimited
   // NOTE: kNegInf/kPosInf are used to represent infinity.
   static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
@@ -360,6 +428,36 @@ class ConstIntBoundAnalyzer::Impl :
     }
     return ret;
   }
+
+  /*!
+   * \brief Detect additional constant bound from cond, if any
+   * \param cond The constraint condition.
+   * \return List of detected bounds.
+   */
+  static std::vector<BoundInfo> DetectBoundInfo(const Expr& cond) {
+    PVar<Expr> x, y;
+    PVar<Integer> c;
+    // NOTE: canonical form always use <= or <
+    if ((c <= x).Match(cond)) {
+      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, kPosInf))};
+    }
+    if ((c < x).Match(cond)) {
+      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value + 1, kPosInf))};
+    }
+    if ((x <= c).Match(cond)) {
+      return {BoundInfo(x.Eval(), MakeBound(kNegInf, c.Eval()->value))};
+    }
+    if ((x < c).Match(cond)) {
+      return {BoundInfo(x.Eval(), MakeBound(kNegInf, c.Eval()->value - 1))};
+    }
+    if ((x && y).Match(cond)) {
+      auto ret1 = DetectBoundInfo(x.Eval());
+      auto ret2 = DetectBoundInfo(y.Eval());
+      ret1.insert(ret1.end(), ret2.begin(), ret2.end());
+      return ret1;
+    }
+    return {};
+  }
 };
 
 ConstIntBound ConstIntBoundAnalyzer::operator()(const Expr& expr) {
@@ -378,7 +476,7 @@ void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range) {
 }
 
 std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const Expr& constraint) {
-  return nullptr;
+  return impl_->EnterConstraint(constraint);
 }
 
 ConstIntBoundAnalyzer::ConstIntBoundAnalyzer(Analyzer* parent)

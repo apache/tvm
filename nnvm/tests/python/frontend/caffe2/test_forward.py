@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 import numpy as np
 import nnvm
 import tvm
@@ -29,7 +45,6 @@ def get_tvm_output(model,
     graph, lib, params = nnvm.compiler.build(
         sym, target, shape=shape_dict, dtype=dtype_dict, params=params)
 
-    ctx = tvm.cpu(0)
     m = graph_runtime.create(graph, lib, ctx)
 
     # set inputs
@@ -73,21 +88,21 @@ def verify_caffe2_forward_impl(model, data_shape, out_shape):
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_squeezenet1_1():
+def test_squeezenet1_1():
     verify_caffe2_forward_impl(c2_squeezenet, (1, 3, 224, 224),
                                (1, 1000, 1, 1))
 
 
-def verify_resnet50():
+def test_resnet50():
     verify_caffe2_forward_impl(c2_resnet50, (1, 3, 224, 224),
                                (1, 1000))
 
 
-def verify_vgg19():
+def test_vgg19():
     verify_caffe2_forward_impl(c2_vgg19, (1, 3, 224, 224), (1, 1000))
 
 
 if __name__ == '__main__':
-    verify_squeezenet1_1()
-    verify_resnet50()
-    verify_vgg19()
+    test_squeezenet1_1()
+    test_resnet50()
+    test_vgg19()

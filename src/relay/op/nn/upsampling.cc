@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file upsampling.cc
@@ -17,6 +36,31 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(UpSamplingAttrs);
+
+template <typename T>
+Array<Array<Layout> > UpsamplingInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+  // NOTE: Discard "const" qualifier here.
+  T *params = const_cast<T*>(attrs.as<T>());
+
+  if (new_in_layouts.defined()) {
+    CHECK_EQ(new_in_layouts.size(), 1);
+
+    Layout raw_layout(params->layout);
+    Layout input = new_in_layouts[0];
+    if (input.IndexOf(LayoutAxis::Get('W')) == raw_layout.IndexOf(LayoutAxis::Get('W')) &&
+      input.IndexOf(LayoutAxis::Get('H')) == raw_layout.IndexOf(LayoutAxis::Get('H')) &&
+        !input.Contains(LayoutAxis::Get('w')) && !input.Contains(LayoutAxis::Get('h'))) {
+      params->layout = input.name();  // modify self to follow the input layout
+    }
+  }
+
+  Layout inferred_layout(params->layout);
+  return Array<Array<Layout> >{{inferred_layout}, {inferred_layout}};
+}
 
 bool UpSamplingRel(const Array<Type>& types,
                    int num_inputs,
@@ -66,9 +110,7 @@ Expr MakeUpSampling(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.upsampling")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 4>(MakeUpSampling, args, rv);
-  });
+.set_body_typed(MakeUpSampling);
 
 
 RELAY_REGISTER_OP("nn.upsampling")
@@ -91,6 +133,8 @@ RELAY_REGISTER_OP("nn.upsampling")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("UpSampling", UpSamplingRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+  UpsamplingInferCorrectLayout<UpSamplingAttrs>)
 .set_attr<TOpPattern>("TOpPattern", kInjective)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
@@ -101,14 +145,16 @@ RELAY_REGISTER_OP("nn.upsampling")
     CHECK(uattrs != nullptr);
     auto out_tt = out_type.as<TensorTypeNode>();
     CHECK(out_tt) << "expected a tensor type: " << out_type;
-    CHECK(uattrs->layout == "NCHW" || uattrs->layout == "NHWC")
+    const auto layout = uattrs->layout;
+    const auto base_layout = layout.substr(0, 4);
+    CHECK(base_layout == "NCHW" || layout == "NHWC")
       << "unknown layout: " << uattrs->layout;
 
     Array<HalideIR::Expr> oshape;
-    if (uattrs->layout == "NCHW") {
+    if (base_layout == "NCHW") {
       oshape.push_back(out_tt->shape[2]);
       oshape.push_back(out_tt->shape[3]);
-    } else if (uattrs->layout == "NHWC") {
+    } else if (layout == "NHWC") {
       oshape.push_back(out_tt->shape[1]);
       oshape.push_back(out_tt->shape[2]);
     }

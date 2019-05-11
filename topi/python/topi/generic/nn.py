@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,unused-argument
 """Generic nn operators"""
 from __future__ import absolute_import as _abs
@@ -122,6 +138,39 @@ def schedule_conv2d_winograd_without_weight_transform(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv2d_winograd_nnpack_weight_transform(outs):
+    """Schedule for weight transformation of winograd
+     Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of this operator
+          in the format of an array of tensors.
+     Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    # Typically this is computed in nnvm PreCompute pass
+    s = tvm.create_schedule([x.op for x in outs])
+    return s
+
+@tvm.target.generic_func
+def schedule_conv2d_winograd_nnpack_without_weight_transform(outs):
+    """Schedule for winograd without weight transformation
+     Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of this operator
+          in the format of an array of tensors.
+     Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
 
@@ -193,12 +242,30 @@ def schedule_depthwise_conv2d_NCHWc(outs):
 
 @tvm.target.generic_func
 def schedule_group_conv2d_nchw(outs):
-    """Schedule for conv2d_nchw
+    """Schedule for group_conv2d_nchw
 
     Parameters
     ----------
     outs: Array of Tensor
           The computation graph description of group_conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_deformable_conv2d_nchw(outs):
+    """Schedule for deformable_conv2d_nchw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of deformable_conv2d_nchw
           in the format of an array of tensors.
 
     Returns
@@ -237,6 +304,22 @@ def schedule_bitserial_conv2d_nhwc(outs):
           The computation graph description of bitserial_conv2d_nchw
           in the format of an array of tensors.
 
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_bitserial_dense(outs):
+    """Schedule for bitserial_dense
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of bitserial_dense
+          in the format of an array of tensors.
     Returns
     -------
     sch: Schedule
@@ -320,14 +403,14 @@ def schedule_pool(outs, layout):
     return _default_schedule(outs, False)
 
 
-@tvm.target.override_native_generic_func("schedule_global_pool")
-def schedule_global_pool(outs):
-    """Schedule for global pool
+@tvm.target.override_native_generic_func("schedule_adaptive_pool")
+def schedule_adaptive_pool(outs):
+    """Schedule for adaptive pool
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of global pool
+          The computation graph description of adaptive pool
           in the format of an array of tensors.
 
     Returns
@@ -336,6 +419,7 @@ def schedule_global_pool(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
 
 @tvm.target.override_native_generic_func("schedule_binarize_pack")
 def schedule_binarize_pack(outs):

@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/data_layout.h
  * \brief Layout expression to describe the data organization of a tensor.
  *  And BijectiveLayout to mapping two data layouts between each other.
@@ -76,12 +94,13 @@ class Layout;
 // Internal node container Buffer
 class LayoutNode : public Node {
  public:
-  /*! \brief string representation of layout */
+  /*! \brief string representation of layout, "" for scalar. */
   std::string name;
   /*! \brief specify each axis of the layout,
    *   in which the variable name is the name of the axis.
    *   The IterVar's extent indicates the size of the axis,
    *   it is a variable for a primal axis, but a constant for a subordinate axis.
+   *   Empty for scalar's layout.
    */
   Array<IterVar> axes;
 
@@ -104,6 +123,7 @@ class LayoutNode : public Node {
  *  For example, NCHW16c can describe a 5-D tensor of
  *  [batch_size, channel, height, width, channel_block].
  *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
+ *  Layout for scalar is defined, while both its name and axes have size 0.
  */
 class Layout : public NodeRef {
  public:
@@ -157,7 +177,7 @@ class Layout : public NodeRef {
    *        that starts at dimension \p pos and spans \p len dimensions
    *        (or until the end of the layout, whichever comes first).
    * \param pos The start position.
-   * \param len The length of the sub-layout.
+   * \param len The length of the sub-layout. if 0, return layout of scalar
    * \return A newly constructed Layout object.
    */
   Layout SubLayout(size_t pos, size_t len) const;

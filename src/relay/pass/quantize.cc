@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2018 by Contributors
  *
@@ -15,6 +34,7 @@
 #include <string>
 #include <vector>
 #include <stack>
+#include <utility>
 #include "pattern_util.h"
 #include "quantize.h"
 
@@ -124,7 +144,7 @@ TVM_REGISTER_API("relay._quantize.annotate")
       }
       return e;
     };
-  return ForwardRewrite(expr, "FQAnnotateRewrite", nullptr, nullptr);
+  return ForwardRewrite(expr, "FQAnnotateRewrite", nullptr, fmulti_ref);
 });
 
 
@@ -276,6 +296,39 @@ RELAY_REGISTER_OP("nn.conv2d")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", Conv2dRealize);
 
 
+Expr DenseRealize(const Call& ref_call,
+                  const Array<Expr>& new_args,
+                  const NodeRef& ctx) {
+  const QConfig& cfg = QConfig::Current();
+  CHECK_EQ(new_args.size(), 2);
+  if (!new_args[0]->derived_from<TempExprNode>() || !new_args[1]->derived_from<TempExprNode>()) {
+    return Expr(nullptr);
+  }
+  const auto* lhs = new_args[0].as<QRealizeIntExprNode>();
+  const auto* rhs = new_args[1].as<QRealizeIntExprNode>();
+
+  Expr ldata = lhs->data;
+  if (lhs->dtype != cfg->dtype_input) {
+    ldata = Cast(ldata, cfg->dtype_input);
+  }
+  Expr rdata = Cast(rhs->data, cfg->dtype_weight);
+
+  const auto ref_attrs = ref_call->attrs.as<DenseAttrs>();
+  auto attrs = make_node<DenseAttrs>();
+  *attrs = *ref_attrs;
+  DataType out_dtype = cfg->dtype_activation;
+  attrs->out_dtype = out_dtype;
+
+  Expr ret = CallNode::make(ref_call->op,
+          {ldata, rdata}, Attrs(attrs), ref_call->type_args);
+  Expr dom_scale = FoldConstant(Multiply(lhs->dom_scale, rhs->dom_scale));
+  return QRealizeIntExprNode::make(ret, dom_scale, out_dtype);
+}
+
+RELAY_REGISTER_OP("nn.dense")
+.set_attr<FForwardRewrite>("FQRealizeRewrite", DenseRealize);
+
+
 Expr MulRealize(const Call& ref_call,
                 const Array<Expr>& new_args,
                 const NodeRef& ctx) {
@@ -329,9 +382,11 @@ float ChooseDomScale(const std::vector<const QRealizeIntExprNode*>& nptrs) {
 
 
 /* \brief Unify the dom scale of arguments */
-Array<Expr> UnifyDTypeScale(const Array<Expr>& args,
+Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
+                            const Array<Expr>& args,
                             DataType* dtype_ptr,
                             Expr* scale_ptr) {
+  static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
   const QConfig& cfg = QConfig::Current();
 
   std::vector<const QRealizeIntExprNode*> nptrs;
@@ -344,10 +399,19 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& args,
   }
 
   // unify the data type
+  CHECK_EQ(ref_args.size(), args.size());
   DataType dtype = cfg->dtype_activation;
   for (size_t i = 0; i < ret.size(); ++i) {
+    auto ref_arg = ref_args[i].as<CallNode>();
     if (nptrs[i]->dtype != dtype) {
       ret.Set(i, Cast(ret[i], dtype));
+    } else if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
+               ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
+      auto new_arg = Cast(ret[i], cfg->dtype_input);
+      if (cfg->use_stop_fusion) {
+        new_arg = StopFusion(new_arg);
+      }
+      ret.Set(i, Cast(new_arg, dtype));
     }
   }
 
@@ -371,7 +435,7 @@ Expr AddRealize(const Call& ref_call,
   if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
     DataType dtype;
     Expr dom_scale;
-    Array<Expr> ret_args = UnifyDTypeScale(new_args, &dtype, &dom_scale);
+    Array<Expr> ret_args = UnifyDTypeScale(ref_call->args, new_args, &dtype, &dom_scale);
     Expr ret = ForwardOp(ref_call, ret_args);
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   }
@@ -387,15 +451,19 @@ Expr ConcatenateRealize(const Call& ref_call,
                         const Array<Expr>& new_args,
                         const NodeRef& ctx) {
   CHECK_EQ(new_args.size(), 1);
+  CHECK_EQ(ref_call->args.size(), 1);
 
   const auto* tuple = new_args[0].as<TupleNode>();
+  const auto* ref_tuple = ref_call->args[0].as<TupleNode>();
   CHECK(tuple);
+  CHECK(ref_tuple);
   const Array<Expr>& arr = tuple->fields;
+  const Array<Expr>& ref_arr = ref_tuple->fields;
 
   if (arr[0].as<QRealizeIntExprNode>()) {
     DataType dtype;
     Expr dom_scale;
-    Array<Expr> ret_args = UnifyDTypeScale(arr, &dtype, &dom_scale);
+    Array<Expr> ret_args = UnifyDTypeScale(ref_arr, arr, &dtype, &dom_scale);
     Expr ret = ForwardOp(ref_call, {TupleNode::make(ret_args)});
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   } else {
@@ -530,25 +598,19 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "skip_k_conv==" << op->skip_k_conv << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
   p->stream << "store_lowbit_output==" << op->store_lowbit_output << ", ";
-  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops;
+  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops << ", ";
+  p->stream << "use_stop_fusion==" << op->use_stop_fusion;
   p->stream << ")";
 });
 
 TVM_REGISTER_API("relay._quantize._GetCurrentQConfig")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = QConfig::Current();
-  });
+.set_body_typed(QConfig::Current);
 
 TVM_REGISTER_API("relay._quantize._EnterQConfigScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  QConfig target = args[0];
-  QConfig::EnterQConfigScope(target);
-  });
+.set_body_typed(QConfig::EnterQConfigScope);
 
 TVM_REGISTER_API("relay._quantize._ExitQConfigScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  QConfig::ExitQConfigScope();
-  });
+.set_body_typed(QConfig::ExitQConfigScope);
 
 }  // namespace quantize
 }  // namespace relay

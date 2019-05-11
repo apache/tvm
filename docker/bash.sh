@@ -1,4 +1,22 @@
 #!/usr/bin/env bash
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 #
 # Start a bash, mount /workspace to be current directory.
 #
@@ -17,7 +35,13 @@ DOCKER_IMAGE_NAME=("$1")
 
 if [ "$#" -eq 1 ]; then
     COMMAND="bash"
-    CI_DOCKER_EXTRA_PARAMS=("-it --net=host")
+    if [[ $(uname) == "Darwin" ]]; then
+        # Docker's host networking driver isn't supported on macOS.
+        # Use default bridge network and expose port for jupyter notebook.
+        CI_DOCKER_EXTRA_PARAMS=("-it -p 8888:8888")
+    else
+        CI_DOCKER_EXTRA_PARAMS=("-it --net=host")
+    fi
 else
     shift 1
     COMMAND=("$@")
@@ -31,6 +55,12 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* ]]; then
     DOCKER_BINARY="nvidia-docker"
 else
     DOCKER_BINARY="docker"
+fi
+
+if [[ ! -z $CUDA_VISIBLE_DEVICES ]]; then
+    CUDA_ENV="-e CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
+else
+    CUDA_ENV=""
 fi
 
 # Print arguments.
@@ -53,6 +83,8 @@ ${DOCKER_BINARY} run --rm --pid=host\
     -e "CI_BUILD_UID=$(id -u)" \
     -e "CI_BUILD_GROUP=$(id -g -n)" \
     -e "CI_BUILD_GID=$(id -g)" \
+    -e "PYTHONPATH=python:topi/python"\
+    ${CUDA_ENV}\
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
     ${DOCKER_IMAGE_NAME}\
     bash --login /docker/with_the_same_user \

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file nnvm/op.h
@@ -321,6 +340,13 @@ class OpMap {
    */
   inline int count(const Op* op) const;
 
+  /*!
+   * \brief Check if the map has op as key.
+   * \param op The key to the map
+   * \return true if op is contained in map, false otherwise.
+   */
+  inline bool contains(const Op* op) const;
+
  private:
   friend class Op;
   // internal attribute name
@@ -520,9 +546,20 @@ inline Op& Op::set_attr_parser(std::function<void (NodeAttrs* attrs)> fn) {  // 
 // member functions of OpMap
 template<typename ValueType>
 inline int OpMap<ValueType>::count(const Op* op) const {
-  if (op == nullptr) return 0;
+  if (contains(op)) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+template<typename ValueType>
+inline bool OpMap<ValueType>::contains(const Op* op) const {
+  if (op == nullptr) {
+    return false;
+  }
   const uint32_t idx = op->index_;
-  return idx < data_.size() ? (data_[idx].second != 0) : 0;
+  return idx < data_.size() ? (data_[idx].second != 0) : false;
 }
 
 template<typename ValueType>

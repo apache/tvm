@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # pylint: disable=invalid-name, unused-import
 """Function namespace."""
 from __future__ import absolute_import
@@ -13,18 +30,27 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     if sys.version_info >= (3, 0):
-        from ._cy3.core import _set_class_function, _set_class_module
+        from ._cy3.core import _set_class_function, _set_class_module, _set_class_object
         from ._cy3.core import FunctionBase as _FunctionBase
+        from ._cy3.core import ObjectBase as _ObjectBase
         from ._cy3.core import convert_to_tvm_func
     else:
-        from ._cy2.core import _set_class_function, _set_class_module
+        from ._cy2.core import _set_class_function, _set_class_module, _set_class_object
         from ._cy2.core import FunctionBase as _FunctionBase
+        from ._cy2.core import ObjectBase as _ObjectBase
         from ._cy2.core import convert_to_tvm_func
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
-    from ._ctypes.function import _set_class_function, _set_class_module
+    from ._ctypes.function import _set_class_function, _set_class_module, _set_class_object
+    from ._ctypes.function import ObjectBase as _ObjectBase
     from ._ctypes.function import FunctionBase as _FunctionBase
     from ._ctypes.function import convert_to_tvm_func
+
+class Object(_ObjectBase):
+    # TODO(@jroesch): Eventually add back introspection functionality.
+    pass
+
+_set_class_object(Object)
 
 FunctionHandle = ctypes.c_void_p
 

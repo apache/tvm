@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Depthwise Conv2D schedule on x86"""
 import tvm
@@ -58,7 +74,7 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
                                 layout, out_layout, out_dtype=None):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     batch, in_channel_chunk, in_height, in_width, in_channel_block = get_const_tuple(data.shape)
-    out_channel_chunk, filter_height, filter_width, out_channel_block \
+    out_channel_chunk, _, filter_height, filter_width, __, out_channel_block \
         = get_const_tuple(kernel.shape)
 
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
@@ -102,7 +118,7 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
                       oh*HSTR+kh, ow*WSTR+kw,
                       ((oco * out_channel_block + oci) // channel_multiplier) % in_channel_block]
              .astype(out_dtype) *
-             kernel[oco, kh, kw, oci].astype(out_dtype)),
+             kernel[oco, 0, kh, kw, 0, oci].astype(out_dtype)),
             axis=[kh, kw]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_NCHWc")
     return Output

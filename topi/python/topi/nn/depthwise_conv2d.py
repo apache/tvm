@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, unused-variable, too-many-locals, unused-argument
 """Depthwise convolution operators"""
 from __future__ import absolute_import as _abs
@@ -292,7 +308,7 @@ def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
         5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
     Filter : tvm.Tensor
-        4-D with shape [out_channel_chunk, filter_height, filter_width, out_channel_block]
+        6-D with shape [out_channel_chunk, 1, filter_height, filter_width, 1, out_channel_block]
         In NCHWc depthwise convolution,
         we group kernel's in_channel and channel_multiplier together then do the tiling.
 
@@ -317,6 +333,6 @@ def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
     Returns
     -------
     Output : tvm.Tensor
-        4-D with shape [batch, out_channel, out_height, out_width]
+        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
     raise ValueError("missing register for topi.nn.depthwise_conv2d_NCHWc")

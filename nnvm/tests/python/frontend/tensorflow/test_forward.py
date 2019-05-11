@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=import-self, invalid-name, unused-argument
 """
 Tensorflow testcases
@@ -50,7 +66,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
     else:
         shape_dict = {input_node: input_data.shape}
         dtype_dict = {input_node: input_data.dtype}
-   
+
     sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout, shape=shape_dict, outputs=out_names)
     graph, lib, params = nnvm.compiler.build(sym, target=target, target_host=target_host, shape=shape_dict,
                                              dtype=dtype_dict, params=params)
@@ -126,7 +142,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
 
             tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
                                        num_output=len(out_node), target=device, out_names=out_name)
-            # since the names from tensorflow and nnvm runs are not exactly same, 
+            # since the names from tensorflow and nnvm runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
                 tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
@@ -137,7 +153,7 @@ def is_gpu_available():
     from tensorflow.python.client import device_lib
     local_device_protos = device_lib.list_local_devices()
     gpu_list = [x.name for x in local_device_protos if x.device_type == 'GPU']
-    if len(gpu_list) < 0:
+    if len(gpu_list) > 0:
         print("Tensorflow GPU:", gpu_list)
         return True
     else:
@@ -168,7 +184,7 @@ def _test_pooling(input_shape, **kwargs):
 
     if is_gpu_available():
         input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
-        kwargs['data_layout'] = 'NCHW'
+        kwargs['data_format'] = 'NCHW'
         _test_pooling_iteration(input_shape, **kwargs)
 
 def test_forward_pooling():
@@ -225,8 +241,12 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
         in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
-        strides = [1] + strides + [1]
-        dilations = [1] + dilations + [1]
+        if data_format == 'NHWC':
+            strides = [1] + strides + [1]
+            dilations = [1] + dilations + [1]
+        else:
+            strides = [1, 1] + strides
+            dilations = [1, 1] + dilations
 
         nn_ops.conv2d(in_data,
                       in_filter,
@@ -621,7 +641,7 @@ def test_forward_multi_output():
         out_name = ['out1:0', 'out2:0']
         out_node = [out.strip(':0') for out in out_name]
         in_node = [inp.strip(':0') for inp in in_name]
-        
+
         with tf.Session() as sess:
             final_graph_def = tf.graph_util.convert_variables_to_constants(
                 sess, sess.graph.as_graph_def(add_shapes=True), out_node,)
@@ -898,7 +918,7 @@ def test_forward_mobilenet():
 
 #######################################################################
 # ResnetV2
-# ---------
+# --------
 def test_forward_resnetv2():
     '''test resnet model'''
     if is_gpu_available():
@@ -912,8 +932,36 @@ def test_forward_resnetv2():
 
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
-                tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', tf_output.shape, 'float32')
-                tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+                for device in ["llvm", "cuda"]:
+                    ctx = tvm.context(device, 0)
+                    if not ctx.exist:
+                        print("Skip because %s is not enabled" % device)
+                        continue
+                    tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', len(tf_output), target=device)
+                    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+
+#######################################################################
+# Placeholder
+# -----------
+def test_forward_placeholder():
+    '''test a simple pb with Placeholder node in the end of GraphDef'''
+    with tf.Graph().as_default():
+        graph_def = tf_testing.get_workload("Custom/placeholder.pb")
+
+        # Call the utility to import the graph definition into default graph.
+        graph_def = tf_testing.ProcessGraphDefParam(graph_def)
+
+
+        data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
+        out_node = 'mul'
+
+        with tf.Session() as sess:
+            # Add shapes to the graph.
+            graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
+            tf_output = run_tf_graph(sess, data, 'Placeholder:0', out_node + ':0')
+            tvm_output = run_tvm_graph(graph_def, data, 'Placeholder')
+            print("tf_output is {}\ntvm_output is {}".format(tf_output, tvm_output))
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # PTB
@@ -1125,7 +1173,7 @@ def test_forward_leaky_relu():
     with tf.Graph().as_default():
         in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
         tf.nn.leaky_relu(in1, alpha=0.4)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu/mul:0')
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu:0')
 
 def test_forward_elu():
     ishape = (1, 3, 10, 10)
@@ -1236,6 +1284,7 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
+    test_forward_placeholder()
     test_forward_ptb()
 
     # RNN

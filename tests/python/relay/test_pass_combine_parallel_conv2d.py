@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 from tvm import relay
 import numpy as np
 
@@ -39,7 +55,7 @@ def test_combine_parallel_conv2d():
 
         y_before = before(x, w1, w2, w3, w4)
         y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y)
+        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
         y = relay.ir_pass.infer_type(y)
         y_expected = expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4)
         y_expected = relay.ir_pass.infer_type(y_expected)
@@ -86,7 +102,7 @@ def test_combine_parallel_conv2d_scale_relu():
         bias = relay.var("bias", shape=(channels2, 1, 1))
         y_before = before(x, w1, w2, scale1, scale2, bias)
         y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y)
+        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
         y = relay.ir_pass.infer_type(y)
         y_expected = expected(x, w1, w2, scale1, scale2, bias, channels1, channels2)
         y_expected = relay.ir_pass.infer_type(y_expected)
@@ -126,7 +142,7 @@ def test_combine_parallel_conv2d_scale():
         scale2 = relay.var("scale2", shape=(1,))
         y_before = before(x, w1, w2, scale1, scale2)
         y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y)
+        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
         y = relay.ir_pass.infer_type(y)
         y_expected = expected(x, w1, w2, scale1, scale2, channels1, channels2)
         y_expected = relay.ir_pass.infer_type(y_expected)
@@ -163,7 +179,7 @@ def test_combine_parallel_conv2d_multiple_blocks():
         w = relay.var("w", shape=(out_c, in_c, 1, 1))
         y_before = before(x, w, repeat)
         y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y)
+        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
         y = relay.ir_pass.infer_type(y)
         y_expected = expected(x, w, out_c, repeat)
         y_expected = relay.ir_pass.infer_type(y_expected)

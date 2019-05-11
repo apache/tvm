@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file Use external nnpack library call.
@@ -189,20 +208,20 @@ TVM_REGISTER_GLOBAL("tvm.contrib.nnpack.convolution_inference_without_weight_tra
       CHECK(workspace_buffer != nullptr);
 
       for (auto n = 0; n < input->shape[0]; ++n) {
-      nnp_status status = nnp_convolution_inference(
-          algo, nnp_convolution_transform_strategy_reuse, input_channels, output_channels,
-          input_size, input_padding, kernel_size, stride_size,
-          static_cast<float *>(input->data) + n * input->shape[1] *
-                               input->shape[2] *
-                               input->shape[3],
-          static_cast<float *>(transformed_kernel->data),
-          bias ? static_cast<float *>(bias->data) : zero_bias->data(),
-          static_cast<float *>(output->data) + n * output->shape[1] *
-                               output->shape[2] *
-                               output->shape[3],
-          workspace_buffer, &workspace_size,
-          nnp_activation_identity, nullptr, entry->threadpool, nullptr);
-      CHECK_EQ(status, nnp_status_success);
+        nnp_status status = nnp_convolution_inference(
+            algo, nnp_convolution_transform_strategy_reuse, input_channels, output_channels,
+            input_size, input_padding, kernel_size, stride_size,
+            static_cast<float *>(input->data) + n * input->shape[1] *
+                                input->shape[2] *
+                                input->shape[3],
+            static_cast<float *>(transformed_kernel->data),
+            bias ? static_cast<float *>(bias->data) : zero_bias->data(),
+            static_cast<float *>(output->data) + n * output->shape[1] *
+                                output->shape[2] *
+                                output->shape[3],
+            workspace_buffer, &workspace_size,
+            nnp_activation_identity, nullptr, entry->threadpool, nullptr);
+        CHECK_EQ(status, nnp_status_success);
       }
 
       cpu_api->FreeWorkspace(ctx, workspace_buffer);

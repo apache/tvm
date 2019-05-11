@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief Broadcast op constructions
@@ -27,7 +46,7 @@ namespace topi {
  */
 inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
                                 const tvm::Array<tvm::Expr>& output_shape,
-                                std::string name = "tensor",
+                                std::string name = "T_broadcast_to",
                                 std::string tag = kBroadcast) {
   CHECK_GE(output_shape.size(), t->shape.size())
       << "Not a broadcast, output dimensionality smaller than input.\noutput: "
@@ -47,35 +66,35 @@ inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
       tag);
 }
 
-#define TOPI_DEFINE_BCAST_OP(Name, ComputeRule)                   \
-  inline tvm::Expr Name(const tvm::Expr& a,                       \
-                        const tvm::Expr& b) {                     \
-    ComputeRule;                                                  \
-  }                                                               \
-  inline tvm::Tensor Name(const tvm::Tensor& A,                   \
-                          const tvm::Tensor& B,                   \
-                          std::string name = "tensor",            \
-                          std::string tag = kBroadcast) {         \
-    auto l = [](tvm::Expr a, tvm::Expr b) { ComputeRule; };       \
-    return detail::WithBroadcast(l, A, B, name, tag);             \
-  }                                                               \
-  inline tvm::Tensor Name(const tvm::Tensor& A,                   \
-                          const tvm::Expr& B,                     \
-                          std::string name = "tensor",            \
-                          std::string tag = kElementWise) {       \
+#define TOPI_DEFINE_BCAST_OP(Name, ComputeRule)                       \
+  inline tvm::Expr Name(const tvm::Expr& a,                           \
+                        const tvm::Expr& b) {                         \
+    ComputeRule;                                                      \
+  }                                                                   \
+  inline tvm::Tensor Name(const tvm::Tensor& A,                       \
+                          const tvm::Tensor& B,                       \
+                          std::string name = "T_" #Name,              \
+                          std::string tag = kBroadcast) {             \
+    auto l = [](tvm::Expr a, tvm::Expr b) { ComputeRule; };           \
+    return detail::WithBroadcast(l, A, B, name, tag);                 \
+  }                                                                   \
+  inline tvm::Tensor Name(const tvm::Tensor& A,                       \
+                          const tvm::Expr& B,                         \
+                          std::string name = "T_" #Name,              \
+                          std::string tag = kElementWise) {           \
     auto l = [](tvm::Expr a, tvm::Expr b) { ComputeRule; };           \
     return compute(A->shape, [&](const ::tvm::Array<::tvm::Var>& i) { \
-        return l(A(i), B);                                        \
-      }, name, tag);                                              \
-  }                                                               \
-  inline tvm::Tensor Name(const tvm::Expr& A,                     \
-                          const tvm::Tensor& B,                   \
-                          std::string name = "tensor",            \
-                          std::string tag = kElementWise) {       \
-    auto l = [&](tvm::Expr a, tvm::Expr b) { ComputeRule; };      \
+        return l(A(i), B);                                            \
+      }, name, tag);                                                  \
+  }                                                                   \
+  inline tvm::Tensor Name(const tvm::Expr& A,                         \
+                          const tvm::Tensor& B,                       \
+                          std::string name = "T_" #Name,              \
+                          std::string tag = kElementWise) {           \
+    auto l = [&](tvm::Expr a, tvm::Expr b) { ComputeRule; };          \
     return compute(B->shape, [&](const ::tvm::Array<::tvm::Var>& i) { \
-        return l(A, B(i));                                        \
-      }, name, tag);                                              \
+        return l(A, B(i));                                            \
+      }, name, tag);                                                  \
   }
 
 

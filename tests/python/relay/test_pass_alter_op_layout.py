@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Test alter op layout pass"""
 
 from tvm import relay
@@ -41,7 +57,7 @@ def test_alter_op():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_return_none():
@@ -65,7 +81,7 @@ def test_alter_return_none():
 
     b = before()
     b = infer_type(b)
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
 
@@ -131,7 +147,7 @@ def test_alter_layout():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_dual_path():
@@ -197,7 +213,7 @@ def test_alter_layout_dual_path():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_resnet():
     """Test alternating the layout of a residual block
@@ -257,7 +273,7 @@ def test_alter_layout_resnet():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_broadcast_op():
@@ -307,7 +323,7 @@ def test_alter_layout_broadcast_op():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_scalar():
     """Test alternating the layout of a conv2d.
@@ -354,7 +370,7 @@ def test_alter_layout_scalar():
     b = expected()
     b = infer_type(b)
 
-    assert(alpha_equal(a, b))
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_concatenate():
     """ """
@@ -409,7 +425,140 @@ def test_alter_layout_concatenate():
     b = expected()
     b = infer_type(b)
 
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_alter_layout_nchw_upsamping_op():
+    """Test upsamping operators """
+    def before():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var('weight', shape=(32, 32, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.nn.upsampling(y, scale=2)
+        y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2))
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    @register_alter_op_layout("nn.conv2d", level=108)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var("weight")
+        x = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout="NCHW16c")
+        y = relay.nn.upsampling(y, scale=2, layout="NCHW16c")
+        y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2), layout='NCHW16c')
+        y = relay.layout_transform(y, "NCHW16c", "NCHW")
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = canonicalize_ops(a)
+    a = infer_type(a)
+
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_alter_layout_strided_slice():
+    """Test rewriting strided_slice during alter_iop_layout"""
+    def before():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var('weight', shape=(32, 32, 3, 3))
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.strided_slice(y, begin=[0, 16], end=[None, None])
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    @register_alter_op_layout("nn.conv2d", level=109)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW4c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 32, 28, 28))
+        weight = relay.var("weight")
+        x = relay.layout_transform(x, "NCHW", "NCHW4c")
+        y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout="NCHW4c")
+        y = relay.strided_slice(y, begin=[0, 4], end=[None, 8])
+        y = relay.layout_transform(y, "NCHW4c", "NCHW")
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = canonicalize_ops(a)
+    a = infer_type(a)
+
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
+    assert alpha_equal(a, b), "Actual = \n" + str(a)
+
+def test_alter_layout_prelu():
+    """Test PRelu operator"""
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight")
+        alpha = relay.var("alpha", relay.IncompleteType())
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.nn.prelu(y, alpha)
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    @register_alter_op_layout("nn.conv2d", level=110)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        w = relay.var("weight")
+        alpha = relay.var("alpha", relay.IncompleteType())
+
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        y = relay.nn.conv2d(y, w,
+                            channels=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout="NCHW16c")
+        y = relay.layout_transform(y, "NCHW16c", "NCHW")
+        y = relay.nn.prelu(y, alpha)
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = canonicalize_ops(a)
+    a = infer_type(a)
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
     assert(alpha_equal(a, b))
+
 
 if __name__ == "__main__":
     test_alter_op()
@@ -420,3 +569,6 @@ if __name__ == "__main__":
     test_alter_layout_broadcast_op()
     test_alter_layout_scalar()
     test_alter_layout_concatenate()
+    test_alter_layout_nchw_upsamping_op()
+    test_alter_layout_strided_slice()
+    test_alter_layout_prelu()

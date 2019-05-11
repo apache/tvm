@@ -1,23 +1,43 @@
 #!/bin/bash
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+set -e
+set -u
+
 export PYTHONPATH=python
-export LD_LIBRARY_PATH=lib:${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
 
 CURR_DIR=$(cd `dirname $0`; pwd)
 SCRIPT_DIR=$CURR_DIR/../../jvm/core/src/test/scripts
 TEMP_DIR=$(mktemp -d)
 
-python $SCRIPT_DIR/test_add_cpu.py $TEMP_DIR || exit -1
-python $SCRIPT_DIR/test_add_gpu.py $TEMP_DIR || exit -1
-python $SCRIPT_DIR/test_graph_runtime.py $TEMP_DIR || exit -1
+python3 $SCRIPT_DIR/test_add_cpu.py $TEMP_DIR
+python3 $SCRIPT_DIR/test_add_gpu.py $TEMP_DIR
+python3 $SCRIPT_DIR/test_graph_runtime.py $TEMP_DIR
 
 # start rpc proxy server
 PORT=$(( ( RANDOM % 1000 )  + 9000 ))
-python $SCRIPT_DIR/test_rpc_proxy_server.py $PORT 30 &
+python3 $SCRIPT_DIR/test_rpc_proxy_server.py $PORT 30 &
 
-make jvmpkg || exit -1
+make jvmpkg
 make jvmpkg JVM_TEST_ARGS="-DskipTests=false \
   -Dtest.tempdir=$TEMP_DIR \
   -Dtest.rpc.proxy.host=localhost \
-  -Dtest.rpc.proxy.port=$PORT" || exit -1
+  -Dtest.rpc.proxy.port=$PORT"
 
 rm -rf $TEMP_DIR

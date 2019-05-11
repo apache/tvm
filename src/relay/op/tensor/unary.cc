@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file unary.cc
@@ -7,6 +26,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
 #include <topi/elemwise.h>
+#include <topi/transform.h>
 #include "../type_relations.h"
 #include "../op_common.h"
 
@@ -44,7 +64,7 @@ RELAY_REGISTER_UNARY_OP("exp")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::exp));
 
 RELAY_REGISTER_UNARY_OP("sqrt")
-.describe(R"code(Returns the rsqrt input array, computed element-wise.
+.describe(R"code(Returns the sqrt input array, computed element-wise.
 
 .. math::
    sqrt(x)
@@ -53,6 +73,15 @@ RELAY_REGISTER_UNARY_OP("sqrt")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::sqrt));
 
+RELAY_REGISTER_UNARY_OP("rsqrt")
+.describe(R"code(Returns the rsqrt input array, computed element-wise.
+
+.. math::
+   1/sqrt(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::rsqrt));
 
 RELAY_REGISTER_UNARY_OP("zeros_like")
 .describe(R"code(Returns an array of zeros, with same type and shape as the input.
@@ -145,6 +174,16 @@ RELAY_REGISTER_UNARY_OP("round")
 .set_support_level(3)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::round));
 
+RELAY_REGISTER_UNARY_OP("sign")
+.describe(R"code(Returns the sign of input array, computed element-wise.
+
+.. numpy::
+   sign(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::sign));
+
 
 RELAY_REGISTER_UNARY_OP("abs")
 .describe(R"code(Returns the abs of input array, computed element-wise.
@@ -177,6 +216,68 @@ RELAY_REGISTER_UNARY_OP("negative")
 )code" TVM_ADD_FILELINE)
 .set_support_level(3)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::negative));
+
+
+RELAY_REGISTER_UNARY_OP("logical_not")
+.describe(R"code(Returns the logical inverse of input array, computed element-wise.
+
+.. math::
+   ~(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::logical_not));
+
+
+// shape_of
+TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
+
+bool ShapeOfRel(const Array<Type>& types,
+                int num_inputs,
+                const Attrs& attrs,
+                const TypeReporter& reporter) {
+  CHECK_EQ(num_inputs, 1);
+  auto tt = types[0].as<TensorTypeNode>();
+  CHECK(tt != nullptr);
+  const auto* param = attrs.as<ShapeOfAttrs>();
+  CHECK(param != nullptr);
+  auto vector_out = tvm::Integer(tt->shape.size());
+  reporter->Assign(types[1], TensorTypeNode::make({ vector_out }, param->dtype));
+  return true;
+}
+
+Array<Tensor> ShapeOfCompute(const Attrs& attrs,
+                             const Array<Tensor>& inputs,
+                             const Type& out_type,
+                             const Target& target) {
+  CHECK_EQ(inputs.size(), 1);
+  const auto* param = attrs.as<ShapeOfAttrs>();
+  CHECK(param != nullptr);
+  return {topi::shape(inputs[0], param->dtype)};
+}
+
+TVM_REGISTER_API("relay.op._make.shape_of")
+.set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
+  auto attrs = make_node<ShapeOfAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("shape_of");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+});
+
+RELAY_REGISTER_OP("shape_of")
+.describe(R"code(Returns a tensor representing the shape of a tensor.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ShapeOfAttrs")
+.add_argument("data", "Tensor", "The input tensor.")
+.add_type_rel("ShapeOf", ShapeOfRel)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_support_level(10)
+.set_attr<FTVMCompute>("FTVMCompute", ShapeOfCompute);
 
 }  // namespace relay
 }  // namespace tvm

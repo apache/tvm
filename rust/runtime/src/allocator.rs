@@ -1,9 +1,26 @@
-#[cfg(target_env = "sgx")]
-use alloc::alloc::{self, Layout};
-#[cfg(not(target_env = "sgx"))]
-use std::alloc::{self, Layout};
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
-use crate::errors::*;
+#[cfg(target_env = "sgx")]
+use alloc::alloc::{self, Layout, LayoutErr};
+#[cfg(not(target_env = "sgx"))]
+use std::alloc::{self, Layout, LayoutErr};
 
 const DEFAULT_ALIGN_BYTES: usize = 4;
 
@@ -15,7 +32,7 @@ pub struct Allocation {
 
 impl Allocation {
     /// Allocates a chunk of memory of `size` bytes with optional alignment.
-    pub fn new(size: usize, align: Option<usize>) -> Result<Self> {
+    pub fn new(size: usize, align: Option<usize>) -> Result<Self, LayoutErr> {
         let alignment = align.unwrap_or(DEFAULT_ALIGN_BYTES);
         let layout = Layout::from_size_align(size, alignment)?;
         let ptr = unsafe { alloc::alloc(layout.clone()) };

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/ir/hash.cc
@@ -252,6 +271,7 @@ class RelayHashHandler:
     }
 
     for (auto t : call->type_args) {
+      CHECK(t.defined());
       hash = Combine(hash, TypeHash(t));
     }
 
@@ -375,7 +395,6 @@ class RelayHashHandler:
     size_t hash = std::hash<std::string>()(PatternWildcardNode::_type_key);
     return hash;
   }
-
  private:
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, size_t, NodeHash, NodeEqual> hash_map_;
@@ -391,14 +410,14 @@ size_t StructuralHash::operator()(const Expr& expr) const {
 }
 
 TVM_REGISTER_API("relay._ir_pass._expr_hash")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = static_cast<int64_t>(RelayHashHandler().Hash(args[0]));
-  });
+.set_body_typed<int64_t(NodeRef)>([](NodeRef ref) {
+  return static_cast<int64_t>(RelayHashHandler().Hash(ref));
+});
 
 TVM_REGISTER_API("relay._ir_pass._type_hash")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = static_cast<int64_t>(RelayHashHandler().TypeHash(args[0]));
-  });
+.set_body_typed<int64_t(Type)>([](Type type) {
+  return static_cast<int64_t>(RelayHashHandler().TypeHash(type));
+});
 
 }  // namespace relay
 }  // namespace tvm

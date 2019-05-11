@@ -1,9 +1,25 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=import-self, invalid-name, line-too-long, unused-argument
 """Caffe2 frontend"""
 from __future__ import absolute_import as _abs
 import tvm
 from nnvm import symbol as _sym
-from nnvm.frontend.common import get_nnvm_op, Renamer, AttrConverter as AttrCvt
+from .common import get_nnvm_op, Renamer, AttrConverter as AttrCvt
 from .onnx_caffe2_utils import dimension_picker, dimension_constraint, infer_channels, revert_caffe2_pad
 from . import onnx
 
@@ -73,8 +89,8 @@ class Caffe2OpConverter(object):
 
         if hasattr(cls, '_impl'):
             return getattr(cls, '_impl')
-        raise NotImplementedError('{} not implemented'.format(
-            cls.__name__))
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not implemented in frontend Caffe2.'.format(cls.__name__))
 
 
 _caffe2_internal_args = {
@@ -176,8 +192,7 @@ class Concat(Caffe2OpConverter):
                 return 1
             if order == 'NHWC':
                 return 3
-            raise RuntimeError(
-                "Unsupported storage order: {} in caffe2".format(order))
+            raise tvm.error.OpAttributeInvalid('Value {} in attribute {} of operator {} is not valid.'.format(order, 'order', 'Concat'))
 
         return AttrCvt(
             op_name='concatenate',
@@ -427,8 +442,8 @@ class Caffe2NetDef(object):
             # Add a sanitizing step to convert all byte strings in args to strings
             sym = convert_map[op_type](inputs, args, self._params)
         else:
-            raise NotImplementedError(
-                "Operator {} not implemented.".format(op_type))
+            raise tvm.error.OpNotImplemented(
+                'Operator {} is not supported in frontend Caffe2.'.format(op_type))
         return sym
 
 

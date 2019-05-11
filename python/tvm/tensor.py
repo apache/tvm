@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 """Tensor and Operation class for computation declaration."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
@@ -94,7 +110,7 @@ class Tensor(NodeBase, _expr.ExprOp):
 
     @property
     def value_index(self):
-        """The output value index the tensor corressponds to."""
+        """The output value index the tensor corresponds to."""
         return self.__getattr__("value_index")
 
     @property
@@ -112,7 +128,7 @@ class Tensor(NodeBase, _expr.ExprOp):
 
 
 class Operation(NodeBase):
-    """Represent an operation that generate a tensor"""
+    """Represent an operation that generates a tensor"""
 
     def output(self, index):
         """Get the index-th output of the operation
@@ -181,7 +197,7 @@ class ScanOp(Operation):
 
 @register_node
 class ExternOp(Operation):
-    """Extern operation."""
+    """External operation."""
 
 
 @register_node

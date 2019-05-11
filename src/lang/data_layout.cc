@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file src/lang/data_layout.cc
@@ -5,6 +24,7 @@
  */
 #include <tvm/data_layout.h>
 #include <tvm/ir_pass.h>
+#include <cctype>
 
 namespace tvm {
 
@@ -68,11 +88,13 @@ Layout::Layout(const Array<IterVar>& axes) {
 }
 
 Layout::Layout(const std::string& name) { // NOLINT(*)
-  if (name.empty() || name == "__undef__") return;
+  if (name == "__undef__") return;
 
   node_ = make_node<LayoutNode>();
   LayoutNode *node = operator->();
   node->name = name;
+
+  if (name.empty()) return;  // scalar
 
   // parse layout string
   int32_t factor = 0;
@@ -115,7 +137,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
     char axis = v->var.get()->name_hint[0];
     if (axis >= 'a' && axis <= 'z') {
       CHECK(exist_axis[axis-'a'+'A']) << "Invalid layout " << name << ": missing axis "
-                                      << axis - 'a' + 'A';
+                                      << std::toupper(axis);
     }
   }
 }
@@ -126,6 +148,7 @@ Layout LayoutNode::make(const std::string& layout) {
 
 Layout Layout::SubLayout(size_t pos, size_t len) const {
   if (!defined() || pos > ndim()) return Layout::Undef();
+  if (len == 0) return Layout(Array<IterVar>());
   if (pos + len > ndim()) len = ndim() - pos;
   Array<IterVar> new_layout;
   const auto axes = operator->()->axes;
@@ -175,6 +198,10 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
 inline bool GetStoreRule(Array<Expr>* rule,
                          const Layout& src_layout,
                          const Layout& dst_layout) {
+  if (!src_layout.defined() || src_layout.name().empty() ||
+      !dst_layout.defined() || dst_layout.name().empty()) {
+    return false;
+  }
   for (size_t i = 0; i < dst_layout.ndim(); ++i) {
     const auto& store_axis = dst_layout[i];
     const IterVar& store_axis_impl = dst_layout->axes[i];

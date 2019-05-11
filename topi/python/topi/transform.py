@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name,consider-using-enumerate
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
@@ -191,6 +207,25 @@ def concatenate(a_tuple, axis=0):
     return cpp.concatenate(a_tuple, axis)
 
 
+def stack(a, axis):
+    """Repeats the whole array multiple times.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be stacked.
+
+    axis : int, optional
+        The axis in the result array along which the input arrays are stacked.
+
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.stack(a, axis)
+
+
 def split(ary, indices_or_sections, axis=0):
     """Split an array into multiple sub-arrays.
 
@@ -209,7 +244,7 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
-def take(a, indices, axis=None):
+def take(a, indices, axis=None, mode="clip"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -224,13 +259,18 @@ def take(a, indices, axis=None):
         The axis over which to select values. By default,
         the flattened input array is used.
 
+    mode : str, optional
+        Specifies how out-of-bound indices will behave.
+        clip - clip to the range (default)
+        wrap - wrap around the indices
+
     Returns
     -------
     ret : tvm.Tensor
     """
     if axis is None:
-        return cpp.take(a, indices)
-    return cpp.take(a, indices, int(axis))
+        return cpp.take(a, indices, mode)
+    return cpp.take(a, indices, int(axis), mode)
 
 
 def gather_nd(a, indices):
@@ -320,6 +360,45 @@ def arange(start, stop=None, step=1, dtype="float32"):
     return cpp.arange(start, stop, step, dtype)
 
 
+def repeat(a, repeats, axis):
+    """Repeats elements of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be repeated.
+
+    repeats: int, required
+        Number of repetitions for each element
+
+    axis: int, optional
+        The axis along which to repeat values
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.repeat(a, repeats, axis)
+
+
+def tile(a, reps):
+    """Repeats the whole array multiple times.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be tiled.
+
+    reps: tuple of ints, required
+        The number of times for repeating the tensor
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.tile(a, reps)
+
+
 def layout_transform(array, src_layout, dst_layout):
     """Transform the layout according to src_layout and dst_layout
 
@@ -335,3 +414,22 @@ def layout_transform(array, src_layout, dst_layout):
         the destination layout.
     """
     return cpp.layout_transform(array, src_layout, dst_layout)
+
+
+def shape(array, dtype="int32"):
+    """Get the shape of input array
+
+    Parameters
+    ----------
+    array : tvm.Tensor
+        The source tenosr.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : tvm.Tensor
+        The resulting tensor.
+    """
+    return cpp.shape(array, dtype)
