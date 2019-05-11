@@ -111,7 +111,8 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1, retries=
         except Exception as err:
             retries -= 1
             if retries == 0:
-                os.remove(tempfile)
+                if os.path.exists(tempfile):
+                    os.remove(tempfile)
                 raise err
             else:
                 print("download failed due to {}, retrying, {} attempt{} left"
