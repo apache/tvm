@@ -595,14 +595,15 @@ TVM_DLL Expr ToGraphNormalForm(const Expr& e);
  */
 Expr PartialEval(const Expr& e);
 
+namespace vm {
+
 /*! \brief Compile a module, and construct the virtual machine.
  *
  * \param mod The module to compile.
  * \return The constructed virtual machine.
- *
  */
-namespace vm {
 runtime::vm::VirtualMachine CompileModule(const Module& mod);
+
 }  // namespace vm
 
 }  // namespace relay

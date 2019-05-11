@@ -57,13 +57,21 @@ using ConstMap = NodeMap<Constant, Index>;
 using ConstTensorShapeMap = NodeMap<TensorType, std::pair<Index, NDArray>>;
 
 struct VMCompilerContext {
+  // The module context for the compilation
   Module module;
+  // Error reporter
   ErrorReporter err_reporter;
+  // Map from a unique integer to ADT constructor tag
   TagNameMap tag_index_map;
+  // Map from ADT constructor tag to a unique integer
   TagMap tag_map;
+  // Map from global var to a unique integer
   GlobalMap global_map;
+  // Map from Const object to its index in const pool
   ConstMap const_map;
+  // Map from Const tensor shape to its index in const pool
   ConstTensorShapeMap const_tensor_shape_map;
+  // List of lowered functions
   std::vector<LoweredFunc> lowered_funcs;
 };
 

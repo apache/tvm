@@ -126,8 +126,8 @@ if __name__ == '__main__':
     test_squeezenet()
     test_mobilenet()
     test_densenet()
-    The following networks fail
-    test_inception_v3()
-    test_mlp()
-    test_dqn()
-    test_dcgan()
+    # The following networks fail
+    # test_inception_v3()
+    # test_mlp()
+    # test_dqn()
+    # test_dcgan()
