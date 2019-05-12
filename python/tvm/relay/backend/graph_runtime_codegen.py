@@ -56,10 +56,10 @@ class GraphRuntimeCodegen(object):
     def _setup(self, mod, target):
         tgts = {}
         if isinstance(target, dict):
-            for kv in target.items():
-                if not isinstance(kv[1], (str, _target.Target)):
+            for dev, tgt in target.items():
+                if not isinstance(tgt, (str, _target.Target)):
                     raise Exception("Unknown target type")
-                tgts[kv[0]] = _target.create(kv[1])
+                tgts[dev] = _target.create(tgt)
         elif isinstance(target, (str, _target.Target)):
             tgts[_expr.IntImm("int32", 0)] = _target.create(target)
         self._init(mod, tgts)
