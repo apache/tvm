@@ -75,6 +75,20 @@ Var var(const std::string& name_hint, Type t) {
   return Var(name_hint, t);
 }
 
+Voxel VoxelNode::make(  Array <IterVar> base,
+              Array <IterVar> extern_before,
+              Array <IterVar> extern_after)
+{
+    NodePtr<VoxelNode> n = make_node<VoxelNode>();
+    n->base=base;
+    n->extern_before=extern_before;
+    n->extern_after=extern_after;
+    return Voxel(n);
+}
+
+
+
+
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<IterVarNode>([](const IterVarNode *op, IRPrinter *p) {
     p->stream << "iter_var(";
@@ -95,11 +109,16 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
   });
 
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<VoxelNode>([](const VoxelNode *op, IRPrinter *p) {
+  p->stream << "Voxel{base:" << op->base <<", before:" <<op->extern_before<<", after:"<<op->extern_after <<"}" ;
+});
 
 TVM_REGISTER_NODE_TYPE(ArrayNode);
 TVM_REGISTER_NODE_TYPE(MapNode);
 TVM_REGISTER_NODE_TYPE(StrMapNode);
 TVM_REGISTER_NODE_TYPE(RangeNode);
 TVM_REGISTER_NODE_TYPE(IterVarNode);
+TVM_REGISTER_NODE_TYPE(VoxelNode);
 
 }  // namespace tvm

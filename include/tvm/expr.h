@@ -381,6 +381,75 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   }
   return ret;
 }
+
+
+/*! \brief container class of iteration variable. */
+class VoxelNode;
+/*!
+ * \brief Iteration Variable,
+ *  represents an iteration over an integer interval.
+ */
+class Voxel : public NodeRef {
+ public:
+  // construct a new iter var without a domain
+  Voxel() {}
+  // construct from shared ptr.
+  explicit Voxel(NodePtr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const VoxelNode* operator->() const;
+  /*!
+   * \return the corresponding var in the Voxel.
+   */
+  inline operator Expr() const;
+  /*! \brief specify container node */
+  using ContainerType = VoxelNode;
+};
+
+// definition of Node.
+/*!
+ * \brief An iteration variable representing an iteration
+ *  over a one dimensional interval.
+ */
+class VoxelNode : public Node {
+ public:
+  /*!
+   * \brief the domain of iteration, if known, can be None
+   *  For the intermediate schedule node, before schedule.
+   */
+  Array <IterVar> base;
+  /*! \brief The looping variable */
+  Array <IterVar> extern_before;
+  /*! \brief The type of the IterVar */
+  Array <IterVar> extern_after;
+  /*!
+   * \brief additional tag on the iteration variable,
+   *  set this if this is binded already to a known thread tag.
+   */
+  std::string thread_tag;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("base", &base);
+    v->Visit("extern_before", &extern_before);
+    v->Visit("extern_after", &extern_after);
+  }
+
+  TVM_DLL static Voxel make(  Array <IterVar> base,
+              Array <IterVar> extern_before,
+              Array <IterVar> extern_after);
+
+  static constexpr const char* _type_key = "Voxel";
+  TVM_DECLARE_NODE_TYPE_INFO(VoxelNode, Node);
+};
+inline const VoxelNode* Voxel::operator->() const {
+  return static_cast<const VoxelNode*>(node_.get());
+}
+inline void VerifiedVoxel(Voxel vx){
+  CHECK_EQ(vx->base.size(),vx->extern_before.size());
+  CHECK_EQ(vx->base.size(),vx->extern_after.size());
+}
 }  // namespace tvm
 
 namespace std {

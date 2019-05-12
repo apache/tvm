@@ -53,6 +53,11 @@ class TensorIntrinCall(NodeBase):
 
 itervar_cls = None
 
+@register_node 
+class Voxel(NodeBase, _expr.ExprOp):
+    """ Voxel """
+
+voxel_cls = Voxel
 
 @register_node
 class Tensor(NodeBase, _expr.ExprOp):
