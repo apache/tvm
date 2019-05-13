@@ -51,7 +51,7 @@ func (tbytearray ByteArray) nativeCPtr() (retVal uintptr) {
 // `val` is the golang string object from which the ByteArray is initialized.
 func (tbytearray ByteArray) setData(val string) {
     bufPtr := ((*C.TVMByteArray)(unsafe.Pointer(tbytearray))).data
-    if bufPtr == (*_Ctype_char)(C.NULL) {
+    if bufPtr == (*C.char)(C.NULL) {
         C.free(unsafe.Pointer(bufPtr))
     }
 
@@ -74,7 +74,7 @@ func (tbytearray ByteArray) getData() (retVal []byte) {
 // returns newly created ByteArray.
 func newByteArray(val []byte) (retVal ByteArray) {
     handle := ByteArray(C.malloc(C.sizeof_TVMByteArray))
-    ((*C.TVMByteArray)(unsafe.Pointer(handle))).data = (*_Ctype_char)(C.NULL)
+    ((*C.TVMByteArray)(unsafe.Pointer(handle))).data = (*C.char)(C.NULL)
     ((*C.TVMByteArray)(unsafe.Pointer(handle))).size = 0
     handle.setData(string(val))
     retVal = handle
