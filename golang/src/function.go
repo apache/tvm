@@ -123,7 +123,7 @@ func GetGlobalFunction(funcname string) (retVal *Function, err error) {
 
     cfuncname := C.CString(funcname)
     ret := (int32)(C.TVMFuncGetGlobal(cfuncname,
-                                      (*_Ctype_TVMFunctionHandle)(unsafe.Pointer(&funp))))
+                                      (*C.TVMFunctionHandle)(unsafe.Pointer(&funp))))
     C.free(unsafe.Pointer(cfuncname))
 
     if ret != 0 {
@@ -229,12 +229,12 @@ func nativeTVMFuncCall(funp *Function, argValues []*Value, typeCodes []int32,
                  retValues []*Value, retTypeCode *int32) (err error) {
     nargValues := nativeFromGoSlice(argValues)
     nretValues := nativeFromGoSlice(retValues)
-	result := (int32)(C.TVMFuncCall(_Ctype_TVMFunctionHandle(*funp),
-                                    (*_Ctype_TVMValue)(unsafe.Pointer(nargValues)),
-                                    (*_Ctype_int)(unsafe.Pointer(&(typeCodes[0]))),
+	result := (int32)(C.TVMFuncCall(C.TVMFunctionHandle(*funp),
+                                    (*C.TVMValue)(unsafe.Pointer(nargValues)),
+                                    (*C.int)(unsafe.Pointer(&(typeCodes[0]))),
                                     C.int(len(argValues)),
-                                    (*_Ctype_TVMValue)(unsafe.Pointer(nretValues)),
-                                    (*_Ctype_int)(unsafe.Pointer(retTypeCode))))
+                                    (*C.TVMValue)(unsafe.Pointer(nretValues)),
+                                    (*C.int)(unsafe.Pointer(retTypeCode))))
     nativeToGoSlice(nargValues, argValues, typeCodes)
     nativeToGoSlice(nretValues, retValues, (*[1<<31] int32)(unsafe.Pointer(retTypeCode))[:1:1])
     C.free(unsafe.Pointer(nargValues))
@@ -312,9 +312,9 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
         // Handle KStr, KBytes: Local finalizers shouldn't try freeing them.
         retValues[0].isLocal = false
 
-        apiRet := (int32) (C.TVMCFuncSetReturn(_Ctype_TVMRetValueHandle(retArg),
-                                               (*_Ctype_TVMValue)(unsafe.Pointer(nretValues)),
-                                               (*_Ctype_int)(unsafe.Pointer(&retTypeCode)), 1))
+        apiRet := (int32) (C.TVMCFuncSetReturn(C.TVMRetValueHandle(retArg),
+                                               (*C.TVMValue)(unsafe.Pointer(nretValues)),
+                                               (*C.int)(unsafe.Pointer(&retTypeCode)), 1))
         C.free(unsafe.Pointer(nretValues))
         if apiRet != 0 {
             errStr := string("TVMCFuncSetReturn failed ")
@@ -372,7 +372,7 @@ func RegisterFunction(args ...interface{}) (err error) {
 
     cfuncname := C.CString(funcname)
     result := (int32) (C.TVMFuncRegisterGlobal(cfuncname,
-                                               _Ctype_TVMFunctionHandle(*fhandle),
+                                               C.TVMFunctionHandle(*fhandle),
                                                0)); // Override = False
     C.free(unsafe.Pointer(cfuncname))
     if result != 0 {
