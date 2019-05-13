@@ -19,7 +19,6 @@ import ast
 from ast import alias, Assign, Load, Name, NameConstant, Num, Return, Store, Str
 import re
 
-import astor
 import numpy
 import tvm
 from tvm import relay
@@ -620,11 +619,10 @@ class PythonConverter(ExprFunctor):
         pass
 
 
-def to_python(expr: Expr, mod=relay.Module(), target='llvm') -> str:
-    '''Converts the given Relay expression into a Python script.'''
+def to_python(expr: Expr, mod=relay.Module(), target='llvm'):
+    '''Converts the given Relay expression into a Python script (as a Python AST object).'''
     converter = PythonConverter(mod, target)
-    py_ast = converter.convert(expr)
-    return astor.to_source(py_ast)
+    return converter.convert(expr)
 
 
 def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
