@@ -335,6 +335,23 @@ class Reciprocal(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         return _expr.const(1.0) / inputs[0]
 
+
+class Flatten(OnnxOpConverter):
+    """ Operator converter for Flatten.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get('axis', 1)
+        if axis == 1:
+            out = _op.nn.batch_flatten(inputs[0])
+        else:
+            newshape = [0] * (axis + 1)
+            newshape[axis] = -1
+            out = _op.reshape(inputs[0], list(newshape))
+        return out
+
+
 class Reshape(OnnxOpConverter):
     """ Operator converter for Reshape.
     """
@@ -850,7 +867,7 @@ def _get_convert_map(opset):
         # 'InstanceNormalization'
         # 'LpNormalization'
         'Dropout': AttrCvt('dropout', {'ratio': 'rate'}, ignores=['is_test']),
-        'Flatten': Renamer('batch_flatten'),
+        'Flatten': Flatten.get_converter(opset),
         'LRN': LRN.get_converter(opset),
 
         # defs/reduction
