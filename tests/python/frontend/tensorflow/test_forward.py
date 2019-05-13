@@ -71,6 +71,8 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
+    print(sym)
+    print(params)
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(sym, target, params=params)
 
@@ -862,11 +864,49 @@ def _test_resize_bilinear(in_shape, to_shape, align_corners):
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'ResizeBilinear:0')
 
+def _test_resize_bilinear_from_tensor(in_shape, align_corners):
+    """ One iteration of resize bilinear with non-constant output shape, requires
+        value inference to get proper output shape."""
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(
+            shape=[in_shape[0], in_shape[1], None, None], dtype=data.dtype)
+        to_shape = tf.shape(in_data)[2:]
+        tf.image.resize_bilinear(in_data, to_shape, align_corners=align_corners)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'ResizeBilinear:0')
+
 def test_forward_resize_bilinear():
     """ Resize Bilinear """
 
     _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
     _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
+    _test_resize_bilinear_from_tensor((4, 16, 32, 32), False)
+    _test_resize_bilinear_from_tensor((6, 32, 50, 50), True)
+
+#######################################################################
+# Fill
+# ---------------
+
+def _test_fill(in_shape):
+    """ Use the fill op to create a tensor of ones with non-constant shape."""
+
+    with tf.Graph().as_default():
+        #in_data = array_ops.placeholder(
+        #    shape=in_shape, dtype=data.dtype)
+        #tf.ones(shape=tf.shape(in_data), dtype=data.dtype)
+
+        #compare_tf_with_tvm(data, 'Placeholder:0', 'ones:0')
+        x = tf.ones(shape=in_shape, dtype='float32')
+        compare_tf_with_tvm(in_shape, [], 'ones:0')
+
+def test_forward_fill():
+    """ Resize Bilinear """
+
+    _test_fill((32))
+    _test_fill((6, 32, 64, 64))
 
 #######################################################################
 # Crop to bounding box
@@ -1564,12 +1604,13 @@ def test_forward_reduce_prod():
 if __name__ == '__main__':
 
     # Transforms
-    test_forward_transpose()
-    test_forward_reshape()
-    test_forward_depthtospace()
-    test_forward_squeeze()
-    test_forward_pack()
-    test_forward_resize_bilinear()
+    #test_forward_transpose()
+    #test_forward_reshape()
+    #test_forward_depthtospace()
+    #test_forward_squeeze()
+    #test_forward_pack()
+    #test_forward_resize_bilinear()
+    test_forward_fill()
     test_forward_crop()
     test_forward_pad()
     test_forward_gather()
