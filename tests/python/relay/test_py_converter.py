@@ -53,6 +53,27 @@ def test_create_nested_tuple():
         assert tup_val.fields[2].fields[i].data.asnumpy() == i + 3
 
 
+def test_tuple_get_item():
+    relay_tup = relay.Tuple([
+        relay.const(1), relay.const(2),
+        relay.Tuple([
+            relay.const(3),
+            relay.const(4)
+        ])
+    ])
+    for i in range(2):
+        index = relay.TupleGetItem(relay_tup, i)
+        val = run_as_python(index)
+        assert isinstance(val, TensorValue)
+        assert val.asnumpy() == i + 1
+    # try the inner value too
+    for i in range(2):
+        index = relay.TupleGetItem(relay.TupleGetItem(relay_tup, 2), i)
+        val = run_as_python(index)
+        assert isinstance(val, TensorValue)
+        assert val.asnumpy() == i + 3
+
+
 def test_create_let():
     v = relay.Var('v')
     let = relay.Let(v, relay.Tuple([]), relay.Tuple([v, v]))
