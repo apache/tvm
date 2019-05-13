@@ -28,18 +28,28 @@ def seq(*exprs):
     return ret
 
 
+# assert that the candidate is a TensorValue with value val
+def assert_tensor_value(candidate, val):
+    assert isinstance(candidate, TensorValue)
+    assert candidate.asnumpy() == val
+
+
+# assert that the candidate is a TupleValue with the indicate number of fields
+def assert_tuple_value(candidate, fields):
+    assert isinstance(candidate, TupleValue)
+    assert len(candidate.fields) == fields
+
+
 def test_create_empty_tuple():
     empty = relay.Tuple([])
     tup_val = run_as_python(empty)
-    assert isinstance(tup_val, TupleValue)
-    assert len(tup_val.fields) == 0
+    assert_tuple_value(tup_val, 0)
 
 
 def test_create_scalar():
     scalar = relay.const(1)
     tensor_val = run_as_python(scalar)
-    assert isinstance(tensor_val, TensorValue)
-    assert tensor_val.data.asnumpy() == 1
+    assert_tensor_value(tensor_val, 1)
 
 
 def test_create_nested_tuple():
@@ -51,15 +61,12 @@ def test_create_nested_tuple():
         ])
     ])
     tup_val = run_as_python(relay_tup)
-    assert isinstance(tup_val, TupleValue)
-    assert len(tup_val.fields) == 3
+    assert_tuple_value(tup_val, 3)
     for i in range(2):
-        assert isinstance(tup_val.fields[i], TensorValue)
-        assert tup_val.fields[i].data.asnumpy() == i + 1
-    assert isinstance(tup_val.fields[2], TupleValue)
+        assert_tensor_value(tup_val.fields[i], i + 1)
+    assert_tuple_value(tup_val.fields[2], 2)
     for i in range(2):
-        assert isinstance(tup_val.fields[2].fields[i], TensorValue)
-        assert tup_val.fields[2].fields[i].data.asnumpy() == i + 3
+        assert_tensor_value(tup_val.fields[2].fields[i], i + 3)
 
 
 def test_tuple_get_item():
@@ -73,42 +80,35 @@ def test_tuple_get_item():
     for i in range(2):
         index = relay.TupleGetItem(relay_tup, i)
         val = run_as_python(index)
-        assert isinstance(val, TensorValue)
-        assert val.asnumpy() == i + 1
+        assert_tensor_value(val, i + 1)
     # try the inner value too
     for i in range(2):
         index = relay.TupleGetItem(relay.TupleGetItem(relay_tup, 2), i)
         val = run_as_python(index)
-        assert isinstance(val, TensorValue)
-        assert val.asnumpy() == i + 3
+        assert_tensor_value(val, i + 3)
 
 
 def test_create_let():
     v = relay.Var('v')
     let = relay.Let(v, relay.Tuple([]), relay.Tuple([v, v]))
     tup_val = run_as_python(let)
-    assert isinstance(tup_val, TupleValue)
-    assert len(tup_val.fields) == 2
-    assert isinstance(tup_val.fields[0], TupleValue)
-    assert len(tup_val.fields[0].fields) == 0
-    assert isinstance(tup_val.fields[1], TupleValue)
-    assert len(tup_val.fields[1].fields) == 0
+    assert_tuple_value(tup_val, 2)
+    assert_tuple_value(tup_val.fields[0], 0)
+    assert_tuple_value(tup_val.fields[1], 0)
 
 
 def test_create_ref():
     relay_ref = relay.RefCreate(relay.Tuple([]))
     ref_val = run_as_python(relay_ref)
     assert isinstance(ref_val, RefValue)
-    assert isinstance(ref_val.value, TupleValue)
-    assert len(ref_val.value.fields) == 0
+    assert_tuple_value(ref_val.value, 0)
 
 
 def test_ref_read():
     v = relay.Var('v')
     assign = relay.Let(v, relay.RefCreate(relay.Tuple([])), relay.RefRead(v))
     read_val = run_as_python(assign)
-    assert isinstance(read_val, TupleValue)
-    assert len(read_val.fields) == 0
+    assert_tuple_value(read_val, 0)
 
 
 def test_ref_write():
@@ -117,18 +117,15 @@ def test_ref_write():
     initial_write = relay.Let(v, relay.RefCreate(relay.Tuple([relay.const(1)])),
                               relay.RefWrite(v, relay.Tuple([relay.const(2)])))
     write_val = run_as_python(initial_write)
-    assert isinstance(write_val, TupleValue)
-    assert len(write_val.fields) == 0
+    assert_tuple_value(write_val, 0)
 
     # now ensure that the value, once written, can be read back
     read_after_write = relay.Let(v, relay.RefCreate(relay.Tuple([relay.const(1)])),
                                  seq(relay.RefWrite(v, relay.Tuple([relay.const(2)])),
                                      relay.RefRead(v)))
     read_val = run_as_python(read_after_write)
-    assert isinstance(read_val, TupleValue)
-    assert len(read_val.fields) == 1
-    assert isinstance(read_val.fields[0], TensorValue)
-    assert read_val.fields[0].asnumpy() == 2
+    assert_tuple_value(read_val, 1)
+    assert_tensor_value(read_val.fields[0], 2)
 
 
 def test_if():
@@ -145,15 +142,11 @@ def test_if():
     false_expr = relay.Let(v, relay.RefCreate(relay.const(0)),
                            relay.If(false_cond, true_branch, false_branch))
 
-    import astor
-    print(astor.to_source(to_python(true_expr)))
     true_val = run_as_python(true_expr)
-    assert isinstance(true_val, TensorValue)
-    assert true_val.asnumpy() == 1
+    assert_tensor_value(true_val, 1)
 
     false_val = run_as_python(false_expr)
-    assert isinstance(false_val, TensorValue)
-    assert false_val.asnumpy() == 2
+    assert_tensor_value(false_val, 2)
 
 
 def test_local_function():
@@ -164,9 +157,26 @@ def test_local_function():
     call2 = relay.Let(f, ident, f(relay.const(2)))
 
     call_val1 = run_as_python(call1)
-    assert isinstance(call_val1, TupleValue)
-    assert len(call_val1.fields) == 0
+    assert_tuple_value(call_val1, 0)
 
     call_val2 = run_as_python(call2)
-    assert isinstance(call_val2, TensorValue)
-    assert call_val2.asnumpy() == 2
+    assert_tensor_value(call_val2, 2)
+
+
+def test_global_function():
+    mod = relay.Module()
+    ident = relay.GlobalVar('ident')
+    a = relay.TypeVar('a')
+    v = relay.Var('v', a)
+    mod[ident] = relay.Function([v], v, a, [a])
+
+    call1 = ident(relay.const(1))
+    call2 = ident(relay.Tuple([relay.const(2), relay.const(2)]))
+
+    call_val1 = run_as_python(call1, mod)
+    assert_tensor_value(call_val1, 1)
+
+    call_val2 = run_as_python(call2, mod)
+    assert_tuple_value(call_val2, 2)
+    assert_tensor_value(call_val2.fields[0], 2)
+    assert_tensor_value(call_val2.fields[1], 2)
