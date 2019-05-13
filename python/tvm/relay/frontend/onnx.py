@@ -622,6 +622,23 @@ class Gather(OnnxOpConverter):
                        extras={'axis':axis})(inputs, {})
         #return _op.take(inputs[0], inputs[1], axis)
 
+
+class Greater(OnnxOpConverter):
+    """ Operator logical greater.
+    """
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        return _op.greater(inputs[0], inputs[1])
+
+
+class Less(OnnxOpConverter):
+    """ Operator logical less than.
+    """
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        return _op.less(inputs[0], inputs[1])
+
+
 class LRN(OnnxOpConverter):
     """ Operator converter for Local Response Normalization.
     """
@@ -836,6 +853,8 @@ def _get_convert_map(opset):
         'Selu': Selu.get_converter(opset),
         'Elu': Elu.get_converter(opset),
         'Exp': Renamer('exp'),
+        'Greater': Greater.get_converter(opset),
+        'Less': Less.get_converter(opset),
         'Log': Renamer('log'),
         'Tanh': Renamer('tanh'),
         'Pow': Renamer('power'),

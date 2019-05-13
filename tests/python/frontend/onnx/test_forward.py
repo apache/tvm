@@ -955,6 +955,8 @@ def test_binary_ops():
     verify_binary_ops("Div", x, y, x / y, broadcast=None)
     verify_binary_ops("Div", x, z, x / z, broadcast=True)
     verify_binary_ops("Sum", x, y, x + y, broadcast=None)
+    verify_binary_ops("Greater", x, y, x > y, broadcast=True)
+    verify_binary_ops("Less", x, y, x < y, broadcast=True)
 
 def test_single_ops():
     in_shape = (1, 2, 3, 3)
