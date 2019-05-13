@@ -86,8 +86,6 @@ def test_fp16_build():
 
     # test
     rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
-    rt.set_input("x", X)
-    rt.set_input("y", Y)
     rt.load_params(relay.save_param_dict(params))
     rt.run()
     out = rt.get_output(0)
@@ -101,7 +99,7 @@ def test_fp16_conversion():
         if not tvm.module.enabled(tgt):
             print("skip because {} is not enabled.".format(tgt))
             return
-        elif tgt == "cuda" and not have_fp16(ctx.compute_version):
+        elif tgt == "cuda" and ctx.exist and not have_fp16(ctx.compute_version):
             print("skip because gpu does not support fp16")
             return
 
@@ -114,16 +112,14 @@ def test_fp16_conversion():
 
             # init input
             X = tvm.nd.array(n * np.random.randn(n).astype(src) - n / 2)
-            params = {"p0": X}
 
             # build
             with relay.build_config(opt_level=1):
-                g_json, mmod, params = relay.build(func, tgt, params=params)
+                g_json, mmod, params = relay.build(func, tgt)
 
             # test
             rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
             rt.set_input("x", X)
-            rt.load_params(relay.save_param_dict(params))
             rt.run()
             out = rt.get_output(0)
 
