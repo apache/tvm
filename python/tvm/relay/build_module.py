@@ -155,7 +155,7 @@ class BuildModule(object):
             Host compilation target, if target is device.
             When TVM compiles device specific program such as CUDA,
             we also need host(CPU) side code to interact with the driver
-            setup the dimensions and parameters correctly.
+            to setup the dimensions and parameters correctly.
             target_host is used to specify the host side codegen target.
             By default, llvm is used if it is enabled,
             otherwise a stackvm intepreter is used.

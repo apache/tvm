@@ -20,9 +20,6 @@ import tvm
 from tvm import relay
 from tvm.contrib.nvcc import have_fp16
 
-from tvm._ffi.function import _init_api
-_init_api("tvm.relay.build_module")
-
 
 def test_basic_build():
     tgt = "llvm"
@@ -65,7 +62,7 @@ def test_fp16_build():
     dtype = "float16"
 
     if not tvm.module.enabled("cuda") or not tvm.gpu(0).exist:
-        print("skip because cuda is not enabled..")
+        print("skip because cuda is not enabled.")
         return
 
     ctx = tvm.gpu(0)
@@ -99,6 +96,45 @@ def test_fp16_build():
                                atol=1e-5, rtol=1e-5)
 
 
+def test_fp16_conversion():
+    def check_conversion(tgt, ctx):
+        if not tvm.module.enabled(tgt):
+            print("skip because {} is not enabled.".format(tgt))
+            return
+        elif tgt == "cuda" and not have_fp16(ctx.compute_version):
+            print("skip because gpu does not support fp16")
+            return
+
+        n = 10
+
+        for (src, dst) in [('float32', 'float16'), ('float16', 'float32')]:
+            x = relay.var("x", relay.TensorType((n,), src))
+            y = x.astype(dst)
+            func = relay.Function([x], y)
+
+            # init input
+            X = tvm.nd.array(n * np.random.randn(n).astype(src) - n / 2)
+            params = {"p0": X}
+
+            # build
+            with relay.build_config(opt_level=1):
+                g_json, mmod, params = relay.build(func, tgt, params=params)
+
+            # test
+            rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
+            rt.set_input("x", X)
+            rt.load_params(relay.save_param_dict(params))
+            rt.run()
+            out = rt.get_output(0)
+
+            np.testing.assert_allclose(out.asnumpy(), X.asnumpy().astype(dst),
+                                       atol=1e-5, rtol=1e-5)
+
+    for target, ctx in [('llvm', tvm.cpu()), ('cuda', tvm.gpu())]:
+        check_conversion(target, ctx)
+
+
 if __name__ == "__main__":
     test_basic_build()
     test_fp16_build()
+    test_fp16_conversion()
