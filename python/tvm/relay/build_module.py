@@ -124,7 +124,8 @@ def _update_target(target):
 
 
 class BuildModule(object):
-    """Build a Relay function to run on TVM graph runtime.
+    """Build a Relay function to run on TVM graph runtime. This class is used
+    to expose the `RelayBuildModule` APIs implemented in C++.
     """
     def __init__(self):
         self.mod = _build_module._BuildModule()
@@ -231,11 +232,25 @@ class BuildModule(object):
         self._set_params_func(inputs)
 
     def add_pass(self, pass_name):
-        """Add a pass to the pass list"""
+        """Add a pass to the pass list.
+
+        Parameters
+        ----------
+        pass_name : str
+            The name of the pass that will be added to the list of passes used
+            for optimizations.
+        """
         self._add_pass(pass_name)
 
     def disable_pass(self, pass_name):
-        """Add a pass to the disabled pass list"""
+        """Add a pass to the disabled pass list.
+
+        Parameters
+        ----------
+        pass_name : str
+            The name of a pass. This pass will be added to the list of passes
+            that are disabled during optimization.
+        """
         self._disable_pass(pass_name)
 
     def get_json(self):
@@ -255,11 +270,23 @@ class BuildModule(object):
         return ret
 
     def set_opt_level(self, level):
-        """Set the optimization level."""
+        """Set the optimization level.
+
+        Parameters
+        ----------
+        level : int
+            The optimization level for build.
+        """
         self._set_opt_level(level)
 
     def set_fallback_device(self, fallback_device):
-        """Set the fallback device for heterogeneous execution."""
+        """Set the fallback device for heterogeneous execution.
+
+        Parameters
+        ----------
+        fallback_device : str or tvm.TVMContext
+            The fallback device used for heterogeneous execution.
+        """
         if isinstance(fallback_device, str):
             fallback_device = _nd.context(fallback_device)
         if not isinstance(fallback_device, TVMContext):
