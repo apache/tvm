@@ -47,7 +47,8 @@ def convert_to_list(x):
         x = [x]
     return x
 
-def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm', out_names=None):
+def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
+                  target='llvm', out_names=None, opt_level=3):
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
@@ -71,9 +72,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
-    print(sym)
-    print(params)
-    with relay.build_config(opt_level=3):
+    with relay.build_config(opt_level=opt_level):
         graph, lib, params = relay.build(sym, target, params=params)
 
     ctx = tvm.context(target, 0)
@@ -87,8 +86,8 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
     # execute
     m.run()
     # get outputs
-    assert out_names is None or num_output == len(out_names),"out_names: {} num_output: {}".format(
-                                                              out_names, num_output)
+    assert out_names is None or num_output == len(out_names), (
+        "out_names: {} num_output: {}".format(out_names, num_output))
     tvm_output_list = []
     for i in range(0, num_output):
         tvm_output = m.get_output(i)
@@ -113,7 +112,8 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     return output_data
 
 
-def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False, no_gpu=False):
+def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
+                        no_gpu=False, opt_level=3):
     """Generic function to generate and compare tensorflow and TVM output"""
 
     out_name = convert_to_list(out_name)
@@ -144,8 +144,9 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             if no_gpu and device == 'cuda':
                 continue
 
-            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node, target=device,
-                                       out_names=out_name, num_output=len(out_name))
+            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
+                                       target=device, out_names=out_name,
+                                       num_output=len(out_name), opt_level=opt_level)
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
@@ -859,7 +860,8 @@ def _test_resize_bilinear(in_shape, to_shape, align_corners):
 
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        shape_data = constant_op.constant(shape_data, shape=shape_data.shape, dtype=shape_data.dtype)
+        shape_data = constant_op.constant(
+            shape_data, shape=shape_data.shape, dtype=shape_data.dtype)
         tf.image.resize_bilinear(in_data, shape_data, align_corners=align_corners)
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'ResizeBilinear:0')
@@ -894,19 +896,30 @@ def _test_fill(in_shape):
     """ Use the fill op to create a tensor of ones with non-constant shape."""
 
     with tf.Graph().as_default():
-        #in_data = array_ops.placeholder(
-        #    shape=in_shape, dtype=data.dtype)
-        #tf.ones(shape=tf.shape(in_data), dtype=data.dtype)
+        tf.ones(shape=in_shape, dtype='float32')
+        compare_tf_with_tvm(in_shape, [], 'ones:0', opt_level=1)
 
-        #compare_tf_with_tvm(data, 'Placeholder:0', 'ones:0')
-        x = tf.ones(shape=in_shape, dtype='float32')
-        compare_tf_with_tvm(in_shape, [], 'ones:0')
+def _test_fill_from_tensor(in_shape):
+    """ Use the fill op to create a tensor of ones with non-constant shape.
+        Some extra ops need to be added here to prevent the graph from
+        being fully constant and folded away."""
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(
+            shape=[in_shape[0], in_shape[1], None, None], dtype=data.dtype)
+
+        x = tf.ones(shape=2*tf.shape(in_data), dtype=data.dtype)
+        y = tf.math.add(in_data, tf.reduce_mean(x), name='out1')
+        compare_tf_with_tvm(data, 'Placeholder:0', 'out1:0', opt_level=0)
 
 def test_forward_fill():
     """ Resize Bilinear """
 
     _test_fill((32))
     _test_fill((6, 32, 64, 64))
+    _test_fill_from_tensor((6, 32, 64, 64))
 
 #######################################################################
 # Crop to bounding box
@@ -1604,12 +1617,12 @@ def test_forward_reduce_prod():
 if __name__ == '__main__':
 
     # Transforms
-    #test_forward_transpose()
-    #test_forward_reshape()
-    #test_forward_depthtospace()
-    #test_forward_squeeze()
-    #test_forward_pack()
-    #test_forward_resize_bilinear()
+    test_forward_transpose()
+    test_forward_reshape()
+    test_forward_depthtospace()
+    test_forward_squeeze()
+    test_forward_pack()
+    test_forward_resize_bilinear()
     test_forward_fill()
     test_forward_crop()
     test_forward_pad()
