@@ -211,6 +211,29 @@ def test_squeeze():
 
     tvm.testing.assert_allclose(out_shape, tvm_out.shape)
 
+def test_flatten():
+
+    in_shape = (1, 3, 4, 4)
+    axis = 1
+    ref_shape = (1, 48)
+
+    flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis = axis)
+
+    graph = helper.make_graph([flatten_node],
+                              "flatten_test",
+                              inputs = [helper.make_tensor_value_info("in",
+                                            TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out",
+                                            TensorProto.FLOAT, list(ref_shape))])
+
+    model = helper.make_model(graph, producer_name='flatten_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=in_shape).astype('int32')
+        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
+
+    tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+
 def test_unsqueeze():
     in_shape = (3, 3)
     axis = (0, 3, 4)
@@ -1046,6 +1069,7 @@ def test_LogSoftmax():
                               {'axis': 1})
 
 if __name__ == '__main__':
+    test_flatten()
     test_reshape()
     test_shape()
     test_power()
