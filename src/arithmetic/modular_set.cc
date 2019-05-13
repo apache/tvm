@@ -26,7 +26,9 @@
 #include <tvm/expr_operator.h>
 #include <tvm/ir_functor_ext.h>
 #include <limits>
+#include <utility>
 #include "pattern_match.h"
+#include "modular_set.h"
 
 namespace tvm {
 namespace arith {
@@ -337,25 +339,6 @@ class ModularSetAnalyzer::Impl :
     }
   }
   /*!
-   * \brief Take GCD of a and b.
-   * \param a The first operand.
-   * \param b The second operand.
-   * \return The result.
-   */
-  static int64_t ZeroAwareGCD(int64_t a, int64_t b) {
-    if (a < 0) a = -a;
-    if (b < 0) b = -b;
-    if (a < b) std::swap(a, b);
-    if (b == 0) return a;
-    // perform GCD (greatest common divisor)
-    // ax + by = gcd(a, b) z if a != 0, b != 0
-    while (a % b != 0) {
-      a = a % b;
-      std::swap(a, b);
-    }
-    return b;
-  }
-  /*!
    * \brief return everything dtype can represent.
    * \return Bound that represent everything dtype can represent.
    */
@@ -392,6 +375,26 @@ ModularSetAnalyzer::ModularSetAnalyzer(Analyzer* parent)
 
 ModularSetAnalyzer::~ModularSetAnalyzer() {
   delete impl_;
+}
+
+/*!
+ * \brief Take GCD of a and b.
+ * \param a The first operand.
+ * \param b The second operand.
+ * \return The result.
+ */
+int64_t ZeroAwareGCD(int64_t a, int64_t b) {
+  if (a < 0) a = -a;
+  if (b < 0) b = -b;
+  if (a < b) std::swap(a, b);
+  if (b == 0) return a;
+  // perform GCD (greatest common divisor)
+  // ax + by = gcd(a, b) z if a != 0, b != 0
+  while (a % b != 0) {
+    a = a % b;
+    std::swap(a, b);
+  }
+  return b;
 }
 
 }  // namespace arith

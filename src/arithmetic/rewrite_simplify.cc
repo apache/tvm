@@ -29,6 +29,7 @@
 #include <algorithm>
 #include "const_fold.h"
 #include "pattern_match.h"
+#include "modular_set.h"
 #include "rewrite_simplify.h"
 
 namespace tvm {
@@ -80,12 +81,6 @@ TryCompare(const Expr& x, int64_t val) {
       return kLT;
     }
   }
-  if (val == 0) {
-    ModularSet dmod = parent_->modular_set(diff);
-    if (dmod->base != 0) {
-      return kNE;
-    }
-  }
   ConstIntBound dbound = parent_->const_int_bound(diff);
   if (dbound->min_value > val) {
     return kGT;
@@ -98,6 +93,12 @@ TryCompare(const Expr& x, int64_t val) {
   }
   if (dbound->max_value <= val) {
     return kLE;
+  }
+  if (val == 0) {
+    ModularSet dmod = parent_->modular_set(diff);
+    if (dmod->base != 0) {
+      return kNE;
+    }
   }
   return kUnknown;
 }
@@ -175,6 +176,16 @@ Mutate_(const Add* op, const Expr& self) {
     TVM_TRY_REWRITE(y * x + x * z, x * (y + z));
     TVM_TRY_REWRITE(x * y + z * x, x * (y + z));
     TVM_TRY_REWRITE(y * x + z * x, x * (y + z));
+    // Factor out gcd
+    if ((x * c1 + y * c2).Match(ret)) {
+      auto gcd = ZeroAwareGCD(c1.Eval()->value, c2.Eval()->value);
+      if (gcd != 1) {
+        auto b1 = PConstWithTypeLike<PVar<Expr>>(x, c1.Eval()->value / gcd);
+        auto b2 = PConstWithTypeLike<PVar<Expr>>(x, c2.Eval()->value / gcd);
+        auto pgcd = PConstWithTypeLike<PVar<Expr>>(x, gcd);
+        return ((x * b1 + y * b2) * pgcd).Eval();
+      }
+    }
 
     // modular-div simplification
     // Always pre-condition on positive integer domain
@@ -249,6 +260,16 @@ Mutate_(const Sub* op, const Expr& self) {
     TVM_TRY_REWRITE(y * x - x * z, x * (y - z));
     TVM_TRY_REWRITE(x * y - z * x, x * (y - z));
     TVM_TRY_REWRITE(y * x - z * x, x * (y - z));
+    // Factor out gcd
+    if ((x * c1 - y * c2).Match(ret)) {
+      auto gcd = ZeroAwareGCD(c1.Eval()->value, c2.Eval()->value);
+      if (gcd != 1) {
+        auto b1 = PConstWithTypeLike<PVar<Expr>>(x, c1.Eval()->value / gcd);
+        auto b2 = PConstWithTypeLike<PVar<Expr>>(x, c2.Eval()->value / gcd);
+        auto pgcd = PConstWithTypeLike<PVar<Expr>>(x, gcd);
+        return ((x * b1 - y * b2) * pgcd).Eval();
+      }
+    }
 
     // constant cancelation
     TVM_TRY_REWRITE((x + c1) - c2, x + (c1 - c2));
@@ -284,11 +305,15 @@ Mutate_(const Sub* op, const Expr& self) {
                        CanProveEqual(((b1 - s2) - (b2 - s1)).Eval(), 0));
 
     // modular-div simplification
-    // Always pre-condition on positive integer domain
+    // Note that c*(x/c) + x % c == x is true for every x and c != 0 even for truncated division
     TVM_TRY_REWRITE_IF(x - (x / c1) * c1, x % c1,
-                       CanProveGreaterEqual(x.Eval(), 0) && c1.Eval()->value > 0);
+                       c1.Eval()->value != 0);
     TVM_TRY_REWRITE_IF((x / c1) * c1 - x, 0 - (x % c1),
-                       CanProveGreaterEqual(x.Eval(), 0) && c1.Eval()->value > 0);
+                       c1.Eval()->value != 0);
+    TVM_TRY_REWRITE_IF(x - ((x + c2) / c1) * c1, (x + c2) % c1 - c2,
+                       c1.Eval()->value != 0);
+    TVM_TRY_REWRITE_IF(((x + c2) / c1) * c1 - x, c2 - ((x + c2) % c1),
+                       c1.Eval()->value != 0);
     TVM_TRY_REWRITE_IF((x + c1) / c3  - (x + c2) / c3,
                        ((x + (c1 % c3)) % c3 + (c1 - c2)) / c3,
                        CanProveGreaterEqual(x.Eval(), -c2.Eval()->value) &&
@@ -348,6 +373,7 @@ Mutate_(const Mul* op, const Expr& self) {
 
     // canonicalization
     TVM_TRY_RECURSIVE_REWRITE(x * (c1 * y), (x * y) * c1);
+    TVM_TRY_RECURSIVE_REWRITE(c1 * x, x * c1);
     TVM_TRY_RECURSIVE_REWRITE_IF(
         (x - y) * c1, (y - x) * (0 - c1),
         c1.Eval()->value < 0);
@@ -395,6 +421,15 @@ Mutate_(const Div* op, const Expr& self) {
     // Be-aware of the division rules:
     // We adopt the default C division uses truncation instead of floordiv.
     // This means most rules need to check non-negativeness of the operands.
+
+    // TryConstFold doesn't work for negative cases because it is also used by legacy
+    // parts of tvm which still assume euclidean div. In this simplifier we assume that the division
+    // is truncated, so perform const folding again.
+    if ((c1 / c2).Match(ret)) {
+      int64_t c1val = c1.Eval()->value;
+      int64_t c2val = c2.Eval()->value;
+      return make_const(op->type, c1val / c2val);
+    }
 
     // while it is always true for trunc div
     // restrict to common case(positive div)
@@ -607,6 +642,11 @@ Mutate_(const Mod* op, const Expr& self) {
                        c1.Eval()->value % c2.Eval()->value == 0 &&
                        CanProveGreaterEqual(x.Eval(), 0) &&
                        CanProveGreaterEqual(y.Eval(), 0));
+
+    // canonicalization: x % c == x % (-c) for truncated division
+    TVM_TRY_RECURSIVE_REWRITE_IF(x % c1,
+                                 x % PConst<Expr>(make_const(op->type, -c1.Eval()->value)),
+                                 c1.Eval()->value < 0);
 
     // try modular analysis
     if ((x % c1).Match(ret)) {
@@ -1025,19 +1065,44 @@ Mutate_(const LT* op, const Expr& self) {
     TVM_TRY_REWRITE_IF(x * c1 < y * c1, y < x,
                        c1.Eval()->value < 0);
 
-    // require c1 > 0 to work for any div mode
     TVM_TRY_REWRITE_IF(x * c2 < c1, x < (c1 - 1) / c2 + 1,
                        c1.Eval()->value > 0 &&
                        c2.Eval()->value > 0);
-    TVM_TRY_REWRITE_IF(x / c1 < c2, x < c1 * c2,
-                       c1.Eval()->value > 0 &&
+    TVM_TRY_REWRITE_IF(x * c2 < c1, x < c1 / c2,
+                       c1.Eval()->value <= 0 &&
                        c2.Eval()->value > 0);
+    TVM_TRY_REWRITE_IF(x * c2 < c1, (c1 - 1) / c2 - 1 < x,
+                       c1.Eval()->value > 0 &&
+                       c2.Eval()->value < 0);
+    TVM_TRY_REWRITE_IF(x * c2 < c1, c1 / c2 < x,
+                       c1.Eval()->value <= 0 &&
+                       c2.Eval()->value < 0);
 
+    TVM_TRY_REWRITE_IF(c1 < x * c2, (c1 + 1) / c2 - 1 < x,
+                       c1.Eval()->value < 0 &&
+                       c2.Eval()->value > 0);
     TVM_TRY_REWRITE_IF(c1 < x * c2, c1 / c2 < x,
                        c1.Eval()->value >= 0 &&
                        c2.Eval()->value > 0);
+    TVM_TRY_REWRITE_IF(c1 < x * c2, x < (c1 + 1) / c2 + 1,
+                       c1.Eval()->value < 0 &&
+                       c2.Eval()->value < 0);
+    TVM_TRY_REWRITE_IF(c1 < x * c2, x < c1 / c2,
+                       c1.Eval()->value >= 0 &&
+                       c2.Eval()->value < 0);
+
+    TVM_TRY_REWRITE_IF(x / c1 < c2, x < c1 * c2,
+                       c1.Eval()->value > 0 &&
+                       c2.Eval()->value > 0);
+    TVM_TRY_REWRITE_IF(x / c1 < c2, x < c1 * (c2 - 1) + 1,
+                       c1.Eval()->value > 0 &&
+                       c2.Eval()->value <= 0);
+
     TVM_TRY_REWRITE_IF(c1 < x / c2, (c1 + 1) * c2 - 1 < x,
                        c1.Eval()->value >= 0 &&
+                       c2.Eval()->value > 0);
+    TVM_TRY_REWRITE_IF(c1 < x / c2, c1 * c2 < x,
+                       c1.Eval()->value < 0 &&
                        c2.Eval()->value > 0);
 
     // division related simplificationx
