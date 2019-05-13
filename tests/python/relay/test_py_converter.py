@@ -19,6 +19,15 @@ from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
 from tvm.relay.backend.interpreter import TensorValue, TupleValue, RefValue
 
+# helper: uses a dummy let binding to sequence a list
+# of expressions: expr1; expr2; expr3, etc.
+def seq(*exprs):
+    ret = exprs[0]
+    for expr in exprs[1:]:
+        ret = relay.Let(relay.var('_'), ret, expr)
+    return ret
+
+
 def test_create_empty_tuple():
     empty = relay.Tuple([])
     tup_val = run_as_python(empty)
@@ -113,11 +122,33 @@ def test_ref_write():
 
     # now ensure that the value, once written, can be read back
     read_after_write = relay.Let(v, relay.RefCreate(relay.Tuple([relay.const(1)])),
-                                 relay.Let(relay.Var('_'),
-                                           relay.RefWrite(v, relay.Tuple([relay.const(2)])),
-                                           relay.RefRead(v)))
+                                 seq(relay.RefWrite(v, relay.Tuple([relay.const(2)])),
+                                     relay.RefRead(v)))
     read_val = run_as_python(read_after_write)
     assert isinstance(read_val, TupleValue)
     assert len(read_val.fields) == 1
     assert isinstance(read_val.fields[0], TensorValue)
     assert read_val.fields[0].asnumpy() == 2
+
+
+def test_if():
+    # we will have effects in the blocks to ensure only the intended one is executed
+    true_cond = relay.const(True)
+    false_cond = relay.const(False)
+
+    v  = relay.Var('v')
+    true_branch = seq(relay.RefWrite(v, relay.const(1)), relay.RefRead(v))
+    false_branch = seq(relay.RefWrite(v, relay.const(2)), relay.RefRead(v))
+
+    true_expr = relay.Let(v, relay.RefCreate(relay.const(0)),
+                          relay.If(true_cond, true_branch, false_branch))
+    false_expr = relay.Let(v, relay.RefCreate(relay.const(0)),
+                           relay.If(false_cond, true_branch, false_branch))
+
+    true_val = run_as_python(true_expr)
+    assert isinstance(true_val, TensorValue)
+    assert true_val.asnumpy() == 1
+
+    false_val = run_as_python(false_expr)
+    assert isinstance(false_val, TensorValue)
+    assert false_val.asnumpy() == 2

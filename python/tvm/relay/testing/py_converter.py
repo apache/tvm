@@ -502,7 +502,11 @@ class PythonConverter(ExprFunctor):
         cond_body, cond_defs = self.visit(if_block.cond)
         true_body, true_defs = self.visit(if_block.true_branch)
         false_body, false_defs = self.visit(if_block.false_branch)
-        ret = ast.IfExp(cond_body, true_body, false_body)
+
+        # need to get the value out of a TensorValue to check the condition
+        # equvialent to: val.asnumpy()
+        cond_check = ast.Call(ast.Attribute(cond_body, 'asnumpy', Load()), [], [])
+        ret = ast.IfExp(cond_check, true_body, false_body)
         return (ret, cond_defs + true_defs + false_defs)
 
 
