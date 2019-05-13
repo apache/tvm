@@ -64,7 +64,7 @@ func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *Module, er
 
     ret := (int32)(C.TVMModLoadFromFile(cmodpath,
                                         cmodtype,
-                                        (*_Ctype_TVMModuleHandle)(unsafe.Pointer(&modp))))
+                                        (*C.TVMModuleHandle)(unsafe.Pointer(&modp))))
 
     C.free(unsafe.Pointer(cmodpath))
     C.free(unsafe.Pointer(cmodtype))
@@ -117,10 +117,10 @@ func (tvmmodule *Module) GetFunction (
 
     var funp uintptr
     cfuncname := C.CString(funcname)
-    ret := (int32)(C.TVMModGetFunction((_Ctype_TVMModuleHandle)(*tvmmodule),
+    ret := (int32)(C.TVMModGetFunction((C.TVMModuleHandle)(*tvmmodule),
                                        cfuncname,
                                        C.int(queryImports),
-                                       (*_Ctype_TVMFunctionHandle)(unsafe.Pointer(&funp))))
+                                       (*C.TVMFunctionHandle)(unsafe.Pointer(&funp))))
     C.free(unsafe.Pointer(cfuncname))
 
     if ret != 0 {

@@ -48,7 +48,7 @@ func (parray Array) nativeCPtr() (retVal uintptr) {
 }
 
 func (parray Array) nativeCopyFrom(data unsafe.Pointer, datalen int) (err error) {
-    ret := C.TVMArrayCopyFromBytes((*_Ctype_TVMArray)(unsafe.Pointer(parray.nativeCPtr())),
+    ret := C.TVMArrayCopyFromBytes((*C.TVMArray)(unsafe.Pointer(parray.nativeCPtr())),
                                    data,
                                    C.ulong(datalen))
     if ret != 0 {
@@ -66,7 +66,7 @@ func (parray Array) nativeCopyFrom(data unsafe.Pointer, datalen int) (err error)
 func (parray Array) CopyFrom(val interface{}) (err error) {
     var data unsafe.Pointer
     var datalen int
-    dtype := ((*_Ctype_TVMArray)(unsafe.Pointer(parray))).dtype
+    dtype := ((*C.TVMArray)(unsafe.Pointer(parray))).dtype
 
     switch val.(type) {
         case []int8:
@@ -127,7 +127,7 @@ func (parray Array) CopyFrom(val interface{}) (err error) {
 }
 
 func (parray Array) nativeCopyTo (data unsafe.Pointer, datalen int) (err error){
-    ret := C.TVMArrayCopyToBytes((*_Ctype_TVMArray)(unsafe.Pointer(parray.nativeCPtr())),
+    ret := C.TVMArrayCopyToBytes((*C.TVMArray)(unsafe.Pointer(parray.nativeCPtr())),
                                   unsafe.Pointer(data),
                                   C.ulong(datalen))
 
@@ -150,7 +150,7 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
     for ii := range shape {
         size *= shape[ii]
     }
-    dtype := ((*_Ctype_TVMArray)(unsafe.Pointer(parray))).dtype
+    dtype := ((*C.TVMArray)(unsafe.Pointer(parray))).dtype
 
     switch parray.GetDType() {
         case "int8":
@@ -222,13 +222,13 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
 
 // GetNdim returns the number of dimentions in Array
 func (parray Array) GetNdim() (retVal int32) {
-    retVal = int32(((*_Ctype_TVMArray)(unsafe.Pointer(parray))).ndim)
+    retVal = int32(((*C.TVMArray)(unsafe.Pointer(parray))).ndim)
     return
 }
 
 // GetShape returns the number of dimentions in Array
 func (parray Array) GetShape() (retVal []int64) {
-    shapePtr := (*C.int64_t)(((*_Ctype_TVMArray)(unsafe.Pointer(parray))).shape)
+    shapePtr := (*C.int64_t)(((*C.TVMArray)(unsafe.Pointer(parray))).shape)
     ndim := parray.GetNdim()
 
     shapeSlice := (*[1<<31] int64)(unsafe.Pointer(shapePtr))[:ndim:ndim]
@@ -239,14 +239,14 @@ func (parray Array) GetShape() (retVal []int64) {
 
 // GetDType returns the number of dimentions in Array
 func (parray Array) GetDType() (retVal string) {
-    ret := ((*_Ctype_TVMArray)(unsafe.Pointer(parray))).dtype
+    ret := ((*C.TVMArray)(unsafe.Pointer(parray))).dtype
     retVal, _ = dtypeFromTVMType(*(*pTVMType)(unsafe.Pointer(&ret)))
     return
 }
 
 // GetCtx returns the number of dimentions in Array
 func (parray Array) GetCtx() (retVal Context) {
-    ret := ((*_Ctype_TVMArray)(unsafe.Pointer(parray))).ctx
+    ret := ((*C.TVMArray)(unsafe.Pointer(parray))).ctx
     retVal = *(*Context)(unsafe.Pointer(&ret))
     return
 }
@@ -267,14 +267,14 @@ func (parray Array) GetCtx() (retVal Context) {
 func nativeTVMArrayAlloc(shape []int64, ndim int32,
                    dtypeCode int32, dtypeBits int32, dtypeLanes int32,
                    deviceType int32, deviceID int32) (retVal uintptr, err error) {
-    ret := (int32)(C.TVMArrayAlloc((*_Ctype_long)(&(shape[0])),
+    ret := (int32)(C.TVMArrayAlloc((*C.long)(&(shape[0])),
                                    C.int(ndim),
                                    C.int(dtypeCode),
                                    C.int(dtypeBits),
                                    C.int(dtypeLanes),
                                    C.int(deviceType),
                                    C.int(deviceID),
-                                   (*_Ctype_TVMArrayHandle)(unsafe.Pointer(&retVal))))
+                                   (*C.TVMArrayHandle)(unsafe.Pointer(&retVal))))
     if ret != 0 {
         err = errors.New(getTVMLastError())
         return
@@ -343,6 +343,6 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
 //
 // `ret` indicates the status of this api execution.
 func nativeTVMArrayFree(parray Array) (retVal int32) {
-    retVal = (int32)(C.TVMArrayFree((*_Ctype_TVMArray)(unsafe.Pointer(parray.nativeCPtr()))))
+    retVal = (int32)(C.TVMArrayFree((*C.TVMArray)(unsafe.Pointer(parray.nativeCPtr()))))
     return
 }
