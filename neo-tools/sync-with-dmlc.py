@@ -31,7 +31,7 @@ commits from last slected commit until latest commit.
 """
 def main():
     args = parse_args()
-    last_commit_file = 'dmlc_tvm_commit_id'
+    last_commit_file = 'dmlc_tvm_commit_id.txt'
     last_commit = None
     with open(last_commit_file) as f:
         last_commit = f.read().strip()
