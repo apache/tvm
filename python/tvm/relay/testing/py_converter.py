@@ -629,7 +629,8 @@ def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
     py_ast = to_python(expr, mod, target)
     code = compile(py_ast, '<string>', 'exec')
     # must pass in imports in globals dict or else nested functions
-    # won't be able to call them (weird quirk of Python ASTs)
+    # won't be able to call them unless they are explicitly made globals
+    # (weird quirk of Python ASTs)
     imports = {
         'numpy': numpy,
         'tvm': tvm,

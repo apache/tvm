@@ -17,7 +17,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
-from tvm.relay.backend.interpreter import TensorValue, TupleValue
+from tvm.relay.backend.interpreter import TensorValue, TupleValue, RefValue
 
 def test_create_empty_tuple():
     empty = relay.Tuple([])
@@ -63,3 +63,40 @@ def test_create_let():
     assert len(tup_val.fields[0].fields) == 0
     assert isinstance(tup_val.fields[1], TupleValue)
     assert len(tup_val.fields[1].fields) == 0
+
+
+def test_create_ref():
+    relay_ref = relay.RefCreate(relay.Tuple([]))
+    ref_val = run_as_python(relay_ref)
+    assert isinstance(ref_val, RefValue)
+    assert isinstance(ref_val.value, TupleValue)
+    assert len(ref_val.value.fields) == 0
+
+
+def test_ref_read():
+    v = relay.Var('v')
+    assign = relay.Let(v, relay.RefCreate(relay.Tuple([])), relay.RefRead(v))
+    read_val = run_as_python(assign)
+    assert isinstance(read_val, TupleValue)
+    assert len(read_val.fields) == 0
+
+
+def test_ref_write():
+    # check that the result of a ref write is an empty tuple
+    v = relay.Var('v')
+    initial_write = relay.Let(v, relay.RefCreate(relay.Tuple([relay.const(1)])),
+                              relay.RefWrite(v, relay.Tuple([relay.const(2)])))
+    write_val = run_as_python(initial_write)
+    assert isinstance(write_val, TupleValue)
+    assert len(write_val.fields) == 0
+
+    # now ensure that the value, once written, can be read back
+    read_after_write = relay.Let(v, relay.RefCreate(relay.Tuple([relay.const(1)])),
+                                 relay.Let(relay.Var('_'),
+                                           relay.RefWrite(v, relay.Tuple([relay.const(2)])),
+                                           relay.RefRead(v)))
+    read_val = run_as_python(read_after_write)
+    assert isinstance(read_val, TupleValue)
+    assert len(read_val.fields) == 1
+    assert isinstance(read_val.fields[0], TensorValue)
+    assert read_val.fields[0].asnumpy() == 2
