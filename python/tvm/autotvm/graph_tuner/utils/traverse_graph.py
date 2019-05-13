@@ -52,6 +52,10 @@ def expr2graph(expr, target_ops, node_dict, node_list):
         Dictionary to record node index
 
     node_list : list of dictionary
+        List of nodes which contains all expr in the input relay function.
+        Each node will be stored as a dictionary in the format of
+        {"op": str, "node": tvm.relay.expr, "inputs": [int], "types": [tvm.relay.Type],
+         "name": str, "workloads": [tuple], "topi_op": [function]}
     """
     env = TaskExtractEnv.get(allow_duplicate=True)
     topi_funcs = []

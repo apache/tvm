@@ -24,6 +24,12 @@ from .utils import is_input_node, has_multiple_inputs
 class PBQPTuner(BaseGraphTuner):
     """An approximation method to deal with intractably
     large size of graph tuning problem.
+
+    This graph coloring algorithm mainly comes from:
+
+    Lang Hames and Bernhard Scholz.
+    Nearly optimal reg-ister allocation with pbqp.JMLC 2006.
+    LNCS, vol.4228,pp. 346-361, 2016
     """
     def __init__(self, *args, **kwargs):
         """Create a partitioned boolean quadratic programming tuner.
@@ -90,12 +96,12 @@ class PBQPTuner(BaseGraphTuner):
     def _insert_edge(self, node_x, node_y, adj_cost_matrix):
         """Insert an edge between two nodes.
         """
-        self._layout_transform_matrix_dict[(node_x, node_y)] = adj_cost_matrix
-        self._layout_transform_matrix_dict[(node_y, node_x)] = []
+        self._layout_transform_interlayer_cost[(node_x, node_y)] = adj_cost_matrix
+        self._layout_transform_interlayer_cost[(node_y, node_x)] = []
         for i in range(len(adj_cost_matrix[0])):
-            self._layout_transform_matrix_dict[(node_y, node_x)].append([])
+            self._layout_transform_interlayer_cost[(node_y, node_x)].append([])
             for cost_vec in adj_cost_matrix:
-                self._layout_transform_matrix_dict[(node_y, node_x)][i] \
+                self._layout_transform_interlayer_cost[(node_y, node_x)][i] \
                     .append(cost_vec[i])
 
         self._adj_dict[node_x].append(node_y)
@@ -111,7 +117,7 @@ class PBQPTuner(BaseGraphTuner):
         """Reduce nodes with degree 1.
         """
         adj_node = self._adj_dict[node_idx][0]
-        ltf_matrix = self._layout_transform_matrix_dict[(adj_node, node_idx)]
+        ltf_matrix = self._layout_transform_interlayer_cost[(adj_node, node_idx)]
         for i, cost_vec in enumerate(ltf_matrix):
             min_cost = INVALID_LAYOUT_TIME
             for j, cost in enumerate(cost_vec):
@@ -125,8 +131,8 @@ class PBQPTuner(BaseGraphTuner):
         """Reduce nodes with degree 2.
         """
         adj_node_x, adj_node_y = self._adj_dict[node_idx]
-        ltf_matrix_x = self._layout_transform_matrix_dict[(adj_node_x, node_idx)]
-        ltf_matrix_y = self._layout_transform_matrix_dict[(adj_node_y, node_idx)]
+        ltf_matrix_x = self._layout_transform_interlayer_cost[(adj_node_x, node_idx)]
+        ltf_matrix_y = self._layout_transform_interlayer_cost[(adj_node_y, node_idx)]
         delta_matrix = [[] for _ in range(len(ltf_matrix_x))]
         for i, cost_vec_x in enumerate(ltf_matrix_x):
             for j, cost_vec_y in enumerate(ltf_matrix_y):
@@ -142,9 +148,9 @@ class PBQPTuner(BaseGraphTuner):
         elif adj_node_x in self._adj_dict[adj_node_y]:
             for i, _ in enumerate(delta_matrix):
                 for j, delta in enumerate(delta_matrix[i]):
-                    self._layout_transform_matrix_dict[(adj_node_x, adj_node_y)][i][j] \
+                    self._layout_transform_interlayer_cost[(adj_node_x, adj_node_y)][i][j] \
                         += delta
-                    self._layout_transform_matrix_dict[(adj_node_y, adj_node_x)][j][i] \
+                    self._layout_transform_interlayer_cost[(adj_node_y, adj_node_x)][j][i] \
                         += delta
         else:
             self._insert_edge(adj_node_x, adj_node_y, delta_matrix)
@@ -162,7 +168,7 @@ class PBQPTuner(BaseGraphTuner):
         for i, record_cost in enumerate(self._record_cost_dict[node_idx]):
             current_cost = record_cost
             for adj_node in self._adj_dict[node_idx]:
-                ltf_matrix = self._layout_transform_matrix_dict[(node_idx, adj_node)]
+                ltf_matrix = self._layout_transform_interlayer_cost[(node_idx, adj_node)]
                 adj_record_cost = list(self._record_cost_dict[adj_node])
                 for j, ltf_cost in enumerate(ltf_matrix[i]):
                     adj_record_cost[j] += ltf_cost
@@ -178,7 +184,7 @@ class PBQPTuner(BaseGraphTuner):
         self._is_optimal = False
 
         for adj_node in self._adj_dict[node_idx]:
-            ltf_matrix = self._layout_transform_matrix_dict[(node_idx, adj_node)]
+            ltf_matrix = self._layout_transform_interlayer_cost[(node_idx, adj_node)]
             for i, ltf_cost in enumerate(ltf_matrix[record_idx]):
                 self._record_cost_dict[adj_node][i] += ltf_cost
 
@@ -226,7 +232,7 @@ class PBQPTuner(BaseGraphTuner):
                     adj_optimal_idx = self._optimal_record_dict[adj_node]
                     for i, _ in enumerate(record_costs):
                         record_costs[i] += \
-                            self._layout_transform_matrix_dict \
+                            self._layout_transform_interlayer_cost \
                                 [(node_idx, adj_node)][i][adj_optimal_idx]
                 min_cost = min(record_costs)
                 self._optimal_record_dict[node_idx] = record_costs.index(min_cost)
@@ -261,19 +267,19 @@ class PBQPTuner(BaseGraphTuner):
                     if is_input_node(self._node_list[input_idx], input_names):
                         continue
                     temp[(input_idx, key)] = \
-                        self._layout_transform_matrix_dict[(input_idx, target_input_idx)]
-        self._layout_transform_matrix_dict.update(temp)
+                        self._layout_transform_interlayer_cost[(input_idx, target_input_idx)]
+        self._layout_transform_interlayer_cost.update(temp)
 
         # Create reverse layout transformation matrices
         temp = {}
-        for idx_pair, ltf_matrix in self._layout_transform_matrix_dict.items():
+        for idx_pair, ltf_matrix in self._layout_transform_interlayer_cost.items():
             reverse_key = (idx_pair[1], idx_pair[0])
             reverse_matrix = [[] for _ in range(len(ltf_matrix[0]))]
             for i, _ in enumerate(ltf_matrix):
                 for j, ltf in enumerate(ltf_matrix[i]):
                     reverse_matrix[j].append(ltf)
             temp[reverse_key] = reverse_matrix
-        self._layout_transform_matrix_dict.update(temp)
+        self._layout_transform_interlayer_cost.update(temp)
 
         self._forward()
         self._backward()

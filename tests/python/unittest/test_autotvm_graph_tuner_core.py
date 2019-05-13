@@ -16,6 +16,7 @@
 # under the License.
 import os
 import copy
+import numpy as np
 import tvm
 import tvm.relay.testing
 
@@ -119,13 +120,28 @@ def test_graph_tuner_layout_transform():
     g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
     executor = DPTuner(g, {"data": dshape}, records, target_ops, target=target, log_file=log_file)
     executor.benchmark_layout_transform(layout_records=ltf_records, infer_layout=True)
-    out = executor._layout_transform_dict
+    out = executor._layout_transform_perf_records
 
-    for key in ltf_keys:
-        if key not in out:
-            raise RuntimeError("%s not in output dictionary." % str(key))
-    if not os.path.isfile(log_file):
-        raise RuntimeError("No log file with name %s exists." % log_file)
+    num_flops = 0
+    total_time = 0
+    for record in ltf_records:
+        ltf_wkl = record[0].task.workload
+        input_shape = ltf_wkl[1][1]
+        flops = np.prod(input_shape)
+        num_flops += flops
+        total_time += record[1].costs[0]
+    avg_time = total_time / num_flops
+
+    for ltf_workload in out:
+        input_shape = ltf_workload[1][1]
+        flops = 1
+        for i in input_shape:
+            flops *= i
+        expected_time = flops * avg_time
+        out_time = out[ltf_workload][1].costs[0]
+        assert expected_time == out_time, "Inferred layout transformation time mismatch for %s: " \
+                                          "expecting %f but got %f" % (str(ltf_workload), expected_time,
+                                                                       out_time)
 
 
 def test_DPTuner_run():
@@ -173,11 +189,9 @@ def test_DPTuner_run():
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
-    if expected_out != out:
-        raise RuntimeError("Output mismatch: expecting %s but got %s"
-                           % (str(expected_out), str(out)))
-    if not os.path.isfile(log_file):
-        raise RuntimeError("No log file with name %s exists." % log_file)
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
+                                % (str(expected_out), str(out))
+    assert os.path.isfile(log_file), "No log file with name %s exists." % log_file
 
 
 def test_PBQPTuner_run():
@@ -224,9 +238,8 @@ def test_PBQPTuner_run():
     executor.run()
     out = [record[0].config for record in executor.get_optimal_records()]
     expected_out = [records[3][0].config, records[1][0].config, records[2][0].config]
-    if expected_out != out:
-        raise RuntimeError("Output mismatch: expecting %s but got %s"
-                           % (str(expected_out), str(out)))
+    assert expected_out == out, "Output mismatch: expecting %s but got %s" \
+                           % (str(expected_out), str(out))
 
 
 if __name__=="__main__":

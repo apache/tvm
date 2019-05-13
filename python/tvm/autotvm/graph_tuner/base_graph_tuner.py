@@ -19,6 +19,7 @@
 import logging
 from abc import abstractmethod
 
+import numpy as np
 import topi
 
 import tvm
@@ -100,8 +101,8 @@ class BaseGraphTuner(object):
             Name of global tuner.
         """
         self._node_list = []
-        self._layout_transform_dict = {}
-        self._layout_transform_matrix_dict = {}
+        self._layout_transform_perf_records = {}
+        self._layout_transform_interlayer_cost = {}
         self._input_shapes = input_shapes
         self._target_ops = [op.__name__ for op in target_ops]
 
@@ -314,13 +315,13 @@ class BaseGraphTuner(object):
             layout_transform_time = 0
         else:
             layout_transform_time = \
-                self._layout_transform_dict[ltf_workload][1].costs[0]
+                self._layout_transform_perf_records[ltf_workload][1].costs[0]
 
-        if idx_pair_key not in self._layout_transform_matrix_dict:
-            self._layout_transform_matrix_dict[idx_pair_key] = []
-        if len(self._layout_transform_matrix_dict[idx_pair_key]) <= from_sch_idx:
-            self._layout_transform_matrix_dict[idx_pair_key].append([])
-        self._layout_transform_matrix_dict[idx_pair_key][from_sch_idx]\
+        if idx_pair_key not in self._layout_transform_interlayer_cost:
+            self._layout_transform_interlayer_cost[idx_pair_key] = []
+        if len(self._layout_transform_interlayer_cost[idx_pair_key]) <= from_sch_idx:
+            self._layout_transform_interlayer_cost[idx_pair_key].append([])
+        self._layout_transform_interlayer_cost[idx_pair_key][from_sch_idx]\
             .append(layout_transform_time)
 
     def benchmark_layout_transform(self, min_exec_num=100, timeout=10,
@@ -405,22 +406,18 @@ class BaseGraphTuner(object):
         if layout_records is not None:
             for record in layout_records:
                 ltf_wkl = record[0].task.workload
-                self._layout_transform_dict[ltf_wkl] = record
+                self._layout_transform_perf_records[ltf_wkl] = record
                 input_shape = ltf_wkl[1][1]
-                flops = 1
-                for i in input_shape:
-                    flops *= i
+                flops = np.prod(input_shape)
                 num_flops += flops
                 total_time += record[1].costs[0]
-        avg_time = 0
-        if total_time > 0:
-            avg_time = total_time / num_flops
+        avg_time = total_time / num_flops
 
         args_list = []
         def _fetch_args_callback(from_node_idx, to_node_idx, from_sch_idx,
                                  to_sch_idx, args):
             """Callback function to fetch layout transform args"""
-            in_layout, out_layout = args[1], args[2]
+            _, in_layout, out_layout = args
             if in_layout != out_layout:
                 args_list.append(args)
 
@@ -433,7 +430,7 @@ class BaseGraphTuner(object):
                 record_list.append((inputs[0], results[0]))
             return _callback
 
-        builder = autotvm.LocalBuilder(n_parallel=1, build_func=build_func)
+        builder = autotvm.LocalBuilder(n_parallel=n_parallel, build_func=build_func)
         runner = autotvm.LocalRunner(number=min_exec_num, repeat=1, timeout=timeout)
         if use_rpc:
             if device_key is None:
@@ -445,7 +442,7 @@ class BaseGraphTuner(object):
         for args in args_list:
             args = serialize_args(args)
             ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
-            if ltf_workload in  self._layout_transform_dict:
+            if ltf_workload in  self._layout_transform_perf_records:
                 continue
 
             if infer_layout:
@@ -457,7 +454,7 @@ class BaseGraphTuner(object):
                 record_input = MeasureInput(target=self._target, task=None, config=None)
                 record_output = MeasureResult(costs=(inferred_time,), error_no=0,
                                               all_cost=-1, timestamp=-1)
-                self._layout_transform_dict[ltf_workload] = (record_input, record_output)
+                self._layout_transform_perf_records[ltf_workload] = (record_input, record_output)
                 continue
 
             records = []
@@ -469,21 +466,21 @@ class BaseGraphTuner(object):
                        callbacks=[_log_to_list(records)])
             if not isinstance(records[0][1].costs[0], float):
                 records[0] = (records[0][0], records[0][1]._replace(costs=(INVALID_LAYOUT_TIME,)))
-            self._layout_transform_dict[ltf_workload] = records[0]
+            self._layout_transform_perf_records[ltf_workload] = records[0]
 
         self._iterate_layout_transform(self._create_matrix_callback)
         self._logger.info("Benchmarking layout transformation successful.")
 
     @property
-    def layout_transform_dict(self):
+    def layout_transform_perf_records(self):
         """Get layout transformation dictionary for input graph.
 
         Returns
         -------
-        layout_transform_dict : dict of tuple to (MeasureInput, MeasureResult)
+        layout_transform_perf_records : dict of tuple to (MeasureInput, MeasureResult)
             Layout transformation dictionary for input graph.
         """
-        return self._layout_transform_dict
+        return self._layout_transform_perf_records
 
 
     def get_optimal_records(self):

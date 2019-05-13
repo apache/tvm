@@ -30,7 +30,7 @@ class DPStage(object):
     In most cases, instance of this class should be created through DPTuner.
     """
     def __init__(self, idx, input_shapes, node_list,
-                 counted_nodes_set, layout_time_matrix_dict,
+                 counted_nodes_set, layout_transform_interlayer_cost,
                  stage_dict, in_nodes_dict, out_nodes_dict,
                  dep_dict, target_ops, dtype="float32"):
         """Initialize a stage and create all states.
@@ -49,7 +49,7 @@ class DPStage(object):
         counted_nodes_set : set of int
             Global set recording whether the execution time of a node has been counted.
 
-        layout_time_matrix_dict : dict of tuple to list
+        layout_transform_interlayer_cost : dict of tuple to list
             Dictionary maps node index pair to layout transformation time between them.
 
         stage_dict : dict of int to Stage
@@ -74,7 +74,7 @@ class DPStage(object):
         self._global_input_names = input_shapes.keys()
         self._global_node_list = node_list
         self._global_counted_nodes_set = counted_nodes_set
-        self._global_layout_time_matrix_dict = layout_time_matrix_dict
+        self._global_layout_transform_interlayer_cost = layout_transform_interlayer_cost
         self._global_stage_dict = stage_dict
         self._global_in_nodes_dict = in_nodes_dict
         self._global_out_nodes_dict = out_nodes_dict
@@ -140,7 +140,7 @@ class DPStage(object):
                 for j in range(num_input_states):
                     input_sch_idx = j // dep_multiplier
                     layout_transform_time = \
-                        self._global_layout_time_matrix_dict \
+                        self._global_layout_transform_interlayer_cost \
                             [(input_idx, self._idx)][input_sch_idx][i]
 
                     if input_node_time_counted:
@@ -179,7 +179,27 @@ class DPStage(object):
                 self._global_dep_dict[self._idx].add(child)
 
     def _create_multi_inputs_states(self):
-        """State creation routine for multi_input operator"""
+        """State creation routine for multi_input operator
+
+        In tvm, layout transformation for an elemwise-like follow the rule which
+        all input operators transform their layouts to the leftmost input operator
+        layout. For example:
+                            elemwise-sum
+                            |    |    |
+                            |    |    |
+                           op0  op1  op2
+        In this block, the possible layout transformations are: op1 -> op0 and op2 -> op0.
+        In graph tuning, a 3-D array with shape (k0, k1, k2) can represent the layout
+        transformations between these three nodes. It is also possible some earlier states
+        belong to other nodes(We name them as dependency) are required for dynamic programming.
+        The final states array for this elemwise-sum can be with shape (e0, k0, k1, e1, k2).
+        To iterate through all states, we first align the shape of op0, op1 and op2 to be
+        (e0, k0, k1, e1, k2) by broadcasting the original states. We also record the axis of
+        each input node in the states array, together with the multiplier. For example,
+        the axis index for op0 is 1, and multiplier is k1 * e1 * k2. If current iterating index
+        in the flatten array is i, the index of op0 can be computed as:
+        i % (k0 * k1 * e1 * k2) // (k1 * e1 * k2).
+        """
         full_input_node_list = list(self._global_in_nodes_dict[self._idx])
         input_index_list = []
         # Remove input and parameter nodes
@@ -192,15 +212,13 @@ class DPStage(object):
         states_list, aligned_node_list = DPStage.align_states(input_index_list,
                                                               self._global_stage_dict,
                                                               self._global_node_list)
-        aligned_shape = states_list[0][3].shape
+        target_node_idx, target_major_axis, target_multiplier, target_states = states_list[0]
+        aligned_shape = target_states.shape
         self._full_states = np.zeros(aligned_shape).astype("float32").flatten()
         self._full_states_idx = list(aligned_node_list)
         num_states = self._full_states.shape[0]
         node_time_counted = [item[0] in self._global_counted_nodes_set for item in states_list]
-        target_node_idx = states_list[0][0]
-        target_states = states_list[0][3].flatten()
-        target_multiplier = states_list[0][2]
-        target_major_axis = states_list[0][1]
+        target_states = target_states.flatten()
         src_states_list = [states_list[i][3].flatten() for i in range(1, len(states_list))]
 
         for i in range(num_states):
@@ -210,15 +228,14 @@ class DPStage(object):
                 new_state = 0
             else:
                 new_state = target_states[i]
+
             for j in range(1, len(states_list)):
-                src_node_idx = states_list[j][0]
                 src_states = src_states_list[j - 1]
-                src_multiplier = states_list[j][2]
-                src_major_axis = states_list[j][1]
+                src_node_idx, src_major_axis, src_multiplier, _ = states_list[j]
                 src_sch_idx = (i % (src_multiplier *
                                     aligned_shape[src_major_axis])) // src_multiplier
                 layout_transform_time = \
-                    self._global_layout_time_matrix_dict\
+                    self._global_layout_transform_interlayer_cost\
                         [(src_node_idx, target_node_idx)][src_sch_idx][target_sch_idx]
 
                 if node_time_counted[j]:
@@ -226,6 +243,7 @@ class DPStage(object):
                 else:
                     new_state += layout_transform_time + src_states[i]
                 self._full_states[i] = new_state
+
         for i, node_counted in enumerate(node_time_counted):
             if not node_counted:
                 self._global_counted_nodes_set.add(states_list[i][0])

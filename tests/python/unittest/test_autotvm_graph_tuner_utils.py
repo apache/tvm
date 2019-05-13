@@ -35,9 +35,8 @@ def create_workload(dshape, kshape, strides,
 
 def verify_has_multiple_inputs(node_list, node_idx, input_names, expected_result):
     out = has_multiple_inputs(node_list, node_idx, input_names)
-    if out != expected_result:
-        raise RuntimeError("Output mismatch: expecting checking %s to be %s but got %s."
-                           % (node_list[node_idx]["op"], str(expected_result), str(out)))
+    assert out == expected_result, "Output mismatch: expecting checking %s to be %s but got %s." \
+                                   % (node_list[node_idx]["op"], str(expected_result), str(out))
 
 
 def test_has_multiple_inputs():
@@ -78,10 +77,10 @@ def test_expr2graph():
     relay.ir_pass.post_order_visit(net, _count_node)
 
     expr2graph(net, target_ops, node_dict, node_list)
-    for op_name, node in zip(op_name_list, node_list):
-        if op_name != node["op"]:
-            raise RuntimeError("Node operator mismatch: expecting %s but got %s"
-                               % (str(op_name), str(node["op"])))
+    for i, item in enumerate(zip(op_name_list, node_list)):
+        op_name, node = item
+        assert op_name == node["op"], "%dth Node operator mismatch: expecting %s but got %s" \
+                                      % (i, str(op_name), str(node["op"]))
 
 
 def test_get_direct_ancestor():
@@ -101,8 +100,7 @@ def test_get_direct_ancestor():
     visited_dict = {}
     input_names = ["data"]
     out = get_direct_ancestor(node_list, visited_dict, target_ops, 5, input_names)
-    if len(out) != 2 or out != [2, 0]:
-        raise RuntimeError("Output mismatch: expecting [2, 0] but got %s." % str(out))
+    assert out == [2, 0], "Output mismatch: expecting [2, 0] but got %s." % str(out)
 
 
 def test_get_in_nodes():

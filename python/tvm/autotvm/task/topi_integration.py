@@ -268,7 +268,8 @@ class TaskExtractEnv:
         Parameters
         ----------
         allow_duplicate : boolean
-            Whether to fetch all workloads. This is
+            Whether to fetch all workloads in the network,
+            even though some of them are the same. This is
             useful for graph tuning.
 
         Returns

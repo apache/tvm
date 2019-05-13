@@ -54,7 +54,7 @@ class DPTuner(BaseGraphTuner):
             "dep_dict": self._dep_dict,
             "node_list": self._node_list,
             "input_shapes": self._input_shapes,
-            "layout_time_matrix_dict": self._layout_transform_matrix_dict
+            "layout_transform_interlayer_cost": self._layout_transform_interlayer_cost
         }
 
     def _check_num_states(self, num_states):
