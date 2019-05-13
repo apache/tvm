@@ -145,6 +145,8 @@ def test_if():
     false_expr = relay.Let(v, relay.RefCreate(relay.const(0)),
                            relay.If(false_cond, true_branch, false_branch))
 
+    import astor
+    print(astor.to_source(to_python(true_expr)))
     true_val = run_as_python(true_expr)
     assert isinstance(true_val, TensorValue)
     assert true_val.asnumpy() == 1
@@ -152,3 +154,19 @@ def test_if():
     false_val = run_as_python(false_expr)
     assert isinstance(false_val, TensorValue)
     assert false_val.asnumpy() == 2
+
+
+def test_local_function():
+    v = relay.Var('v')
+    ident = relay.Function([v], v)
+    f = relay.Var('f')
+    call1 = relay.Let(f, ident, f(relay.Tuple([])))
+    call2 = relay.Let(f, ident, f(relay.const(2)))
+
+    call_val1 = run_as_python(call1)
+    assert isinstance(call_val1, TupleValue)
+    assert len(call_val1.fields) == 0
+
+    call_val2 = run_as_python(call2)
+    assert isinstance(call_val2, TensorValue)
+    assert call_val2.asnumpy() == 2

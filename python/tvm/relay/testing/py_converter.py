@@ -168,10 +168,12 @@ class PythonConverter(ExprFunctor):
     # Given a Numpy array, produces an appropriate Python array
     # or numerical literal representing its contents
     def parse_numpy_array(self, arr):
+        # cannot use Num for bools
+        parse_single = lambda i: NameConstant(i) if isinstance(i, bool) else Num(i)
         if arr.ndim == 0:
-            return Num(arr.item())
+            return parse_single(arr.item())
         if arr.ndim == 1:
-            return ast.List([Num(i) for i in arr], Load())
+            return ast.List([parse_single(i) for i in arr], Load())
 
         elts = []
         for row in arr:
@@ -523,7 +525,7 @@ class PythonConverter(ExprFunctor):
     def visit_function(self, func: Expr):
         # Python's lambdas are very restrictive, so we do "name" inline functions
         converted_func, func_name = self.convert_func_node('_anon_func', func)
-        return (self.include_var(func_name), [converted_func])
+        return (Name(func_name, Load()), [converted_func])
 
 
     def visit_call(self, call: Expr):
@@ -544,7 +546,7 @@ class PythonConverter(ExprFunctor):
 
         # lowered operator: generate a call to a function that gets the PackedFunc
         # from TVM's registry
-        if func.attrs and func.attrs.Primitive.value == 1:
+        if isinstance(func, Function) and func.attrs and func.attrs.Primitive.value == 1:
             op_call_def, op_call = self.create_op_call(func, call.args, fields)
             return (op_call, field_defs + [op_call_def])
 
