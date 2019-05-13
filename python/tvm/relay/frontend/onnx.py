@@ -346,7 +346,7 @@ class Flatten(OnnxOpConverter):
         if axis == 1:
             out = _op.nn.batch_flatten(inputs[0])
         else:
-            newshape = [0]*(axis+1)
+            newshape = [0] * (axis + 1)
             newshape[axis] = -1
             out = _op.reshape(inputs[0], list(newshape))
         return out
