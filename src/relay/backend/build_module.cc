@@ -44,25 +44,25 @@ using TargetsMap = Map<tvm::Integer, tvm::Target>;
  * \brief Context index to Target
  */
 struct ContextTargetMap {
-  static const std::unordered_map<int, std::string> mask2str;
-  static std::string Mask2Str(int mask) {
+  static const std::unordered_map<int, tvm::Target> mask2str;
+  static tvm::Target Mask2Str(int mask) {
     CHECK_GT(mask2str.count(mask), 0) << "Unknown mask.";
     return mask2str.at(mask);
   }
 };
 
-const std::unordered_map<int, std::string> ContextTargetMap::mask2str = {
-  {1, "llvm"},
-  {2, "cuda"},
-  {4, "opencl"},
-  {5, "aocl"},
-  {6, "sdaccel"},
-  {7, "vulkan"},
-  {8, "metal"},
-  {9, "vpi"},
-  {10, "rocm"},
-  {11, "opengl"},
-  {12, "ext_dev"}
+const std::unordered_map<int, tvm::Target> ContextTargetMap::mask2str = {
+  {1, tvm::Target::create("llvm")},
+  {2, tvm::Target::create("cuda")},
+  {4, tvm::Target::create("opencl")},
+  {5, tvm::Target::create("aocl")},
+  {6, tvm::Target::create("sdaccel")},
+  {7, tvm::Target::create("vulkan")},
+  {8, tvm::Target::create("metal")},
+  {9, tvm::Target::create("vpi")},
+  {10, tvm::Target::create("rocm")},
+  {11, tvm::Target::create("opengl")},
+  {12, tvm::Target::create("ext_dev")}
 };
 
 /*!
@@ -507,7 +507,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (tmp_map.count(cfg.fallback_device) == 0) {
       device_target.Set(
           cfg.fallback_device,
-          Target::create(ContextTargetMap::Mask2Str(cfg.fallback_device)));
+          ContextTargetMap::Mask2Str(cfg.fallback_device));
     }
     return device_target;
   }
@@ -532,7 +532,7 @@ class RelayBuildModule : public runtime::ModuleNode {
           "relay._ir_pass.CollectDeviceAnnotationOps", func, nullptr);
       if (annotation_map.size() == 0) {
         targets_map_ptr->Set(
-            0, Target::create(ContextTargetMap::Mask2Str(cfg.fallback_device)));
+            0, ContextTargetMap::Mask2Str(cfg.fallback_device));
       } else {
         int64_t dev_type = -1;
         for (auto kv : annotation_map) {
@@ -547,8 +547,7 @@ class RelayBuildModule : public runtime::ModuleNode {
             << "found. Please check the "
             << "RewriteAnnotation pass.";
         }
-        targets_map_ptr->Set(
-            0, Target::create(ContextTargetMap::Mask2Str(dev_type)));
+        targets_map_ptr->Set(0, ContextTargetMap::Mask2Str(dev_type));
       }
     }
     return func;
