@@ -44,6 +44,16 @@ def setup():
         tvm.datatype.create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
         "llvm", "bfloat")
 
+def lower_datatypes_and_build(schedule, args):
+    """Create schedule and lower, manually lowering datatypes.
+
+    Once datatype lowering is integrated directly into TVM's lower/build
+    process, we won't need to do this manually.
+    TODO(gus) integrate datatype lowering into build process; change this test"""
+    flist = tvm.lower(schedule, args)
+    flist = [flist]
+    flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
+    return tvm.build(flist[0], target=tgt)
 
 def test_bfloat_add_and_cast_1():
     X = tvm.placeholder((3, ), name="X")
@@ -53,15 +63,8 @@ def test_bfloat_add_and_cast_1():
         topi.cast(Y, dtype="custom[bfloat]16"),
         dtype="float")
 
-    # Create schedule and lower, manually lowering datatypes. Once datatype
-    # lowering is integrated directly into TVM's lower/build process, we won't
-    # need to do this manually.
-    # TODO(gus) integrate datatype lowering into build process; change this test
     s = tvm.create_schedule([Z.op])
-    flist = tvm.lower(s, [X, Y, Z])
-    flist = [flist]
-    flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
-    built_cast = tvm.build(flist[0], target=tgt)
+    built_cast = lower_datatypes_and_build(s, [X,Y,Z])
 
     ctx = tvm.context(tgt, 0)
 
@@ -92,10 +95,7 @@ def test_bfloat_add_and_cast_2():
         dtype="float")
 
     s = tvm.create_schedule([Z.op])
-    flist = tvm.lower(s, [X, Y, Z])
-    flist = [flist]
-    flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
-    built_cast = tvm.build(flist[0], target=tgt)
+    built_cast = lower_datatypes_and_build(s, [X,Y,Z])
 
     ctx = tvm.context(tgt, 0)
 
@@ -130,10 +130,7 @@ def test_bfloat_add_and_cast_FloatImm():
         dtype="float")
 
     s = tvm.create_schedule([Z.op])
-    flist = tvm.lower(s, [X, Z])
-    flist = [flist]
-    flist = [ir_pass.LowerCustomDatatypes(func, tgt) for func in flist]
-    built_cast = tvm.build(flist[0], target=tgt)
+    built_cast = lower_datatypes_and_build(s, [X,Z])
 
     ctx = tvm.context(tgt, 0)
 
