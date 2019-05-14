@@ -138,12 +138,20 @@ def test_ref_write():
     assert_tuple_value(write_val, 0)
 
     # now ensure that the value, once written, can be read back
-    read_after_write = relay.Let(v, relay.RefCreate(relay.Tuple([relay.const(1)])),
-                                 seq(relay.RefWrite(v, relay.Tuple([relay.const(2)])),
-                                     relay.RefRead(v)))
+    # (we read the value before and after mutation)
+    w = relay.Var('w')
+    read_after_write = relay.Let(
+        v, relay.RefCreate(relay.Tuple([relay.const(1)])),
+        relay.Let(
+            w, relay.RefCreate(relay.RefRead(v)),
+            seq(relay.RefWrite(v, relay.Tuple([relay.const(2)])),
+                relay.Tuple([relay.RefRead(w), relay.RefRead(v)]))))
     read_val = run_as_python(read_after_write)
-    assert_tuple_value(read_val, 1)
-    assert_tensor_value(read_val.fields[0], 2)
+    assert_tuple_value(read_val, 2)
+    assert_tuple_value(read_val.fields[0], 1)
+    assert_tuple_value(read_val.fields[1], 1)
+    assert_tensor_value(read_val.fields[0].fields[0], 1)
+    assert_tensor_value(read_val.fields[1].fields[0], 2)
 
 
 def test_if():
