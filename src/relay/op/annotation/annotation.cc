@@ -58,7 +58,7 @@ RELAY_REGISTER_OP("on_device")
                                ElemwiseArbitraryLayout);
 
 Expr StopFusion(Expr data) {
-  static const Op& op = Op::Get("annotation.stop_fusion");
+  static const Op& op = Op::Get("stop_fusion");
   return CallNode::make(op, {data}, Attrs{}, {});
 }
 
@@ -67,7 +67,7 @@ TVM_REGISTER_API("relay.op.annotation._make.stop_fusion")
     return StopFusion(data);
 });
 
-RELAY_REGISTER_OP("annotation.stop_fusion")
+RELAY_REGISTER_OP("stop_fusion")
 .describe(R"code(Annotate an expression to prevent it being fused with previous expressions.)code"
 TVM_ADD_FILELINE)
 .set_num_inputs(1)
