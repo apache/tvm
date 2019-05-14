@@ -83,5 +83,39 @@ TVM_ADD_FILELINE)
                          return {topi::identity(inputs[0])};
                        });
 
+RELAY_REGISTER_OP("bitpack_start")
+.describe(R"code(
+Mark the start of bitpacking.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(10)
+.add_type_rel("Identity", IdentityRel)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute",
+                       [](const Attrs& attrs, const Array<Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                         return {topi::identity(inputs[0])};
+                       });
+
+RELAY_REGISTER_OP("bitpack_end")
+.describe(R"code(
+Mark the end of bitpacking.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(10)
+.add_type_rel("Identity", IdentityRel)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute",
+                       [](const Attrs& attrs, const Array<Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                         return {topi::identity(inputs[0])};
+                       });
+
 }  // namespace relay
 }  // namespace tvm
