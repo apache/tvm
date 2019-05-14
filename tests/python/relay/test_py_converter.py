@@ -334,3 +334,38 @@ def test_local_recursion():
     assert_constructor_value(val.fields[1].fields[1], p.cons, 2)
     assert_tensor_value(val.fields[1].fields[1].fields[0], 3)
     assert_constructor_value(val.fields[1].fields[1].fields[1], p.nil, 0)
+
+
+def test_global_recursion():
+    mod = relay.Module()
+    p = Prelude(mod)
+    copy = relay.GlobalVar('copy')
+    # same as above: it copies the given list
+    a = relay.TypeVar('a')
+    v = relay.Var('v', p.l(a))
+    h = relay.Var('h')
+    t = relay.Var('t')
+    copy_def = relay.Function([v], relay.Match(v, [
+        relay.Clause(relay.PatternConstructor(p.cons,
+                                              [relay.PatternVar(h), relay.PatternVar(t)]),
+                     p.cons(h, copy(t))),
+        relay.Clause(relay.PatternConstructor(p.nil, []), p.nil())
+    ]), p.l(a), [a])
+    mod[copy] = copy_def
+
+    call1 = copy_def(p.cons(relay.const(1), p.cons(relay.const(2), p.nil())))
+    val1 = run_as_python(call1, mod)
+    assert_constructor_value(val1, p.cons, 2)
+    assert_tensor_value(val1.fields[0], 1)
+    assert_constructor_value(val1.fields[1], p.cons, 2)
+    assert_tensor_value(val1.fields[1].fields[0], 2)
+    assert_constructor_value(val1.fields[1].fields[1], p.nil, 0)
+
+    call2 = copy_def(p.cons(relay.Tuple([]), p.nil()))
+    val2 = run_as_python(call2, mod)
+    assert_constructor_value(val2, p.cons, 2)
+    assert_tuple_value(val2.fields[0], 0)
+    assert_constructor_value(val2.fields[1], p.nil, 0)
+
+
+# test higher-order func
