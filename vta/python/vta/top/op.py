@@ -84,15 +84,7 @@ def compute_conv2d(attrs, inputs, out):
             assert env.LOG_INP_WIDTH == 3, "only support 8bit inp for now"
             assert env.LOG_OUT_WIDTH == 3, "only support 8bit inp for now"
             inputs = list(inputs)
-            w_pack_factor = 1 << (3 - env.LOG_WGT_WIDTH)
             assert inputs[1].dtype == "int8"
-
-            # Apply bit packing if necessary
-            if w_pack_factor != 1:
-                kshape = list(topi.util.get_const_tuple(inputs[1].shape))
-                kshape[-1] *= w_pack_factor
-                inputs[1] = reinterpret(inputs[1], kshape, dtype=env.wgt_dtype)
-
             return topi.nn.conv2d(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)
         else:
             return topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups, out_dtype)
