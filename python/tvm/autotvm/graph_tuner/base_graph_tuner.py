@@ -411,7 +411,7 @@ class BaseGraphTuner(object):
                 flops = np.prod(input_shape)
                 num_flops += flops
                 total_time += record[1].costs[0]
-        avg_time = total_time / num_flops
+        avg_time = total_time / num_flops if num_flops > 0 else 0
 
         args_list = []
         def _fetch_args_callback(from_node_idx, to_node_idx, from_sch_idx,

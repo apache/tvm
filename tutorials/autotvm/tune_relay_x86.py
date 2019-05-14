@@ -165,7 +165,7 @@ def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
     target_op = [relay.nn.conv2d]
     Tuner = DPTuner if use_DP else PBQPTuner
     executor = Tuner(graph, {"data": dshape}, records, target_op, target)
-    executor.benchmark_layout_transform(target, min_exec_num=10000)
+    executor.benchmark_layout_transform(min_exec_num=2000)
     executor.run()
     executor.write_opt_sch2record_file(opt_sch_file)
 
