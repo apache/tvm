@@ -165,9 +165,9 @@ class PythonConverter(ExprFunctor):
         return Str(attr)
 
 
-    # Given a Numpy array, produces an appropriate Python array
-    # or numerical literal representing its contents
     def parse_numpy_array(self, arr):
+        '''Given a Numpy array, produces an appropriate Python array
+        or numerical literal representing its contents'''
         # cannot use Num for bools
         parse_single = lambda i: NameConstant(i) if isinstance(i, bool) else Num(i)
         if arr.ndim == 0:
@@ -299,7 +299,7 @@ class PythonConverter(ExprFunctor):
 
         # create a function to wrap the call of the lowered op and return
         # a call to that function
-        wrap_name = self.generate_func_name('_{}_wrapper'.format(op_name))
+        wrap_name = self.generate_function_name('_{}_wrapper'.format(op_name))
         wrap_args = [self.generate_var_name('_{}_wrapper_arg_i'.format(op_name)) for
                      i in range(len(py_args))]
 
@@ -318,7 +318,7 @@ class PythonConverter(ExprFunctor):
     def create_constructor(self, ctor: Constructor):
         '''Given an ADT constructor, creates a Python AST node that
         obtains a reference to the same constructor'''
-        type_data = self.mod[ctor.belongs_to]
+        type_data = self.mod[ctor.belong_to]
         ctor_index = -1
         for i in range(len(type_data.constructors)):
             if type_data.constructors[i] == ctor:
@@ -328,6 +328,7 @@ class PythonConverter(ExprFunctor):
 
         # reference to type var: mod.get_global_type_var({var name})
         # reference to constructor object: mod[{type_var}].constructors[{index}]
+        type_name = ctor.belong_to.var.name
         type_var_ref = self.create_call('{}.get_global_type_var'.format(MODULE_NAME),
                                         [Str(type_name)])
         type_data_ref = ast.Subscript(Name(MODULE_NAME, Load()),
@@ -339,30 +340,25 @@ class PythonConverter(ExprFunctor):
                              Load())
 
 
-    def create_match_check(self, pattern: Pattern):
-        '''Given an ADT match pattern, this generates a Python AST
-        corresponding to a function that checks if its ADT-valued
-        argument matches the pattern (returning True or False).
-        Returns a list of function definitions and the name of the
-        function that will check whether an ADT value matches the
-        given pattern'''
-
-        func_name = self.generate_function_name('_pattern_match_check')
-        arg_name = self.generate_variable_name('_pattern_match_check')
+    def create_match_check(self, pattern: Pattern, data):
+        '''Given an ADT match pattern and a (Python) expression pointing to
+        an ADT value, this generates a Python expression that checks if the
+        ADT value matches the given pattern (returning True or False).
+        Returns a list of function definitions and the Python expression'''
 
         # wildcard or var match everything
         if isinstance(pattern, (relay.PatternWildcard, relay.PatternVar)):
-            return ([
-                self.create_def(func_name, [arg_name],
-                                [Return(NameConstant('True'))])
-            ],
-                    func_name)
+            return ([], NameConstant(True))
 
         # constructor patterns check whether the constructors match
         # and also the matches of any nested patterns
+        func_name = self.generate_function_name('_pattern_match_check')
+        arg_name = self.generate_var_name('_pattern_match_check')
         defs = []
         pattern_ctor = self.create_constructor(pattern.constructor)
-        test = ast.Compare(Name(arg_name, Load()),
+
+        # equiv: if arg.constrcutor != pattern_constructor: return False
+        test = ast.Compare(ast.Attribute(Name(arg_name, Load()), 'constructor', Load()),
                            [ast.NotEq()], [pattern_ctor])
 
         comparison = ast.If(test, [Return(NameConstant(False))], [])
@@ -378,17 +374,15 @@ class PythonConverter(ExprFunctor):
             if not isinstance(nested_pat, relay.PatternConstructor):
                 continue
 
-            nested_defs, nested_func = self.create_match_check(nested_pat)
-            defs += nested_defs
-
-            # equiv: if not match_func(arg.fields[i]): return False
+            # equiv: if not nested_check: return False
             field_index = ast.Subscript(self.parse_name('{}.fields'.format(arg_name)),
                                         ast.Index(Num(i)),
                                         Load())
-            nested_test = ast.UnaryOp(ast.Not(),
-                                      self.create_call(nested_func,
-                                                       [field_index]))
-            nested_comparison = ast.If(nested_test, [Return(NameConstant(False))])
+            nested_defs, nested_check = self.create_match_check(nested_pat, field_index)
+            defs += nested_defs
+
+            nested_test = ast.UnaryOp(ast.Not(), nested_check)
+            nested_comparison = ast.If(nested_test, [Return(NameConstant(False))], [])
             body.append(nested_comparison)
 
         # after all checks, we return True if we have a final match
@@ -396,7 +390,7 @@ class PythonConverter(ExprFunctor):
 
         final_def = self.create_def(func_name, [arg_name], body)
         defs.append(final_def)
-        return (defs, func_name)
+        return (defs, self.create_call(func_name, [data]))
 
 
     def create_match_clause_body(self, pattern: Pattern, body: Expr):
@@ -418,7 +412,7 @@ class PythonConverter(ExprFunctor):
         # w = a.fields[2].fields[0]
         def collect_var_assignments(pat, val):
             if isinstance(pat, relay.PatternWildcard):
-                return [Assign([Name('_', Store())], val)]
+                return []
             if isinstance(pat, relay.PatternVar):
                 return [Assign([self.include_var(pat.var, assign=True)], val)]
             # constructor pattern: assign each field of the value
@@ -427,11 +421,11 @@ class PythonConverter(ExprFunctor):
             for i in range(len(pat.patterns)):
                 # we want the assignments for val.fields[i]
                 field = ast.Subscript(ast.Attribute(val, 'fields', Load()),
-                                      ast.Index(Num(i)), ctx.Load())
-                assignments += collect_var_assignments(pat, field)
+                                      ast.Index(Num(i)), Load())
+                assignments += collect_var_assignments(pat.patterns[i], field)
             return assignments
 
-        func_name = self.generate_func_name('_match_clause_body')
+        func_name = self.generate_function_name('_match_clause_body')
         arg_name = self.generate_var_name('_match_clause_body')
 
         clause_body, defs = self.visit(body)
@@ -439,7 +433,7 @@ class PythonConverter(ExprFunctor):
 
         func_def = self.create_def(func_name, [arg_name],
                                    defs + assignments + [Return(clause_body)])
-        return ([func_def], func_name)
+        return (func_def, func_name)
 
 
     # Convention for the expr visitor: Each visit function returns a tuple of two members.
@@ -591,28 +585,30 @@ class PythonConverter(ExprFunctor):
         pattern matches. If yes, we call a function that assigns
         the variables appropriately and invokes the clause body.'''
         data, defs = self.visit(match.data)
+        data_var = self.generate_var_name('_match_data')
 
-        thunk_body = []
+        # must ensure the data clause is executed exactly once
+        thunk_body = [Assign([Name(data_var, Store())], data)]
         for clause in match.clauses:
-            checker_defs, check_name = self.create_match_check(clause.pattern)
+            checker_defs, check_expr = self.create_match_check(clause.lhs, Name(data_var, Load()))
             defs += checker_defs
-            body_def, body_name = self.create_match_clause_body(clause.pattern, clause.body)
+            body_def, body_name = self.create_match_clause_body(clause.lhs, clause.rhs)
             defs.append(body_def)
 
             # equiv: if check(data): return body(data)
             thunk_body.append(ast.If(
-                self.generate_call(check_name, [data]),
-                [Return(self.generate_call(body_name, [data]))]
+                check_expr,
+                [Return(self.create_call(body_name, [Name(data_var, Load())]))],
+                []
             ))
 
-        # finally if nothing matches we have a failed assert
-        # (should never happen)
-        thunk_body.append(ast.Assert(NameConstant(False)),
-                          Str('Match was not exhaustive'))
+        # finally if nothing matches we have a failed assert (should never happen)
+        thunk_body.append(ast.Assert(NameConstant(False), Str('Match was not exhaustive')))
 
-        thunk_name = self.generate_func_name('_match_thunk')
+        thunk_name = self.generate_function_name('_match_thunk')
         thunk_def = self.create_def(thunk_name, [], defs + thunk_body)
         return (self.create_call(thunk_name, []), [thunk_def])
+
 
     # these are both handled in the "call" case
     def visit_constructor(self, _):
@@ -642,9 +638,10 @@ def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
         'TensorValue': relay.backend.interpreter.TensorValue,
         'TupleValue': relay.backend.interpreter.TupleValue,
         'ConstructorValue': relay.backend.interpreter.ConstructorValue,
-        'RefValue': relay.backend.interpreter.RefValue
+        'RefValue': relay.backend.interpreter.RefValue,
+        MODULE_NAME : mod
     }
-    var_map = {OUTPUT_VAR_NAME : None, MODULE_NAME : mod}
+    var_map = {OUTPUT_VAR_NAME : None}
     #pylint: disable=exec-used
     exec(code, imports, var_map)
     return var_map[OUTPUT_VAR_NAME]
