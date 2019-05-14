@@ -343,54 +343,37 @@ class PythonConverter(ExprFunctor):
     def create_match_check(self, pattern: Pattern, data):
         '''Given an ADT match pattern and a (Python) expression pointing to
         an ADT value, this generates a Python expression that checks if the
-        ADT value matches the given pattern (returning True or False).
-        Returns a list of function definitions and the Python expression'''
+        ADT value matches the given pattern (returning True or False).'''
 
         # wildcard or var match everything
         if isinstance(pattern, (relay.PatternWildcard, relay.PatternVar)):
-            return ([], NameConstant(True))
+            return NameConstant(True)
 
         # constructor patterns check whether the constructors match
         # and also the matches of any nested patterns
-        func_name = self.generate_function_name('_pattern_match_check')
-        arg_name = self.generate_var_name('_pattern_match_check')
-        defs = []
-        pattern_ctor = self.create_constructor(pattern.constructor)
 
-        # equiv: if arg.constrcutor != pattern_constructor: return False
-        test = ast.Compare(ast.Attribute(Name(arg_name, Load()), 'constructor', Load()),
-                           [ast.NotEq()], [pattern_ctor])
+        # equiv: (arg.constructor == patern_constructor)
+        conds = [ast.Compare(ast.Attribute(data, 'constructor', Load()),
+                             [ast.Eq()], [self.create_constructor(pattern.constructor)])]
 
-        comparison = ast.If(test, [Return(NameConstant(False))], [])
-        body = [comparison]
-
-        # now add checks for any nested patterns that we perform
-        # after the comparison if the constructors match
+        # now check for any nested patterns
         for i in range(len(pattern.patterns)):
             nested_pat = pattern.patterns[i]
-
             # can safely skip var or wildcard patterns: they will
             # never cause a check to fail
             if not isinstance(nested_pat, relay.PatternConstructor):
                 continue
 
-            # equiv: if not nested_check: return False
-            field_index = ast.Subscript(self.parse_name('{}.fields'.format(arg_name)),
-                                        ast.Index(Num(i)),
-                                        Load())
-            nested_defs, nested_check = self.create_match_check(nested_pat, field_index)
-            defs += nested_defs
+            # index into the value corresponding to the subpattern
+            field_index = ast.Subscript(ast.Attribute(data, 'fields', Load()),
+                                        ast.Index(Num(i)), Load())
+            conds.append(self.create_match_check(nested_pat, field_index))
 
-            nested_test = ast.UnaryOp(ast.Not(), nested_check)
-            nested_comparison = ast.If(nested_test, [Return(NameConstant(False))], [])
-            body.append(nested_comparison)
-
-        # after all checks, we return True if we have a final match
-        body.append(Return(NameConstant(True)))
-
-        final_def = self.create_def(func_name, [arg_name], body)
-        defs.append(final_def)
-        return (defs, self.create_call(func_name, [data]))
+        # if we do not need to check nested pattern, just return the single check
+        if len(conds) == 1:
+            return conds[0]
+        # otherwise AND together any nested checks
+        return ast.BoolOp(ast.And(), conds)
 
 
     def create_match_clause_body(self, pattern: Pattern, body: Expr):
@@ -590,8 +573,7 @@ class PythonConverter(ExprFunctor):
         # must ensure the data clause is executed exactly once
         thunk_body = [Assign([Name(data_var, Store())], data)]
         for clause in match.clauses:
-            checker_defs, check_expr = self.create_match_check(clause.lhs, Name(data_var, Load()))
-            defs += checker_defs
+            check_expr = self.create_match_check(clause.lhs, Name(data_var, Load()))
             body_def, body_name = self.create_match_clause_body(clause.lhs, clause.rhs)
             defs.append(body_def)
 
@@ -618,7 +600,8 @@ class PythonConverter(ExprFunctor):
 
 
 def to_python(expr: Expr, mod=relay.Module(), target='llvm'):
-    '''Converts the given Relay expression into a Python script (as a Python AST object).'''
+    '''Converts the given Relay expression into a Python script (as a Python AST object).
+    For easiest debugging, import the astor package and use to_source().'''
     converter = PythonConverter(mod, target)
     return converter.convert(expr)
 
