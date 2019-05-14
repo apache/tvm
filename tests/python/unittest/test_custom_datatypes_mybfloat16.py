@@ -56,6 +56,7 @@ def test_bfloat_add_and_cast_1():
     # Create schedule and lower, manually lowering datatypes. Once datatype
     # lowering is integrated directly into TVM's lower/build process, we won't
     # need to do this manually.
+    # TODO(gus) integrate datatype lowering into build process; change this test
     s = tvm.create_schedule([Z.op])
     flist = tvm.lower(s, [X, Y, Z])
     flist = [flist]
@@ -90,9 +91,6 @@ def test_bfloat_add_and_cast_2():
         topi.cast(Y, dtype="custom[bfloat]16"),
         dtype="float")
 
-    # Create schedule and lower, manually lowering datatypes. Once datatype
-    # lowering is integrated directly into TVM's lower/build process, we won't
-    # need to do this manually.
     s = tvm.create_schedule([Z.op])
     flist = tvm.lower(s, [X, Y, Z])
     flist = [flist]
@@ -131,9 +129,6 @@ def test_bfloat_add_and_cast_FloatImm():
             tvm.expr.FloatImm("custom[bfloat]16", 1.5)),
         dtype="float")
 
-    # Create schedule and lower, manually lowering datatypes. Once datatype
-    # lowering is integrated directly into TVM's lower/build process, we won't
-    # need to do this manually.
     s = tvm.create_schedule([Z.op])
     flist = tvm.lower(s, [X, Z])
     flist = [flist]
