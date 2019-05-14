@@ -372,9 +372,9 @@ inline Tensor collapse_sum(const Tensor& data, Array<Expr> target_shape) {
 * \brief Creates an operation that computes the logical AND of elements
 * over a given axis
 *
-* \param data The input tensor
-* \param axis The axis to perform logical AND over. If axis is empty, the
-* operation will perform logical AND over all elements of the array.
+* \param data The input boolean tensor
+* \param axis The axes to reduce. If axis is empty, the operation will
+* perform logical AND over all elements of the array.
 * \param keepdims If this is set to true, the axes which are reduced are
 * left in the result as dimensions with size one. This enables the result
 * to broadcast correctly against the input array.

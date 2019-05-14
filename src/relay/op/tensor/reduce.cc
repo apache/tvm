@@ -364,7 +364,7 @@ Array<Tensor> AllCompute(const Attrs& attrs,
 
 
 RELAY_REGISTER_REDUCE_OP("all")
-.describe(R"code(Computes the logical AND of array elements over given axes.
+.describe(R"code(Computes the logical AND of boolean array elements over given axes.
 
 Example::
 

@@ -71,7 +71,7 @@ def all(data, axis=None, keepdims=False):
     Parameters
     ----------
     data : tvm.Tensor
-        The input tvm tensor
+        The input tvm boolean tensor
 
     axis : None or int or tuple of int
         Axis or axes along which a logical AND is performed.

@@ -249,6 +249,7 @@ def test_adaptive_pool2d():
     verify_adaptive_pool2d((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool2d((1, 5, 46, 97), (4, 96), "avg")
 
+
 if __name__ == "__main__":
     test_adaptive_pool2d()
     test_collapse_sum_like()
