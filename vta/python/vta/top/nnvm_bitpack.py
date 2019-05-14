@@ -4,20 +4,18 @@ from __future__ import absolute_import as _abs
 import tvm
 from topi import util
 
-from tvm.relay.op.op import register_compute, register_schedule
-from tvm.relay.op.op import register_pattern, OpPattern
-from tvm.relay.op.op import schedule_injective
+from nnvm.top import registry as reg, OpPattern
+from nnvm.top import nn as _nn
+from nnvm.top.tensor import _fschedule_broadcast
 
 def bitpack(data, bits, pack_type="int8", name="bitpack"):
     """Packs lowest dimension into format needed by VTA
-
     Parameters
     ----------
     pack_axis : int
         index of the axis to pack in data
     bit_axis : int
         index of axis to place bit axis in resulting packed data
-
     Returns
     -------
     packed : Tensor
@@ -58,9 +56,9 @@ def bitpack(data, bits, pack_type="int8", name="bitpack"):
         oshape, _bitpack, name=name, tag='bitpack')
 
 
-@register_compute("bitpack", level=15)
-def compute_bitpack(attrs, inputs, output_type, target):
-    lanes = attrs.lanes
+@reg.register_compute("bitpack", level=15)
+def compute_bitpack(attrs, inputs, out):
+    lanes = attrs.get_int("lanes")
     dtype = inputs[0].dtype
     assert dtype == "int8"
     width = 8
@@ -68,5 +66,5 @@ def compute_bitpack(attrs, inputs, output_type, target):
     bits = 8 // lanes
     return bitpack(inputs[0], bits, dtype)
 
-register_schedule("bitpack", schedule_injective)
-register_pattern("bitpack", OpPattern.INJECTIVE)
+reg.register_schedule("bitpack", _fschedule_broadcast)
+reg.register_pattern("bitpack", OpPattern.INJECTIVE)

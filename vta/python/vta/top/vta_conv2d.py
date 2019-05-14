@@ -21,8 +21,15 @@ import tvm
 from tvm import autotvm
 import topi
 
-from .op import is_packed_layout
 from ..environment import get_env
+
+def is_packed_layout(layout):
+    """Check if layout is packed layout"""
+    if layout == "NCHW":
+        return False
+    if "n" in layout and "c" in layout:
+        return True
+    return False
 
 @autotvm.register_topi_compute(topi.nn.conv2d, 'vta', 'direct')
 def packed_conv2d(cfg,
