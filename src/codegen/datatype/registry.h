@@ -115,6 +115,7 @@ uint64_t ConvertConstScalar(uint8_t type_code, double value);
  * \param target The target we are lowering to, e.g. "llvm"
  * \param type_code The datatype being cast to
  * \param src_type_code The datatype being cast from
+ * \return Lowering function for Cast ops for the provided target, type, and source type
  */
 const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t type_code,
                                             uint8_t src_type_code);
@@ -123,6 +124,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
  * \brief Get lowering function for FloatImms
  * \param target The target we are lowering to, e.g. "llvm"
  * \param type_code The datatype of the FloatImm
+ * \return Lowering function for FloatImms for the provided target and type
  */
 const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8_t type_code);
 
@@ -130,6 +132,7 @@ const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8
  * \brief Get lowering function for other ops
  * \param target The target we are lowering to, e.g. "llvm"
  * \param type_code The datatype of the op
+ * \return Lowering function for other ops for the provided target and type
  */
 #define DEFINE_GET_LOWER_FUNC_(OP)                                                       \
   inline const runtime::PackedFunc* Get##OP##LowerFunc(const std::string& target,        \
