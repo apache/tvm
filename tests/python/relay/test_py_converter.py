@@ -368,4 +368,21 @@ def test_global_recursion():
     assert_constructor_value(val2.fields[1], p.nil, 0)
 
 
-# test higher-order func
+def test_higher_order_call():
+    # test with anon func
+    h = relay.Var('h')
+    f = relay.Var('f')
+    x = relay.Var('x')
+    ho_anon = relay.Let(h, relay.Function([f], f(relay.Tuple([]))),
+                        h(relay.Function([x], relay.const(1))))
+
+    anon_val = run_as_python(ho_anon)
+    assert_tensor_value(anon_val, 1)
+
+    # test with named func
+    g = relay.Var('g')
+    ho_named = relay.Let(h, relay.Function([f], f(relay.Tuple([]))),
+                 relay.Let(g, relay.Function([x], relay.const(2)),
+                           h(g)))
+    named_val = run_as_python(ho_named)
+    assert_tensor_value(named_val, 2)
