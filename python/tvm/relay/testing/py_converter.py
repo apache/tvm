@@ -24,7 +24,7 @@ import tvm
 from tvm import relay
 from tvm.relay.adt import Constructor, Pattern
 from tvm.relay.backend import compile_engine
-from tvm.relay.expr import Expr, Function
+from tvm.relay.expr import Expr, Function, GlobalVar, Var
 from tvm.relay.expr_functor import ExprFunctor
 
 OUTPUT_VAR_NAME = '_py_out'
@@ -202,8 +202,14 @@ class PythonConverter(ExprFunctor):
 
 
     # converts the given Relay function into a Python function
-    def convert_func_node(self, name_hint: str, func: Function):
-        func_name = self.generate_function_name(name_hint)
+    def convert_func_node(self, func: Function, name_var=None):
+        if name_var is None:
+            func_name = self.generate_function_name('_anon_func')
+        if isinstance(name_var, GlobalVar):
+            func_name = name_var.name_hint
+        if isinstance(name_var, Var):
+            func_name = self.get_var_name(name_var)
+
         var_names = [self.get_var_name(var) for var in func.params]
         body, defs = self.visit(func.body)
         ret = self.create_def(func_name, var_names, defs + [Return(body)])
@@ -217,12 +223,12 @@ class PythonConverter(ExprFunctor):
         for var, func in self.mod.functions.items():
             # optimize the definition so any operators used are lowered
             opt_func = self.optimize(func)
-            converted_func, func_name = self.convert_func_node(var.name_hint, opt_func)
+            converted_func, func_name = self.convert_func_node(opt_func, var)
             defs.append(converted_func)
             # need to add this assignment so references to the global var in the program
             # go to the function!
-            defs.append(Assign([Name(var.name_hint, Store())],
-                               Name(func_name, Load())))
+            # defs.append(Assign([Name(var.name_hint, Store())],
+            #                               Name(func_name, Load())))
         return defs
 
 
@@ -458,10 +464,17 @@ class PythonConverter(ExprFunctor):
                                        bind_defs + [Return(bind_body)])
 
         # we call the binding func with the intended value for the bound variable
+
+        # special case: if the value is a function literal, we must ensure it can be
+        # recursive by naming it after the var
+        if isinstance(letexp.value, Function):
+            value_def, value_name = self.convert_func_node(letexp.value, letexp.var)
+            return (self.create_call(func_name, [Name(value_name, Load())]),
+                    [value_def, binding_func])
+
         value_body, value_defs = self.visit(letexp.value)
         value_defs.append(binding_func)
         binding_call = self.create_call(func_name, [value_body])
-
         return (binding_call, value_defs)
 
 
@@ -501,7 +514,7 @@ class PythonConverter(ExprFunctor):
 
     def visit_function(self, func: Expr):
         # Python's lambdas are very restrictive, so we do "name" inline functions
-        converted_func, func_name = self.convert_func_node('_anon_func', func)
+        converted_func, func_name = self.convert_func_node(func)
         return (Name(func_name, Load()), [converted_func])
 
 
@@ -611,20 +624,10 @@ def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
     executes it.'''
     py_ast = to_python(expr, mod, target)
     code = compile(py_ast, '<string>', 'exec')
-    # must pass in imports in globals dict or else nested functions
-    # won't be able to call them unless they are explicitly made globals
-    # (weird quirk of Python ASTs)
-    imports = {
-        'numpy': numpy,
-        'tvm': tvm,
-        'relay': relay,
-        'TensorValue': relay.backend.interpreter.TensorValue,
-        'TupleValue': relay.backend.interpreter.TupleValue,
-        'ConstructorValue': relay.backend.interpreter.ConstructorValue,
-        'RefValue': relay.backend.interpreter.RefValue,
-        MODULE_NAME : mod
+    var_map = {
+        MODULE_NAME : mod,
+        OUTPUT_VAR_NAME : None
     }
-    var_map = {OUTPUT_VAR_NAME : None}
     #pylint: disable=exec-used
-    exec(code, imports, var_map)
+    exec(code, var_map, var_map)
     return var_map[OUTPUT_VAR_NAME]

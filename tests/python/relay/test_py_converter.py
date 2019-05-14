@@ -308,16 +308,29 @@ def test_match_order():
 
 def test_local_recursion():
     mod = relay.Module()
-    box, box_ctor = init_box_adt(mod)
+    p = Prelude(mod)
+
     v = relay.Var('v')
-    w = relay.Var('w')
+    h = relay.Var('h')
+    t = relay.Var('t')
     f = relay.Var('f')
-    # the recursive part never runs and wouldn't terminate if it did but it should
-    # type check
+
+    # just returns the same list
     let = relay.Let(f, relay.Function([v], relay.Match(v, [
-        relay.Clause(relay.PatternWildcard(), relay.const(0)),
-        relay.Clause(relay.PatternConstructor(box_ctor, [relay.PatternVar(w)]), f(w))
+        relay.Clause(relay.PatternConstructor(p.cons,
+                                              [relay.PatternVar(h), relay.PatternVar(t)]),
+                     p.cons(h, f(t))),
+        relay.Clause(relay.PatternConstructor(p.nil, []), p.nil())
     ])),
-                    f(box_ctor(relay.const(3))))
+                    f(p.cons(relay.const(1),
+                             p.cons(relay.const(2),
+                                    p.cons(relay.const(3), p.nil())))))
+
     val = run_as_python(let, mod)
-    assert_tensor_value(val, 0)
+    assert_constructor_value(val, p.cons, 2)
+    assert_tensor_value(val.fields[0], 1)
+    assert_constructor_value(val.fields[1], p.cons, 2)
+    assert_tensor_value(val.fields[1].fields[0], 2)
+    assert_constructor_value(val.fields[1].fields[1], p.cons, 2)
+    assert_tensor_value(val.fields[1].fields[1].fields[0], 3)
+    assert_constructor_value(val.fields[1].fields[1].fields[1], p.nil, 0)
