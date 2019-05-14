@@ -19,7 +19,6 @@ import ast
 from ast import alias, Assign, Load, Name, NameConstant, Num, Return, Store, Str
 import re
 
-import numpy
 import tvm
 from tvm import relay
 from tvm.relay.adt import Constructor, Pattern
@@ -201,8 +200,9 @@ class PythonConverter(ExprFunctor):
         return (thunk, thunk_name)
 
 
-    # converts the given Relay function into a Python function
     def convert_func_node(self, func: Function, name_var=None):
+        '''Converts the given Relay function into a Python function, with
+        special for named functions (locally or globally)'''
         if name_var is None:
             func_name = self.generate_function_name('_anon_func')
         if isinstance(name_var, GlobalVar):
@@ -223,12 +223,8 @@ class PythonConverter(ExprFunctor):
         for var, func in self.mod.functions.items():
             # optimize the definition so any operators used are lowered
             opt_func = self.optimize(func)
-            converted_func, func_name = self.convert_func_node(opt_func, var)
+            converted_func, _ = self.convert_func_node(opt_func, var)
             defs.append(converted_func)
-            # need to add this assignment so references to the global var in the program
-            # go to the function!
-            # defs.append(Assign([Name(var.name_hint, Store())],
-            #                               Name(func_name, Load())))
         return defs
 
 
