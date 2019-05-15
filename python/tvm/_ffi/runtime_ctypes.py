@@ -91,6 +91,13 @@ class TVMType(ctypes.Structure):
             self.type_code = 4
             bits = 64
             head = ""
+        elif head.startswith("custom"):
+            low, high = head.find('['), head.find(']')
+            if not low or not high or low >= high:
+                raise ValueError("Badly formatted custom type string %s" % type_str)
+            type_name = head[low + 1:high]
+            self.type_code = _api_internal._datatype_get_type_code(type_name)
+            head = head[high+1:]
         else:
             raise ValueError("Do not know how to handle type %s" % type_str)
         bits = int(head) if head else bits
@@ -100,7 +107,12 @@ class TVMType(ctypes.Structure):
     def __repr__(self):
         if self.bits == 1 and self.lanes == 1:
             return "bool"
-        x = "%s%d" % (TVMType.CODE2STR[self.type_code], self.bits)
+        if self.type_code in TVMType.CODE2STR:
+            type_name = TVMType.CODE2STR[self.type_code]
+        else:
+            type_name = "custom[%s]" % \
+                        _api_internal._datatype_get_type_name(self.type_code)
+        x = "%s%d" % (type_name, self.bits)
         if self.lanes != 1:
             x += "x%d" % self.lanes
         return x

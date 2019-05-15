@@ -38,12 +38,13 @@ from . import generic
 from . import hybrid
 from . import testing
 from . import error
+from . import datatype
 
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, opengl, ext_dev
 
-from ._ffi.runtime_ctypes import TypeCode
+from ._ffi.runtime_ctypes import TypeCode, TVMType
 from ._ffi.ndarray import TVMContext
 from ._ffi.function import Function
 from ._ffi.base import TVMError, __version__
