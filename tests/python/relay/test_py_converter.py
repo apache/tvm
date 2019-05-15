@@ -421,14 +421,6 @@ def test_match_effect_exactly_once():
 
 def test_op_add():
     add = relay.add(relay.const(1), relay.const(2))
-    import astor
-    print(astor.to_source(to_python(add)))
-    add_val = run_as_python(add)
-    assert_tensor_value(add_val, 3)
-
-
-def test_op_add():
-    add = relay.add(relay.const(1), relay.const(2))
     add_val = run_as_python(add)
     assert_tensor_value(add_val, 3)
 
