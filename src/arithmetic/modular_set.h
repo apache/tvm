@@ -19,7 +19,7 @@
 
 /*!
  *  Copyright (c) 2019 by Contributors
- * \file modular_set.h
+ * \file src/arithmetic/modular_set.h
  * \brief Modular set analysis
  */
 #ifndef TVM_ARITHMETIC_MODULAR_SET_H_
