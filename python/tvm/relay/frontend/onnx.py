@@ -1189,6 +1189,10 @@ def from_onnx(model,
             checker.check_model(model)
     except ImportError:
         pass
+    except onnx.onnx_cpp2py_export.checker.ValidationError as e:
+        import warnings
+        # the checker is a bit violent about errors, so simply print warnings here
+        warnings.warn(e)
     g = GraphProto(shape, dtype)
     graph = model.graph
     try:
