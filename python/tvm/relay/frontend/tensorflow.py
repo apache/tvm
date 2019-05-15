@@ -990,6 +990,16 @@ def _softmax():
                        transforms={'axis': ('axis', 1)})([inputs[0]], attr)
     return _impl
 
+def _softplus():
+    # op description: https://www.tensorflow.org/api_docs/python/tf/math/softplus
+    def _impl(inputs, attr, params):
+        exp_out = AttrCvt('exp')(inputs, attr)
+        inputs.append(tvm.relay.const(1, attr['T'].name))
+        rh = tvm.relay.const(1, attr['T'].name)
+        add_out = _get_relay_op('add')(exp_out, rh)
+        return _get_relay_op('log')(add_out)
+    return _impl
+
 def _logical(name):
     def _impl(inputs, attr, params):
         return AttrCvt(op_name=name)(inputs, attr)
@@ -1163,9 +1173,11 @@ _convert_map = {
     'Sign'                              : AttrCvt('sign'),
     'Slice'                             : _slice(),
     'Softmax'                           : _softmax(),
+    'Softplus'                          : _softplus(),
     'SpaceToBatchND'                    : _space_to_batch_nd(),
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
+    'Sqrt'                              : AttrCvt('sqrt'),
     'Square'                            : _square(),
     'Squeeze'                           : _squeeze(),
     'StridedSlice'                      : _stridedSlice(),

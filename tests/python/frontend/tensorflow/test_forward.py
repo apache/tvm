@@ -1151,7 +1151,6 @@ def test_forward_placeholder():
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
             tf_output = run_tf_graph(sess, data, 'Placeholder:0', out_node + ':0')
             tvm_output = run_tvm_graph(graph_def, data, 'Placeholder')
-            print("tf_output is {}\ntvm_output is {}".format(tf_output, tvm_output))
             tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
 
 #######################################################################
@@ -1440,12 +1439,20 @@ def test_forward_pow_exp():
     compare_tf_with_tvm([np_in1], ['in1:0'], 'exp:0')
 
 def test_forward_log():
-    """test Log """
+    """test operator Log """
     np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
     tf.reset_default_graph()
     in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
     tf.log(in_data, name="log")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'log:0')
+
+def test_forward_softplus():
+    """test operator Softplus"""
+    np_data = np.random.uniform(1, 10, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.nn.softplus(in_data, name="softplus")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'softplus:0')
 
 def test_forward_rsqrt():
     """test Rsqrt """
@@ -1453,8 +1460,15 @@ def test_forward_rsqrt():
     tf.reset_default_graph()
     in_data = tf.placeholder(tf.float32, (5, 7, 11), name="in_data")
     tf.rsqrt(in_data, name="rsqrt")
-    print(tf.get_default_graph().as_graph_def())
     compare_tf_with_tvm([np_data], ['in_data:0'], 'rsqrt:0')
+
+def test_forward_sqrt():
+    """test Sqrt """
+    np_data = np.random.uniform(1, 100, size=(5, 7, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (5, 7, 11), name="in_data")
+    tf.sqrt(in_data, name="sqrt")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'sqrt:0')
 
 #######################################################################
 # Mean
@@ -1561,6 +1575,8 @@ if __name__ == '__main__':
     test_forward_pow_exp()
     test_forward_sign()
     test_forward_log()
+    test_forward_softplus()
+    test_forward_sqrt()
     test_forward_rsqrt()
     test_forward_expand_dims()
 
