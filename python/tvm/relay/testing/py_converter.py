@@ -236,9 +236,9 @@ class PythonConverter(ExprFunctor):
             jitted = self.engine.jit(cc_key, self.tgt)
             tvm.register_func(op_name, jitted)
 
-        # use the types of the function arguments to determine whether we expect
-        # a tensor or tuple (returns list of inputs to the lowered op call)
         def convert_input(py_input, arg_type):
+            '''Use the types of the function arguments to determine whether we expect
+               a tensor or tuple (returns list of inputs to the lowered op call)'''
             # equivalent: input.data
             if isinstance(arg_type, relay.TensorType):
                 return [ast.Attribute(py_input, 'data', Load())]
@@ -252,11 +252,10 @@ class PythonConverter(ExprFunctor):
                 for i in range(len(arg_type.fields))
             ]
 
-        # use the function return type to produce auxiliary variables to store outputs
-        # returns: ([assignments of output vars],
-        #           [extra arguments to pass to op call],
-        #           expression collecting output)
         def convert_output(ret_type):
+            '''Use the function return type to produce auxiliary variables to store outputs.
+            Returns ([assignments of output vars], [extra arguments to pass to op call],
+            expression collecting output)'''
             if isinstance(ret_type, relay.TensorType):
                 output_var_name = self.generate_var_name('_out')
                 output_var = Name(output_var_name, Load())
@@ -370,17 +369,17 @@ class PythonConverter(ExprFunctor):
         the clause body. This function returns a function definition
         and the name of the generated function.'''
 
-        # this helper function ensures that the pattern is used to
-        # properly assign all subfields of the given AST for use
-        # in the clause body
-        #
-        # E.g., for PatternConstructor(A, PatternVar(v), PatternWildcard(),
-        #   PatternConstructor(B, PatternVar(w)))
-        # we would want to have
-        # v = a.fields[0]
-        # _ = a.fields[1]
-        # w = a.fields[2].fields[0]
         def collect_var_assignments(pat, val):
+            '''This helper function ensures that the pattern is used to
+            properly assign all subfields of the given AST for use
+            in the clause body
+
+            E.g., for PatternConstructor(A, PatternVar(v), PatternWildcard(),
+            PatternConstructor(B, PatternVar(w)))
+            we would want to have
+            v = a.fields[0]
+            w = a.fields[2].fields[0]
+            '''
             if isinstance(pat, relay.PatternWildcard):
                 return []
             if isinstance(pat, relay.PatternVar):
