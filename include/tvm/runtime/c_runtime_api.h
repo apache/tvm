@@ -114,6 +114,8 @@ typedef enum {
   // The following section of code is used for non-reserved types.
   kExtReserveEnd = 64U,
   kExtEnd = 128U,
+  // The rest of the space is used for custom, user-supplied datatypes
+  kCustomBegin = 128U,
 } TVMTypeCode;
 
 /*!

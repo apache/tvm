@@ -60,6 +60,29 @@ namespace tvm {
 class Integer;
 
 namespace runtime {
+
+/*!
+ * \brief Runtime utility for getting custom type name from code
+ * \param type_code Custom type code
+ * \return Custom type name
+ */
+TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
+
+/*!
+ * \brief Runtime utility for checking whether custom type is registered
+ * \param type_code Custom type code
+ * \return Bool representing whether type is registered
+ */
+TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
+
+/*!
+ * \brief Runtime utility for parsing string of the form "custom[<typename>]"
+ * \param s String to parse
+ * \param scan pointer to parsing pointer, which is scanning across s
+ * \return type code of custom type parsed
+ */
+TVM_DLL uint8_t ParseCustomDatatype(const std::string& s, const char** scan);
+
 // forward declarations
 class TVMArgs;
 class TVMArgValue;
@@ -939,7 +962,11 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  os << TypeCode2Str(t.code);
+  if (GetCustomTypeRegistered(t.code)) {
+    os << "custom[" << GetCustomTypeName(t.code) << "]";
+  } else {
+    os << TypeCode2Str(t.code);
+  }
   if (t.code == kHandle) return os;
   os << static_cast<int>(t.bits);
   if (t.lanes != 1) {
@@ -960,7 +987,11 @@ inline std::string TVMType2String(TVMType t) {
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     return "bool";
   }
-  repr += TypeCode2Str(t.code);
+  if (GetCustomTypeRegistered(t.code)) {
+    repr += "custom[" + GetCustomTypeName(t.code) + "]";
+  } else {
+    repr += TypeCode2Str(t.code);
+  }
   if (t.code == kHandle) return repr;
   repr += std::to_string(static_cast<int>(t.bits));
   if (t.lanes != 1) {
@@ -994,6 +1025,8 @@ inline TVMType String2TVMType(std::string s) {
     t.bits = 1;
     t.lanes = 1;
     return t;
+  } else if (s.substr(0, 6) == "custom") {
+    t.code = ParseCustomDatatype(s, &scan);
   } else {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;
