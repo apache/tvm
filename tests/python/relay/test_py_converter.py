@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
@@ -41,7 +42,7 @@ def init_box_adt(mod):
 # assert that the candidate is a TensorValue with value val
 def assert_tensor_value(candidate, val):
     assert isinstance(candidate, TensorValue)
-    assert candidate.asnumpy() == val
+    assert np.array_equal(candidate.asnumpy(), np.array(val))
 
 
 # assert that the candidate is a TupleValue with the indicate number of fields
@@ -68,6 +69,12 @@ def test_create_scalar():
     scalar = relay.const(1)
     tensor_val = run_as_python(scalar)
     assert_tensor_value(tensor_val, 1)
+
+
+def test_create_tensor():
+    tensor = relay.const([[1, 1], [2, 2]])
+    tensor_val = run_as_python(tensor)
+    assert_tensor_value(tensor_val, [[1, 1], [2, 2]])
 
 
 def test_create_nested_tuple():
@@ -382,7 +389,65 @@ def test_higher_order_call():
     # test with named func
     g = relay.Var('g')
     ho_named = relay.Let(h, relay.Function([f], f(relay.Tuple([]))),
-                 relay.Let(g, relay.Function([x], relay.const(2)),
+                         relay.Let(g, relay.Function([x], relay.const(2)),
                            h(g)))
     named_val = run_as_python(ho_named)
     assert_tensor_value(named_val, 2)
+
+
+def test_match_effect_exactly_once():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    # the list should be of length 1!
+    # Unless we mistakenly execute the data clause more than once
+    r = relay.Var('r')
+    data = seq(relay.RefWrite(r, p.cons(relay.Tuple([]), relay.RefRead(r))), relay.RefRead(r))
+    match = relay.Let(
+        r, relay.RefCreate(p.nil()),
+        relay.Match(data, [
+            relay.Clause(relay.PatternConstructor(p.nil, []), relay.const(0)),
+            relay.Clause(
+                relay.PatternConstructor(
+                    p.cons,
+                    [relay.PatternWildcard(), relay.PatternConstructor(p.nil, [])]),
+                relay.const(1)),
+            relay.Clause(relay.PatternWildcard(), relay.const(2))
+        ]))
+
+    match_val = run_as_python(match, mod)
+    assert_tensor_value(match_val, 1)
+
+
+def test_op_add():
+    add = relay.add(relay.const(1), relay.const(2))
+    import astor
+    print(astor.to_source(to_python(add)))
+    add_val = run_as_python(add)
+    assert_tensor_value(add_val, 3)
+
+
+def test_op_add():
+    add = relay.add(relay.const(1), relay.const(2))
+    add_val = run_as_python(add)
+    assert_tensor_value(add_val, 3)
+
+
+# test an op with a tuple input
+# adapted from test_stack in test_op_level3
+def test_op_stack():
+    def verify_stack(dshapes, axis):
+        x_data = [np.random.normal(size=shape).astype('int32') for shape in dshapes]
+        ref_res = np.stack(x_data, axis=axis)
+
+        args = []
+        for data in x_data:
+            args.append(relay.const(data))
+        call = relay.stack(relay.Tuple(args), axis)
+        call_val = run_as_python(call)
+        assert_tensor_value(call_val, ref_res)
+
+    verify_stack([(2,), (2,), (2,)], -1)
+    verify_stack([(2,), (2,), (2,)], 0)
+    verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
+    verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)

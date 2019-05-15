@@ -97,28 +97,23 @@ class PythonConverter(ExprFunctor):
         return fused_checked
 
 
-    # Only checks that the name does not contain invalid characters
-    # (underscores, numbers, and letters are permitted). Since
-    # we append a number and underscore to var names anyway, it doesn't
-    # matter if the name is the empty string
-    def check_safe_name(self, name: str):
-        return re.match(r'\w*$', name)
+    def sanitize(self, name: str) -> str:
+        '''Removes any invalid characters (only underscores, numbers, and letters permitted)
+        from the given name. Since we append a number and underscore to var names anyway,
+        it doesn't matter if the name is the empty string.'''
+        return re.sub(r'\W', '', name)
 
 
     # generates a unique variable name starting from the hint
     def generate_var_name(self, name_hint: str):
-        if not self.check_safe_name(name_hint):
-            raise Exception('Name hint contains invalid characters: {}'.format(name_hint))
-        name = '{}_var_{}'.format(name_hint, self.var_no)
+        name = '{}_var_{}'.format(self.sanitize(name_hint), self.var_no)
         self.var_no += 1
         return name
 
 
     # generates a unique function name starting from the hint
     def generate_function_name(self, name_hint: str):
-        if not self.check_safe_name(name_hint):
-            raise Exception('Name hint contains invalid characters: {}'.format(name_hint))
-        name = '{}_fun_{}'.format(name_hint, self.fun_no)
+        name = '{}_fun_{}'.format(self.sanitize(name_hint), self.fun_no)
         self.fun_no += 1
         return name
 
@@ -150,33 +145,18 @@ class PythonConverter(ExprFunctor):
         return ret
 
 
-    # given an attribute to a call node, generates a Python constant
-    # corresponding to that attr
-    def parse_attr(self, attr):
-        if isinstance(attr, bool):
-            return NameConstant(attr)
-        if isinstance(attr, (int, long, float)):
-            return Num(attr)
-        if isinstance(attr, (list, tuple)):
-            return ast.List([self.parse_attr(mem) for mem in attr], Load())
-        # this may fail on exotic attributes, but most cases that are
-        # not the above are, in fact, strings
-        return Str(attr)
-
-
     def parse_numpy_array(self, arr):
         '''Given a Numpy array, produces an appropriate Python array
         or numerical literal representing its contents'''
-        # cannot use Num for bools
         parse_single = lambda i: NameConstant(i) if isinstance(i, bool) else Num(i)
         if arr.ndim == 0:
             return parse_single(arr.item())
         if arr.ndim == 1:
-            return ast.List([parse_single(i) for i in arr], Load())
+            return ast.List([parse_single(i.item()) for i in arr], Load())
 
         elts = []
         for row in arr:
-            elts.append(numpy_to_array(row))
+            elts.append(self.parse_numpy_array(row))
         return ast.List(elts, Load())
 
 
@@ -249,8 +229,8 @@ class PythonConverter(ExprFunctor):
         the generated Python code.'''
 
         # compile the function and register globally
-        cc_key = compile_engine.CCacheKey(func, self.tgt)
-        func_hash = relay.ir_pass.structural_hash(func)
+        cc_key = compile_engine.CCacheKey(op, self.tgt)
+        func_hash = relay.ir_pass.structural_hash(op)
         op_name = '_lowered_op_{}'.format(func_hash)
         if not tvm.get_global_func(op_name, allow_missing=True):
             jitted = self.engine.jit(cc_key, self.tgt)
@@ -261,15 +241,15 @@ class PythonConverter(ExprFunctor):
         def convert_input(py_input, arg_type):
             # equivalent: input.data
             if isinstance(arg_type, relay.TensorType):
-                return [Attribute(py_input, 'data', Load())]
+                return [ast.Attribute(py_input, 'data', Load())]
             assert isinstance(arg_type, relay.TupleType)
             # convert each input.fields[i]
             return [
                 convert_input(
                     ast.Subscript(ast.Attribute(py_input, 'fields', Load()),
                                   ast.Index(Num(i)), Load()),
-                    type.fields[i])
-                for i in range(len(input_fields))
+                    arg_type.fields[i])
+                for i in range(len(arg_type.fields))
             ]
 
         # use the function return type to produce auxiliary variables to store outputs
@@ -278,13 +258,15 @@ class PythonConverter(ExprFunctor):
         #           expression collecting output)
         def convert_output(ret_type):
             if isinstance(ret_type, relay.TensorType):
-                output_var_name = self.generate_var_name('_{}_out_var'.format(op_name))
+                output_var_name = self.generate_var_name('_out')
                 output_var = Name(output_var_name, Load())
-                shape = ast.Tuple([dim for dim in type.concrete_shape()], Load())
-                # create a new ND array of the right shape and dtype
+                shape = ast.Tuple([Num(dim) for dim in ret_type.concrete_shape], Load())
+                # create a new TensorValue of the right shape and dtype
                 assign_output = Assign(
                     [Name(output_var_name, Store())],
-                    self.create_call('numpy.empty', [shape, Str(type.dtype)]))
+                    self.create_call('TensorValue', [
+                        self.create_call('numpy.empty', [shape, Str(ret_type.dtype)])
+                    ]))
                 # we pass the data field as an argument
                 extra_arg = ast.Attribute(output_var, 'data', Load())
                 return ([assign_output], [extra_arg], output_var)
@@ -302,17 +284,20 @@ class PythonConverter(ExprFunctor):
         # create a function to wrap the call of the lowered op and return
         # a call to that function
         wrap_name = self.generate_function_name('_{}_wrapper'.format(op_name))
-        wrap_args = [self.generate_var_name('_{}_wrapper_arg_i'.format(op_name)) for
-                     i in range(len(py_args))]
+        wrap_args = [self.generate_var_name('_arg_{}'.format(i)) for i in range(len(py_args))]
 
-        inner_call_args = [convert_input(Name(wrap_args[i], Load()),
-                                         relay_args[i].checked_type)
-                           for i in range(len(py_args))]
+        inner_call_args = []
+        for i in range(len(py_args)):
+            inner_call_args += convert_input(Name(wrap_args[i], Load()),
+                                             relay_args[i].checked_type)
         output_assignments, aux_args, output = convert_output(op.checked_type.ret_type)
-        # equiv: tvm.get_global_func(op_name)
+        # equiv: _op = tvm.get_global_func(op_name)
+        op_var = self.generate_var_name('_op')
         op_call = self.create_call('tvm.get_global_func', [Str(op_name)])
-        inner_call = ast.Call(op_call, inner_call_args + aux_args, [])
-        body = output_assignments + [ast.Expression(inner_call), Return(output)]
+        op_assign = Assign([Name(op_var, Store())], op_call)
+        # equiv: _op(args)
+        inner_call = self.create_call(op_var, inner_call_args + aux_args)
+        body = output_assignments + [op_assign, ast.Expr(inner_call), Return(output)]
         wrap_def = self.create_def(wrap_name, wrap_args, body)
         return wrap_def, self.create_call(wrap_name, py_args)
 
@@ -501,10 +486,10 @@ class PythonConverter(ExprFunctor):
         '''Proceeds by converting constant value to a numpy array
         and converting it to the appropriate value in the generated
         code (whether it be a Python scalar or a Numpy array)'''
-
         value = constant.data.asnumpy()
-        const_expr = self.create_call('numpy.array',
-                                      [self.parse_numpy_array(value)])
+        const_expr = ast.Call(ast.Attribute(Name('numpy', Load()), 'array', Load()),
+                              [self.parse_numpy_array(value)],
+                              [ast.keyword('dtype', Str(constant.checked_type.dtype))])
         return (self.create_call('TensorValue', [const_expr]), [])
 
 
@@ -608,14 +593,14 @@ class PythonConverter(ExprFunctor):
         pass
 
 
-def to_python(expr: Expr, mod=relay.Module(), target='llvm'):
+def to_python(expr: Expr, mod=relay.Module(), target=tvm.target.create('llvm')):
     '''Converts the given Relay expression into a Python script (as a Python AST object).
     For easiest debugging, import the astor package and use to_source().'''
     converter = PythonConverter(mod, target)
     return converter.convert(expr)
 
 
-def run_as_python(expr: Expr, mod=relay.Module(), target='llvm'):
+def run_as_python(expr: Expr, mod=relay.Module(), target=tvm.target.create('llvm')):
     '''Converts the given Relay expression into a Python script and
     executes it.'''
     py_ast = to_python(expr, mod, target)
