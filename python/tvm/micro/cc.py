@@ -37,6 +37,7 @@ def create_lib(output, sources, options=None, cc="gcc"):
         cmd += sources
     if options:
         cmd += options
+    print(f"compiling with command \"{cmd}\"")
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     if proc.returncode != 0:

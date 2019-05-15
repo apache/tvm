@@ -186,8 +186,11 @@ void MicroSession::PushToExecQueue(dev_base_offset func, TVMArgs args) {
   };
   // TODO(mutinifni): handle bits / endianness
   dev_base_offset task_dev_addr = init_symbol_map()["task"];
+  std::cout << "PREPARE SHIP" << std::endl;
   low_level_device()->Write(task_dev_addr, &task, sizeof(task));
+  std::cout << "prepare ship" << std::endl;
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
+  std::cout << "for ludicorosufs spedddd" << std::endl;
 }
 
 BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
@@ -241,36 +244,56 @@ void MicroSession::SetInitBinaryPath(std::string path) {
 }
 
 dev_addr MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* args) {
+  std::cout << "A" << std::endl;
   auto utvm_args_slot = encoder->Alloc<UTVMArgs>();
 
   const int* type_codes = args->type_codes;
   int num_args = args->num_args;
 
+  std::cout << "B" << std::endl;
   auto tvm_vals_slot = encoder->Alloc<TVMValue*>(num_args);
+  std::cout << "BAA" << std::endl;
   auto type_codes_slot = encoder->Alloc<const int>(num_args);
+  std::cout << "BAB" << std::endl;
 
+  std::cout << "type codes: " << type_codes[0] << std::endl;
   for (int i = 0; i < num_args; i++) {
     switch (type_codes[i]) {
       case kNDArrayContainer: {
+        std::cout << "BA" << std::endl;
         TVMValue* val_addr = reinterpret_cast<TVMValue*>(
             EncoderWrite(encoder, reinterpret_cast<TVMArray*>(args->values[i].v_handle)).val_);
+        std::cout << "BB" << std::endl;
         tvm_vals_slot.Write(&val_addr);
+        std::cout << "BC" << std::endl;
+        break;
+      }
+      case kArrayHandle: {
+        std::cout << "CA" << std::endl;
+        TVMValue* val_addr = reinterpret_cast<TVMValue*>(
+            EncoderWrite(encoder, reinterpret_cast<TVMArray*>(args->values[i].v_handle)).val_);
+        std::cout << "CB" << std::endl;
+        tvm_vals_slot.Write(&val_addr);
+        std::cout << "CC" << std::endl;
         break;
       }
       // TODO(mutinifni): implement other cases if needed
       default:
+        CHECK(false) << "Unsupported type code for writing args: " << type_codes[i];
         LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
         break;
     }
   }
   type_codes_slot.Write(type_codes, num_args);
 
+  std::cout << "C" << std::endl;
   UTVMArgs dev_args = {
     .values = reinterpret_cast<TVMValue*>(tvm_vals_slot.start_addr().val_),
     .type_codes = reinterpret_cast<int*>(type_codes_slot.start_addr().val_),
     .num_args = num_args,
   };
   utvm_args_slot.Write(&dev_args);
+  std::cout << "D" << std::endl;
   return utvm_args_slot.start_addr();
 }
 

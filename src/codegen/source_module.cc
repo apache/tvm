@@ -86,7 +86,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
     LOG(FATAL) << "C Source module cannot execute, to get executable module"
-               << " build TVM with \'" << fmt_ << "\' runtime support";
+               << " build TVM with \'" << fmt_ << "\' runtime support: " << code_;
     return PackedFunc();
   }
 

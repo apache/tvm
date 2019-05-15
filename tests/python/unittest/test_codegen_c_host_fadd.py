@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 import numpy as np
+from tvm import relay
 from tvm.contrib import util
 
 def test_add():
@@ -44,6 +45,19 @@ def test_add():
         tvm.testing.assert_allclose(
            c.asnumpy(), a.asnumpy() + b.asnumpy())
     check_c()
+
+def test_relay_id():
+    # x = relay.var("x")
+    # f = relay.Function([x], x)
+    x = relay.var('x', shape=[])
+    func = relay.Function([x], x)
+    ttype = relay.TensorType([], dtype='float32')
+    relay.FuncType([ttype], ttype)
+    mod = relay.module.Module()
+    func_gvar = relay.GlobalVar("f")
+    mod[func_gvar] = func
+    print(mod)
+
 
 def test_add_pipeline():
     nn = 1024

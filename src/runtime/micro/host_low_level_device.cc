@@ -51,11 +51,8 @@ class HostLowLevelDevice final : public LowLevelDevice {
   }
 
   void Execute(dev_base_offset func_offset, dev_base_offset breakpoint) final {
-    std::cout << "PREPARE SHIP TO EXECUTE: ";
     dev_addr func_addr = GetAddr(func_offset, base_addr_);
-    std::cout << func_addr.val_ << std::endl;
-    uint64_t (*func)(void) = (uint64_t (*)(void)) func_addr.val_;
-    std::cout << "RETURN CODE WAS " << std::hex << func() << std::endl;
+    ((uint64_t (*)(void)) func_addr.val_)();
   }
 
   const dev_base_addr base_addr() const final {

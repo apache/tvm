@@ -153,7 +153,8 @@ class GraphModule(object):
             keys = list(params.keys())
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
-                self._get_input(k).copyfrom(params[k])
+                k_in = self._get_input(k)
+                k_in = k_in.copyfrom(params[k])
 
     def run(self, **input_dict):
         """Run forward execution of the graph
@@ -163,8 +164,10 @@ class GraphModule(object):
         input_dict: dict of str to NDArray
             List of input values to be feed to
         """
+        print("setting inputs...")
         if input_dict:
             self.set_input(**input_dict)
+        print("finished setting inputs")
         self._run()
 
     def get_num_outputs(self):

@@ -53,6 +53,11 @@ class MicroModuleNode final : public ModuleNode {
    * \param args type-erased arguments passed to the function
    */
   void RunFunction(std::string func, dev_base_offset func_offset, TVMArgs args) {
+    // args.values = (TVMValue*) (((uintptr_t) args.values) + ((uintptr_t) low_level_device_->base_addr().val_));
+    // args.type_codes = (int*) (((uintptr_t) args.type_codes) + ((uintptr_t) low_level_device_->base_addr().val_));
+    std::cout << "[RunFunction]" << std::endl;
+    std::cout << "  values (modified): " << args.values << std::endl;
+    std::cout << "  type_codes (modified): " << args.type_codes << std::endl;
     session_->PushToExecQueue(func_offset, args);
   }
 
@@ -71,26 +76,26 @@ class MicroModuleNode final : public ModuleNode {
   }
 
   void PatchImplHole(const std::string func_name) {
-    std::cout << "func_name: " << func_name << std::endl;
-    std::cout << "base_addr: 0x" << std::hex << low_level_device_->base_addr().val_ << std::endl;
-    std::cout << "text_start: " << std::hex << "0x" << binary_info_.text.start.val_ << std::endl;
+    // std::cout << "func_name: " << func_name << std::endl;
+    // std::cout << "base_addr: 0x" << std::hex << low_level_device_->base_addr().val_ << std::endl;
+    // std::cout << "text_start: " << std::hex << "0x" << binary_info_.text.start.val_ << std::endl;
     const dev_base_offset init_impl_offset = session_->init_symbol_map()[func_name];
-    std::cout << "init_impl_offset: 0x" << std::hex << init_impl_offset.val_ << std::endl;
+    // std::cout << "init_impl_offset: 0x" << std::hex << init_impl_offset.val_ << std::endl;
     void* init_impl_addr = (void*) (low_level_device_->base_addr().val_ + init_impl_offset.val_);
-    std::cout << "init_impl_addr: 0x" << std::hex << init_impl_addr << std::endl;
+    // std::cout << "init_impl_addr: 0x" << std::hex << init_impl_addr << std::endl;
     std::stringstream func_name_underscore;
     func_name_underscore << func_name << "_";
     const dev_base_offset lib_hole_offset = symbol_map()[func_name_underscore.str()];
-    std::cout << "lib_hole_offset: 0x" << std::hex << lib_hole_offset.val_ << std::endl;
-    std::cout << "lib_hole_addr: 0x" << std::hex << (low_level_device_->base_addr().val_ + lib_hole_offset.val_) << std::endl;
-    void* tmp;
-    session_->low_level_device()->Read(lib_hole_offset, &tmp, sizeof(void*));
-    std::cout << "tmp addr (before): 0x" << std::hex << tmp << std::endl;
+    // std::cout << "lib_hole_offset: 0x" << std::hex << lib_hole_offset.val_ << std::endl;
+    // std::cout << "lib_hole_addr: 0x" << std::hex << (low_level_device_->base_addr().val_ + lib_hole_offset.val_) << std::endl;
+    // void* tmp;
+    // session_->low_level_device()->Read(lib_hole_offset, &tmp, sizeof(void*));
+    // std::cout << "tmp addr (before): 0x" << std::hex << tmp << std::endl;
     session_->low_level_device()->Write(lib_hole_offset, &init_impl_addr, sizeof(void*));
-    session_->low_level_device()->Read(lib_hole_offset, &tmp, sizeof(void*));
-    std::cout << "tmp addr: 0x" << std::hex << tmp << std::endl;
-    std::cout << "tmp offset: 0x" << std::hex << (((uintptr_t) tmp) - low_level_device_->base_addr().val_) << std::endl;
-    std::cout << std::endl;
+    // session_->low_level_device()->Read(lib_hole_offset, &tmp, sizeof(void*));
+    // std::cout << "tmp addr: 0x" << std::hex << tmp << std::endl;
+    // std::cout << "tmp offset: 0x" << std::hex << (((uintptr_t) tmp) - low_level_device_->base_addr().val_) << std::endl;
+    // std::cout << std::endl;
   }
 };
 
@@ -105,7 +110,13 @@ class MicroWrappedFunc {
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
-    // no return value yet, but may implement in the future
+    std::cout << "[MicroWrappedFunc::operator()]" << std::endl;
+    std::cout << "  values: " << args.values << std::endl;
+    std::cout << "  type_codes: " << args.type_codes << std::endl;
+    std::cout << "  num_args: " << args.num_args << std::endl;
+    std::cout << "  ret_val: " << rv << std::endl;
+    std::cout << "  void_args: " << void_args << std::endl;
+    // TODO(weberlo): no return value yet, but may implement in the future
     m_->RunFunction(func_name_, func_offset_, args);
   }
 
@@ -122,6 +133,9 @@ PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   dev_base_offset func_offset = symbol_map()[name];
+  std::cout << "[GetFunction]" << std::endl;
+  std::cout << "  name: " << name << std::endl;
+  std::cout << "  func_offset: " << func_offset.val_ << std::endl;
   MicroWrappedFunc f(this, name, func_offset);
   return PackFuncVoidAddr(f, std::vector<TVMType>());
 }

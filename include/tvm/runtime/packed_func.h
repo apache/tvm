@@ -1049,6 +1049,13 @@ inline int TVMArgs::size() const {
 }
 
 inline void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const {
+  // const TVMValue* values;
+  // const int* type_codes;
+  // int num_args;
+  // std::cout << "[CallPacked]" << std::endl;
+  // std::cout << "  values: " << args.values << std::endl;
+  // std::cout << "  type_codes: " << args.type_codes << std::endl;
+  // std::cout << "  num_args: " << args.num_args << std::endl;
   body_(args, rv);
 }
 

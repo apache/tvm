@@ -29,6 +29,7 @@ def tvm_callback_get_section_size(binary_path, section_name):
     if not os.path.isfile(binary_path):
         raise RuntimeError("no such file {}".format(binary_path))
     # TODO(weberlo): Explain why we're using the `-A` flag here.
+    # TODO(weberlo): Clean up the `subprocess` usage in this file?
     size_proc = subprocess.Popen(["size", "-A", binary_path], stdout=subprocess.PIPE)
     (size_output, _) = size_proc.communicate()
     if size_proc.returncode != 0:
@@ -52,7 +53,6 @@ def tvm_callback_get_section_size(binary_path, section_name):
             if section_size != 0 and not entry_name.startswith(".rodata"):
                 raise RuntimeError("multiple entries in `size` output for section {}".format(section_name))
             section_size += entry_size
-    print(f"section {section_name} was size {section_size}")
     return section_size
 
 
@@ -118,16 +118,8 @@ SECTIONS
     rel_ld_script = tmp_dir.relpath("relocated.lds")
     with open(rel_ld_script, "w") as f:
         f.write(ld_script_contents)
-    with open(rel_ld_script, "r") as f:
-        print(f.read())
-    # assert False
-    # TODO(weberlo): replace this with an `ld` call that uses `rel_ld_script`.
     ld_proc = subprocess.Popen(["ld", binary_path,
                                 "-T", rel_ld_script,
-                                # "-Ttext", text,
-                                # "-Trodata*", rodata,
-                                # "-Tdata", data,
-                                # "-Tbss", bss,
                                 "-o", rel_obj],
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT)
@@ -217,8 +209,5 @@ def tvm_callback_get_symbol_map(binary):
         line = line.split()
         map_str += line[2] + "\n"
         map_str += line[0] + "\n"
-    print("----------------------")
-    print(map_str)
-    print("----------------------")
     return map_str
 

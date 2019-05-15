@@ -12,10 +12,10 @@ UTVMTask task;
 void UTVMDone() {}
 
 // init stub
-uint64_t UTVMMain() {
+void UTVMMain() {
   // TODO(weberlo): Change codegen so we don't need these casts.
-  return task.func((void*) task.args->values, (void*) task.args->type_codes, task.args->num_args);
-  // UTVMDone();
+  task.func((void*) task.args->values, (void*) task.args->type_codes, task.args->num_args);
+  UTVMDone();
 }
 
 // These pointers are patched at load time to point to the workspace section.

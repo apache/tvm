@@ -33,10 +33,12 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        TVMType type_hint) final {
+    // return (void*) (session_->AllocateInSection(kHeap, nbytes).val_ + session_->low_level_device()->base_addr().val_);
     return (void*) session_->AllocateInSection(kHeap, nbytes).val_;
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
+    // session_->FreeInSection(kHeap, dev_base_offset(((std::uintptr_t) ptr) - session_->low_level_device()->base_addr().val_));
     session_->FreeInSection(kHeap, dev_base_offset((std::uintptr_t) ptr));
   }
 

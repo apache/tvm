@@ -47,12 +47,10 @@ class MicroSectionAllocator {
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
   dev_base_offset Allocate(size_t size) {
-    dev_base_offset alloc_ptr = dev_base_offset(nullptr);
-    if (section_max_.val_ + size < section_end_.val_) {
-      alloc_ptr = section_max_;
-      section_max_ = dev_base_offset(section_max_.val_ + size);
-      alloc_map_[(void*)alloc_ptr.val_] = size;
-    }
+    CHECK(section_max_.val_ + size < section_end_.val_) << "out of space in section";
+    dev_base_offset alloc_ptr = section_max_;
+    section_max_ = dev_base_offset(section_max_.val_ + size);
+    alloc_map_[(void*)alloc_ptr.val_] = size;
     return alloc_ptr;
   }
 
@@ -62,8 +60,10 @@ class MicroSectionAllocator {
    * \param ptr pointer to allocated memory
    * \note simple allocator scheme, more complex versions will be implemented later
    */
-  void Free(dev_base_offset ptr) {
-    alloc_map_.erase(reinterpret_cast<void*>(ptr.val_));
+  void Free(dev_base_offset offs) {
+    void* ptr = reinterpret_cast<void*>(offs.val_);
+    CHECK(alloc_map_.find(ptr) != alloc_map_.end()) << "freed pointer was never allocated";
+    alloc_map_.erase(ptr);
     if (alloc_map_.empty()) {
       section_max_ = section_start_;
     }

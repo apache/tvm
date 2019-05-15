@@ -154,7 +154,8 @@ int GraphRuntime::NumOutputs() const {
 NDArray GraphRuntime::GetInput(int index) const {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
-  return data_entry_[eid];
+  NDArray result = data_entry_[eid];
+  return result;
 }
 /*!
  * \brief Return NDArray for given output index.
@@ -380,6 +381,10 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
       t->shape = &(arg_ptr->shape_data[i]);
     }
   }
+  std::cout << "arg_ptr->arg_values.data(): " << arg_ptr->arg_values.data() << std::endl;
+  std::cout << "arg_ptr->arg_tcodes.data(): " << arg_ptr->arg_tcodes.data() << std::endl;
+  std::cout << "  [0]: " << arg_ptr->arg_tcodes.data()[0] << std::endl;
+  std::cout << "  [1]: " << arg_ptr->arg_tcodes.data()[1] << std::endl;
 
   if (param.func_name == "__nop") {
     return {[](){}, arg_ptr};
@@ -396,15 +401,21 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
 
   // Get compiled function from the module that contains both host and device
   // code.
+  std::cout << "Creating TVM op for " << param.func_name << "..." << std::endl;
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
   auto fexec = [arg_ptr, pf]() {
     TVMRetValue rv;
+    // std::cout << "AYY" << std::endl;
     TVMArgs targs(arg_ptr->arg_values.data(),
                   arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));
+    // std::cout << "LMAO" << std::endl;
+    // std::cout << "(null? pf) " << (pf == nullptr) << std::endl;
+    CHECK(pf != nullptr) << "fuck";
     pf.CallPacked(targs, &rv);
+    // std::cout << "WAZ" << std::endl;
   };
   return {fexec, arg_ptr};
 }
