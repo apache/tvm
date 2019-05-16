@@ -415,7 +415,7 @@ def test_forward_reshape():
 
 #######################################################################
 # DepthToSpace
-# -------
+# ------------
 
 def _test_depthtospace(data, block_size):
     """ One iteration of depth_to_space operation with given data and block size """
@@ -890,7 +890,7 @@ def test_forward_resize_bilinear():
 
 #######################################################################
 # BroadcastTo
-# ---------------
+# -----------
 
 def _test_broadcast_to(in_shape, to_shape):
     """ One iteration of broadcast_to"""
@@ -919,7 +919,7 @@ def _test_broadcast_to_from_tensor(in_shape):
         shape_data = tf.multiply(tf.shape(in_data), 32)
         tf.broadcast_to(in_data, shape_data)
 
-        compare_tf_with_tvm(data, 'Placeholder:0', 'BroadcastTo:0', opt_level=0)
+        compare_tf_with_tvm(data, 'Placeholder:0', 'BroadcastTo:0')
 
 
 def test_forward_broadcast_to():
@@ -932,7 +932,7 @@ def test_forward_broadcast_to():
 
 #######################################################################
 # Fill
-# ---------------
+# ----
 
 def _test_fill(in_shape):
     """ Use the fill op to create a tensor of ones with non-constant shape."""
@@ -954,7 +954,7 @@ def _test_fill_from_tensor(in_shape):
 
         x = tf.ones(shape=2*tf.shape(in_data), dtype=data.dtype)
         y = tf.math.add(in_data, tf.reduce_mean(x), name='out1')
-        compare_tf_with_tvm(data, 'Placeholder:0', 'out1:0', opt_level=0)
+        compare_tf_with_tvm(data, 'Placeholder:0', 'out1:0')
 
 def test_forward_fill():
     """ Resize Bilinear """
