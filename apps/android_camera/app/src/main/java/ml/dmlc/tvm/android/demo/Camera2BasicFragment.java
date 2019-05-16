@@ -147,7 +147,7 @@ public class Camera2BasicFragment extends Fragment implements
     private static final String MODEL_CPU_LIB_FILE  = "file:///android_asset/deploy_lib_cpu.so";
     private static final String MODEL_GRAPH_FILE    = "file:///android_asset/deploy_graph.json";
     private static final String MODEL_PARAM_FILE    = "file:///android_asset/deploy_param.params";
-    private static final String MODEL_LABEL_FILE    = "file:///android_asset/imagenet.shortnames.list";
+    private static final String MODEL_LABEL_FILE    = "file:///android_asset/imagenet.txt";
     private static String[] MODELS;
     private static String mCurModel = "";
 
