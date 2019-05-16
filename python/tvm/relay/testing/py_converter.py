@@ -91,7 +91,7 @@ class PythonConverter(ExprFunctor):
         # and fusion (to get primitive functions)
         simplify = relay.ir_pass.simplify_inference(check)
         simplify_checked = relay.ir_pass.infer_type(simplify, self.mod)
-        fused = relay.ir_pass.fuse_ops(simplify_checked)
+        fused = relay.ir_pass.fuse_ops(simplify_checked, opt_level=0)
         fused_checked = relay.ir_pass.infer_type(fused, self.mod)
         assert relay.ir_pass.well_formed(fused_checked)
         return fused_checked
@@ -244,13 +244,14 @@ class PythonConverter(ExprFunctor):
                 return [ast.Attribute(py_input, 'data', Load())]
             assert isinstance(arg_type, relay.TupleType)
             # convert each input.fields[i]
-            return [
-                convert_input(
-                    ast.Subscript(ast.Attribute(py_input, 'fields', Load()),
-                                  ast.Index(Num(i)), Load()),
+            ret = []
+            for i in range(len(arg_type.fields)):
+                ret += convert_input(
+                    ast.Subscript(
+                        ast.Attribute(py_input, 'fields', Load()),
+                        ast.Index(Num(i)), Load()),
                     arg_type.fields[i])
-                for i in range(len(arg_type.fields))
-            ]
+            return ret
 
         def convert_output(ret_type):
             '''Use the function return type to produce auxiliary variables to store outputs.

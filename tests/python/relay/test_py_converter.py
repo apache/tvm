@@ -436,6 +436,8 @@ def test_op_stack():
         for data in x_data:
             args.append(relay.const(data))
         call = relay.stack(relay.Tuple(args), axis)
+        import astor
+        print(astor.to_source(to_python(call).body[4]))
         call_val = run_as_python(call)
         assert_tensor_value(call_val, ref_res)
 
