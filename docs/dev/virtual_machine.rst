@@ -18,68 +18,68 @@
 Putting the VM in TVM: The Relay Virtual Machine
 ================================================
 
-Relay, a new program representation, enabled the representation and optimization of
+Relay, a new program representation, has enabled the representation and optimization of
 a greater breadth of machine  learning programs.
-Unfortunately by supporting a more expressive set of programs we
+Unfortunately, by supporting a more expressive set of programs, we have
 introduced several new execution challenges.
 
 Relay's “debug” interpreter can execute the full language but has notable limitations
-that makes it unsuited for production deployments. It is structured as an inefficient
+that make it unsuited for production deployments. It is structured as an inefficient
 interpreter that performs AST traversal  to execute the program. This approach is conceptually
 simple but requires traversal of the program for each evaluation. The program is stored as a
-tree which makes heavy use of indirection and leads to inefficient execution.
+tree, which leads to inefficient execution due to its heavy reliance on indirection.
 
-There are still unknown dynamism issues such as dynamic scheduling and allocation,
-fully dynamic tensor shapes, and control-flow. The interpreter has simple solutions
-for these, but none provide a compelling and optimized solution.
+There are further challenges in compiling dynamic code, such as dynamic scheduling and allocation,
+fully dynamic tensor shapes, and control flow. The interpreter offers simple solutions
+for these, but none is sufficiently compelling or optimized.
 
-The second execution mechanism is the existing graph runtime, in order to target Relay
-programs to this we translate a small subset of them to the old graph format, and execute
+The second execution mechanism is the existing graph runtime. In order to target Relay
+programs to this we compile a small subset of them to the old graph format, and execute
 them on the runtime.
 This provides a solid execution experience but only for a very limited subset of Relay programs.
 
-An alternative but not-standard approach is Relay's ahead-of-time compiler
-which transforms a Relay program into a shared library containing an ahead
-of time implementation. The ahead of time compiler provides compelling performance
-but is difficult to extend, and instrument, requiring modifications to the
-code generation and optimizations.
+An alternative but not-standard approach is Relay's ahead-of-time compiler,
+which transforms a Relay program into a shared library containing an ahead-
+of-time implementation. The ahead-of-time compiler provides compelling performance
+but is difficult to extend and instrument, which can only be done by modifying the
+code generation and optimization mechanisms.
 
 The Relay virtual machine is intended to be a framework that balances these competing
-approaches providing a dynamic execution environment which can be extended, instrumented,
-and integrated with other approaches like ahead of time compilation via a flexible extension
+approaches, providing a dynamic execution environment which can be extended, instrumented,
+and integrated with other approaches like ahead-of-time compilation via a flexible extension
 mechanism.
 
 The virtual machine is designed to strike a balance between performance and flexibility
 when deploying and executing Relay programs, without giving up the benefits of TVM.
 
 Virtual machine (VM) design is a well studied area in programming languages and systems,
-and there have been various virtual machine designs for both full fledged,
+and there have been various virtual machine designs for both full-fledged
 and embedded programing languages.
 Previous language VM designs have been heavily tailored to the execution profile of traditional programs.
-Traditional programs manipulate small scalar values and consist of a large number of low level instructions.
-The sheer quantity of instructions to compute requires instruction execution and dispatch to be extremely efficient.
+Traditional programs manipulate small scalar values and consist of a large number of low-level instructions.
+The sheer quantity of instructions requires instruction execution and dispatch to be extremely efficient.
 In the context of machine learning we manipulate primarily tensor values, using a (relatively)
-low number of high level instructions. ML program's cost centers are expensive operator invocations
-such as GEMM or convolution, over a large input. Due to the execution profile exhibited by ML programs
-micro-optimizations present in scalar-VMs are dramatically less important.
+low number of high level instructions. ML programs' cost centers are expensive operator invocations,
+such as GEMM or convolution, over a large input. Due to the execution profile exhibited by ML programs,
+micro-optimizations present in scalar VMs are dramatically less important.
 A model’s runtime will  be dominated by executing expensive operators on large inputs.
 
-TVM has provided a strong support for vision models,
+TVM has provided strong support for vision models,
 but we want to grow to support a wider variety of models.
 The graph runtime is able to utilize the fully static nature of the input graphs to perform
 aggressive optimization such as fully static allocation, and optimal memory reuse.
-When we introduce models which make use of control-flow, recursion, dynamic shapes, and dynamic
+When we introduce models which make use of control flow, recursion, dynamic shapes, and dynamic
 allocation, we must change how execution works.
 
-The rest of this document provides a high level overview of the Relay
-virtual machine design, and its instruction set.
+The rest of this document provides a high-level overview of the Relay
+virtual machine design and its instruction set.
 
 Design
 ------
 
 The VM's design is focused on simplicity without sacrificing performance.
 In order to accomplish this we have ignored traditional wisdom in scalar
-VM design, and focused on designing a tensor VM.
+VM design and focused on designing a tensor VM.
 
 In the tensor VM setting, we optimize for cheap “allocation” of objects (by trying to avoid real allocation,
 reuse of static fragments, and the ability to do dynamic (i.e jagged tensors)).
@@ -87,8 +87,8 @@ reuse of static fragments, and the ability to do dynamic (i.e jagged tensors)).
 Instruction Set
 ~~~~~~~~~~~~~~~
 
-The critical design choice of a VM is the instruction set and their representation.
-The current representation of the instructions is a tagged union, containing the op-code and the data payload.  An important design decision is the level of abstraction of the instructions, and how they take their data, that is RISC vs. CISC and fixed-width instruction encoding vs. variable length. The current version is closer to CISC with complex instructions like AllocTensor, and is variable length due to the inclusion of the shape as part of the instruction. The current instruction set is very high level and corresponds roughly to high level operations in Relay.
+The choices of an instruction set and instruction representation are the most critical design decisions for a VM.
+The current representation of the instructions is a tagged union containing the op-code and the data payload.  An important design decision is the level of abstraction of the instructions (RISC vs. CISC) and how they take their data (fixed-width instruction encoding vs. variable-length encoding). The current version is closer to CISC, with complex instructions like AllocTensor, and is variable-length due to the inclusion of the shape as part of the instruction. The current instruction set is very high-level and corresponds roughly to high-level operations in Relay.
 
 Ret
 ^^^
@@ -97,7 +97,7 @@ Ret
   RegName dst
   RegName result
 
-Returns the object in register "result" to caller's register "dst".
+Returns the object in register `result` to caller's register `dst`.
 
 InvokePacked
 ^^^^^^^^^^^^
@@ -108,9 +108,9 @@ InvokePacked
   size_t output_size
   RegName* packed_args
 
-Invoke the packed function denoted by packed_index. The arity
-and output size are used to inform the VM how many inputs and
-outputs to expect. packed_args stores the list of argument registers,
+Invoke the packed function denoted by `packed_index`. The `arity`
+and `output_size` are used to inform the VM how many inputs and
+outputs to expect. `packed_args` stores the list of argument registers,
 
 AllocTensor
 ^^^^^^^^^^^
@@ -210,8 +210,8 @@ Load the constant at `const_index` from the constant pool. The result is saved t
 Object Representation
 ~~~~~~~~~~~~~~~~~~~~~
 We use a simple object representation that uses shared pointers and tagging.
-There is a huge space of object representations we can trade off here, but we
-believe micro-optimizing this code has little to no-effect on the end-to-end performance.
+There is a huge space of possible object representations trade-offs, but we
+believe micro-optimizing this code has little to no effect on the end-to-end performance.
 
 ::
 
@@ -264,7 +264,7 @@ We keep track of a set of Relay functions we have called, a pointer into its byt
 
 Dispatch Loop
 ~~~~~~~~~~~~~
-A very critical piece of a VM is the dispatch loop, usually this dominates execution time of a virtual machine, but experimentally we have found the performance of the loop to not be of much importance. We have just implemented a simple switch/goto dispatch loop which dispatches based on instruction op code.
+A critical piece of a VM is the dispatch loop. The dispatch loop usually dominates the execution time of a virtual machine, but we have experimentally found this not to be the case for Relay. We have just implemented a simple `switch`/`goto` dispatch loop which dispatches based on instruction op code.
 
 This loop is implemented by `VirtualMachine::Run()`.
 
@@ -298,7 +298,7 @@ the new pass manager (#2546) before merging.
 Serialization
 ~~~~~~~~~~~~~
 
-A final and yet to be implemented part of the VM design is serialization. This accompanying PR will introduce both the bytecode, its serialization, as well as VM level serialization. The idea being that a VM can be efficiently stored to disk and resumed at a later time. This would also allow us to efficiently schedule many models on to a single machine in order to obtain good utilization.
+A final and yet-to-be-implemented part of the VM design is serialization. The accompanying PR will introduce both the bytecode and its serialization, as well as VM-level serialization. The design premise is that a VM can be efficiently stored to disk and resumed at a later time. This would also allow us to efficiently schedule many models on to a single machine in order to obtain good utilization.
 
 Unresolved Questions
 ~~~~~~~~~~~~~~~~~~~~
