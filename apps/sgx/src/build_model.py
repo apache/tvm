@@ -1,4 +1,5 @@
-<<<<<<< HEAD:apps/sgx/enclave/src/build_model.py
+#!/usr/bin/python3
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,10 +16,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-=======
-#!/usr/bin/python3
 
->>>>>>> cec2cf25... Use Fortanix SGX:apps/sgx/src/build_model.py
 """Creates a simple TVM modules."""
 
 import os
