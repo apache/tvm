@@ -436,8 +436,6 @@ def test_op_stack():
         for data in x_data:
             args.append(relay.const(data))
         call = relay.stack(relay.Tuple(args), axis)
-        import astor
-        print(astor.to_source(to_python(call).body[4]))
         call_val = run_as_python(call)
         assert_tensor_value(call_val, ref_res)
 
@@ -445,3 +443,23 @@ def test_op_stack():
     verify_stack([(2,), (2,), (2,)], 0)
     verify_stack([(2, 2, 4), (2, 2, 4), (2, 2, 4)], 1)
     verify_stack([(2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4), (2, 2, 3, 4)], -1)
+
+
+# test an op with a tuple output
+# adapted from test_split_infer_type in test_op_level3
+# and test_split in nnvm's test_top_level1
+def test_split():
+    def verify_split(shape, indices_or_sections, axis=0):
+        x = np.random.normal(size=shape).astype('float32')
+        ref_res = np.split(x, indices_or_sections, axis=axis)
+        call = relay.split(relay.const(x), indices_or_sections, axis=axis)
+        call_val = run_as_python(call)
+        assert_tuple_value(call_val, len(ref_res))
+        for i in range(len(ref_res)):
+            assert_tensor_value(call_val.fields[i], ref_res[i])
+
+    verify_split((2, 3), 2)
+    verify_split((5, 3), [3])
+    verify_split((5, 9, 3), [3, 4], 1)
+    verify_split((5, 5, 2, 2), 5, 1)
+    verify_split((5, 5, 2, 2), 5, 0)

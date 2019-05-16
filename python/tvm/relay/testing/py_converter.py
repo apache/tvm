@@ -85,7 +85,9 @@ class PythonConverter(ExprFunctor):
 
     def optimize(self, prog: Expr):
         '''Performs optimizations necessary to be able to generate code for prog.'''
-        check = relay.ir_pass.infer_type(prog, self.mod)
+        # unwrap tuple wrappers (some op calls produce them)
+        unwrapped = prog.astuple() if isinstance(prog, relay.TupleWrapper) else prog
+        check = relay.ir_pass.infer_type(unwrapped, self.mod)
         assert relay.ir_pass.well_formed(check)
         # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
         # and fusion (to get primitive functions)
@@ -274,7 +276,7 @@ class PythonConverter(ExprFunctor):
             assignments = []
             extra_args = []
             fields = []
-            for t in type.fields:
+            for t in ret_type.fields:
                 inner_assignments, inner_args, inner_output = convert_output(t)
                 assignments += inner_assignments
                 extra_args += inner_args
