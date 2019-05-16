@@ -51,50 +51,6 @@ def process_image(image):
 
     return tvm.nd.array(image.astype("float32"))
 
-def mark_nop(graph,
-             conv_layer=-1,
-             skip_conv_layer=(),
-             reverse=False,
-             conv2d_only=False):
-    """Helper function to mark certain op as nop
-
-    Useful to debug performance issues.
-    """
-    jgraph = json.loads(graph.json())
-    counter = 0
-    for _, node in enumerate(jgraph["nodes"]):
-        op_name = node["op"]
-        if op_name != "tvm_op":
-            continue
-        attrs = node["attrs"]
-        func_name = attrs["func_name"]
-
-        if func_name.find("conv2d") != -1:
-            if conv_layer >= 0:
-                if counter != conv_layer:
-                    attrs["func_name"] = "__nop"
-            if counter in skip_conv_layer:
-                attrs["func_name"] = "__nop"
-            counter += 1
-        else:
-            if conv_layer >= 0:
-                attrs["func_name"] = "__nop"
-            attrs["func_name"] = "__nop"
-
-        if reverse:
-            if attrs["func_name"] != "__nop":
-                attrs["func_name"] = "__nop"
-            else:
-                attrs["func_name"] = func_name
-
-        if conv2d_only:
-            if attrs["func_name"].find("conv2d") == -1:
-                attrs["func_name"] = "__nop"
-
-    graph = nnvm.graph.load_json(json.dumps(jgraph))
-    return graph
-
-
 def demo_cat_classification(env, m, ctx, remote, shape_dict, dtype_dict):
     # Read in ImageNet Categories
     url = "https://github.com/uwsaml/web-data/raw/master/vta/models/"
@@ -234,12 +190,10 @@ def run(device = "vta"):
         # Compile Relay program.
         with relay.build_module.build_config(opt_level=3, disable_pass={"AlterOpLayout"}):
             if target.device_name != "vta":
-                # import pdb; pdb.set_trace() 
                 graph, lib, params = relay.build(
                     relay_graph, target=target,
                     params=params, target_host=target_host)
             else:
-                # import pdb; pdb.set_trace()
                 with vta.build_config():
                     graph, lib, params = relay.build(
                         relay_graph, target=target,
@@ -258,19 +212,6 @@ def run(device = "vta"):
         # Measure build time
         build_time = time.time() - build_start
         print(opt.model + " inference graph built in {0:.2f}s!".format(build_time))
-        
-        cpu_skip_layer = (0,) if "gan" in opt.model else (3,)
-        # profile script, set this to False to run end to end
-        if opt.debug_fpga_only:
-            graph = mark_nop(graph, skip_conv_layer=cpu_skip_layer)
-        elif opt.debug_cpu_only:
-            graph = mark_nop(graph, skip_conv_layer=cpu_skip_layer, reverse=True)
-        elif opt.run_conv_layer:
-            conv_set = tuple(int(x) for x in opt.run_conv_layer.split(","))
-            graph = mark_nop(graph,
-                             skip_conv_layer=conv_set,
-                             reverse=True,
-                             conv2d_only=True)
 
         if opt.debug_profile:
             m = debug_runtime.create(graph, lib, ctx)
