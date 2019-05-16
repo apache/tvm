@@ -19,13 +19,13 @@ Putting the VM in TVM: The Relay Virtual Machine
 ================================================
 
 Relay, a new program representation, has enabled the representation and optimization of
-a greater breadth of machine  learning programs.
+a greater breadth of machine learning programs.
 Unfortunately, by supporting a more expressive set of programs, we have
 introduced several new execution challenges.
 
 Relay's “debug” interpreter can execute the full language but has notable limitations
 that make it unsuited for production deployments. It is structured as an inefficient
-interpreter that performs AST traversal  to execute the program. This approach is conceptually
+interpreter that performs AST traversal to execute the program. This approach is conceptually
 simple but requires traversal of the program for each evaluation. The program is stored as a
 tree, which leads to inefficient execution due to its heavy reliance on indirection.
 
@@ -78,8 +78,7 @@ Design
 ------
 
 The VM's design is focused on simplicity without sacrificing performance.
-In order to accomplish this we have ignored traditional wisdom in scalar
-VM design and focused on designing a tensor VM.
+In order to accomplish this we we have focused on designing a tensor VM rather than a scalar VM.
 
 In the tensor VM setting, we optimize for cheap “allocation” of objects (by trying to avoid real allocation,
 reuse of static fragments, and the ability to do dynamic (i.e jagged tensors)).
