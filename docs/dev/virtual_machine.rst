@@ -19,11 +19,11 @@ Putting the VM in TVM: The Relay Virtual Machine
 ================================================
 
 Relay, a new program representation, has enabled the representation and optimization of
-a greater breadth of machine learning programs.
+a great breadth of machine learning programs.
 Unfortunately, by supporting a more expressive set of programs, we have
 introduced several new execution challenges.
 
-Relay's “debug” interpreter can execute the full language but has notable limitations
+Relay's interpreter can execute the full language but has notable limitations
 that make it unsuited for production deployments. It is structured as an inefficient
 interpreter that performs AST traversal to execute the program. This approach is conceptually
 simple but requires traversal of the program for each evaluation. The program is stored as a
@@ -39,7 +39,7 @@ them on the runtime. Graph runtime provides a fast execution experience but only
 subset of Relay programs.
 
 An alternative but not-standard approach is Relay's ahead-of-time compiler,
-which transforms a Relay program into a shared library containing an ahead-
+which compiles a Relay program into a shared library containing an ahead-
 of-time implementation. The ahead-of-time compiler provides compelling performance
 but is difficult to extend and instrument, which can only be done by modifying the
 code generation and optimization mechanisms.
@@ -80,7 +80,7 @@ The VM's design is focused on simplicity without sacrificing performance.
 In order to accomplish this we we have focused on designing a tensor VM rather than a scalar VM.
 
 In the tensor VM setting, we optimize for cheap “allocation” of objects (by trying to avoid real allocation),
-reuse of static fragments, and the ability to do dynamic (i.e jagged tensors).
+reuse of static fragments, and the ability to do dynamic shape (i.e jagged tensors).
 
 Instruction Set
 ~~~~~~~~~~~~~~~
@@ -237,7 +237,7 @@ Currently we support 3 types of objects: tensors, data types, and closures.
 Stack and State
 ~~~~~~~~~~~~~~~
 
-The Relay VM maintains a frame stack, which contains information about how to resume the
+The Relay VM maintains a stack frame, which contains information about how to resume the
 previous call. Registers are allocated in a continuous space(virtual register file) for each function.
 
 We keep track of a set of Relay functions we have called, a pointer into its bytecode, an offset into the byte code (known as the program counter).
