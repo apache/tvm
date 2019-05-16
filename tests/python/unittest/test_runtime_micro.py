@@ -8,6 +8,7 @@ import numpy as np
 from tvm.contrib import graph_runtime, util
 from tvm import relay
 import tvm.micro as micro
+from tvm.relay.testing import resnet
 
 # TODO(weberlo): document somewhere that utvm object files need to have an
 # `.obj` instead of an `.o` extension, because the `.o` suffix triggers a code
@@ -72,46 +73,10 @@ def test_workspace_add():
         c.asnumpy(), a.asnumpy() + 2.0)
 
 
-def test_farts():
-    nn = 10
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name="A")
-    # B = tvm.placeholder((n,), name="B")
-    # B = tvm.compute(B.shape, lambda *i: A(*i) + 1, name="B")
-    # C = tvm.compute(A.shape, lambda *i: B(*i) + 1, name="C")
-    # s = tvm.create_schedule(C.op)
-
-    init_lib_path = micro.get_init_lib()
-    micro.init("host", init_lib_path)
-    m = tvm.module.load("farts.obj", "micro_dev")
-    ctx = tvm.micro_dev(0)
-    fadd_workspace = m["fused_add"]
-    n = nn
-    a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
-    c = tvm.nd.array(np.zeros(n, dtype=A.dtype), ctx)
-    print(a)
-    print(c)
-    fadd_workspace(a, c)
-    print(a)
-    print(c)
-    print()
-
-    tvm.testing.assert_allclose(
-        c.asnumpy(), a.asnumpy() + 1.0)
-
-
-def test_graph_runtime():
-    dtype = "float32"
-    shape = (10,)
-
-    # build relay program
-    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
-    y = relay.const(1.0)
-    z = relay.add(y, y)
-    ayy = relay.add(x, z)
-    func = relay.Function([x], ayy)
-    graph, lib, params = relay.build(func, target="c", params={})
-    print(graph)
+def micro_module(func: relay.Function, params={}):
+    print("--------------------------------------------------------------------------------")
+    with tvm.build_config(disable_vectorize=True):
+        graph, lib, params = relay.build(func, target="c", params=params)
 
     temp = util.tempdir()
 
@@ -120,27 +85,23 @@ def test_graph_runtime():
     # TODO(weberlo): either make a new "micro_dev" codegen target that
     # properly wraps the C codegen or search for the end of the includes.
     mod_src.insert(2, "#include \"tvm/runtime/utvm_device_lib.h\"")
-    # TODO(weberlo): this shit is a mega hack
-    i = 0
-    curr_return_err = 1
-    while i < len(mod_src):
-        line = mod_src[i]
-        if line.endswith("{") and any([s in line for s in ["dev_type", "device_type", "device_id"]]):
-            while not mod_src[i].strip().endswith("}"):
-                mod_src.pop(i)
-            mod_src.pop(i)
-        elif "return -1;" in line:
-            mod_src[i] = f"return -{curr_return_err};"
-            curr_return_err += 1
-            i += 1
-        else:
-            i += 1
+    # # TODO(weberlo): this shit is a mega hack
+    # i = 0
+    # curr_return_err = 1
+    # while i < len(mod_src):
+    #     if mod_src[i].endswith("{") and any([s in mod_src[i] for s in ["dev_type", "device_type", "device_id"]]):
+    #         while not mod_src[i].strip().endswith("}"):
+    #             mod_src.pop(i)
+    #         mod_src.pop(i)
+    #     elif "return -1;" in mod_src[i]:
+    #         mod_src[i] = mod_src[i].replace("-1", f"-{curr_return_err}")
+    #         curr_return_err += 1
+    #         i += 1
+    #     else:
+    #         i += 1
     mod_src = "\n".join(mod_src)
-    print(mod_src)
-
-    # with open("farts.c", "r") as f:
-    #     mod_src = f.read()
     # print(mod_src)
+
     # save it to temp file
     src_dso = temp.relpath("dev_lib.c")
     with open(src_dso, "w") as f:
@@ -150,39 +111,49 @@ def test_graph_runtime():
     lib_dso = temp.relpath("dev_lib.obj")
     tvm_home = os.getenv("TVM_HOME")
     # retcode = subprocess.call(["gcc", "-c", "-g", "-Og", "-o", lib_dso, src_dso, f"-I{tvm_home}/include", f"-I{tvm_home}/3rdparty/dlpack/include"])
-    retcode = subprocess.call(["gcc", "-c", "-g", "-O0", "-o", lib_dso, src_dso, f"-I{tvm_home}/include", f"-I{tvm_home}/3rdparty/dlpack/include"])
+    cmd = ["gcc", "-c", "-g", "-O0", "-o", lib_dso, src_dso, f"-I{tvm_home}/include", f"-I{tvm_home}/3rdparty/dlpack/include"]
+    print(f"compiling with \"{cmd}\"")
+    retcode = subprocess.call(cmd)
     assert retcode == 0
 
     micro.init("host", micro.get_init_lib())
     micro_lib = tvm.module.load(lib_dso, "micro_dev")
     ctx = tvm.micro_dev(0)
     mod = graph_runtime.create(graph, micro_lib, ctx)
+    return mod, params
 
-    # # compile to object file
-    # lib_dso = temp.relpath("dev_lib.o")
-    # tvm_home = os.getenv("TVM_HOME")
-    # subprocess.call(["gcc", "-fPIC", "-c", "-g", "-Og", "-o", lib_dso, src_dso, f"-I{tvm_home}/include", f"-I{tvm_home}/3rdparty/dlpack/include"])
 
-    # host_lib = tvm.module.load(lib_dso)
-    # ctx = tvm.cpu(0)
-    # mod = graph_runtime.create(graph, host_lib, ctx)
+def test_graph_runtime():
+    dtype = "float32"
+    shape = (10,)
 
-    print(f"params: {params}")
+    # build relay program
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    y = relay.const(1.0)
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, y)
+    func = relay.Function([x], z)
+
+    mod, params = micro_module(func)
+
     x_in = np.random.uniform(size=shape[0]).astype(dtype)
-    print(f"x_in: {x_in}")
-    print(f"mod: {mod}")
     mod.set_input(**params)
-    # mod.set_input("x", x_in)
-    print("running module...")
     mod.run(x=x_in)
-    print("finished running")
     out = mod.get_output(0, tvm.nd.empty(shape)).asnumpy()
     print(f"output: {out}")
 
+
+def test_resnet():
+    resnet_func, params = resnet.get_workload(num_classes=10, num_layers=18, image_shape=(3, 32, 32))
+    mod, params = micro_module(resnet_func, params=params)
+    # mod.set_input(**params)
+    # mod.run(x=x_in)
+    # out = mod.get_output(0, tvm.nd.empty(shape)).asnumpy()
+    # print(f"output: {out}")
 
 
 if __name__ == "__main__":
     # test_add()
     # test_workspace_add()
-    # test_farts()
-    test_graph_runtime()
+    # test_graph_runtime()
+    test_resnet()
