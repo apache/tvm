@@ -35,8 +35,8 @@ for these, but none is sufficiently compelling or optimized.
 
 The second execution mechanism is the existing graph runtime. In order to target Relay
 programs to this we compile a small subset of them to the old graph format, and execute
-them on the runtime.
-This provides a solid execution experience but only for a very limited subset of Relay programs.
+them on the runtime. Graph runtime provides a fast execution experience but only for a very limited
+subset of Relay programs.
 
 An alternative but not-standard approach is Relay's ahead-of-time compiler,
 which transforms a Relay program into a shared library containing an ahead-
@@ -68,7 +68,7 @@ but we want to grow to support a wider variety of models.
 The graph runtime is able to utilize the fully static nature of the input graphs to perform
 aggressive optimization such as fully static allocation, and optimal memory reuse.
 When we introduce models which make use of control flow, recursion, dynamic shapes, and dynamic
-allocation, we must change how execution works.
+allocation, we must change how execution works. A virtual machine for Relay is a natural choice.
 
 The rest of this document provides a high-level overview of the Relay
 virtual machine design and its instruction set.
