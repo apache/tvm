@@ -53,41 +53,22 @@ else()
 
       if (SBT)
 
-        # Install Chisel VTA package for DPI modules
         set(VTA_CHISEL_DIR ${VTA_DIR}/hardware/chisel)
-
-        execute_process(WORKING_DIRECTORY ${VTA_CHISEL_DIR}
-          COMMAND ${SBT} publishLocal RESULT_VARIABLE RETCODE)
-
-        if (NOT RETCODE STREQUAL "0")
-          message(FATAL_ERROR "[TSIM] sbt failed to install VTA scala package")
-        endif()
-
-        # Chisel - Scala to Verilog compilation
         set(TSIM_CHISEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hardware/chisel)
-        set(CHISEL_TARGET_DIR ${TSIM_BUILD_DIR}/chisel)
-        set(CHISEL_OPT "test:runMain test.Elaborate --target-dir ${CHISEL_TARGET_DIR} --top-name ${TSIM_TOP_NAME}")
-
-        execute_process(WORKING_DIRECTORY ${TSIM_CHISEL_DIR} COMMAND ${SBT} ${CHISEL_OPT} RESULT_VARIABLE RETCODE)
-
-        if (NOT RETCODE STREQUAL "0")
-          message(FATAL_ERROR "[TSIM] sbt failed to compile from Chisel to Verilog.")
-        endif()
-
-        file(GLOB VERILATOR_RTL_SRC ${CHISEL_TARGET_DIR}/*.v)
+        set(CHISEL_BUILD_DIR ${TSIM_BUILD_DIR}/chisel)
+        set(CHISEL_OPT "test:runMain test.Elaborate --target-dir ${CHISEL_BUILD_DIR} --top-name ${TSIM_TOP_NAME}")
 
       else()
         message(FATAL_ERROR "[TSIM] sbt should be installed for Chisel")
-      endif() # sbt
+      endif() # SBT
 
     elseif (TSIM_TARGET STREQUAL "verilog")
 
       set(VTA_VERILOG_DIR ${VTA_DIR}/hardware/chisel/src/main/resources/verilog)
       set(TSIM_VERILOG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hardware/verilog)
-      file(GLOB VERILATOR_RTL_SRC ${VTA_VERILOG_DIR}/*.v ${TSIM_VERILOG_DIR}/*.v)
 
     else()
-      message(STATUS "[TSIM] target language can be only verilog or chisel...")
+      message(FATAL_ERROR "[TSIM] target language can be only verilog or chisel...")
     endif() # TSIM_TARGET
 
     if (TSIM_TARGET STREQUAL "chisel" OR TSIM_TARGET STREQUAL "verilog")
@@ -100,21 +81,26 @@ else()
       endif()
 
       # Verilator - Verilog to C++ compilation
-      set(VERILATOR_TARGET_DIR ${TSIM_BUILD_DIR}/verilator)
+      set(VERILATOR_BUILD_DIR ${TSIM_BUILD_DIR}/verilator)
       set(VERILATOR_OPT +define+RANDOMIZE_GARBAGE_ASSIGN +define+RANDOMIZE_REG_INIT)
       list(APPEND VERILATOR_OPT +define+RANDOMIZE_MEM_INIT --x-assign unique)
       list(APPEND VERILATOR_OPT --output-split 20000 --output-split-cfuncs 20000)
-      list(APPEND VERILATOR_OPT --top-module ${TSIM_TOP_NAME} -Mdir ${VERILATOR_TARGET_DIR})
-      list(APPEND VERILATOR_OPT --cc ${VERILATOR_RTL_SRC})
+      list(APPEND VERILATOR_OPT --top-module ${TSIM_TOP_NAME} -Mdir ${VERILATOR_BUILD_DIR})
 
       if (NOT TSIM_USE_TRACE STREQUAL "OFF")
         list(APPEND VERILATOR_OPT --trace)
       endif()
 
-      execute_process(COMMAND ${VERILATOR} ${VERILATOR_OPT} RESULT_VARIABLE RETCODE)
-
-      if (NOT RETCODE STREQUAL "0")
-        message(FATAL_ERROR "[TSIM] Verilator failed to compile Verilog to C++...")
+      if (TSIM_TARGET STREQUAL "chisel")
+        execute_process(WORKING_DIRECTORY ${VTA_CHISEL_DIR} COMMAND ${SBT} publishLocal RESULT_VARIABLE RETCODE)
+        execute_process(WORKING_DIRECTORY ${TSIM_CHISEL_DIR} COMMAND ${SBT} ${CHISEL_OPT} RESULT_VARIABLE RETCODE)
+        file(GLOB VERILATOR_RTL_SRC ${CHISEL_BUILD_DIR}/*.v)
+        list(APPEND VERILATOR_OPT --cc ${VERILATOR_RTL_SRC})
+        execute_process(COMMAND ${VERILATOR} ${VERILATOR_OPT} RESULT_VARIABLE RETCODE)
+      else()
+        file(GLOB VERILATOR_RTL_SRC ${VTA_VERILOG_DIR}/*.v ${TSIM_VERILOG_DIR}/*.v)
+        list(APPEND VERILATOR_OPT --cc ${VERILATOR_RTL_SRC})
+        execute_process(COMMAND ${VERILATOR} ${VERILATOR_OPT} RESULT_VARIABLE RETCODE)
       endif()
 
       # Build shared library (.so)
@@ -126,7 +112,7 @@ else()
         list(APPEND VERILATOR_LIB_SRC ${VERILATOR_INC_DIR}/verilated_vcd_c.cpp)
       endif()
 
-      file(GLOB VERILATOR_GEN_SRC ${VERILATOR_TARGET_DIR}/*.cpp)
+      file(GLOB VERILATOR_GEN_SRC ${VERILATOR_BUILD_DIR}/*.cpp)
       file(GLOB VERILATOR_SRC ${VTA_HW_DPI_DIR}/tsim_device.cc)
       add_library(tsim SHARED ${VERILATOR_LIB_SRC} ${VERILATOR_GEN_SRC} ${VERILATOR_SRC})
 
@@ -138,7 +124,7 @@ else()
       endif()
       target_compile_definitions(tsim PRIVATE ${VERILATOR_DEF})
       target_compile_options(tsim PRIVATE -Wno-sign-compare -include V${TSIM_TOP_NAME}.h)
-      target_include_directories(tsim PRIVATE ${VERILATOR_TARGET_DIR} ${VERILATOR_INC_DIR} ${VERILATOR_INC_DIR}/vltstd ${VTA_DIR}/include)
+      target_include_directories(tsim PRIVATE ${VERILATOR_BUILD_DIR} ${VERILATOR_INC_DIR} ${VERILATOR_INC_DIR}/vltstd ${VTA_DIR}/include)
 
       if(APPLE)
         set_target_properties(tsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
