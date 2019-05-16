@@ -599,7 +599,6 @@ def _reshape():
     return _impl
 
 
-# Currently only supports NHWC, TODO add NCHW support.
 def _depth_to_space():
     def _impl(inputs, attr, params):
         # Need to handle data layouts differently.
@@ -646,6 +645,16 @@ def _bias_add():
         else:
             bias = inputs[1]
         return _op.add(inputs[0], bias)
+    return _impl
+
+def _broadcast_to():
+    def _impl(inputs, attr, params):
+        if isinstance(inputs[1], _expr.Var):
+            shape = params[inputs[1].name_hint]
+        else:
+            shape = _infer_value(inputs[1], params)
+        shape = list(shape.asnumpy().reshape([-1]))
+        return _op.broadcast_to(inputs[0], shape)
     return _impl
 
 def _squeeze():
@@ -1174,6 +1183,7 @@ _convert_map = {
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
     'BatchToSpaceND'                    : _batch_to_space_nd(),
     'BiasAdd'                           : _bias_add(),
+    'BroadcastTo'                       : _broadcast_to(),
     'Cast'                              : _cast(),
     'Ceil'                              : AttrCvt('ceil'),
     'CheckNumerics'                     : _check_numerics(),

@@ -889,6 +889,48 @@ def test_forward_resize_bilinear():
     _test_resize_bilinear_from_tensor((6, 32, 50, 50), True)
 
 #######################################################################
+# BroadcastTo
+# ---------------
+
+def _test_broadcast_to(in_shape, to_shape):
+    """ One iteration of broadcast_to"""
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+    shape_data = np.array(to_shape).astype('int32')
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        shape_data = constant_op.constant(
+            shape_data, shape=shape_data.shape, dtype=shape_data.dtype)
+        tf.broadcast_to(in_data, shape_data)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'BroadcastTo:0', opt_level=0)
+
+
+def _test_broadcast_to_from_tensor(in_shape):
+    """ One iteration of broadcast_to with unknown shape at graph build"""
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(
+            shape=[None], dtype=data.dtype)
+
+        shape_data = tf.multiply(tf.shape(in_data), 32)
+        tf.broadcast_to(in_data, shape_data)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'BroadcastTo:0', opt_level=0)
+
+
+def test_forward_broadcast_to():
+    """ Resize Bilinear """
+
+    _test_broadcast_to((4, 1, 32, 32), [4, 8, 32, 32])
+    _test_broadcast_to((6, 32, 32, 1), [6, 32, 32, 16])
+    _test_broadcast_to_from_tensor((1))
+
+
+#######################################################################
 # Fill
 # ---------------
 
@@ -1623,6 +1665,7 @@ if __name__ == '__main__':
     test_forward_squeeze()
     test_forward_pack()
     test_forward_resize_bilinear()
+    test_forward_broadcast_to()
     test_forward_fill()
     test_forward_crop()
     test_forward_pad()
