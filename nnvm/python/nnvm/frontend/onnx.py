@@ -830,6 +830,19 @@ class GraphProto(object):
             else:
                 self._num_input += 1
                 self._nodes[i_name] = _sym.Variable(name=i_name)
+        # get list of unsupported ops
+        convert_map = _get_convert_map(opset)
+        unsupported_ops = set()
+        for node in graph.node:
+            op_name = node.op_type
+            if op_name not in convert_map and \
+               op_name != 'Constant' and \
+               op_name not in _identity_list:
+                unsupported_ops.add(op_name)
+        if unsupported_ops:
+            msg = 'The following operators are not supported for frontend ONNX: '
+            msg += ', '.join(unsupported_ops)
+            raise tvm.error.OpNotImplemented(msg)
         # construct nodes, nodes are stored as directed acyclic graph
         for node in graph.node:
             op_name = node.op_type
