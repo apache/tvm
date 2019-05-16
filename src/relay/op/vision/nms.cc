@@ -107,6 +107,7 @@ bool NMSRel(const Array<Type>& types,
 Expr MakeNMS(Expr data,
              Expr valid_count,
              int max_output_size,
+             double score_threshold,
              double iou_threshold,
              bool force_suppress,
              int top_k,
@@ -117,6 +118,7 @@ Expr MakeNMS(Expr data,
              bool invalid_to_bottom) {
   auto attrs = make_node<NonMaximumSuppressionAttrs>();
   attrs->max_output_size = max_output_size;
+  attrs->score_threshold = score_threshold;
   attrs->iou_threshold = iou_threshold;
   attrs->force_suppress = force_suppress;
   attrs->top_k = top_k;

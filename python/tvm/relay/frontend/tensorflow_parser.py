@@ -80,7 +80,7 @@ class TFParser(object):
                 "required to restore from saved model.")
         tags = self._get_tag_set()
         output_names = set()
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             meta_graph_def = tf.saved_model.loader.load(sess,
                                                         tags,
                                                         self._model_dir)

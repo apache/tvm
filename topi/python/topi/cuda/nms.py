@@ -80,7 +80,7 @@ def get_valid_counts_pre(data, flag, idx, score_threshold, id_index, score_index
     tid = bx * max_threads + tx
 
     with ib.if_scope(tid < batch_size * num_anchors):
-        with ib.if_scope(tvm.all(data[tid * box_data_length + score_index] > score_threshold, \
+        with ib.if_scope(tvm.all(data[tid * box_data_length + score_index] >= score_threshold, \
             tvm.any(id_index < 0, data[tid * box_data_length + id_index] >= 0))):
             flag[tid] = 1
             idx[tid] = 1
@@ -456,6 +456,22 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
     def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
         """Calculate overlap of two boxes.
         """
+
+        a_l = tvm.min(out_tensor[box_a_idx], out_tensor[box_a_idx + 2])
+        a_t = tvm.min(out_tensor[box_a_idx + 1], out_tensor[box_a_idx + 3])
+        a_r = tvm.max(out_tensor[box_a_idx], out_tensor[box_a_idx + 2])
+        a_b = tvm.max(out_tensor[box_a_idx + 1], out_tensor[box_a_idx + 3])
+        b_l = tvm.min(out_tensor[box_b_idx], out_tensor[box_b_idx + 2])
+        b_t = tvm.min(out_tensor[box_b_idx + 1], out_tensor[box_b_idx + 3])
+        b_r = tvm.max(out_tensor[box_b_idx], out_tensor[box_b_idx + 2])
+        b_b = tvm.max(out_tensor[box_b_idx + 1], out_tensor[box_b_idx + 3])
+
+        w = tvm.max(0.0, tvm.min(a_r, b_r) - tvm.max(a_l, b_l))
+        h = tvm.max(0.0, tvm.min(a_b, b_b) - tvm.max(a_t, b_t))
+        area = h * w
+        u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
+
+        """
         w = tvm.max(0.0, tvm.min(out_tensor[box_a_idx + 2], out_tensor[box_b_idx + 2])
                     - tvm.max(out_tensor[box_a_idx], out_tensor[box_b_idx]))
         h = tvm.max(0.0, tvm.min(out_tensor[box_a_idx + 3], out_tensor[box_b_idx + 3])
@@ -465,7 +481,8 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
             (out_tensor[box_a_idx + 3] - out_tensor[box_a_idx + 1]) + \
             (out_tensor[box_b_idx + 2] - out_tensor[box_b_idx]) * \
             (out_tensor[box_b_idx + 3] - out_tensor[box_b_idx + 1]) - i
-        return tvm.expr.Select(u <= 0.0, 0.0, i / u)
+        """
+        return tvm.expr.Select(u <= 0.0, 0.0, area / u)
 
     batch_size = data.shape[0]
     num_anchors = data.shape[1]

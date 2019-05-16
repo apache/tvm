@@ -55,6 +55,7 @@ def get_valid_counts(data,
 def non_max_suppression(data,
                         valid_count,
                         max_output_size=-1,
+                        score_threshold=0.0,
                         iou_threshold=0.5,
                         force_suppress=False,
                         top_k=-1,
@@ -68,9 +69,11 @@ def non_max_suppression(data,
     Parameters
     ----------
     data : relay.Expr
-        3-D tensor with shape [batch_size, num_anchors, 6].
+        3-D tensor with shape [batch_size, num_anchors, 6]
+        or [batch_size, num_anchors, 5].
         The last dimension should be in format of
-        [class_id, score, box_left, box_top, box_right, box_bottom].
+        [class_id, score, box_left, box_top, box_right, box_bottom]
+        or [score, box_left, box_top, box_right, box_bottom].
 
     valid_count : relay.Expr
         1-D tensor for valid number of boxes.
@@ -78,6 +81,9 @@ def non_max_suppression(data,
     max_output_size : int, optional
         Max number of output valid boxes for each instance.
         By default all valid boxes are returned.
+
+    score_threshold : float, optional
+        Lower limit of score for valid bounding boxes.
 
     iou_threshold : float, optional
         Non-maximum suppression threshold.
@@ -108,7 +114,15 @@ def non_max_suppression(data,
     out : relay.Expr
         3-D tensor with shape [batch_size, num_anchors, 6].
     """
-    return _make.non_max_suppression(data, valid_count, max_output_size,
-                                     iou_threshold, force_suppress, top_k,
-                                     coord_start, score_index, id_index,
-                                     return_indices, invalid_to_bottom)
+    return _make.non_max_suppression(data,
+                                     valid_count,
+                                     max_output_size,
+                                     score_threshold,
+                                     iou_threshold,
+                                     force_suppress,
+                                     top_k,
+                                     coord_start,
+                                     score_index,
+                                     id_index,
+                                     return_indices,
+                                     invalid_to_bottom)

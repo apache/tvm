@@ -789,7 +789,41 @@ def test_capture():
     func, ins, outs = run_and_check(add_something, [a])
     run_and_check(func, ins, outs=outs)
 
+
+def test_copy():
+
+    @tvm.hybrid.script
+    def copy_something(a):
+        c = output_tensor((1, 5), a.dtype)
+        for i in parallel(1):
+            for j in range(5):
+                if(a[i, j] >= 0):
+                    c[i, j] = a[i, j]
+                else:
+                    c[i, j] = -1
+        return c
+
+    a = tvm.placeholder((1, 5), dtype='int32', name='a')
+    c = copy_something(a)
+    d = copy_something(c)
+    sch = tvm.create_schedule(d.op)
+    print(tvm.lower(sch, [a, d], simple_mode=True))
+    module = tvm.build(sch, [a, d], 'llvm')
+    assert(module)
+
+    np_a = numpy.array([[3, -1, -1, -1, 0]]).astype('int32')
+
+    nd_a = tvm.ndarray.array(np_a)
+    nd_c = tvm.ndarray.array(numpy.zeros((1, 5)).astype('int32'))
+    module(nd_a, nd_c)
+    ref = copy_something(np_a)
+    print("hybrid value: {}".format(ref))
+
+    tvm.testing.assert_allclose(nd_c.asnumpy(), ref, 1e-5, 1e-5)
+
 if __name__ == "__main__":
+    test_copy()
+    """
     test_outer_product()
     test_fanout()
     test_looptype()
@@ -807,5 +841,6 @@ if __name__ == "__main__":
     test_const_range()
     test_schedule()
     test_capture()
+    """
     # TODO:
     # test_inplace()

@@ -45,7 +45,7 @@ def test_vanilla_loop():
 
         r = tf.while_loop(c, b, [i])
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r)
 
         check_equal(graph, tf_out)
@@ -62,7 +62,7 @@ def test_callnode_loop_vars():
 
         r = tf.while_loop(c, b, [i])
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r)
 
         check_equal(graph, tf_out)
@@ -81,7 +81,7 @@ def test_loop_2_vars():
         i1, i2 = tf.while_loop(c, b, loop_vars=[i0, j0])
         i1 += tf.constant(1337)
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(i1)
 
     check_equal(graph, tf_out)
@@ -99,7 +99,7 @@ def test_loop_3_vars():
         def b(i, j, k): return [i+1, j * k, k + i]
         r = tf.while_loop(c, b, loop_vars=[i0, j0, k0])
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r)
 
     check_equal(graph, tf_out)
@@ -119,7 +119,7 @@ def test_loop_conditions():
 
         def b(i, j, k): return [i+j, j+k, k+1]
         r = tf.while_loop(c, b, loop_vars=[i, j, k])
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r)
 
     check_equal(graph, tf_out)
@@ -138,7 +138,7 @@ def test_loop_bodies():
             return tf.reduce_sum(x) < 100
         x = tf.constant(0, shape=[2, 2])
         r = tf.while_loop(condition, body, [x])
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r)
 
     check_equal(graph, tf_out)
@@ -161,7 +161,7 @@ def test_nested_loop():
         x = tf.constant(3)
         r = tf.while_loop(condition, body, loop_vars=[x])
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r)
 
     check_equal(graph, tf_out)
@@ -180,7 +180,7 @@ def test_vanilla_cond():
             return tf.add(4, 23)
         r = tf.cond(tf.less(i, j), f1, f2)
 
-    with tf.Session(graph=graph) as sess:
+    with tf.compat.v1.Session(graph=graph) as sess:
         tf_out = sess.run(r)
 
     check_equal(graph, tf_out)
@@ -195,7 +195,7 @@ def test_multiple_cond_vars():
         r = tf.cond(tf.less(tf.add(x1, x2), 10),
                     lambda: tf.add(10, 2), lambda: tf.square(5))
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r)
 
     check_equal(graph, tf_out)
@@ -215,7 +215,7 @@ def test_cond_fn_parameters():
         k = tf.constant(3)
         r = tf.cond(tf.less(i, j), lambda: fn1(i, k), lambda: fn2(j, k))
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r, feed_dict={i: 1, j: 2, k: 3})
 
     check_equal(graph, tf_out)
@@ -243,7 +243,7 @@ def test_nested_cond():
         pred = tf.less(x, y)
         r = tf.cond(pred, lambda: fn1(x, y), lambda: fn2(y, z))
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r, feed_dict={x: 1, y: 2, z: 3, pred: True})
 
     check_equal(graph, tf_out)
@@ -270,7 +270,7 @@ def test_loop_in_cond():
         pred = tf.less(x, y)
         r = tf.cond(pred, lambda: fn1(x, y), lambda: fn2(y, z))
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r, feed_dict={x: 1, y: 2, z: 3, pred: True})
 
     check_equal(graph, tf_out)
@@ -291,7 +291,7 @@ def test_cond_in_loop():
             return tf.less(x, 100)
 
         r = tf.while_loop(condition, body, loop_vars=[x])
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_out = sess.run(r)
 
     check_equal(graph, tf_out)

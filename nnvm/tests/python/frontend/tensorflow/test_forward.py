@@ -122,7 +122,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
     for i in range(len(in_name)):
         in_node[i] = in_name[i].split(':')[0] if ":" in in_name[i] else in_name[i]
 
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         final_graph_def = tf.graph_util.convert_variables_to_constants(
@@ -642,7 +642,7 @@ def test_forward_multi_output():
         out_node = [out.strip(':0') for out in out_name]
         in_node = [inp.strip(':0') for inp in in_name]
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             final_graph_def = tf.graph_util.convert_variables_to_constants(
                 sess, sess.graph.as_graph_def(add_shapes=True), out_node,)
             tf_output = run_tf_graph(sess, in_data, in_name, out_name)
@@ -706,7 +706,7 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
     in_state_h = np.full((num_layers, batch_size, num_hidden), 0.1, dtype=dtype)
 
     def _get_tensorflow_output():
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             with variable_scope.variable_scope(
                 "root", initializer=init_ops.constant_initializer(0.5)):
                 m0 = array_ops.zeros([batch_size, num_hidden])
@@ -852,7 +852,7 @@ def test_forward_inception_v3():
 
         data = np.random.uniform(size=(1, 299, 299, 3)).astype('float32')
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'input:0', 'InceptionV3/Predictions/Reshape_1:0')
             tvm_output = run_tvm_graph(graph_def, data, 'input')
             tvm.testing.assert_allclose(tf_output[0], tvm_output[0], rtol=1e-5, atol=1e-5)
@@ -885,10 +885,10 @@ def test_forward_inception_v1():
         temp.remove()
 
         # Extract tensorflow decoded image frame for tvm input
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tvm_data = run_tf_graph(sess, data, 'DecodeJpeg/contents:0', 'DecodeJpeg:0')
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'DecodeJpeg/contents:0', 'softmax:0')
             tvm_output = run_tvm_graph(graph_def, tvm_data, 'DecodeJpeg/contents')
             tvm.testing.assert_allclose(tf_output[0], tvm_output[0], rtol=1e-5, atol=1e-5)
@@ -909,7 +909,7 @@ def test_forward_mobilenet():
         data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
         out_node = 'MobilenetV2/Predictions/Reshape_1'
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             # Add shapes to the graph.
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
             tf_output = run_tf_graph(sess, data, 'input:0', out_node + ':0')
@@ -930,7 +930,7 @@ def test_forward_resnetv2():
             data = np.random.uniform(size=(128, 224, 224, 3)).astype('float32')
             out_node = 'ArgMax'
 
-            with tf.Session() as sess:
+            with tf.compat.v1.Session() as sess:
                 tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
                 for device in ["llvm", "cuda"]:
                     ctx = tvm.context(device, 0)
@@ -955,7 +955,7 @@ def test_forward_placeholder():
         data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
         out_node = 'mul'
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             # Add shapes to the graph.
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
             tf_output = run_tf_graph(sess, data, 'Placeholder:0', out_node + ':0')
@@ -1050,7 +1050,7 @@ def test_forward_ptb():
         vocab_size = len(word_to_id)
         # Call the utility to import the graph definition into default graph.
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
-        sess = tf.Session()
+        sess = tf.compat.v1.Session()
 
     #TVM graph module creation
     params, m = _get_tvm_graph_module(graph_def)

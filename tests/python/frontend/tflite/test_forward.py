@@ -131,7 +131,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
     for i in range(len(in_name)):
         in_node[i] = in_name[i].split(':')[0] if ":" in in_name[i] else in_name[i]
 
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         # convert to tflite model

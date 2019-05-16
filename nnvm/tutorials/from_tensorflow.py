@@ -105,7 +105,7 @@ with tf.gfile.FastGFile(model_path, 'rb') as f:
     # Call the utility to import the graph definition into default graph.
     graph_def = tf_testing.ProcessGraphDefParam(graph_def)
     # Add shapes to the graph.
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         graph_def = tf_testing.AddShapesToGraphDef(sess, 'softmax')
 
 ######################################################################
@@ -217,7 +217,7 @@ def run_inference_on_image(image):
     # Creates graph from saved GraphDef.
     create_graph()
 
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         softmax_tensor = sess.graph.get_tensor_by_name('softmax:0')
         predictions = sess.run(softmax_tensor,
                                {'DecodeJpeg/contents:0': image_data})

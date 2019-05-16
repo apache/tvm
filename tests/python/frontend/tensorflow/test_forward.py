@@ -145,7 +145,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
     in_data = convert_to_list(in_data)
     in_name = convert_to_list(in_name)
     in_node = [name_without_num(name) for name in in_name]
-    with tf.Session() as sess:
+    with tf.compat.v1.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         final_graph_def = tf.graph_util.convert_variables_to_constants(
@@ -168,6 +168,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
                                        num_output=len(out_name), opt_level=opt_level, mode=mode)
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
+            print("tf_output is:\n{}\ntvm_output is {}\n".format(tf_output, tvm_output))
             for i in range(len(tf_output)):
                 tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
@@ -1195,7 +1196,7 @@ def test_forward_multi_output():
         out_node = [out.strip(':0') for out in out_name]
         in_node = [inp.strip(':0') for inp in in_name]
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             final_graph_def = tf.graph_util.convert_variables_to_constants(
                 sess, sess.graph.as_graph_def(add_shapes=True), out_node,)
             tf_output = run_tf_graph(sess, in_data, in_name, out_name)
@@ -1386,6 +1387,49 @@ def test_forward_crop_and_resize():
                                   [2, 1, 0],
                                   [3, 3])
 
+# Non Max Suppression
+# -------------------
+
+# _test_forward_nms_v3((5, 4), (5, ), 0.71, 0.53, 5)
+def _test_forward_nms_v3(bx_shape, score_shape, iou_threshold, score_threshold, out_size, dtype="float32"):
+    boxes = np.random.uniform(0, 10, size=bx_shape).astype(dtype)
+    """
+    boxes = np.array([[1, 20, 25, 45], [30, 60, 50, 80],
+                      [4, 21, 19, 40], [35, 61, 52, 79],
+                      [100, 60, 70, 110]]).astype("float32")
+
+    boxes = np.array([[20, 1, 45, 25], [60, 30, 80, 50],
+                      [21, 4, 40, 19], [61, 35, 79, 52],
+                      [60, 100, 110, 70]]).astype("float32")
+
+    boxes = np.array([[1, 2, 3, 4],
+                      [1, 3, 3, 4],
+                      [1, 3, 4, 4],
+                      [1, 1, 4, 4],
+                      [1, 1, 3, 4]]).astype(dtype)
+    """
+
+    #scores = np.array([0.7213667, 0.51059115, 0.07018126, 0.6652073, 0.81835735]).astype(dtype)
+    scores = np.random.uniform(size=score_shape).astype(dtype) #np.array([0.4, 0.5, 0.72, 0.9], dtype=np.float32)
+    #scores = np.array([0.4, 0.5, 0.72, 0.9, 0.45], dtype=np.float32)
+    #scores = np.array([0.8, 0.7, 0.4, 0.9, 0.5]).astype("float32")
+    print("shape of boxes are {}\nshape of scores are {}".format(np.shape(boxes), np.shape(scores)))
+    #out_size = 5
+    #iou = 0.5
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(dtype, boxes.shape, name="in_data_1")
+    in_data_2 = tf.placeholder(dtype, scores.shape, name="in_data_2")
+    tf.image.non_max_suppression(boxes=in_data_1, scores=in_data_2, max_output_size=out_size,
+                                 iou_threshold=iou_threshold, score_threshold=score_threshold, name="nms")
+    #print(tf.get_default_graph().as_graph_def())
+    print("boxes are {}\nscores are {}".format(boxes, scores))
+    compare_tf_with_tvm([boxes, scores], ['in_data_1:0', 'in_data_2:0'], 'nms/NonMaxSuppressionV3:0')
+
+def test_forward_nms_v3():
+    """ NonMaxSuppressionV3 """
+    _test_forward_nms_v3((20, 4), (20,), 0.5, 0.7, 10)
+    #_test_forward_nms_v3((5, 4), (5, ), 0.4, 0.6, 5)
+
 
 #######################################################################
 # LSTM
@@ -1401,7 +1445,7 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
     in_state_h = np.full((num_layers, batch_size, num_hidden), 0.1, dtype=dtype)
 
     def _get_tensorflow_output():
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             with variable_scope.variable_scope(
                     "root", initializer=init_ops.constant_initializer(0.5)):
                 m0 = array_ops.zeros([batch_size, num_hidden])
@@ -1572,7 +1616,7 @@ def test_forward_logical():
 def test_forward_where():
     ''' Where: return elements depending on conditions'''
     with tf.Graph().as_default():
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             input1 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='input1')
             input2 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='input2')
             mask = input1 > input2
@@ -1595,7 +1639,7 @@ def test_forward_inception_v3():
 
         data = np.random.uniform(size=(1, 299, 299, 3)).astype('float32')
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'input:0', 'InceptionV3/Predictions/Reshape_1:0')
             tvm_output = run_tvm_graph(graph_def, data, 'input')
             tvm.testing.assert_allclose(tf_output[0], tvm_output[0], rtol=1e-5, atol=1e-5)
@@ -1628,10 +1672,10 @@ def test_forward_inception_v1():
         temp.remove()
 
         # Extract tensorflow decoded image frame for tvm input
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tvm_data = run_tf_graph(sess, data, 'DecodeJpeg/contents:0', 'DecodeJpeg:0')
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'DecodeJpeg/contents:0', 'softmax:0')
             tvm_output = run_tvm_graph(graph_def, tvm_data, 'DecodeJpeg/contents')
             tvm.testing.assert_allclose(tf_output[0], tvm_output[0], rtol=1e-5, atol=1e-5)
@@ -1652,7 +1696,7 @@ def test_forward_mobilenet():
         data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
         out_node = 'MobilenetV2/Predictions/Reshape_1'
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             # Add shapes to the graph.
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
             tf_output = run_tf_graph(sess, data, 'input:0', out_node + ':0')
@@ -1675,7 +1719,7 @@ def test_forward_resnetv2():
             data = np.random.uniform(size=(128, 224, 224, 3)).astype('float32')
             out_node = 'ArgMax'
 
-            with tf.Session() as sess:
+            with tf.compat.v1.Session() as sess:
                 tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
                 for device in ["llvm", "cuda"]:
                     ctx = tvm.context(device, 0)
@@ -1700,7 +1744,7 @@ def test_forward_placeholder():
         data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
         out_node = 'mul'
 
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             # Add shapes to the graph.
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
             tf_output = run_tf_graph(sess, data, 'Placeholder:0', out_node + ':0')
@@ -1800,7 +1844,7 @@ def test_forward_ptb():
         vocab_size = len(word_to_id)
         # Call the utility to import the graph definition into default graph.
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
-        sess = tf.Session()
+        sess = tf.compat.v1.Session()
 
     #TVM graph module creation
     params, m = _get_tvm_graph_module(graph_def)
@@ -2362,9 +2406,9 @@ def test_forward_one_hot():
 # Main
 # ----
 if __name__ == '__main__':
-
     # Transforms
-    test_forward_transpose()
+    """
+    #test_forward_transpose()
     test_forward_reshape()
     test_forward_depthtospace()
     test_forward_spacetodepth()
@@ -2449,6 +2493,7 @@ if __name__ == '__main__':
     test_forward_l2_normalize()
     test_forward_space_to_batch_nd()
     test_forward_batch_to_space_nd()
+    #test_forward_nms_v3()
 
     # End to End
     test_forward_inception_v3()
@@ -2471,5 +2516,7 @@ if __name__ == '__main__':
     test_forward_where()
     test_forward_matmul()
     test_forward_batch_matmul()
-
+    """
     # TODO missing tests: rank
+    test_forward_nms_v3()
+
