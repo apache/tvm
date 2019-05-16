@@ -346,6 +346,8 @@ def schedule_conv2d_nchw_cuda(cfg, outs):
     def _callback(op):
         if op.tag == "group_conv2d_NCHWc_int8":
             schedule_group_conv2d_NCHWc_int8(cfg, s, op.output(0))
+        if op.tag == "group_conv2d_nchw":
+            raise tvm.error.OpNotImplemented("group_conv2d_nchw not supported")
 
     traverse_inline(s, outs[0].op, _callback)
     return s
