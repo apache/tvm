@@ -262,12 +262,11 @@ We keep track of a set of Relay functions we have called, a pointer into its byt
 
 Dispatch Loop
 ~~~~~~~~~~~~~
-A critical piece of a VM is the dispatch loop. The dispatch loop usually dominates the execution time of a virtual machine, but we have experimentally found this not to be the case for Relay. We have just implemented a simple `switch`/`goto` dispatch loop which dispatches based on instruction op code.
+A critical piece of a VM is the dispatch loop. The dispatch loop usually dominates the execution time of a
+virtual machine, but we have experimentally found this not to be the case for Relay. We have just implemented
+a simple `switch`/`goto` dispatch loop which dispatches based on instruction op code.
 
 This loop is implemented by `VirtualMachine::Run()`.
-
-It is my belief that this code is not as important to end-to-end performance as allocation,
-and memory reuse.
 
 VM Compiler
 ~~~~~~~~~~~
