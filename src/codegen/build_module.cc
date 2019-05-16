@@ -311,7 +311,7 @@ bool LLVMEnabled() {
 
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
-  if (target->device_type == kDLCPU) {
+  if (target.defined() && target->device_type == kDLCPU) {
     return target;
   } else {
     if (LLVMEnabled()) {

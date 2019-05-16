@@ -38,54 +38,31 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
+using TargetsMap = Map<tvm::Integer, tvm::Target>;
+
 /*!
- * \brief Context name / index
- *        See: python/tvm/_ffi/runtime_ctypes.py
+ * \brief Context index to Target
  */
-struct ContextMap {
-  static const std::unordered_map<int, std::string> mask2str;
-  static const std::unordered_map<std::string, int> str2mask;
-  static std::string Mask2Str(int mask) {
+struct ContextTargetMap {
+  static const std::unordered_map<int, tvm::Target> mask2str;
+  static tvm::Target Mask2Str(int mask) {
     CHECK_GT(mask2str.count(mask), 0) << "Unknown mask.";
     return mask2str.at(mask);
   }
-  static int Str2Mask(const std::string& str) {
-    CHECK_GT(str2mask.count(str), 0) << "Unknown context.";
-    return str2mask.at(str);
-  }
 };
 
-const std::unordered_map<int, std::string> ContextMap::mask2str = {
-  {1, "cpu"},
-  {2, "gpu"},
-  {4, "opencl"},
-  {5, "aocl"},
-  {6, "sdaccel"},
-  {7, "vulkan"},
-  {8, "metal"},
-  {9, "vpi"},
-  {10, "rocm"},
-  {11, "opengl"},
-  {12, "ext_dev"}
-};
-
-const std::unordered_map<std::string, int> ContextMap::str2mask = {
-  {"llvm", 1},
-  {"cpu", 1},
-  {"c", 1},
-  {"gpu", 2},
-  {"cuda", 2},
-  {"nvptx", 2},
-  {"cl", 4},
-  {"opencl", 4},
-  {"aocl", 5},
-  {"aocl_sw_emu", 5},
-  {"vulkan", 7},
-  {"metal", 8},
-  {"vpi", 9},
-  {"rocm", 10},
-  {"opengl", 11},
-  {"ext_dev", 12}
+const std::unordered_map<int, tvm::Target> ContextTargetMap::mask2str = {
+  {1, tvm::Target::create("llvm")},
+  {2, tvm::Target::create("cuda")},
+  {4, tvm::Target::create("opencl")},
+  {5, tvm::Target::create("aocl")},
+  {6, tvm::Target::create("sdaccel")},
+  {7, tvm::Target::create("vulkan")},
+  {8, tvm::Target::create("metal")},
+  {9, tvm::Target::create("vpi")},
+  {10, tvm::Target::create("rocm")},
+  {11, tvm::Target::create("opengl")},
+  {12, tvm::Target::create("ext_dev")}
 };
 
 /*!
@@ -137,7 +114,7 @@ struct BuildOutput {
  */
 struct RelayBuildConfig {
   int opt_level{2};
-  std::string fallback_device{"llvm"};
+  int fallback_device{static_cast<int>(kDLCPU)};
   std::unordered_set<std::string> enabled_pass;
   std::unordered_set<std::string> disabled_pass;
   OptPassLevel OPT_PASS_LEVEL;
@@ -164,14 +141,8 @@ struct GraphCodegen {
   }
   ~GraphCodegen() {}
 
-  void Init(runtime::Module* m,
-            Map<HalideIR::Expr, HalideIR::Expr> targets) {
-    Array<HalideIR::Expr> tgts;
-    for (auto kv : targets) {
-      tgts.push_back(kv.first);
-      tgts.push_back(kv.second);
-    }
-    CallFunc("init", m, tgts);
+  void Init(runtime::Module* m, TargetsMap targets) {
+    CallFunc("init", m, targets);
   }
 
   void Codegen(const Function& func) {
@@ -248,14 +219,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         CHECK_EQ(args.num_args, 3);
-        Array<HalideIR::Expr> tmp = args[1];
-        std::unordered_map<std::string, std::string> targets;
-        for (size_t i = 0; i < tmp.size(); i += 2) {
-          auto k = tmp[i].as<ir::StringImm>()->value;
-          auto v = tmp[i + 1].as<ir::StringImm>()->value;
-          targets[k] = v;
-        }
-        this->Build(args[0], targets, args[2]);
+        this->Build(args[0], args[1], args[2]);
       });
     } else if (name == "list_params") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -273,7 +237,8 @@ class RelayBuildModule : public runtime::ModuleNode {
       });
     } else if (name == "set_fallback_device") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        std::string dev = args[0];
+        CHECK_EQ(args.num_args, 1);
+        int dev = args[0];
         this->SetFallBackDev(dev);
       });
     } else if (name == "add_pass") {
@@ -328,7 +293,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \param device name
    */
-  void SetFallBackDev(const std::string& dev) {
+  void SetFallBackDev(int dev) {
     cfg_.fallback_device = dev;
   }
   /*!
@@ -402,8 +367,8 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param target_host Host target device
    */
   void Build(Function func,
-             const std::unordered_map<std::string, std::string>& targets,
-             const std::string& target_host) {
+             const TargetsMap& targets,
+             const tvm::Target& target_host) {
     targets_ = targets;
     target_host_ = target_host;
     BuildRelay(func, cfg_, params_);
@@ -416,8 +381,9 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param params params dict
    * \return relay::Function
    */
-  relay::Function BindParamsByName(relay::Function func,
-                              const std::unordered_map<std::string, runtime::NDArray>& params) {
+  relay::Function BindParamsByName(
+      relay::Function func,
+      const std::unordered_map<std::string, runtime::NDArray>& params) {
     std::unordered_map<std::string, relay::Var> name_dict;
     std::unordered_set<relay::Var, NodeHash, NodeEqual> repeat_var;
     for (auto arg : func->params) {
@@ -454,7 +420,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \return relay::Function
    */
   relay::Function Optimize(relay::Function func,
-                           const std::unordered_map<std::string, std::string>& targets,
+                           const TargetsMap& targets,
                            const RelayBuildConfig& cfg,
                            const std::unordered_map<std::string, runtime::NDArray>& params) {
     if (params.size()) {
@@ -507,8 +473,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         auto enter_pf = GetPackedFunc("_EnterTargetScope");
         auto exit_pf = GetPackedFunc("_ExitTargetScope");
         for (const auto& kv : targets) {
-          auto target = Target::create(kv.second);
-          (*enter_pf)(target);
+          (*enter_pf)(kv.second);
           func = CallPackedFunc("relay._ir_pass.AlterOpLayout", func);
           (*exit_pf)();
         }
@@ -530,25 +495,19 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \param targets dictionary
    * \param cfg
-   * \return Map<HalideIR::Expr, HalideIR::Expr>
+   * \return Map<tvm::Integer, tvm::Target>
    */
-  Map<HalideIR::Expr, HalideIR::Expr> UpdateHeterogeneousInputs(
-    const std::unordered_map<std::string, std::string>& targets,
-    const RelayBuildConfig& cfg) {
-    Map<HalideIR::Expr, HalideIR::Expr> device_target;
-    std::unordered_map<int64_t, std::string> tmp_map;
-    auto fallback_idx = ContextMap::Str2Mask(cfg.fallback_device);
-
+  TargetsMap UpdateHeterogeneousInputs(const TargetsMap& targets,
+                                       const RelayBuildConfig& cfg) {
+    TargetsMap device_target = targets;
+    std::unordered_map<int64_t, tvm::Target> tmp_map;
     for (const auto& kv : targets) {
-      tmp_map[ContextMap::Str2Mask(kv.first)] = kv.second;
+      tmp_map[kv.first->value] = kv.second;
     }
-    if (tmp_map.count(fallback_idx) == 0) {
-      tmp_map[fallback_idx] = cfg.fallback_device;
-    }
-    for (const auto& kv : tmp_map) {
+    if (tmp_map.count(cfg.fallback_device) == 0) {
       device_target.Set(
-        ir::IntImm::make(HalideIR::Int(64), kv.first),
-        ir::StringImm::make(kv.second));
+          cfg.fallback_device,
+          ContextTargetMap::Mask2Str(cfg.fallback_device));
     }
     return device_target;
   }
@@ -561,25 +520,19 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param targets_map_ptr
    * \return Function
    */
-  Function RunDeviceAnnotationPass(
-      Function func,
-      const RelayBuildConfig& cfg,
-      Map<HalideIR::Expr, HalideIR::Expr>* targets_map_ptr) {
-    auto fallback_idx = ContextMap::Str2Mask(cfg.fallback_device);
+  Function RunDeviceAnnotationPass(Function func, const RelayBuildConfig& cfg,
+                                   TargetsMap* targets_map_ptr) {
     func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-    func = CallPackedFunc("relay._ir_pass.RewriteDeviceAnnotation", func, fallback_idx);
-    auto device_map = CallPackedFunc<Map<Expr, Integer> >("relay._ir_pass.CollectDeviceInfo",
-                                                       func,
-                                                       nullptr);
+    func = CallPackedFunc("relay._ir_pass.RewriteDeviceAnnotation", func,
+                          cfg.fallback_device);
+    auto device_map = CallPackedFunc<Map<Expr, Integer> >(
+        "relay._ir_pass.CollectDeviceInfo", func, nullptr);
     if (device_map.size() == 0) {
-      auto annotation_map =
-        CallPackedFunc<Map<Expr, Integer> >("relay._ir_pass.CollectDeviceAnnotationOps",
-                                            func,
-                                            nullptr);
+      auto annotation_map = CallPackedFunc<Map<Expr, Integer> >(
+          "relay._ir_pass.CollectDeviceAnnotationOps", func, nullptr);
       if (annotation_map.size() == 0) {
         targets_map_ptr->Set(
-          ir::IntImm::make(HalideIR::Int(64), 0),
-          ir::StringImm::make(cfg.fallback_device));
+            0, ContextTargetMap::Mask2Str(cfg.fallback_device));
       } else {
         int64_t dev_type = -1;
         for (auto kv : annotation_map) {
@@ -594,9 +547,7 @@ class RelayBuildModule : public runtime::ModuleNode {
             << "found. Please check the "
             << "RewriteAnnotation pass.";
         }
-        targets_map_ptr->Set(
-          ir::IntImm::make(HalideIR::Int(64), 0),
-          ir::StringImm::make(ContextMap::Mask2Str(dev_type)));
+        targets_map_ptr->Set(0, ContextTargetMap::Mask2Str(dev_type));
       }
     }
     return func;
@@ -614,15 +565,11 @@ class RelayBuildModule : public runtime::ModuleNode {
                   const std::unordered_map<std::string, tvm::runtime::NDArray> &params) {
     // convert
     tvm_cfg_ = build_config();
-    Map<HalideIR::Expr, HalideIR::Expr> device_target;
+    TargetsMap device_target;
     if (targets_.size() > 1) {
       device_target = UpdateHeterogeneousInputs(targets_, cfg);
     } else {
-      for (auto &kv : targets_) {
-        device_target.Set(
-          ir::IntImm::make(HalideIR::Int(64), ContextMap::Str2Mask(kv.first)),
-          ir::StringImm::make(kv.second));
-      }
+      device_target = targets_;
     }
     func = Optimize(func, targets_, cfg, params);
     if (device_target.size() > 1) {
@@ -640,16 +587,15 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    auto target_host = Target::create(target_host_);
-    ret_.mod = tvm::build(graph_codegen_->GetLoweredFunc(), target_host, tvm_cfg_);
+    ret_.mod = tvm::build(graph_codegen_->GetLoweredFunc(), target_host_, tvm_cfg_);
   }
 
  protected:
   std::unique_ptr<GraphCodegen> graph_codegen_;
   /*! \brief target device */
-  std::unordered_map<std::string, std::string> targets_;
+  TargetsMap targets_;
   /*! \brief target host device */
-  std::string target_host_;
+  tvm::Target target_host_;
   /*! \brief frontend optimization configure */
   RelayBuildConfig cfg_;
   /*! \brief parameters */
