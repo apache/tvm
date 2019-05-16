@@ -386,7 +386,7 @@ Example::
 
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
-.set_support_level(10)
+.set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", AllCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
