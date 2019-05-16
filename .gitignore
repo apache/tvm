@@ -216,3 +216,7 @@ patched.txt
 # Python type checking
 .mypy_cache/
 .pyre/
+
+# pipenv file
+Pipfile
+Pipfile.lock
