@@ -18,55 +18,10 @@ import numpy as np
 
 import tvm
 from tvm import relay
-
-from tvm._ffi.function import _init_api
-_init_api("tvm.relay.build_module")
-
-class BuildModule(object):
-    def __init__(self):
-        self.mod = relay.build_module._BuildModule()
-        self._get_graph_json = self.mod["get_graph_json"]
-        self._get_module = self.mod["get_module"]
-        self._build = self.mod["build"]
-        self._set_opt_level = self.mod["set_opt_level"]
-        self._set_params_func = self.mod["set_params"]
-        self._get_params_func = self.mod["get_params"]
-
-  
-    def build(self, func, target, target_host, params):
-        tgts = []
-        for kv in target.items():
-            tgts.append(kv[0])
-            tgts.append(kv[1])
-        self._set_params(params)
-        self._build(func, tgts, target_host)
-
-    def get_json(self):
-        return self._get_graph_json()
-
-    def get_module(self):
-        return self._get_module()
-
-    def set_opt_level(self, level):
-        self._set_opt_level(level)
-
-    def _set_params(self, params):
-        inputs = {}
-        for name, param in params.items():
-            inputs[name] = relay.Constant(param)
-        self._set_params_func(inputs)
-
-    def get_params(self):
-        params = self._get_params_func()
-        ret = {}
-        for key, value in params.items():
-            ret[key] = value.data
-        return ret
+from tvm.contrib.nvcc import have_fp16
 
 
-def test_build():
-    m_bld = BuildModule()
-    tgt_name = "llvm"
+def test_basic_build():
     tgt = "llvm"
     ctx = tvm.cpu()
     # func
@@ -86,21 +41,96 @@ def test_build():
     }
     # build
     targets = {
-        tgt: tgt
+        tvm.expr.IntImm("int32", ctx.device_type): tgt
     }
-    m_bld.set_opt_level(3)
-    m_bld.build(func, targets, "llvm", params=params)
-    g_json = m_bld.get_json()
-    mmod = m_bld.get_module()
-    params = m_bld.get_params()
-   
+    g_json, mmod, params = relay.build(func, targets, "llvm", params=params)
+
     # test
     rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
     rt.set_input("a", A)
     rt.load_params(relay.save_param_dict(params))
     rt.run()
     out = rt.get_output(0)
-   
-    np.testing.assert_allclose(out.asnumpy(),
-        np.maximum(np.dot(A.asnumpy(), B.asnumpy().T), 0) + C.asnumpy(), atol=1e-5, rtol=1e-5)
-  
+
+    np.testing.assert_allclose(out.asnumpy(), np.maximum(np.dot(A.asnumpy(),
+                                                                B.asnumpy().T),
+                                                         0) + C.asnumpy(),
+                               atol=1e-5, rtol=1e-5)
+
+
+def test_fp16_build():
+    dtype = "float16"
+
+    if not tvm.module.enabled("cuda") or not tvm.gpu(0).exist:
+        print("skip because cuda is not enabled.")
+        return
+
+    ctx = tvm.gpu(0)
+    if dtype == "float16" and not have_fp16(ctx.compute_version):
+        print("skip because gpu does not support fp16")
+        return
+
+    x = relay.var("x", dtype=dtype, shape=(4, 4))
+    y = relay.var("y", dtype=dtype, shape=(4, 4))
+    z = x + y
+    func = relay.Function([x, y], z)
+    X = tvm.nd.array(np.random.uniform(-1, 1, (4, 4)).astype(dtype), ctx=ctx)
+    Y = tvm.nd.array(np.random.uniform(-1, 1, (4, 4)).astype(dtype), ctx=ctx)
+    params = {
+        "x": X,
+        "y": Y,
+    }
+
+    # build
+    g_json, mmod, params = relay.build(func, "cuda", params=params)
+
+    # test
+    rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
+    rt.load_params(relay.save_param_dict(params))
+    rt.run()
+    out = rt.get_output(0)
+
+    np.testing.assert_allclose(out.asnumpy(), X.asnumpy() + Y.asnumpy(),
+                               atol=1e-5, rtol=1e-5)
+
+
+def test_fp16_conversion():
+    def check_conversion(tgt, ctx):
+        if not tvm.module.enabled(tgt):
+            print("skip because {} is not enabled.".format(tgt))
+            return
+        elif tgt == "cuda" and ctx.exist and not have_fp16(ctx.compute_version):
+            print("skip because gpu does not support fp16")
+            return
+
+        n = 10
+
+        for (src, dst) in [('float32', 'float16'), ('float16', 'float32')]:
+            x = relay.var("x", relay.TensorType((n,), src))
+            y = x.astype(dst)
+            func = relay.Function([x], y)
+
+            # init input
+            X = tvm.nd.array(n * np.random.randn(n).astype(src) - n / 2)
+
+            # build
+            with relay.build_config(opt_level=1):
+                g_json, mmod, params = relay.build(func, tgt)
+
+            # test
+            rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
+            rt.set_input("x", X)
+            rt.run()
+            out = rt.get_output(0)
+
+            np.testing.assert_allclose(out.asnumpy(), X.asnumpy().astype(dst),
+                                       atol=1e-5, rtol=1e-5)
+
+    for target, ctx in [('llvm', tvm.cpu()), ('cuda', tvm.gpu())]:
+        check_conversion(target, ctx)
+
+
+if __name__ == "__main__":
+    test_basic_build()
+    test_fp16_build()
+    test_fp16_conversion()

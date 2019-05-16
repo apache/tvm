@@ -18,6 +18,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/build_module.h>
 #include <tvm/tvm.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
@@ -73,10 +74,10 @@ TEST(Relay, BuildModule) {
   auto build_f = build_mod.GetFunction("build", false);
   auto json_f = build_mod.GetFunction("get_graph_json", false);
   auto mod_f = build_mod.GetFunction("get_module", false);
-  Array<HalideIR::Expr> target_pair;
-  target_pair.push_back(ir::StringImm::make("cpu"));
-  target_pair.push_back(ir::StringImm::make("llvm"));
-  build_f(func, target_pair, "llvm");
+  Map<tvm::Integer, tvm::Target> targets;
+  Target llvm_tgt = Target::create("llvm");
+  targets.Set(0, llvm_tgt);
+  build_f(func, targets, llvm_tgt);
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   // run

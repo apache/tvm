@@ -18,31 +18,18 @@
 Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
-import warnings
+import numpy as np
 
 from tvm._ffi.runtime_ctypes import TVMContext
-from ..build_module import build as _tvm_build_module
+from tvm import expr as tvm_expr
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
+from . import _build_module
 from . import ir_pass
-from . import expr as _expr
 from . import ty as _ty
+from . import expr as _expr
 from .backend import interpreter as _interpreter
-from .backend import graph_runtime_codegen as _graph_gen
 from .backend.vm import VMExecutor
-
-# List of optimization pass and level when switch on
-OPT_PASS_LEVEL = {
-    "SimplifyInference": 0,
-    "OpFusion": 1,
-    "FoldConstant": 2,
-    "CombineParallelConv2D": 3,
-    "FoldScaleAxis": 3,
-    "AlterOpLayout": 3,
-    "CanonicalizeOps": 3,
-    "EliminateCommonSubexpr": 3,
-}
-
 
 class BuildConfig(object):
     """Configuration scope to set a build config option.
@@ -56,6 +43,7 @@ class BuildConfig(object):
     defaults = {
         "opt_level": 2,
         "add_pass": None,
+        "disable_pass": None,
         "fallback_device": None,
     }
 
@@ -85,23 +73,6 @@ class BuildConfig(object):
         assert self._old_scope
         BuildConfig.current = self._old_scope
 
-    def pass_enabled(self, pass_name):
-        """Get whether pass is enabled.
-
-        Parameters
-        ----------
-        pass_name : str
-            The optimization pass name
-
-        Returns
-        -------
-        enabled : bool
-            Whether pass is enabled.
-        """
-        if self.add_pass and pass_name in self.add_pass:
-            return True
-        return self.opt_level >= OPT_PASS_LEVEL[pass_name]
-
 
 BuildConfig.current = BuildConfig()
 
@@ -117,6 +88,9 @@ def build_config(**kwargs):
     add_pass: set of str
         Optimization pass to be added regardless of optimization level.
 
+    disable_pass: set of str
+        Optimization pass to be disabled during optimization.
+
     fallback_device : str or tvm.TVMContext
         The fallback device. It is also used as the default device for
         operators without specified device during heterogeneous execution.
@@ -129,108 +103,203 @@ def build_config(**kwargs):
     return BuildConfig(**kwargs)
 
 
-def _bind_params_by_name(func, params):
-    """Bind parameters of function by its name."""
-    name_dict = {}
-    for arg in func.params:
-        name = arg.name_hint
-        if name in name_dict:
-            name_dict[name] = None
-        else:
-            name_dict[name] = arg
-    bind_dict = {}
-    for k, v in params.items():
-        if k not in name_dict:
-            continue
-        arg = name_dict[k]
-        if arg is None:
-            raise ValueError("Multiple args in the function have name %s" % k)
-        bind_dict[arg] = _expr.const(v)
-    return _expr.bind(func, bind_dict)
+def _update_target(target):
+    target = target if target else _target.current_target()
+    if target is None:
+        raise ValueError("Target is not set in env or passed as argument.")
+
+    tgts = {}
+    if isinstance(target, (str, _target.Target)):
+        dev_type = tvm_expr.IntImm("int32", _nd.context(str(target)).device_type)
+        tgts[dev_type] = _target.create(target)
+    elif isinstance(target, dict):
+        for dev, tgt in target.items():
+            dev_type = tvm_expr.IntImm("int32", _nd.context(dev).device_type)
+            tgts[dev_type] = _target.create(tgt)
+    else:
+        raise TypeError("target is expected to be str or " +
+                        "tvm.target.Target, but received " +
+                        "{}".format(type(target)))
+    return tgts
 
 
-def optimize(func, target=None, params=None):
-    """Perform target invariant optimizations.
-
-    Parameters
-    ----------
-    func : tvm.relay.Function
-        The input to optimization.
-
-    target : Optional[:any:`tvm.target.Target`, Dict[int, tvm.target.Target]]
-        The optimization target. For heterogeneous compilation, it is a
-        dictionary mapping device type to compilation target. For homogeneous
-        compilation, it is a build target.
-
-    params : Optional[Dict[str, tvm.nd.NDArray]]
-        Input parameters to the graph that do not change
-        during inference time. used for constant folding.
-
-    Returns
-    -------
-    opt_func : tvm.relay.Function
-        The optimized version of the function.
+class BuildModule(object):
+    """Build a Relay function to run on TVM graph runtime. This class is used
+    to expose the `RelayBuildModule` APIs implemented in C++.
     """
-    cfg = BuildConfig.current
+    def __init__(self):
+        self.mod = _build_module._BuildModule()
+        self._get_graph_json = self.mod["get_graph_json"]
+        self._get_module = self.mod["get_module"]
+        self._build = self.mod["build"]
+        self._add_pass = self.mod["add_pass"]
+        self._disable_pass = self.mod["disable_pass"]
+        self._set_opt_level = self.mod["set_opt_level"]
+        self._set_fallback_device = self.mod["set_fallback_device"]
+        self._set_params_func = self.mod["set_params"]
+        self._get_params_func = self.mod["get_params"]
 
-    # bind expressions
-    if params:
-        func = _bind_params_by_name(func, params)
+    def build(self, func, target=None, target_host=None, params=None):
+        """
+        Parameters
+        ----------
+        func: relay.Function
+            The function to build.
 
-    if cfg.pass_enabled("SimplifyInference"):
-        func = ir_pass.infer_type(func)
-        func = ir_pass.simplify_inference(func)
+        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
+        device/context name) to str/tvm.target.Target, optional
+            For heterogeneous compilation, it is a dictionary indicating context
+            to target mapping. For homogeneous compilation, it is a build target.
 
-    if cfg.pass_enabled("EliminateCommonSubexpr"):
-        def fskip(expr):
-            if isinstance(expr, _expr.Call) and expr.op.name == 'cast' and \
-               expr.attrs.dtype == 'int32':
-                return True
-            return False
+        target_host : str or :any:`tvm.target.Target`, optional
+            Host compilation target, if target is device.
+            When TVM compiles device specific program such as CUDA,
+            we also need host(CPU) side code to interact with the driver
+            to setup the dimensions and parameters correctly.
+            target_host is used to specify the host side codegen target.
+            By default, llvm is used if it is enabled,
+            otherwise a stackvm intepreter is used.
 
-        func = ir_pass.infer_type(func)
-        func = ir_pass.eliminate_common_subexpr(func, fskip)
+        params : dict of str to NDArray
+            Input parameters to the graph that do not change
+            during inference time. Used for constant folding.
 
-    if cfg.pass_enabled("CombineParallelConv2D"):
-        func = ir_pass.infer_type(func)
-        func = ir_pass.combine_parallel_conv2d(func)
+        Returns
+        -------
+        graph_json : str
+            The json string that can be accepted by graph runtime.
 
-    # The constant folding pass is necessary because FoldScaleAxis pass needs
-    # to check the constantness and positiveness of scales.
-    if cfg.pass_enabled("FoldConstant"):
-        func = ir_pass.fold_constant(func)
+        mod : tvm.Module
+            The module containing necessary libraries.
 
-    if cfg.pass_enabled("FoldScaleAxis"):
-        func = ir_pass.infer_type(func)
-        func = ir_pass.backward_fold_scale_axis(func)
-        func = ir_pass.infer_type(func)
-        func = ir_pass.forward_fold_scale_axis(func)
-        func = ir_pass.fold_constant(func)
+        params : dict
+            The parameters of the final graph.
+        """
+        target = _update_target(target)
 
-    if cfg.pass_enabled("CanonicalizeOps"):
-        func = ir_pass.infer_type(func)
-        func = ir_pass.canonicalize_ops(func)
+        # Setup the build configurations passed in through `with build_config`.
+        self._setup_build_config(params)
+        # Build the function
+        self._build(func, target, target_host)
+        # Get artifacts
+        graph_json = self.get_json()
+        mod = self.get_module()
+        params = self.get_params()
 
-    # FIXME(zhiics) Skip AlterOpLayout pass for heterogeneous compilation for
-    # now. We probably need to pass target to this pass as well. Fix it in
-    # a followup PR.
-    if cfg.pass_enabled("AlterOpLayout"):
-        if isinstance(target, _target.Target):
-            func = ir_pass.infer_type(func)
-            with target:
-                func = ir_pass.alter_op_layout(func)
-        elif isinstance(target, dict):
-            warnings.warn("AlterOpLayout pass is not enabled for heterogeneous"
-                          " execution yet.")
+        return graph_json, mod, params
 
-    if cfg.pass_enabled("FoldConstant"):
-        func = ir_pass.fold_constant(func)
+    def _setup_build_config(self, params):
+        cfg = BuildConfig.current
 
-    return func
+        # Set opt_level.
+        self.set_opt_level(cfg.opt_level)
+
+        # Set fallback device if it is available.
+        if cfg.fallback_device:
+            self.set_fallback_device(cfg.fallback_device)
+
+        # Add required passes.
+        if cfg.add_pass:
+            passes = set()
+            if isinstance(cfg.add_pass, (list, tuple, set)):
+                passes = set(cfg.add_pass)
+            else:
+                raise TypeError("add_pass must be list, tuple, or set, but " +
+                                "got {}".format(type(cfg.add_pass)))
+            for pass_name in passes:
+                self.add_pass(pass_name)
+
+        # Add disabled passes.
+        if cfg.disable_pass:
+            passes = set()
+            if isinstance(cfg.disable_pass, (list, tuple, set)):
+                passes = set(cfg.disable_pass)
+            else:
+                raise TypeError("disable_pass must be list, tuple, or set, " +
+                                "but got {}".format(type(cfg.disable_pass)))
+            for pass_name in passes:
+                self.disable_pass(pass_name)
+
+        if params:
+            self._set_params(params)
+
+    def _set_params(self, params):
+        inputs = {}
+        for name, param in params.items():
+            if isinstance(param, np.ndarray):
+                param = _nd.array(param)
+            inputs[name] = _expr.const(param)
+        self._set_params_func(inputs)
+
+    def add_pass(self, pass_name):
+        """Add a pass to the pass list.
+
+        Parameters
+        ----------
+        pass_name : str
+            The name of the pass that will be added to the list of passes used
+            for optimizations.
+        """
+        self._add_pass(pass_name)
+
+    def disable_pass(self, pass_name):
+        """Add a pass to the disabled pass list.
+
+        Parameters
+        ----------
+        pass_name : str
+            The name of a pass. This pass will be added to the list of passes
+            that are disabled during optimization.
+        """
+        self._disable_pass(pass_name)
+
+    def get_json(self):
+        """Return the json file of the built program."""
+        return self._get_graph_json()
+
+    def get_module(self):
+        """Return the built module."""
+        return self._get_module()
+
+    def get_params(self):
+        """Return the updated weights."""
+        params = self._get_params_func()
+        ret = {}
+        for key, value in params.items():
+            ret[key] = value.data
+        return ret
+
+    def set_opt_level(self, level):
+        """Set the optimization level.
+
+        Parameters
+        ----------
+        level : int
+            The optimization level for build.
+        """
+        self._set_opt_level(level)
+
+    def set_fallback_device(self, fallback_device):
+        """Set the fallback device for heterogeneous execution.
+
+        Parameters
+        ----------
+        fallback_device : str or tvm.TVMContext
+            The fallback device used for heterogeneous execution.
+        """
+        if isinstance(fallback_device, str):
+            fallback_device = _nd.context(fallback_device)
+        if not isinstance(fallback_device, TVMContext):
+            raise TypeError("fallback_device is expected to be str " +
+                            "TVMContext, or dict of device name to target, " +
+                            "but received: {}".format(type(fallback_device)))
+
+        self._set_fallback_device(fallback_device.device_type)
 
 
 def build(func, target=None, target_host=None, params=None):
-    """Build a function to run on TVM graph runtime.
+    """Helper function that builds a Relay function to run on TVM graph
+    runtime.
 
     Parameters
     ----------
@@ -266,144 +335,26 @@ def build(func, target=None, target_host=None, params=None):
     params : dict
         The parameters of the final graph.
     """
-    target = target if target else _target.current_target()
-    if target is None:
-        raise ValueError("Target is not set in env or passed as argument.")
+    target = _update_target(target)
 
-    if isinstance(target, dict):
-        target, fallback_device = _update_heterogeneous_inputs(target)
-    elif isinstance(target, (str, _target.Target)):
-        target = _target.create(target)
-    else:
-        raise ValueError("target must be the type of str, tvm.target.Target," +
-                         "or dict of device name to target")
+    if isinstance(target_host, (str, _target.Target)):
+        target_host = _target.create(target_host)
+    elif target_host:
+        raise ValueError("target host must be the type of str, " +
+                         "tvm.target.Target, or None")
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-        if isinstance(target, dict):
-            tophub_context = autotvm.tophub.context(list(target.values()))
-        else:
-            tophub_context = autotvm.tophub.context(target)
+        tophub_context = autotvm.tophub.context(list(target.values()))
     else:
         tophub_context = autotvm.util.EmptyContext()
 
-    cfg = BuildConfig.current
-
     with tophub_context:
-        func = optimize(func, target, params)
-        # Annotate the ops for heterogeneous execution.
-        if isinstance(target, dict):
-            func, target = _run_device_annotation_passes(func, target,
-                                                         fallback_device)
-        # Fuse ops before running code gen
-        func = ir_pass.infer_type(func)
-        func = ir_pass.fuse_ops(func, cfg.opt_level)
-        # Graph code generation
-        func = ir_pass.infer_type(func)
-        graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None, target=target)
-        graph_json, lowered_funcs, params = graph_gen.codegen(func)
-        mod = _tvm_build_module(
-            lowered_funcs, target=target, target_host=target_host)
+        bld_mod = BuildModule()
+        graph_json, mod, params = bld_mod.build(func, target, target_host,
+                                                params)
     return graph_json, mod, params
-
-
-def _update_heterogeneous_inputs(target):
-    """Update the target and fallback device required for heterogeneous
-    compilation. CPU is used as the fallback device if it wasn't provided.
-    Meanwhile, a CPU device type and "llvm" pair will be added to the target
-    dictionary in this case.
-
-    Parameters
-    ----------
-    target : dict of str(i.e. device/context name) to str/tvm.target.Target.
-        A dict contains context to target pairs.
-
-    Returns
-    -------
-    device_target : dict of int to tvm.target.Target.
-        The updated device type to target dict.
-
-    fallback_device : int
-        The updated fallback device type.
-    """
-    if not isinstance(target, dict):
-        raise ValueError("target must be dict of device name to target for " +
-                         "heterogeneous execution, but received %s."
-                         % type(target))
-
-    fallback_device = BuildConfig.current.fallback_device
-    if fallback_device is None:
-        # cpu is used as the default fallback device when heterogeneous
-        # execution is needed, but no fallback device is provided.
-        fallback_device = _nd.cpu(0).device_type
-        target[fallback_device] = str(_target.create("llvm"))
-    elif isinstance(fallback_device, str):
-        fallback_device = _nd.context(fallback_device).device_type
-    elif isinstance(fallback_device, TVMContext):
-        fallback_device = fallback_device.device_type
-    else:
-        raise ValueError("fallback_device expects the type of str or " +
-                         "TVMContext, but received %s." % type(fallback_device))
-
-    device_target = {}
-    for dev, tgt in target.items():
-        device_target[_nd.context(dev).device_type] = _target.create(tgt)
-
-    if fallback_device not in device_target:
-        raise ValueError("%s is used as the default device, but the target" +
-                         "is not provided."
-                         % _nd.context(fallback_device).device_name)
-    return device_target, fallback_device
-
-
-def _run_device_annotation_passes(func, target, fallback_device):
-    """Execute the device annotation passes to update the input program and
-    target information.
-
-    Parameters
-    ----------
-    func: tvm.relay.Function
-        The function where annotation passes will be execute at.
-
-    target : Dict[int, tvm.target.Target]
-        A dict contains device type to target pairs.
-
-    fallback_device : int
-        The fallback device type.
-
-    Returns
-    -------
-    target : Dict[int, tvm.target.Target]
-        The updated device type to target dict.
-
-    func : tvm.relay.Function
-        The updated func.
-    """
-    func = ir_pass.infer_type(func)
-    func = ir_pass.rewrite_annotated_ops(func, fallback_device)
-    device_map = ir_pass.collect_device_info(func)
-    # The expression to device type map will be empty if all or none of
-    # the expressions in the `func` are annotated because this map is
-    # obtained by propagating the device information in the device copy
-    # operator. None of the above cases needs device copy operator.
-    if not device_map:
-        annotation_map = ir_pass.collect_device_annotation_ops(func)
-        # No annotation.
-        if not annotation_map:
-            target = {0: target[fallback_device]}
-        else:
-            dev_type = next(iter(annotation_map.values()))
-            # All annotated with the same device type.
-            if all(val == dev_type for val in annotation_map.values()):
-                target = {0: target[dev_type]}
-            else:
-                raise RuntimeError("Expressions in the function are "
-                                   "annotated with various device types,"
-                                   "but not device copy operators "
-                                   "found. Please check the "
-                                   "RewriteAnnotation pass.")
-    return func, target
 
 
 class GraphExecutor(_interpreter.Executor):

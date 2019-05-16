@@ -74,13 +74,12 @@ def test_alter_layout_conv2d():
 
     for tgt in targets:
         with tvm.target.create(tgt) as target:
-            with relay.build_config(opt_level=-1, add_pass='AlterOpLayout'):
-               with autotvm.tophub.context(target):
-                   O = relay.optimize(N, target, params=None)
-                   O = relay.ir_pass.infer_type(O)
+            with autotvm.tophub.context(target):
+                O = relay.ir_pass.alter_op_layout(N)
+                O = relay.ir_pass.infer_type(O)
 
-                   # graph should differ
-                   assert not relay.ir_pass.alpha_equal(N, O)
+                # graph should differ
+                assert not relay.ir_pass.alpha_equal(N, O)
 
 if __name__ == "__main__":
     np.random.seed(42)
