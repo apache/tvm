@@ -1541,6 +1541,24 @@ def test_forward_reduce_prod():
     _test_forward_reduce_prod((5, 5), 0, True)
     _test_forward_reduce_prod((5, 5), 1, True)
 
+
+#######################################################################
+# PlaceholderWithDefault
+# ----------------------
+def test_placeholder():
+    with tf.Graph().as_default():
+        in_data1 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
+        var1 = tf.Variable(in_data1, name='in1')
+        var2 = array_ops.placeholder_with_default(var1, None, name='place1')
+
+        in_data2 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
+        place1 = array_ops.placeholder(shape=in_data1.shape, dtype=in_data1.dtype, name='in2')
+
+        out1 = tf.math.add(var1, var2, name='out1')
+        out2 = tf.math.add(out1, place1, name='out2')
+
+        compare_tf_with_tvm([in_data1, in_data2], ['place1:0', 'in2:0'], 'out2:0', init_global_variables=True)
+
 #######################################################################
 # Main
 # ----
@@ -1590,6 +1608,7 @@ if __name__ == '__main__':
     test_forward_multi_input()
     test_forward_multi_output()
     test_forward_variable()
+    test_placeholder()
 
     # NN
     test_forward_convolution()

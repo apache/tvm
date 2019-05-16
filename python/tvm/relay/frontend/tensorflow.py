@@ -1740,7 +1740,7 @@ class GraphProto(object):
         for node in graph.node:
             node_name_prefix = node.name.rsplit('/', 1)[0]
             control_flow_node_map[node_name_prefix].add(node.op)
-            if node.op == 'Placeholder':
+            if node.op == 'Placeholder' or node.op == 'PlaceholderWithDefault':
                 # Give priority to user argument.
                 if shape and node.name in shape:
                     self._input_shapes[node.name] = list(shape[node.name])
@@ -1800,7 +1800,7 @@ class GraphProto(object):
 
                 attr = self._parse_attr(node.attr)
 
-            elif node.op != "Placeholder":
+            elif node.op != "Placeholder" and node.op != 'PlaceholderWithDefault':
                 # Pass the parsed shapes instead
                 attr["_output_shapes"] = output_shapes = self._output_shapes[node.name]
 
@@ -1925,7 +1925,7 @@ class GraphProto(object):
         """
         missing_operators = set()
         for node in graph.node:
-            if node.op == "Placeholder":
+            if node.op == "Placeholder" or node.op == 'PlaceholderWithDefault':
                 pass
             elif node.op == "Const":
                 pass
