@@ -409,8 +409,19 @@ TVM_DLL Expr ToANormalForm(const Expr& e, const Module& mod);
 TVM_DLL Expr ToGraphNormalForm(const Expr& e);
 
 /*!
- * \brief Aggressive constant propagation/constant folding/inlining.
+ * \brief Finds cases that the given match expression does not catch, if any.
  *
+ * \param match the match expression to test
+ *
+ * \param mod The module used for accessing global type var definitions, can be None.
+ *
+ * \return Returns a list of cases (as patterns) that are not handled by the match
+ * expression.
+ */
+TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
+
+/*!
+ * \brief Aggressive constant propagation/constant folding/inlining.
  * It will do as much computation in compile time as possible.
  * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
  * As a side effect, code size will explode.

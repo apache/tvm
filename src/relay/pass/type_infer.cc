@@ -292,6 +292,16 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
                           GetType(c->rhs),
                           op->span);
     }
+
+    // check completness
+    Match match = GetRef<Match>(op);
+    Array<Pattern> unmatched_cases = UnmatchedCases(match, this->mod_);
+    if (unmatched_cases.size() != 0) {
+      this->ReportFatalError(match,
+                             RELAY_ERROR("Match clause does not handle the following cases: "
+                                         << unmatched_cases));
+    }
+
     return rtype;
   }
 

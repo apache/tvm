@@ -83,7 +83,8 @@ class Prelude:
 
 
     def define_list_update(self):
-        """Defines a function to update the nth element of a list and return the updated list.
+        """Defines a function to update the nth element of a list if it exists and return
+        the updated list (does nothing if the list has fewer than n elements).
 
         update(l, i, v) : list[a] -> Tensor[(), int32] -> a -> list[a]
         """
@@ -172,7 +173,7 @@ class Prelude:
     def define_list_foldr1(self):
         """Defines a right-way fold over a nonempty list.
 
-        foldr1(f, l) : fn<a>(fn(a, a) -> a, list[a]) -> a
+        foldr1(f, l) : fn<a>(fn(a, a) -> a, list[a]) -> optional[a]
 
         foldr1(f, cons(a1, cons(a2, cons(..., cons(an, nil)))))
         evalutes to f(a1, f(a2, f(..., f(an-1, an)))...)
@@ -184,13 +185,21 @@ class Prelude:
         x = Var("x")
         y = Var("y")
         z = Var("z")
+        r = Var("r")
         one_case = Clause(PatternConstructor(self.cons,
-                                             [PatternVar(x), PatternConstructor(self.nil)]), x)
+                                             [PatternVar(x), PatternConstructor(self.nil)]),
+                          self.some(x))
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
-                           f(y, self.foldr1(f, z)))
+                           Match(self.foldr1(f, z), [
+                               Clause(PatternConstructor(self.some, [PatternVar(r)]),
+                                      self.some(f(y, r))),
+                               # should never happen
+                               Clause(PatternConstructor(self.none, []), self.none())
+                           ]))
+        empty_case = Clause(PatternConstructor(self.nil, []), self.none())
         self.mod[self.foldr1] = Function([f, av],
-                                         Match(av, [one_case, cons_case]), a, [a])
-
+                                         Match(av, [one_case, cons_case, empty_case]),
+                                         self.optional(a), [a])
 
     def define_list_concat(self):
         """Defines a function that concatenates two lists.
@@ -326,7 +335,6 @@ class Prelude:
                                              self.foldl(updater, Tuple([acc, self.nil()]), l),
                                              TupleType([a, self.l(c)]),
                                              [a, b, c])
-
 
     def define_optional_adt(self):
         """Defines an optional ADT, which can either contain some other
@@ -504,12 +512,9 @@ class Prelude:
     def __init__(self, mod):
         self.mod = mod
         self.define_list_adt()
-        self.define_list_hd()
-        self.define_list_tl()
         self.define_list_map()
         self.define_list_foldl()
         self.define_list_foldr()
-        self.define_list_foldr1()
         self.define_list_concat()
         self.define_list_filter()
         self.define_list_zip()
@@ -518,6 +523,10 @@ class Prelude:
         self.define_list_map_accuml()
 
         self.define_optional_adt()
+        self.define_list_hd()
+        self.define_list_tl()
+        self.define_list_foldr1()
+
         self.define_list_unfoldr()
         self.define_list_unfoldl()
 

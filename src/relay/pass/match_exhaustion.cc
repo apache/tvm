@@ -28,13 +28,11 @@
  * code correctness, since hitting an unmatched case results in a
  * dynamic error unless exhaustiveness is checked in advance.
  */
-#include "match_exhaustion.h"
 #include <tvm/relay/adt.h>
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/pass.h>
-#include <deque>
 #include <stack>
 
 namespace tvm {
@@ -71,6 +69,7 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
     }
 
     // now check that subpatterns match
+    CHECK(op->patterns.size() == ctor_cand->patterns.size());
     for (size_t i = 0; i < op->patterns.size(); i++) {
       MatchResult submatch = this->Check(op->patterns[i], ctor_cand->patterns[i]);
       if (submatch != MatchResult::kMatch) {
@@ -91,14 +90,13 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
 };
 
 // Returns list of arrays corresponding to Cartesian product of input list
-std::deque<Array<Pattern>> CartesianProduct(std::deque<Array<Pattern>>* fields) {
-  CHECK(!fields->empty());
-  Array<Pattern> field_vals = fields->back();
-  fields->pop_back();
-  std::deque<Array<Pattern>> ret;
+Array<Array<Pattern>> CartesianProduct(Array<Array<Pattern>> fields) {
+  CHECK_NE(fields.size(), 0);
+  Array<Pattern> field_vals = fields[fields.size() - 1];
+  Array<Array<Pattern>> ret;
 
   // base case: this is the last field left
-  if (fields->empty()) {
+  if (fields.size() == 1) {
     for (auto val : field_vals) {
       ret.push_back(Array<Pattern>{val});
     }
@@ -107,12 +105,14 @@ std::deque<Array<Pattern>> CartesianProduct(std::deque<Array<Pattern>>* fields) 
 
   // if we have more fields left, get the sub-candidates by getting
   // their cartesian product and appending the elements here onto those
-  std::deque<Array<Pattern>> candidates = CartesianProduct(fields);
+  Array<Array<Pattern>> remaining_fields;
+  for (size_t i = 0; i < fields.size() - 1; i++) {
+    remaining_fields.push_back(fields[i]);
+  }
+  Array<Array<Pattern>> candidates = CartesianProduct(remaining_fields);
   for (auto val : field_vals) {
     for (auto candidate : candidates) {
-      // make a copy because we will mutate
-      Array<Pattern> new_candidate = Array<Pattern>(candidate);
-      new_candidate.push_back(val);
+      candidate.push_back(val);
       ret.push_back(candidate);
     }
   }
@@ -121,11 +121,11 @@ std::deque<Array<Pattern>> CartesianProduct(std::deque<Array<Pattern>>* fields) 
 
 // Expands all wildcards in the candidate pattern once, using the global type var
 // to decide which constructors to insert. Returns a list of all possible expansions.
-Array<Pattern> ExpandWildcards(const Pattern& cand, const GlobalTypeVar& gtv, const Module& mod) {
+Array<Pattern> ExpandWildcards(const Pattern& clause_pat, const Pattern& cand,
+                               const GlobalTypeVar& gtv, const Module& mod) {
   auto ctor_cand = cand.as<PatternConstructorNode>();
 
-  // for a wildcard node, create constructor nodes with wildcards
-  // for all args
+  // for a wildcard node, create constructor nodes with wildcards for all args
   if (!ctor_cand) {
     TypeData td = mod->LookupDef(gtv);
     // for each constructor add a candidate
@@ -142,20 +142,25 @@ Array<Pattern> ExpandWildcards(const Pattern& cand, const GlobalTypeVar& gtv, co
 
   // for constructors, we will expand the wildcards in any field
   // that is an ADT
-  std::deque<Array<Pattern>> values_by_field;
+  PatternConstructor clause_ctor = Downcast<PatternConstructor>(clause_pat);
+  Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < ctor_cand->constructor->inputs.size(); i++) {
-    auto type_call = ctor_cand->constructor->inputs[i].as<TypeCallNode>();
+    auto* subpattern = clause_ctor->patterns[i].as<PatternConstructorNode>();
     // for non-ADT fields, we can only have a wildcard for the value
-    if (!type_call) {
-      values_by_field.push_back(Array<Pattern>{PatternWildcardNode::make()});
+    if (!subpattern) {
+      values_by_field.push_back({PatternWildcardNode::make()});
+      continue;
     }
+
     // otherwise, recursively expand
-    auto nested_gtv = Downcast<GlobalTypeVar>(type_call->func);
-    values_by_field.push_back(ExpandWildcards(ctor_cand->patterns[i], nested_gtv, mod));
+    auto nested_gtv = Downcast<GlobalTypeVar>(subpattern->constructor->belong_to);
+    values_by_field.push_back(ExpandWildcards(GetRef<Pattern>(subpattern),
+                                              ctor_cand->patterns[i],
+                                              nested_gtv, mod));
   }
 
   // generate new candidates using a cartesian product
-  auto all_subfields = CartesianProduct(&values_by_field);
+  auto all_subfields = CartesianProduct(values_by_field);
   Array<Pattern> ret;
   for (auto subfields : all_subfields) {
     ret.push_back(PatternConstructorNode::make(ctor_cand->constructor, subfields));
@@ -164,21 +169,21 @@ Array<Pattern> ExpandWildcards(const Pattern& cand, const GlobalTypeVar& gtv, co
 }
 
 /*!
- * \brief Tests whether all match expressions in the given program
- * are exhaustive.
+ * \brief Finds cases that the match expression does not catch, if any.
  * \return Returns a list of cases that are not handled by the match
  * expression.
  */
-Array<Pattern> CheckMatchExhaustion(const Match& match, const Module& mod) {
+Array<Pattern> UnmatchedCases(const Match& match, const Module& mod) {
   /* algorithm:
    * candidates = { Wildcard }
    * while candidates not empty {
    *   cand = candidates.pop()
    *   for clause in clauses {
+   *     if clause fails: next clause
    *     if clause matches candidate: next candidate
    *     if candidate is not specific enough:
    *        candidates += expand_possible_wildcards(cand)
-   *        continue
+   *        next candidate
    *   }
    *   failed_candidates += { cand }
    * }
@@ -210,7 +215,7 @@ Array<Pattern> CheckMatchExhaustion(const Match& match, const Module& mod) {
         // us a global type var to use
         auto ctor_pat = Downcast<PatternConstructor>(clause->lhs);
         gtv = ctor_pat->constructor->belong_to;
-        auto new_candidates = ExpandWildcards(cand, gtv, mod);
+        auto new_candidates = ExpandWildcards(clause->lhs, cand, gtv, mod);
         for (auto candidate : new_candidates) {
           candidates.push(candidate);
         }
@@ -226,11 +231,16 @@ Array<Pattern> CheckMatchExhaustion(const Match& match, const Module& mod) {
   return failures;
 }
 
-TVM_REGISTER_API("relay._ir_pass.check_match_exhaustion")
-.set_body_typed<Array<Pattern>(const Match&, const Module&)>
-([]
- (const Match& match, const Module& mod_ref) {
-    return CheckMatchExhaustion(match, mod_ref);
-  });
+// expose for testing only
+TVM_REGISTER_API("relay._ir_pass.unmatched_cases")
+.set_body_typed<Array<Pattern>(const Match&,
+                               const Module&)>([](const Match& match,
+                                                  const Module& mod_ref) {
+                                                 Module call_mod = mod_ref;
+                                                 if (!call_mod.defined()) {
+                                                   call_mod = ModuleNode::make({}, {});
+                                                 }
+                                                 return UnmatchedCases(match, call_mod);
+                                               });
 }  // namespace relay
 }  // namespace tvm

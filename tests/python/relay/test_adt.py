@@ -99,6 +99,12 @@ def to_list(l):
             break
     return ret
 
+def get_optional(opt):
+    assert isinstance(opt, ConstructorValue)
+    assert opt.constructor.name_hint == 'some'
+    assert len(opt.fields) == 1
+    return opt.fields[0]
+
 def tree_to_dict(t):
     assert isinstance(t, ConstructorValue)
     ret = {}
@@ -150,8 +156,12 @@ def test_hd_tl():
 
     got = []
     for i in range(len(expected)):
-        got.append(count(intrp.evaluate(hd(l))))
-        l = tl(l)
+        got.append(count(get_optional(intrp.evaluate(hd(l)))))
+        t = relay.Var('t')
+        l = relay.Match(tl(l), [
+            relay.Clause(relay.PatternConstructor(p.some, [relay.PatternVar(t)]), t),
+            relay.Clause(relay.PatternConstructor(p.none, []), p.nil())
+        ])
 
     assert got == expected
 
@@ -248,7 +258,7 @@ def test_foldr():
 def test_foldr1():
     a = relay.TypeVar("a")
     lhs = mod[p.foldr1].checked_type
-    rhs = relay.FuncType([relay.FuncType([a, a], a), l(a)], a, [a])
+    rhs = relay.FuncType([relay.FuncType([a, a], a), l(a)], p.optional(a), [a])
     assert lhs == rhs
 
     x = relay.Var("x")
@@ -259,7 +269,7 @@ def test_foldr1():
                                     cons(make_nat_expr(2),
                                          cons(make_nat_expr(3), nil())))))
 
-    assert count(res) == 6
+    assert count(get_optional(res)) == 6
 
 
 def test_sum():
