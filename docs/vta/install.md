@@ -208,7 +208,7 @@ chmod u+x Xilinx_Vivado_SDK_Web_2018.2_0614_1954_Lin64.bin
 
 #### Xilinx Vivado GUI Installer Steps
 
-At this point you've launched the Vivado 2017.1 Installer GUI program.
+At this point you've launched the Vivado 2018.2 Installer GUI program.
 
 1. Click “Next” on the *Welcome* screen.
 2. On the *Select Install Type* screen, enter your Xilinx user credentials under the “User Authentication” box and select the “Download and Install Now” option before clicking “Next” .
