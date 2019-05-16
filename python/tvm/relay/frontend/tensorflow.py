@@ -36,6 +36,9 @@ __all__ = ['from_tensorflow']
 
 def _infer_value(input_val, params):
     from tvm.contrib import graph_runtime
+    # Check that all free variables have associated parameters.
+    assert all(var.name_hint in params.keys() for var in ir_pass.free_vars(
+        input_val)), "All inputs to infer must be available in params."
     func = _expr.Function(ir_pass.free_vars(input_val), input_val)
     with tvm.relay.build_config(opt_level=0):
         graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
