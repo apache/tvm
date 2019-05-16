@@ -24,5 +24,25 @@ extern "C"
 void TVMAPISetLastError(const char* msg) {
   (*TVMAPISetLastError_)(msg);
 }
+#ifdef __cplusplus
+extern "C"
+#endif
+float min(float a, float b) {
+  if (a < b) {
+    return a;
+  } else {
+    return b;
+  }
+}
+#ifdef __cplusplus
+extern "C"
+#endif
+float max(float a, float b) {
+  if (a > b) {
+    return a;
+  } else {
+    return b;
+  }
+}
 
 #endif  // UTVM_DEVICE_LIB_H_

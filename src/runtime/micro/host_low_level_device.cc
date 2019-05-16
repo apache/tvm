@@ -52,7 +52,8 @@ class HostLowLevelDevice final : public LowLevelDevice {
 
   void Execute(dev_base_offset func_offset, dev_base_offset breakpoint) final {
     dev_addr func_addr = GetAddr(func_offset, base_addr_);
-    ((uint64_t (*)(void)) func_addr.val_)();
+    uint64_t retcode = ((uint64_t (*)(void)) func_addr.val_)();
+    CHECK(retcode == 0) << "low-level device returned from call with error code " << retcode;
   }
 
   const dev_base_addr base_addr() const final {

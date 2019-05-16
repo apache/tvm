@@ -122,28 +122,28 @@ constexpr int kPageSize = 4096;
 const dev_base_offset kTextStart = dev_base_offset(64);
 
 /*! \brief memory offset at which rodata section starts  */
-const dev_base_offset kRodataStart = dev_base_offset(50000);
+const dev_base_offset kRodataStart = dev_base_offset(50000000);
 
 /*! \brief memory offset at which data section starts  */
-const dev_base_offset kDataStart = dev_base_offset(100000);
+const dev_base_offset kDataStart = dev_base_offset(100000000);
 
 /*! \brief memory offset at which bss section starts  */
-const dev_base_offset kBssStart = dev_base_offset(150000);
+const dev_base_offset kBssStart = dev_base_offset(150000000);
 
 /*! \brief memory offset at which args section starts  */
-const dev_base_offset kArgsStart = dev_base_offset(200000);
+const dev_base_offset kArgsStart = dev_base_offset(200000000);
 
 /*! \brief memory offset at which stack section starts  */
-const dev_base_offset kStackStart = dev_base_offset(300000);
+const dev_base_offset kStackStart = dev_base_offset(300000000);
 
 /*! \brief memory offset at which heap section starts  */
-const dev_base_offset kHeapStart = dev_base_offset(350000);
+const dev_base_offset kHeapStart = dev_base_offset(350000000);
 
 /*! \brief memory offset at which workspace section starts  */
-const dev_base_offset kWorkspaceStart = dev_base_offset(400000);
+const dev_base_offset kWorkspaceStart = dev_base_offset(400000000);
 
 /*! \brief total memory size */
-constexpr int kMemorySize = 450000;
+constexpr uint64_t kMemorySize = 4500000000;
 
 /*! \brief default size alignment */
 constexpr int kDefaultSizeAlignment = 8;

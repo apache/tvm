@@ -74,7 +74,6 @@ def test_workspace_add():
 
 
 def micro_module(func: relay.Function, params={}):
-    print("--------------------------------------------------------------------------------")
     with tvm.build_config(disable_vectorize=True):
         graph, lib, params = relay.build(func, target="c", params=params)
 
@@ -85,22 +84,21 @@ def micro_module(func: relay.Function, params={}):
     # TODO(weberlo): either make a new "micro_dev" codegen target that
     # properly wraps the C codegen or search for the end of the includes.
     mod_src.insert(2, "#include \"tvm/runtime/utvm_device_lib.h\"")
-    # # TODO(weberlo): this shit is a mega hack
-    # i = 0
-    # curr_return_err = 1
-    # while i < len(mod_src):
-    #     if mod_src[i].endswith("{") and any([s in mod_src[i] for s in ["dev_type", "device_type", "device_id"]]):
-    #         while not mod_src[i].strip().endswith("}"):
-    #             mod_src.pop(i)
-    #         mod_src.pop(i)
-    #     elif "return -1;" in mod_src[i]:
-    #         mod_src[i] = mod_src[i].replace("-1", f"-{curr_return_err}")
-    #         curr_return_err += 1
-    #         i += 1
-    #     else:
-    #         i += 1
+    # TODO(weberlo): this shit is a mega hack
+    i = 0
+    curr_return_err = 1
+    while i < len(mod_src):
+        if mod_src[i].endswith("{") and any([s in mod_src[i] for s in ["dev_type", "device_type"]]):
+            while not mod_src[i].strip().endswith("}"):
+                mod_src.pop(i)
+            mod_src.pop(i)
+        elif "return -1;" in mod_src[i]:
+            mod_src[i] = mod_src[i].replace("-1", f"-{curr_return_err}")
+            curr_return_err += 1
+            i += 1
+        else:
+            i += 1
     mod_src = "\n".join(mod_src)
-    # print(mod_src)
 
     # save it to temp file
     src_dso = temp.relpath("dev_lib.c")
@@ -110,8 +108,7 @@ def micro_module(func: relay.Function, params={}):
     # compile to object file
     lib_dso = temp.relpath("dev_lib.obj")
     tvm_home = os.getenv("TVM_HOME")
-    # retcode = subprocess.call(["gcc", "-c", "-g", "-Og", "-o", lib_dso, src_dso, f"-I{tvm_home}/include", f"-I{tvm_home}/3rdparty/dlpack/include"])
-    cmd = ["gcc", "-c", "-g", "-O0", "-o", lib_dso, src_dso, f"-I{tvm_home}/include", f"-I{tvm_home}/3rdparty/dlpack/include"]
+    cmd = ["g++", "-fno-stack-protector", "-c", "-g", "-O0", "-o", lib_dso, src_dso, f"-I{tvm_home}/include", f"-I{tvm_home}/3rdparty/dlpack/include"]
     print(f"compiling with \"{cmd}\"")
     retcode = subprocess.call(cmd)
     assert retcode == 0
@@ -144,12 +141,16 @@ def test_graph_runtime():
 
 
 def test_resnet():
-    resnet_func, params = resnet.get_workload(num_classes=10, num_layers=18, image_shape=(3, 32, 32))
-    mod, params = micro_module(resnet_func, params=params)
-    # mod.set_input(**params)
-    # mod.run(x=x_in)
-    # out = mod.get_output(0, tvm.nd.empty(shape)).asnumpy()
-    # print(f"output: {out}")
+    resnet_func, orig_params = resnet.get_workload(num_classes=10, num_layers=18, image_shape=(3, 32, 32))
+    # TODO(weberlo): use `resnet_func` once we have libc support.
+    # remove the final softmax layer, because uTVM does not currently support it
+    resnet_func_no_sm = relay.Function(resnet_func.params, resnet_func.body.args[0], resnet_func.ret_type)
+    mod, params = micro_module(resnet_func_no_sm, params=orig_params)
+    mod.set_input(**params)
+    # generate random input
+    data = np.random.uniform(size=mod.get_input(0).shape)
+    mod.run(data=data)
+    print(f"output: {mod.get_output(0)}")
 
 
 if __name__ == "__main__":

@@ -47,7 +47,7 @@ class MicroSectionAllocator {
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
   dev_base_offset Allocate(size_t size) {
-    CHECK(section_max_.val_ + size < section_end_.val_) << "out of space in section";
+    CHECK(section_max_.val_ + size < section_end_.val_) << "out of space in section with start_addr: " << section_start_.val_;
     dev_base_offset alloc_ptr = section_max_;
     section_max_ = dev_base_offset(section_max_.val_ + size);
     alloc_map_[(void*)alloc_ptr.val_] = size;

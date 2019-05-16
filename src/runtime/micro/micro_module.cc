@@ -53,11 +53,6 @@ class MicroModuleNode final : public ModuleNode {
    * \param args type-erased arguments passed to the function
    */
   void RunFunction(std::string func, dev_base_offset func_offset, TVMArgs args) {
-    // args.values = (TVMValue*) (((uintptr_t) args.values) + ((uintptr_t) low_level_device_->base_addr().val_));
-    // args.type_codes = (int*) (((uintptr_t) args.type_codes) + ((uintptr_t) low_level_device_->base_addr().val_));
-    std::cout << "[RunFunction]" << std::endl;
-    std::cout << "  values (modified): " << args.values << std::endl;
-    std::cout << "  type_codes (modified): " << args.type_codes << std::endl;
     session_->PushToExecQueue(func_offset, args);
   }
 
@@ -110,12 +105,6 @@ class MicroWrappedFunc {
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
-    std::cout << "[MicroWrappedFunc::operator()]" << std::endl;
-    std::cout << "  values: " << args.values << std::endl;
-    std::cout << "  type_codes: " << args.type_codes << std::endl;
-    std::cout << "  num_args: " << args.num_args << std::endl;
-    std::cout << "  ret_val: " << rv << std::endl;
-    std::cout << "  void_args: " << void_args << std::endl;
     // TODO(weberlo): no return value yet, but may implement in the future
     m_->RunFunction(func_name_, func_offset_, args);
   }
@@ -133,9 +122,6 @@ PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   dev_base_offset func_offset = symbol_map()[name];
-  std::cout << "[GetFunction]" << std::endl;
-  std::cout << "  name: " << name << std::endl;
-  std::cout << "  func_offset: " << func_offset.val_ << std::endl;
   MicroWrappedFunc f(this, name, func_offset);
   return PackFuncVoidAddr(f, std::vector<TVMType>());
 }
