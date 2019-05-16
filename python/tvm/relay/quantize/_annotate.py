@@ -156,6 +156,13 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     if cnt < current_qconfig().skip_k_conv:
         _set_conv_counter(cnt + 1)
         return None
+
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt in leave_alone_indices:
+            _set_conv_counter(cnt + 1)
+            return None
+
     _set_conv_counter(cnt + 1)
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
@@ -168,6 +175,7 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
@@ -178,6 +186,11 @@ def dense_rewrite(ref_call, new_args, ctx):
     cnt = _conv_counter()
     if cnt < current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt - 1 in leave_alone_indices:
+            return None
+
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
@@ -194,8 +207,13 @@ def dense_rewrite(ref_call, new_args, ctx):
 @register_annotate_function("multiply")
 def multiply_rewrite(ref_call, new_args, ctx):
     """Rewrite function for multiply."""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt - 1 in leave_alone_indices:
+            return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -216,8 +234,13 @@ def multiply_rewrite(ref_call, new_args, ctx):
 @register_annotate_function("add")
 def add_rewrite(ref_call, new_args, ctx):
     """Rewrite function for add."""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt - 1 in leave_alone_indices:
+            return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -244,8 +267,13 @@ def add_rewrite(ref_call, new_args, ctx):
 
 def identity_rewrite(ref_call, new_args, ctx):
     """Simply forward the original operation"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt - 1 in leave_alone_indices:
+            return None
 
     x_expr, x_kind = _get_expr_kind(new_args[0])
     if x_kind is None:
@@ -262,8 +290,14 @@ register_annotate_function("nn.avg_pool2d", identity_rewrite)
 
 def pool2d_rewrite(ref_call, new_args, ctx):
     """Rewrite function for max pool2d"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt - 1 in leave_alone_indices:
+            return None
+
     expr, x_kind = _get_expr_kind(new_args[0])
 
     if x_kind is None:
@@ -280,8 +314,13 @@ register_annotate_function("nn.max_pool2d", pool2d_rewrite)
 @register_annotate_function("concatenate")
 def concatenate_rewrite(ref_call, new_args, ctx):
     """Rewrite function for concatenate"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    cnt = _conv_counter()
+    if cnt <= current_qconfig().skip_k_conv:
         return None
+    if current_qconfig().skip_conv_layers is not None:
+        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if cnt - 1 in leave_alone_indices:
+            return None
 
     input_tuple = new_args[0]
     expr_list = [_get_expr_kind(x)[0] for x in input_tuple]
