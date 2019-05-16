@@ -123,6 +123,24 @@ TVM_DLL bool AlphaEqual(const Expr& e1, const Expr& e2);
 TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
 
 /*!
+ * \brief Compare two patterns for structural equivalence.
+ *
+ * This comparison operator respects scoping and compares
+ * patterns without regard to variable choice.
+ *
+ * For example: `A(x, _, y)` is equal to `A(z, _, a)`.
+ *
+ * See https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
+ * for more details.
+ *
+ * \param t1 The left hand pattern.
+ * \param t2 The right hand pattern.
+ *
+ * \return true if equal, otherwise false
+ */
+TVM_DLL bool AlphaEqual(const Pattern& t1, const Pattern& t2);
+
+/*!
  * \brief Add abstraction over a function
  *
  * For example: `square` is transformed to

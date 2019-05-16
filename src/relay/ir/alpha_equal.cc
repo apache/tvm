@@ -60,6 +60,10 @@ class AlphaEqualHandler:
       if (!rhs->derived_from<ExprNode>()) return false;
       return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
     }
+    if (lhs->derived_from<PatternNode>()) {
+      if (!rhs->derived_from<PatternNode>()) return false;
+      return PatternEqual(Downcast<Pattern>(lhs), Downcast<Pattern>(rhs));
+    }
     return AttrEqual(lhs, rhs);
   }
 
@@ -108,6 +112,15 @@ class AlphaEqualHandler:
     } else {
       return false;
     }
+  }
+
+  /*!
+   * Check equality of two patterns.
+   */
+  bool PatternEqual(const Pattern& lhs, const Pattern& rhs) {
+    if (lhs.same_as(rhs)) return true;
+    if (!lhs.defined() || !rhs.defined()) return false;
+    return VisitPattern(lhs, rhs);
   }
 
  protected:
@@ -440,10 +453,6 @@ class AlphaEqualHandler:
     return PatternEqual(lhs->lhs, rhs->lhs) && ExprEqual(lhs->rhs, rhs->rhs);
   }
 
-  bool PatternEqual(const Pattern& lhs, const Pattern& rhs) {
-    return VisitPattern(lhs, rhs);
-  }
-
   bool VisitPattern_(const PatternWildcardNode* lhs, const Pattern& other) final {
     return other.as<PatternWildcardNode>();
   }
@@ -494,6 +503,10 @@ class AlphaEqualHandler:
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, NodeRef, NodeHash, NodeEqual> equal_map_;
 };
+
+bool AlphaEqual(const Pattern& lhs, const Pattern& rhs) {
+  return AlphaEqualHandler(false).PatternEqual(lhs, rhs);
+}
 
 bool AlphaEqual(const Type& lhs, const Type& rhs) {
   return AlphaEqualHandler(false).TypeEqual(lhs, rhs);
