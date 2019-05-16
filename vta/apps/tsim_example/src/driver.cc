@@ -71,7 +71,6 @@ class TestDriver {
     }
   }
 
- private:
   DPIModuleNode* dpi_;
   Module module_;
 };
