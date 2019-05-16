@@ -62,7 +62,6 @@ In the context of machine learning we manipulate primarily tensor values, using 
 low number of high level instructions. ML programs' cost centers are expensive operator invocations,
 such as GEMM or convolution, over a large input. Due to the execution profile exhibited by ML programs,
 micro-optimizations present in scalar VMs are dramatically less important.
-A model’s runtime will  be dominated by executing expensive operators on large inputs.
 
 TVM has provided strong support for vision models,
 but we want to grow to support a wider variety of models.
