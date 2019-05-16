@@ -40,47 +40,57 @@
 namespace tvm {
 namespace relay {
 
-class CandidateChecker : public PatternFunctor<bool(const Pattern&, const Pattern&)> {
+/*! \brief Possible pattern match results */
+enum MatchResult : int {
+  kMatch = 0,        // pattern matches
+  kClash = 1,        // pattern conflicts
+  kUnspecified = 2,  // ambiguous: candidate needs more constructors specified
+};
+
+class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const Pattern&)> {
  public:
   explicit CandidateChecker() {}
 
-  bool Check(const Pattern& pat, const Pattern& candidate) {
+  MatchResult Check(const Pattern& pat, const Pattern& candidate) {
     return this->VisitPattern(pat, candidate);
   }
 
   // for a constructor pattern, we must ensure that the candidate is
   // a ConstructorPattern, that it has the same constructor, and
   // that its fields match the subpatterns.
-  bool VisitPattern_(const PatternConstructorNode* op, const Pattern& cand) override {
+  MatchResult VisitPattern_(const PatternConstructorNode* op, const Pattern& cand) override {
     auto* ctor_cand = cand.as<PatternConstructorNode>();
+    // attempting to match non-constructor to constructor pattern: need to specify
     if (ctor_cand == nullptr) {
-      return false;
+      return MatchResult::kUnspecified;
     }
 
     // check that constructors match
     if (!op->constructor.same_as(ctor_cand->constructor)) {
-      return false;
+      return MatchResult::kClash;
     }
 
     // now check that subpatterns match
     for (size_t i = 0; i < op->patterns.size(); i++) {
-      if (!this->Check(op->patterns[i], ctor_cand->patterns[i])) {
-        return false;
+      MatchResult submatch = this->Check(op->patterns[i], ctor_cand->patterns[i]);
+      if (submatch != MatchResult::kMatch) {
+        return submatch;
       }
     }
-    return true;
+    return MatchResult::kMatch;
   }
 
-  // wildcard and var patterns always come up true
-  bool VisitPattern_(const PatternWildcardNode*, const Pattern&) override {
-    return true;
+  // wildcard and var patterns always match
+  MatchResult VisitPattern_(const PatternWildcardNode*, const Pattern&) override {
+    return MatchResult::kMatch;
   }
 
-  bool VisitPattern_(const PatternVarNode*, const Pattern&) override {
-    return true;
+  MatchResult VisitPattern_(const PatternVarNode*, const Pattern&) override {
+    return MatchResult::kMatch;
   }
 };
 
+// Returns list of arrays corresponding to Cartesian product of input list
 std::deque<Array<Pattern>> CartesianProduct(std::deque<Array<Pattern>>* fields) {
   CHECK(!fields->empty());
   Array<Pattern> field_vals = fields->back();
@@ -109,9 +119,9 @@ std::deque<Array<Pattern>> CartesianProduct(std::deque<Array<Pattern>>* fields) 
   return ret;
 }
 
-Array<Pattern> ExpandWildcards(const Pattern& cand,
-                               const GlobalTypeVar& gtv,
-                               const Module& mod) {
+// Expands all wildcards in the candidate pattern once, using the global type var
+// to decide which constructors to insert. Returns a list of all possible expansions.
+Array<Pattern> ExpandWildcards(const Pattern& cand, const GlobalTypeVar& gtv, const Module& mod) {
   auto ctor_cand = cand.as<PatternConstructorNode>();
 
   // for a wildcard node, create constructor nodes with wildcards
@@ -160,18 +170,20 @@ Array<Pattern> ExpandWildcards(const Pattern& cand,
  * expression.
  */
 Array<Pattern> CheckMatchExhaustion(const Match& match, const Module& mod) {
-  // algorithm:
-  // candidates = { Wildcard }
-  // while candidates not empty {
-  //   cand = candidates.pop()
-  //   for clause in clauses {
-  //     if clause matches candidate: continue
-  //   }
-  //   candidates += expand_possible_wildcards(cand)
-  //   if no new candidates produced:
-  //     return cand
-  // }
-  // return null
+  /* algorithm:
+   * candidates = { Wildcard }
+   * while candidates not empty {
+   *   cand = candidates.pop()
+   *   for clause in clauses {
+   *     if clause matches candidate: next candidate
+   *     if candidate is not specific enough:
+   *        candidates += expand_possible_wildcards(cand)
+   *        continue
+   *   }
+   *   failed_candidates += { cand }
+   * }
+   * return failed_candidates
+   */
   std::stack<Pattern> candidates;
   candidates.push(PatternWildcardNode::make());
   CandidateChecker checker;
@@ -182,48 +194,42 @@ Array<Pattern> CheckMatchExhaustion(const Match& match, const Module& mod) {
     Pattern cand = candidates.top();
     candidates.pop();
     GlobalTypeVar gtv = GlobalTypeVar(nullptr);
+    bool failure = true;
     for (auto clause : match->clauses) {
       // if the check succeeds, then this candidate can be eliminated
-      if (checker.Check(clause->lhs, cand)) {
+      MatchResult check = checker.Check(clause->lhs, cand);
+      if (check == MatchResult::kClash) {
         continue;
-      } else {
-        // only a constructor pattern can fail so this will give
+      }
+
+      failure = false;
+
+      // match was not specific enough: need to expand wildcards
+      if (check == MatchResult::kUnspecified) {
+        // only a constructor pattern can fail to match so this will give
         // us a global type var to use
         auto ctor_pat = Downcast<PatternConstructor>(clause->lhs);
         gtv = ctor_pat->constructor->belong_to;
+        auto new_candidates = ExpandWildcards(cand, gtv, mod);
+        for (auto candidate : new_candidates) {
+          candidates.push(candidate);
+        }
       }
+      break;
     }
 
-    // no pattern matched so attempt to generate new candidates
-    if (!gtv.defined()) {
-      // must be a weird case like zero clauses
+    if (failure) {
       failures.push_back(cand);
-      continue;
-    }
-
-    auto new_candidates = ExpandWildcards(cand, gtv, mod);
-    // if we cannot expand wildcards, we are left with only the same
-    // candidate, thus we fail
-    if (new_candidates.size() == 1 && AlphaEqual(new_candidates[0], cand)) {
-      failures.push_back(cand);
-      continue;
-    }
-
-    // otherwise add new candidates (discard old one) and continue
-    for (auto candidate : new_candidates) {
-      candidates.push(candidate);
     }
   }
 
-  // the pattern is exhaustive
   return failures;
 }
 
-TVM_REGISTER_API("relay._ir_pass.infer_type")
-.set_body_typed<
-  Array<Pattern>(const Match&,
-                 const Module&)>([](const Match& match,
-                                    const Module& mod_ref) {
+TVM_REGISTER_API("relay._ir_pass.check_match_exhaustion")
+.set_body_typed<Array<Pattern>(const Match&, const Module&)>
+([]
+ (const Match& match, const Module& mod_ref) {
     return CheckMatchExhaustion(match, mod_ref);
   });
 }  // namespace relay
