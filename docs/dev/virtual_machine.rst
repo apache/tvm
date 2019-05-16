@@ -79,8 +79,8 @@ Design
 The VM's design is focused on simplicity without sacrificing performance.
 In order to accomplish this we we have focused on designing a tensor VM rather than a scalar VM.
 
-In the tensor VM setting, we optimize for cheap “allocation” of objects (by trying to avoid real allocation,
-reuse of static fragments, and the ability to do dynamic (i.e jagged tensors)).
+In the tensor VM setting, we optimize for cheap “allocation” of objects (by trying to avoid real allocation),
+reuse of static fragments, and the ability to do dynamic (i.e jagged tensors).
 
 Instruction Set
 ~~~~~~~~~~~~~~~
