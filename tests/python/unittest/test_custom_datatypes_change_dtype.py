@@ -32,6 +32,14 @@ def convert_ndarray(dst_dtype, array):
         return relay.create_executor('graph').evaluate(cast)(array)
 
 
+def change_dtype(src, dst, module, params):
+    module = relay.frontend.ChangeDatatype(src, dst)(module)
+    module = relay.transform.InferType()(module)
+    ex = relay.create_executor()
+    params = dict((p, convert_ndarray(dst, params[p], ex)) for p in params)
+    return module, params
+
+
 def setup():
     # You must first load the library containing the datatype implementation.
     # In this case, we have built the test functions used below right into TVM.
@@ -39,56 +47,58 @@ def setup():
 
     register("bfloat", 129)
 
-    register_op(
-        create_lower_func("FloatToBFloat16_wrapper"), "Cast",
-        "llvm", "bfloat", "float")
-    register_op(
-        create_lower_func("BFloat16ToFloat_wrapper"), "Cast",
-        "llvm", "float", "bfloat")
-    register_op(
-        create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
-        "bfloat")
-    register_op(
-        create_lower_func("BFloat16Sub_wrapper"), "Sub", "llvm",
-        "bfloat")
-    register_op(
-        create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
-        "llvm", "bfloat")
-    register_op(
-        create_lower_func("BFloat16Mul_wrapper"), "Mul", "llvm",
-        "bfloat")
-    register_op(
-        create_lower_func("BFloat16Div_wrapper"), "Div", "llvm",
-        "bfloat")
-    register_op(
-        create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
-        "bfloat")
+    register_op(create_lower_func("FloatToBFloat16_wrapper"), "Cast", "llvm",
+                "bfloat", "float")
+    register_op(create_lower_func("BFloat16ToFloat_wrapper"), "Cast", "llvm",
+                "float", "bfloat")
+    register_op(create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
+                "bfloat")
+    register_op(create_lower_func("BFloat16Sub_wrapper"), "Sub", "llvm",
+                "bfloat")
+    register_op(create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
+                "llvm", "bfloat")
+    register_op(create_lower_func("BFloat16Mul_wrapper"), "Mul", "llvm",
+                "bfloat")
+    register_op(create_lower_func("BFloat16Div_wrapper"), "Div", "llvm",
+                "bfloat")
+    register_op(create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
+                "bfloat")
+
 
 def test_change_dtype_simple():
-    a = relay.expr.var("a", dtype="float32", shape=[3,1])
-    b = relay.expr.var("b", dtype="float32", shape=[3,1])
-    c = a + b
+    setup()
 
-    A = tvm.nd.array(np.random.rand(3,1))
-    B = tvm.nd.array(np.random.rand(3,1))
+    shape = (3, 1)
+    t = relay.TensorType(shape, 'float32')
+    a = relay.var("a", t)
+    b = relay.var("b", t)
+    func = relay.Function([a, b], a + b)
+    module = tvm.IRModule.from_expr(func)
 
+    A = tvm.nd.array(np.random.rand(3, 1).astype('float32'))
+    B = tvm.nd.array(np.random.rand(3, 1).astype('float32'))
 
-    ex = relay.create_executor("graph")
+    ex = relay.create_executor("graph", mod=module)
     # Execute the model in the new datatype.
-    result = ex.evaluate(c)([("a", A), ("b", B)])
+    result = ex.evaluate()(A, B)
+
+    module_changed, _ = change_dtype('float32', 'custom[bfloat]16', module, [])
+    ex = relay.create_executor("graph", mod=module_changed)
+
+    A_converted = convert_ndarray('custom[bfloat]16', A)
+    B_converted = convert_ndarray('custom[bfloat]16', B)
+    result = ex.evaluate()(A_converted, B_converted)
+    print(result.dtype)
+    result_converted = convert_ndarray('float32', result)
+    print(result_converted)
+
 
 def test_change_dtype_inception_v3():
     setup()
 
     module, params = get_workload()
 
-    def change_dtype(src, dst, module, params):
-        module = relay.frontend.ChangeDatatype(src, dst)(module)
-        module = relay.transform.InferType()(module)
-        ex = relay.create_executor()
-        params = dict(
-            (p, convert_ndarray(dst, params[p], ex)) for p in params)
-        return expr, params
+    ex = relay.create_executor("graph")
 
     src_dtype = 'float32'
     dst_dtype = 'custom[bfloat]16'
