@@ -1191,7 +1191,7 @@ def from_onnx(model,
             except onnx.onnx_cpp2py_export.checker.ValidationError as e:
                 import warnings
                 # the checker is a bit violent about errors, so simply print warnings here
-                warnings.warn(e)
+                warnings.warn(str(e))
     except ImportError:
         pass
     g = GraphProto(shape, dtype)
