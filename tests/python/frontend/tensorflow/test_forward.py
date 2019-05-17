@@ -834,6 +834,23 @@ def test_forward_tile():
 
 
 #######################################################################
+# ClipByValue
+# -----------
+
+def _test_forward_clip_by_value(ip_shape, clip_value_min, clip_value_max, dtype):
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.clip_by_value(in_data, clip_value_min, clip_value_max, name="ClipByValue")
+    np_data = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'ClipByValue:0')
+
+def test_forward_clip_by_value():
+    '''test ClipByValue op'''
+    if tf.__version__ < LooseVersion('1.9'):
+        _test_forward_clip_by_value((4,), .1, 5., 'float32')
+        _test_forward_clip_by_value((4, 4), 1, 5, 'int32')
+
+#######################################################################
 # Multi Input to graph
 # --------------------
 
@@ -1591,6 +1608,14 @@ def test_forward_log():
     tf.log(in_data, name="log")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'log:0')
 
+def test_forward_negative():
+    """test tf operator Neg """
+    np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (224, 224, 3), name="in_data")
+    tf.negative(in_data, name="negative")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'negative:0')
+
 def test_forward_softplus():
     """test operator Softplus"""
     np_data = np.random.uniform(1, 10, size=(2, 3, 5)).astype(np.float32)
@@ -1738,6 +1763,7 @@ if __name__ == '__main__':
     test_forward_unstack()
     test_forward_tile()
     test_forward_top_k_v2()
+    test_forward_clip_by_value()
 
     # Activations
     test_forward_sigmoid()
@@ -1753,6 +1779,7 @@ if __name__ == '__main__':
     test_forward_pow_exp()
     test_forward_sign()
     test_forward_log()
+    test_forward_negative()
     test_forward_softplus()
     test_forward_sqrt()
     test_forward_rsqrt()

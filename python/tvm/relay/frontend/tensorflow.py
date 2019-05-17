@@ -941,6 +941,13 @@ def _where():
         return AttrCvt(op_name="where")(inputs, attr)
     return _impl
 
+def _clip_by_value():
+    def _impl(inputs, attr, params):
+        a_min = params.pop(inputs[1].name_hint).asnumpy()[0]
+        a_max = params.pop(inputs[2].name_hint).asnumpy()[0]
+        return _op.clip(inputs[0], a_min=a_min, a_max=a_max)
+    return _impl
+
 def _reverse_v2():
     def _impl(inputs, attr, params):
         axis = _get_num_param(params, inputs[1])
@@ -1212,6 +1219,7 @@ _convert_map = {
     'Cast'                              : _cast(),
     'Ceil'                              : AttrCvt('ceil'),
     'CheckNumerics'                     : _check_numerics(),
+    'ClipByValue'                       : _clip_by_value(),
     'Concat'                            : _concat(),
     'ConcatV2'                          : _concatV2(),
     'Conv2D'                            : _conv('conv'),
@@ -1245,6 +1253,7 @@ _convert_map = {
     'Mean'                              : _mean(),
     'Minimum'                           : _elemwise('minimum'),
     'Mul'                               : _elemwise('multiply'),
+    'Neg'                               : AttrCvt('negative'),
     'NotEqual'                          : _broadcast('not_equal'),
     'Pack'                              : _pack(),
     'Pad'                               : _pad('Pad'),
