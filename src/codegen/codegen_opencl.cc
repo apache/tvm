@@ -247,6 +247,19 @@ void CodeGenOpenCL::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(
   CodeGenC::VisitExpr_(op, os);
 }
 
+void CodeGenOpenCL::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+  if (std::isinf(op->value)) {
+    if (op->value < 0) {
+      os << "-";
+    }
+    os << "INFINITY";
+  } else if (std::isnan(op->value)) {
+    os << "NAN";
+  } else {
+    CodeGenC::VisitExpr_(op, os);
+  }
+}
+
 runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
   using tvm::runtime::Registry;
   bool output_ssa = false;

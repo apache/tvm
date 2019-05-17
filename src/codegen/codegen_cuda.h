@@ -39,7 +39,9 @@ class CodeGenCUDA final : public CodeGenC {
   void Init(bool output_ssa);
   void AddFunction(LoweredFunc f);
   std::string Finish();
-  bool need_include_path() { return (enable_fp16_ || enable_int8_); }
+  bool need_include_path() {
+    return (enable_fp16_ || enable_int8_ || need_math_constants_h_);
+  }
   // override behavior
   void VisitStmt_(const ir::For* op) final;
   void PrintStorageSync(const Call* op) final;
@@ -70,6 +72,9 @@ class CodeGenCUDA final : public CodeGenC {
   bool enable_fp16_{false};
   // whether enable int8
   bool enable_int8_{false};
+  // whether need math_constants.h
+  bool need_math_constants_h_{false};
+  friend void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p);
 };
 
 }  // namespace codegen
