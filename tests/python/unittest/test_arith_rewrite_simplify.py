@@ -231,6 +231,10 @@ def test_sub_index_simplify():
     ck.verify((y / 3) * 3 - y, 0 - y % 3)
     ck.verify(y - ((y - 6) / 5) * 5, (y + (-6)) % 5 + 6)
     ck.verify(((y - 6) / 5) * 5 - y, (-6) - (y + (-6)) % 5)
+    ck.verify(y - ((y + z) / 5) * 5, (y + z) % 5 - z)
+    ck.verify(((y + z) / 5) * 5 - y, z - (y + z) % 5)
+    ck.verify(y - ((y - z) / 5) * 5, (y - z) % 5 + z)
+    ck.verify(((y - z) / 5) * 5 - y, (z - y) % 5 - z)
 
 def test_mul_index_simplify():
     ck = RewriteChecker()

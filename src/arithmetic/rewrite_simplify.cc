@@ -310,9 +310,13 @@ Mutate_(const Sub* op, const Expr& self) {
                        c1.Eval()->value != 0);
     TVM_TRY_REWRITE_IF((x / c1) * c1 - x, 0 - (x % c1),
                        c1.Eval()->value != 0);
-    TVM_TRY_REWRITE_IF(x - ((x + c2) / c1) * c1, (x + c2) % c1 - c2,
+    TVM_TRY_REWRITE_IF(x - ((x + y) / c1) * c1, (x + y) % c1 - y,
                        c1.Eval()->value != 0);
-    TVM_TRY_REWRITE_IF(((x + c2) / c1) * c1 - x, c2 - ((x + c2) % c1),
+    TVM_TRY_REWRITE_IF(((x + y) / c1) * c1 - x, y - ((x + y) % c1),
+                       c1.Eval()->value != 0);
+    TVM_TRY_REWRITE_IF(x - ((x - y) / c1) * c1, (x - y) % c1 + y,
+                       c1.Eval()->value != 0);
+    TVM_TRY_REWRITE_IF(((x - y) / c1) * c1 - x, ((y - x) % c1 - y),
                        c1.Eval()->value != 0);
     TVM_TRY_REWRITE_IF((x + c1) / c3  - (x + c2) / c3,
                        ((x + (c1 % c3)) % c3 + (c1 - c2)) / c3,
