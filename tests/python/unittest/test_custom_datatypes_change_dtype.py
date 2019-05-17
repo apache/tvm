@@ -55,18 +55,44 @@ def setup():
         tvm.datatype.create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
         "bfloat")
 
+
+def convert_ndarray(dst_dtype, array, executor):
+    x = relay.var('x', shape=array.shape, dtype=array.dtype)
+    cast = relay.Function([x], x.astype(dst_dtype))
+    return executor.evaluate(cast)(array)
+
+def change_dtype(src, dst, expr, params):
+    cdtype = relay.frontend.ChangeDatatype(src, dst)
+    expr = cdtype.visit(expr)
+    expr = relay.ir_pass.infer_type(expr)
+    #raise "pause"
+    params = dict(
+        (p, convert_ndarray(dst, params[p])) for p in params)
+    return expr, params
+
 def test_change_dtype_simple():
-    a = relay.expr.var("a", dtype="float32", shape=[3,1])
-    b = relay.expr.var("b", dtype="float32", shape=[3,1])
-    c = a + b
+    setup()
 
-    A = tvm.nd.array(np.random.rand(3,1))
-    B = tvm.nd.array(np.random.rand(3,1))
+    shape = (3, 1)
+    t = relay.TensorType(shape, 'float32')
+    a = relay.var("a", t)
+    b = relay.var("b", t)
+    func = relay.Function([a,b], a + b)
 
+    A = tvm.nd.array(np.random.rand(3,1).astype('float32'))
+    B = tvm.nd.array(np.random.rand(3,1).astype('float32'))
 
     ex = relay.create_executor("graph")
     # Execute the model in the new datatype.
-    result = ex.evaluate(c)([("a", A), ("b", B)])
+    result = ex.evaluate(func)(A, B)
+
+    func_changed, _ = change_dtype('float32', 'custom[bfloat]16', func, [])
+    A_converted = convert_ndarray('custom[bfloat]16', A, ex)
+    B_converted = convert_ndarray('custom[bfloat]16', B, ex)
+    result = ex.evaluate(func_changed)(A_converted, B_converted)
+    print(result.dtype)
+    result_converted = convert_ndarray('float32', result, ex)
+    print(result_converted)
 
 def test_change_dtype_inception_v3():
     setup()
@@ -74,20 +100,6 @@ def test_change_dtype_inception_v3():
     expr, params = get_workload()
 
     ex = relay.create_executor("graph")
-
-    def convert_ndarray(dst_dtype, array):
-        x = relay.var(str(array) + dst_dtype, shape=array.shape)
-        cast = relay.Function([x], x.astype(dst_dtype))
-        return ex.evaluate(cast)(array)
-
-    def change_dtype(src, dst, expr, params):
-        cdtype = relay.frontend.ChangeDatatype(src, dst)
-        expr = cdtype.visit(expr)
-        expr = relay.ir_pass.infer_type(expr)
-        #raise "pause"
-        params = dict(
-            (p, convert_ndarray(dst, params[p])) for p in params)
-        return expr, params
 
     src_dtype = 'float32'
     dst_dtype = 'custom[bfloat]16' # Change me to posit.
