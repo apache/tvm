@@ -1183,16 +1183,17 @@ def from_onnx(model,
         The parameter dict to be used by relay
     """
     try:
-        from onnx import checker
-        if hasattr(checker, 'check_model'):
+        import onnx
+        if hasattr(onnx.checker, 'check_model'):
             # try use onnx's own model checker before converting any model
-            checker.check_model(model)
+            try:
+                onnx.checker.check_model(model)
+            except onnx.onnx_cpp2py_export.checker.ValidationError as e:
+                import warnings
+                # the checker is a bit violent about errors, so simply print warnings here
+                warnings.warn(e)
     except ImportError:
         pass
-    except onnx.onnx_cpp2py_export.checker.ValidationError as e:
-        import warnings
-        # the checker is a bit violent about errors, so simply print warnings here
-        warnings.warn(e)
     g = GraphProto(shape, dtype)
     graph = model.graph
     try:
