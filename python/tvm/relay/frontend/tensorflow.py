@@ -34,6 +34,20 @@ from ..expr_functor import ExprMutator
 
 __all__ = ['from_tensorflow']
 
+def _infer_value(input_val, params):
+    from tvm.contrib import graph_runtime
+    # Check that all free variables have associated parameters.
+    assert all(var.name_hint in params.keys() for var in ir_pass.free_vars(
+        input_val)), "All inputs to infer must be available in params."
+    func = _expr.Function(ir_pass.free_vars(input_val), input_val)
+    with tvm.relay.build_config(opt_level=0):
+        graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+    ctx = tvm.context("llvm", 0)
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**params)
+    m.run()
+    return m.get_output(0)
+
 def _get_relay_op(op_name):
     try:
         op = getattr(_op, op_name)
@@ -465,7 +479,12 @@ def _expand_dims():
 
 def _resize_bilinear():
     def _impl(inputs, attr, params):
-        attr['size'] = attr['_output_shapes'][0][1:3]
+        size = attr['_output_shapes'][0][1:3]
+        # Important that the size is defined. If an axis is not, we need to infer what
+        # the shape should be.
+        if -1 in size:
+            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
+        attr['size'] = size
         inputs.pop(1)
         # NHWC
         attr['layout'] = 'NHWC'
@@ -574,15 +593,7 @@ def _reshape():
         except AttributeError:
             # Shape operator is already pruned, hence
             # try to infer shape by precompute prune if possible.
-            func = _expr.Function(ir_pass.free_vars(inputs[1]), inputs[1])
-            with tvm.relay.build_config(opt_level=0):
-                graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
-            ctx = tvm.context("llvm", 0)
-            from tvm.contrib import graph_runtime
-            m = graph_runtime.create(graph, lib, ctx)
-            m.set_input(**params)
-            m.run()
-            params_new = m.get_output(0)
+            params_new = _infer_value(inputs[1], params)
             inputs.pop(1)
             return AttrCvt(
                 op_name="reshape",
@@ -590,9 +601,63 @@ def _reshape():
                 ignores=['Tshape'])(inputs, attr)
     return _impl
 
+
+def _depth_to_space():
+    def _impl(inputs, attr, params):
+        # Need to handle data layouts differently.
+        input_shape = attr['_input_shapes'][inputs[0]]
+        block_size = int(attr['block_size'])
+        if attr['data_format'].decode("utf-8") == 'NHWC':
+            in_n, in_h, in_w, in_c = input_shape
+            new_c = int(in_c / (block_size * block_size))
+
+            # First expand input to larger dimension.
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_h, in_w, block_size, block_size, new_c))
+            # Now reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
+            # Finally reshape to proper output.
+            new_h = in_h * block_size
+            new_w = in_w * block_size
+            newshape = (in_n, new_h, new_w, new_c)
+
+        else: # Handle NCHW layout
+            in_n, in_c, in_h, in_w = input_shape
+            new_c = int(in_c / (block_size * block_size))
+
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
+            transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
+            new_h = in_h * block_size
+            new_w = in_w * block_size
+            newshape = (in_n, new_c, new_h, new_w)
+
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr)
+
+    return _impl
+
+
 def _bias_add():
     def _impl(inputs, attr, params):
-        return _op.add(inputs[0], inputs[1])
+        # Must expand for proper broadcasting in NCHW.
+        if attr['data_format'].decode("utf-8") == 'NCHW':
+            bias = _op.reshape(inputs[1], newshape=(1, -1, 1, 1))
+        else:
+            bias = inputs[1]
+        return _op.add(inputs[0], bias)
+    return _impl
+
+def _broadcast_to():
+    def _impl(inputs, attr, params):
+        if isinstance(inputs[1], _expr.Var):
+            shape = params[inputs[1].name_hint]
+        else:
+            shape = _infer_value(inputs[1], params)
+        shape = list(shape.asnumpy().reshape([-1]))
+        return _op.broadcast_to(inputs[0], shape)
     return _impl
 
 def _squeeze():
@@ -666,9 +731,15 @@ def _shape():
 
 def _fill():
     def _impl(inputs, attr, params):
+        output_shape = attr['_output_shapes'][0]
+        # Output shape must be defined to avoid errors. If any axis is not, we must
+        # try to compute its shape.
+        if -1 in output_shape:
+            output_shape = _infer_value(inputs[0], params).asnumpy().reshape([-1]).tolist()
+
         fill_arg = params.pop(inputs.pop(1).name_hint)
         return _op.full(tvm.relay.const(fill_arg.asnumpy()[0], attr['T'].name),
-                        attr['_output_shapes'][0], attr['T'].name)
+                        output_shape, attr['T'].name)
     return _impl
 
 def _lrn():
@@ -1115,6 +1186,7 @@ _convert_map = {
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
     'BatchToSpaceND'                    : _batch_to_space_nd(),
     'BiasAdd'                           : _bias_add(),
+    'BroadcastTo'                       : _broadcast_to(),
     'Cast'                              : _cast(),
     'Ceil'                              : AttrCvt('ceil'),
     'CheckNumerics'                     : _check_numerics(),
@@ -1123,6 +1195,7 @@ _convert_map = {
     'Conv2D'                            : _conv('conv'),
     'DecodeJpeg'                        : _decode_image(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
+    'DepthToSpace'                      : _depth_to_space(),
     'Equal'                             : _broadcast('equal'),
     'Elu'                               : _elu(),
     'Exp'                               : AttrCvt('exp'),
@@ -1158,11 +1231,12 @@ _convert_map = {
     'Prod'                              : _prod(),
     'Range'                             : _range(),
     'Rank'                              : _rank(),
-    'RealDiv'                           : _elemwise('div'),
+    'RealDiv'                           : _elemwise('divide'),
     'Relu'                              : AttrCvt('relu'),
     'Relu6'                             : _relu6(),
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
+    'ResizeBicubic'                     : _resize_bilinear(),
     'ReverseV2'                         : _reverse_v2(),
     'Round'                             : AttrCvt('round'),
     'Rsqrt'                             : _rsqrt(),
