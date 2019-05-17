@@ -19,7 +19,7 @@
 import tvm
 import numpy as np
 from tvm import relay
-from tvm.relay.testing.inception_v3 import get_workload
+from tvm.relay.testing.inception_v3 import get_workload as get_inception
 
 tgt = "llvm"
 
@@ -94,7 +94,7 @@ def test_change_dtype_simple():
 
 def test_change_dtype_inception_v3():
 
-    expr, params = get_workload()
+    expr, params = get_inception()
 
     ex = relay.create_executor("graph")
 
