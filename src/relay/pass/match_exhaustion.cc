@@ -119,11 +119,13 @@ Array<Array<Pattern>> CartesianProduct(Array<Array<Pattern>> fields) {
   return ret;
 }
 
-// Expands all wildcards in the candidate pattern once, using the global type var
+// Expands all wildcards in the candidate pattern once, using the pattern
 // to decide which constructors to insert. Returns a list of all possible expansions.
 Array<Pattern> ExpandWildcards(const Pattern& clause_pat, const Pattern& cand,
-                               const GlobalTypeVar& gtv, const Module& mod) {
+                               const Module& mod) {
   auto ctor_cand = cand.as<PatternConstructorNode>();
+  PatternConstructor clause_ctor = Downcast<PatternConstructor>(clause_pat);
+  auto gtv = Downcast<GlobalTypeVar>(clause_ctor->constructor->belong_to);
 
   // for a wildcard node, create constructor nodes with wildcards for all args
   if (!ctor_cand) {
@@ -142,7 +144,6 @@ Array<Pattern> ExpandWildcards(const Pattern& clause_pat, const Pattern& cand,
 
   // for constructors, we will expand the wildcards in any field
   // that is an ADT
-  PatternConstructor clause_ctor = Downcast<PatternConstructor>(clause_pat);
   Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < ctor_cand->constructor->inputs.size(); i++) {
     auto* subpattern = clause_ctor->patterns[i].as<PatternConstructorNode>();
@@ -153,10 +154,8 @@ Array<Pattern> ExpandWildcards(const Pattern& clause_pat, const Pattern& cand,
     }
 
     // otherwise, recursively expand
-    auto nested_gtv = Downcast<GlobalTypeVar>(subpattern->constructor->belong_to);
     values_by_field.push_back(ExpandWildcards(GetRef<Pattern>(subpattern),
-                                              ctor_cand->patterns[i],
-                                              nested_gtv, mod));
+                                              ctor_cand->patterns[i], mod));
   }
 
   // generate new candidates using a cartesian product
@@ -198,24 +197,20 @@ Array<Pattern> UnmatchedCases(const Match& match, const Module& mod) {
   while (!candidates.empty()) {
     Pattern cand = candidates.top();
     candidates.pop();
-    GlobalTypeVar gtv = GlobalTypeVar(nullptr);
+
     bool failure = true;
     for (auto clause : match->clauses) {
-      // if the check succeeds, then this candidate can be eliminated
+      // if the check fails, we move on to the next
       MatchResult check = checker.Check(clause->lhs, cand);
       if (check == MatchResult::kClash) {
         continue;
       }
 
+      // either success or we need to generate more candidates;
+      // either way, we're done with this candidate
       failure = false;
-
-      // match was not specific enough: need to expand wildcards
       if (check == MatchResult::kUnspecified) {
-        // only a constructor pattern can fail to match so this will give
-        // us a global type var to use
-        auto ctor_pat = Downcast<PatternConstructor>(clause->lhs);
-        gtv = ctor_pat->constructor->belong_to;
-        auto new_candidates = ExpandWildcards(clause->lhs, cand, gtv, mod);
+        auto new_candidates = ExpandWildcards(clause->lhs, cand, mod);
         for (auto candidate : new_candidates) {
           candidates.push(candidate);
         }
