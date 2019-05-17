@@ -29,7 +29,6 @@
 #include <algorithm>
 #include "const_fold.h"
 #include "pattern_match.h"
-#include "modular_set.h"
 #include "rewrite_simplify.h"
 
 namespace tvm {
@@ -176,16 +175,6 @@ Mutate_(const Add* op, const Expr& self) {
     TVM_TRY_REWRITE(y * x + x * z, x * (y + z));
     TVM_TRY_REWRITE(x * y + z * x, x * (y + z));
     TVM_TRY_REWRITE(y * x + z * x, x * (y + z));
-    // Factor out gcd
-    if ((x * c1 + y * c2).Match(ret)) {
-      auto gcd = ZeroAwareGCD(c1.Eval()->value, c2.Eval()->value);
-      if (gcd != 1) {
-        auto b1 = PConstWithTypeLike<PVar<Expr>>(x, c1.Eval()->value / gcd);
-        auto b2 = PConstWithTypeLike<PVar<Expr>>(x, c2.Eval()->value / gcd);
-        auto pgcd = PConstWithTypeLike<PVar<Expr>>(x, gcd);
-        return ((x * b1 + y * b2) * pgcd).Eval();
-      }
-    }
 
     // modular-div simplification
     // Always pre-condition on positive integer domain
@@ -260,16 +249,6 @@ Mutate_(const Sub* op, const Expr& self) {
     TVM_TRY_REWRITE(y * x - x * z, x * (y - z));
     TVM_TRY_REWRITE(x * y - z * x, x * (y - z));
     TVM_TRY_REWRITE(y * x - z * x, x * (y - z));
-    // Factor out gcd
-    if ((x * c1 - y * c2).Match(ret)) {
-      auto gcd = ZeroAwareGCD(c1.Eval()->value, c2.Eval()->value);
-      if (gcd != 1) {
-        auto b1 = PConstWithTypeLike<PVar<Expr>>(x, c1.Eval()->value / gcd);
-        auto b2 = PConstWithTypeLike<PVar<Expr>>(x, c2.Eval()->value / gcd);
-        auto pgcd = PConstWithTypeLike<PVar<Expr>>(x, gcd);
-        return ((x * b1 - y * b2) * pgcd).Eval();
-      }
-    }
 
     // constant cancelation
     TVM_TRY_REWRITE((x + c1) - c2, x + (c1 - c2));
@@ -316,8 +295,28 @@ Mutate_(const Sub* op, const Expr& self) {
                        c1.Eval()->value != 0);
     TVM_TRY_REWRITE_IF(x - ((x - y) / c1) * c1, (x - y) % c1 + y,
                        c1.Eval()->value != 0);
-    TVM_TRY_REWRITE_IF(((x - y) / c1) * c1 - x, ((y - x) % c1 - y),
+    TVM_TRY_REWRITE_IF(((x - y) / c1) * c1 - x, (y - x) % c1 - y,
                        c1.Eval()->value != 0);
+
+    TVM_TRY_REWRITE_IF(x * c2 - (x / c1) * c3, (x % c1) * c2,
+                       c1.Eval()->value != 0 &&
+                       c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
+    TVM_TRY_REWRITE_IF((x / c1) * c3 - x * c2, 0 - (x % c1) * c2,
+                       c1.Eval()->value != 0 &&
+                       c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
+    TVM_TRY_REWRITE_IF(x * c2 - ((x + y) / c1) * c3, ((x + y) % c1 - y) * c2,
+                       c1.Eval()->value != 0 &&
+                       c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
+    TVM_TRY_REWRITE_IF(((x + y) / c1) * c3 - x * c2, (y - ((x + y) % c1)) * c2,
+                       c1.Eval()->value != 0 &&
+                       c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
+    TVM_TRY_REWRITE_IF(x * c2 - ((x - y) / c1) * c3, ((x - y) % c1 + y) * c2,
+                       c1.Eval()->value != 0 &&
+                       c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
+    TVM_TRY_REWRITE_IF(((x - y) / c1) * c3 - x * c2, ((y - x) % c1 - y) * c2,
+                       c1.Eval()->value != 0 &&
+                       c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
+
     TVM_TRY_REWRITE_IF((x + c1) / c3  - (x + c2) / c3,
                        ((x + (c1 % c3)) % c3 + (c1 - c2)) / c3,
                        CanProveGreaterEqual(x.Eval(), -c2.Eval()->value) &&

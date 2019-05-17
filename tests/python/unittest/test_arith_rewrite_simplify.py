@@ -236,6 +236,13 @@ def test_sub_index_simplify():
     ck.verify(y - ((y - z) / 5) * 5, (y - z) % 5 + z)
     ck.verify(((y - z) / 5) * 5 - y, (z - y) % 5 - z)
 
+    ck.verify(y * 3 - (y / 2) * 6, (y % 2) * 3)
+    ck.verify((y / 3) * 6 - y * 2, (y % 3) * (-2))
+    ck.verify(y * 5 - ((y + z) / 2) * 10, ((y + z) % 2 - z) * 5)
+    ck.verify(y * 5 - ((y - z) / 2) * 10, ((y - z) % 2 + z) * 5)
+    ck.verify(((y + z) / 3) * 6 - y * 2, (z - (y + z) % 3) * 2)
+    ck.verify(((y - z) / 3) * 6 - y * 2, ((z - y) % 3 - z) * 2)
+
 def test_mul_index_simplify():
     ck = RewriteChecker()
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
@@ -466,8 +473,6 @@ def test_cmp_simplify():
     ck.verify((0 - x * 3) <= 0, tvm.expr.LE(0, x))
     ck.verify((0 - x * 3) >= 0, tvm.expr.LE(x, 0))
     ck.verify(2 * x <= 0, x <= 0)
-    ck.verify(2 * x - 4 * y <= 0, x + y*(-2) <= 0)
-    ck.verify(2 * x + 4 * y <= 0, x + y*2 <= 0)
 
     ck.verify(x * 2 >= 3, tvm.expr.LE(2, x))
     ck.verify(x * 2 >= 2, tvm.expr.LE(1, x))
