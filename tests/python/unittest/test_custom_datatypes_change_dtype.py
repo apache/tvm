@@ -104,7 +104,7 @@ def test_change_dtype_inception_v3():
 
     # Convert the input into the correct format.
     input = tvm.nd.array(np.random.rand(3, 299, 299).astype(src_dtype))
-    input = convert_ndarray(dst_dtype, input)
+    input = convert_ndarray(dst_dtype, input, ex)
 
     def print_info(node):
         if not isinstance(node, relay.op.op.Op):
