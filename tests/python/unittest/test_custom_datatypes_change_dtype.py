@@ -71,8 +71,6 @@ def change_dtype(src, dst, expr, params):
     return expr, params
 
 def test_change_dtype_simple():
-    setup()
-
     shape = (3, 1)
     t = relay.TensorType(shape, 'float32')
     a = relay.var("a", t)
@@ -95,7 +93,6 @@ def test_change_dtype_simple():
     print(result_converted)
 
 def test_change_dtype_inception_v3():
-    setup()
 
     expr, params = get_workload()
 
@@ -120,5 +117,6 @@ def test_change_dtype_inception_v3():
 
 
 if __name__ == "__main__":
+    setup()
     # test_change_dtype_inception_v3()
     test_change_dtype_simple()
