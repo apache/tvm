@@ -138,27 +138,16 @@ def test_head_cons():
         cons_case = relay.Clause(relay.PatternConstructor(p.cons,
                                                           [relay.PatternVar(y),
                                                            relay.PatternVar(z)]),
-                                 p.some(y))
-        nil_case = relay.Clause(relay.PatternConstructor(p.nil, []), p.none())
-        return relay.Function([x], relay.Match(x, [cons_case, nil_case]),
-                              p.optional(a), [a])
+                                 y)
+        return relay.Function([x], relay.Match(x, [cons_case]), a, [a])
     t = relay.TypeVar("t")
     x = relay.Var("x", t)
-    y = relay.Var("y", t)
-    s = relay.Var("s")
     hd = relay.Var("hd")
-    body = relay.Let(
-        hd, hd_impl(),
-        relay.Match(
-            hd(p.cons(x, p.nil())),
-            [
-                relay.Clause(relay.PatternConstructor(p.some, [relay.PatternVar(s)]), s),
-                relay.Clause(relay.PatternWildcard(), y)
-            ]))
-    f = relay.Function([x, y], body, None, [t])
+    body = relay.Let(hd, hd_impl(), hd(p.cons(x, p.nil())))
+    f = relay.Function([x], body, None, [t])
     f = infer_type(f, mod=mod)
     res = dcpe(f)
-    assert alpha_equal(res, relay.Function([x, y], x, t, [t]))
+    assert alpha_equal(res, relay.Function([x], x, t, [t]))
 
 
 if __name__ == '__main__':
