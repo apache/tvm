@@ -18,6 +18,7 @@
 """Argsort operator"""
 import tvm
 from tvm import api
+from .util import get_const_tuple
 
 @tvm.target.generic_func
 def argsort(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0):
@@ -102,4 +103,58 @@ def argsort(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0):
                        out_buffers=out_buf,
                        name="argsort_cpu",
                        tag="argsort_cpu")
+    return out
+
+
+@tvm.target.generic_func
+def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
+    """Performs sorting along the given axis and returns an array
+    of indices having the same shape as an input array that index
+    data in sorted order.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        The input tensor.
+
+    valid_count : tvm.Tensor
+        1-D tensor for valid number of boxes only for ssd.
+
+    axis : optional, int
+	Axis along which to sort the input tensor.
+        By default the flattened array is used.
+
+    is_ascend : optional, boolean
+        Whether to sort in ascending or descending order.
+
+    dtype : optional, string
+        DType of the output indices.
+
+    flag : optional, boolean
+        Whether valid_count is valid.
+
+    Returns
+    -------
+    out : tvm.Tensor
+        Sorted index tensor.
+    """
+    data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    out_shape = list(get_const_tuple(data.shape))
+    if k >= 0:
+        out_shape[axis] = k
+    out_bufs = []
+    if ret_type in ["both", "value"]:
+        out_bufs.append(api.decl_buffer(out_shape, data.dtype, "value_buf", data_alignment=8))
+    if ret_type in ["both", "indices"]:
+        out_bufs.append(api.decl_buffer(out_shape, dtype, "indices_buf", data_alignment=8))
+    out_shapes = [out_shape] * len(out_bufs)
+
+    out = tvm.extern(out_shapes,
+                     [data],
+                     lambda ins, outs: tvm.call_packed(
+                         "tvm.contrib.sort.topk", ins[0], *outs, k, axis, ret_type, is_ascend),
+                     in_buffers=[data_buf],
+                     out_buffers=out_bufs,
+                     name="topk_cpu",
+                     tag="topk_cpu")
     return out

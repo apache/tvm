@@ -48,6 +48,27 @@ struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
   }
 };
 
+struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
+  int k;
+  int axis;
+  bool is_ascend;
+  std::string ret_type;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(TopKAttrs, "relay.attrs.TopkAttrs") {
+    TVM_ATTR_FIELD(k).set_default(1)
+      .describe("");
+    TVM_ATTR_FIELD(axis).set_default(-1)
+      .describe("Axis");
+    TVM_ATTR_FIELD(is_ascend).set_default(false)
+      .describe("");
+    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
+      .describe("Data type of the output indices.");
+    TVM_ATTR_FIELD(ret_type).set_default("both")
+      .describe("Return type");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_ALGORITHM_H_

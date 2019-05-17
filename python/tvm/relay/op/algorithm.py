@@ -45,3 +45,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
         Tensor with same shape as data.
     """
     return _make.argsort(data, axis, is_ascend, dtype)
+
+
+def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
+    return _make.topk(data, k, axis, ret_type, is_ascend, dtype)

@@ -19,8 +19,8 @@
 
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file nms.cc
- * \brief Non-maximum suppression operators
+ * \file sort.cc
+ * \brief Sort operators
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/algorithm.h>
@@ -44,7 +44,6 @@ bool ArgsortRel(const Array<Type>& types,
         << types[0];
     return false;
   }
-  CHECK_EQ(param->dtype, Float(32));
   reporter->Assign(types[1], TensorTypeNode::make(data->shape, param->dtype));
   return true;
 }
@@ -74,5 +73,6 @@ input array along the given axis.
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(6)
 .add_type_rel("Argsort", ArgsortRel);
+
 }  // namespace relay
 }  // namespace tvm

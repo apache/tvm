@@ -16,18 +16,15 @@
 # under the License.
 """ Support level6 operator test cases.
 """
-import math
 import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay.testing import ctx_list
-import topi.testing
 
 def test_argsort():
-    def verify_argsort(shape, axis, is_ascend):
+    def verify_argsort(shape, axis, is_ascend, dtype):
         x = relay.var("x", relay.TensorType(shape, "float32"))
-        z = relay.argsort(x, axis=axis, is_ascend=is_ascend)
-        zz = relay.ir_pass.infer_type(z)
+        z = relay.argsort(x, axis=axis, is_ascend=is_ascend, dtype=dtype)
         func = relay.Function([x], z)
         x_data = np.random.uniform(size=shape).astype("float32")
         if is_ascend:
@@ -39,10 +36,11 @@ def test_argsort():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
-                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.astype("float"), rtol=1e-5)
-    verify_argsort((2, 3, 4), axis=0, is_ascend=False)
-    verify_argsort((1, 4, 6), axis=1, is_ascend=True)
-    verify_argsort((3, 5, 6), axis=-1, is_ascend=False)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.astype(dtype), rtol=1e-5)
+    for dtype in ["int32", "int64", "float32", "float64"]:
+        verify_argsort((2, 3, 4), axis=0, is_ascend=False, dtype=dtype)
+        verify_argsort((1, 4, 6), axis=1, is_ascend=True, dtype=dtype)
+        verify_argsort((3, 5, 6), axis=-1, is_ascend=False, dtype=dtype)
 
 
 if __name__ == "__main__":
