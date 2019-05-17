@@ -64,8 +64,8 @@ These examples are located at `<tvm-root>/vta/apps/tsim_example`.
     * Run `make`
 
 * Some pointers
-    * Build cmake script for driver `<tvm-root>/vta/apps/tsim_example/cmake/modules/driver.cmake`
-    * Build cmake script for tsim `<tvm-root>/vta/apps/tsim_example/cmake/modules/tsim.cmake`
-    * Software driver that handles the VTA accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
-    * VTA add-by-one accelerator (Verilog) `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
-    * VTA add-by-one accelerator (Chisel) `<tvm-root>/vta/apps/tsim_example/hardware/chisel`
+    * Build cmake script for software library`<tvm-root>/vta/apps/tsim_example/cmake/modules/sw.cmake`
+    * Build cmake script for hardware library`<tvm-root>/vta/apps/tsim_example/cmake/modules/hw.cmake`
+    * Software driver that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
+    * Add-by-one accelerator in Verilog `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
+    * Add-by-one accelerator in Chisel3 `<tvm-root>/vta/apps/tsim_example/hardware/chisel`

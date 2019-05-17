@@ -31,7 +31,7 @@ else()
       message(FATAL_ERROR "TSIM_BUILD_NAME should be defined")
     endif()
 
-    set(TSIM_CONFIG ${PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python/tsim/config.py)
+    set(TSIM_CONFIG ${PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/config/config.py)
 
     execute_process(COMMAND ${TSIM_CONFIG} --get-target OUTPUT_VARIABLE TSIM_TARGET OUTPUT_STRIP_TRAILING_WHITESPACE)
     execute_process(COMMAND ${TSIM_CONFIG} --get-top-name OUTPUT_VARIABLE TSIM_TOP_NAME OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -122,7 +122,7 @@ else()
 
       file(GLOB VERILATOR_GEN_SRC ${VERILATOR_BUILD_DIR}/*.cpp)
       file(GLOB VERILATOR_SRC ${VTA_HW_DPI_DIR}/tsim_device.cc)
-      add_library(tsim SHARED ${VERILATOR_LIB_SRC} ${VERILATOR_GEN_SRC} ${VERILATOR_SRC})
+      add_library(hw SHARED ${VERILATOR_LIB_SRC} ${VERILATOR_GEN_SRC} ${VERILATOR_SRC})
 
       set(VERILATOR_DEF VL_TSIM_NAME=V${TSIM_TOP_NAME} VL_PRINTF=printf VM_COVERAGE=0 VM_SC=0)
       if (NOT TSIM_USE_TRACE STREQUAL "OFF")
@@ -130,12 +130,12 @@ else()
       else()
         list(APPEND VERILATOR_DEF VM_TRACE=1 TSIM_TRACE_FILE=${TSIM_BUILD_DIR}/${TSIM_TRACE_NAME}.vcd)
       endif()
-      target_compile_definitions(tsim PRIVATE ${VERILATOR_DEF})
-      target_compile_options(tsim PRIVATE -Wno-sign-compare -include V${TSIM_TOP_NAME}.h)
-      target_include_directories(tsim PRIVATE ${VERILATOR_BUILD_DIR} ${VERILATOR_INC_DIR} ${VERILATOR_INC_DIR}/vltstd ${VTA_DIR}/include)
+      target_compile_definitions(hw PRIVATE ${VERILATOR_DEF})
+      target_compile_options(hw PRIVATE -Wno-sign-compare -include V${TSIM_TOP_NAME}.h)
+      target_include_directories(hw PRIVATE ${VERILATOR_BUILD_DIR} ${VERILATOR_INC_DIR} ${VERILATOR_INC_DIR}/vltstd ${VTA_DIR}/include)
 
       if(APPLE)
-        set_target_properties(tsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+        set_target_properties(hw PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
       endif(APPLE)
 
     endif() # TSIM_TARGET STREQUAL "chisel" OR TSIM_TARGET STREQUAL "verilog"
