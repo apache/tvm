@@ -53,19 +53,38 @@ else()
 
       if (SBT)
 
+        # Install Chisel VTA package for DPI modules
         set(VTA_CHISEL_DIR ${VTA_DIR}/hardware/chisel)
+
+        execute_process(WORKING_DIRECTORY ${VTA_CHISEL_DIR}
+          COMMAND ${SBT} publishLocal RESULT_VARIABLE RETCODE)
+
+        if (NOT RETCODE STREQUAL "0")
+          message(FATAL_ERROR "[TSIM] sbt failed to install VTA scala package")
+        endif()
+
+        # Chisel - Scala to Verilog compilation
         set(TSIM_CHISEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hardware/chisel)
         set(CHISEL_BUILD_DIR ${TSIM_BUILD_DIR}/chisel)
         set(CHISEL_OPT "test:runMain test.Elaborate --target-dir ${CHISEL_BUILD_DIR} --top-name ${TSIM_TOP_NAME}")
 
+        execute_process(WORKING_DIRECTORY ${TSIM_CHISEL_DIR} COMMAND ${SBT} ${CHISEL_OPT} RESULT_VARIABLE RETCODE)
+
+        if (NOT RETCODE STREQUAL "0")
+          message(FATAL_ERROR "[TSIM] sbt failed to compile from Chisel to Verilog.")
+        endif()
+
+        file(GLOB VERILATOR_RTL_SRC ${CHISEL_BUILD_DIR}/*.v)
+
       else()
         message(FATAL_ERROR "[TSIM] sbt should be installed for Chisel")
-      endif() # SBT
+      endif() # sbt
 
     elseif (TSIM_TARGET STREQUAL "verilog")
 
       set(VTA_VERILOG_DIR ${VTA_DIR}/hardware/chisel/src/main/resources/verilog)
       set(TSIM_VERILOG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/hardware/verilog)
+      file(GLOB VERILATOR_RTL_SRC ${VTA_VERILOG_DIR}/*.v ${TSIM_VERILOG_DIR}/*.v)
 
     else()
       message(FATAL_ERROR "[TSIM] target language can be only verilog or chisel...")
@@ -86,21 +105,16 @@ else()
       list(APPEND VERILATOR_OPT +define+RANDOMIZE_MEM_INIT --x-assign unique)
       list(APPEND VERILATOR_OPT --output-split 20000 --output-split-cfuncs 20000)
       list(APPEND VERILATOR_OPT --top-module ${TSIM_TOP_NAME} -Mdir ${VERILATOR_BUILD_DIR})
+      list(APPEND VERILATOR_OPT --cc ${VERILATOR_RTL_SRC})
 
       if (NOT TSIM_USE_TRACE STREQUAL "OFF")
         list(APPEND VERILATOR_OPT --trace)
       endif()
 
-      if (TSIM_TARGET STREQUAL "chisel")
-        execute_process(WORKING_DIRECTORY ${VTA_CHISEL_DIR} COMMAND ${SBT} publishLocal RESULT_VARIABLE RETCODE)
-        execute_process(WORKING_DIRECTORY ${TSIM_CHISEL_DIR} COMMAND ${SBT} ${CHISEL_OPT} RESULT_VARIABLE RETCODE)
-        file(GLOB VERILATOR_RTL_SRC ${CHISEL_BUILD_DIR}/*.v)
-        list(APPEND VERILATOR_OPT --cc ${VERILATOR_RTL_SRC})
-        execute_process(COMMAND ${VERILATOR} ${VERILATOR_OPT} RESULT_VARIABLE RETCODE)
-      else()
-        file(GLOB VERILATOR_RTL_SRC ${VTA_VERILOG_DIR}/*.v ${TSIM_VERILOG_DIR}/*.v)
-        list(APPEND VERILATOR_OPT --cc ${VERILATOR_RTL_SRC})
-        execute_process(COMMAND ${VERILATOR} ${VERILATOR_OPT} RESULT_VARIABLE RETCODE)
+      execute_process(COMMAND ${VERILATOR} ${VERILATOR_OPT} RESULT_VARIABLE RETCODE)
+
+      if (NOT RETCODE STREQUAL "0")
+        message(FATAL_ERROR "[TSIM] Verilator failed to compile Verilog to C++...")
       endif()
 
       # Build shared library (.so)
