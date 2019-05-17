@@ -487,7 +487,7 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
   RewriteAnnotation rewrote = RewriteAnnotation();
   Expr new_expr = rewrote.Rewrite(expr, fallback_device);
 
-  // Remove OnDevice operators. Note that this operators are only present at the
+  // Remove OnDevice operators. Note that these operators are only present at the
   // leaves after annotation. Therefore, we can simply reconstruct the
   // Function/Expr by removing them directly.
   if (const FunctionNode* fn = new_expr.as<FunctionNode>()) {
