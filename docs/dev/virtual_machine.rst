@@ -108,7 +108,7 @@ InvokePacked
 
 Invoke the packed function denoted by `packed_index`. The `arity`
 and `output_size` are used to inform the VM how many inputs and
-outputs to expect. `packed_args` stores the list of argument registers,
+outputs to expect. `packed_args` stores the list of argument registers.
 
 AllocTensor
 ^^^^^^^^^^^
@@ -119,8 +119,8 @@ AllocTensor
   size_t ndim
   DLDataType dtype
 
-Allocate a tensor value of the appropriate shape(stored in shape_register) and dtype. The result
-is saved to register dst.
+Allocate a tensor value of the appropriate shape (stored in `shape_register`) and `dtype`. The result
+is saved to register `dst`.
 
 AllocDatatype
 ^^^^^^^^^^^^^
@@ -132,7 +132,7 @@ AllocDatatype
   RegName* datatype_fields
 
 Allocate a data type with the tag `tag` using the `num_fields` entries
-from registers datatype_fields. The result is saved to register dst.
+from registers `datatype_fields`. The result is saved to register `dst`.
 
 AllocClosure
 ^^^^^^^^^^^^
@@ -143,9 +143,9 @@ AllocClosure
   size_t num_freevar
   RegName* free_vars;
 
-Allocate a closure with the VMFunction at clo_index as
+Allocate a closure with the VMFunction at `clo_index` as
 its code, and the `num_freevar` entries from registers in
-free_vars. The result is saved to register dst.
+`free_vars`. The result is saved to register `dst`.
 
 GetField
 ^^^^^^^^
@@ -155,7 +155,7 @@ GetField
   RegName object
   size_t field_index
 
-Get the field value with index field_index from object. And saves the result to register dst.
+Get the field value with index `field_index` from `object`. And saves the result to register `dst`.
 
 If
 ^^
@@ -165,8 +165,8 @@ If
   size_t true_offset
   size_t false_offset
 
-Check if the object at register if_cond is `true` or `false`.
-If true relative jump by `true_offset`, else relative
+Check if the object at register `if_cond` is `true` or `false`.
+If `true`, relative jump by `true_offset`, else relative
 jump by `false_offset`.
 
 Goto
@@ -194,7 +194,7 @@ InvokeClosure
     size_t closure_args_num
     RegName* closure_args
 
-Invokes closure consuming the number of arguments declared in the closure's VMFunction.
+Invokes `closure`, consuming the number of arguments declared in the closure's VMFunction.
 
 LoadConst
 ^^^^^^^^^
@@ -203,7 +203,7 @@ LoadConst
   RegName dst
   size_t const_index
 
-Load the constant at `const_index` from the constant pool. The result is saved to register dst.
+Load the constant at `const_index` from the constant pool. The result is saved to register `dst`.
 
 Object Representation
 ~~~~~~~~~~~~~~~~~~~~~
@@ -238,7 +238,7 @@ Stack and State
 ~~~~~~~~~~~~~~~
 
 The Relay VM maintains a stack frame, which contains information about how to resume the
-previous call. Registers are allocated in a continuous space(virtual register file) for each function.
+previous call. Registers are allocated in a continuous space (virtual register file) for each function.
 
 We keep track of a set of Relay functions we have called, a pointer into its bytecode, an offset into the byte code (known as the program counter).
 
@@ -302,7 +302,7 @@ Unresolved Questions
 
 How do we handle dynamic shapes?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-I have another prototype extension to Relay which adds initial support for compiling and executing programs containing fully dynamic shapes. I will post an RFC and prototype PR on this subject soon.
+TODO
 
 How can we modify the VM to support JIT compilation of certain code paths?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -312,4 +312,4 @@ to be very flexible so we can modify it for future experiments.
 How do we support heterogenous execution?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Heterogenous execution should work out of the box assuming we have annotated the appropriate device copies.
-In order to do this properly we need to run the device annotation and copying passes. We forsee nothing too complex in this work.
+In order to do this properly we need to run the device annotation and copying passes. 
