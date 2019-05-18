@@ -96,7 +96,7 @@ def test_cast():
             ctx = tvm.context(device,  0)
             if not ctx.exist:
                 print("Skip because %s is not enabled" % device)
-                return
+                continue
             print("Running on target: %s" % device)
             with tvm.target.create(device):
                 s = topi.generic.schedule_injective(B)
