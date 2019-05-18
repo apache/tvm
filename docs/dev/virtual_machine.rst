@@ -287,10 +287,10 @@ the new pass manager (#2546) before merging.
 - Lambda Lift (see `src/relay/vm/lambda_lift.cc`)
 - Inline Primitives (see `src/relay/vm/inline_primitives.cc`)
 - Inliner (see `src/relay/pass/inliner.cc`)
-- Tail Call Optimization (see ...)
-- Constant Pool Layout (see ...)
-- ADT Tag Allocation (see ...)
-- Liveness Analysis (see ...)
+- Tail Call Optimization (TODO)
+- Constant Pool Layout (see `src/relay/backend/vm/compiler.cc`)
+- ADT Tag Allocation (see `src/relay/backend/vm/compiler.cc`)
+- Liveness Analysis (TODO)
 
 Serialization
 ~~~~~~~~~~~~~
