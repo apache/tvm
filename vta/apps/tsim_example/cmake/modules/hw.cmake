@@ -16,7 +16,7 @@
 # under the License.
 
 if(MSVC)
-  message(STATUS "[HW] build is skipped in Windows..")
+  message(STATUS "[TSIM_HW] build is skipped in Windows..")
 else()
   find_program(PYTHON NAMES python python3 python3.6)
   find_program(VERILATOR NAMES verilator)
@@ -24,11 +24,11 @@ else()
   if (VERILATOR AND PYTHON)
 
     if (TSIM_TOP_NAME STREQUAL "")
-      message(FATAL_ERROR "TSIM_TOP_NAME should be defined")
+      message(FATAL_ERROR "[TSIM_HW] TSIM_TOP_NAME should be defined")
     endif()
 
     if (TSIM_BUILD_NAME STREQUAL "")
-      message(FATAL_ERROR "TSIM_BUILD_NAME should be defined")
+      message(FATAL_ERROR "[TSIM_HW] TSIM_BUILD_NAME should be defined")
     endif()
 
     set(TSIM_CONFIG ${PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/config/config.py)
@@ -54,7 +54,7 @@ else()
           COMMAND ${SBT} publishLocal RESULT_VARIABLE RETCODE)
 
         if (NOT RETCODE STREQUAL "0")
-          message(FATAL_ERROR "[HW] sbt failed to install VTA scala package")
+          message(FATAL_ERROR "[TSIM_HW] sbt failed to install VTA scala package")
         endif()
 
         # Chisel - Scala to Verilog compilation
@@ -65,13 +65,13 @@ else()
         execute_process(WORKING_DIRECTORY ${TSIM_CHISEL_DIR} COMMAND ${SBT} ${CHISEL_OPT} RESULT_VARIABLE RETCODE)
 
         if (NOT RETCODE STREQUAL "0")
-          message(FATAL_ERROR "[HW] sbt failed to compile from Chisel to Verilog.")
+          message(FATAL_ERROR "[TSIM_HW] sbt failed to compile from Chisel to Verilog.")
         endif()
 
         file(GLOB VERILATOR_RTL_SRC ${CHISEL_BUILD_DIR}/*.v)
 
       else()
-        message(FATAL_ERROR "[HW] sbt should be installed for Chisel")
+        message(FATAL_ERROR "[TSIM_HW] sbt should be installed for Chisel")
       endif() # sbt
 
     elseif (TSIM_TARGET STREQUAL "verilog")
@@ -81,16 +81,16 @@ else()
       file(GLOB VERILATOR_RTL_SRC ${VTA_VERILOG_DIR}/*.v ${TSIM_VERILOG_DIR}/*.v)
 
     else()
-      message(FATAL_ERROR "[HW] target language can be only verilog or chisel...")
+      message(FATAL_ERROR "[TSIM_HW] target language can be only verilog or chisel...")
     endif() # TSIM_TARGET
 
     if (TSIM_TARGET STREQUAL "chisel" OR TSIM_TARGET STREQUAL "verilog")
 
       # Check if tracing can be enabled
       if (NOT TSIM_USE_TRACE STREQUAL "OFF")
-        message(STATUS "[HW] Verilog enable tracing")
+        message(STATUS "[TSIM_HW] Verilog enable tracing")
       else()
-        message(STATUS "[HW] Verilator disable tracing")
+        message(STATUS "[TSIM_HW] Verilator disable tracing")
       endif()
 
       # Verilator - Verilog to C++ compilation
@@ -108,7 +108,7 @@ else()
       execute_process(COMMAND ${VERILATOR} ${VERILATOR_OPT} RESULT_VARIABLE RETCODE)
 
       if (NOT RETCODE STREQUAL "0")
-        message(FATAL_ERROR "[HW] Verilator failed to compile Verilog to C++...")
+        message(FATAL_ERROR "[TSIM_HW] Verilator failed to compile Verilog to C++...")
       endif()
 
       # Build shared library (.so)
@@ -141,6 +141,6 @@ else()
     endif() # TSIM_TARGET STREQUAL "chisel" OR TSIM_TARGET STREQUAL "verilog"
 
   else()
-    message(STATUS "[HW] could not find Python or Verilator, build is skipped...")
+    message(STATUS "[TSIM_HW] could not find Python or Verilator, build is skipped...")
   endif() # VERILATOR
 endif() # MSVC
