@@ -100,7 +100,6 @@ def test_cast():
             print("Running on target: %s" % device)
             with tvm.target.create(device):
                 s = topi.generic.schedule_injective(B)
-                #print(tvm.lower(s, [A, B], simple_mode=True))
             foo = tvm.build(s, [A, B], device)
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.empty(shape=shape, dtype=to_dtype, ctx=ctx)
