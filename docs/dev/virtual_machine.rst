@@ -254,8 +254,6 @@ We keep track of a set of Relay functions we have called, a pointer into its byt
       const Instruction* code;
       // Current program counter relative to the code pointer.
       size_t pc;
-      // The current base pointer.
-      size_t bp;
       ...
     };
 
