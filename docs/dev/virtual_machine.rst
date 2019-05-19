@@ -281,13 +281,15 @@ There are quite a few optimizations required by the VM compiler.
 We have implemented them in the old pass style, but plan to port them to
 the new pass manager (#2546) before merging.
 
+Optimizations marked with `TODO` are not implemented yet.
+
 - A-Normal Form
 - Lambda Lift (see `src/relay/vm/lambda_lift.cc`)
 - Inline Primitives (see `src/relay/vm/inline_primitives.cc`)
 - Inliner (see `src/relay/pass/inliner.cc`)
-- Tail Call Optimization (TODO)
 - Constant Pool Layout (see `src/relay/backend/vm/compiler.cc`)
 - ADT Tag Allocation (see `src/relay/backend/vm/compiler.cc`)
+- Tail Call Optimization (TODO)
 - Liveness Analysis (TODO)
 
 Serialization
