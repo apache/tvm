@@ -1,9 +1,9 @@
 #ifndef UTVM_DEVICE_LIB_H_
 #define UTVM_DEVICE_LIB_H_
 
-extern void* (*TVMBackendAllocWorkspace_)(int, int, uint64_t, int, int) = (void* (*)(int, int, uint64_t, int, int)) 1;
-extern int (*TVMBackendFreeWorkspace_)(int, int, void*) = (int (*)(int, int, void*)) 1;
-extern void (*TVMAPISetLastError_)(const char*) = (void (*)(const char*)) 1;
+void* (*TVMBackendAllocWorkspace_)(int, int, uint64_t, int, int) = (void* (*)(int, int, uint64_t, int, int)) 1;
+int (*TVMBackendFreeWorkspace_)(int, int, void*) = (int (*)(int, int, void*)) 1;
+void (*TVMAPISetLastError_)(const char*) = (void (*)(const char*)) 1;
 
 #ifdef __cplusplus
 extern "C"

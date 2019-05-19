@@ -62,25 +62,12 @@ void MicroSession::InitSession(TVMArgs args) {
   utvm_main_symbol_addr_ = init_stub_info_.symbol_map["UTVMMain"];
   utvm_done_symbol_addr_ = init_stub_info_.symbol_map["UTVMDone"];
 
-  // TODO(weberlo): Move the patching below to the init stub.
+  // Patch workspace pointers to the start of the workspace section.
   dev_base_offset workspace_start_hole_offset = init_symbol_map()["workspace_start"];
   dev_base_offset workspace_curr_hole_offset = init_symbol_map()["workspace_curr"];
   void* workspace_hole_fill = (void*) (kWorkspaceStart.val_ + low_level_device_->base_addr().val_);
-
-  void* tmp;
-  low_level_device()->Read(workspace_start_hole_offset, &tmp, sizeof(void*));
-  std::cout << "workspace start addr (before): 0x" << std::hex << tmp << std::endl;
   low_level_device()->Write(workspace_start_hole_offset, &workspace_hole_fill, sizeof(void*));
-  low_level_device()->Read(workspace_start_hole_offset, &tmp, sizeof(void*));
-  std::cout << "workspace start addr (after): 0x" << std::hex << tmp << std::endl;
-
-  low_level_device()->Read(workspace_curr_hole_offset, &tmp, sizeof(void*));
-  std::cout << "workspace curr addr (before): 0x" << std::hex << tmp << std::endl;
   low_level_device()->Write(workspace_curr_hole_offset, &workspace_hole_fill, sizeof(void*));
-  low_level_device()->Read(workspace_curr_hole_offset, &tmp, sizeof(void*));
-  std::cout << "workspace curr addr (after): 0x" << std::hex << tmp << std::endl;
-
-  std::cout << "SESSION INIT SUCCESS" << std::endl;
 }
 
 dev_base_offset MicroSession::AllocateInSection(SectionKind type, size_t size) {
@@ -245,12 +232,7 @@ dev_addr MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* 
 
   for (int i = 0; i < num_args; i++) {
     switch (type_codes[i]) {
-      case kNDArrayContainer: {
-        TVMValue* val_addr = reinterpret_cast<TVMValue*>(
-            EncoderWrite(encoder, reinterpret_cast<TVMArray*>(args->values[i].v_handle)).val_);
-        tvm_vals_slot.Write(&val_addr);
-        break;
-      }
+      case kNDArrayContainer:
       case kArrayHandle: {
         TVMValue* val_addr = reinterpret_cast<TVMValue*>(
             EncoderWrite(encoder, reinterpret_cast<TVMArray*>(args->values[i].v_handle)).val_);
@@ -259,7 +241,6 @@ dev_addr MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* 
       }
       // TODO(mutinifni): implement other cases if needed
       default:
-        CHECK(false) << "Unsupported type code for writing args: " << type_codes[i];
         LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
         break;
     }
@@ -294,6 +275,11 @@ dev_addr MicroSession::EncoderWrite(TargetDataLayoutEncoder* encoder, TVMArray* 
   // Copy `arr`, update the copy's pointers to be device pointers, then
   // write the copy to `tvm_arr_slot`.
   TVMArray dev_arr = *arr;
+  // Update the device type to look like a host, because codegen generates
+  // checks that it is a host array.
+  CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
+    << "attempt to write TVMArray with non-micro device type";
+  dev_arr.ctx.device_type = DLDeviceType::kDLCPU;
   // Add the base address of the device to the array's data's device offset to
   // get a device address.
   dev_arr.data = reinterpret_cast<uint8_t*>(low_level_device()->base_addr().val_) +

@@ -1,4 +1,4 @@
-"""Cross compilation for micro."""
+"""Cross compilation for MicroTVM"""
 
 from __future__ import absolute_import
 
@@ -37,7 +37,6 @@ def create_lib(output, sources, options=None, cc="gcc"):
         cmd += sources
     if options:
         cmd += options
-    print(f"compiling with command \"{cmd}\"")
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     if proc.returncode != 0:
@@ -46,4 +45,4 @@ def create_lib(output, sources, options=None, cc="gcc"):
         raise RuntimeError(msg)
 
 
-_init_api("tvm.micro.cc")
+_init_api("tvm.micro.cross_compile")

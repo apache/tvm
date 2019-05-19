@@ -71,26 +71,12 @@ class MicroModuleNode final : public ModuleNode {
   }
 
   void PatchImplHole(const std::string func_name) {
-    // std::cout << "func_name: " << func_name << std::endl;
-    // std::cout << "base_addr: 0x" << std::hex << low_level_device_->base_addr().val_ << std::endl;
-    // std::cout << "text_start: " << std::hex << "0x" << binary_info_.text.start.val_ << std::endl;
     const dev_base_offset init_impl_offset = session_->init_symbol_map()[func_name];
-    // std::cout << "init_impl_offset: 0x" << std::hex << init_impl_offset.val_ << std::endl;
     void* init_impl_addr = (void*) (low_level_device_->base_addr().val_ + init_impl_offset.val_);
-    // std::cout << "init_impl_addr: 0x" << std::hex << init_impl_addr << std::endl;
     std::stringstream func_name_underscore;
     func_name_underscore << func_name << "_";
     const dev_base_offset lib_hole_offset = symbol_map()[func_name_underscore.str()];
-    // std::cout << "lib_hole_offset: 0x" << std::hex << lib_hole_offset.val_ << std::endl;
-    // std::cout << "lib_hole_addr: 0x" << std::hex << (low_level_device_->base_addr().val_ + lib_hole_offset.val_) << std::endl;
-    // void* tmp;
-    // session_->low_level_device()->Read(lib_hole_offset, &tmp, sizeof(void*));
-    // std::cout << "tmp addr (before): 0x" << std::hex << tmp << std::endl;
     session_->low_level_device()->Write(lib_hole_offset, &init_impl_addr, sizeof(void*));
-    // session_->low_level_device()->Read(lib_hole_offset, &tmp, sizeof(void*));
-    // std::cout << "tmp addr: 0x" << std::hex << tmp << std::endl;
-    // std::cout << "tmp offset: 0x" << std::hex << (((uintptr_t) tmp) - low_level_device_->base_addr().val_) << std::endl;
-    // std::cout << std::endl;
   }
 };
 

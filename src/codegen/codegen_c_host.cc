@@ -30,13 +30,14 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenCHost::CodeGenCHost() {
+CodeGenCHost::CodeGenCHost() : retcode_counter_(1) {
   module_name = GetUniqueName("__tvm_module_ctx");
 }
 
 void CodeGenCHost::Init(bool output_ssa) {
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  decl_stream << "#include \"tvm/runtime/utvm_device_lib.h\"\n";
   decl_stream << "extern void* " << module_name << " = NULL;\n";
   CodeGenC::Init(output_ssa);
 }
@@ -164,7 +165,8 @@ void CodeGenCHost::PrintGetFuncFromBackend(std::string func_name, std::string pa
               << ", &" << packed_func_name << ") != 0) {\n";
   int get_func_env_scope = this->BeginScope();
   this->PrintIndent();
-  this->stream << "return -1;\n";
+  this->stream << "return -" << retcode_counter_ << ";\n";
+  retcode_counter_++;
   this->EndScope(get_func_env_scope);
   this->PrintIndent();
   this->stream << "}\n";
@@ -187,7 +189,8 @@ void CodeGenCHost::PrintFuncCall(std::string packed_func_name, int num_args) {
                << ret_type_code << ") != 0) {\n";
   int func_call_scope = this->BeginScope();
   this->PrintIndent();
-  this->stream << "return -1;\n";
+  this->stream << "return -" << retcode_counter_ << ";\n";
+  retcode_counter_++;
   this->EndScope(func_call_scope);
   this->PrintIndent();
   this->stream << "}\n";
@@ -230,7 +233,8 @@ void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
     this->PrintFuncCall(packed_func_name, num_args);
   } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
     this->PrintIndent();
-    this->stream << "return -1;\n";
+    this->stream << "return -" << retcode_counter_ << ";\n";
+    retcode_counter_++;
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -244,7 +248,8 @@ void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
   PrintIndent();
   stream << "TVMAPISetLastError(\"" << op->message.as<StringImm>()->value << "\");\n";
   PrintIndent();
-  stream << "return -1;\n";
+  this->stream << "return -" << retcode_counter_ << ";\n";
+  retcode_counter_++;
   this->EndScope(assert_if_scope);
   PrintIndent();
   stream << "}\n";
