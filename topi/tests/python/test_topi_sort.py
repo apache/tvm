@@ -49,14 +49,12 @@ def test_argsort():
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
 
-
 def verify_topk(k, axis, ret_type, dtype):
-    shape = (3, 4)
+    shape = (5, 6)
     data_dtype = "float32"
     data = tvm.placeholder(shape, name="data", dtype=data_dtype)
     outs = topi.topk(data, k, axis, ret_type, dtype=dtype)
-    # print(outs)
-    # return
+    outs = outs if isinstance(outs, list) else [outs]
     np_data = np.random.uniform(size=shape).astype(data_dtype)
     np_indices = np.argsort(-np_data, axis=axis)
     if axis == 0:
@@ -64,28 +62,15 @@ def verify_topk(k, axis, ret_type, dtype):
         np_values = np.zeros(np_indices.shape).astype(data_dtype)
         for i in range(shape[1]):
             np_values[:, i] = np_data[np_indices[:, i], i]
-        #real_indices = np.array(list(zip(np_indices, np.arange(shape[1]))))
-        #np_values = np_data[np_indices, np.arange(shape[0])]
     else:
         np_indices = np_indices[:, :k]
         np_values = np.zeros(np_indices.shape).astype(data_dtype)
-        print(np_values.shape)
         for i in range(shape[0]):
-            np_values[i, :] = np_data[i, np_indices[:, i]]
-        #np_values = np_data[np.arange(shape[0]), np_indices]
-    #np_values = np_data[np_indices]
-    print(np_data)
-    print(np_indices)
-    #print(real_indices)
-    print(np_values)
+            np_values[i, :] = np_data[i, np_indices[i, :]]
+    # print(np_data)
+    # print(np_indices)
+    # print(np_values)
 
-
-
-def test_topk():
-    verify_topk(2, -1, "both", "int64")
-    return
-    dshape = (1, 8)
-    #np_result = np.argsort(-np_data)
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -93,19 +78,32 @@ def test_topk():
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.topk(data, axis=-1, is_ascend=False, flag=False)
-            s = topi.generic.schedule_argsort(out)
+            s = topi.generic.schedule_topk(outs)
 
         tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype="float32"), ctx)
-        f = tvm.build(s, [data, out], device)
-        f(tvm_data, tvm_valid_count, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result.astype("float32"), rtol=1e0)
+        tvm_res = []
+        for t in outs:
+            tvm_res.append(tvm.nd.empty(t.shape, dtype=t.dtype, ctx=ctx))
+        f = tvm.build(s, [data] + outs, device)
+        f(tvm_data, *tvm_res)
+        # for t in tvm_res:
+        #     print(t.asnumpy())
+        if ret_type == "both":
+            tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_values)
+            tvm.testing.assert_allclose(tvm_res[1].asnumpy(), np_indices)
+        elif ret_type == "values":
+            tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_values)
+        else:
+            tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_indices)
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
 
+def test_topk():
+    verify_topk(1, -1, "both", "int64")
+    verify_topk(3, -1, "both", "int64")
+    verify_topk(1, 0, "both", "int64")
+    verify_topk(3, 0, "both", "int64")
 
 if __name__ == "__main__":
     #test_argsort()

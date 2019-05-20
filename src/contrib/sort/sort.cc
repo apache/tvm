@@ -237,13 +237,17 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
       axis_mul_after *= input->shape[i];
     }
   }
+  if (k < 1) {
+    k = input->shape[axis];
+  }
 
   for (int i = 0 ; i < axis_mul_before; ++i) {
     for (int j = 0 ; j < axis_mul_after; ++j) {
       sorter.clear();
-      int64_t base_idx = i * input->shape[axis] * axis_mul_after + j;
+      int64_t src_base_idx = i * input->shape[axis] * axis_mul_after + j;
+      int64_t dst_base_idx = i * k * axis_mul_after + j;
       for (int64_t kk = 0; kk < input->shape[axis]; ++kk) {
-        int64_t full_idx = base_idx + kk * axis_mul_after;
+        int64_t full_idx = src_base_idx + kk * axis_mul_after;
         sorter.emplace_back(std::make_pair(kk, data_ptr[full_idx]));
       }
       if (is_ascend) {
@@ -254,10 +258,10 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
       int64_t cnt = k > 0 ? k : input->shape[axis];
       for (int64_t kk = 0; kk < cnt; ++kk) {
         if (indices_ptr != nullptr) {
-          indices_ptr[base_idx + kk * axis_mul_after] = static_cast<IndicesType>(sorter[kk].first);
+          indices_ptr[dst_base_idx + kk * axis_mul_after] = static_cast<IndicesType>(sorter[kk].first);
         }
         if (values_ptr != nullptr) {
-          values_ptr[base_idx + kk * axis_mul_after] = static_cast<DataType>(sorter[kk].second);
+          values_ptr[dst_base_idx + kk * axis_mul_after] = static_cast<DataType>(sorter[kk].second);
         }
       }
     }
@@ -310,43 +314,43 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk")
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
-  } /*else if (data_dtype == "float64") {
+  } else if (data_dtype == "float64") {
     if (out_dtype == "int32") {
-      argsort<double, int32_t>(input, output, axis, is_ascend);
+      topk<double, int32_t>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "int64") {
-      argsort<double, int64_t>(input, output, axis, is_ascend);
+      topk<double, int64_t>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "float32") {
-      argsort<double, float>(input, output, axis, is_ascend);
+      topk<double, float>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "float64") {
-      argsort<double, double>(input, output, axis, is_ascend);
+      topk<double, double>(input, values_out, indices_out, k, axis, is_ascend);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   } else if (data_dtype == "int32") {
     if (out_dtype == "int32") {
-      argsort<int32_t, int32_t>(input, output, axis, is_ascend);
+      topk<int32_t, int32_t>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "int64") {
-      argsort<int32_t, int64_t>(input, output, axis, is_ascend);
+      topk<int32_t, int64_t>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "float32") {
-      argsort<int32_t, float>(input, output, axis, is_ascend);
+      topk<int32_t, float>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "float64") {
-      argsort<int32_t, double>(input, output, axis, is_ascend);
+      topk<int32_t, double>(input, values_out, indices_out, k, axis, is_ascend);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   }  else if (data_dtype == "int64") {
     if (out_dtype == "int32") {
-      argsort<int64_t, int32_t>(input, output, axis, is_ascend);
+      topk<int64_t, int32_t>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "int64") {
-      argsort<int64_t, int64_t>(input, output, axis, is_ascend);
+      topk<int64_t, int64_t>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "float32") {
-      argsort<int64_t, float>(input, output, axis, is_ascend);
+      topk<int64_t, float>(input, values_out, indices_out, k, axis, is_ascend);
     } else if (out_dtype == "float64") {
-      argsort<int64_t, double>(input, output, axis, is_ascend);
+      topk<int64_t, double>(input, values_out, indices_out, k, axis, is_ascend);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
-  }*/ else {
+  } else {
     LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
   }
 });
