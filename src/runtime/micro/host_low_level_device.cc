@@ -33,30 +33,29 @@ class HostLowLevelDevice final : public LowLevelDevice {
    * \brief destructor to deallocate on-host device region
    */
   ~HostLowLevelDevice() {
-    munmap((void*) base_addr_.val_, size_);
+    munmap(base_addr_.as_ptr<void>(), size_);
   }
 
   void Write(dev_base_offset offset,
              void* buf,
              size_t num_bytes) final {
-    void* addr = (void*) GetAddr(offset, base_addr_).val_;
+    void* addr = (offset + base_addr_).as_ptr<void>();
     std::memcpy(addr, buf, num_bytes);
   }
 
   void Read(dev_base_offset offset,
             void* buf,
             size_t num_bytes) final {
-    void* addr = (void*) GetAddr(offset, base_addr_).val_;
+    void* addr = (offset + base_addr_).as_ptr<void>();
     std::memcpy(buf, addr, num_bytes);
   }
 
   void Execute(dev_base_offset func_offset, dev_base_offset breakpoint) final {
-    dev_addr func_addr = GetAddr(func_offset, base_addr_);
-    uint64_t retcode = ((uint64_t (*)(void)) func_addr.val_)();
-    CHECK(retcode == 0) << "low-level device returned from call with error code " << retcode;
+    dev_addr func_addr = func_offset + base_addr_;
+    reinterpret_cast<void (*)(void)>(func_addr.val())();
   }
 
-  const dev_base_addr base_addr() const final {
+  dev_base_addr base_addr() const final {
     return base_addr_;
   }
 

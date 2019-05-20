@@ -27,48 +27,93 @@ enum SectionKind : int {
   kWorkspace = 7,
 };
 
-/*! \brief absolute device address */
-struct dev_addr {
-  std::uintptr_t val_;
+// TODO(weberlo): There's a lot of duplication between these classes.  How can we consolidate?
+class dev_addr;
+class dev_base_addr;
+class dev_base_offset;
 
+/*! \brief absolute device address */
+class dev_addr {
+ public:
   explicit dev_addr(std::uintptr_t val) : val_(val) {}
   dev_addr() : val_(0) {}
   explicit dev_addr(std::nullptr_t) : val_(0) {}
   ~dev_addr() {}
+
+  std::uintptr_t val() const { return val_; }
+  template <typename T>
+  T* as_ptr() const { return reinterpret_cast<T*>(val_); }
+  bool is_null() const { return val_ == 0; }
+
+  dev_base_offset operator-(dev_base_addr base);
+  dev_addr operator+(size_t n);
+
+ private:
+  std::uintptr_t val_;
 };
 
-/*! \brief TODO */
-struct dev_base_addr {
-  std::uintptr_t val_;
-
+/*! \brief base address of the device */
+class dev_base_addr {
+ public:
   explicit dev_base_addr(std::uintptr_t val) : val_(val) {}
   dev_base_addr() : val_(0) {}
   explicit dev_base_addr(std::nullptr_t) : val_(0) {}
   ~dev_base_addr() {}
+
+  std::uintptr_t val() const { return val_; }
+  template <typename T>
+  T* as_ptr() const { return reinterpret_cast<T*>(val_); }
+  bool is_null() const { return val_ == 0; }
+
+  dev_addr operator+(dev_base_offset offset);
+
+ private:
+  std::uintptr_t val_;
 };
 
 /*! \brief offset from device base address */
-struct dev_base_offset {
-  std::uintptr_t val_;
-
+class dev_base_offset {
+ public:
   explicit dev_base_offset(std::uintptr_t val) : val_(val) {}
   dev_base_offset() : val_(0) {}
   explicit dev_base_offset(std::nullptr_t) : val_(0) {}
   ~dev_base_offset() {}
+
+  std::uintptr_t val() const { return val_; }
+  template <typename T>
+  T* as_ptr() const { return reinterpret_cast<T*>(val_); }
+  bool is_null() const { return val_ == 0; }
+
+  dev_addr operator+(dev_base_addr base);
+  dev_base_offset operator+(size_t n);
+
+ private:
+  std::uintptr_t val_;
 };
 
+/*!
+ * \brief map from symbols to their on-device offsets
+ */
 class SymbolMap {
  public:
+  /*!
+   * \brief default constructor
+   */
   SymbolMap() {}
 
+  /*!
+   * \brief constructor that builds the mapping
+   * \param binary contents of binary object file
+   * \param base_addr base address of the target device
+   */
   SymbolMap(std::string binary, dev_base_addr base_addr) {
     const auto* f = Registry::Get("tvm_callback_get_symbol_map");
-    CHECK(f != nullptr) << "Require tvm_callback_get_symbol_map to exist in registry";
+    CHECK(f != nullptr) << "require tvm_callback_get_symbol_map to exist in registry";
     TVMByteArray arr;
     arr.data = &binary[0];
     arr.size = binary.length();
     std::string map_str = (*f)(arr);
-    // parse symbols and addresses from returned string
+    // Parse symbols and addresses from returned string.
     std::stringstream stream;
     stream << map_str;
     std::string name;
@@ -76,7 +121,7 @@ class SymbolMap {
     stream >> name;
     stream >> std::hex >> addr;
     while (stream) {
-      map_[name] = dev_base_offset(addr - base_addr.val_);
+      map_[name] = dev_addr(addr) - base_addr;
       stream >> name;
       stream >> std::hex >> addr;
     }
@@ -92,7 +137,7 @@ class SymbolMap {
   std::unordered_map<std::string, dev_base_offset> map_;
 };
 
-/*! \brief TODO */
+/*! \brief struct containing section location info */
 struct SectionLocation {
   /*! \brief section start offset */
   dev_base_offset start;
@@ -100,7 +145,7 @@ struct SectionLocation {
   size_t size;
 };
 
-/*! \brief TODO */
+/*! \brief struct containing section locations and symbol mappings */
 struct BinaryInfo {
   /*! \brief text section location */
   SectionLocation text;
@@ -148,18 +193,6 @@ constexpr uint64_t kMemorySize = 45000000000;
 /*! \brief default size alignment */
 constexpr int kDefaultSizeAlignment = 8;
 
-
-/*!
- * \brief converts actual address to offset from base_addr
- * \param addr address to be converted to offset
- * \param base_addr base address
- * \return offset from base_addr
- */
-// inline void* GetOffset(const void* addr, const void* base_addr) {
-//   return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(const_cast<void*>(addr)) -
-//                                  reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)));
-// }
-
 /*!
  * \brief upper-aligns value according to specified alignment
  * \param value value to be aligned
@@ -168,19 +201,6 @@ constexpr int kDefaultSizeAlignment = 8;
  */
 inline size_t UpperAlignValue(size_t value, size_t align) {
   return value + (align - (value % align)) % align;
-}
-
-/*!
- * \brief converts offset to actual address
- * \param offset offset from base_addr
- * \param base base address
- * \return address relative to base_addr
- */
-inline dev_addr GetAddr(const dev_base_offset offset, const dev_base_addr base) {
-  // return reinterpret_cast<void*>(reinterpret_cast<uint8_t*>(const_cast<void*>(base_addr)) +
-                                //  reinterpret_cast<std::uintptr_t>(offset));
-  // TODO: replace with operator overloading
-  return dev_addr(base.val_ + offset.val_);
 }
 
 /*!
@@ -213,12 +233,11 @@ dev_base_offset GetSymbolOffset(std::unordered_map<std::string, void*> symbol_ma
  * \param bss new bss section address
  * \return relocated binary file contents
  */
-// TODO(weberlo): Convert to dev_base_offset or dev_addr arg types
 std::string RelocateBinarySections(std::string binary_name,
-                                   void* text,
-                                   void* rodata,
-                                   void* data,
-                                   void* bss);
+                                   dev_addr text,
+                                   dev_addr rodata,
+                                   dev_addr data,
+                                   dev_addr bss);
 
 /*!
  * \brief reads section from binary

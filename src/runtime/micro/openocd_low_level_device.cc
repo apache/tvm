@@ -34,7 +34,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
 
   void Execute(dev_base_offset func_addr, dev_base_offset breakpoint) final;
 
-  const dev_base_addr base_addr() const final;
+  dev_base_addr base_addr() const final;
 
   const char* device_type() const final {
     return "openocd";

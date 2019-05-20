@@ -47,10 +47,10 @@ class MicroSectionAllocator {
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
   dev_base_offset Allocate(size_t size) {
-    CHECK(section_max_.val_ + size < section_end_.val_) << "out of space in section with start_addr: " << section_start_.val_;
+    CHECK(section_max_.val() + size < section_end_.val()) << "out of space in section with start_addr=" << section_start_.val();
     dev_base_offset alloc_ptr = section_max_;
-    section_max_ = dev_base_offset(section_max_.val_ + size);
-    alloc_map_[(void*)alloc_ptr.val_] = size;
+    section_max_ = section_max_ + size;
+    alloc_map_[alloc_ptr.val()] = size;
     return alloc_ptr;
   }
 
@@ -61,7 +61,7 @@ class MicroSectionAllocator {
    * \note simple allocator scheme, more complex versions will be implemented later
    */
   void Free(dev_base_offset offs) {
-    void* ptr = reinterpret_cast<void*>(offs.val_);
+    std::uintptr_t ptr = offs.val();
     CHECK(alloc_map_.find(ptr) != alloc_map_.end()) << "freed pointer was never allocated";
     alloc_map_.erase(ptr);
     if (alloc_map_.empty()) {
@@ -85,10 +85,12 @@ class MicroSectionAllocator {
   /*! \brief end address of last allocation */
   dev_base_offset section_max_;
   /*! \brief allocation map for allocation sizes */
-  // TODO(weberlo): Replace `void*` with `dev_base_offset`.
-  std::unordered_map<void*, size_t> alloc_map_;
+  std::unordered_map<std::uintptr_t, size_t> alloc_map_;
 };
 
+/*!
+ * \brief session for facilitating micro device interaction
+ */
 class MicroSession {
  public:
   /*!
@@ -105,7 +107,17 @@ class MicroSession {
    * \brief get MicroSession global singleton
    * \return pointer to the micro session global singleton
    */
-  static MicroSession* Global();
+  static std::shared_ptr<MicroSession>& Global() {
+    static std::shared_ptr<MicroSession> inst = std::make_shared<MicroSession>();
+    return inst;
+  }
+
+  /*!
+   * \brief initializes session by setting up a low-level device
+   * \param args TVMArgs passed into the micro.init packedfunc
+   * \note must be called upon first call to Global()
+   */
+  void InitSession(TVMArgs args);
 
   /*!
    * \brief allocate memory in section
@@ -122,6 +134,11 @@ class MicroSession {
    */
   void FreeInSection(SectionKind type, dev_base_offset ptr);
 
+  /*!
+   * \brief read string from device to host
+   * \param str_offset device offset of first character of string
+   * \return host copy of device string that was read
+   */
   std::string ReadString(dev_base_offset str_offset);
 
   /*!
@@ -131,16 +148,19 @@ class MicroSession {
    */
   void PushToExecQueue(dev_base_offset func, TVMArgs args);
 
-  /*! TODO */
+  /*!
+   * \brief loads binary onto device
+   * \param binary_path path to binary object file
+   * \return info about loaded binary
+   */
   BinaryInfo LoadBinary(std::string binary_path);
 
   /*!
    * \brief returns low-level device pointer
-   * \note assumes low_level_device_ is initialized
+   * \note assumes low-level device has been initialized
    */
-  // TODO(weberlo): remove &
   const std::shared_ptr<LowLevelDevice> low_level_device() const {
-    // TODO(weberlo): Assert `low_level_device_` is initialized
+    CHECK(low_level_device_ != nullptr) << "attempt to get uninitialized low-level device";
     return low_level_device_;
   }
 

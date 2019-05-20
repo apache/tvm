@@ -44,7 +44,6 @@ def from_host_mod(host_mod, device_type):
     Parameters
     ----------
     host_mod : tvm.module.Module
-        TODO(weberlo): better description
         module for host execution
 
     device_type : str

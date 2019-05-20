@@ -96,16 +96,7 @@ class TargetDataLayoutEncoder {
     }
     size_t slot_start_offset = curr_offset_;
     curr_offset_ += size;
-    return Slot<T>(this, slot_start_offset, size, GetDevAddr(slot_start_offset));
-  }
-
-  /*!
-   * \brief returns the corresponding device address for the offset `offset`
-   * \param offset byte offset from the beginning of the backing buffer
-   * \return device address
-   */
-  dev_addr GetDevAddr(size_t offset) {
-    return dev_addr(start_addr_.val_ + offset);
+    return Slot<T>(this, slot_start_offset, size, start_addr_ + slot_start_offset);
   }
 
   /*!

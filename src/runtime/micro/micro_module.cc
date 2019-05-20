@@ -72,7 +72,7 @@ class MicroModuleNode final : public ModuleNode {
 
   void PatchImplHole(const std::string func_name) {
     const dev_base_offset init_impl_offset = session_->init_symbol_map()[func_name];
-    void* init_impl_addr = (void*) (low_level_device_->base_addr().val_ + init_impl_offset.val_);
+    void* init_impl_addr = (low_level_device_->base_addr() + init_impl_offset).as_ptr<void>();
     std::stringstream func_name_underscore;
     func_name_underscore << func_name << "_";
     const dev_base_offset lib_hole_offset = symbol_map()[func_name_underscore.str()];

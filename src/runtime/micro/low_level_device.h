@@ -52,7 +52,7 @@ class LowLevelDevice {
    * \brief getter function for base_addr
    * \return the base address of the device memory region
    */
-  virtual const dev_base_addr base_addr() const = 0;
+  virtual dev_base_addr base_addr() const = 0;
 
   /*!
    * \brief getter function for low-level device type

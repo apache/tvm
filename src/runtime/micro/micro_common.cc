@@ -16,6 +16,26 @@
 namespace tvm {
 namespace runtime {
 
+dev_base_offset dev_addr::operator-(dev_base_addr base) {
+  return dev_base_offset(val_ - base.val());
+}
+
+dev_addr dev_addr::operator+(size_t n) {
+  return dev_addr(val_ + n);
+}
+
+dev_addr dev_base_addr::operator+(dev_base_offset offset) {
+  return dev_addr(val_ + offset.val());
+}
+
+dev_addr dev_base_offset::operator+(dev_base_addr base) {
+  return dev_addr(val_ + base.val());
+}
+
+dev_base_offset dev_base_offset::operator+(size_t n) {
+  return dev_base_offset(val_ + n);
+}
+
 const char* SectionToString(SectionKind section) {
   switch (section) {
     case kText: return "text";
@@ -41,18 +61,18 @@ static std::string AddrToString(void* addr) {
 }
 
 std::string RelocateBinarySections(std::string binary_path,
-                                   void* text,
-                                   void* rodata,
-                                   void* data,
-                                   void* bss) {
+                                   dev_addr text,
+                                   dev_addr rodata,
+                                   dev_addr data,
+                                   dev_addr bss) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
   std::string relocated_bin = (*f)(binary_path,
-                                   AddrToString(text),
-                                   AddrToString(rodata),
-                                   AddrToString(data),
-                                   AddrToString(bss));
+                                   AddrToString(text.as_ptr<void>()),
+                                   AddrToString(rodata.as_ptr<void>()),
+                                   AddrToString(data.as_ptr<void>()),
+                                   AddrToString(bss.as_ptr<void>()));
   return relocated_bin;
 }
 
