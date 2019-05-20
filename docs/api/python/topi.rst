@@ -88,6 +88,7 @@ List of operators
    topi.not_equal
    topi.greater_equal
    topi.less_equal
+   topi.all
    topi.logical_and
    topi.logical_or
    topi.logical_not
@@ -140,6 +141,7 @@ topi
 .. autofunction:: topi.gather_nd
 .. autofunction:: topi.full
 .. autofunction:: topi.full_like
+.. autofunction:: topi.all
 .. autofunction:: topi.max
 .. autofunction:: topi.sum
 .. autofunction:: topi.min

@@ -767,6 +767,17 @@ def _sum():
             ignores=['name', 'Tidx'])([inputs[0]], attr)
     return _impl
 
+def _reduce_all():
+    def _impl(inputs, attr, params):
+        axis = params.pop(inputs[1].name_hint).asnumpy()
+        axis = tuple(axis)
+        return AttrCvt(
+            op_name='all',
+            extras={'axis': axis},
+            transforms={'keep_dims':'keepdims'},
+            ignores=['name', 'Tidx'])([inputs[0]], attr)
+    return _impl
+
 def _square():
     def _impl(inputs, attr, params):
         return _op.multiply(inputs[0], inputs[0])
@@ -1180,6 +1191,7 @@ _identity_list = []
 # for N to 1 mapping, currently not supported(?)
 _convert_map = {
     'Add'                               : _elemwise('add'),
+    'All'                               : _reduce_all(),
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'AvgPool'                           : _pooling('avg_pool'),

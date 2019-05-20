@@ -39,7 +39,7 @@ def argmax(data, axis=None, keepdims=False, exclude=False):
 
     exclude : bool
         If `exclude` is true, reduction will be performed on the axes that are
-      NOT in axis instead.
+        NOT in axis instead.
 
     Returns
     -------
@@ -69,7 +69,7 @@ def argmin(data, axis=None, keepdims=False, exclude=False):
 
     exclude : bool
         If `exclude` is true, reduction will be performed on the axes that are
-      NOT in axis instead.
+        NOT in axis instead.
 
     Returns
     -------
@@ -100,7 +100,7 @@ def sum(data, axis=None, keepdims=False, exclude=False):
 
     exclude : bool
         If `exclude` is true, reduction will be performed on the axes that are
-      NOT in axis instead.
+        NOT in axis instead.
 
     Returns
     -------
@@ -109,6 +109,58 @@ def sum(data, axis=None, keepdims=False, exclude=False):
     """
     axis = [axis] if axis and isinstance(axis, int) else axis
     return _make.sum(data, axis, keepdims, exclude)
+
+
+def all(data, axis=None, keepdims=False, exclude=False):
+    """Computes the logical AND of boolean array elements over given axes.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input boolean tensor
+
+    axis : None or int or tuple of int
+        Axis or axes along which a sum is performed. The default, axis=None,
+        will sum all of the elements of the input array. If axis is
+        negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as
+        dimensions with size one. With this option, the result will broadcast
+        correctly against the input array.
+
+    exclude : bool
+        If `exclude` is true, reduction will be performed on the axes that are
+        NOT in axis instead.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+    data = relay.Constant(tvm.nd.array([[[ True,  True,  True],
+                                         [ True,  True,  True],
+                                         [False,  True, False]],
+                                        [[ True, False, False],
+                                         [ True,  True, False],
+                                         [False,  True,  True]]]))
+
+    relay.all(data, axis=1)
+    # [[False,  True, False],
+    # [False, False, False]]
+
+    relay.all(data, axis=0)
+    # [[ True, False, False],
+    # [ True,  True, False],
+    # [False,  True, False]]
+
+    """
+    axis = [axis] if axis and isinstance(axis, int) else axis
+    return _make.all(data, axis, keepdims, exclude)
 
 
 def max(data, axis=None, keepdims=False, exclude=False):
@@ -131,7 +183,7 @@ def max(data, axis=None, keepdims=False, exclude=False):
 
     exclude : bool
         If `exclude` is true, reduction will be performed on the axes that are
-      NOT in axis instead.
+        NOT in axis instead.
 
     Returns
     -------
@@ -163,7 +215,7 @@ def min(data, axis=None, keepdims=False, exclude=False):
 
     exclude : bool
         If `exclude` is true, reduction will be performed on the axes that are
-      NOT in axis instead.
+        NOT in axis instead.
 
     Returns
     -------
@@ -194,7 +246,7 @@ def mean(data, axis=None, keepdims=False, exclude=False):
 
     exclude : bool
         If `exclude` is true, reduction will be performed on the axes that are
-      NOT in axis instead.
+        NOT in axis instead.
 
     Returns
     -------
@@ -225,7 +277,7 @@ def prod(data, axis=None, keepdims=False, exclude=False):
 
     exclude : bool
         If `exclude` is true, reduction will be performed on the axes that are
-      NOT in axis instead.
+        NOT in axis instead.
 
     Returns
     -------
