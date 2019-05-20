@@ -127,7 +127,7 @@ def verify_concatenate(shapes, axis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(out_tensor)
+            s = topi.generic.schedule_concatenate(out_tensor)
 
         foo = tvm.build(s, tensor_l + [out_tensor], device, name="concatenate")
         data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
@@ -476,6 +476,7 @@ def test_concatenate():
                         (12, 6, 7, 3),
                         (8, 6, 7, 3),
                         (2, 6, 7, 3)], 0)
+    verify_concatenate([(1, 14400), (1, 2400), (1, 640), (1, 240)], 1)
 
 
 def test_stack():

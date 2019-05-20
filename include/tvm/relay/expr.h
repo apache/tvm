@@ -521,7 +521,7 @@ RELAY_DEFINE_NODE_REF(RefWrite, RefWriteNode, Expr);
  * rewriting pass such as layout or type transformation.
  *
  * Subclass TempExprNode allows us to pattern match on
- * specific kind TempExpr and use them for expression rewriting.
+ * specific kind of TempExpr and use them for expression rewriting.
  *
  * TempExpr should only be used within a pass,
  */
@@ -570,8 +570,8 @@ inline const TTypeNode* ExprNode::type_as() const {
  * \return The text representation.
  */
 std::string AsText(const NodeRef& node,
-                    bool show_meta_data = true,
-                    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+                   bool show_meta_data = true,
+                   runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_

@@ -115,9 +115,7 @@ Expr MakePad(Expr data, Array<Array<IndexExpr> > pad_width, double pad_value) {
 }
 
 TVM_REGISTER_API("relay.op.nn._make.pad")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakePad, args, rv);
-  });
+.set_body_typed(MakePad);
 
 RELAY_REGISTER_OP("nn.pad")
 .describe(R"code(Pad for n-D tensor.

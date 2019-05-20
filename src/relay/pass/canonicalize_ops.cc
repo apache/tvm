@@ -61,9 +61,7 @@ Expr CanonicalizeOps(const Expr& e) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.canonicalize_ops")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-*ret = CanonicalizeOps(args[0]);
-});
+.set_body_typed(CanonicalizeOps);
 
 }  // namespace relay
 }  // namespace tvm

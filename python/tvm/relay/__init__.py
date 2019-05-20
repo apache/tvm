@@ -25,7 +25,7 @@ from . import expr_functor
 from . import module
 from . import adt
 from . import ir_pass
-from .build_module import build, build_config, create_executor, optimize
+from .build_module import build, build_config, create_executor
 from . import prelude
 from . import parser
 from . import debug
@@ -36,9 +36,11 @@ from .op import Op
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
+from .op.algorithm import *
 from . import nn
 from . import annotation
 from . import vision
+from . import contrib
 from . import image
 from . import frontend
 from . import backend
@@ -101,6 +103,7 @@ sequential_pass = ir_pass.sequential_pass
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
+ExprVisitor = expr_functor.ExprVisitor
 ExprMutator = expr_functor.ExprMutator
 
 # Parser

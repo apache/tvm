@@ -94,12 +94,13 @@ class Layout;
 // Internal node container Buffer
 class LayoutNode : public Node {
  public:
-  /*! \brief string representation of layout */
+  /*! \brief string representation of layout, "" for scalar. */
   std::string name;
   /*! \brief specify each axis of the layout,
    *   in which the variable name is the name of the axis.
    *   The IterVar's extent indicates the size of the axis,
    *   it is a variable for a primal axis, but a constant for a subordinate axis.
+   *   Empty for scalar's layout.
    */
   Array<IterVar> axes;
 
@@ -122,6 +123,7 @@ class LayoutNode : public Node {
  *  For example, NCHW16c can describe a 5-D tensor of
  *  [batch_size, channel, height, width, channel_block].
  *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
+ *  Layout for scalar is defined, while both its name and axes have size 0.
  */
 class Layout : public NodeRef {
  public:
@@ -175,7 +177,7 @@ class Layout : public NodeRef {
    *        that starts at dimension \p pos and spans \p len dimensions
    *        (or until the end of the layout, whichever comes first).
    * \param pos The start position.
-   * \param len The length of the sub-layout.
+   * \param len The length of the sub-layout. if 0, return layout of scalar
    * \return A newly constructed Layout object.
    */
   Layout SubLayout(size_t pos, size_t len) const;

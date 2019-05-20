@@ -39,6 +39,7 @@ MANIFEST
 .gitignore
 .gitmodules
 .clang-format
+.bash_history
 rat-excludes
 __init__.py
 pylintrc

@@ -44,6 +44,7 @@ We do encourage everyone to work anything they are interested in.
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Masahiro Masuda](https://github.com/masahi): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
@@ -64,7 +65,9 @@ We do encourage everyone to work anything they are interested in.
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Wei Chen](https://github.com/wweic): @wweic
 - [Zhi Chen](https://github.com/zhiics): @zhiics
+- [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
+- [Hao Lu](https://github.com/hlu1): @hlu1
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu

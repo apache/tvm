@@ -101,10 +101,10 @@ class StrMap(Map):
 
 @register_node
 class Range(NodeBase):
-    """Represent range in TVM.
+    """Represent a range in TVM.
 
-    You do not need to create Range explicitly.
-    Python list and tuple will be converted automatically to Range in api functions.
+    You do not need to create a Range explicitly.
+    Python lists and tuples will be converted automatically to a Range in API functions.
     """
 
 

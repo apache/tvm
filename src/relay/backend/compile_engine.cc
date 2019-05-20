@@ -127,7 +127,9 @@ class ScheduleGetter :
       schedule =
           fschedule[master_op_](master_attrs_, tensor_outs, target_);
       for (const auto& scalar : scalars_) {
-        schedule[scalar].compute_inline();
+        if (schedule->Contain(scalar)) {
+          schedule[scalar].compute_inline();
+        }
       }
     }
     return std::make_pair(schedule, cfunc);
@@ -369,7 +371,9 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_node->funcs = (*f)(
           spair.first, all_args, cache_node->func_name, key->source_func);
     } else {
-      LOG(FATAL) << "relay.backend.lower is not registred";
+      tvm::BuildConfig bcfg = tvm::build_config();
+      std::unordered_map<Tensor, Buffer> binds;
+      cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
     }
     value->cached_func = CachedFunc(cache_node);
     return value;

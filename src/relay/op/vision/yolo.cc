@@ -71,9 +71,7 @@ Expr MakeYoloReorg(Expr data,
 
 
 TVM_REGISTER_API("relay.op.vision._make.yolo_reorg")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 2>(MakeYoloReorg, args, rv);
-});
+.set_body_typed(MakeYoloReorg);
 
 
 RELAY_REGISTER_OP("vision.yolo_reorg")

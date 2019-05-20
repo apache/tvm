@@ -29,7 +29,6 @@ def test_min_repeat_ms():
     def my_debug(filename):
         """one call lasts for 100 ms and writes one character to a file"""
         time.sleep(0.1)
-        filename = ctypes.c_char_p(filename.value).value
         with open(filename, "a") as fout:
             fout.write("c")
 

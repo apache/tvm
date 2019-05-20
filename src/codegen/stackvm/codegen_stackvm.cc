@@ -522,8 +522,6 @@ runtime::Module BuildStackVM(const Array<LoweredFunc>& funcs) {
 }
 
 TVM_REGISTER_API("codegen.build_stackvm")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildStackVM(args[0]);
-  });
+.set_body_typed(BuildStackVM);
 }  // namespace codegen
 }  // namespace tvm

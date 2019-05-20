@@ -41,8 +41,6 @@ TVM_REGISTER_API("codegen._Build")
   });
 
 TVM_REGISTER_API("module._PackImportsToC")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = PackImportsToC(args[0], args[1]);
-  });
+.set_body_typed(PackImportsToC);
 }  // namespace codegen
 }  // namespace tvm

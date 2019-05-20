@@ -31,6 +31,8 @@ HalideIR.
 
 from __future__ import absolute_import as _abs
 
+import inspect
+
 from .._ffi.base import decorate
 from .._ffi.function import _init_api
 from ..build_module import form_body
@@ -55,7 +57,9 @@ def script(pyfunc):
         from .util import _is_tvm_arg_types
         if _is_tvm_arg_types(args):
             src = _pruned_source(func)
-            return source_to_op(src, func.__globals__, args)
+            closure_vars = inspect.getclosurevars(func).nonlocals
+            closure_vars.update(inspect.getclosurevars(func).globals)
+            return source_to_op(src, args, func.__globals__, closure_vars)
 
         from .runtime import _enter_hybrid_runtime, _restore_runtime
         intersect = _enter_hybrid_runtime(func)

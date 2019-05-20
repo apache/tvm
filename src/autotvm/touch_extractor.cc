@@ -514,10 +514,10 @@ TVM_REGISTER_API("autotvm.feature.GetItervarFeatureFlatten")
 TVM_REGISTER_API("autotvm.feature.GetCurveSampleFeatureFlatten")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Stmt stmt = args[0];
-  bool take_log = args[1];
+  int sample_n = args[1];
   std::vector<float> ret_feature;
 
-  GetCurveSampleFeatureFlatten(stmt, take_log, &ret_feature);
+  GetCurveSampleFeatureFlatten(stmt, sample_n, &ret_feature);
 
   TVMByteArray arr;
   arr.size = sizeof(float) * ret_feature.size();

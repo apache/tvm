@@ -32,7 +32,7 @@ def get_all_backend():
             'llvm -device=arm_cpu', 'opencl -device=mali', 'aocl_sw_emu']
 
 
-class NCHWcInt8Fallback(autotvm.FallbackContext):
+class Int8Fallback(autotvm.FallbackContext):
     def _query_inside(self, target, workload):
         key = (target, workload)
         if key in self.memory:

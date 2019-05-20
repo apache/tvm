@@ -35,7 +35,13 @@ DOCKER_IMAGE_NAME=("$1")
 
 if [ "$#" -eq 1 ]; then
     COMMAND="bash"
-    CI_DOCKER_EXTRA_PARAMS=("-it --net=host")
+    if [[ $(uname) == "Darwin" ]]; then
+        # Docker's host networking driver isn't supported on macOS.
+        # Use default bridge network and expose port for jupyter notebook.
+        CI_DOCKER_EXTRA_PARAMS=("-it -p 8888:8888")
+    else
+        CI_DOCKER_EXTRA_PARAMS=("-it --net=host")
+    fi
 else
     shift 1
     COMMAND=("$@")

@@ -505,18 +505,18 @@ bool AlphaEqual(const Expr& lhs, const Expr& rhs) {
 
 // TODO(@jroesch): move to correct namespace?
 TVM_REGISTER_API("relay._make._alpha_equal")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = AlphaEqualHandler(false).Equal(args[0], args[1]);
+.set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+    return AlphaEqualHandler(false).Equal(a, b);
   });
 
 TVM_REGISTER_API("relay._make._type_alpha_equal")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = AlphaEqualHandler(false).TypeEqual(args[0], args[1]);
+.set_body_typed<bool(Type, Type)>([](Type a, Type b) {
+    return AlphaEqualHandler(false).TypeEqual(a, b);
   });
 
 TVM_REGISTER_API("relay._make._graph_equal")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = AlphaEqualHandler(true).Equal(args[0], args[1]);
+.set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+    return AlphaEqualHandler(true).Equal(a, b);
   });
 }  // namespace relay
 }  // namespace tvm

@@ -33,15 +33,11 @@ namespace tvm {
 namespace schedule {
 
 TVM_REGISTER_API("schedule.AutoInlineElemWise")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    AutoInlineElemWise(args[0]);
-  });
+.set_body_typed(AutoInlineElemWise);
 
 
 TVM_REGISTER_API("schedule.AutoInlineInjective")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    AutoInlineInjective(args[0]);
-  });
+.set_body_typed(AutoInlineInjective);
 
 TVM_REGISTER_API("schedule.ScheduleOps")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -51,25 +47,17 @@ TVM_REGISTER_API("schedule.ScheduleOps")
     *ret = ScheduleOps(args[0], args[1], args[2]);
 });
 
-#define REGISTER_SCHEDULE_PASS1(PassName)                         \
+#define REGISTER_SCHEDULE_PASS(PassName)                          \
   TVM_REGISTER_API("schedule."#PassName)                          \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
-      *ret = PassName(args[0]);                                   \
-    })                                                            \
-
-#define REGISTER_SCHEDULE_PASS2(PassName)                         \
-  TVM_REGISTER_API("schedule."#PassName)                          \
-  .set_body([](TVMArgs args,  TVMRetValue *ret) {                 \
-      *ret = PassName(args[0], args[1]);                          \
-    })                                                            \
+  .set_body_typed(PassName);                                     \
 
 
-REGISTER_SCHEDULE_PASS1(InferBound);
-REGISTER_SCHEDULE_PASS1(CreateReadGraph);
-REGISTER_SCHEDULE_PASS2(PostDFSOrder);
-REGISTER_SCHEDULE_PASS1(CreateAttachPath);
-REGISTER_SCHEDULE_PASS1(ScanGetBody);
-REGISTER_SCHEDULE_PASS1(ScanFixPointAnalysis);
+REGISTER_SCHEDULE_PASS(InferBound);
+REGISTER_SCHEDULE_PASS(CreateReadGraph);
+REGISTER_SCHEDULE_PASS(PostDFSOrder);
+REGISTER_SCHEDULE_PASS(CreateAttachPath);
+REGISTER_SCHEDULE_PASS(ScanGetBody);
+REGISTER_SCHEDULE_PASS(ScanFixPointAnalysis);
 
 }  // namespace schedule
 }  // namespace tvm

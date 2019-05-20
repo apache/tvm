@@ -391,6 +391,23 @@ def backward_fold_scale_axis(expr):
     """
     return _ir_pass.backward_fold_scale_axis(expr)
 
+def eta_expand(expr, mod):
+    """Add abstraction over a function.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, we expect that expr's types
+        should be fully inferred by infer_type.
+    mod : tvm.relay.Module
+         The global module.
+
+    Returns
+    -------
+    expanded_expr : tvm.relay.Expr
+        The expression after eta expansion.
+    """
+    return _ir_pass.eta_expand(expr, mod)
 
 def forward_fold_scale_axis(expr):
     """Fold the scaling of axis into weights of conv2d/dense.
@@ -703,7 +720,7 @@ def fold_constant(expr):
     return _ir_pass.FoldConstant(expr)
 
 
-def fuse_ops(expr, opt_level=1):
+def fuse_ops(expr, opt_level=1, mod=None):
     """Fuse operators in expr together.
 
     Parameters
@@ -714,28 +731,34 @@ def fuse_ops(expr, opt_level=1):
     opt_level : int
         The level of fuse optimization.
 
+    mod : tvm.relay.Module
+        The module to perform fusion over.
+
     Returns
     -------
     transformed_expr : tvm.relay.Expr
         Transformed expression, containing fused result.
     """
-    return _ir_pass.FuseOps(expr, opt_level)
+    return _ir_pass.FuseOps(expr, opt_level, mod)
 
 
-def combine_parallel_conv2d(expr):
-    """Fold multiple conv2d into one.
+def combine_parallel_conv2d(expr, min_num_branches=3):
+    """Combine multiple conv2d into one.
 
     Parameters
     ----------
     expr : tvm.relay.Expr
         The input expression.
 
+    min_num_branches : int
+        The minimum number of parallel branches when the transformation should be applied.
+
     Returns
     -------
     transformed_expr : tvm.relay.Expr
         Transformed expression
     """
-    return _ir_pass.CombineParallelConv2D(expr)
+    return _ir_pass.CombineParallelConv2D(expr, min_num_branches)
 
 
 def alter_op_layout(expr):
@@ -922,34 +945,18 @@ def eliminate_common_subexpr(expr, fskip=None):
     """
     return _ir_pass.eliminate_common_subexpr(expr, fskip)
 
-
-def pass_debug_print(ast, show_meta_data=True, annotate=None, gnf=True):
+def partial_evaluate(expr):
     """
-    THIS SHOULD BE USED ONLY FOR DEBUGGING, NOT AS AN INTERCHANGE FORMAT!
-    USE `.astext()` INSTEAD!
-
-    A version of the pretty printer intended for debugging passes. Contains
-    advanced printing options.
+    Evaluate the static fragment of the code.
 
     Parameters
     ----------
-    ast : Union[relay.Expr, relay.Module, relay.Type]
-        The relay fragment to be turned into text.
-
-    show_meta_data : bool
-        Whether to include meta data section in the text
-        if there is meta data.
-
-    annotate: Optional[relay.Expr->str]
-        Optional annotate function to provide additional
-        information in the comment block.
-
-    gnf : bool
-        Whether to print in GNF. If it is disabled, pointers are left implicit.
+    expr : tvm.relay.Expr
+        The input expression.
 
     Returns
     -------
-    text : str
-        A text representation of `ast`.
+    expr : tvm.relay.Expr
+      The output expression.
     """
-    return _ir_pass.pass_debug_print(ast, show_meta_data, annotate, gnf)
+    return _ir_pass.partial_evaluate(expr)

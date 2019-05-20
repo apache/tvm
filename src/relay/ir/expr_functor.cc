@@ -43,9 +43,6 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
 }
 
 Expr ExprMutator::VisitExpr_(const VarNode* op) {
-  // NOTE: var will only be mutated once
-  // Thanks to the memo and reused during rewriting if necessary.
-  // It is safe to assume that the
   if (op->type_annotation.defined()) {
     auto type = this->VisitType(op->type_annotation);
     if (!op->type_annotation.same_as(type)) {
@@ -86,27 +83,27 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   tvm::Array<TypeVar> ty_params;
-  bool all_ty_params_changed = true;
+  bool all_ty_params_unchanged = true;
 
   for (auto ty_param : op->type_params) {
     TypeVar new_ty_param = Downcast<TypeVar>(VisitType(ty_param));
     ty_params.push_back(new_ty_param);
-    all_ty_params_changed &= new_ty_param.same_as(ty_param);
+    all_ty_params_unchanged &= new_ty_param.same_as(ty_param);
   }
 
   tvm::Array<Var> params;
-  bool all_params_changed = true;
+  bool all_params_unchanged = true;
   for (auto param : op->params) {
     Var new_param = Downcast<Var>(this->Mutate(param));
     params.push_back(new_param);
-    all_params_changed &= param.same_as(new_param);
+    all_params_unchanged &= param.same_as(new_param);
   }
 
   auto ret_type = this->VisitType(op->ret_type);
   auto body = this->Mutate(op->body);
 
-  if (ty_params.same_as(op->type_params) &&
-      params.same_as(op->params) &&
+  if (all_ty_params_unchanged &&
+      all_params_unchanged &&
       ret_type.same_as(op->ret_type) &&
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
@@ -349,9 +346,8 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.post_order_visit")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    PackedFunc f = args[1];
-    PostOrderVisit(args[0], [f](const Expr& n) {
+.set_body_typed<void(Expr, PackedFunc)>([](Expr expr, PackedFunc f) {
+    PostOrderVisit(expr, [f](const Expr& n) {
         f(n);
       });
   });

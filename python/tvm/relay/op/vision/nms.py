@@ -49,6 +49,8 @@ def non_max_suppression(data,
                         iou_threshold=0.5,
                         force_suppress=False,
                         top_k=-1,
+                        coord_start=2,
+                        score_index=1,
                         id_index=0,
                         return_indices=True,
                         invalid_to_bottom=False):
@@ -77,6 +79,12 @@ def non_max_suppression(data,
     top_k : int, optional
         Keep maximum top k detections before nms, -1 for no limit.
 
+    coord_start : int, optional
+        The starting index of the consecutive 4 coordinates.
+
+    score_index : int, optional
+        Index of the scores/confidence of boxes.
+
     id_index : int, optional
         index of the class categories, -1 to disable.
 
@@ -93,4 +101,5 @@ def non_max_suppression(data,
     """
     return _make.non_max_suppression(data, valid_count, max_output_size,
                                      iou_threshold, force_suppress, top_k,
-                                     id_index, return_indices, invalid_to_bottom)
+                                     coord_start, score_index, id_index,
+                                     return_indices, invalid_to_bottom)

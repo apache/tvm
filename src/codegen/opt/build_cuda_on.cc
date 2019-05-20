@@ -84,12 +84,13 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   std::vector<std::string> compile_params;
   std::vector<const char*> param_cstrings{};
   nvrtcProgram prog;
-  cudaDeviceProp device_prop;
   std::string cc = "30";
-  cudaError_t e = cudaGetDeviceProperties(&device_prop, 0);
+  int major, minor;
+  cudaError_t e1 = cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, 0);
+  cudaError_t e2 = cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, 0);
 
-  if (e == cudaSuccess) {
-    cc = std::to_string(device_prop.major) + std::to_string(device_prop.minor);
+  if (e1 == cudaSuccess && e2 == cudaSuccess) {
+    cc = std::to_string(major) + std::to_string(minor);
   } else {
     LOG(WARNING) << "cannot detect compute capability from your device, "
                  << "fall back to compute_30.";
@@ -155,8 +156,6 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
 }
 
 TVM_REGISTER_API("codegen.build_cuda")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildCUDA(args[0]);
-  });
+.set_body_typed(BuildCUDA);
 }  // namespace codegen
 }  // namespace tvm

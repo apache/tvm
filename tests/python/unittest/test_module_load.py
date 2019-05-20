@@ -82,7 +82,7 @@ def test_dso_module_load():
         fo.write(runtime_py)
 
     subprocess.check_call(
-        "python %s %s %s" % (path_runtime_py, path_dso, dtype),
+        "python3 %s %s %s" % (path_runtime_py, path_dso, dtype),
         shell=True)
 
 

@@ -18,7 +18,8 @@
 """Non-maximum suppression operator"""
 import tvm
 
-from tvm import api, hybrid
+from tvm import hybrid
+from ..sort import argsort
 
 @hybrid.script
 def hybrid_rearrange_out(data):
@@ -129,7 +130,7 @@ def get_valid_counts(data, score_threshold=0):
 @hybrid.script
 def hybrid_nms(data, sorted_index, valid_count,
                max_output_size, iou_threshold, force_suppress,
-               top_k, id_index):
+               top_k, coord_start, id_index):
     """Hybrid routing for non-maximum suppression.
 
     Parameters
@@ -157,6 +158,9 @@ def hybrid_nms(data, sorted_index, valid_count,
 
     top_k : tvm.const
         Keep maximum top k detections before nms, -1 for no limit.
+
+    coord_start : tvm.const
+        Start index of the consecutive 4 coordinates.
 
     id_index : tvm.const
         index of the class categories, -1 to disable.
@@ -208,7 +212,7 @@ def hybrid_nms(data, sorted_index, valid_count,
                             batch_idx = i
                             box_a_idx = j
                             box_b_idx = k
-                            box_start_idx = 2
+                            box_start_idx = coord_start
                             a_t = output[batch_idx, box_a_idx, box_start_idx + 1]
                             a_b = output[batch_idx, box_a_idx, box_start_idx + 3]
                             a_l = output[batch_idx, box_a_idx, box_start_idx]
@@ -252,7 +256,8 @@ def hybrid_nms(data, sorted_index, valid_count,
 @tvm.target.generic_func
 def non_max_suppression(data, valid_count, max_output_size=-1,
                         iou_threshold=0.5, force_suppress=False, top_k=-1,
-                        id_index=0, return_indices=True, invalid_to_bottom=False):
+                        coord_start=2, score_index=1, id_index=0,
+                        return_indices=True, invalid_to_bottom=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -277,6 +282,12 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
 
     top_k : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
+
+    coord_start : required, int
+        Start index of the consecutive 4 coordinates.
+
+    score_index: optional, int
+        Index of the scores/confidence of boxes.
 
     id_index : optional, int
         index of the class categories, -1 to disable.
@@ -317,32 +328,16 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
-    valid_count_dtype = "int32"
-    valid_count_buf = api.decl_buffer(valid_count.shape, valid_count_dtype,
-                                      "valid_count_buf", data_alignment=4)
-    score_axis = 1
+    score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
-    score_tensor_buf = api.decl_buffer(score_tensor.shape, data.dtype,
-                                       "score_tensor_buf", data_alignment=8)
-    sort_tensor_dtype = "int32"
-    sort_tensor_buf = api.decl_buffer(score_shape, sort_tensor_dtype,
-                                      "sort_tensor_buf", data_alignment=8)
-    sort_tensor = \
-        tvm.extern(score_shape,
-                   [score_tensor, valid_count],
-                   lambda ins, outs: tvm.call_packed(
-                       "tvm.contrib.sort.argsort", ins[0], ins[1],
-                       outs[0], score_axis, True),
-                   dtype=sort_tensor_dtype,
-                   in_buffers=[score_tensor_buf, valid_count_buf],
-                   out_buffers=sort_tensor_buf,
-                   name="nms_sort")
+    sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False, flag=True)
     out, box_indices = hybrid_nms(data, sort_tensor, valid_count,
                                   tvm.const(max_output_size, dtype="int32"),
                                   tvm.const(iou_threshold, dtype="float32"),
                                   tvm.const(force_suppress, dtype="bool"),
                                   tvm.const(top_k, dtype="int32"),
+                                  tvm.const(coord_start, dtype="int32"),
                                   tvm.const(id_index, dtype="int32"))
     if not return_indices and invalid_to_bottom:
         out = hybrid_rearrange_out(out)

@@ -66,6 +66,33 @@ def test_opencl_ternary_expression():
     check_select(ctx, 1, 'int16')
     check_select(ctx, 1, 'uint16')
 
+def test_opencl_inf_nan():
+    def check_inf_nan(ctx, n, value, dtype):
+        A = tvm.placeholder((n,), name='A', dtype=dtype)
+        inf_value = tvm.const(value, dtype=dtype)
+        C = tvm.compute((n,), lambda i: inf_value, name='C')
+        s = tvm.create_schedule(C.op)
+        s[C].bind(s[C].op.axis[0], tvm.thread_axis("threadIdx.x"))
+        fun = tvm.build(s, [A, C], target)
+        a = tvm.nd.empty((n,), A.dtype, ctx)
+        c = tvm.nd.empty((n,), A.dtype, ctx)
+        # Only need to test compiling here
+        fun(a, c)
+
+    if not tvm.module.enabled(target):
+        print("skip because opencl is not enabled..")
+        return
+
+    ctx = tvm.context(target, 0)
+
+    check_inf_nan(ctx, 1, -float('inf'), 'float32')
+    check_inf_nan(ctx, 1, -float('inf'), 'float64')
+    check_inf_nan(ctx, 1, float('inf'), 'float32')
+    check_inf_nan(ctx, 1, float('inf'), 'float64')
+    check_inf_nan(ctx, 1, float('nan'), 'float32')
+    check_inf_nan(ctx, 1, float('nan'), 'float64')
+
 
 if __name__ == "__main__":
     test_opencl_ternary_expression()
+    test_opencl_inf_nan()

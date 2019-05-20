@@ -30,6 +30,7 @@ def _schedule_reduce(_, outs, target):
 _reg.register_schedule("argmax", _schedule_reduce)
 _reg.register_schedule("argmin", _schedule_reduce)
 _reg.register_schedule("sum", _schedule_reduce)
+_reg.register_schedule("all", _schedule_reduce)
 _reg.register_schedule("max", _schedule_reduce)
 _reg.register_schedule("min", _schedule_reduce)
 _reg.register_schedule("prod", _schedule_reduce)

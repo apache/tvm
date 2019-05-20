@@ -81,9 +81,7 @@ Expr MakeCast(Expr data,
 }
 
 TVM_REGISTER_API("relay._make.cast")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeCast, args, rv);
-});
+.set_body_typed(MakeCast);
 
 RELAY_REGISTER_OP("cast")
 .describe(R"code(Cast the data into a new data type.
@@ -161,9 +159,7 @@ Expr MakeExpandDims(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.expand_dims")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeExpandDims, args, rv);
-});
+.set_body_typed(MakeExpandDims);
 
 RELAY_REGISTER_OP("expand_dims")
 .describe(R"code(Insert `num_newaxis` axises at the position given by `axis`
@@ -279,9 +275,7 @@ Expr MakeConcatenate(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.concatenate")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeConcatenate, args, rv);
-});
+.set_body_typed(MakeConcatenate);
 
 RELAY_REGISTER_OP("concatenate")
 .describe(R"code(Concatenate the input tensors along the given axis.
@@ -367,9 +361,7 @@ Expr MakeStack(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.stack")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeStack, args, rv);
-});
+.set_body_typed(MakeStack);
 
 RELAY_REGISTER_OP("stack")
 .describe(R"code(Stack the input tensors along the given axis.
@@ -461,9 +453,7 @@ Expr MakeTranspose(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.transpose")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeTranspose, args, rv);
-});
+.set_body_typed(MakeTranspose);
 
 RELAY_REGISTER_OP("transpose")
 .describe(R"code(Permutes the dimensions of an array.
@@ -598,9 +588,7 @@ Expr MakeReshape(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.reshape")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeReshape, args, rv);
-});
+.set_body_typed(MakeReshape);
 
 RELAY_REGISTER_OP("reshape")
 .describe(R"code(Reshapes the input array.
@@ -698,9 +686,7 @@ Expr MakeReshapeLike(Expr data,
 
 
 TVM_REGISTER_API("relay.op._make.reshape_like")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeReshapeLike, args, rv);
-});
+.set_body_typed(MakeReshapeLike);
 
 
 RELAY_REGISTER_OP("reshape_like")
@@ -790,9 +776,7 @@ Expr MakeTake(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.take")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 4>(MakeTake, args, rv);
-});
+.set_body_typed(MakeTake);
 
 RELAY_REGISTER_OP("take")
 .describe(R"code(Take elements from an array along an axis.
@@ -873,9 +857,7 @@ Expr MakeFull(Expr fill_value,
 }
 
 TVM_REGISTER_API("relay.op._make.full")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeFull, args, rv);
-});
+.set_body_typed(MakeFull);
 
 RELAY_REGISTER_OP("full")
 .describe(R"code(Fill array with scalar value.
@@ -910,9 +892,7 @@ Expr MakeZeros(Array<IndexExpr> shape,
 }
 
 TVM_REGISTER_API("relay.op._make.zeros")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeZeros, args, rv);
-  });
+.set_body_typed(MakeZeros);
 
 RELAY_REGISTER_OP("zeros")
 .describe(R"code(Fill array with zeros.
@@ -933,9 +913,7 @@ Expr MakeOnes(Array<IndexExpr> shape,
 }
 
 TVM_REGISTER_API("relay.op._make.ones")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeOnes, args, rv);
-  });
+.set_body_typed(MakeOnes);
 
 RELAY_REGISTER_OP("ones")
 .describe(R"code(Fill array with ones.
@@ -982,9 +960,7 @@ Expr MakeFullLike(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.full_like")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeFullLike, args, rv);
-  });
+.set_body_typed(MakeFullLike);
 
 RELAY_REGISTER_OP("full_like")
 .describe(R"code(Return an scalar value array with the same shape
@@ -1041,9 +1017,7 @@ Expr MakeArange(tvm::Expr start,
 }
 
 TVM_REGISTER_API("relay.op._make.arange")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 4>(MakeArange, args, rv);
-});
+.set_body_typed(MakeArange);
 
 RELAY_REGISTER_OP("arange")
 .describe(R"code(Returns evenly spaced values within a given interval.
@@ -1117,9 +1091,7 @@ Expr MakeRepeat(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.repeat")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeRepeat, args, rv);
-});
+.set_body_typed(MakeRepeat);
 
 RELAY_REGISTER_OP("repeat")
 .describe(R"code(Repeat elements of an array `repeats` times along axis `axis`
@@ -1217,9 +1189,7 @@ Expr MakeTile(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.tile")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeTile, args, rv);
-});
+.set_body_typed(MakeTile);
 
 RELAY_REGISTER_OP("tile")
 .describe(R"code(Repeat the whole array multiple times.
@@ -1280,9 +1250,7 @@ Expr MakeReverse(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.reverse")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeReverse, args, rv);
-});
+.set_body_typed(MakeReverse);
 
 RELAY_REGISTER_OP("reverse")
 .describe(R"code(Reverses the order of elements along given `axis` while preserving array shape.
@@ -1345,9 +1313,7 @@ Array<Tensor> WhereCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op._make.where")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 3>(MakeWhere, args, rv);
-});
+.set_body_typed(MakeWhere);
 
 RELAY_REGISTER_OP("where")
 .describe(R"code(
@@ -1400,9 +1366,7 @@ Expr MakeSqueeze(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.squeeze")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeSqueeze, args, rv);
-  });
+.set_body_typed(MakeSqueeze);
 
 
 bool SqueezeRel(const Array<Type>& types,
@@ -1507,9 +1471,7 @@ Array<Tensor> CollapseSumLikeCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op._make.collapse_sum_like")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeCollapseSumLike, args, rv);
-  });
+.set_body_typed(MakeCollapseSumLike);
 
 RELAY_REGISTER_OP("collapse_sum_like")
 .describe(R"code(Collapse the first input to match the shape of the second input.
@@ -1554,9 +1516,7 @@ Array<Tensor> BroadCastToCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op._make.broadcast_to")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeBroadCastTo, args, rv);
-  });
+.set_body_typed(MakeBroadCastTo);
 
 RELAY_REGISTER_OP("broadcast_to")
 .describe(R"code(Broadcast the first input to match the shape argument.
@@ -1594,9 +1554,7 @@ Array<Tensor> BroadCastToLikeCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_API("relay.op._make.broadcast_to_like")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeBroadCastToLike, args, rv);
-  });
+.set_body_typed(MakeBroadCastToLike);
 
 RELAY_REGISTER_OP("broadcast_to_like")
 .describe(R"code(Broadcast the first input to match the shape of the second input.
@@ -1722,6 +1680,64 @@ bool StridedSliceRel(const Array<Type>& types,
 }
 
 
+Array<Array<Layout> > StridedSliceInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>>& old_in_shapes) {
+  CHECK(old_in_layouts.defined());
+  CHECK_EQ(old_in_layouts.size(), 1);
+  CHECK(old_in_shapes.defined());
+  CHECK_EQ(old_in_shapes.size(), 1);
+
+  auto layout = old_in_layouts[0];
+  if (layout.defined() && new_in_layouts.defined()) {
+    CHECK_EQ(new_in_layouts.size(), 1);
+    auto new_layout = new_in_layouts[0];
+    auto shape = old_in_shapes[0];
+
+    // NOTE: Discard "const" qualifier here.
+    auto *params = const_cast<StridedSliceAttrs*>(attrs.as<StridedSliceAttrs>());
+
+    Array<Integer> new_begin, new_end;
+
+    for (size_t i = 0; i < params->begin.size(); i++) {
+      const LayoutAxis& axis = layout[i];
+      if (!axis.IsPrimal()) {
+        // original layout that contains splitted axes is not supported
+        return {{Layout::Undef()}, {Layout::Undef()}};
+      }
+      auto factor = new_layout.FactorOf(axis);
+      if (factor == -1) {
+        new_begin.push_back(params->begin[i]);
+        new_end.push_back(params->end[i]);
+      } else {
+        if (params->strides.defined() && i < params->strides.size()) {
+          auto stride = params->strides[i];
+          // arbitrary stride is not supported
+          if (stride.defined() && stride->value != 1) {
+            return {{Layout::Undef()}, {Layout::Undef()}};
+          }
+        }
+        int64_t begin = params->begin[i].defined() ? params->begin[i]->value : 0;
+        int64_t end = params->end[i].defined() ? params->end[i]->value :
+            shape[i].as<IntImm>()->value;
+        if (begin % factor || end % factor) {
+          // transform to original layout
+          return {{Layout::Undef()}, {Layout::Undef()}};
+        }
+        new_begin.push_back(tvm::Integer(begin / factor));
+        new_end.push_back(tvm::Integer(end / factor));
+      }
+    }
+    layout = new_layout;
+    params->begin = new_begin;
+    params->end = new_end;
+  }
+  return {{layout}, {layout}};
+}
+
+
 // Positional relay function to create StridedSlice operator used by frontend FFI.
 Expr MakeStridedSlice(Expr data,
                       Array<Integer> begin,
@@ -1748,9 +1764,7 @@ Array<Tensor> StridedSliceCompute(const Attrs& attrs,
 
 
 TVM_REGISTER_API("relay.op._make.strided_slice")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 4>(MakeStridedSlice, args, rv);
-  });
+.set_body_typed(MakeStridedSlice);
 
 
 RELAY_REGISTER_OP("strided_slice")
@@ -1783,7 +1797,8 @@ Examples::
 .set_attrs_type_key("relay.attrs.StridedSliceAttrs")
 .add_type_rel("StridedSlice", StridedSliceRel)
 .set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
-.set_attr<TOpPattern>("TOpPattern", kInjective);
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
 
 
 // relay.split
@@ -2022,9 +2037,7 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
 
 
 TVM_REGISTER_API("relay.op._make.slice_like")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 3>(MakeSliceLike, args, rv);
-});
+.set_body_typed(MakeSliceLike);
 
 
 RELAY_REGISTER_OP("slice_like")
@@ -2085,9 +2098,7 @@ Expr MakeLayoutTransform(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.layout_transform")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 3>(MakeLayoutTransform, args, rv);
-});
+.set_body_typed(MakeLayoutTransform);
 
 RELAY_REGISTER_OP("layout_transform")
 .describe(R"code(Transform the input data layout.
@@ -2115,9 +2126,7 @@ Expr MakeReverseReshape(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make._contrib_reverse_reshape")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeReverseReshape, args, rv);
-});
+.set_body_typed(MakeReverseReshape);
 
 RELAY_REGISTER_OP("_contrib_reverse_reshape")
 .describe(R"code(Reshapes the input array where the special values are inferred from
@@ -2191,9 +2200,7 @@ Expr MakeGatherND(Expr data,
 }
 
 TVM_REGISTER_API("relay.op._make.gather_nd")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 2>(MakeGatherND, args, rv);
-});
+.set_body_typed(MakeGatherND);
 
 RELAY_REGISTER_OP("gather_nd")
 .describe(R"code(Gather elements or slices from data and store to

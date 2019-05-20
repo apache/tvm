@@ -83,6 +83,169 @@ class Registry {
   Registry& set_body_typed(FLambda f) {
     return set_body(TypedPackedFunc<FType>(f).packed());
   }
+
+  /*!
+   * \brief set the body of the function to the given function pointer.
+   *        Note that this doesn't work with lambdas, you need to
+   *        explicitly give a type for those.
+   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *
+   * \code
+   * 
+   * int multiply(int x, int y) {
+   *   return x * y;
+   * }
+   *
+   * TVM_REGISTER_API("multiply")
+   * .set_body_typed(multiply); // will have type int(int, int)
+   *
+   * \endcode
+   *
+   * \param f The function to forward to.
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
+   */
+  template<typename R, typename ...Args>
+  Registry& set_body_typed(R (*f)(Args...)) {
+    return set_body(TypedPackedFunc<R(Args...)>(f));
+  }
+
+  /*!
+   * \brief set the body of the function to be the passed method pointer.
+   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *
+   * \code
+   * 
+   * // node subclass:
+   * struct Example {
+   *    int doThing(int x);
+   * }
+   * TVM_REGISTER_API("Example_doThing")
+   * .set_body_method(&Example::doThing); // will have type int(Example, int)
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   * \tparam T the type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
+   */
+  template<typename T, typename R, typename ...Args>
+  Registry& set_body_method(R (T::*f)(Args...)) {
+    return set_body_typed<R(T, Args...)>([f](T target, Args... params) -> R {
+      // call method pointer
+      return (target.*f)(params...);
+    });
+  }
+
+  /*!
+   * \brief set the body of the function to be the passed method pointer.
+   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *
+   * \code
+   * 
+   * // node subclass:
+   * struct Example {
+   *    int doThing(int x);
+   * }
+   * TVM_REGISTER_API("Example_doThing")
+   * .set_body_method(&Example::doThing); // will have type int(Example, int)
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   * \tparam T the type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
+   */
+  template<typename T, typename R, typename ...Args>
+  Registry& set_body_method(R (T::*f)(Args...) const) {
+    return set_body_typed<R(T, Args...)>([f](const T target, Args... params) -> R {
+      // call method pointer
+      return (target.*f)(params...);
+    });
+  }
+
+  /*!
+   * \brief set the body of the function to be the passed method pointer.
+   *        Used when calling a method on a Node subclass through a NodeRef subclass.
+   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *
+   * \code
+   * 
+   * // node subclass:
+   * struct ExampleNode: BaseNode {
+   *    int doThing(int x);
+   * }
+   * 
+   * // noderef subclass
+   * struct Example; 
+   *
+   * TVM_REGISTER_API("Example_doThing")
+   * .set_body_method<Example>(&ExampleNode::doThing); // will have type int(Example, int)
+   * 
+   * // note that just doing:
+   * // .set_body_method(&ExampleNode::doThing);
+   * // wouldn't work, because ExampleNode can't be taken from a TVMArgValue.
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   * \tparam TNodeRef the node reference type to call the method on
+   * \tparam TNode the node type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
+   */
+  template<typename TNodeRef, typename TNode, typename R, typename ...Args,
+    typename = typename std::enable_if<std::is_base_of<NodeRef, TNodeRef>::value>::type>
+  Registry& set_body_method(R (TNode::*f)(Args...)) {
+    return set_body_typed<R(TNodeRef, Args...)>([f](TNodeRef ref, Args... params) {
+      TNode* target = ref.operator->();
+      // call method pointer
+      return (target->*f)(params...);
+    });
+  }
+
+  /*!
+   * \brief set the body of the function to be the passed method pointer.
+   *        Used when calling a method on a Node subclass through a NodeRef subclass.
+   *        Note that this will ignore default arg values and always require all arguments to be provided.
+   *
+   * \code
+   * 
+   * // node subclass:
+   * struct ExampleNode: BaseNode {
+   *    int doThing(int x);
+   * }
+   * 
+   * // noderef subclass
+   * struct Example; 
+   *
+   * TVM_REGISTER_API("Example_doThing")
+   * .set_body_method<Example>(&ExampleNode::doThing); // will have type int(Example, int)
+   * 
+   * // note that just doing:
+   * // .set_body_method(&ExampleNode::doThing);
+   * // wouldn't work, because ExampleNode can't be taken from a TVMArgValue.
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   * \tparam TNodeRef the node reference type to call the method on
+   * \tparam TNode the node type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
+   */
+  template<typename TNodeRef, typename TNode, typename R, typename ...Args,
+    typename = typename std::enable_if<std::is_base_of<NodeRef, TNodeRef>::value>::type>
+  Registry& set_body_method(R (TNode::*f)(Args...) const) {
+    return set_body_typed<R(TNodeRef, Args...)>([f](TNodeRef ref, Args... params) {
+      const TNode* target = ref.operator->();
+      // call method pointer
+      return (target->*f)(params...);
+    });
+  }
+
   /*!
    * \brief Register a function with given name
    * \param name The name of the function.

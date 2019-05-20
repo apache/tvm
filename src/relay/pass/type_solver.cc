@@ -460,7 +460,7 @@ Type TypeSolver::Resolve(const Type& type) {
 }
 
 bool TypeSolver::Solve() {
-  // update until queue is empty
+  // Update until queue is empty.
   while (!update_queue_.empty()) {
     RelationNode* rnode = update_queue_.front();
     const auto& rel = rnode->rel;
@@ -496,7 +496,7 @@ bool TypeSolver::Solve() {
       rnode->resolved = false;
       this->ReportError(
           RELAY_ERROR(
-            "an internal invariant was violdated while " \
+            "an internal invariant was violated while " \
             "typechecking your program " <<
             err.what()), rnode->location);
     }

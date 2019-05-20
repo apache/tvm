@@ -501,6 +501,17 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
 LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
 
 /*!
+ * \brief Lower custom datatypes.
+ *
+ * See tvm::datatypes::Registry for more information on adding custom datatypes.
+ *
+ * \param f The device function to be lowered.
+ * \param target The target device.
+ * \return Transformed function.
+ */
+LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
+
+/*!
  * \brief Verify if memory accesses are legal for a specific target device type.
  *
  *  In the case that tgt is cuda, if not all workload is bound with

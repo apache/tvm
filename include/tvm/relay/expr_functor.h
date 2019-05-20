@@ -89,6 +89,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitExpr(const Expr& n, Args... args) {
+    CHECK(n.defined());
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -234,7 +235,7 @@ class ExprMutator
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
-void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit);
+void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 
 /*
  * \brief Bind function parameters or free variables.

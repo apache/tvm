@@ -69,9 +69,7 @@ Module AOCLModuleLoadFile(const std::string& file_name,
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_aocx")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = AOCLModuleLoadFile(args[0], args[1]);
-  });
+.set_body_typed(AOCLModuleLoadFile);
 
 }  // namespace runtime
 }  // namespace tvm

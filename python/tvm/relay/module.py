@@ -21,7 +21,6 @@ from .._ffi import base as _base
 from . import _make
 from . import _module
 from . import expr as _expr
-
 from . import ty as _ty
 
 @register_relay_node
@@ -77,9 +76,18 @@ class Module(RelayNode):
         return self._add(var, val)
 
     def _add(self, var, val, update=False):
-        if isinstance(val, _expr.Function):
+        if isinstance(val, _expr.Expr):
             if isinstance(var, _base.string_types):
                 var = _expr.GlobalVar(var)
+
+            # TODO(@jroesch): Port this logic to C++.
+            if not isinstance(val, _expr.Function):
+                if isinstance(val, _expr.GlobalVar):
+                    val = ir_pass.eta_expand(val, self)
+                else:
+                    val = _expr.Function([], val)
+
+
             _make.Module_Add(self, var, val, update)
         else:
             assert isinstance(val, _ty.Type)
@@ -156,3 +164,7 @@ class Module(RelayNode):
         tvm.TVMError if we cannot find corresponding global type var.
         """
         return _module.Module_GetGlobalTypeVar(self, name)
+
+    @staticmethod
+    def from_expr(expr):
+        return _module.Module_FromExpr(expr)

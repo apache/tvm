@@ -62,9 +62,7 @@ Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spa
 }
 
 TVM_REGISTER_API("relay.op.vision._make.roi_align")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 6>(MakeROIAlign, args, rv);
-  });
+.set_body_typed(MakeROIAlign);
 
 RELAY_REGISTER_OP("vision.roi_align")
     .describe(R"doc(ROI Align operator.
@@ -114,9 +112,7 @@ Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spat
 }
 
 TVM_REGISTER_API("relay.op.vision._make.roi_pool")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 5>(MakeROIPool, args, rv);
-  });
+.set_body_typed(MakeROIPool);
 
 RELAY_REGISTER_OP("vision.roi_pool")
     .describe(R"doc(ROI Pool operator.
@@ -182,9 +178,7 @@ Expr MakeProposal(Expr cls_prob, Expr bbox_pred, Expr im_info, Array<IndexExpr> 
 }
 
 TVM_REGISTER_API("relay.op.vision._make.proposal")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 11>(MakeProposal, args, rv);
-  });
+.set_body_typed(MakeProposal);
 
 RELAY_REGISTER_OP("vision.proposal")
     .describe(R"code(Generate region proposals via RPN.

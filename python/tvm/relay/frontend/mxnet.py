@@ -34,6 +34,12 @@ from .nnvm_common import _warn_not_used
 
 __all__ = ['from_mxnet']
 
+_activation_map = {
+    "sigmoid": _op.sigmoid,
+    "tanh"   : _op.tanh,
+    "relu"   : _op.nn.relu
+}
+
 def _mx_fully_connected(inputs, attrs):
     import mxnet as mx
     units = attrs.get_int("num_hidden")
@@ -66,12 +72,6 @@ def _get_channel_axis(layout, op_name):
 def _mx_activations(inputs, attrs):
     act_type = attrs.get_str("act_type")
     assert len(inputs) == 1
-    if act_type == "sigmoid":
-        return _op.sigmoid(inputs[0])
-    if act_type == "tanh":
-        return _op.tanh(inputs[0])
-    if act_type == "relu":
-        return _op.nn.relu(inputs[0])
     if act_type == "softrelu":
         def _stable_softrelu(x):
             # log(1 + exp(-abs(x))) + relu(x)
@@ -80,8 +80,10 @@ def _mx_activations(inputs, attrs):
             return _op.add(_op.log(_op.add(one, exp_neg_abs_x)),
                            _op.nn.relu(x))
         return _stable_softrelu(inputs[0])
-    raise tvm.error.OpNotImplemented(
-        'Operator {} is not supported for frontend MXNet.'.format(act_type))
+    if act_type not in _activation_map:
+        raise tvm.error.OpNotImplemented(
+            'Operator {} is not supported for frontend MXNet.'.format(act_type))
+    return _activation_map[act_type](inputs[0])
 
 
 def _mx_compare(new_op, wrapper):
@@ -184,6 +186,11 @@ def _mx_pooling(inputs, attrs):
         return _pool2d(_op.nn.avg_pool2d, True)
     raise tvm.error.OpNotImplemented(
         'Operator {} Pooling is not supported for frontend MXNet.'.format(pool_type.capitalize()))
+
+
+def _mx_adaptive_avg_pooling(inputs, attrs):
+    output_size = attrs.get_int_tuple("output_size", [])
+    return _op.contrib.adaptive_avg_pool2d(inputs[0], output_size)
 
 
 def _mx_dropout(inputs, attrs):
@@ -464,7 +471,7 @@ def _mx_take(inputs, attrs):
     assert len(inputs) == 2
     mode = attrs.get_str("mode", "clip")
     if mode == "raise":
-        raise RuntimeError("take doesn't support raise mode")
+        raise tvm.error.OpAttributeUnimplemented("take with raise mode is not supported yet")
     axis = attrs.get_int("axis", 0)
     return _op.take(inputs[0], inputs[1].astype("int32"), axis, mode)
 
@@ -529,15 +536,6 @@ def _mx_box_nms(inputs, attrs):
     id_index = attrs.get_int('id_index', -1)
     in_format = attrs.get_str('in_format', 'corner')
     out_format = attrs.get_str('out_format', 'corner')
-    if coord_start != 2:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "coord_start" must equal 2 for operator box_nms.')
-    if score_index != 1:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "score_index" must equal 1 for operator box_nms.')
-    if id_index != -1 and int(id_index) != 0:
-        raise tvm.error.OpAttributeInvalid(
-            'Value of attribute "id_index" must equal either -1 or 0 for operator box_nms.')
     if in_format != 'corner':
         raise tvm.error.OpAttributeInvalid(
             'Value of attribute "in_format" must equal "corner" for operator box_nms.')
@@ -551,6 +549,8 @@ def _mx_box_nms(inputs, attrs):
                                              iou_threshold=iou_thresh,
                                              force_suppress=force_suppress,
                                              top_k=top_k,
+                                             coord_start=coord_start,
+                                             score_index=score_index,
                                              id_index=id_index,
                                              return_indices=False,
                                              invalid_to_bottom=True)
@@ -571,13 +571,13 @@ def _mx_l2_normalize(inputs, attrs):
 def _mx_shape_array(inputs, attrs):
     assert len(inputs) == 1
     if attrs.get_int("lhs_begin", None) is not None:
-        raise RuntimeError("shape_array doesn't support lhs_begin")
+        raise tvm.error.OpAttributeUnimplemented("shape_array doesn't support lhs_begin")
     if attrs.get_int("lhs_end", None) is not None:
-        raise RuntimeError("shape_array doesn't support lhs_end")
+        raise tvm.error.OpAttributeUnimplemented("shape_array doesn't support lhs_end")
     if attrs.get_int("rhs_begin", None) is not None:
-        raise RuntimeError("shape_array doesn't support rhs_begin")
+        raise tvm.error.OpAttributeUnimplemented("shape_array doesn't support rhs_begin")
     if attrs.get_int("rhs_end", None) is not None:
-        raise RuntimeError("shape_array doesn't support rhs_end")
+        raise tvm.error.OpAttributeUnimplemented("shape_array doesn't support rhs_end")
     return _op.shape_of(inputs[0], dtype='int64')
 
 
@@ -646,6 +646,110 @@ def _mx_deformable_convolution(inputs, attrs):
         assert len(inputs) == 4
         res = _op.nn.bias_add(res, inputs[3])
     return res
+
+
+def _mx_argsort(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
+    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    return _op.argsort(inputs[0], **new_attrs)
+
+
+def _mx_rnn_param_concat(inputs, _):
+    # We don't need to concatenate RNN params because we will unravel the RNN op
+    return [inputs]
+
+
+def _mx_rnn_layer(inputs, attrs):
+    def _rnn_cell(data, states, i2h_weight, h2h_weight, i2h_bias, h2h_bias, activation):
+        i2h = _op.nn.bias_add(_op.nn.dense(data, i2h_weight), i2h_bias, axis=-1)
+        h2h = _op.nn.bias_add(_op.nn.dense(states[0], h2h_weight), h2h_bias, axis=-1)
+        out = _activation_map[activation](i2h + h2h)
+        return out, [out]
+
+    def _gru_cell(data, states, i2h_weight, h2h_weight, i2h_bias, h2h_bias):
+        dtype = ir_pass.infer_type(data).checked_type.dtype
+        i2h = _op.nn.bias_add(_op.nn.dense(data, i2h_weight), i2h_bias, axis=-1)
+        h2h = _op.nn.bias_add(_op.nn.dense(states[0], h2h_weight), h2h_bias, axis=-1)
+        i2h_r, i2h_z, i2h = _op.split(i2h, indices_or_sections=3, axis=1)
+        h2h_r, h2h_z, h2h = _op.split(h2h, indices_or_sections=3, axis=1)
+        reset_gate = _activation_map["sigmoid"](i2h_r + h2h_r)
+        update_gate = _activation_map["sigmoid"](i2h_z + h2h_z)
+        next_h_tmp = _activation_map["tanh"](reset_gate * h2h + i2h)
+        next_h = (_expr.const(1, dtype) - update_gate) * next_h_tmp + update_gate * states[0]
+        return next_h, [next_h]
+
+    def _lstm_cell(data, states, i2h_weight, h2h_weight, i2h_bias, h2h_bias):
+        i2h = _op.nn.bias_add(_op.nn.dense(data, i2h_weight), i2h_bias, axis=-1)
+        h2h = _op.nn.bias_add(_op.nn.dense(states[0], h2h_weight), h2h_bias, axis=-1)
+        gates = i2h + h2h
+        slice_gates = _op.split(gates, indices_or_sections=4, axis=1)
+        in_gate = _activation_map["sigmoid"](slice_gates[0])
+        forget_gate = _activation_map["sigmoid"](slice_gates[1])
+        in_transform = _activation_map["tanh"](slice_gates[2])
+        out_gate = _activation_map["sigmoid"](slice_gates[3])
+        next_c = forget_gate * states[1] + in_gate * in_transform
+        next_h = out_gate * _activation_map["tanh"](next_c)
+        return next_h, [next_h, next_c]
+
+    num_layers = attrs.get_int("num_layers", 1)
+    mode = attrs.get_str("mode")
+    if mode.startswith("rnn"):
+        mode, activation = mode.split('_')
+    assert mode in ["rnn", "gru", "lstm"]
+    bidirectional = attrs.get_bool("bidirectional", False)
+    if bidirectional:
+        raise tvm.error.OpAttributeUnimplemented(
+            "Bidirectional RNN op is not supported yet")
+    layout = attrs.get_str("layout", "TNC")
+    if layout != "TNC":
+        raise tvm.error.OpAttributeUnimplemented(
+            "RNN with layout other than TNC is not supported yet")
+    num_states = 2 if mode == 'lstm' else 1
+    assert len(inputs) == num_states + 2
+
+    seq_data = inputs[0]
+    concat_weight = inputs[1]
+    concat_states = inputs[2:]
+    seq_len = int(ir_pass.infer_type(seq_data).checked_type.shape[0])
+    assert len(concat_weight) == num_layers * 4
+
+    weights = []
+    bias = []
+    states = []
+    for i in range(num_layers):
+        w = []
+        b = []
+        s = []
+        for j in range(2):
+            w.append(concat_weight[i*2 + j].args[0])
+            b.append(concat_weight[num_layers*2 + i*2 + j].args[0])
+        for state in concat_states:
+            s.append(_op.take(state, _expr.const(i, "int32"), axis=0))
+        weights.append(w)
+        bias.append(b)
+        states.append(s)
+
+    seq_output = []
+    for t in range(seq_len):
+        data = _op.take(seq_data, _expr.const(t, "int32"), axis=0)
+        for l in range(num_layers):
+            if mode == "rnn":
+                out, new_states = _rnn_cell(data, states[l], *weights[l], *bias[l], activation)
+            elif mode == "gru":
+                out, new_states = _gru_cell(data, states[l], *weights[l], *bias[l])
+            else: # mode == "lstm"
+                out, new_states = _lstm_cell(data, states[l], *weights[l], *bias[l])
+            states[l] = new_states
+            data = out
+        seq_output.append(out)
+
+    outputs = [_op.stack(seq_output, axis=0)]
+    for i in range(num_states):
+        outputs.append(_op.stack([s[i] for s in states], axis=0))
+    return outputs
 
 
 # Note: due to attribute conversion constraint
@@ -783,6 +887,7 @@ _convert_map = {
     "BlockGrad"     : _mx_BlockGrad,
     "shape_array"   : _mx_shape_array,
     "Embedding"     : _mx_embedding,
+    "argsort"       : _mx_argsort,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "smooth_l1"     : _mx_smooth_l1,
@@ -796,6 +901,10 @@ _convert_map = {
     "_contrib_MultiProposal" : _mx_proposal,
     "_contrib_box_nms" : _mx_box_nms,
     "_contrib_DeformableConvolution" : _mx_deformable_convolution,
+    "_contrib_AdaptiveAvgPooling2D" : _mx_adaptive_avg_pooling,
+    # NLP
+    "RNN"               : _mx_rnn_layer,
+    "_rnn_param_concat" : _mx_rnn_param_concat,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #

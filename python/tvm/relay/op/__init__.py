@@ -24,10 +24,12 @@ from .op import get, register, register_schedule, register_compute, register_gra
 from .reduce import *
 from .tensor import *
 from .transform import *
+from .algorithm import *
 from . import nn
 from . import annotation
 from . import image
 from . import vision
+from . import contrib
 from . import op_attrs
 
 
@@ -36,6 +38,7 @@ from . import _tensor
 from . import _tensor_grad
 from . import _transform
 from . import _reduce
+from . import _algorithm
 from ..expr import Expr
 from ..base import register_relay_node
 
