@@ -35,5 +35,5 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
 endif()
 
 # Module rules
-include(cmake/modules/tsim.cmake)
-include(cmake/modules/driver.cmake)
+include(cmake/modules/hw.cmake)
+include(cmake/modules/sw.cmake)

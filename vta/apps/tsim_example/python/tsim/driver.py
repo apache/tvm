@@ -21,36 +21,24 @@ import json
 import os.path as osp
 from sys import platform
 
-def get_build_path():
-    curr_path = osp.dirname(osp.abspath(osp.expanduser(__file__)))
-    cfg = json.load(open(osp.join(curr_path, 'config.json')))
-    return osp.join(curr_path, "..", "..", cfg['BUILD_NAME'])
+def driver(hw, sw):
+    _cur_path = osp.dirname(osp.abspath(osp.expanduser(__file__)))
+    _root_path = osp.join(_cur_path, "..", "..")
+    _cfg_file = osp.join(_root_path, "config", "config.json")
+    _cfg = json.load(open(_cfg_file))
+    _ext = ".dylib" if platform == "darwin" else ".so"
+    _hw_lib = osp.join(_root_path, _cfg['BUILD_NAME'], hw + _ext)
+    _sw_lib = osp.join(_root_path, _cfg['BUILD_NAME'], sw + _ext)
 
-def get_lib_ext():
-    if platform == "darwin":
-        ext = ".dylib"
-    else:
-        ext = ".so"
-    return ext
+    def load_dll(dll):
+        try:
+            return [ctypes.CDLL(dll, ctypes.RTLD_GLOBAL)]
+        except OSError:
+            return []
 
-def get_lib_path(name):
-    build_path = get_build_path()
-    ext = get_lib_ext()
-    libname = name + ext
-    return osp.join(build_path, libname)
-
-def _load_driver_lib():
-    lib = get_lib_path("libdriver")
-    try:
-        return [ctypes.CDLL(lib, ctypes.RTLD_GLOBAL)]
-    except OSError:
-        return []
-
-def load_driver():
-    return tvm.get_global_func("tvm.vta.driver")
-
-def load_tsim():
-    lib = get_lib_path("libtsim")
-    return tvm.module.load(lib, "vta-tsim")
-
-LIBS = _load_driver_lib()
+    def run(a, b):
+        load_dll(_sw_lib)
+        f = tvm.get_global_func("tvm.vta.driver")
+        m = tvm.module.load(_hw_lib, "vta-tsim")
+        f(m, a, b)
+    return run

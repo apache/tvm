@@ -15,10 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-file(GLOB TSIM_SW_SRC src/driver.cc)
-add_library(driver SHARED ${TSIM_SW_SRC})
-target_include_directories(driver PRIVATE ${VTA_DIR}/include)
+import tvm
+import numpy as np
 
-if(APPLE)
-  set_target_properties(driver PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-endif(APPLE)
+from tsim.driver import driver
+
+def test_tsim(i):
+    rmin = 1 # min vector size of 1
+    rmax = 64
+    n = np.random.randint(rmin, rmax)
+    ctx = tvm.cpu(0)
+    a = tvm.nd.array(np.random.randint(rmax, size=n).astype("uint64"), ctx)
+    b = tvm.nd.array(np.zeros(n).astype("uint64"), ctx)
+    f = driver("libhw", "libsw")
+    f(a, b)
+    emsg = "[FAIL] test number:{} n:{}".format(i, n)
+    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1, err_msg=emsg)
+    print("[PASS] test number:{} n:{}".format(i, n))
+
+if __name__ == "__main__":
+    times = 10
+    for i in range(times):
+        test_tsim(i)
