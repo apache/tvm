@@ -537,6 +537,14 @@ llvm::Value* CodeGenLLVM::CreateCast(Type from, Type to, llvm::Value* value) {
   if (value->getType() == target) return value;
   if (to.is_handle()) {
     return builder_->CreateBitCast(value, target);
+  } else if (to.is_uint() && to.bits() == 1) {
+    if (from.is_float()) {
+      llvm::Constant* zero = llvm::ConstantFP::get(LLVMType(from), 0.);
+      return builder_->CreateFCmpONE(value, zero);
+    } else {
+      llvm::Constant* zero = llvm::ConstantInt::get(LLVMType(from), 0);
+      return builder_->CreateICmpNE(value, zero);
+    }
   } else if (!from.is_float() && !to.is_float()) {
     return builder_->CreateIntCast(value, target, from.is_int());
   } else if (from.is_float() && to.is_int()) {
