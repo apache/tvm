@@ -19,7 +19,7 @@ def tvm_callback_get_section_size(binary_path, section_name):
         path of the binary file
 
     section_name : str
-        type of section
+        name of section
 
     Return
     ------
@@ -28,8 +28,8 @@ def tvm_callback_get_section_size(binary_path, section_name):
     """
     if not os.path.isfile(binary_path):
         raise RuntimeError("no such file {}".format(binary_path))
-    # TODO(weberlo): Explain why we're using the `-A` flag here.
-    # TODO(weberlo): Clean up the `subprocess` usage in this file?
+    # We use the "-A" flag here to get the ".rodata" section's size, which is
+    # not included by default.
     size_proc = subprocess.Popen(["size", "-A", binary_path], stdout=subprocess.PIPE)
     (size_output, _) = size_proc.communicate()
     if size_proc.returncode != 0:
@@ -84,33 +84,39 @@ def tvm_callback_relocate_binary(binary_path, text_addr, rodata_addr, data_addr,
     """
     tmp_dir = util.tempdir()
     rel_obj = tmp_dir.relpath("relocated.o")
-    # TODO(weberlo): Read this: http://www.hertaville.com/a-sample-linker-script.html
-    # TODO(weberlo): Add `ALIGN(8)` everywhere to prevent bugs in the RISC-V backend.
     ld_script_contents = '''
 SECTIONS
 {
   . = %s;
+  . = ALIGN(8);
   .text :
   {
     *(.text)
+    . = ALIGN(8);
     *(.text*)
   }
   . = %s;
+  . = ALIGN(8);
   .rodata :
   {
     *(.rodata)
+    . = ALIGN(8);
     *(.rodata*)
   }
   . = %s;
+  . = ALIGN(8);
   .data :
   {
     *(.data)
+    . = ALIGN(8);
     *(.data*)
   }
   . = %s;
+  . = ALIGN(8);
   .bss :
   {
     *(.bss)
+    . = ALIGN(8);
     *(.bss*)
   }
 }
@@ -128,8 +134,8 @@ SECTIONS
         msg = "linking error using ld:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
-    # TODO(weberlo): replace this `open` call with a `with` block
-    rel_bin = bytearray(open(rel_obj, "rb").read())
+    with open(rel_obj, "rb") as f:
+        rel_bin = bytearray(f.read())
     return rel_bin
 
 
@@ -155,7 +161,7 @@ def tvm_callback_read_binary_section(binary, section):
     with open(tmp_bin, "wb") as out_file:
         out_file.write(bytes(binary))
     objcopy_proc = subprocess.Popen(["objcopy", "--dump-section",
-                                     "." + section + "=" + tmp_section,
+                                     ".{}={}".format(section, tmp_section),
                                      tmp_bin],
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT)
@@ -165,18 +171,15 @@ def tvm_callback_read_binary_section(binary, section):
         msg += py_str(out)
         raise RuntimeError(msg)
     if os.path.isfile(tmp_section):
-        # get section content if it exists
+        # Get section content if it exists.
         with open(tmp_section, "rb") as f:
             section_bin = bytearray(f.read())
     else:
-        # return empty bytearray if the section does not exist
+        # Return empty bytearray if the section does not exist.
         section_bin = bytearray("", "utf-8")
     return section_bin
 
 
-# TODO(weberlo): If TVM supports serializing dicts, we should do the string ->
-# dict conversion here in python. The docs even say we're supposed to return a
-# dict, but we don't.
 @register_func("tvm_callback_get_symbol_map")
 def tvm_callback_get_symbol_map(binary):
     """Obtains a map of symbols to addresses in the passed binary
@@ -188,19 +191,20 @@ def tvm_callback_get_symbol_map(binary):
 
     Return
     ------
-    symbol_map : dictionary
-        map of defined symbols to addresses
+    map_str : str
+        map of defined symbols to addresses, encoded as a series of
+        alternating newline-separated keys and values
     """
     tmp_dir = util.tempdir()
     tmp_obj = tmp_dir.relpath("tmp_obj.bin")
     with open(tmp_obj, "wb") as out_file:
         out_file.write(bytes(binary))
     nm_proc = subprocess.Popen(["nm", "-C", "--defined-only", tmp_obj],
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
     (out, _) = nm_proc.communicate()
     if nm_proc.returncode != 0:
-        msg = "Error in using nm:\n"
+        msg = "error in using nm:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
     out = out.decode("utf8").splitlines()
