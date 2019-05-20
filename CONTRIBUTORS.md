@@ -94,6 +94,7 @@ We do encourage everyone to work anything they are interested in.
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Jian Weng](https://github.com/were): @were
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
+- [Bing Xu](https://github.com/antinucleon): @antinucleon
 - [Eddie Yan](https://github.com/eqy): @eqy
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
