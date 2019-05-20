@@ -34,7 +34,7 @@ fully dynamic tensor shapes, and control flow. The interpreter offers simple sol
 for these, but none is sufficiently compelling or optimized.
 
 The second execution mechanism is the existing graph runtime. In order to target Relay
-programs to this we compile a small subset of them to the old graph format, and execute
+programs to this, we compile a small subset of them to the old graph format and execute
 them on the runtime. Graph runtime provides a fast execution experience but only for a very limited
 subset of Relay programs.
 
@@ -52,7 +52,7 @@ mechanism.
 The virtual machine is designed to strike a balance between performance and flexibility
 when deploying and executing Relay programs, without giving up the benefits of TVM.
 
-Virtual machine (VM) design is a well studied area in programming languages and systems,
+Virtual machine (VM) design is a well-studied area in programming languages and systems,
 and there have been various virtual machine designs for both full-fledged
 and embedded programing languages.
 Previous language VM designs have been heavily tailored to the execution profile of traditional programs.
@@ -223,9 +223,9 @@ believe micro-optimizing this code has little to no effect on the end-to-end per
       ...
     }
 
-See `vm.h` for more details.
+See `include/tvm/runtime/vm.h` for more details.
 
-Currently we support 3 types of objects: tensors, data types, and closures.
+Currently, we support 3 types of objects: tensors, data types, and closures.
 
 ::
 
