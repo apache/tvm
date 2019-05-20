@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -412,6 +412,28 @@ Expr AddRealize(const Call& ref_call,
 
 RELAY_REGISTER_OP("add")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", AddRealize);
+
+Expr ClipRealize(const Call& ref_call,
+                 const Array<Expr>& new_args,
+                 const NodeRef& ctx) {
+  CHECK_EQ(new_args.size(), 1);
+  if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
+    const auto ref_attrs = ref_call->attrs.as<ClipAttrs>();
+    auto attrs = make_node<ClipAttrs>();
+    double dom_scale = GetScalarFromConstant<float>(n->dom_scale);
+    attrs->a_min = ref_attrs->a_min / dom_scale;
+    attrs->a_max = ref_attrs->a_max / dom_scale;
+
+    Expr ret = CallNode::make(ref_call->op,
+      {n->data}, Attrs(attrs), ref_call->type_args);
+    return QRealizeIntExprNode::make(ret, n->dom_scale, n->dtype);
+  }
+  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  return Expr(nullptr);
+}
+
+RELAY_REGISTER_OP("clip")
+.set_attr<FForwardRewrite>("FQRealizeRewrite", ClipRealize);
 
 
 Expr ConcatenateRealize(const Call& ref_call,
