@@ -429,6 +429,13 @@ TVM_DLL Expr abs(Expr x);
 TVM_DLL Expr sum(Expr source, Array<IterVar> axis);
 
 /*!
+ * \brief logical And of of source expression over axis
+ * \param source The source expression.
+ * \param axis List of iteration variables that will be used for reduction.
+ */
+TVM_DLL Expr all(Expr source, Array<IterVar> axis);
+
+/*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
