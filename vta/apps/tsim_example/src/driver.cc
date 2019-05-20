@@ -35,9 +35,9 @@ uint32_t get_half_addr(void *p, bool upper) {
 using vta::dpi::DPIModuleNode;
 using tvm::runtime::Module;
 
-class TestDriver {
+class Device {
  public:
-  TestDriver(Module module)
+  Device(Module module)
       : module_(module) {
     dpi_ = static_cast<DPIModuleNode*>(
         module.operator->());
@@ -71,7 +71,6 @@ class TestDriver {
     }
   }
 
- private:
   DPIModuleNode* dpi_;
   Module module_;
 };
@@ -84,7 +83,7 @@ TVM_REGISTER_GLOBAL("tvm.vta.driver")
     Module dev_mod = args[0];
     DLTensor* A = args[1];
     DLTensor* B = args[2];
-    TestDriver dev_(dev_mod);
+    Device dev_(dev_mod);
     dev_.Run(A->shape[0], A->data, B->data);
   });
 
