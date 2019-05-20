@@ -21,6 +21,41 @@ import tvm
 from tvm import api
 from topi.sort import argsort
 
+
+def copy_data_ir(data, output):
+    """Low level IR to copy data to an intermediate buffer for arangement.
+
+    Parameters
+    ----------
+    data: Buffer
+        Buffer of input data.
+
+    output : Buffer
+        Output buffer with same content as data.
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
+    size = 1
+    for i in data.shape:
+        size *= i
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    ib = tvm.ir_builder.create()
+    data = ib.buffer_ptr(data)
+    output = ib.buffer_ptr(output)
+    nthread_tx = max_threads
+    nthread_bx = size // max_threads + 1
+    tx = tvm.thread_axis("threadIdx.x")
+    bx = tvm.thread_axis("blockIdx.x")
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    tid = bx * nthread_tx + tx
+    with ib.if_scope(tid < size):
+        output[tid] = data[tid]
+    return ib.get()
+
 def sort_ir(data, output, axis, is_ascend):
     """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
 
@@ -103,8 +138,6 @@ def sort_ir(data, output, axis, is_ascend):
                                       tvm.expr.Call.Intrinsic, None, 0))
 
     return ib.get()
-
-
 
 def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
@@ -222,27 +255,37 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0
         The output of this function.
     """
     data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    sorted_data_buf = api.decl_buffer(data.shape, data.dtype, "sorted_data_buf", data_alignment=8)
+    sorted_data = tvm.extern([data.shape],
+                             [data],
+                             lambda ins, outs: copy_data_ir(
+                                 ins[0], outs[0]),
+                             dtype=data.dtype,
+                             in_buffers=[data_buf],
+                             out_buffers=[sorted_data_buf],
+                             name="argsort_copy_data",
+                             tag="argsort_copy_data")
     if flag:
         valid_count_buf = api.decl_buffer(valid_count.shape, valid_count.dtype,
                                           "valid_count_buf", data_alignment=4)
         out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=4)
         out = tvm.extern([data.shape],
-                         [data, valid_count],
+                         [sorted_data, valid_count],
                          lambda ins, outs: sort_nms_ir(
                              ins[0], ins[1], outs[0], axis, is_ascend),
                          dtype="int32",
-                         in_buffers=[data_buf, valid_count_buf],
+                         in_buffers=[sorted_data_buf, valid_count_buf],
                          out_buffers=[out_buf],
                          name="argsort_nms_gpu",
                          tag="argsort_nms_gpu")
     else:
         out_buf = api.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
         out = tvm.extern([data.shape],
-                         [data],
+                         [sorted_data],
                          lambda ins, outs: sort_ir(
                              ins[0], outs[0], axis, is_ascend),
                          dtype=dtype,
-                         in_buffers=[data_buf],
+                         in_buffers=[sorted_data_buf],
                          out_buffers=[out_buf],
                          name="argsort_gpu",
                          tag="argsort_gpu")

@@ -38,7 +38,8 @@ def _default_schedule(outs):
             else:
                 out = op.input_tensors[0]
                 sort = s[out].op.input_tensors[1]
-            score = s[sort].op.input_tensors[0]
+            copy = s[sort].op.input_tensors[0]
+            score = s[copy].op.input_tensors[0]
             fused = s[score].fuse(*s[score].op.axis)
             num_thread = int(tvm.target.current_target(allow_none=False).max_num_threads)
             bx, tx = s[score].split(fused, factor=num_thread)
