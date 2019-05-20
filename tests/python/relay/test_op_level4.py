@@ -138,6 +138,7 @@ def test_where():
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
     test_func = funcs[0]
     ref_func = funcs[1]
+    dtype = "bool" if ref_func in [np.all] else dtype
 
     x = relay.var("x", relay.TensorType(data, dtype))
     z = test_func(x, axis, keepdims, exclude)
@@ -155,7 +156,9 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
         return
 
     func = relay.Function([x], z)
-    x_data = np.random.uniform(size=data).astype(dtype)
+    x_data = np.random.choice([True, False], size=data) if ref_func in [np.all] \
+        else np.random.uniform(size=data).astype(dtype)
+
     if ref_func in [np.sum]:
         ref_res = ref_func(x_data + 0, axis=axis, dtype=dtype, keepdims=keepdims)
     elif ref_func in [np.max, np.min, np.mean, np.prod]:
@@ -194,6 +197,7 @@ def test_reduce_functions():
                  [relay.min, np.min],
                  [relay.mean, np.mean],
                  [relay.prod, np.prod],
+                 [relay.all, np.all],
                  [relay.argmin, _with_keepdims(np.argmin)],
                  [relay.argmax, _with_keepdims(np.argmax)]]:
         verify_reduce(func, (d1, d2, d3, d4), None, False, False, ())
@@ -203,6 +207,7 @@ def test_reduce_functions():
         verify_reduce(func, (d1, d2, d3), (0, 1), True, False, (1, 1, d3))
         verify_reduce(func, (2, 3, 4), 1, True, False, (2, 1, 4))
         verify_reduce(func, (2, 3, 4), (1,), True, False, (2, 1, 4))
+        verify_reduce(func, (2, 3, 4), -1, True, False, (2, 3, 1))
         verify_reduce(func, (2, 3, 4), (0, 1, 2), False, False, ())
         verify_reduce(func, (4, 4, 3), None, False, False, ())
         verify_reduce(func, (4, 4, 3), (0, 2), False, False, (4,))

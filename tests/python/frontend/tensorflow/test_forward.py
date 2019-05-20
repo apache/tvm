@@ -1598,6 +1598,17 @@ def test_forward_mean():
     check_mean((10, 8, 16, 32), axis=(1,2), keepdims=True)
 
 #######################################################################
+# All
+# ---
+def test_forward_all():
+    """Test the All operator."""
+    np_data = np.random.choice([True, False], size=(5, 7, 11))
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
+    tf.reduce_all(in_data, name="all")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'all:0')
+
+#######################################################################
 # Relational operators
 # --------------------
 def _test_forward_rel_op(data, func):
@@ -1718,6 +1729,7 @@ if __name__ == '__main__':
     test_forward_reduce()
     test_forward_mean()
     test_forward_reduce_prod()
+    test_forward_all()
 
     # General
     test_forward_multi_input()

@@ -355,6 +355,43 @@ Example::
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 
+Array<Tensor> AllCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::all);
+}
+
+
+RELAY_REGISTER_REDUCE_OP("all")
+.describe(R"code(Computes the logical AND of boolean array elements over given axes.
+
+Example::
+
+  data = [[[ True,  True,  True],
+           [ True,  True,  True],
+           [False,  True, False]],
+          [[ True, False, False],
+           [ True,  True, False],
+           [False,  True,  True]]]
+
+  all(data, axis=1)
+  [[False,  True, False],
+   [False, False, False]]
+
+  all(data, axis=0)
+  [[ True, False, False],
+   [ True,  True, False],
+   [False,  True, False]]
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", AllCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
 Array<Tensor> MaxCompute(const Attrs& attrs,
                          const Array<Tensor>& inputs,
                          const Type& out_type,
