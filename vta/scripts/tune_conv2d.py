@@ -59,6 +59,9 @@ if __name__ == '__main__':
     # Get tracker info from env
     tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
     tracket_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    if not tracket_host or not tracket_port:
+        print("Set your AutoTVM tracker node host and port variables to run the autotuner")
+        exit()
 
     measure_option = autotvm.measure_option(
             builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
@@ -67,8 +70,9 @@ if __name__ == '__main__':
 
     tuner = autotvm.tuner.RandomTuner(task)
     n_trial = len(task.config_space)
-    tuner.tune(n_trial=n_trial,
+    tuner.tune(n_trial=30,
                measure_option=measure_option,
                callbacks=[autotvm.callback.log_to_file('conv2d.log')])
 
+    print("\nBest tuner config:")
     print(tuner.best_config)
