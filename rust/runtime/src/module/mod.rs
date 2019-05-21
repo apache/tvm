@@ -1,5 +1,5 @@
 #[cfg(not(any(target_arch = "wasm32", target_env = "sgx")))]
-mod dylib;
+mod dso;
 mod syslib;
 
 use tvm_common::{
@@ -8,7 +8,7 @@ use tvm_common::{
 };
 
 #[cfg(not(any(target_arch = "wasm32", target_env = "sgx")))]
-pub use dylib::DylibModule;
+pub use dso::DsoModule;
 pub use syslib::SystemLibModule;
 
 pub trait Module {

@@ -14,7 +14,8 @@ use crate::{
 
 use super::Module;
 
-pub struct DylibModule<'a> {
+/// A module backed by a Dynamic Shared Object (dylib).
+pub struct DsoModule<'a> {
     lib: libloading::Library,
     packed_funcs: RefCell<HashMap<String, &'a (dyn PackedFunc)>>,
 }
@@ -32,7 +33,7 @@ macro_rules! init_context_func {
     };
 }
 
-impl<'a> DylibModule<'a> {
+impl<'a> DsoModule<'a> {
     pub fn new<P: AsRef<std::ffi::OsStr>>(filename: P) -> Result<Self, failure::Error> {
         let lib = libloading::Library::new(filename)?;
 
@@ -64,7 +65,7 @@ impl<'a> DylibModule<'a> {
     }
 }
 
-impl<'a> Module for DylibModule<'a> {
+impl<'a> Module for DsoModule<'a> {
     fn get_function<S: AsRef<str>>(&self, name: S) -> Option<&(dyn PackedFunc)> {
         let name = name.as_ref();
         let func = match unsafe { self.lib.get::<BackendPackedCFunc>(name.as_bytes()) } {
@@ -79,7 +80,7 @@ impl<'a> Module for DylibModule<'a> {
     }
 }
 
-impl<'a> Drop for DylibModule<'a> {
+impl<'a> Drop for DsoModule<'a> {
     fn drop(&mut self) {
         self.packed_funcs
             .replace(HashMap::new())

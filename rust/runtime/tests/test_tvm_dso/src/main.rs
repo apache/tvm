@@ -3,11 +3,11 @@ extern crate ndarray;
 extern crate tvm_runtime;
 
 use ndarray::Array;
-use tvm_runtime::{DLTensor, DylibModule, Module};
+use tvm_runtime::{DLTensor, DsoModule, Module};
 
 fn main() {
     tvm_runtime::TVMGetLastError();
-    let module = DylibModule::new(concat!(env!("OUT_DIR"), "/test.so")).unwrap();
+    let module = DsoModule::new(concat!(env!("OUT_DIR"), "/test.so")).unwrap();
     let add = module
         .get_function("default_function")
         .expect("main function not found");
