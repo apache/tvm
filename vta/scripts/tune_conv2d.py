@@ -69,8 +69,7 @@ if __name__ == '__main__':
                                      check_correctness=True))
 
     tuner = autotvm.tuner.RandomTuner(task)
-    n_trial = len(task.config_space)
-    tuner.tune(n_trial=30,
+    tuner.tune(n_trial=len(task.config_space),
                measure_option=measure_option,
                callbacks=[autotvm.callback.log_to_file('conv2d.log')])
 
