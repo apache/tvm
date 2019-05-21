@@ -245,7 +245,7 @@ void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
   PrintIndent();
   stream << "TVMAPISetLastError(\"" << op->message.as<StringImm>()->value << "\");\n";
   PrintIndent();
-  this->stream << "return -1;\n";
+  stream << "return -1;\n";
   this->EndScope(assert_if_scope);
   PrintIndent();
   stream << "}\n";
