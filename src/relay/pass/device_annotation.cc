@@ -485,7 +485,52 @@ class DeviceInfo {
 
 Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
   RewriteAnnotation rewrote = RewriteAnnotation();
-  return rewrote.Rewrite(expr, fallback_device);
+  Expr new_expr = rewrote.Rewrite(expr, fallback_device);
+
+  // Remove OnDevice operators. Note that these operators are only present at the
+  // leaves after annotation. Therefore, we can simply reconstruct the
+  // Function/Expr by removing them directly.
+  if (const FunctionNode* fn = new_expr.as<FunctionNode>()) {
+    auto params = fn->params;
+    auto body = fn->body;
+    std::vector<Expr> new_body;
+    if (const TupleNode* tuple = body.as<TupleNode>()) {
+      for (const auto& field : tuple->fields) {
+        if (!IsOnDeviceNode(field.operator->())) {
+          new_body.push_back(field);
+        }
+      }
+      CHECK_GT(new_body.size(), 0U);
+      if (new_body.size() == 1) {
+        return FunctionNode::make(params, new_body[0], Type(nullptr),
+                                  fn->type_params, fn->attrs);
+      } else if (tuple->fields.size() == new_body.size()) {
+          return new_expr;
+      } else {
+        Tuple tuple_body = TupleNode::make(new_body);
+        return FunctionNode::make(params, tuple_body, Type(nullptr),
+                                  fn->type_params, fn->attrs);
+      }
+    } else {
+      return new_expr;
+    }
+  } else if (const TupleNode* tuple = new_expr.as<TupleNode>()) {
+    std::vector<Expr> new_fields;
+    for (const auto& field : tuple->fields) {
+      if (!IsOnDeviceNode(field.operator->())) {
+        new_fields.push_back(field);
+      }
+    }
+    CHECK_GT(new_fields.size(), 0U);
+    if (tuple->fields.size() == new_fields.size()) {
+      return new_fields.size() == 1 ? new_fields[0] : new_expr;
+    } else {
+      return new_fields.size() == 1 ? new_fields[0]
+                                    : TupleNode::make(new_fields);
+    }
+  } else {
+    return new_expr;
+  }
 }
 
 Map<Expr, Integer> CollectDeviceInfo(const Expr& expr) {
