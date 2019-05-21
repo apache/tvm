@@ -37,7 +37,7 @@ CodeGenCHost::CodeGenCHost() : retcode_counter_(1) {
 void CodeGenCHost::Init(bool output_ssa) {
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
-  decl_stream << "#include \"tvm/runtime/utvm_device_lib.h\"\n";
+  decl_stream << "#include \"tvm/runtime/micro/utvm_device_lib.h\"\n";
   decl_stream << "extern void* " << module_name << " = NULL;\n";
   CodeGenC::Init(output_ssa);
 }

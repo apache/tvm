@@ -33,7 +33,7 @@ def init(device_type, runtime_lib_path=None, port=0):
         micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
         micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
                                         "src", "runtime", "micro", "device")
-        src_path = os.path.join(micro_device_dir, "utvm_runtime.cc")
+        src_path = os.path.join(micro_device_dir, "utvm_runtime.c")
         runtime_lib_path = create_micro_lib(src_path, device_type)
     _MicroInit(device_type, runtime_lib_path, port)
 

@@ -5,11 +5,13 @@
 #ifndef TVM_RUNTIME_MICRO_MICRO_COMMON_H_
 #define TVM_RUNTIME_MICRO_MICRO_COMMON_H_
 
-#include <sstream>
 #include <stdio.h>
+
+#include <tvm/runtime/registry.h>
+
+#include <sstream>
 #include <string>
 #include <unordered_map>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace runtime {

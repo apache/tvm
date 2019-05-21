@@ -65,7 +65,8 @@ void MicroSession::InitSession(TVMArgs args) {
   dev_base_offset workspace_start_hole_offset = init_symbol_map()["workspace_start"];
   dev_base_offset workspace_curr_hole_offset = init_symbol_map()["workspace_curr"];
   dev_base_offset workspace_start(kWorkspaceStart.val());
-  void* workspace_hole_fill = (workspace_start + low_level_device_->base_addr().val()).as_ptr<void>();
+  void* workspace_hole_fill =
+      (workspace_start + low_level_device_->base_addr().val()).as_ptr<void>();
   low_level_device()->Write(workspace_start_hole_offset, &workspace_hole_fill, sizeof(void*));
   low_level_device()->Write(workspace_curr_hole_offset, &workspace_hole_fill, sizeof(void*));
 }
@@ -130,7 +131,7 @@ std::string MicroSession::ReadString(dev_base_offset str_offset) {
   static char buf[256];
   size_t i = 256;
   while (i == 256) {
-    low_level_device()->Read(str_offset, (void*) buf, 256);
+    low_level_device()->Read(str_offset, reinterpret_cast<void*>(buf), 256);
     i = 0;
     while (i < 256) {
       if (buf[i] == 0) break;

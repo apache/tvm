@@ -5,16 +5,19 @@
 #ifndef TVM_RUNTIME_MICRO_MICRO_SESSION_H_
 #define TVM_RUNTIME_MICRO_MICRO_SESSION_H_
 
+#include "micro_common.h"
+
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <mutex>
 #include <memory>
 #include <unordered_map>
+
 #include "low_level_device.h"
-#include "micro_common.h"
 #include "device/utvm_runtime.h"
 #include "target_data_layout_encoder.h"
 
@@ -47,7 +50,8 @@ class MicroSectionAllocator {
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
   dev_base_offset Allocate(size_t size) {
-    CHECK(section_max_.val() + size < section_end_.val()) << "out of space in section with start_addr=" << section_start_.val();
+    CHECK(section_max_.val() + size < section_end_.val())
+        << "out of space in section with start_addr=" << section_start_.val();
     dev_base_offset alloc_ptr = section_max_;
     section_max_ = section_max_ + size;
     alloc_map_[alloc_ptr.val()] = size;

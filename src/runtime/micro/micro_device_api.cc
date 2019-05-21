@@ -61,9 +61,9 @@ class MicroDeviceAPI final : public DeviceAPI {
       // Copying from the device to the device.
       CHECK(ctx_from.device_id == ctx_to.device_id)
         << "can only copy between the same micro device";
-      uint8_t buffer[size];
-      lld->Read(from_base_offset, buffer, size);
-      lld->Write(to_base_offset, buffer, size);
+      std::vector<uint8_t> buffer(size);
+      lld->Read(from_base_offset, reinterpret_cast<void*>(buffer.data()), size);
+      lld->Write(to_base_offset, reinterpret_cast<void*>(buffer.data()), size);
     } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
       // Reading from the device.
       const std::shared_ptr<LowLevelDevice>& from_lld = session_->low_level_device();
