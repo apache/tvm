@@ -9,7 +9,7 @@ fn main() {
     tvm_runtime::TVMGetLastError();
     let module = DsoModule::new(concat!(env!("OUT_DIR"), "/test.so")).unwrap();
     let add = module
-        .get_function("default_function")
+        .get_function("__tvm_main__")
         .expect("main function not found");
     let mut a = Array::from_vec(vec![1f32, 2., 3., 4.]);
     let mut b = Array::from_vec(vec![1f32, 0., 1., 0.]);

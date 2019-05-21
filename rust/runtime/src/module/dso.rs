@@ -65,17 +65,37 @@ impl<'a> DsoModule<'a> {
     }
 }
 
+const TVM_MAIN: &'static [u8] = b"__tvm_main__";
+
 impl<'a> Module for DsoModule<'a> {
     fn get_function<S: AsRef<str>>(&self, name: S) -> Option<&(dyn PackedFunc)> {
         let name = name.as_ref();
-        let func = match unsafe { self.lib.get::<BackendPackedCFunc>(name.as_bytes()) } {
+        let func = match unsafe {
+            self.lib
+                .get::<BackendPackedCFunc>(if name.as_bytes() == TVM_MAIN {
+                    // If __tvm_main__ is present, it contains the name of the
+                    // actual main function.
+                    match self
+                        .lib
+                        .get::<*const c_char>(TVM_MAIN)
+                        .map(|p| CStr::from_ptr(*p))
+                    {
+                        Ok(m) => m.to_bytes(),
+                        _ => return None,
+                    }
+                } else {
+                    name.as_bytes()
+                })
+        } {
             Ok(func) => unsafe { func.into_raw() },
             Err(_) => return None,
         };
+
         self.packed_funcs.borrow_mut().insert(
             name.to_string(),
             &*Box::leak(super::wrap_backend_packed_func(name.to_string(), *func)),
         );
+
         self.packed_funcs.borrow().get(name).map(|f| *f)
     }
 }
