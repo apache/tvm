@@ -23,6 +23,7 @@ const TVM_MODULE_CTX: &'static [u8] = b"__tvm_module_ctx";
 pub struct DsoModule<'a> {
     lib: libloading::Library,
     packed_funcs: RefCell<HashMap<String, &'a (dyn PackedFunc)>>,
+    _pin: std::marker::PhantomPinned,
 }
 
 macro_rules! init_context_func {
@@ -67,6 +68,7 @@ impl<'a> DsoModule<'a> {
         let dso_mod = Box::pin(Self {
             lib,
             packed_funcs: RefCell::new(HashMap::new()),
+            _pin: std::marker::PhantomPinned,
         });
 
         unsafe {
