@@ -392,7 +392,11 @@ Stmt BuildStmt(Schedule sch,
   if (loop_partition) {
     stmt = ir::LoopPartition(stmt, config->partition_const_loop);
   }
-  stmt = ir::VectorizeLoop(stmt);
+  if (config->disable_vectorize) {
+    stmt = ir::SkipVectorize(stmt);
+  } else {
+    stmt = ir::VectorizeLoop(stmt);
+  }
   stmt = ir::InjectVirtualThread(stmt);
   stmt = ir::InjectDoubleBuffer(stmt, config->double_buffer_split_loop);
   stmt = ir::StorageRewrite(stmt);
@@ -642,6 +646,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "dump_pass_ir=" << op->dump_pass_ir << ", ";
   p->stream << "instrument_bound_checkers=" << op->instrument_bound_checkers << ", ";
   p->stream << "disable_select_rewriting=" << op->disable_select_rewriting;
+  p->stream << "disable_vectorize=" << op->disable_vectorize;
   p->stream << ")";
 });
 

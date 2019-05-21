@@ -246,6 +246,9 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to disable select rewriting. */
   bool disable_select_rewriting = false;
 
+  /*! \brief Whether to disable loop vectorization. */
+  bool disable_vectorize = false;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
@@ -260,6 +263,7 @@ class BuildConfigNode : public Node {
     v->Visit("dump_pass_ir", &dump_pass_ir);
     v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
     v->Visit("disable_select_rewriting", &disable_select_rewriting);
+    v->Visit("disable_vectorize", &disable_vectorize);
   }
 
   static constexpr const char* _type_key = "BuildConfig";
