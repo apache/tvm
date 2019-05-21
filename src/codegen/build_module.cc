@@ -58,6 +58,7 @@ Target CreateTarget(const std::string& target_name,
 
   std::string libs_flag = "-libs=";
   std::string device_flag = "-device=";
+  std::string keys_flag = "-keys=";
   for (auto& item : options) {
     t->options_array.push_back(ir::StringImm::make(item));
 
@@ -69,12 +70,19 @@ Target CreateTarget(const std::string& target_name,
       }
     } else if (item.find(device_flag) == 0) {
       t->device_name = item.substr(device_flag.length());
+      t->keys_array.push_back(ir::StringImm::make(t->device_name));
+    } else if (item.find(keys_flag) == 0) {
+      std::stringstream ss(item.substr(keys_flag.length()));
+      std::string key_item;
+      while (std::getline(ss, key_item, ',')) {
+        t->keys_array.push_back(ir::StringImm::make(key_item));
+      }
     }
   }
 
-  if (t->device_name.length() > 0) {
-    t->keys_array.push_back(ir::StringImm::make(t->device_name));
-  }
+  // if (t->device_name.length() > 0) {
+  //   t->keys_array.push_back(ir::StringImm::make(t->device_name));
+  // }
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
   if (target_name == "c" || target_name == "llvm") {
