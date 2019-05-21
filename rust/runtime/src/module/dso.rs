@@ -1,7 +1,9 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
-    os::raw::{c_int, c_void},
+    ffi::CStr,
+    os::raw::{c_char, c_int, c_void},
+    pin::Pin,
 };
 
 use tvm_common::{ffi::BackendPackedCFunc, packed_func::PackedFunc};
@@ -13,6 +15,9 @@ use crate::{
 };
 
 use super::Module;
+
+const TVM_MAIN: &'static [u8] = b"__tvm_main__";
+const TVM_MODULE_CTX: &'static [u8] = b"__tvm_module_ctx";
 
 /// A module backed by a Dynamic Shared Object (dylib).
 pub struct DsoModule<'a> {
@@ -34,7 +39,7 @@ macro_rules! init_context_func {
 }
 
 impl<'a> DsoModule<'a> {
-    pub fn new<P: AsRef<std::ffi::OsStr>>(filename: P) -> Result<Self, failure::Error> {
+    pub fn new<P: AsRef<std::ffi::OsStr>>(filename: P) -> Result<Pin<Box<Self>>, failure::Error> {
         let lib = libloading::Library::new(filename)?;
 
         init_context_func!(
@@ -58,14 +63,21 @@ impl<'a> DsoModule<'a> {
             ),
         );
 
-        Ok(Self {
+        // Pin the module in memory so that `ctx` pointer (below) is stable.
+        let dso_mod = Box::pin(Self {
             lib,
             packed_funcs: RefCell::new(HashMap::new()),
-        })
+        });
+
+        unsafe {
+            if let Ok(ctx) = dso_mod.lib.get::<*mut *const c_void>(TVM_MODULE_CTX) {
+                **ctx = &dso_mod as *const _ as *const c_void;
+            }
+        }
+
+        Ok(dso_mod)
     }
 }
-
-const TVM_MAIN: &'static [u8] = b"__tvm_main__";
 
 impl<'a> Module for DsoModule<'a> {
     fn get_function<S: AsRef<str>>(&self, name: S) -> Option<&(dyn PackedFunc)> {
