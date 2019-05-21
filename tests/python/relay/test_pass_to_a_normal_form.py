@@ -21,6 +21,7 @@ from tvm.relay.ir_pass import to_a_normal_form, alpha_equal, infer_type
 from tvm.relay import op, create_executor
 from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
 from tvm.relay.prelude import Prelude
+from tvm.relay.testing import add_nat_definitions, count
 
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
@@ -130,6 +131,22 @@ def test_ref():
     check_eval(to_a_normal_form(body), 3)
 
 
+def test_nat_add():
+    mod = relay.Module()
+    p = Prelude(mod)
+    add_nat_definitions(p)
+    nat = p.nat
+    add = p.add
+    s = p.s
+    z = p.z
+    ctx = tvm.context("llvm", 0)
+    intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
+    assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
+    assert count(intrp.evaluate(add(s(z()), s(z())))) == 2
+    assert count(intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
+    assert "let" in mod[add].astext()
+
+
 def test_let():
     x = relay.Var("x")
     y = relay.Var("y")
@@ -158,4 +175,5 @@ if __name__ == '__main__':
     test_ref()
     test_add()
     test_let()
+    test_nat_add()
     test_function()
