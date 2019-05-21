@@ -27,6 +27,7 @@
 #include <tvm/operation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pass.h>
+#include "expr_subst.h"
 #include "pattern_util.h"
 #include "let_list.h"
 #include "../ir/type_functor.h"
@@ -78,13 +79,30 @@ Type WithGradientType(const Type& t) {
                               TupleTypeNode::make(ty->arg_types)}), {}, {});
 }
 
-//! \brief if the expression is a GlobalVar, transform to it's expression.
-Expr DeGlobal(const Module& mod, const Expr& e) {
-  if (const auto* x = e.as<GlobalVarNode>()) {
-    return mod->Lookup(GetRef<GlobalVar>(x))->body;
-  } else {
-    return e;
+struct Deglobalizer : public ExprMutator {
+  explicit Deglobalizer(const Module& mod) : mod_(mod) {}
+
+  Expr VisitExpr_(const GlobalVarNode* op) override {
+    // because a global can be recursive, we need to translate the body
+    // into a local function that replaces the global with the correct name
+    auto global = GetRef<GlobalVar>(op);
+    auto body = mod_->Lookup(global);
+    auto local = VarNode::make(global->name_hint, Type(nullptr));
+    std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map;
+    subst_map[global] = local;
+    // have to visit the body after the substitution to get all globals
+    // in case it has more globals in it
+    auto subst = this->VisitExpr(ExprSubst(body, subst_map));
+    return LetNode::make(local, subst, local);
   }
+
+  const Module& mod_;
+};
+
+//! \brief Inline all global vars in e
+Expr DeGlobal(const Module& mod, const Expr& e) {
+  Deglobalizer deglobe(mod);
+  return deglobe.VisitExpr(e);
 }
 
 /*! \brief A fragment of the program being built by the automatic differentation

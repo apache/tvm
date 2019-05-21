@@ -190,6 +190,32 @@ def test_pow():
     tvm.testing.assert_allclose(grad_i.asnumpy(), 8 * np.ones_like(grad_i.asnumpy()))
 
 
+def test_pow_recursion():
+    # this version of pow takes tuple arguments and is recursive so
+    # the gradient will have to differentiate it
+    mod = relay.Module()
+    pow = relay.GlobalVar('pow')
+    shape = (10, 10)
+    dtype = 'float32'
+    t = relay.TensorType(shape, dtype)
+    x = relay.Var('x', t)
+    p = relay.Var('p', relay.scalar_type('int32'))
+    mod[pow] = relay.Function([x, p],
+                              relay.If(relay.equal(p, relay.const(0)),
+                                       x, pow(x + x, p - relay.const(1))),
+                              t)
+    i = relay.var("i", t)
+    func = relay.Function([i], pow(i, relay.const(3)))
+    print(gradient(func, mod=mod))
+    back_func = relay.ir_pass.infer_type(gradient(func, mod=mod), mod=mod)
+    assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
+    i_nd = rand(dtype, *shape)
+    ex = create_executor(mod=mod)
+    forward, (grad_i,) = ex.evaluate(back_func)(i_nd)
+    tvm.testing.assert_allclose(forward.asnumpy(), 8 * i_nd.asnumpy())
+    tvm.testing.assert_allclose(grad_i.asnumpy(), 8 * np.ones_like(grad_i.asnumpy()))
+
+
 def test_ref():
     shape = (10, 10)
     dtype = 'float32'
