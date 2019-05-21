@@ -36,11 +36,6 @@ MicroSession::MicroSession() {
   heap_allocator_ = std::unique_ptr<MicroSectionAllocator>(
       new MicroSectionAllocator(kHeapStart,
                                 kWorkspaceStart));
-  // TODO(weberlo): We shouldn't need a workspace allocator, because every
-  // library will share the same one.
-  workspace_allocator_ = std::unique_ptr<MicroSectionAllocator>(
-      new MicroSectionAllocator(kWorkspaceStart,
-                                dev_base_offset(kMemorySize)));
 }
 
 MicroSession::~MicroSession() { }
@@ -87,8 +82,6 @@ dev_base_offset MicroSession::AllocateInSection(SectionKind type, size_t size) {
       return stack_allocator_->Allocate(size);
     case kHeap:
       return heap_allocator_->Allocate(size);
-    case kWorkspace:
-      return workspace_allocator_->Allocate(size);
     default:
       LOG(FATAL) << "Unsupported section type during allocation";
       return dev_base_offset(nullptr);
@@ -117,9 +110,6 @@ void MicroSession::FreeInSection(SectionKind type, dev_base_offset ptr) {
       return;
     case kHeap:
       heap_allocator_->Free(ptr);
-      return;
-    case kWorkspace:
-      workspace_allocator_->Free(ptr);
       return;
     default:
       LOG(FATAL) << "Unsupported section type during free";
@@ -176,8 +166,10 @@ void MicroSession::PushToExecQueue(dev_base_offset func, TVMArgs args) {
   dev_base_offset last_err_offset = init_symbol_map()["last_error"];
   std::uintptr_t last_error = 0;
   low_level_device()->Write(last_err_offset, &last_error, sizeof(std::uintptr_t));
+
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
-  // Check if there were any errors during execution.  If so, print the last one.
+
+  // Check if there was an error during execution.  If so, log it.
   low_level_device()->Read(last_err_offset, &last_error, sizeof(std::uintptr_t));
   if (last_error) {
     // First, retrieve the string `last_error` points to.
@@ -185,9 +177,10 @@ void MicroSession::PushToExecQueue(dev_base_offset func, TVMArgs args) {
     low_level_device()->Read(last_err_offset, &last_err_data_addr, sizeof(std::uintptr_t));
     dev_base_offset last_err_data_offset =
         dev_addr(last_err_data_addr) - low_level_device()->base_addr();
-    // Then read the string from device to host.
+    // Then read the string from device to host and log it.
     std::string last_error_str = ReadString(last_err_data_offset);
-    std::cout << "last error was: " << last_error_str << std::endl;
+    LOG(FATAL) << "error during micro function execution:\n"
+               << "  " << last_error_str;
   }
 }
 

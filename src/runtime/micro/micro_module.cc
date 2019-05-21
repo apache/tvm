@@ -48,11 +48,12 @@ class MicroModuleNode final : public ModuleNode {
 
   /*!
    * \brief runs selected function on the micro device
-   * \param func name of the function to be run
-   * \param func_addr address of the function to be run
+   * \param func_name name of the function to be run
+   * \param func_offset offset of the function to be run
    * \param args type-erased arguments passed to the function
    */
-  void RunFunction(std::string func, dev_base_offset func_offset, TVMArgs args) {
+  void RunFunction(std::string func_name, dev_base_offset func_offset, TVMArgs args) {
+    // TODO(weberlo): Why do we need `func_name`?
     session_->PushToExecQueue(func_offset, args);
   }
 
@@ -66,10 +67,14 @@ class MicroModuleNode final : public ModuleNode {
   /*! \brief low-level device pointer */
   std::shared_ptr<LowLevelDevice> low_level_device_;
 
-  SymbolMap symbol_map() {
+  SymbolMap& symbol_map() {
     return binary_info_.symbol_map;
   }
 
+  /*!
+   * \brief patches a function pointer in this module to an implementation
+   * \param func_name name of the function pointer being patched
+   */
   void PatchImplHole(const std::string func_name) {
     const dev_base_offset init_impl_offset = session_->init_symbol_map()[func_name];
     void* init_impl_addr = (low_level_device_->base_addr() + init_impl_offset).as_ptr<void>();
@@ -91,7 +96,6 @@ class MicroWrappedFunc {
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
-    // TODO(weberlo): no return value yet, but may implement in the future
     m_->RunFunction(func_name_, func_offset_, args);
   }
 

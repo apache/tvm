@@ -25,8 +25,9 @@ class HostLowLevelDevice final : public LowLevelDevice {
     size_t size_in_pages = (num_bytes + kPageSize - 1) / kPageSize;
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
     int mmap_flags = MAP_ANONYMOUS | MAP_PRIVATE;
-    base_addr_ = dev_base_addr((std::uintptr_t) mmap(nullptr, size_in_pages * kPageSize,
-                                                     mmap_prot, mmap_flags, -1, 0));
+    base_addr_ = dev_base_addr(
+      (reinterpret_cast<std::uintptr_t>(
+        mmap(nullptr, size_in_pages * kPageSize, mmap_prot, mmap_flags, -1, 0))));
   }
 
   /*!

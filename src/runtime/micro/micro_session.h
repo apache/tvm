@@ -168,8 +168,7 @@ class MicroSession {
     return low_level_device_;
   }
 
-  // TODO(weberlo): Make this return a ref?
-  SymbolMap init_symbol_map() {
+  SymbolMap& init_symbol_map() {
     return init_stub_info_.symbol_map;
   }
 
@@ -190,8 +189,6 @@ class MicroSession {
   std::unique_ptr<MicroSectionAllocator> stack_allocator_;
   /*! \brief heap section allocator */
   std::unique_ptr<MicroSectionAllocator> heap_allocator_;
-  /*! \brief workspace section allocator */
-  std::unique_ptr<MicroSectionAllocator> workspace_allocator_;
   /*! \brief init stub binary info */
   BinaryInfo init_stub_info_;
   /*! \brief path to init stub source code */

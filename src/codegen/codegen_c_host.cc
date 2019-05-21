@@ -30,7 +30,7 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenCHost::CodeGenCHost() : retcode_counter_(1) {
+CodeGenCHost::CodeGenCHost() {
   module_name = GetUniqueName("__tvm_module_ctx");
 }
 
@@ -165,8 +165,7 @@ void CodeGenCHost::PrintGetFuncFromBackend(std::string func_name, std::string pa
               << ", &" << packed_func_name << ") != 0) {\n";
   int get_func_env_scope = this->BeginScope();
   this->PrintIndent();
-  this->stream << "return -" << retcode_counter_ << ";\n";
-  retcode_counter_++;
+  this->stream << "return -1;\n";
   this->EndScope(get_func_env_scope);
   this->PrintIndent();
   this->stream << "}\n";
@@ -189,8 +188,7 @@ void CodeGenCHost::PrintFuncCall(std::string packed_func_name, int num_args) {
                << ret_type_code << ") != 0) {\n";
   int func_call_scope = this->BeginScope();
   this->PrintIndent();
-  this->stream << "return -" << retcode_counter_ << ";\n";
-  retcode_counter_++;
+  this->stream << "return -1;\n";
   this->EndScope(func_call_scope);
   this->PrintIndent();
   this->stream << "}\n";
@@ -233,8 +231,7 @@ void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
     this->PrintFuncCall(packed_func_name, num_args);
   } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
     this->PrintIndent();
-    this->stream << "return -" << retcode_counter_ << ";\n";
-    retcode_counter_++;
+    this->stream << "return -1;\n";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -248,8 +245,7 @@ void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
   PrintIndent();
   stream << "TVMAPISetLastError(\"" << op->message.as<StringImm>()->value << "\");\n";
   PrintIndent();
-  this->stream << "return -" << retcode_counter_ << ";\n";
-  retcode_counter_++;
+  this->stream << "return -1;\n";
   this->EndScope(assert_if_scope);
   PrintIndent();
   stream << "}\n";

@@ -101,7 +101,7 @@ class MicroDeviceAPI final : public DeviceAPI {
 
  private:
   /*! \brief pointer to global session */
-  std::shared_ptr<MicroSession>& session_;
+  std::shared_ptr<MicroSession> session_;
 };
 
 // register device that can be obtained from Python frontend

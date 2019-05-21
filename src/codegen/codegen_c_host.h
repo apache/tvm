@@ -49,8 +49,6 @@ class CodeGenCHost final : public CodeGenC {
 
  private:
   std::string module_name;
-  /*! \brief strictly increasing counter to distinguish return cases */
-  int retcode_counter_;
   void PrintGetFuncFromBackend(std::string func_name, std::string packed_func_name);
   void PrintFuncCall(std::string packed_func_name, int num_args);
 };

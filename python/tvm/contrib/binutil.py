@@ -27,7 +27,7 @@ def tvm_callback_get_section_size(binary_path, section_name):
         size of the section in bytes
     """
     if not os.path.isfile(binary_path):
-        raise RuntimeError("no such file {}".format(binary_path))
+        raise RuntimeError("no such file \"{}\"".format(binary_path))
     # We use the "-A" flag here to get the ".rodata" section's size, which is
     # not included by default.
     size_proc = subprocess.Popen(["size", "-A", binary_path], stdout=subprocess.PIPE)
