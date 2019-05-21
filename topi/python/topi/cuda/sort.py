@@ -21,9 +21,8 @@ import tvm
 from tvm import api
 from topi.sort import argsort
 from .. import generic
-from .vision import _default_schedule
 
-def copy_data_ir(data, output):
+def copy_ir(data, output):
     """Low level IR to copy data to an intermediate buffer for arangement.
 
     Parameters
@@ -259,7 +258,7 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0
     sorted_data_buf = api.decl_buffer(data.shape, data.dtype, "sorted_data_buf", data_alignment=8)
     sorted_data = tvm.extern([data.shape],
                              [data],
-                             lambda ins, outs: copy_data_ir(
+                             lambda ins, outs: copy_ir(
                                  ins[0], outs[0]),
                              dtype=data.dtype,
                              in_buffers=[data_buf],
@@ -310,7 +309,6 @@ def schedule_argsort(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    from .injective import _schedule_injective
     def traverse(op):
         for tensor in op.input_tensors:
             if tensor.op.input_tensors and tensor.op not in scheduled_ops:
