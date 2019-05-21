@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -517,6 +517,24 @@ class LoopVectorizer : public IRMutator {
 
 Stmt VectorizeLoop(Stmt stmt) {
   return LoopVectorizer().Mutate(stmt);
+}
+
+class VectorizeSkipper : public IRMutator {
+ public:
+  Stmt Mutate_(const For* op, const Stmt& s) final {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<For>();
+    if (op->for_type == ForType::Vectorized) {
+      return For::make(op->loop_var, op->min, op->extent, ForType::Serial, op->device_api,
+                       op->body);
+    } else {
+       return stmt;
+    }
+  }
+};
+
+Stmt SkipVectorize(Stmt stmt) {
+  return VectorizeSkipper().Mutate(stmt);
 }
 
 }  // namespace ir
