@@ -37,6 +37,7 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   // We don't actually free memory in the current allocation scheme.
+  // TODO(weberlo): Actually free memory.
   return 0;
 }
 

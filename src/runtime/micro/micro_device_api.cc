@@ -37,7 +37,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    session_->FreeInSection(kHeap, dev_base_offset((std::uintptr_t) ptr));
+    session_->FreeInSection(kHeap, dev_base_offset(reinterpret_cast<std::uintptr_t>(ptr)));
   }
 
   void CopyDataFromTo(const void* from,
@@ -51,32 +51,27 @@ class MicroDeviceAPI final : public DeviceAPI {
                       TVMStreamHandle stream) final {
     constexpr int micro_devtype = kDLMicroDev;
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
+    dev_base_offset from_base_offset =
+        dev_base_offset(reinterpret_cast<std::uintptr_t>(const_cast<void*>(from)) + from_offset);
+    dev_base_offset to_base_offset =
+        dev_base_offset(reinterpret_cast<std::uintptr_t>(const_cast<void*>(to)) + to_offset);
+    const std::shared_ptr<LowLevelDevice>& lld = session_->low_level_device();
 
     if (type_from_to == std::make_tuple(micro_devtype, micro_devtype)) {
+      // Copying from the device to the device.
       CHECK(ctx_from.device_id == ctx_to.device_id)
         << "can only copy between the same micro device";
-      std::string buffer;
-      const std::shared_ptr<LowLevelDevice>& from_lld = session_->low_level_device();
-      const std::shared_ptr<LowLevelDevice>& to_lld = session_->low_level_device();
-      from_lld->Read(
-          dev_base_offset(reinterpret_cast<std::uintptr_t>(const_cast<uint8_t*>(static_cast<const uint8_t*>(from)) + from_offset)),
-          const_cast<char*>(&buffer[0]), size);
-      to_lld->Write(
-          dev_base_offset(reinterpret_cast<std::uintptr_t>(const_cast<uint8_t*>(static_cast<const uint8_t*>(to)) + to_offset)),
-          const_cast<char*>(&buffer[0]), size);
-
+      uint8_t buffer[size];
+      lld->Read(from_base_offset, buffer, size);
+      lld->Write(to_base_offset, buffer, size);
     } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
+      // Reading from the device.
       const std::shared_ptr<LowLevelDevice>& from_lld = session_->low_level_device();
-      from_lld->Read(
-          dev_base_offset(reinterpret_cast<std::uintptr_t>(const_cast<uint8_t*>(static_cast<const uint8_t*>(from)) + from_offset)),
-          const_cast<uint8_t*>(static_cast<const uint8_t*>(to)), size);
-
+      lld->Read(from_base_offset, to_base_offset.as_ptr<void>(), size);
     } else if (type_from_to == std::make_tuple(kDLCPU, micro_devtype)) {
+      // Writing to the device.
       const std::shared_ptr<LowLevelDevice>& to_lld = session_->low_level_device();
-      to_lld->Write(
-          dev_base_offset(reinterpret_cast<std::uintptr_t>(const_cast<uint8_t*>(static_cast<const uint8_t*>(to)) + to_offset)),
-          const_cast<uint8_t*>(static_cast<const uint8_t*>(from)) + from_offset,
-          size);
+      lld->Write(to_base_offset, from_base_offset.as_ptr<void>(), size);
 
     } else {
       LOG(FATAL) << "Expect copy from/to micro_dev or between micro_dev\n";

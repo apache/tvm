@@ -154,8 +154,7 @@ int GraphRuntime::NumOutputs() const {
 NDArray GraphRuntime::GetInput(int index) const {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
-  NDArray result = data_entry_[eid];
-  return result;
+  return data_entry_[eid];
 }
 /*!
  * \brief Return NDArray for given output index.
@@ -405,7 +404,6 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
     TVMArgs targs(arg_ptr->arg_values.data(),
                   arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));
-    CHECK(pf != nullptr) << "fuck";
     pf.CallPacked(targs, &rv);
   };
   return {fexec, arg_ptr};

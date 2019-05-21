@@ -127,6 +127,11 @@ class SymbolMap {
     }
   }
 
+  /*!
+   * \brief retrieve on-device offset for a symbol name
+   * \param name name of the symbol
+   * \return on-device offset of the symbol
+   */
   dev_base_offset operator[](std::string name) {
     auto result = map_.find(name);
     CHECK(result != map_.end()) << "\"" << name << "\" not in symbol map";
@@ -134,6 +139,7 @@ class SymbolMap {
   }
 
  private:
+  /*! \brief backing map */
   std::unordered_map<std::string, dev_base_offset> map_;
 };
 
@@ -162,6 +168,9 @@ struct BinaryInfo {
 // TODO(weberlo): should this be here?
 /*! \brief number of bytes in each page */
 constexpr int kPageSize = 4096;
+
+// TODO(weberlo): We need to allow configurable memory layouts by the user, and
+// the constants below should be made into defaults.
 
 /*! \brief memory offset at which text section starts  */
 const dev_base_offset kTextStart = dev_base_offset(64);
