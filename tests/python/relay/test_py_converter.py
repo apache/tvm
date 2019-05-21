@@ -463,3 +463,30 @@ def test_split():
     verify_split((5, 9, 3), [3, 4], 1)
     verify_split((5, 5, 2, 2), 5, 1)
     verify_split((5, 5, 2, 2), 5, 0)
+
+
+# ensure we can generate code for batch_norm, since it requires simplify_inference
+# adapted from test_batchnorm in nnvm's test_top_level1
+def test_batch_norm():
+    def verify_batch_norm(shapes):
+        data = [np.absolute(np.random.normal(size=shape).astype('float32'))
+                for shape in shapes]
+        relay_args = [relay.const(arg) for arg in data]
+
+        eps = 1e-5
+        def reference(x, gamma, beta, moving_mean, moving_var):
+            return (x - moving_mean) / np.sqrt(moving_var + eps) * gamma + beta
+        ref_res = reference(*data)
+
+        call = relay.nn.batch_norm(*relay_args, epsilon=eps)[0]
+        call_val = run_as_python(call)
+
+        # there will be a change in accuracy so we need to check
+        # approximate equality
+        assert isinstance(call_val, TensorValue)
+        tvm.testing.assert_allclose(call_val.asnumpy(), ref_res, atol=eps, rtol=eps)
+
+    verify_batch_norm([(10, 20), (20,), (20,), (20,), (20,)])
+    verify_batch_norm([(20, 10), (10,), (10,), (10,), (10,)])
+    verify_batch_norm([(10, 50), (50,), (50,), (50,), (50,)])
+    verify_batch_norm([(30, 40), (40,), (40,), (40,), (40,)])
