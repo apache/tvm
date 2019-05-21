@@ -24,39 +24,6 @@ from topi.math import identity
 from .. import generic
 from .. import tag
 
-def copy_ir(data, output):
-    """Low level IR to copy data to an intermediate buffer for arangement.
-
-    Parameters
-    ----------
-    data: Buffer
-        Buffer of input data.
-
-    output : Buffer
-        Output buffer with same content as data.
-
-    Returns
-    -------
-    stmt : Stmt
-        The result IR statement.
-    """
-    size = 1
-    for i in data.shape:
-        size *= i
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
-    ib = tvm.ir_builder.create()
-    data = ib.buffer_ptr(data)
-    output = ib.buffer_ptr(output)
-    nthread_tx = max_threads
-    nthread_bx = size // max_threads + 1
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "thread_extent", nthread_bx)
-    tid = bx * nthread_tx + tx
-    with ib.if_scope(tid < size):
-        output[tid] = data[tid]
-    return ib.get()
 
 def sort_ir(data, output, axis, is_ascend):
     """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
