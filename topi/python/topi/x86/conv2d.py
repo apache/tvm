@@ -110,7 +110,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
             _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
         return _declaration_conv_impl(cfg, data, kernel, strides,
                                       padding, dilation, layout, out_dtype)
-    # KHOI kernel layout is for NHWC and HWCN
+    # HWOI kernel layout is for NHWC and HWCN
     kh, kw, _, _ = get_const_tuple(kernel.shape)
     if layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
