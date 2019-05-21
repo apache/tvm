@@ -226,8 +226,8 @@ Instruction::~Instruction() {
       return;
     default:
       std::ostringstream out;
-      out << "Invalid instruction " << static_cast<int>(this->op);
-      throw std::runtime_error(out.str());
+      LOG(FATAL) << "Invalid instruction " << static_cast<int>(this->op)
+                 << "\n";
   }
 }
 
