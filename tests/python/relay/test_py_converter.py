@@ -419,6 +419,69 @@ def test_match_effect_exactly_once():
     assert_tensor_value(match_val, 1)
 
 
+def test_arbitrary_let_nesting():
+    # something that is tricky to do in Python but comes naturally in Relay
+    mod = relay.Module()
+    p = Prelude(mod)
+    x = relay.Var('x')
+    r = relay.Var('r')
+    y = relay.Var('y')
+    z = relay.Var('z')
+    expr = relay.Tuple([
+        relay.Let(x, relay.Tuple([relay.const(1), relay.const(2)]),
+                  relay.TupleGetItem(x, 1)),
+        relay.Let(r, relay.RefCreate(relay.const(1)),
+                  seq(relay.RefWrite(r, relay.const(3)), relay.RefRead(r))),
+        relay.Let(y, p.id(relay.Let(z, relay.const(4), z)), y)
+    ])
+
+    tup_val = run_as_python(expr, mod)
+    assert_tuple_value(tup_val, 3)
+    assert_tensor_value(tup_val.fields[0], 2)
+    assert_tensor_value(tup_val.fields[1], 3)
+    assert_tensor_value(tup_val.fields[2], 4)
+
+
+def test_ref_execution_order():
+    # we want to have effects execute from left to right
+    x = relay.Var('x')
+    y = relay.Var('y')
+    f = relay.Var('f')
+    r = relay.Var('r')
+
+    expr = relay.Let(f, relay.Function([x, y], x),
+                     # r = 1
+                     relay.Let(r, relay.RefCreate(relay.const(1)),
+                               relay.Tuple([
+                                   # should be 1
+                                   relay.RefRead(r),
+                                   # set r to 2 and read back
+                                   seq(relay.RefWrite(r, relay.const(2)),
+                                       relay.RefRead(r)),
+                                   # set r to 3 and read back
+                                   seq(relay.RefWrite(r, relay.const(3)),
+                                       relay.RefRead(r)),
+                                   # set r to 4 and read as first arg to f
+                                   # set r to 5 and read as second arg to f
+                                   # f should evaluate to 4
+                                   f(
+                                       seq(relay.RefWrite(r, relay.const(4)),
+                                           relay.RefRead(r)),
+                                       seq(relay.RefWrite(r, relay.const(5)),
+                                           relay.RefRead(r))),
+                                   # read back 5
+                                   relay.RefRead(r)
+                  ])))
+
+    tup_val = run_as_python(expr)
+    assert_tuple_value(tup_val, 5)
+    assert_tensor_value(tup_val.fields[0], 1)
+    assert_tensor_value(tup_val.fields[1], 2)
+    assert_tensor_value(tup_val.fields[2], 3)
+    assert_tensor_value(tup_val.fields[3], 4)
+    assert_tensor_value(tup_val.fields[4], 5)
+
+
 def test_op_add():
     add = relay.add(relay.const(1), relay.const(2))
     add_val = run_as_python(add)
