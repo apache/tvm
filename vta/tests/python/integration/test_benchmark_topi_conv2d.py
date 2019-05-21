@@ -29,6 +29,7 @@ from tvm.contrib.pickle_memoize import memoize
 import topi
 import topi.testing
 import vta
+from vta import program_fpga, reconfig_runtime
 import vta.testing
 from vta.testing import simulator
 
@@ -213,6 +214,10 @@ def test_conv2d(device="vta"):
     def _run(env, remote):
         if device == "vta":
             target = env.target
+            if env.TARGET != "sim":
+                assert tvm.module.enabled("rpc")
+                program_fpga(remote, bitstream=None)
+                reconfig_runtime(remote)
         elif device == "arm_cpu":
             target = env.target_vta_cpu
         with autotvm.tophub.context(target): # load pre-tuned schedule parameters
