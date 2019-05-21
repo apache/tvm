@@ -18,8 +18,10 @@
 from __future__ import absolute_import as _abs
 
 import tvm
+from tvm import rpc
 from . import ir_pass
 from .environment import get_env
+from .testing import simulator
 
 
 def lift_coproc_scope(x):
@@ -115,3 +117,60 @@ def build(*args, **kwargs):
         with build_config():
             return tvm.build(*args, **kwargs)
     return tvm.build(*args, **kwargs)
+
+
+def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
+    """Custom build func for VTA. Used for autotvm"""
+
+    import time
+    import os
+    from random import getrandbits
+    from tvm.autotvm.util import get_const_tuple
+    from tvm.autotvm.measure.measure_methods import BuildResult, InstantiationError
+
+    tic = time.time()
+    try:
+        filename = os.path.join(tmp_dir, "tmp_func_%0x.tar" % getrandbits(64))
+        target, task, config = measure_input
+
+        with target:
+            s, args = task.instantiate(config)
+            if not config.valid():
+                raise InstantiationError(config.errors)
+
+            func = build(s, args, target_host=task.target_host)
+            sim = build(s, args)
+
+        arg_info =  tuple((get_const_tuple(x.shape), x.dtype) for x in args)
+        func.export_library(filename)
+
+        # When targeting VTA test the schedule on simulator first
+        # in order to catch runtime errors
+        if measure_input.target.device_name == 'vta':
+            from vta import reconfig_runtime
+            # Note: if you're not running the RPC locally, you cannot benefit
+            # from rumtime recompilation...
+            local_rpc_port = int(os.environ.get("VTA_LOCAL_SIM_RPC_PORT", "0"))
+            if local_rpc_port:
+                remote = rpc.connect("localhost", local_rpc_port)
+                reconfig_runtime(remote)
+            else:
+                remote = rpc.LocalSession()
+            sim_path = os.path.join(tmp_dir, "tmp_func_%0x.tar" % getrandbits(64))
+            sim.export_library(sim_path)
+            remote.upload(sim_path)
+            f = remote.load_module(os.path.split(sim_path)[1])
+            ctx = remote.context(str(measure_input.target), 0)
+            args = [tvm.nd.empty(x[0], dtype=x[1], ctx=ctx) for x in arg_info]
+            simulator.clear_stats()
+            simulator.debug_mode(simulator.DEBUG_SKIP_EXEC)
+            f(*args)
+
+        # check by local simulator
+        ctx = tvm.context(str(target))
+        args = [tvm.nd.empty(x[0], dtype=x[1], ctx=ctx) for x in arg_info]
+        sim(*args)
+
+    except Exception as e:  # pylint: disable=broad-except
+        return BuildResult(None, None, e, time.time() - tic)
+    return BuildResult(filename, arg_info, None, time.time() - tic)
