@@ -24,6 +24,7 @@ def _default_schedule(outs, auto_inline):
     """Default schedule for llvm."""
     target = tvm.target.current_target(allow_none=False)
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    # TODO(weberlo): MicroTVM only works if we have this line commented out.
     # if target.target_name != "llvm":
     #     raise RuntimeError("schedule not registered for '%s'" % target)
     s = tvm.create_schedule([x.op for x in outs])

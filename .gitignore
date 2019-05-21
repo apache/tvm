@@ -210,8 +210,6 @@ tvm_t.*
 *.crt
 *.der
 
-.vscode
-
 # patch sentinel
 patched.txt
 
