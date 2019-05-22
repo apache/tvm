@@ -30,3 +30,4 @@ from . import densenet
 
 from .config import ctx_list
 from .init import create_workload
+from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr

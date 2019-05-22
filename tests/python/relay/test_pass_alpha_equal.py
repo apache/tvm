@@ -521,7 +521,7 @@ def test_match_alpha_equal():
                                                              relay.PatternVar(a)]),
                                    p.cons(z, a))
 
-    data = p.cons(p.z(), p.cons(p.z(), p.nil()))
+    data = p.cons(relay.const(1), p.cons(relay.const(2), p.nil()))
 
     match = relay.Match(data, [nil_case, cons_case])
     equivalent = relay.Match(data, [nil_case, equivalent_cons])
@@ -547,8 +547,8 @@ def test_match_alpha_equal():
         relay.Clause(relay.PatternWildcard(), p.nil())
     ])
     wrong_constructors = relay.Match(data, [
-        relay.Clause(relay.PatternConstructor(p.z), p.nil()),
-        relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(x)]),
+        relay.Clause(relay.PatternConstructor(p.none), p.nil()),
+        relay.Clause(relay.PatternConstructor(p.some, [relay.PatternVar(x)]),
                      p.cons(x, p.nil()))
     ])
 

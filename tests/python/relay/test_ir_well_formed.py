@@ -53,10 +53,12 @@ def test_adt():
     mod = relay.Module()
     p = Prelude(mod)
     x = relay.Var("x")
-    s_case = relay.Clause(relay.PatternConstructor(p.s, [relay.PatternVar(x)]), x)
+    some_case = relay.Clause(relay.PatternConstructor(p.some,
+                                                      [relay.PatternVar(x)]),
+                             x)
     default_case = relay.Clause(relay.PatternVar(x), x)
-    m0 = relay.Match(p.z(), [default_case])
-    m1 = relay.Match(p.z(), [s_case, default_case])
+    m0 = relay.Match(p.none(), [default_case])
+    m1 = relay.Match(p.none(), [some_case, default_case])
     assert well_formed(m0)
     assert not well_formed(m1)
 
