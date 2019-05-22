@@ -145,8 +145,8 @@ def tvm_callback_read_binary_section(binary, section):
 
     Parameters
     ----------
-    binary_path : str
-        path of the binary file
+    binary : bytearray
+        contents of the binary
 
     section : str
         type of section
@@ -157,6 +157,7 @@ def tvm_callback_read_binary_section(binary, section):
         contents of the read section
     """
     tmp_dir = util.tempdir()
+    tmp_bin = tmp_dir.relpath("temp.bin")
     tmp_section = tmp_dir.relpath("tmp_section.bin")
     with open(tmp_bin, "wb") as out_file:
         out_file.write(bytes(binary))
