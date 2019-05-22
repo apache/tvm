@@ -20,6 +20,7 @@ import numpy as np
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload as get_inception
 from tvm.relay.testing.resnet import get_workload as get_resnet
+from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 from tvm.target.datatype import register, register_min_func, register_op, create_lower_func
 
 tgt = "llvm"
@@ -127,9 +128,25 @@ def test_change_dtype_inception_v3():
         result = ex.evaluate()(input, **params)
 
 
+def test_change_dtype_mobilenet():
+    module, params = get_mobilenet()
+
+    src_dtype = 'float32'
+    dst_dtype = 'custom[bfloat]16' # Change me to posit.
+    module, params = change_dtype(src_dtype, dst_dtype, module, params)
+
+    # Convert the input into the correct format.
+    input = tvm.nd.array(np.random.rand(3, 224, 224).astype(src_dtype))
+    input = convert_ndarray(dst_dtype, input)
+
+    # Execute the model in the new datatype.
+    with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+        ex = relay.create_executor('graph', mod=module)
+        result = ex.evaluate()(input, **params)
 
 if __name__ == "__main__":
     setup()
     # test_change_dtype_inception_v3()
     test_change_dtype_simple()
     test_change_dtype_resnet()
+    test_change_dtype_mobilenet()
