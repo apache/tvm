@@ -12,10 +12,6 @@ from mxnet.gluon.model_zoo.vision import get_model
 from mxnet.gluon.utils import download
 from PIL import Image
 
-# TODO(weberlo): document somewhere that utvm object files need to have an
-# `.obj` instead of an `.o` extension, because the `.o` suffix triggers a code
-# path we don't want in `module.load`.
-
 # We use the host emulated micro device, because it's simpler and faster to
 # test.
 DEVICE_TYPE = "host"

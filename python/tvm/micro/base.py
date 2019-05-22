@@ -66,7 +66,7 @@ def from_host_mod(host_mod, device_type):
     return micro_mod
 
 
-def create_micro_lib(src_path, device_type, cc=None):
+def create_micro_lib(src_path, device_type, cc=None, obj_path=None):
     """Compiles code into a binary for the target micro device.
 
     Parameters
@@ -79,6 +79,10 @@ def create_micro_lib(src_path, device_type, cc=None):
 
     cc : str, optional
         compiler command to be used
+
+    obj_path : str, optional
+        path to generated object file (defaults to same directory as
+        `src_path`)
 
     Return
     ------
@@ -94,8 +98,25 @@ def create_micro_lib(src_path, device_type, cc=None):
         else:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
 
-    obj_name = ".".join(os.path.basename(src_path).split(".")[:-1])
-    obj_path = os.path.join(os.path.dirname(src_path), obj_name)
+    def replace_suffix(s, new_suffix):
+        if "." in os.path.basename(s):
+            # There already exists an extension.
+            return os.path.join(
+                os.path.dirname(s),
+                ".".join(os.path.basename(s).split(".")[:-1] + [new_suffix]))
+        else:
+            # No existing extension; we can just append.
+            return s + "." + new_suffix
+
+    if obj_path is None:
+        obj_name = replace_suffix(src_path, "obj")
+        obj_path = os.path.join(os.path.dirname(src_path), obj_name)
+    # uTVM object files cannot have an ".o" suffix, because it triggers the
+    # code path for creating shared objects in `tvm.module.load`.  So we replace
+    # ".o" suffixes with ".obj".
+    if obj_path.endswith(".o"):
+        obj_path = replace_suffix(obj_path, "obj")
+
     options = ["-I" + path for path in find_include_path()] + ["-fno-stack-protector"]
     create_lib(obj_path, src_path, options, cc)
     return obj_path
