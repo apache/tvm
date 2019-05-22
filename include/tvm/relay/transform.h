@@ -183,97 +183,7 @@ class Pass : public NodeRef {
   using ContainerType = PassNode;
 };
 
-class Sequential;
-
-/*!
- * \brief The SequentialNode contains a set of passes that transform Relay
- * programs from one AST to another semantically equivalent one.
- *
- * One example of this level of pass is that the pass manager needs to correctly
- * perform a host of optimizations with a given optimization level and disabled
- * passes.
- */
-class SequentialNode : public PassNode {
- public:
-  /* \brief The pass meta data.*/
-  PassInfo pass_info;
-
-  /*! \brief A list of passes that used to compose a sequential pass. */
-  tvm::Array<Pass> passes;
-  /*!
-   * \brief A list of disabled passes that should be excluded when executing the
-   * sequential pass.
-   */
-  tvm::Array<tvm::Expr> disabled;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("pass_info", &pass_info);
-    v->Visit("passes", &passes);
-    v->Visit("disabled", &disabled);
-  }
-
-  /*!
-   * \brief Get the pass information/meta data.
-   */
-  PassInfo Info() const { return pass_info; }
-
-  /*!
-   * \brief Add a pass to the pass list.
-   *
-   * \param pass The candidate pass to be added.
-   */
-  void AddPass(const Pass& pass) {
-    passes.push_back(pass);
-  }
-
-  TVM_DLL static Sequential make(tvm::Array<Pass> passes,
-                                 PassInfo pass_info,
-                                 tvm::Array<tvm::Expr> disabled);
-
-  /*!
-   * \brief Resolve the pass dependency. It globs all required passes by
-   *        a given pass and executes them.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return The updated module after resolving pass dependencies.
-   *
-   * TODO(zhiics) Build a dependency graph among the passes using provided
-   * metadata, i.e. required_passes. Likely, we can have a data structure, i.e.
-   * PassInfo, to store the relevant information including the parent passes.
-   */
-  void ResolveDependency(const Module& mod);
-
-  TVM_DLL std::vector<std::string> DisabledPasses() const;
-
-  /*!
-   * \brief Perform optimizations on a series of passes. The aforementioned
-   *        typical pass manager jobs could be done by it. This function could
-   *        be overloaded to focus on different metrics, i.e. performance,
-   *        memory footprint, etc.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return Return the updated module.
-   */
-  Module operator()(const Module& mod) const final;
-
-  /*!
-   * \brief Set the context information for a sequential pass.
-   *
-   * \param pass_ctx The context information for a sequential pass.
-   */
-  void SetContext(const PassContext& pass_ctx) final;
-
-  static constexpr const char* _type_key = "relay.Sequential";
-  TVM_DECLARE_NODE_TYPE_INFO(SequentialNode, PassNode);
-
- private:
-  /*!
-   * \brief The context information that is used to help perform a module pass.
-   */
-  PassContext pass_ctx_;
-};
+class SequentialNode;
 
 class Sequential : public Pass {
  public:
@@ -287,17 +197,12 @@ class Sequential : public Pass {
                      PassInfo pass_info,
                      tvm::Array<tvm::Expr> disabled);
   Sequential() = default;
-
   explicit Sequential(tvm::NodePtr<::tvm::Node> n) : Pass(n) {}
 
-  const SequentialNode* operator->() const {
-    return static_cast<const SequentialNode*>(this->node_.get());
-  }
-
+  const SequentialNode* operator->() const;
   using ContainerType = Sequential;
 };
 
-// RELAY_DEFINE_NODE_REF(Sequential, SequentialNode, Pass);
 
 /*
  * \brief Create a module pass.
