@@ -24,6 +24,7 @@ from tvm.generic import cast
 from tvm.intrin import if_then_else, log, power
 from topi.vision import non_max_suppression, get_valid_counts
 from .sort import argsort
+from .. import tag
 
 
 def get_valid_counts_pre(data, flag, idx, score_threshold):
@@ -730,7 +731,7 @@ def non_max_suppression_gpu(data, valid_count, max_output_size=-1,
                                       "valid_count_buf", data_alignment=4)
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
-    score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
+    score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis], tag=tag.ELEMWISE)
     sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False, flag=True)
 
     sort_tensor_buf = api.decl_buffer(sort_tensor.shape, sort_tensor.dtype,

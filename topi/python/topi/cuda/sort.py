@@ -20,6 +20,10 @@ import tvm
 
 from tvm import api
 from topi.sort import argsort
+from topi.math import identity
+from .. import generic
+from .. import tag
+
 
 def sort_ir(data, output, axis, is_ascend):
     """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
@@ -103,8 +107,6 @@ def sort_ir(data, output, axis, is_ascend):
                                       tvm.expr.Call.Intrinsic, None, 0))
 
     return ib.get()
-
-
 
 def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     """Low level IR to do nms sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
@@ -221,29 +223,60 @@ def argsort_gpu(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0
     out : tvm.Tensor
         The output of this function.
     """
-    data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    sorted_data_buf = api.decl_buffer(data.shape, data.dtype, "sorted_data_buf", data_alignment=8)
+    sorted_data = identity(data)
     if flag:
         valid_count_buf = api.decl_buffer(valid_count.shape, valid_count.dtype,
                                           "valid_count_buf", data_alignment=4)
         out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=4)
         out = tvm.extern([data.shape],
-                         [data, valid_count],
+                         [sorted_data, valid_count],
                          lambda ins, outs: sort_nms_ir(
                              ins[0], ins[1], outs[0], axis, is_ascend),
                          dtype="int32",
-                         in_buffers=[data_buf, valid_count_buf],
+                         in_buffers=[sorted_data_buf, valid_count_buf],
                          out_buffers=[out_buf],
                          name="argsort_nms_gpu",
                          tag="argsort_nms_gpu")
     else:
         out_buf = api.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
         out = tvm.extern([data.shape],
-                         [data],
+                         [sorted_data],
                          lambda ins, outs: sort_ir(
                              ins[0], outs[0], axis, is_ascend),
                          dtype=dtype,
-                         in_buffers=[data_buf],
+                         in_buffers=[sorted_data_buf],
                          out_buffers=[out_buf],
                          name="argsort_gpu",
                          tag="argsort_gpu")
     return out
+
+@generic.schedule_argsort.register(["cuda", "gpu"])
+def schedule_argsort(outs):
+    """Schedule for argsort operator.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of argsort
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+    from .injective import _schedule_injective
+    def traverse(op):
+        if tag.is_broadcast(op.tag):
+            _schedule_injective(op, s)
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors and tensor.op not in scheduled_ops:
+                traverse(tensor.op)
+        scheduled_ops.append(op)
+    traverse(outs[0].op)
+
+    return s
