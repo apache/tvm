@@ -23,11 +23,11 @@
  * \brief Relay pass manager implementation.
  */
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
-namespace pass {
+namespace transform {
 
 using tvm::IRPrinter;
 
@@ -169,17 +169,15 @@ class FunctionPassNode : public PassNode {
 
 RELAY_DEFINE_NODE_REF(FunctionPass, FunctionPassNode, Pass);
 
-class SequentialPass;
-
 /*!
- * \brief The SequentialPassNode contains a set of passes that transform Relay
+ * \brief The SequentialNode contains a set of passes that transform Relay
  * programs from one AST to another semantically equivalent one.
  *
  * One example of this level of pass is that the pass manager needs to correctly
  * perform a host of optimizations with a given optimization level and disabled
  * passes.
  */
-class SequentialPassNode : public PassNode {
+class SequentialNode : public PassNode {
  public:
   /* \brief The pass meta data.*/
   PassInfo pass_info;
@@ -211,10 +209,6 @@ class SequentialPassNode : public PassNode {
   void AddPass(const Pass& pass) {
     passes.push_back(pass);
   }
-
-  TVM_DLL static SequentialPass make(tvm::Array<Pass> passes,
-                                     PassInfo pass_info,
-                                     tvm::Array<tvm::Expr> disabled);
 
   /*!
    * \brief Resolve the pass dependency. It globs all required passes by
@@ -251,8 +245,8 @@ class SequentialPassNode : public PassNode {
    */
   void SetContext(const PassContext& pass_ctx) final;
 
-  static constexpr const char* _type_key = "relay.SequentialPass";
-  TVM_DECLARE_NODE_TYPE_INFO(SequentialPassNode, PassNode);
+  static constexpr const char* _type_key = "relay.Sequential";
+  TVM_DECLARE_NODE_TYPE_INFO(SequentialNode, PassNode);
 
  private:
   /*!
@@ -260,8 +254,6 @@ class SequentialPassNode : public PassNode {
    */
   PassContext pass_ctx_;
 };
-
-RELAY_DEFINE_NODE_REF(SequentialPass, SequentialPassNode, Pass);
 
 PassInfo PassInfoNode::make(int opt_level, std::string name,
                             tvm::Array<tvm::Expr> required) {
@@ -350,20 +342,24 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
   return pval && pval->value != 0;
 }
 
-SequentialPass SequentialPassNode::make(tvm::Array<Pass> passes,
-                                        PassInfo pass_info,
-                                        tvm::Array<tvm::Expr> disabled) {
-  auto n = make_node<SequentialPassNode>();
+Sequential::Sequential(tvm::Array<Pass> passes,
+                       PassInfo pass_info,
+                       tvm::Array<tvm::Expr> disabled) {
+  auto n = make_node<SequentialNode>();
   n->passes = std::move(passes);
   n->pass_info = std::move(pass_info);
   n->disabled = std::move(disabled);
-  return SequentialPass(n);
+  node_ = std::move(n);
+}
+
+const SequentialNode* Sequential::operator->() const {
+  return static_cast<const SequentialNode*>(this->node_.get());
 }
 
 // TODO(jroesch, zhiics): we currenlty only sequentially execute each pass in
-// a SequentialPass without the consideration of their orders. The phase
+// a Sequential without the consideration of their orders. The phase
 // ordering problem needed to be handled in the future.
-Module SequentialPassNode::operator()(const Module& module) const {
+Module SequentialNode::operator()(const Module& module) const {
   Module mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
@@ -373,7 +369,7 @@ Module SequentialPassNode::operator()(const Module& module) const {
   return mod;
 }
 
-void SequentialPassNode::ResolveDependency(const Module& mod) {
+void SequentialNode::ResolveDependency(const Module& mod) {
   // TODO(zhiics) Implement it.
   // 1. Consider the required passes for each pass.
   // 2. Only resolve the enabled passes.
@@ -382,7 +378,7 @@ void SequentialPassNode::ResolveDependency(const Module& mod) {
              << "\n";
 }
 
-std::vector<std::string> SequentialPassNode::DisabledPasses() const {
+std::vector<std::string> SequentialNode::DisabledPasses() const {
   std::vector<std::string> ret;
   for (const auto& it : disabled) {
     const auto* str = it.as<tvm::ir::StringImm>();
@@ -392,7 +388,7 @@ std::vector<std::string> SequentialPassNode::DisabledPasses() const {
   return ret;
 }
 
-void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
+void SequentialNode::SetContext(const PassContext& pass_ctx) {
   pass_ctx_ = pass_ctx;
 }
 
@@ -414,21 +410,12 @@ Pass CreateFunctionPass(
   return FunctionPassNode::make(pass_func, pass_info);
 }
 
-Pass CreateSequentialPass(const tvm::Array<Pass>& passes,
-                          int opt_level,
-                          const std::string& name,
-                          const tvm::Array<tvm::Expr>& required,
-                          const tvm::Array<tvm::Expr>& disabled) {
-  PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
-  return SequentialPassNode::make(passes, pass_info, disabled);
-}
-
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
-TVM_REGISTER_API("relay._ir_pass.PassInfo")
+TVM_REGISTER_API("relay._transform.PassInfo")
 .set_body_typed(PassInfoNode::make);
 
-TVM_REGISTER_API("relay._ir_pass.Info")
+TVM_REGISTER_API("relay._transform.Info")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   *ret = pass->Info();
@@ -450,10 +437,10 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
-TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
+TVM_REGISTER_API("relay._transform.CreateModulePass")
 .set_body_typed(CreateModulePass);
 
-TVM_REGISTER_API("relay._ir_pass.RunPass")
+TVM_REGISTER_API("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   Module mod = args[1];
@@ -475,7 +462,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
-TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
+TVM_REGISTER_API("relay._transform.CreateFunctionPass")
 .set_body_typed(CreateFunctionPass);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -486,9 +473,9 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << " at the optimization level " << pn->opt_level;
 });
 
-TVM_REGISTER_NODE_TYPE(SequentialPassNode);
+TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
+TVM_REGISTER_API("relay._transform.Sequential")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
@@ -496,14 +483,14 @@ TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
   tvm::Array<tvm::Expr> required = args[3];
   tvm::Array<tvm::Expr> disabled = args[4];
   PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
-  *ret = SequentialPassNode::make(passes, pass_info, disabled);
+  *ret = Sequential(passes, pass_info, disabled);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<SequentialPassNode>([](const SequentialPassNode* node,
-                                     tvm::IRPrinter* p) {
+.set_dispatch<SequentialNode>([](const SequentialNode* node,
+                                 tvm::IRPrinter* p) {
   const PassInfoNode* seq_pn = node->Info().operator->();
-  p->stream << "Run SequentialPass pass: " << seq_pn->name
+  p->stream << "Run Sequential pass: " << seq_pn->name
             << " at the optimization level. " << seq_pn->opt_level;
   p->stream << "The passes will be executed are: [";
   for (const auto& it : node->passes) {
@@ -514,7 +501,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "]";
 });
 
-TVM_REGISTER_API("relay._ir_pass.SetContext")
+TVM_REGISTER_API("relay._transform.SetContext")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   PassContext pass_ctx = args[1];
@@ -523,7 +510,7 @@ TVM_REGISTER_API("relay._ir_pass.SetContext")
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_API("relay._ir_pass.PassContext")
+TVM_REGISTER_API("relay._transform.PassContext")
 .set_body_typed(PassContextNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -534,6 +521,6 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                << "\n";
 });
 
-}  // namespace pass
+}  // namespace transform
 }  // namespace relay
 }  // namespace tvm
