@@ -214,6 +214,8 @@ class Gemm(OnnxOpConverter):
 
 
 class MaxPool(Pool):
+    """ Operator converter for MaxPool
+    """
     name = 'max_pool'
 
     @classmethod
