@@ -84,7 +84,7 @@ def tvm_callback_relocate_binary(binary_path, text_addr, rodata_addr, data_addr,
     """
     tmp_dir = util.tempdir()
     rel_obj = tmp_dir.relpath("relocated.o")
-    ld_script_contents = '''
+    ld_script_contents = """
 SECTIONS
 {
   . = %s;
@@ -120,7 +120,7 @@ SECTIONS
     *(.bss*)
   }
 }
-    ''' % (text_addr, rodata_addr, data_addr, bss_addr)
+    """ % (text_addr, rodata_addr, data_addr, bss_addr)
     rel_ld_script = tmp_dir.relpath("relocated.lds")
     with open(rel_ld_script, "w") as f:
         f.write(ld_script_contents)
