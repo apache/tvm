@@ -23,8 +23,10 @@ conveniently.
 """
 import types
 
+from tvm._ffi.runtime_ctypes import TVMContext
 from . import _transform
 from .base import RelayNode, register_relay_node
+from .. import nd as _nd
 
 
 @register_relay_node
@@ -57,10 +59,99 @@ class PassContext(RelayNode):
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
     to record the errors of during the optimization, etc.
-    """
 
-    def __init__(self):
-        self.__init_handle_by_constructor__(_transform.PassContext)
+    opt_level : Optional[int]
+        The optimization level of this pass.
+
+    fallback_device : Optional[int]
+        The fallback device type. It is also used as the default device for
+        operators that are not annotated during heterogeneous execution.
+
+    required_pass : Optional[List[str]]
+        The list of passes that are required by a certain pass.
+
+    disabled_pass : Optional[List[str]]
+        The list of passes that are disabled.
+    """
+    defaults = {
+        "opt_level": 2,
+        "required_pass": None,
+        "disabled_pass": None,
+        "fallback_device": _nd.cpu(),
+    }
+
+    def __init__(self, **kwargs):
+        for k, _ in kwargs.items():
+            if k not in PassContext.defaults:
+                raise ValueError("invalid argument %s, candidates are %s" %
+                                 (k, PassContext.defaults.keys()))
+
+        fallback_device = kwargs["fallback_device"] if "fallback_device" in \
+                            kwargs else PassContext.defaults["fallback_device"]
+        if isinstance(fallback_device, str):
+            fallback_device = _nd.context(fallback_device).device_type
+        elif isinstance(fallback_device, TVMContext):
+            fallback_device = fallback_device.device_type
+        if not isinstance(fallback_device, int):
+            raise TypeError("required_pass is expected to be the type of " +
+                            "int/str/TVMContext.")
+
+        required = kwargs["required_pass"] if "required_pass" in kwargs \
+                    else PassContext.defaults["required_pass"]
+        required = required if required else []
+        if not isinstance(required, (list, tuple)):
+            raise TypeError("required_pass is expected to be the type of " +
+                            "list/tuple/set.")
+
+        disabled = kwargs["disabled_pass"] if "disabled_pass" in kwargs \
+                    else PassContext.defaults["disabled_pass"]
+        disabled = disabled if disabled else []
+        if not isinstance(disabled, (list, tuple)):
+            raise TypeError("disabled_pass is expected to be the type of " +
+                            "list/tuple/set.")
+
+        opt_level = kwargs["opt_level"] if "opt_level" in kwargs \
+                    else PassContext.defaults["opt_level"]
+
+        self.__init_handle_by_constructor__(_transform.PassContext, opt_level,
+                                            fallback_device, required,
+                                            disabled)
+
+    def __enter__(self):
+        _transform.EnterPassContext(self)
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        _transform.ExitPassContext(self)
+
+
+def current_pass_context():
+    """Return the current pass context."""
+    return _transform.GetCurrentPassContext()
+
+
+def build_config(**kwargs):
+    """Configure the build behavior by setting config variables.
+    Parameters
+    ----------
+    opt_level: int, default=2
+        Optimization level. See OPT_PASS_LEVEL for level of each pass.
+
+    required_pass: set of str
+        Optimization passes that are required regardless of optimization level.
+
+    disabled_pass: set of str
+        Optimization passes to be disabled during optimization.
+
+    fallback_device : int or tvm.TVMContext
+        The fallback device. It is also used as the default device for
+        operators without specified device during heterogeneous execution.
+    Returns
+    -------
+    config: PassContext
+        The pass context for optimizations.
+    """
+    return PassContext(**kwargs)
 
 
 @register_relay_node
@@ -69,20 +160,6 @@ class Pass(RelayNode):
     that are implemented in the backend. They are defined for users to
     conveniently interact with the base class.
     """
-
-    def set_pass_context(self, pass_ctx):
-        """Setup the pass context for analysis and optimizations. This context
-        could be shared by different passes for sequential passes.
-
-        Parameters
-        ----------
-        pass_ctx : PassContext
-            The context that is used to help perform a certain pass or a series
-            of passes.
-        """
-        if not isinstance(pass_ctx, PassContext):
-            raise TypeError("pass_ctx is expected to be the PassContext type")
-        _transform.SetContext(self, pass_ctx)
 
     @property
     def info(self):
@@ -150,32 +227,23 @@ class Sequential(Pass):
 
     required : Optional[List[str]]
         The list of passes that the sequential pass is dependent on.
-
-    disabled : Optional[List[str]]
-        A list of disabled passes.
     """
 
     def __init__(self,
                  passes=None,
                  opt_level=2,
                  name="sequential",
-                 required=None,
-                 disabled=None):
+                 required=None):
         passes = passes if passes else []
         if not isinstance(passes, (list, tuple)):
             raise TypeError("passes must be a list of Pass objects.")
-
-        disabled = disabled if disabled else []
-        if not isinstance(disabled, (list, tuple)):
-            raise TypeError("disabled must be a list or tuple of pass names")
 
         required = required if required else []
         if not isinstance(required, (list, tuple)):
             raise TypeError("Required is expected to be the type of list/tuple.")
 
         self.__init_handle_by_constructor__(_transform.Sequential,
-                                            passes, opt_level, name, required,
-                                            disabled)
+                                            passes, opt_level, name, required)
 
 
 def module_pass(pass_func=None, opt_level=None, name=None, required=None):

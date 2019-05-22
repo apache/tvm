@@ -67,6 +67,40 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
+/*!
+ * \brief A data structure to map the names of specific optimizations to
+ *        numeric optimization levels
+ */
+struct OptPassLevel {
+  static const std::unordered_map<std::string, int> CreateMap() {
+    const std::unordered_map<std::string, int> m = {
+      {"SimplifyInference", 0},
+      {"OpFusion", 1},
+      {"FoldConstant", 2},
+      {"CombineParallelConv2D", 3},
+      {"FoldScaleAxis", 3},
+      {"AlterOpLayout", 3},
+      {"CanonicalizeOps", 3},
+      {"EliminateCommonSubexpr", 3}
+    };
+    return m;
+  }
+  /*!
+   * \brief Get level for an optimization pass
+   *
+   * \param key pass name
+   * \return int level
+   */
+  int operator[](const std::string& key) const {
+    const auto data = CreateMap();
+    auto it = data.find(key);
+    if (it == data.end()) {
+      return -1;
+    }
+    return it->second;
+  }
+};
+
 /*
  * \brief The context of pass.
  */
@@ -83,18 +117,81 @@ class PassContextNode : public RelayNode {
    */
   ErrorReporter err_reporter;
 
+  /*! \brief The default optimization level. */
+  int opt_level{2};
+
+  /*! \brief CPU is the default fallback device for heterogeneous execution. */
+  int fallback_device{static_cast<int>(kDLCPU)};
+
+  /*! \brief The list of required passes. */
+  tvm::Array<tvm::Expr> required_pass;
+  /*! \brief The list of disabled passes. */
+  tvm::Array<tvm::Expr> disabled_pass;
+
+  /*! 
+   * \brief A helper struct to get the optimization pass name to opt level
+   * mapping.
+   */
+  OptPassLevel OPT_PASS_LEVEL;
+
+  /*!
+   * \brief Convert a list of tvm StringImm to a `std::string` set.
+   *
+   * \param input. The input StringImm array.
+   *
+   * \return The coverted `std::strin`g set.
+   */
+  std::unordered_set<std::string> ToStringSet(
+      const tvm::Array<tvm::Expr>& input) const;
+
+  /*!
+   * \brief Check if a pass is enabled.
+   *
+   * \param pass_name The name of an optimization/analysis pass.
+   *
+   * \return true if the pass is enabled. Otherwise, false.
+   */
+  bool pass_enabled(const std::string& pass_name) const;
+
   PassContextNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("opt_level", &opt_level);
+    v->Visit("fallback_device", &fallback_device);
+    v->Visit("required_pass", &required_pass);
+    v->Visit("disabled_pass", &disabled_pass);
   }
-
-  TVM_DLL static PassContext make();
 
   static constexpr const char* _type_key = "relay.PassContext";
   TVM_DECLARE_NODE_TYPE_INFO(PassContextNode, RelayNode);
 };
 
-TVM_DEFINE_NODE_REF(PassContext, PassContextNode)
+class PassContext : public NodeRef {
+ public:
+  PassContext() {}
+  explicit PassContext(tvm::NodePtr<Node> n) : NodeRef(n) {}
+
+  TVM_DLL PassContext(int opt_level, int fallback_device,
+                      tvm::Array<tvm::Expr> required_pass,
+                      tvm::Array<tvm::Expr> disabled_pass);
+
+  // The entry of a pass context scope.
+  TVM_DLL static void EnterWithScope(const PassContext& pass_ctx);
+  // The exit of a pass context scope.
+  TVM_DLL static void ExitWithScope();
+  // Get the currently used pass context.
+  TVM_DLL static PassContext Current();
+
+  const PassContextNode* operator->() const;
+
+  using ContainerType = PassContextNode;
+  class Internal;
+
+ private:
+  // Classes to get the Python `with` like syntax. Enabled after #3231 is merged
+  // friend class Internal;
+  // friend class With<PassContext>;
+};
 
 /*
  * \brief The meta data of a pass.
@@ -150,13 +247,6 @@ class PassNode : public RelayNode {
   virtual PassInfo Info() const = 0;
 
   /*!
-   * \brief Set the context information for a pass.
-   *
-   * \param pass_ctx The context information for a certain pass.
-   */
-  virtual void SetContext(const PassContext& pass_ctx) = 0;
-
-  /*!
    * \brief Execute the optimization pass using a functor.
    *
    * \param mod The module that an optimization pass runs on.
@@ -164,6 +254,9 @@ class PassNode : public RelayNode {
    * \return The updated module.
    */
   virtual Module operator()(const Module& mod) const = 0;
+
+  virtual Module Apply(const Module& mod,
+                       const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(tvm::AttrVisitor* v) override {}
 
@@ -191,11 +284,9 @@ class Sequential : public Pass {
    * \brief The constructor of `Sequential`.
    * \param passes The passes to apply.
    * \param pass_info The pass metadata.
-   * \param disabled The passes that will not be applied.
    */
   TVM_DLL Sequential(tvm::Array<Pass> passes,
-                     PassInfo pass_info,
-                     tvm::Array<tvm::Expr> disabled);
+                     PassInfo pass_info);
   Sequential() = default;
   explicit Sequential(tvm::NodePtr<::tvm::Node> n) : Pass(n) {}
 
