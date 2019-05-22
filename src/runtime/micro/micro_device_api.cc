@@ -86,7 +86,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
-    session_->FreeInSection(kWorkspace, dev_base_offset((std::uintptr_t) data));
+    session_->FreeInSection(kWorkspace, dev_base_offset(reinterpret_cast<std::uintptr_t>(data)));
   }
 
   /*!

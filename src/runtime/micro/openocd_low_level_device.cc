@@ -8,6 +8,9 @@
 
 namespace tvm {
 namespace runtime {
+
+// TODO(weberlo): Add implementation for this device.
+
 /*!
  * \brief openocd low-level device for uTVM micro devices connected over JTAG
  */
