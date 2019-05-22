@@ -169,17 +169,17 @@ class FunctionPassNode : public PassNode {
 
 RELAY_DEFINE_NODE_REF(FunctionPass, FunctionPassNode, Pass);
 
-class SequentialPass;
+class Sequential;
 
 /*!
- * \brief The SequentialPassNode contains a set of passes that transform Relay
+ * \brief The SequentialNode contains a set of passes that transform Relay
  * programs from one AST to another semantically equivalent one.
  *
  * One example of this level of pass is that the pass manager needs to correctly
  * perform a host of optimizations with a given optimization level and disabled
  * passes.
  */
-class SequentialPassNode : public PassNode {
+class SequentialNode : public PassNode {
  public:
   /* \brief The pass meta data.*/
   PassInfo pass_info;
@@ -212,9 +212,9 @@ class SequentialPassNode : public PassNode {
     passes.push_back(pass);
   }
 
-  TVM_DLL static SequentialPass make(tvm::Array<Pass> passes,
-                                     PassInfo pass_info,
-                                     tvm::Array<tvm::Expr> disabled);
+  TVM_DLL static Sequential make(tvm::Array<Pass> passes,
+                                 PassInfo pass_info,
+                                 tvm::Array<tvm::Expr> disabled);
 
   /*!
    * \brief Resolve the pass dependency. It globs all required passes by
@@ -251,8 +251,8 @@ class SequentialPassNode : public PassNode {
    */
   void SetContext(const PassContext& pass_ctx) final;
 
-  static constexpr const char* _type_key = "relay.SequentialPass";
-  TVM_DECLARE_NODE_TYPE_INFO(SequentialPassNode, PassNode);
+  static constexpr const char* _type_key = "relay.Sequential";
+  TVM_DECLARE_NODE_TYPE_INFO(SequentialNode, PassNode);
 
  private:
   /*!
@@ -261,7 +261,7 @@ class SequentialPassNode : public PassNode {
   PassContext pass_ctx_;
 };
 
-RELAY_DEFINE_NODE_REF(SequentialPass, SequentialPassNode, Pass);
+RELAY_DEFINE_NODE_REF(Sequential, SequentialNode, Pass);
 
 PassInfo PassInfoNode::make(int opt_level, std::string name,
                             tvm::Array<tvm::Expr> required) {
@@ -350,20 +350,20 @@ bool FunctionPassNode::SkipFunction(const Function& func) const {
   return pval && pval->value != 0;
 }
 
-SequentialPass SequentialPassNode::make(tvm::Array<Pass> passes,
-                                        PassInfo pass_info,
-                                        tvm::Array<tvm::Expr> disabled) {
-  auto n = make_node<SequentialPassNode>();
+Sequential SequentialNode::make(tvm::Array<Pass> passes,
+                                PassInfo pass_info,
+                                tvm::Array<tvm::Expr> disabled) {
+  auto n = make_node<SequentialNode>();
   n->passes = std::move(passes);
   n->pass_info = std::move(pass_info);
   n->disabled = std::move(disabled);
-  return SequentialPass(n);
+  return Sequential(n);
 }
 
 // TODO(jroesch, zhiics): we currenlty only sequentially execute each pass in
-// a SequentialPass without the consideration of their orders. The phase
+// a Sequential without the consideration of their orders. The phase
 // ordering problem needed to be handled in the future.
-Module SequentialPassNode::operator()(const Module& module) const {
+Module SequentialNode::operator()(const Module& module) const {
   Module mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
@@ -373,7 +373,7 @@ Module SequentialPassNode::operator()(const Module& module) const {
   return mod;
 }
 
-void SequentialPassNode::ResolveDependency(const Module& mod) {
+void SequentialNode::ResolveDependency(const Module& mod) {
   // TODO(zhiics) Implement it.
   // 1. Consider the required passes for each pass.
   // 2. Only resolve the enabled passes.
@@ -382,7 +382,7 @@ void SequentialPassNode::ResolveDependency(const Module& mod) {
              << "\n";
 }
 
-std::vector<std::string> SequentialPassNode::DisabledPasses() const {
+std::vector<std::string> SequentialNode::DisabledPasses() const {
   std::vector<std::string> ret;
   for (const auto& it : disabled) {
     const auto* str = it.as<tvm::ir::StringImm>();
@@ -392,7 +392,7 @@ std::vector<std::string> SequentialPassNode::DisabledPasses() const {
   return ret;
 }
 
-void SequentialPassNode::SetContext(const PassContext& pass_ctx) {
+void SequentialNode::SetContext(const PassContext& pass_ctx) {
   pass_ctx_ = pass_ctx;
 }
 
@@ -414,13 +414,13 @@ Pass CreateFunctionPass(
   return FunctionPassNode::make(pass_func, pass_info);
 }
 
-Pass CreateSequentialPass(const tvm::Array<Pass>& passes,
-                          int opt_level,
-                          const std::string& name,
-                          const tvm::Array<tvm::Expr>& required,
-                          const tvm::Array<tvm::Expr>& disabled) {
+Pass CreateSequential(const tvm::Array<Pass>& passes,
+                      int opt_level,
+                      const std::string& name,
+                      const tvm::Array<tvm::Expr>& required,
+                      const tvm::Array<tvm::Expr>& disabled) {
   PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
-  return SequentialPassNode::make(passes, pass_info, disabled);
+  return SequentialNode::make(passes, pass_info, disabled);
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
@@ -486,9 +486,9 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << " at the optimization level " << pn->opt_level;
 });
 
-TVM_REGISTER_NODE_TYPE(SequentialPassNode);
+TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_API("relay._transform.CreateSequentialPass")
+TVM_REGISTER_API("relay._transform.CreateSequential")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
@@ -496,14 +496,14 @@ TVM_REGISTER_API("relay._transform.CreateSequentialPass")
   tvm::Array<tvm::Expr> required = args[3];
   tvm::Array<tvm::Expr> disabled = args[4];
   PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
-  *ret = SequentialPassNode::make(passes, pass_info, disabled);
+  *ret = SequentialNode::make(passes, pass_info, disabled);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<SequentialPassNode>([](const SequentialPassNode* node,
+.set_dispatch<SequentialNode>([](const SequentialNode* node,
                                      tvm::IRPrinter* p) {
   const PassInfoNode* seq_pn = node->Info().operator->();
-  p->stream << "Run SequentialPass pass: " << seq_pn->name
+  p->stream << "Run Sequential pass: " << seq_pn->name
             << " at the optimization level. " << seq_pn->opt_level;
   p->stream << "The passes will be executed are: [";
   for (const auto& it : node->passes) {

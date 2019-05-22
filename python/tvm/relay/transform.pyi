@@ -59,7 +59,7 @@ class FunctionPass(Pass):
         ...
 
 
-class SequentialPass(Pass):
+class Sequential(Pass):
     name = ...  # type: str
     opt_level = ...  # type: int
     passes = ...  # type: list

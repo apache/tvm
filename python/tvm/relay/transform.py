@@ -113,7 +113,7 @@ class ModulePass(Pass):
     `module_pass`, because the design of the `module_pass` API is flexible
     enough to handle the creation of a module pass in different manners. In
     addition, all members of a module pass can be accessed from the base class.
-    The same rule applies to FunctionPass and SequentialPass as well.
+    The same rule applies to FunctionPass and Sequential as well.
     """
 
 
@@ -125,9 +125,9 @@ class FunctionPass(Pass):
 
 
 @register_relay_node
-class SequentialPass(Pass):
+class Sequential(Pass):
     """A pass that works on a sequence of pass objects. A sequential pass class
-    should be created through `sequential_pass`.
+    should be created through `sequential`.
     """
 
 
@@ -278,8 +278,11 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     return create_function_pass
 
 
-def sequential_pass(passes=None, opt_level=2, name="sequential_pass",
-                    required=None, disabled=None):
+def sequential(passes=None,
+               opt_level=2,
+               name="sequential",
+               required=None,
+               disabled=None):
     """Create a sequential pass using a defined optimization function from
     Python. Some typical usage of the sequential pass are:
     1. Users provide a list of passes for optimization.

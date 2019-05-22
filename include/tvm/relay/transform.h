@@ -224,11 +224,11 @@ Pass CreateFunctionPass(
  *
  * \return The created sequential pass.
  */
-Pass CreateSequentialPass(const tvm::Array<Pass>& passes,
-                          int opt_level,
-                          const std::string& name,
-                          const tvm::Array<tvm::Expr>& required,
-                          const tvm::Array<tvm::Expr>& disabled);
+Pass CreateSequential(const tvm::Array<Pass>& passes,
+                      int opt_level,
+                      const std::string& name,
+                      const tvm::Array<tvm::Expr>& required,
+                      const tvm::Array<tvm::Expr>& disabled);
 
 }  // namespace transform
 }  // namespace relay

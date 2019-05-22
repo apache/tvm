@@ -100,7 +100,7 @@ const = expr.const
 bind = expr.bind
 module_pass = transform.module_pass
 function_pass = transform.function_pass
-sequential_pass = transform.sequential_pass
+sequential = transform.sequential
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
@@ -120,4 +120,4 @@ PassContext = transform.PassContext
 Pass = transform.Pass
 ModulePass = transform.ModulePass
 FunctionPass = transform.FunctionPass
-SequentialPass = transform.SequentialPass
+Sequential = transform.Sequential
