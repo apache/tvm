@@ -312,22 +312,21 @@ def test_sequential_pass():
         passes = [module_pass, function_pass]
         opt_level = 2
         pass_name = "sequential"
-        sequential = _transform.sequential(passes=passes, opt_level=opt_level)
-        assert isinstance(sequential, _transform.Sequential)
+        sequential = _transform.Sequential(passes=passes, opt_level=opt_level)
         pass_info = sequential.info
         assert pass_info.name == pass_name
         assert pass_info.opt_level == opt_level
 
     def test_no_pass():
         passes = []
-        sequential = _transform.sequential(opt_level=1, passes=passes)
+        sequential = _transform.Sequential(opt_level=1, passes=passes)
         ret_mod = sequential(mod)
         mod_func = ret_mod[v_sub]
         check_func(sub, mod_func)
 
     def test_only_module_pass():
         passes = [module_pass]
-        sequential = _transform.sequential(opt_level=1, passes=passes)
+        sequential = _transform.Sequential(opt_level=1, passes=passes)
         ret_mod = sequential(mod)
         # Check the subtract function.
         sub_var, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
@@ -341,7 +340,7 @@ def test_sequential_pass():
     def test_only_function_pass():
         # Check the subtract function.
         passes = [function_pass]
-        sequential = _transform.sequential(opt_level=1, passes=passes)
+        sequential = _transform.Sequential(opt_level=1, passes=passes)
         ret_mod = sequential(mod)
         _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
@@ -355,7 +354,7 @@ def test_sequential_pass():
         # function pass.
         mod = relay.Module({v_sub: sub, v_log: log})
         passes = [module_pass, function_pass]
-        sequential = _transform.sequential(opt_level=1, passes=passes)
+        sequential = _transform.Sequential(opt_level=1, passes=passes)
         ret_mod = sequential(mod)
 
         # Check the abs function is added.

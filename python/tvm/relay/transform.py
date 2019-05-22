@@ -126,9 +126,56 @@ class FunctionPass(Pass):
 
 @register_relay_node
 class Sequential(Pass):
-    """A pass that works on a sequence of pass objects. A sequential pass class
-    should be created through `sequential`.
+    """A pass that works on a sequence of pass objects. Multiple passes can be
+    executed sequentially using this class.
+
+    Some typical usage of the sequential pass are:
+    1. Users provide a list of passes for optimization.
+    2. Only an optimization level is provided so that the backend system has
+       to glob all passes at this level and below to perform the optimizations.
+    Note that users can also provide a series of passes that they don't want to
+    apply when running a sequential pass. Pass dependency will be resolved in
+    the backend as well.
+
+    Parameters
+    ----------
+    passes : Optional[List[Pass]]
+        A sequence of passes candidate for optimization.
+
+    opt_level : Optional[int]
+        The optimization level of this sequential pass.
+
+    name : Optional[str]
+        The name of the sequential pass.
+
+    required : Optional[List[str]]
+        The list of passes that the sequential pass is dependent on.
+
+    disabled : Optional[List[str]]
+        A list of disabled passes.
     """
+
+    def __init__(self,
+                 passes=None,
+                 opt_level=2,
+                 name="sequential",
+                 required=None,
+                 disabled=None):
+        passes = passes if passes else []
+        if not isinstance(passes, (list, tuple)):
+            raise TypeError("passes must be a list of Pass objects.")
+
+        disabled = disabled if disabled else []
+        if not isinstance(disabled, (list, tuple)):
+            raise TypeError("disabled must be a list or tuple of pass names")
+
+        required = required if required else []
+        if not isinstance(required, (list, tuple)):
+            raise TypeError("Required is expected to be the type of list/tuple.")
+
+        self.__init_handle_by_constructor__(_transform.CreateSequential,
+                                            passes, opt_level, name, required,
+                                            disabled)
 
 
 def module_pass(pass_func=None, opt_level=None, name=None, required=None):
@@ -276,56 +323,3 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     if pass_func:
         return create_function_pass(pass_func)
     return create_function_pass
-
-
-def sequential(passes=None,
-               opt_level=2,
-               name="sequential",
-               required=None,
-               disabled=None):
-    """Create a sequential pass using a defined optimization function from
-    Python. Some typical usage of the sequential pass are:
-    1. Users provide a list of passes for optimization.
-    2. Only an optimization level is provided so that the backend system has
-       to glob all passes at this level and below to perform the optimizations.
-    Note that users can also provide a series of passes that they don't want to
-    apply when running a sequential pass. Pass dependency will be resolved in
-    the backend as well.
-
-    Parameters
-    ----------
-    passes : Optional[List[Pass]]
-        A sequence of passes candidate for optimization.
-
-    opt_level : Optional[int]
-        The optimization level of this sequential pass.
-
-    name : Optional[str]
-        The name of the sequential pass.
-
-    required : Optional[List[str]]
-        The list of passes that the sequential pass is dependent on.
-
-    disabled : Optional[List[str]]
-        A list of disabled passes.
-
-    Returns
-    -------
-    ret : Pass
-        A sequential pass built through pass_func.
-    """
-
-    passes = passes if passes else []
-    if not isinstance(passes, (list, tuple)):
-        raise TypeError("passes must be a list of Pass objects.")
-
-    disabled = disabled if disabled else []
-    if not isinstance(disabled, (list, tuple)):
-        raise TypeError("disabled must be a list or tuple of pass names")
-
-    required = required if required else []
-    if not isinstance(required, (list, tuple)):
-        raise TypeError("Required is expected to be the type of list/tuple.")
-
-    return _transform.CreateSequential(passes, opt_level, name, required,
-                                       disabled)
