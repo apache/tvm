@@ -46,7 +46,7 @@ from .local_executor import LocalExecutor
 
 logger = logging.getLogger('autotvm')
 
-class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 'time_cost'))):
+class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 'time_cost', 'sim_stats'))):
     """
     Stores all the necessary inputs for a measurement.
 
@@ -60,6 +60,8 @@ class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 't
         The error happens during compilation.
     time_cost : float
         The time cost of building
+    sim_stats : Dictionary
+        Dictionary of VTA simulator statistics (only used when target is VTA)
     """
 
 class LocalBuilder(Builder):
@@ -114,13 +116,13 @@ class LocalBuilder(Builder):
                 if isinstance(res, Exception):
                     # timeout or fleet error, return MeasureResult directly
                     results.append(MeasureResult((res,), MeasureErrorNo.BUILD_TIMEOUT,
-                                                 self.timeout, time.time()))
+                                                 self.timeout, time.time(), {}))
                 elif res.error is not None:
                     # instantiation error
                     if isinstance(res.error, InstantiationError):
                         results.append(MeasureResult((res.error,),
                                                      MeasureErrorNo.INSTANTIATION_ERROR,
-                                                     res.time_cost, time.time()))
+                                                     res.time_cost, time.time(), {}))
                     else:
                         if "InstantiationError" in str(res.error):
                             msg = str(res.error)
@@ -130,11 +132,11 @@ class LocalBuilder(Builder):
                                 pass
                             results.append(MeasureResult((InstantiationError(msg),),
                                                          MeasureErrorNo.INSTANTIATION_ERROR,
-                                                         res.time_cost, time.time()))
+                                                         res.time_cost, time.time(), {}))
                         else:  # tvm error
                             results.append(MeasureResult((res.error,),
                                                          MeasureErrorNo.COMPILE_HOST,
-                                                         res.time_cost, time.time()))
+                                                         res.time_cost, time.time(), {}))
                 else:
                     # return BuildResult
                     results.append(res)
@@ -282,7 +284,7 @@ class RPCRunner(Runner):
                 res = future.get()
                 if isinstance(res, Exception):   # executor error or timeout
                     results.append(MeasureResult((str(res),), MeasureErrorNo.RUN_TIMEOUT,
-                                                 self.timeout, time.time()))
+                                                 self.timeout, time.time(), {}))
                 else:
                     results.append(res)
 
@@ -416,8 +418,8 @@ def _wrap_build_func(build_func):
             func, arg_info = _build_func_common(measure_input, **kwargs)
             func.export_library(filename, build_func)
         except Exception as e:  # pylint: disable=broad-except
-            return BuildResult(None, None, e, time.time() - tic)
-        return BuildResult(filename, arg_info, None, time.time() - tic)
+            return BuildResult(None, None, e, time.time() - tic, {})
+        return BuildResult(filename, arg_info, None, time.time() - tic, {})
     return _wrapped
 
 
@@ -514,7 +516,7 @@ def run_through_rpc(measure_input, build_result,
         errno = MeasureErrorNo.RUNTIME_DEVICE
     tstamp = time.time()
     time.sleep(cooldown_interval)
-    return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
+    return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp, build_result.sim_stats)
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):

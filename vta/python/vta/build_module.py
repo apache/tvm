@@ -129,6 +129,8 @@ def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
     from tvm.autotvm.measure.measure_methods import BuildResult, InstantiationError
 
     tic = time.time()
+    # simulator stats
+    stats = {}
     try:
         filename = os.path.join(tmp_dir, "tmp_func_%0x.tar" % getrandbits(64))
         target, task, config = measure_input
@@ -165,6 +167,7 @@ def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
             simulator.clear_stats()
             simulator.debug_mode(simulator.DEBUG_SKIP_EXEC)
             f(*args)
+            stats = simulator.stats()
 
         # check by local simulator
         ctx = tvm.context(str(target))
@@ -172,5 +175,5 @@ def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
         sim(*args)
 
     except Exception as e:  # pylint: disable=broad-except
-        return BuildResult(None, None, e, time.time() - tic)
-    return BuildResult(filename, arg_info, None, time.time() - tic)
+        return BuildResult(None, None, e, time.time() - tic, stats)
+    return BuildResult(filename, arg_info, None, time.time() - tic, stats)
