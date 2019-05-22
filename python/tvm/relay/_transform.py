@@ -14,13 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""FFI exposing the Relay type inference and checking."""
 
-import tvm
-from . import ir
-from .env import Module
+from tvm._ffi.function import _init_api
 
-def check_expr(env: Module, expr: ir.Expr) -> ir.Type: ...
-def generalize(env: Module, expr: ir.Expr) -> ir.Expr: ...
-def _get_checked_type(expr: ir.Expr) -> ir.Type: ...
-def well_formed(expr: ir.Expr) -> bool: ...
-def dead_code_elimination(expr: ir.Expr) -> ir.Expr: ...
+_init_api("relay._transform", __name__)
