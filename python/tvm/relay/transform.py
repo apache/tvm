@@ -173,7 +173,7 @@ class Sequential(Pass):
         if not isinstance(required, (list, tuple)):
             raise TypeError("Required is expected to be the type of list/tuple.")
 
-        self.__init_handle_by_constructor__(_transform.CreateSequential,
+        self.__init_handle_by_constructor__(_transform.Sequential,
                                             passes, opt_level, name, required,
                                             disabled)
 
