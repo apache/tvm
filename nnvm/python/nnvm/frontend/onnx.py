@@ -27,6 +27,13 @@ from .onnx_caffe2_utils import dimension_picker, dimension_constraint, \
 __all__ = ['from_onnx']
 
 
+def onnx_storage_order2layout(storage_order):
+    if storage_order not in (0, 1):
+        raise tvm.error.OpAttributeInvalid('Mode of storage_order must be either 0 or 1')
+
+    return 'NCHW' if sotrage_order == 0 else 'NHWC'
+
+
 class OnnxOpConverter(object):
     """ A helper class for holding onnx op converters.
     """
@@ -207,8 +214,38 @@ class Gemm(OnnxOpConverter):
 
 
 class MaxPool(Pool):
+    """ Operator converter for MaxPool
+    """
     name = 'max_pool'
 
+    @classmethod
+    def _impl_v8(cls, inputs, attr, params):
+        return AttrCvt(
+            op_name=dimension_picker(cls.name),
+            transforms={
+                'kernel_shape': 'pool_size',
+                'pads': ('padding', (0, 0), revert_caffe2_pad),
+                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
+            },
+            # very weird attributes here in onnx, force check
+            ignores=['dilations', 'auto_pad'],
+            # TODO(higumachan): make sure ceil_mode in onnx, and layout?
+            extras={'ceil_mode': False},
+            custom_check=dimension_constraint())(inputs, attr, params)
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        return AttrCvt(
+            op_name=dimension_picker(cls.name),
+            transforms={
+                'kernel_shape': 'pool_size',
+                'pads': ('padding', (0, 0), revert_caffe2_pad),
+                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
+                'ceil_mode': 'ceil_mode'
+            },
+            # very weird attributes here in onnx, force check
+            ignores=['dilations', 'auto_pad'],
+            custom_check=dimension_constraint())(inputs, attr, params)
 
 class Mul(Elemwise):
     name = 'mul'
