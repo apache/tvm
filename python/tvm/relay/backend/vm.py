@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name
 """
-The Relay Virtual Vachine.
+The Relay Virtual Machine.
 
 Implements a Python interface to compiling and executing on the Relay VM.
 """
@@ -117,6 +117,11 @@ class VirtualMachine(object):
             The output.
         """
         return self.invoke("main", *args)
+
+    @property
+    def module(self):
+        """Return the runtime module contained in a virtual machine."""
+        return self.mod
 
 
 class VMCompiler(object):

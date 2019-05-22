@@ -103,7 +103,7 @@ struct Instruction {
       /*! \brief The register containing the closure. */
       RegName closure;
       /*! \brief The number of arguments to the closure. */
-      Index closure_args_num;
+      Index num_closure_args;
       /*! \brief The closure arguments as an array. */
       RegName* closure_args;
     };
@@ -115,7 +115,7 @@ struct Instruction {
       /*! \brief The source register for a move operation. */
       RegName from;
     };
-    struct /* Packed Operands */ {
+    struct /* InvokePacked Operands */ {
       /*! \brief The index into the packed function table. */
       Index packed_index;
       /*! \brief The arity of the packed function. */
@@ -149,7 +149,7 @@ struct Instruction {
     };
     struct /* LoadConsti Operands */ {
       /* \brief The index into the constant pool. */
-      size_t val;
+      Index val;
     } load_consti;
     struct /* Jump Operands */ {
       /*! \brief The jump offset. */
@@ -284,7 +284,7 @@ struct Instruction {
    *  \param dst The destination register.
    *  \return The load_constanti instruction.
    */
-  static Instruction LoadConsti(size_t val, RegName dst);
+  static Instruction LoadConsti(Index val, RegName dst);
   /*! \brief Construct a move instruction.
    *  \param src The source register.
    *  \param dst The destination register.
@@ -379,6 +379,8 @@ class VirtualMachine : public runtime::ModuleNode {
     return "VirtualMachine";
   }
 
+  /*! \brief The runtime module/library that contains generated code. */
+  runtime::Module lib;
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs;
   /*! \brief The virtual machine's function table. */
@@ -451,6 +453,11 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief A map from globals (as strings) to their index in the function map.
    */
   std::unordered_map<std::string, Index> global_map;
+
+  /*! \brief A mapping from the packed function (as string) to the index that
+   * corresponds to the position of the `packed_funcs` list.
+   */
+  std::unordered_map<std::string, Index> primitive_map;
 
  private:
   /*! \brief Invoke a global setting up the VM state to execute.

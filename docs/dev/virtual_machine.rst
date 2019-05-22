@@ -204,7 +204,7 @@ InvokeClosure
 **Arguments**:
 ::
     RegName closure
-    size_t closure_args_num
+    size_t num_closure_args
     RegName* closure_args
 
 Invokes `closure`, consuming the number of arguments declared in the closure's VMFunction.

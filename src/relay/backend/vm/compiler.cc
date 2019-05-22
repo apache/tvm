@@ -745,7 +745,7 @@ class VMCompiler : public runtime::ModuleNode {
     }
 #endif  // USE_RELAY_DEBUG
 
-    PopulatePackedFuncMap();
+    LibraryCodegen();
 
     for (auto gv : context_.global_map) {
       vm_->global_map.insert({gv.first->name_hint, gv.second});
@@ -775,26 +775,28 @@ class VMCompiler : public runtime::ModuleNode {
     }
   }
 
-  void PopulatePackedFuncMap() {
+  void LibraryCodegen() {
     auto const& lowered_funcs = context_.lowered_funcs;
     if (lowered_funcs.size() == 0) {
       return;
     }
-    runtime::Module mod;
     // TODO(@icemelon9): support heterogeneous targets
     Target target;
     for (auto kv : targets_) {
       target = kv.second;
     }
     if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
-      mod = (*f)(tvm::Array<LoweredFunc>(lowered_funcs.begin(), lowered_funcs.end()),
-              target, target_host_);
+      runtime::Module mod =
+          (*f)(tvm::Array<LoweredFunc>(lowered_funcs.begin(), lowered_funcs.end()), target,
+               target_host_);
+      CHECK(mod.operator->());
+      vm_->lib = mod;
     } else {
       LOG(FATAL) << "relay.backend.build is not registered";
     }
-    CHECK(mod.operator->());
+    size_t primitive_index = 0;
     for (auto lfunc : lowered_funcs) {
-      vm_->packed_funcs.push_back(mod.GetFunction(lfunc->name));
+      vm_->primitive_map.insert({lfunc->name, primitive_index++});
     }
   }
 
