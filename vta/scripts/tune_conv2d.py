@@ -1,4 +1,5 @@
 """Tuning a single conv2d operator"""
+from collections import namedtuple
 import logging
 import os
 
@@ -10,6 +11,26 @@ import vta
 import vta.testing
 
 env = vta.get_env()
+
+Workload = namedtuple("Conv2DWorkload",
+                      ['batch', 'height', 'width', 'in_filter', 'out_filter',
+                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
+
+resnet_wkls = [
+    # Workloads of resnet18 on imagenet
+    # ('resnet-18.C1',  Workload(1, 224, 224, 3,   64,  7, 7, 3, 3, 2, 2)),
+    ('resnet-18.C2',  Workload(1,  56,  56, 64,  64,  3, 3, 1, 1, 1, 1)),
+    # ('resnet-18.C3',  Workload(1,  56,  56, 64,  64,  1, 1, 0, 0, 1, 1)), # this layer does not appear in ResNet
+    ('resnet-18.C4',  Workload(1,  56,  56, 64,  128, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C5',  Workload(1,  56,  56, 64,  128, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C6',  Workload(1,  28,  28, 128, 128, 3, 3, 1, 1, 1, 1)),
+    ('resnet-18.C7',  Workload(1,  28,  28, 128, 256, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C8',  Workload(1,  28,  28, 128, 256, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C9',  Workload(1,  14,  14, 256, 256, 3, 3, 1, 1, 1, 1)),
+    ('resnet-18.C10', Workload(1,  14,  14, 256, 512, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C11', Workload(1,  14,  14, 256, 512, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C12', Workload(1,   7,   7, 512, 512, 3, 3, 1, 1, 1, 1)),
+]
 
 @tvm.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
@@ -45,12 +66,6 @@ def conv2d(N, CI, H, W, CO, KH, KW, strides, padding, dilation, in_dtype, out_dt
     return s, [data, kernel, bias, res]
 
 if __name__ == '__main__':
-    N, CI, H, W, CO, KH, KW, strides, padding, dilation, in_dtype, out_dtype = \
-        1, 64, 56, 56, 64, 3, 3, (1, 1), (1, 1), (1, 1), 'int8', 'int32'
-
-    task = autotvm.task.create(conv2d, args=(N, CI, H, W, CO, KH, KW, strides, padding, dilation, in_dtype, out_dtype),
-            target=tvm.target.vta(), target_host=env.target_host, template_key='direct')
-    print(task.config_space)
 
     # Logging config (for printing tuning log to the screen)
     logging.basicConfig()
@@ -63,15 +78,35 @@ if __name__ == '__main__':
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
 
-    measure_option = autotvm.measure_option(
-            builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
-            runner=autotvm.RPCRunner(env.TARGET, tracket_host, tracket_port, number=4, repeat=3, timeout=10000,
-                                     check_correctness=True))
+    for wl_name, wl in resnet_wkls:
 
-    tuner = autotvm.tuner.RandomTuner(task)
-    tuner.tune(n_trial=len(task.config_space),
-               measure_option=measure_option,
-               callbacks=[autotvm.callback.log_to_file('conv2d.log')])
+        # Workload parameters
+        N = wl.batch
+        CI = wl.in_filter
+        H = wl.height
+        W = wl.width
+        CO = wl.out_filter
+        KH = wl.hkernel
+        KW = wl.wkernel
+        strides = (wl.hstride, wl.wstride)
+        padding = (wl.hpad, wl.wpad)
+        dilation = (1, 1)
+        in_dtype = 'int8'
+        out_dtype = 'int32'
 
-    print("\nBest tuner config:")
-    print(tuner.best_config)
+        task = autotvm.task.create(conv2d, args=(N, CI, H, W, CO, KH, KW, strides, padding, dilation, in_dtype, out_dtype),
+                target=tvm.target.vta(), target_host=env.target_host, template_key='direct')
+        print(task.config_space)
+
+        measure_option = autotvm.measure_option(
+                builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
+                runner=autotvm.RPCRunner(env.TARGET, tracket_host, tracket_port, number=4, repeat=3, timeout=10000,
+                                        check_correctness=True))
+
+        tuner = autotvm.tuner.RandomTuner(task)
+        tuner.tune(n_trial=len(task.config_space),
+                measure_option=measure_option,
+                callbacks=[autotvm.callback.log_to_file('conv2d.log')])
+
+        print("\nBest tuner config:")
+        print(tuner.best_config)
