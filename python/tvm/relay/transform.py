@@ -327,5 +327,5 @@ def sequential(passes=None,
     if not isinstance(required, (list, tuple)):
         raise TypeError("Required is expected to be the type of list/tuple.")
 
-    return _transform.CreateSequentialPass(passes, opt_level, name, required,
-                                           disabled)
+    return _transform.CreateSequential(passes, opt_level, name, required,
+                                       disabled)
