@@ -23,11 +23,11 @@
  * \brief Relay pass manager implementation.
  */
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
-namespace pass {
+namespace transform {
 
 using tvm::IRPrinter;
 
@@ -425,10 +425,10 @@ Pass CreateSequentialPass(const tvm::Array<Pass>& passes,
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
-TVM_REGISTER_API("relay._ir_pass.PassInfo")
+TVM_REGISTER_API("relay._transform.PassInfo")
 .set_body_typed(PassInfoNode::make);
 
-TVM_REGISTER_API("relay._ir_pass.Info")
+TVM_REGISTER_API("relay._transform.Info")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   *ret = pass->Info();
@@ -450,10 +450,10 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
-TVM_REGISTER_API("relay._ir_pass.CreateModulePass")
+TVM_REGISTER_API("relay._transform.CreateModulePass")
 .set_body_typed(CreateModulePass);
 
-TVM_REGISTER_API("relay._ir_pass.RunPass")
+TVM_REGISTER_API("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   Module mod = args[1];
@@ -475,7 +475,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
-TVM_REGISTER_API("relay._ir_pass.CreateFunctionPass")
+TVM_REGISTER_API("relay._transform.CreateFunctionPass")
 .set_body_typed(CreateFunctionPass);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -488,7 +488,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(SequentialPassNode);
 
-TVM_REGISTER_API("relay._ir_pass.CreateSequentialPass")
+TVM_REGISTER_API("relay._transform.CreateSequentialPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
@@ -514,7 +514,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "]";
 });
 
-TVM_REGISTER_API("relay._ir_pass.SetContext")
+TVM_REGISTER_API("relay._transform.SetContext")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   PassContext pass_ctx = args[1];
@@ -523,7 +523,7 @@ TVM_REGISTER_API("relay._ir_pass.SetContext")
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_API("relay._ir_pass.PassContext")
+TVM_REGISTER_API("relay._transform.PassContext")
 .set_body_typed(PassContextNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -534,6 +534,6 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                << "\n";
 });
 
-}  // namespace pass
+}  // namespace transform
 }  // namespace relay
 }  // namespace tvm
