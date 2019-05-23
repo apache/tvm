@@ -16,4 +16,4 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000"
-    tools:context="ml.dmlc.tvm.android.gbcamerademo.MainActivity" />
+    tools:context="ml.dmlc.tvm.android.androidcamerademo.MainActivity" />

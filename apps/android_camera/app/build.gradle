@@ -38,7 +38,7 @@ android {
     compileSdkVersion 26
     buildToolsVersion "26.0.1"
     defaultConfig {
-        applicationId "ml.dmlc.tvm.android.gbcdemo"
+        applicationId "ml.dmlc.tvm.android.androidcamerademo"
         minSdkVersion 23
         targetSdkVersion 26
         versionCode 1

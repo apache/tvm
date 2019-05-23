@@ -16,7 +16,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000"
-    tools:context="ml.dmlc.tvm.android.gbcamerademo.MainActivity" />
+    tools:context="ml.dmlc.tvm.android.androidcamerademo.MainActivity" />
 <!--
 <?xml version="1.0" encoding="utf-8"?>
 <android.support.design.widget.CoordinatorLayout
@@ -25,7 +25,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="ml.dmlc.tvm.android.gbcamerademo.MainActivity">
+    tools:context="ml.dmlc.tvm.android.androidcamerademo.MainActivity">
 
     <android.support.design.widget.AppBarLayout
         android:layout_height="wrap_content"
