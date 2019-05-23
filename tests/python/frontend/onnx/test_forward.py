@@ -14,8 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import attr
 import numpy as np
 import math
+import mxnet as mx
+import torch
+import torchvision
 import topi
 import topi.testing
 import tvm
@@ -1070,6 +1074,14 @@ def test_LogSoftmax():
                               'LogSoftmax',
                               {'axis': 1})
 
+def test_resnet18_pytorch():
+    dummy_input = torch.randn(1,3,224,224)
+    model = torchvision.models.resnet18()
+    onnx_model = torch.onnx.export(model, dummy_input, 'resnet-18.onnx', export_params=True, verbose=True)
+    model = onnx.load('resnet-18.onnx')
+    shapes = { '0' : (1, 3, 224, 224) }
+    expr, params = relay.frontend.from_onnx(model, shape=shapes)
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1109,3 +1121,5 @@ if __name__ == '__main__':
     test_ParametricSoftplus()
     test_Scale()
     test_LogSoftmax()
+    test_resnet18()
+    test_resnet18_pytorch()
