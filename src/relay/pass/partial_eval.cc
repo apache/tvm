@@ -375,10 +375,10 @@ DLContext CPUContext() {
 }
 
 FInterpreter CPUInterpreter() {
-  Target target = Target::create("llvm");
+  Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  BuildConfigContext fresh_build_ctx(build_config());
+  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
   return CreateInterpreter(Module(nullptr), CPUContext(), target);
 }

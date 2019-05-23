@@ -364,7 +364,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
 
     // Next generate the invoke instruction.
     CHECK(func->IsPrimitive());
-    auto target = Target::create("llvm");
+    auto target = Target::Create("llvm");
     auto key = CCacheKeyNode::make(func, target);
     auto cfunc = engine->Lower(key);
     // TODO(jroesch): support lowered funcs for multiple targets
@@ -502,7 +502,7 @@ void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
   runtime::Module mod;
   if (lowered_funcs.size() > 0) {
     // TODO(@jroesch): we need to read target from build config
-    Target target = Target::create("llvm");
+    Target target = Target::Create("llvm");
     if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
       mod = (*f)(tvm::Array<LoweredFunc>(lowered_funcs.begin(), lowered_funcs.end()), target);
     } else {

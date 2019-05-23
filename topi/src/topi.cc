@@ -94,7 +94,7 @@ inline bool IsTensorType(TVMArgValue arg) {
 
 TVM_REGISTER_GLOBAL("topi.TEST_create_target")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = tvm::Target::create(args[0]);
+  *rv = tvm::Target::Create(args[0]);
   });
 
 /* Ops from broadcast.h */
@@ -640,7 +640,7 @@ using FTVMScheduleBuilder = std::function<
  */
 inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
-    auto target = Target::current_target(false);
+    auto target = Target::Current(false);
     Array<Tensor> outs;
     NodeRef argNodeRef = args[0];
     if (argNodeRef->type_index() == outs->type_index()) {
@@ -712,7 +712,7 @@ using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
 */
 inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
-    auto target = Target::current_target(false);
+    auto target = Target::Current(false);
     Tensor data = args[0];
     Tensor weight = args[1];
     Tensor bias = args[2];

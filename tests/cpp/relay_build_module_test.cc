@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -75,7 +75,7 @@ TEST(Relay, BuildModule) {
   auto json_f = build_mod.GetFunction("get_graph_json", false);
   auto mod_f = build_mod.GetFunction("get_module", false);
   Map<tvm::Integer, tvm::Target> targets;
-  Target llvm_tgt = Target::create("llvm");
+  Target llvm_tgt = Target::Create("llvm");
   targets.Set(0, llvm_tgt);
   build_f(func, targets, llvm_tgt);
   std::string json = json_f();
