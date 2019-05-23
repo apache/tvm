@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,7 +24,9 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/ndarray.h>
+
 #include <chrono>
+#include <sstream>
 #include "../graph_runtime.h"
 
 namespace tvm {
@@ -39,40 +41,23 @@ namespace runtime {
 class GraphRuntimeDebug : public GraphRuntime {
  public:
   /*!
-   * \brief Run each operation and get the output.
-   * \param index The index of op which needs to be run.
-   * \return the elapsed time.
-   */
-  double DebugRun(size_t index) {
-    CHECK(index < op_execs_.size());
-    TVMContext ctx = data_entry_[entry_id(index, 0)]->ctx;
-    auto tbegin = std::chrono::high_resolution_clock::now();
-    if (op_execs_[index]) {
-      op_execs_[index]();
-    }
-    TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
-    auto tend = std::chrono::high_resolution_clock::now();
-    double time = std::chrono::duration_cast<std::chrono::duration<double> >(
-        tend - tbegin).count();
-    return time;
-  }
-
-  /*!
-   * \brief Run each operation in the graph and print out the runtime per op.
+   * \brief Run each operation in the graph and get the time per op for all ops.
    * \param number The number of times to run this function for taking average.
    * \param repeat The number of times to repeat the measurement.
-            In total, the function will be invoked (1 + number x repeat) times,
-            where the first one is warmed up and will be discarded in case
-            there is lazy initialization.
+   *        In total, the function will be invoked (1 + number x repeat) times,
+   *        where the first one is warmed up and will be discarded in case
+   *        there is lazy initialization.
    * \param min_repeat_ms The minimum duration of one `repeat` in milliseconds.
-            By default, one `repeat` contains `number` runs. If this parameter is set,
-            the parameters `number` will be dynamically adjusted to meet the
-            minimum duration requirement of one `repeat`.
+   *        By default, one `repeat` contains `number` runs. If this parameter is set,
+   *        the parameters `number` will be dynamically adjusted to meet the
+   *        minimum duration requirement of one `repeat`.
+   * \return Comma seperated string containing the elapsed time per op for the last
+   *         iteration only, because returning a long string over rpc can be expensive.
    */
-  void RunIndividual(int number, int repeat, int min_repeat_ms) {
+  std::string RunIndividual(int number, int repeat, int min_repeat_ms) {
     // warmup run
     GraphRuntime::Run();
-
+    std::ostringstream os;
     std::vector<double> time_per_op(op_execs_.size(), 0);
     for (int i = 0; i < repeat; ++i) {
       std::chrono::time_point<
@@ -96,7 +81,7 @@ class GraphRuntimeDebug : public GraphRuntime {
               auto op_tend = std::chrono::high_resolution_clock::now();
               double op_duration = std::chrono::duration_cast<
                   std::chrono::duration<double> >(op_tend - op_tbegin).count();
-              time_per_op[index] += op_duration * 1000;  // ms
+              time_per_op[index] += op_duration * 1e6;  // us
             }
           }
         }
@@ -105,16 +90,20 @@ class GraphRuntimeDebug : public GraphRuntime {
             (tend - tbegin).count() * 1000;
       } while (duration_ms < min_repeat_ms);
 
-      LOG(INFO) << "Repeat: " << i;
+      LOG(INFO) << "Iteration: " << i;
       int op = 0;
       for (size_t index = 0; index < time_per_op.size(); index++) {
         if (op_execs_[index]) {
           time_per_op[index] /= number;
           LOG(INFO) << "Op #" << op++ << " " << GetNodeName(index) << ": "
-            << time_per_op[index] << " ms/iter";
+            << time_per_op[index] << " us/iter";
         }
       }
     }
+    for (size_t index = 0; index < time_per_op.size(); index++) {
+      os << time_per_op[index] << ",";
+    }
+    return os.str();
   }
 
   /*!
@@ -182,11 +171,7 @@ PackedFunc GraphRuntimeDebug::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   // return member functions during query.
-  if (name == "debug_run") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->DebugRun(static_cast<size_t>(args[0].operator int64_t()));
-      });
-  } else if (name == "get_output_by_layer") {
+  if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->GetOutputByLayer(args[0], args[1]);
       });
@@ -206,7 +191,7 @@ PackedFunc GraphRuntimeDebug::GetFunction(
       CHECK_GT(number, 0);
       CHECK_GT(repeat, 0);
       CHECK_GE(min_repeat_ms, 0);
-      this->RunIndividual(number, repeat, min_repeat_ms);
+      *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
   } else {
     return GraphRuntime::GetFunction(name, sptr_to_self);
