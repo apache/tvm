@@ -26,8 +26,7 @@ introduced several new execution challenges.
 Relay's interpreter can execute the full language but has notable limitations
 that make it unsuited for production deployments. It is structured as an inefficient
 interpreter that performs AST traversal to execute the program. This approach is conceptually
-simple but requires traversal of the program for each evaluation. The program is stored as a
-tree, which leads to inefficient execution due to its heavy reliance on indirection.
+simple but inefficient, as the AST traversal heavily relies on indirection.
 
 There are further challenges in compiling dynamic code, such as dynamic scheduling and allocation,
 fully dynamic tensor shapes, and control flow. The interpreter offers simple solutions
