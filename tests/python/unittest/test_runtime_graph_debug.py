@@ -100,9 +100,6 @@ def test_graph_simple():
         out = mod.get_output(0, tvm.nd.empty((n,)))
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
-        #test individual run
-        mod.run_individual(20, 2, 1)
-
         mod.exit()
         #verify dump root delete after cleanup
         assert(not os.path.exists(directory))
@@ -129,7 +126,6 @@ def test_graph_simple():
         mod.run(x=tvm.nd.array(a, ctx))
         out = tvm.nd.empty((n,), ctx=ctx)
         out = mod.get_output(0, out)
-        mod.run_individual(20, 2, 1)
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
     check_verify()
