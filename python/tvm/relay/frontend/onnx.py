@@ -1061,7 +1061,10 @@ class GraphProto(object):
                 if len(array.shape) == 0 and array.dtype == 'int64':
                     array = _nd.array(array.asnumpy().astype('int32'))
                 self._params[node.output[0]] = array
-                self._nodes[node.output[0]] = new_var(node.output[0], shape=list(t_proto.dims), dtype=array.dtype)
+                self._nodes[node.output[0]] = new_var(
+                    node.output[0],
+                    shape=list(t_proto.dims),
+                    dtype=array.dtype)
             else:
                 if op_name == "ConstantFill":
                     fill_value = attr.get('value', 0.0)
