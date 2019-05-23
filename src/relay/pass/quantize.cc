@@ -408,7 +408,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
     } else if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
                ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
       auto new_arg = Cast(ret[i], cfg->dtype_input);
-      if (cfg->use_stop_fusion) {
+      if (cfg->store_lowbit_output) {
         new_arg = StopFusion(new_arg);
       }
       ret.Set(i, Cast(new_arg, dtype));
@@ -617,12 +617,10 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "nbit_weight=" << op->nbit_weight << ", ";
   p->stream << "nbit_activation=" << op->nbit_activation << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
-  p->stream << "skip_k_conv==" << op->skip_k_conv << ", ";
   p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
   p->stream << "store_lowbit_output==" << op->store_lowbit_output << ", ";
-  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops << ", ";
-  p->stream << "use_stop_fusion==" << op->use_stop_fusion;
+  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops;
   p->stream << ")";
 });
 

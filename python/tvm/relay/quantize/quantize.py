@@ -70,12 +70,10 @@ class QConfig(NodeBase):
         "dtype_weight": "int8",
         "dtype_activation": "int32",
         "global_scale": 8.0,
-        "skip_k_conv": 1,
-        "skip_conv_layers": None,
+        "skip_conv_layers": [0],
         "round_for_shift": True,
         "store_lowbit_output": True,
         "debug_enabled_ops": None,
-        "use_stop_fusion": False
     }
 
     # pylint: disable=no-member
@@ -137,11 +135,8 @@ def qconfig(**kwargs):
     global_scale: float
         The global scale for calibration.
 
-    skip_k_conv: int
-        The number of skipped conv2d.
-
     skip_conv_layers: list
-        Different way of specifying which layers to avoid. Provide a list of indices
+        Specifying which layers to be skipped. Provide a list of indices
         that indicate which conv2d layers to leave untouched.
 
     round_for_shift: boolean
@@ -151,9 +146,10 @@ def qconfig(**kwargs):
         Whether to store low-bit integer back as output before dequantizing.
         Some accelerators need this, e.g. VTA.
 
-    use_stop_fusion: boolean
-        Whether add stop_fusion when casting to dtype_activation. stop_fusion forces lowbit
-        results to be stored in memory.
+    debug_enabled_ops: None or list of str
+        Partially quantize specified operators for debugging. The default value
+        is None, which means will try to call all operartors' annotate rewrite
+        function.
 
     Returns
     -------
