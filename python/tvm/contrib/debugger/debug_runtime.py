@@ -19,7 +19,6 @@
 import os
 import tempfile
 import shutil
-from datetime import datetime
 from tvm._ffi.base import string_types
 from tvm._ffi.function import get_global_func
 from tvm.contrib import graph_runtime
@@ -29,6 +28,7 @@ from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
 _DUMP_PATH_PREFIX = "_tvmdbg_"
+
 
 def create(graph_json_str, libmod, ctx, dump_root=None):
     """Create a runtime executor module given a graph and module.
@@ -62,17 +62,23 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
     try:
         fcreate = get_global_func("tvm.graph_runtime_debug.create")
     except ValueError:
-        raise ValueError("Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in " \
-                         "config.cmake and rebuild TVM to enable debug mode")
+        raise ValueError(
+            "Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in "
+            "config.cmake and rebuild TVM to enable debug mode"
+        )
 
     ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
     if num_rpc_ctx == len(ctx):
         libmod = rpc_base._ModuleHandle(libmod)
         try:
-            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_debug.remote_create")
+            fcreate = ctx[0]._rpc_sess.get_function(
+                "tvm.graph_runtime_debug.remote_create"
+            )
         except ValueError:
-            raise ValueError("Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in " \
-                             "config.cmake and rebuild TVM to enable debug mode")
+            raise ValueError(
+                "Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in "
+                "config.cmake and rebuild TVM to enable debug mode"
+            )
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
     return GraphModuleDebug(func_obj, ctx, graph_json_str, dump_root)
 
@@ -100,10 +106,10 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         To select which folder the outputs should be kept.
         None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
     """
+
     def __init__(self, module, ctx, graph_json_str, dump_root):
         self._dump_root = dump_root
         self._dump_path = None
-        self._debug_run = module["debug_run"]
         self._get_output_by_layer = module["get_output_by_layer"]
         self._run_individual = module["run_individual"]
         graph_runtime.GraphModule.__init__(self, module)
@@ -181,13 +187,10 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         Time consumed for each execution will be set as debug output.
 
         """
-        self.debug_datum._time_list = []
-
+        self.debug_datum._time_list = [
+            [float(t) * 1e-6] for t in self.run_individual(10, 1, 1)
+        ]
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
-            start_time = datetime.now().time()
-            time_stamp = self._debug_run(i)
-            end_time = datetime.now().time()
-            self.debug_datum._time_list.append([time_stamp, start_time, end_time])
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 out_tensor = self._get_output_by_layer(i, j)
@@ -212,8 +215,13 @@ class GraphModuleDebug(graph_runtime.GraphModule):
                 ret = output_tensors[node]
             except:
                 node_list = output_tensors.keys()
-                raise RuntimeError("Node " + node + " not found, available nodes are: "
-                                   + str(node_list) + ".")
+                raise RuntimeError(
+                    "Node "
+                    + node
+                    + " not found, available nodes are: "
+                    + str(node_list)
+                    + "."
+                )
         elif isinstance(node, int):
             output_tensors = self.debug_datum._output_tensor_list
             ret = output_tensors[node]
@@ -242,7 +250,9 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self.debug_datum.display_debug_result()
 
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
-        self._run_individual(number, repeat, min_repeat_ms)
+        ret = self._run_individual(number, repeat, min_repeat_ms)
+        return ret.strip(",").split(",") if ret else []
+
 
     def exit(self):
         """Exits the dump folder and all its contents"""
