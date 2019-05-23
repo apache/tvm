@@ -48,11 +48,7 @@ namespace arith {
 
 // Forward declare Analyzer
 class Analyzer;
-/*!
- * \brief reference class to ConstIntBoundNode
- * \sa ConstIntBoundNode
- */
-class ConstIntBound;
+
 /*!
  * \brief Constant integer up and lower bound(inclusive).
  *  Useful for value bound analysis.
@@ -69,8 +65,6 @@ class ConstIntBoundNode : public Node {
     v->Visit("max_value", &max_value);
   }
 
-  TVM_DLL static ConstIntBound make(int64_t min_value, int64_t max_value);
-
   /*! \brief Number to represent +inf */
   static const constexpr int64_t kPosInf = std::numeric_limits<int64_t>::max();
   /*!
@@ -83,7 +77,23 @@ class ConstIntBoundNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(ConstIntBoundNode, Node);
 };
 
-TVM_DEFINE_NODE_REF(ConstIntBound, ConstIntBoundNode);
+/*!
+ * \brief reference class to ConstIntBoundNode
+ * \sa ConstIntBoundNode
+ */
+class ConstIntBound : public NodeRef {
+ public:
+  /*!
+   * \brief constructor by fields.
+   * \param min_value The mininum value.
+   * \param max_value The maximum value.
+   */
+  TVM_DLL ConstIntBound(int64_t min_value, int64_t max_value);
+
+  static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
+  static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
+  TVM_DEFINE_NODE_REF_METHODS(ConstIntBound, NodeRef, ConstIntBoundNode);
+};
 
 /*!
  * \brief Analyzer to get constant integer bound over expression.
@@ -134,11 +144,6 @@ class ConstIntBoundAnalyzer {
 };
 
 /*!
- * \brief reference of ModularSetNode
- * \sa ModularSetNode
- */
-class ModularSet;
-/*!
  * \brief Range of a linear integer function.
  *  Use to do specify the possible index values.
  *
@@ -162,13 +167,20 @@ class ModularSetNode : public Node {
     v->Visit("base", &base);
   }
 
-  TVM_DLL static ModularSet make(int64_t coeff, int64_t base);
-
   static constexpr const char* _type_key = "arith.ModularSet";
   TVM_DECLARE_NODE_TYPE_INFO(ModularSetNode, Node);
 };
 
-TVM_DEFINE_NODE_REF(ModularSet, ModularSetNode);
+/*!
+ * \brief reference of ModularSetNode
+ * \sa ModularSetNode
+ */
+class ModularSet : public NodeRef {
+ public:
+  TVM_DLL ModularSet(int64_t coeff, int64_t base);
+
+  TVM_DEFINE_NODE_REF_METHODS(ModularSet, NodeRef, ModularSetNode);
+};
 
 /*!
  * \brief Analyzer to get modular information over expression.

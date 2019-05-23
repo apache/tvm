@@ -39,21 +39,24 @@ using ::tvm::Node;
 using ::tvm::NodeRef;
 using ::tvm::AttrVisitor;
 
-/*! \brief Macro to make it easy to define node ref type given node */
-#define TVM_DEFINE_NODE_REF(TypeName, NodeName)                  \
-  class TypeName : public ::tvm::NodeRef {                       \
-   public:                                                       \
-    TypeName() {}                                                 \
-    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {}     \
-    const NodeName* operator->() const {                          \
-      return static_cast<const NodeName*>(node_.get());           \
-    }                                                             \
-    using ContainerType = NodeName;                               \
-  };                                                              \
+/*!
+ * \brief Macro to define common node ref methods.
+ * \param TypeName The name of the NodeRef.
+ * \param BaseTypeName The Base type.
+ * \param NodeName The node container type.
+ */
+#define TVM_DEFINE_NODE_REF_METHODS(TypeName, BaseTypeName, NodeName)   \
+  TypeName() {}                                                         \
+  explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : BaseTypeName(n) {} \
+  const NodeName* operator->() const {                                  \
+    return static_cast<const NodeName*>(node_.get());                   \
+  }                                                                     \
+  operator bool() const { return this->defined(); }                     \
+  using ContainerType = NodeName;
 
 /*!
- * \brief Macro to make it easy to define node ref type that
- *  has a CopyOnWrite member function.
+ * \brief Macro to define CopyOnWrite function in a NodeRef.
+ * \param NodeName The Type of the Node.
  *
  *  CopyOnWrite will generate a unique copy of the internal node.
  *  The node will be copied if it is referenced by multiple places.
@@ -70,25 +73,33 @@ using ::tvm::AttrVisitor;
  *
  * \endcode
  */
-#define TVM_DEFINE_COW_NODE_REF(TypeName, BaseType, NodeName)           \
-  class TypeName : public BaseType {                                    \
-   public:                                                              \
-    TypeName() {}                                                       \
-    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : BaseType(n) {}   \
-    const NodeName* operator->() const {                                \
-      return static_cast<const NodeName*>(node_.get());                 \
-    }                                                                   \
-    inline NodeName* CopyOnWrite() {                                    \
+#define TVM_DEFINE_NODE_REF_COW(NodeName)                               \
+  NodeName* CopyOnWrite() {                                             \
       CHECK(node_ != nullptr);                                          \
       if (!node_.unique())  {                                           \
         NodePtr<NodeName> n = make_node<NodeName>(*(operator->()));     \
         NodePtr<Node>(std::move(n)).swap(node_);                        \
       }                                                                 \
       return static_cast<NodeName*>(node_.get());                       \
-    }                                                                   \
-    using ContainerType = NodeName;                                     \
-  };
+    }
 
+/*! \brief Macro to make it easy to define node ref type given node */
+#define TVM_DEFINE_NODE_REF(TypeName, NodeName)                      \
+  class TypeName : public ::tvm::NodeRef {                           \
+   public:                                                           \
+    TVM_DEFINE_NODE_REF_METHODS(TypeName, ::tvm::NodeRef, NodeName); \
+  };                                                                 \
+
+/*!
+ * \brief Macro to make it easy to define node ref type that
+ *  has a CopyOnWrite member function.
+ */
+#define TVM_DEFINE_COW_NODE_REF(TypeName, BaseType, NodeName)           \
+  class TypeName : public BaseType {                                    \
+   public:                                                              \
+    TVM_DEFINE_NODE_REF_METHODS(TypeName, BaseType, NodeName);          \
+    TVM_DEFINE_NODE_REF_COW(NodeName);                                  \
+  };
 
 /*!
  * \brief save the node as well as all the node it depends on as json.

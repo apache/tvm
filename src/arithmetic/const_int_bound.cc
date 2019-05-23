@@ -34,12 +34,12 @@ using namespace ir;
 
 TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
-ConstIntBound ConstIntBoundNode::make(
+ConstIntBound::ConstIntBound(
     int64_t min_value, int64_t max_value) {
   auto node = make_node<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
-  return ConstIntBound(node);
+  node_ = std::move(node);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -289,8 +289,8 @@ class ConstIntBoundAnalyzer::Impl :
   std::vector<BoundInfo> additional_info_;
   // constants: the limit value means umlimited
   // NOTE: kNegInf/kPosInf are used to represent infinity.
-  static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
+  static const constexpr int64_t kNegInf = ConstIntBound::kNegInf;
+  static const constexpr int64_t kPosInf = ConstIntBound::kPosInf;
   static_assert(-kNegInf == kPosInf, "invariant of inf");
   // internal helper functions
   /*!
@@ -462,7 +462,7 @@ class ConstIntBoundAnalyzer::Impl :
 
 ConstIntBound ConstIntBoundAnalyzer::operator()(const Expr& expr) {
   Entry ret = impl_->VisitExpr(expr);
-  return ConstIntBoundNode::make(ret.min_value, ret.max_value);
+  return ConstIntBound(ret.min_value, ret.max_value);
 }
 
 void ConstIntBoundAnalyzer::Update(const Var& var,
