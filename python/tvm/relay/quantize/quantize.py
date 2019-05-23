@@ -75,7 +75,7 @@ class QConfig(NodeBase):
         "round_for_shift": True,
         "store_lowbit_output": True,
         "debug_enabled_ops": None,
-        "use_stop_fusion": True
+        "use_stop_fusion": False
     }
 
     # pylint: disable=no-member
@@ -165,18 +165,35 @@ def qconfig(**kwargs):
     return _make.node("relay.quantize.QConfig", **node_args)
 
 
-CONV_COUNTER = 0
+class AnnotateContext(object):
+    # a global singleton annotate scope
+    Current = None
+
+    def __init__(self):
+        self.qnode_map = dict()
+        self._conv2d_counter = 0
+
+    def __enter__(self):
+        self._conv2d_counter = 0
+        return self
+
+    def conv2d_counter(self):
+        """Get the counter for conv2d."""
+        return self._conv2d_counter
+
+    def count_conv2d(self):
+        """Increase the value of the conv2d counter by one."""
+        self._conv2d_counter += 1
+
+    def __exit__(self, ptype, value, traceback):
+        pass
 
 
-def _conv_counter():
-    """Get the global counter for conv2d."""
-    return CONV_COUNTER
-
-
-def _set_conv_counter(n):
-    """Set the value of the global conv2d counter."""
-    global CONV_COUNTER
-    CONV_COUNTER = n
+def annotate_context():
+    """Get the global singleton scope"""
+    if AnnotateContext.Current is None:
+        AnnotateContext.Current = AnnotateContext()
+    return AnnotateContext.Current
 
 
 def annotate(graph):
@@ -194,8 +211,8 @@ def annotate(graph):
     ret: Function
         The graph after annotation
     """
-    _set_conv_counter(0)  # reset counter
-    return _quantize.annotate(graph)
+    with annotate_context():
+        return _quantize.annotate(graph)
 
 
 def calibrate(graph, dataset=None):
