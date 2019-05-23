@@ -144,15 +144,20 @@ def add_header(fname, header):
         return
 
     with open(fname, "w") as outfile:
-        if os.path.splitext(fname)[1][1:] == 'sh':
-            lines = orig.split('\n')
-            if lines[:2] == '#!':
-                outfile.write(lines[0] + "\n")
-                outfile.write(header + "\n\n")
-                outfile.write("\n".join(lines[1:]))
-            else:
-                outfile.write(header + "\n\n")
-                outfile.write(orig)
+        skipline = False
+        lines = orig.split('\n')
+        ext = os.path.splitext(fname)[1][1:]
+        if ext == 'sh' and lines[0][:2] == '#!':
+            skipline = True
+        elif ext == 'xml' and lines[0][:2] == '<?':
+            skipline = True
+
+        if skipline:
+            outfile.write(lines[0] + "\n")
+            outfile.write(header + "\n\n")
+            outfile.write("\n".join(lines[1:]))
+            outfile.write(header + "\n\n")
+            outfile.write(orig)
         else:
             outfile.write(header + "\n\n")
             outfile.write(orig)
