@@ -52,7 +52,7 @@ class MicroModuleNode final : public ModuleNode {
    * \param func_offset offset of the function to be run
    * \param args type-erased arguments passed to the function
    */
-  void RunFunction(std::string func_name, dev_base_offset func_offset, TVMArgs args) {
+  void RunFunction(std::string func_name, DevBaseOffset func_offset, TVMArgs args) {
     // TODO(weberlo): Why do we need `func_name`?
     session_->PushToExecQueue(func_offset, args);
   }
@@ -76,11 +76,11 @@ class MicroModuleNode final : public ModuleNode {
    * \param func_name name of the function pointer being patched
    */
   void PatchImplHole(const std::string func_name) {
-    const dev_base_offset init_impl_offset = session_->init_symbol_map()[func_name];
-    void* init_impl_addr = (low_level_device_->base_addr() + init_impl_offset).as_ptr<void>();
+    const DevBaseOffset init_impl_offset = session_->init_symbol_map()[func_name];
+    void* init_impl_addr = (low_level_device_->base_addr() + init_impl_offset).cast_to<void*>();
     std::stringstream func_name_underscore;
     func_name_underscore << func_name << "_";
-    const dev_base_offset lib_hole_offset = symbol_map()[func_name_underscore.str()];
+    const DevBaseOffset lib_hole_offset = symbol_map()[func_name_underscore.str()];
     session_->low_level_device()->Write(lib_hole_offset, &init_impl_addr, sizeof(void*));
   }
 };
@@ -89,7 +89,7 @@ class MicroWrappedFunc {
  public:
   MicroWrappedFunc(MicroModuleNode* m,
                    const std::string& func_name,
-                   dev_base_offset func_offset) {
+                   DevBaseOffset func_offset) {
     m_ = m;
     func_name_ = func_name;
     func_offset_ = func_offset;
@@ -105,13 +105,13 @@ class MicroWrappedFunc {
   // name of the function
   std::string func_name_;
   // address of the function to be called
-  dev_base_offset func_offset_;
+  DevBaseOffset func_offset_;
 };
 
 PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
-  dev_base_offset func_offset = symbol_map()[name];
+  DevBaseOffset func_offset = symbol_map()[name];
   MicroWrappedFunc f(this, name, func_offset);
   return PackFuncVoidAddr(f, std::vector<TVMType>());
 }

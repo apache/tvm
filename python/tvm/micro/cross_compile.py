@@ -29,7 +29,7 @@ def create_lib(output, sources, options=None, cc="gcc"):
         compiler string
     """
     cmd = [cc]
-    cmd += ["-x", "c", "-c"]
+    cmd += ["-c"]
     cmd += ["-o", output]
     if isinstance(sources, str):
         cmd += [sources]

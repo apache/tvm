@@ -21,22 +21,21 @@ void UTVMMain() {
 // `NULL`.  Why?
 
 // These pointers are patched at load time to point to the workspace section.
-char *workspace_start = (char*) 1;
-char *workspace_curr = (char*) 1;
+char *utvm_workspace_begin = (char*) 1;
+char *utvm_workspace_curr = (char*) 1;
 
 const char *last_error = (char*) 1;
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
                                int dtype_code_hint, int dtype_bits_hint) {
   // Align up to 8 bytes.
-  workspace_curr += (8 - ((uintptr_t) workspace_curr % 8)) % 8;
-  void* ret_ptr = (void*) workspace_curr;
-  workspace_curr += size;
+  utvm_workspace_curr += (8 - ((uintptr_t) utvm_workspace_curr % 8)) % 8;
+  void* ret_ptr = (void*) utvm_workspace_curr;
+  utvm_workspace_curr += size;
   return ret_ptr;
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  // We don't actually free memory in the current allocation scheme.
   // TODO(weberlo): Actually free memory.
   return 0;
 }

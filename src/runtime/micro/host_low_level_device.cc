@@ -25,7 +25,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
     size_t size_in_pages = (num_bytes + kPageSize - 1) / kPageSize;
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
     int mmap_flags = MAP_ANONYMOUS | MAP_PRIVATE;
-    base_addr_ = dev_base_addr(
+    base_addr_ = DevBaseAddr(
       (reinterpret_cast<std::uintptr_t>(
         mmap(nullptr, size_in_pages * kPageSize, mmap_prot, mmap_flags, -1, 0))));
   }
@@ -34,29 +34,29 @@ class HostLowLevelDevice final : public LowLevelDevice {
    * \brief destructor to deallocate on-host device region
    */
   ~HostLowLevelDevice() {
-    munmap(base_addr_.as_ptr<void>(), size_);
+    munmap(base_addr_.cast_to<void*>(), size_);
   }
 
-  void Write(dev_base_offset offset,
+  void Write(DevBaseOffset offset,
              void* buf,
              size_t num_bytes) final {
-    void* addr = (offset + base_addr_).as_ptr<void>();
+    void* addr = (offset + base_addr_).cast_to<void*>();
     std::memcpy(addr, buf, num_bytes);
   }
 
-  void Read(dev_base_offset offset,
+  void Read(DevBaseOffset offset,
             void* buf,
             size_t num_bytes) final {
-    void* addr = (offset + base_addr_).as_ptr<void>();
+    void* addr = (offset + base_addr_).cast_to<void*>();
     std::memcpy(buf, addr, num_bytes);
   }
 
-  void Execute(dev_base_offset func_offset, dev_base_offset breakpoint) final {
-    dev_addr func_addr = func_offset + base_addr_;
-    reinterpret_cast<void (*)(void)>(func_addr.val())();
+  void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) final {
+    DevAddr func_addr = func_offset + base_addr_;
+    reinterpret_cast<void (*)(void)>(func_addr.value())();
   }
 
-  dev_base_addr base_addr() const final {
+  DevBaseAddr base_addr() const final {
     return base_addr_;
   }
 
@@ -66,7 +66,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
 
  private:
   /*! \brief base address of the micro device memory region */
-  dev_base_addr base_addr_;
+  DevBaseAddr base_addr_;
   /*! \brief size of memory region */
   size_t size_;
 };

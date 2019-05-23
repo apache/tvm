@@ -38,22 +38,28 @@ class TargetDataLayoutEncoder {
      * \param size size (in bytes) of the memory region allocated for this slot
      * \param start_addr start address of the slot in the device's memory
      */
-    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, dev_addr start_addr);
+    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, DevAddr start_addr);
 
     ~Slot();
 
     /*!
      * \brief writes `sizeof(T) * num_elems` bytes of data from `src_ptr`
      * \param src_ptr address of the buffer to be read from
-     * \param num_elems number of elements in array (defaults to 1)
+     * \param num_elems number of elements in array
      */
-    void Write(const T* src_ptr, size_t num_elems = 1);
+    void WriteRaw(const T* src_ptr, size_t num_elems);
+
+    /*!
+     * \brief writes `val`
+     * \param val value to be written
+     */
+    void WriteValue(const T& val);
 
     /*!
      * \brief returns start address of the slot in device memory
      * \return device start address
      */
-    dev_addr start_addr();
+    DevAddr start_addr();
 
     /*!
      * \brief returns number of bytes allocated for this slot
@@ -71,14 +77,14 @@ class TargetDataLayoutEncoder {
     /*! \brief size (in bytes) of the memory region allocated for this slot */
     size_t size_;
     /*! \brief start address of the slot in the device's memory */
-    dev_addr start_addr_;
+    DevAddr start_addr_;
   };
 
   /*!
    * \brief constructor
    * \param start_addr start address of the encoder in device memory
    */
-  explicit TargetDataLayoutEncoder(dev_addr start_addr)
+  explicit TargetDataLayoutEncoder(DevAddr start_addr)
       : buf_(std::vector<uint8_t>()),
         curr_offset_(0),
         start_addr_(start_addr) {}
@@ -121,12 +127,13 @@ class TargetDataLayoutEncoder {
   /*! \brief current offset */
   size_t curr_offset_;
   /*! \brief start address of the encoder in device memory */
-  dev_addr start_addr_;
+  DevAddr start_addr_;
 };
 
 template <typename T>
-TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent, size_t start_offset,
-                                       size_t size, dev_addr start_addr)
+TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent,
+                                       size_t start_offset,
+                                       size_t size, DevAddr start_addr)
     : parent_(parent),
       start_offset_(start_offset),
       curr_offset_(0),
@@ -139,7 +146,7 @@ TargetDataLayoutEncoder::Slot<T>::~Slot() {
 }
 
 template <typename T>
-void TargetDataLayoutEncoder::Slot<T>::Write(const T* src_ptr, size_t num_elems) {
+void TargetDataLayoutEncoder::Slot<T>::WriteRaw(const T* src_ptr, size_t num_elems) {
   if (num_elems == 0) return;
   size_t size = sizeof(T) * num_elems;
   CHECK(curr_offset_ + size <= size_) << "not enough space in slot";
@@ -149,7 +156,12 @@ void TargetDataLayoutEncoder::Slot<T>::Write(const T* src_ptr, size_t num_elems)
 }
 
 template <typename T>
-dev_addr TargetDataLayoutEncoder::Slot<T>::start_addr() {
+void TargetDataLayoutEncoder::Slot<T>::WriteValue(const T& val) {
+  WriteRaw(&val, 1);
+}
+
+template <typename T>
+DevAddr TargetDataLayoutEncoder::Slot<T>::start_addr() {
   return start_addr_;
 }
 

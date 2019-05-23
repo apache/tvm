@@ -16,24 +16,24 @@
 namespace tvm {
 namespace runtime {
 
-dev_base_offset dev_addr::operator-(dev_base_addr base) {
-  return dev_base_offset(val_ - base.val());
+DevBaseOffset DevAddr::operator-(DevBaseAddr base) {
+  return DevBaseOffset(value_ - base.value());
 }
 
-dev_addr dev_addr::operator+(size_t n) {
-  return dev_addr(val_ + n);
+DevAddr DevAddr::operator+(size_t n) {
+  return DevAddr(value_ + n);
 }
 
-dev_addr dev_base_addr::operator+(dev_base_offset offset) {
-  return dev_addr(val_ + offset.val());
+DevAddr DevBaseAddr::operator+(DevBaseOffset offset) {
+  return DevAddr(value_ + offset.value());
 }
 
-dev_addr dev_base_offset::operator+(dev_base_addr base) {
-  return dev_addr(val_ + base.val());
+DevAddr DevBaseOffset::operator+(DevBaseAddr base) {
+  return DevAddr(value_ + base.value());
 }
 
-dev_base_offset dev_base_offset::operator+(size_t n) {
-  return dev_base_offset(val_ + n);
+DevBaseOffset DevBaseOffset::operator+(size_t n) {
+  return DevBaseOffset(value_ + n);
 }
 
 const char* SectionToString(SectionKind section) {
@@ -61,18 +61,18 @@ static std::string AddrToString(void* addr) {
 }
 
 std::string RelocateBinarySections(std::string binary_path,
-                                   dev_addr text,
-                                   dev_addr rodata,
-                                   dev_addr data,
-                                   dev_addr bss) {
+                                   DevAddr text,
+                                   DevAddr rodata,
+                                   DevAddr data,
+                                   DevAddr bss) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
   std::string relocated_bin = (*f)(binary_path,
-                                   AddrToString(text.as_ptr<void>()),
-                                   AddrToString(rodata.as_ptr<void>()),
-                                   AddrToString(data.as_ptr<void>()),
-                                   AddrToString(bss.as_ptr<void>()));
+                                   AddrToString(text.cast_to<void*>()),
+                                   AddrToString(rodata.cast_to<void*>()),
+                                   AddrToString(data.cast_to<void*>()),
+                                   AddrToString(bss.cast_to<void*>()));
   return relocated_bin;
 }
 

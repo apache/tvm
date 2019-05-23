@@ -29,68 +29,88 @@ enum SectionKind : int {
   kWorkspace = 7,
 };
 
-// TODO(weberlo): There's a lot of duplication between these classes.  How can we consolidate?
-class dev_addr;
-class dev_base_addr;
-class dev_base_offset;
+// TODO(weberlo): Do we only need a device location class? Think about pros/cons.
+// It seems that offsets don't semantically fit in the class of device pointers.
+// But the type safety guarantees from having all three subclasses is very
+// helpful.  `DevBaseOffset` is the weirdest to have as a subclass, because it's
+// not an address.
+
+/*! \brief Base class for interfacing with device locations (pointers/offsets) */
+class DeviceLocation {
+ public:
+  /*! \brief construct a location with value `value` */
+  explicit DeviceLocation(std::uintptr_t value) : value_(value) {}
+
+  /*! \brief construct a null location */
+  DeviceLocation() : value_(0) {}
+
+  /*! \brief construct a null location */
+  explicit DeviceLocation(std::nullptr_t value) : value_(0) {}
+
+  virtual ~DeviceLocation() {}
+
+  /*!
+   * \brief get value of location
+   * \return value of location
+   */
+  std::uintptr_t value() const { return value_; }
+
+  /*!
+   * \brief cast location to type `T`
+   * \return casted result
+   */
+  template <typename T>
+  T cast_to() const { return reinterpret_cast<T>(value_); }
+
+  bool operator==(std::nullptr_t) const { return value_ == 0; }
+  bool operator!=(std::nullptr_t) const { return value_ != 0; }
+
+ protected:
+  std::uintptr_t value_;
+};
+
+// TODO(weberlo): Finish docs
+
+class DevAddr;
+class DevBaseAddr;
+class DevBaseOffset;
 
 /*! \brief absolute device address */
-class dev_addr {
+class DevAddr : public DeviceLocation {
  public:
-  explicit dev_addr(std::uintptr_t val) : val_(val) {}
-  dev_addr() : val_(0) {}
-  explicit dev_addr(std::nullptr_t) : val_(0) {}
-  ~dev_addr() {}
+  explicit DevAddr(std::uintptr_t val) : DeviceLocation(val) {}
 
-  std::uintptr_t val() const { return val_; }
-  template <typename T>
-  T* as_ptr() const { return reinterpret_cast<T*>(val_); }
-  bool is_null() const { return val_ == 0; }
+  DevAddr() : DeviceLocation() {}
 
-  dev_base_offset operator-(dev_base_addr base);
-  dev_addr operator+(size_t n);
+  explicit DevAddr(std::nullptr_t val) : DeviceLocation(val) {}
 
- private:
-  std::uintptr_t val_;
+  DevBaseOffset operator-(DevBaseAddr base);
+  DevAddr operator+(size_t n);
 };
 
 /*! \brief base address of the device */
-class dev_base_addr {
+class DevBaseAddr : public DeviceLocation {
  public:
-  explicit dev_base_addr(std::uintptr_t val) : val_(val) {}
-  dev_base_addr() : val_(0) {}
-  explicit dev_base_addr(std::nullptr_t) : val_(0) {}
-  ~dev_base_addr() {}
+  explicit DevBaseAddr(std::uintptr_t val) : DeviceLocation(val) {}
 
-  std::uintptr_t val() const { return val_; }
-  template <typename T>
-  T* as_ptr() const { return reinterpret_cast<T*>(val_); }
-  bool is_null() const { return val_ == 0; }
+  DevBaseAddr() : DeviceLocation() {}
 
-  dev_addr operator+(dev_base_offset offset);
+  explicit DevBaseAddr(std::nullptr_t val) : DeviceLocation(val) {}
 
- private:
-  std::uintptr_t val_;
+  DevAddr operator+(DevBaseOffset offset);
 };
 
 /*! \brief offset from device base address */
-class dev_base_offset {
+class DevBaseOffset : public DeviceLocation {
  public:
-  explicit dev_base_offset(std::uintptr_t val) : val_(val) {}
-  dev_base_offset() : val_(0) {}
-  explicit dev_base_offset(std::nullptr_t) : val_(0) {}
-  ~dev_base_offset() {}
+  explicit DevBaseOffset(std::uintptr_t val) : DeviceLocation(val) {}
 
-  std::uintptr_t val() const { return val_; }
-  template <typename T>
-  T* as_ptr() const { return reinterpret_cast<T*>(val_); }
-  bool is_null() const { return val_ == 0; }
+  DevBaseOffset() : DeviceLocation() {}
 
-  dev_addr operator+(dev_base_addr base);
-  dev_base_offset operator+(size_t n);
+  explicit DevBaseOffset(std::nullptr_t val) : DeviceLocation(val) {}
 
- private:
-  std::uintptr_t val_;
+  DevAddr operator+(DevBaseAddr base);
+  DevBaseOffset operator+(size_t n);
 };
 
 /*!
@@ -108,7 +128,7 @@ class SymbolMap {
    * \param binary contents of binary object file
    * \param base_addr base address of the target device
    */
-  SymbolMap(std::string binary, dev_base_addr base_addr) {
+  SymbolMap(std::string binary, DevBaseAddr base_addr) {
     const auto* f = Registry::Get("tvm_callback_get_symbol_map");
     CHECK(f != nullptr) << "require tvm_callback_get_symbol_map to exist in registry";
     TVMByteArray arr;
@@ -123,7 +143,7 @@ class SymbolMap {
     stream >> name;
     stream >> std::hex >> addr;
     while (stream) {
-      map_[name] = dev_addr(addr) - base_addr;
+      map_[name] = DevAddr(addr) - base_addr;
       stream >> name;
       stream >> std::hex >> addr;
     }
@@ -134,7 +154,7 @@ class SymbolMap {
    * \param name name of the symbol
    * \return on-device offset of the symbol
    */
-  dev_base_offset operator[](std::string name) {
+  DevBaseOffset operator[](std::string name) {
     auto result = map_.find(name);
     CHECK(result != map_.end()) << "\"" << name << "\" not in symbol map";
     return result->second;
@@ -142,13 +162,13 @@ class SymbolMap {
 
  private:
   /*! \brief backing map */
-  std::unordered_map<std::string, dev_base_offset> map_;
+  std::unordered_map<std::string, DevBaseOffset> map_;
 };
 
 /*! \brief struct containing section location info */
 struct SectionLocation {
   /*! \brief section start offset */
-  dev_base_offset start;
+  DevBaseOffset start;
   /*! \brief size of section */
   size_t size;
 };
@@ -175,28 +195,28 @@ constexpr int kPageSize = 4096;
 // the constants below should be made into defaults.
 
 /*! \brief memory offset at which text section starts  */
-const dev_base_offset kTextStart = dev_base_offset(64);
+const DevBaseOffset kTextStart = DevBaseOffset(64);
 
 /*! \brief memory offset at which rodata section starts  */
-const dev_base_offset kRodataStart = dev_base_offset(500000000);
+const DevBaseOffset kRodataStart = DevBaseOffset(500000000);
 
 /*! \brief memory offset at which data section starts  */
-const dev_base_offset kDataStart = dev_base_offset(1000000000);
+const DevBaseOffset kDataStart = DevBaseOffset(1000000000);
 
 /*! \brief memory offset at which bss section starts  */
-const dev_base_offset kBssStart = dev_base_offset(1500000000);
+const DevBaseOffset kBssStart = DevBaseOffset(1500000000);
 
 /*! \brief memory offset at which args section starts  */
-const dev_base_offset kArgsStart = dev_base_offset(2000000000);
+const DevBaseOffset kArgsStart = DevBaseOffset(2000000000);
 
 /*! \brief memory offset at which stack section starts  */
-const dev_base_offset kStackStart = dev_base_offset(3000000000);
+const DevBaseOffset kStackStart = DevBaseOffset(3000000000);
 
 /*! \brief memory offset at which heap section starts  */
-const dev_base_offset kHeapStart = dev_base_offset(3500000000);
+const DevBaseOffset kHeapStart = DevBaseOffset(3500000000);
 
 /*! \brief memory offset at which workspace section starts  */
-const dev_base_offset kWorkspaceStart = dev_base_offset(4000000000);
+const DevBaseOffset kWorkspaceStart = DevBaseOffset(4000000000);
 
 /*! \brief total memory size */
 constexpr uint64_t kMemorySize = 45000000000;
@@ -221,20 +241,6 @@ inline size_t UpperAlignValue(size_t value, size_t align) {
  */
 const char* SectionToString(SectionKind section);
 
-dev_addr GetSymbol(std::unordered_map<std::string, void*> symbol_map,
-                   std::string name);
-
-/*!
- * \brief get relative address of the symbol from the symbol map
- * \param map of symbols to addresses
- * \param name symbol name
- * \param base base address to obtain offset from
- * \return address of the symbol relative to base_addr
- */
-dev_base_offset GetSymbolOffset(std::unordered_map<std::string, void*> symbol_map,
-                std::string name,
-                const dev_base_addr base);
-
 /*!
  * \brief links binary by repositioning section addresses
  * \param binary_name input binary filename
@@ -245,10 +251,10 @@ dev_base_offset GetSymbolOffset(std::unordered_map<std::string, void*> symbol_ma
  * \return relocated binary file contents
  */
 std::string RelocateBinarySections(std::string binary_name,
-                                   dev_addr text,
-                                   dev_addr rodata,
-                                   dev_addr data,
-                                   dev_addr bss);
+                                   DevAddr text,
+                                   DevAddr rodata,
+                                   DevAddr data,
+                                   DevAddr bss);
 
 /*!
  * \brief reads section from binary
@@ -265,7 +271,8 @@ std::string ReadSection(std::string binary, SectionKind section);
  * \param align alignment of the returned size (default: 8)
  * \return size of the section if it exists, 0 otherwise
  */
-size_t GetSectionSize(std::string binary_name, SectionKind section,
+size_t GetSectionSize(std::string binary_name,
+                      SectionKind section,
                       size_t align = kDefaultSizeAlignment);
 }  // namespace runtime
 }  // namespace tvm

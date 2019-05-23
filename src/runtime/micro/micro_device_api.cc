@@ -33,11 +33,11 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        TVMType type_hint) final {
-    return session_->AllocateInSection(kHeap, nbytes).as_ptr<void>();
+    return session_->AllocateInSection(kHeap, nbytes).cast_to<void*>();
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    session_->FreeInSection(kHeap, dev_base_offset(reinterpret_cast<std::uintptr_t>(ptr)));
+    session_->FreeInSection(kHeap, DevBaseOffset(reinterpret_cast<std::uintptr_t>(ptr)));
   }
 
   void CopyDataFromTo(const void* from,
@@ -51,10 +51,10 @@ class MicroDeviceAPI final : public DeviceAPI {
                       TVMStreamHandle stream) final {
     constexpr int micro_devtype = kDLMicroDev;
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
-    dev_base_offset from_base_offset =
-        dev_base_offset(reinterpret_cast<std::uintptr_t>(const_cast<void*>(from)) + from_offset);
-    dev_base_offset to_base_offset =
-        dev_base_offset(reinterpret_cast<std::uintptr_t>(const_cast<void*>(to)) + to_offset);
+    DevBaseOffset from_base_offset =
+        DevBaseOffset(reinterpret_cast<std::uintptr_t>(const_cast<void*>(from)) + from_offset);
+    DevBaseOffset to_base_offset =
+        DevBaseOffset(reinterpret_cast<std::uintptr_t>(const_cast<void*>(to)) + to_offset);
     const std::shared_ptr<LowLevelDevice>& lld = session_->low_level_device();
 
     if (type_from_to == std::make_tuple(micro_devtype, micro_devtype)) {
@@ -67,11 +67,11 @@ class MicroDeviceAPI final : public DeviceAPI {
     } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
       // Reading from the device.
       const std::shared_ptr<LowLevelDevice>& from_lld = session_->low_level_device();
-      lld->Read(from_base_offset, to_base_offset.as_ptr<void>(), size);
+      lld->Read(from_base_offset, to_base_offset.cast_to<void*>(), size);
     } else if (type_from_to == std::make_tuple(kDLCPU, micro_devtype)) {
       // Writing to the device.
       const std::shared_ptr<LowLevelDevice>& to_lld = session_->low_level_device();
-      lld->Write(to_base_offset, from_base_offset.as_ptr<void>(), size);
+      lld->Write(to_base_offset, from_base_offset.cast_to<void*>(), size);
 
     } else {
       LOG(FATAL) << "Expect copy from/to micro_dev or between micro_dev\n";
@@ -82,11 +82,11 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
-    return session_->AllocateInSection(kWorkspace, size).as_ptr<void>();
+    return session_->AllocateInSection(kWorkspace, size).cast_to<void*>();
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
-    session_->FreeInSection(kWorkspace, dev_base_offset(reinterpret_cast<std::uintptr_t>(data)));
+    session_->FreeInSection(kWorkspace, DevBaseOffset(reinterpret_cast<std::uintptr_t>(data)));
   }
 
   /*!

@@ -16,8 +16,11 @@ extern "C" {
  * \brief POD variant of TVMArgs
  */
 typedef struct {
+  /*! \brief Array of values */
   TVMValue* values;
+  /*! \brief Array of type codes for each value */
   int* type_codes;
+  /*! \brief Number of arguments */
   int32_t num_args;
 } UTVMArgs;
 
@@ -25,11 +28,11 @@ typedef struct {
  * \brief Task structure for uTVM
  */
 typedef struct {
+  /*! \brief Pointer to function to call for this task */
   void (*func)(void*, void*, int32_t);
+  /*! \brief Arguments for this task's function call */
   UTVMArgs* args;
 } UTVMTask;
-
-// TODO(weberlo): Remove duplicate docs?
 
 /*!
  * \brief Backend function to allocate temporal workspace.
@@ -45,8 +48,11 @@ typedef struct {
  * certain backends such as OpenGL.
  * \return nullptr when error is thrown, a valid ptr if success
  */
-void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
-                               int dtype_code_hint, int dtype_bits_hint);
+void* TVMBackendAllocWorkspace(int device_type,
+                               int device_id,
+                               uint64_t size,
+                               int dtype_code_hint,
+                               int dtype_bits_hint);
 
 /*!
  * \brief Backend function to free temporal workspace.

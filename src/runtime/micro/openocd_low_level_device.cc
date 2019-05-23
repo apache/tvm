@@ -27,17 +27,17 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
    */
   ~OpenOCDLowLevelDevice();
 
-  void Write(dev_base_offset offset,
+  void Write(DevBaseOffset offset,
              void* buf,
              size_t num_bytes) final;
 
-  void Read(dev_base_offset offset,
+  void Read(DevBaseOffset offset,
             void* buf,
             size_t num_bytes) final;
 
-  void Execute(dev_base_offset func_addr, dev_base_offset breakpoint) final;
+  void Execute(DevBaseOffset func_addr, DevBaseOffset breakpoint) final;
 
-  dev_base_addr base_addr() const final;
+  DevBaseAddr base_addr() const final;
 
   const char* device_type() const final {
     return "openocd";
@@ -45,7 +45,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
 
  private:
   /*! \brief base address of the micro device memory region */
-  dev_base_addr base_addr_;
+  DevBaseAddr base_addr_;
   /*! \brief size of memory region */
   size_t size_;
 };

@@ -38,12 +38,12 @@ def init(device_type, runtime_lib_path=None, port=0):
     _MicroInit(device_type, runtime_lib_path, port)
 
 
-def from_host_mod(host_mod, device_type):
-    """Produces a micro module from a given host module.
+def from_source_module(mod, device_type):
+    """Produces a micro module from a given module.
 
     Parameters
     ----------
-    host_mod : tvm.module.Module
+    mod : tvm.module.Module
         module for host execution
 
     device_type : str
@@ -57,7 +57,7 @@ def from_host_mod(host_mod, device_type):
     temp_dir = util.tempdir()
     # Save module source to temp file.
     lib_src_path = temp_dir.relpath("dev_lib.c")
-    mod_src = host_mod.get_source()
+    mod_src = mod.get_source()
     with open(lib_src_path, "w") as f:
         f.write(mod_src)
     # Compile to object file.
@@ -115,9 +115,12 @@ def create_micro_lib(src_path, device_type, cc=None, obj_path=None):
     # code path for creating shared objects in `tvm.module.load`.  So we replace
     # ".o" suffixes with ".obj".
     if obj_path.endswith(".o"):
+        # TODO(weberlo): Use TVM Python logging mechanism, if there is one.
+        print("WARNING: create_micro_lib: \".o\" suffix in \"{}\" has been replaced with \".obj\"")
         obj_path = replace_suffix(obj_path, "obj")
 
     options = ["-I" + path for path in find_include_path()] + ["-fno-stack-protector"]
+    # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
     create_lib(obj_path, src_path, options, cc)
     return obj_path
 

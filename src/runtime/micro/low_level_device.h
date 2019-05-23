@@ -27,7 +27,7 @@ class LowLevelDevice {
    * \param buffer on-host buffer to be written
    * \param num_bytes number of bytes to be written
    */
-  virtual void Write(dev_base_offset offset,
+  virtual void Write(DevBaseOffset offset,
                      void* buffer,
                      size_t num_bytes) = 0;
 
@@ -37,7 +37,7 @@ class LowLevelDevice {
    * \param buffer on-host buffer to be read into
    * \param num_bytes number of bytes to be read
    */
-  virtual void Read(dev_base_offset offset,
+  virtual void Read(DevBaseOffset offset,
                     void* buffer,
                     size_t num_bytes) = 0;
 
@@ -46,13 +46,13 @@ class LowLevelDevice {
    * \param func_addr offset of the init stub function
    * \param breakpoint breakpoint at which to stop function execution
    */
-  virtual void Execute(dev_base_offset func_offset, dev_base_offset breakpoint) = 0;
+  virtual void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) = 0;
 
   /*!
    * \brief getter function for base_addr
    * \return the base address of the device memory region
    */
-  virtual dev_base_addr base_addr() const = 0;
+  virtual DevBaseAddr base_addr() const = 0;
 
   /*!
    * \brief getter function for low-level device type

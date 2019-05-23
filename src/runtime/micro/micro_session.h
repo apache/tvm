@@ -33,7 +33,7 @@ class MicroSectionAllocator {
    * \param section_start start address of the section
    * \param section_end end address of the section (non inclusive)
    */
-  MicroSectionAllocator(dev_base_offset section_start, dev_base_offset section_end)
+  MicroSectionAllocator(DevBaseOffset section_start, DevBaseOffset section_end)
     : section_start_(section_start), section_end_(section_end),
       section_max_(section_start) {
   }
@@ -49,12 +49,12 @@ class MicroSectionAllocator {
    * \param size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  dev_base_offset Allocate(size_t size) {
-    CHECK(section_max_.val() + size < section_end_.val())
-        << "out of space in section with start_addr=" << section_start_.val();
-    dev_base_offset alloc_ptr = section_max_;
+  DevBaseOffset Allocate(size_t size) {
+    CHECK(section_max_.value() + size < section_end_.value())
+        << "out of space in section with start_addr=" << section_start_.value();
+    DevBaseOffset alloc_ptr = section_max_;
     section_max_ = section_max_ + size;
-    alloc_map_[alloc_ptr.val()] = size;
+    alloc_map_[alloc_ptr.value()] = size;
     return alloc_ptr;
   }
 
@@ -64,8 +64,8 @@ class MicroSectionAllocator {
    * \param ptr pointer to allocated memory
    * \note simple allocator scheme, more complex versions will be implemented later
    */
-  void Free(dev_base_offset offs) {
-    std::uintptr_t ptr = offs.val();
+  void Free(DevBaseOffset offs) {
+    std::uintptr_t ptr = offs.value();
     CHECK(alloc_map_.find(ptr) != alloc_map_.end()) << "freed pointer was never allocated";
     alloc_map_.erase(ptr);
     if (alloc_map_.empty()) {
@@ -77,17 +77,17 @@ class MicroSectionAllocator {
    * \brief obtain the end address of the last allocation
    * \return pointer immediately following the last allocation
    */
-  dev_base_offset section_max() {
+  DevBaseOffset section_max() {
     return section_max_;
   }
 
  private:
   /*! \brief start address of the section */
-  dev_base_offset section_start_;
+  DevBaseOffset section_start_;
   /*! \brief end address of the section */
-  dev_base_offset section_end_;
+  DevBaseOffset section_end_;
   /*! \brief end address of last allocation */
-  dev_base_offset section_max_;
+  DevBaseOffset section_max_;
   /*! \brief allocation map for allocation sizes */
   std::unordered_map<std::uintptr_t, size_t> alloc_map_;
 };
@@ -129,28 +129,28 @@ class MicroSession {
    * \param size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  dev_base_offset AllocateInSection(SectionKind type, size_t size);
+  DevBaseOffset AllocateInSection(SectionKind type, size_t size);
 
   /*!
    * \brief free prior allocation from section
    * \param type type of section to allocate in
    * \param ptr pointer to allocated memory
    */
-  void FreeInSection(SectionKind type, dev_base_offset ptr);
+  void FreeInSection(SectionKind type, DevBaseOffset ptr);
 
   /*!
    * \brief read string from device to host
    * \param str_offset device offset of first character of string
    * \return host copy of device string that was read
    */
-  std::string ReadString(dev_base_offset str_offset);
+  std::string ReadString(DevBaseOffset str_offset);
 
   /*!
    * \brief sets up init stub pointers and copies arguments for on-device execution
    * \param func address of the function to be executed
    * \param args args to the packed function
    */
-  void PushToExecQueue(dev_base_offset func, TVMArgs args);
+  void PushToExecQueue(DevBaseOffset func, TVMArgs args);
 
   /*!
    * \brief loads binary onto device
@@ -194,9 +194,9 @@ class MicroSession {
   /*! \brief path to init stub source code */
   std::string init_binary_path_;
   /*! \brief offset of the init stub entry function */
-  dev_base_offset utvm_main_symbol_addr_;
+  DevBaseOffset utvm_main_symbol_addr_;
   /*! \brief offset of the init stub exit breakpoint */
-  dev_base_offset utvm_done_symbol_addr_;
+  DevBaseOffset utvm_done_symbol_addr_;
 
   /*!
    * \brief sets up and loads init stub into the low-level device memory
@@ -210,20 +210,20 @@ class MicroSession {
   void SetInitBinaryPath(std::string path);
 
   /*!
-   * \brief writes arguments to the host-side buffer of `encoder`
-   * \param encoder encoder being used to write `args`
-   * \param args pointer to the args to be written
+   * \brief appends arguments to the host-side buffer of `encoder`
+   * \param encoder encoder being used to append `args`
+   * \param args args to be appended
    * \return device address of the allocated args
    */
-  dev_addr EncoderWrite(TargetDataLayoutEncoder* encoder, UTVMArgs* args);
+  DevAddr EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArgs& args);
 
   /*!
-   * \brief writes a `TVMArray` to the host-side buffer of `encoder`
-   * \param encoder encoder being used to write `arr`
-   * \param arr pointer to the TVMArray to be written
+   * \brief appends a `TVMArray` to the host-side buffer of `encoder`
+   * \param encoder encoder being used to append `arr`
+   * \param arr TVMArray to be appended
    * \return device address of the allocated `TVMArray`
    */
-  dev_addr EncoderWrite(TargetDataLayoutEncoder* encoder, TVMArray* arr);
+  DevAddr EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArray& arr);
 };
 }  // namespace runtime
 }  // namespace tvm

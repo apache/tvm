@@ -22,7 +22,7 @@ def relay_micro_build(func: relay.Function, params={}):
         with relay.build_config(opt_level=3):
             graph, host_mod, params = relay.build(func, target="c", params=params)
 
-    micro_mod = micro.from_host_mod(host_mod, DEVICE_TYPE)
+    micro_mod = micro.from_source_module(host_mod, DEVICE_TYPE)
     ctx = tvm.micro_dev(0)
     mod = graph_runtime.create(graph, micro_mod, ctx)
     return mod, params
@@ -44,7 +44,7 @@ def test_add():
     host_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
 
     micro.init(DEVICE_TYPE)
-    micro_mod = micro.from_host_mod(host_mod, DEVICE_TYPE)
+    micro_mod = micro.from_source_module(host_mod, DEVICE_TYPE)
     micro_func = micro_mod[func_name]
     ctx = tvm.micro_dev(0)
     a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
@@ -73,7 +73,7 @@ def test_workspace_add():
     host_mod = tvm.build(s, [A, C], target="c", name=func_name)
 
     micro.init(DEVICE_TYPE)
-    micro_mod = micro.from_host_mod(host_mod, DEVICE_TYPE)
+    micro_mod = micro.from_source_module(host_mod, DEVICE_TYPE)
     micro_func = micro_mod[func_name]
     ctx = tvm.micro_dev(0)
     a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
@@ -133,7 +133,7 @@ def test_resnet_random():
 def test_resnet_pretrained():
     """Test classification with a pretrained ResNet18 model."""
     # TODO(weberlo) there's a significant amount of overlap between here and
-    # `tutorials/frontend/from_mxnet.py`.  Refactor pls.
+    # `tutorials/frontend/from_mxnet.py`.  Should refactor.
     dtype = "float32"
 
     # Fetch a mapping from class IDs to human-readable labels.
@@ -180,4 +180,5 @@ if __name__ == "__main__":
     test_workspace_add()
     test_graph_runtime()
     test_resnet_random()
-    test_resnet_pretrained()
+    # TODO(weberlo): Uncomment this test (or add it as a tutorial?)
+    # test_resnet_pretrained()
