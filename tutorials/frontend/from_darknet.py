@@ -16,7 +16,7 @@
 # under the License.
 """
 Compile YOLO-V2 and YOLO-V3 in DarkNet Models
-=================================
+=============================================
 **Author**: `Siju Samuel <https://siju-samuel.github.io/>`_
 
 This article is an introductory tutorial to deploy darknet models with TVM.
@@ -54,7 +54,7 @@ MODEL_NAME = 'yolov3'
 # Download cfg and weights file if first time.
 CFG_NAME = MODEL_NAME + '.cfg'
 WEIGHTS_NAME = MODEL_NAME + '.weights'
-REPO_URL = 'https://github.com/siju-samuel/darknet/blob/master/'
+REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
 CFG_URL = REPO_URL + 'cfg/' + CFG_NAME + '?raw=true'
 WEIGHTS_URL = 'https://pjreddie.com/media/files/' + WEIGHTS_NAME
 
@@ -100,11 +100,10 @@ with relay.build_config(opt_level=3):
 [neth, netw] = shape['data'][2:] # Current image shape is 608x608
 ######################################################################
 # Load a test image
-# --------------------------------------------------------------------
+# -----------------
 test_image = 'dog.jpg'
 print("Loading the test image...")
-img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + \
-          test_image + '?raw=true'
+img_url = REPO_URL + 'data/' + test_image + '?raw=true'
 img_path = download_testdata(img_url, test_image, "data")
 
 data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
@@ -164,9 +163,9 @@ last_layer = net.layers[net.n - 1]
 tvm.relay.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
 
 coco_name = 'coco.names'
-coco_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + coco_name + '?raw=true'
+coco_url = REPO_URL + 'data/' + coco_name + '?raw=true'
 font_name = 'arial.ttf'
-font_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + font_name + '?raw=true'
+font_url = REPO_URL + 'data/' + font_name + '?raw=true'
 coco_path = download_testdata(coco_url, coco_name, module='data')
 font_path = download_testdata(font_url, font_name, module='data')
 

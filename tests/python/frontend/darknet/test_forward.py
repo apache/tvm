@@ -16,7 +16,7 @@
 # under the License.
 """
 Test Darknet Models
-=====================
+===================
 This article is a test script to test darknet models with Relay.
 All the required models and libraries will be downloaded from the internet
 by the script.
@@ -31,13 +31,13 @@ from tvm.relay.testing.darknet import __darknetffi__
 from tvm.relay.frontend.darknet import ACTIVATION
 from tvm import relay
 
+REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
 DARKNET_LIB = 'libdarknet2.0.so'
-DARKNETLIB_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib/' \
-                                    + DARKNET_LIB + '?raw=true'
+DARKNETLIB_URL = REPO_URL + 'lib/' + DARKNET_LIB + '?raw=true'
 LIB = __darknetffi__.dlopen(download_testdata(DARKNETLIB_URL, DARKNET_LIB, module='darknet'))
 
 DARKNET_TEST_IMAGE_NAME = 'dog.jpg'
-DARKNET_TEST_IMAGE_URL = 'https://github.com/siju-samuel/darknet/blob/master/data/' + DARKNET_TEST_IMAGE_NAME +'?raw=true'
+DARKNET_TEST_IMAGE_URL = REPO_URL + 'data/' + DARKNET_TEST_IMAGE_NAME +'?raw=true'
 DARKNET_TEST_IMAGE_PATH = download_testdata(DARKNET_TEST_IMAGE_URL, DARKNET_TEST_IMAGE_NAME, module='data')
 
 def _read_memory_buffer(shape, data, dtype='float32'):
