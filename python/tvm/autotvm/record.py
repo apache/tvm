@@ -25,6 +25,8 @@ import multiprocessing
 import pickle
 import json
 import time
+import os
+import itertools
 from collections import OrderedDict
 
 from .. import build, lower, target as _target
@@ -238,6 +240,8 @@ def pick_best(in_file, out_file):
     """
     Pick best entries from a file and store it to another file.
     This distill the useful log entries from a large log file.
+    If out_file already exists, the best entries from both
+    in_file and out_file will be saved.
 
     Parameters
     ----------
@@ -246,7 +250,12 @@ def pick_best(in_file, out_file):
     out_file: str or file
         The filename of output
     """
-    best_context = ApplyHistoryBest(load_from_file(in_file))
+    context = load_from_file(in_file)
+    if os.path.isfile(out_file):
+        out_context = load_from_file(out_file)
+        context = itertools.chain(context, out_context)
+    context, context_clone = itertools.tee(context)
+    best_context = ApplyHistoryBest(context)
     best_set = set()
 
     for v in best_context.best_by_model.values():
@@ -258,7 +267,7 @@ def pick_best(in_file, out_file):
     logger.info("Extract %d best records from the %s", len(best_set), in_file)
     fout = open(out_file, 'w') if isinstance(out_file, str) else out_file
 
-    for inp, res in load_from_file(in_file):
+    for inp, res in context_clone:
         if measure_str_key(inp) in best_set:
             fout.write(encode(inp, res) + "\n")
             best_set.remove(measure_str_key(inp))
