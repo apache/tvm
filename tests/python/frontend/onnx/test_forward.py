@@ -17,7 +17,6 @@
 import attr
 import numpy as np
 import math
-import mxnet as mx
 import torch
 import torchvision
 import topi
@@ -1074,52 +1073,86 @@ def test_LogSoftmax():
                               'LogSoftmax',
                               {'axis': 1})
 
-def test_resnet18_pytorch():
-    dummy_input = torch.randn(1,3,224,224)
-    model = torchvision.models.resnet18()
-    onnx_model = torch.onnx.export(model, dummy_input, 'resnet-18.onnx', export_params=True, verbose=True)
-    model = onnx.load('resnet-18.onnx')
-    shapes = { '0' : (1, 3, 224, 224) }
-    expr, params = relay.frontend.from_onnx(model, shape=shapes)
+def check_torch_conversion(model, input_size):
+    dummy_input = torch.randn(*input_size)
+    file_name = '{}.onnx'.format(model.__name__)
+    torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=True)
+    onnx_model = onnx.load(file_name)
+    shapes = { '0' : input_size }
+    expr, params = relay.frontend.from_onnx(onnx_model, shape=shapes)
+
+def test_resnet():
+    check_torch_conversion(torchvision.models.resnet18, (1,3,224,224))
+    # check_torch_conversion(torchvision.models.resnet101, (1,3,224,224))
+
+# def test_alexnet():
+    # Torch's ONNX export does not support the adaptive pooling used by AlexNet?
+    # check_torch_conversion(torchvision.models.alexnet, (1,3,224,224))
+
+# Torch's ONNX export does not support the adaptive pooling used by vgg16?
+# def test_vgg16():
+#     check_torch_conversion(torchvision.models.vgg16, (1,3,224,224))
+
+def test_squeezenet():
+    check_torch_conversion(torchvision.models.squeezenet1_0, (1,3,224,224))
+
+def test_densenet():
+    check_torch_conversion(torchvision.models.densenet161, (1,3,224,224))
+
+def test_inception():
+    check_torch_conversion(torchvision.models.inception_v3, (1,3,224,224))
+
+def test_googlenet():
+    check_torch_conversion(torchvision.models.googlenet, (1,3,224,224))
+
+def test_shufflenetv2():
+    check_torch_conversion(torchvision.models.shufflenetv2, (1,3,224,224))
+
 
 if __name__ == '__main__':
-    test_flatten()
-    test_reshape()
-    test_shape()
-    test_power()
-    test_squeeze()
-    test_unsqueeze()
-    test_slice()
-    test_floor()
-    test_ceil()
-    test_clip()
-    test_matmul()
-    test_gather()
-    test_lrn()
-    test_upsample()
-    test_forward_min()
-    test_forward_max()
-    test_forward_mean()
-    test_forward_hardsigmoid()
-    test_forward_arg_min_max()
-    test_softmax()
-    test_constantfill()
-    test_pad()
-    test_reduce_max()
-    test_reduce_min()
-    test_reduce_sum()
-    test_reduce_mean()
-    test_pad()
-    test_split()
-    test_binary_ops()
-    test_single_ops()
-    test_leaky_relu()
-    test_elu()
-    test_selu()
-    test_ThresholdedRelu()
-    test_ScaledTanh()
-    test_ParametricSoftplus()
-    test_Scale()
-    test_LogSoftmax()
-    test_resnet18()
-    test_resnet18_pytorch()
+    # test_flatten()
+    # test_reshape()
+    # test_shape()
+    # test_power()
+    # test_squeeze()
+    # test_unsqueeze()
+    # test_slice()
+    # test_floor()
+    # test_ceil()
+    # test_clip()
+    # test_matmul()
+    # test_gather()
+    # test_lrn()
+    # test_upsample()
+    # test_forward_min()
+    # test_forward_max()
+    # test_forward_mean()
+    # test_forward_hardsigmoid()
+    # test_forward_arg_min_max()
+    # test_softmax()
+    # test_constantfill()
+    # test_pad()
+    # test_reduce_max()
+    # test_reduce_min()
+    # test_reduce_sum()
+    # test_reduce_mean()
+    # test_pad()
+    # test_split()
+    # test_binary_ops()
+    # test_single_ops()
+    # test_leaky_relu()
+    # test_elu()
+    # test_selu()
+    # test_ThresholdedRelu()
+    # test_ScaledTanh()
+    # test_ParametricSoftplus()
+    # test_Scale()
+    # test_LogSoftmax()
+    test_resnet()
+    # test_alexnet()
+    # test_vgg16()
+    test_squeezenet()
+    test_densenet()
+    test_inception()
+    test_googlenet()
+    test_shufflenetv2()
