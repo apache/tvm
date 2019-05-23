@@ -245,7 +245,7 @@ DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArgs& a
         tvm_vals_slot.WriteValue(val);
         break;
       }
-      // TODO(mutinifni): implement other cases if needed
+      // TODO(weberlo): Implement `double` and `int64` case.
       default:
         LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
         break;
