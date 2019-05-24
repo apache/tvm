@@ -17,8 +17,9 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import to_graph_normal_form, to_a_normal_form, alpha_equal
+from tvm.relay.ir_pass import to_graph_normal_form, to_a_normal_form, alpha_equal, detect_feature
 from tvm.relay import op, create_executor
+from tvm.relay.feature import Feature
 from tvm.relay.backend.interpreter import Value, TupleValue
 
 
@@ -56,8 +57,8 @@ def test_round_trip():
     f = relay.Function([], relay.Let(x, relay.const(1), body))
     g = to_graph_normal_form(f)
     h = to_a_normal_form(g)
-    assert "let" in f.astext()
-    assert not "let" in g.astext()
+    assert Feature.fLet in detect_feature(f)
+    assert not Feature.fLet in detect_feature(g)
     check_eval(f, [], 8.0)
     check_eval(g, [], 8.0)
     check_eval(h, [], 8.0)

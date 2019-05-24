@@ -39,7 +39,8 @@
 namespace tvm {
 namespace relay {
 
-/*! \brief LetList allow you to transform expression into variables, so you can copy them around.
+/*!
+ * \brief LetList allow you to transform expression into variables, so you can copy them around.
  *  one can insert into the LetList by calling Push, and wrap an expression with bindings with Get.
  *  additionally, there is the 'With' function, which automatically call Get.
  */
