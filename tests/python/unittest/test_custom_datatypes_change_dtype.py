@@ -141,7 +141,8 @@ def test_change_dtype_resnet():
     relay.ir_pass.post_order_visit(expr, print_info)
 
     # Execute the model in the new datatype.
-    result = ex.evaluate(expr)(input, **params)
+    with tvm.build_config(disable_vectorize=True):
+        result = ex.evaluate(expr)(input, **params)
 
 
 def test_change_dtype_inception_v3():
@@ -165,7 +166,8 @@ def test_change_dtype_inception_v3():
     relay.ir_pass.post_order_visit(expr, print_info)
 
     # Execute the model in the new datatype.
-    result = ex.evaluate(expr)(input, **params)
+    with tvm.build_config(disable_vectorize=True):
+        result = ex.evaluate(expr)(input, **params)
 
 
 def test_change_dtype_mobilenet():
@@ -195,7 +197,7 @@ def test_change_dtype_mobilenet():
 
 if __name__ == "__main__":
     setup()
-    # test_change_dtype_inception_v3()
+    test_change_dtype_inception_v3()
     test_change_dtype_simple()
-    test_change_dtype_resnet()
     test_change_dtype_mobilenet()
+    test_change_dtype_resnet()
