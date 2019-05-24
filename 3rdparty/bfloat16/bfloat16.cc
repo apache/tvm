@@ -18,6 +18,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -94,6 +95,23 @@ void BFloat16Max(const uint16_t* a, const uint16_t* b, uint16_t* dst,
   float out_f = a_f > b_f ? a_f : b_f;
   FloatToBFloat16(&out_f, dst, 1);
 }
+
+// TODO(gus) I just realized that `size` is unused in most of these cases
+void BFloat16Sqrt(const uint16_t* a, uint16_t* dst, size_t size) {
+  float a_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  float out_f = sqrt(a_f);
+  FloatToBFloat16(&out_f, dst, 1);
+}
+
+// TODO(gus) I just realized that `size` is unused in most of these cases
+void BFloat16Exp(const uint16_t* a, uint16_t* dst, size_t size) {
+  float a_f;
+  BFloat16ToFloat(a, &a_f, 1);
+  float out_f = exp(a_f);
+  FloatToBFloat16(&out_f, dst, 1);
+}
+
 extern "C" {
 TVM_DLL uint16_t FloatToBFloat16_wrapper(float in) {
   uint16_t out;
@@ -134,6 +152,18 @@ TVM_DLL uint16_t BFloat16Div_wrapper(uint16_t a, uint16_t b) {
 TVM_DLL uint16_t BFloat16Max_wrapper(uint16_t a, uint16_t b) {
   uint16_t out;
   BFloat16Max(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Sqrt_wrapper(uint16_t a) {
+  uint16_t out;
+  BFloat16Sqrt(&a, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Exp_wrapper(uint16_t a) {
+  uint16_t out;
+  BFloat16Exp(&a, &out, 1);
   return out;
 }
 }
