@@ -102,6 +102,50 @@ using ::tvm::AttrVisitor;
   };
 
 /*!
+ * \brief RAII wrapper function to enter and exit a context object
+ *        similar to python's with syntax.
+ *
+ * \code
+ * // context class
+ * class MyContext {
+ *  private:
+ *    friend class With<MyContext>;
+      MyContext(arguments);
+ *    void EnterWithScope();
+ *    void ExitWithScope();
+ * };
+ *
+ * {
+ *   With<MyContext> scope(arguments);
+ *   // effect take place.
+ * }
+ * \endcode
+ *
+ * \tparam ContextType Type of the context object.
+ */
+template<typename ContextType>
+class With {
+ public:
+  /*!
+   * \brief constructor.
+   *  Enter the scope of the context.
+   */
+  template<typename ...Args>
+  explicit With(Args&& ...args)
+      : ctx_(std::forward<Args>(args)...) {
+    ctx_.EnterWithScope();
+  }
+  /*! \brief destructor, leaves the scope of the context. */
+  ~With() DMLC_THROW_EXCEPTION {
+    ctx_.ExitWithScope();
+  }
+
+ private:
+  /*! \brief internal context type. */
+  ContextType ctx_;
+};
+
+/*!
  * \brief save the node as well as all the node it depends on as json.
  *  This can be used to serialize any TVM object
  *

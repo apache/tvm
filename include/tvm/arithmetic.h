@@ -290,14 +290,14 @@ class CanonicalSimplifier {
 };
 
 /*!
- * \brief A RAII constraint context.
+ * \brief Constraint context.
  *
  * \code
  *
  *  Var("x");
  *  arith::Analyzer analyzer;
  *  {
- *    arith::ConstraintContext cctx(&analyzer, x % 3 == 0);
+ *    With<arith::ConstraintContext> scope(&analyzer, x % 3 == 0);
  *    CHECK_EQ(analyzer.modular_set(x)->coeff, 3);
  *  }
  *  // constraint no longer in effect.
@@ -306,19 +306,24 @@ class CanonicalSimplifier {
  * \endcode
  */
 class ConstraintContext {
- public:
+ private:
+  // declare friend to enable with.
+  friend class With<ConstraintContext>;
   /*!
    * \brief Construct a constraint context.
    * \param analyzer The analyzer.
    * \param constraint The constraint to be applied.
    */
-  ConstraintContext(Analyzer* analyzer, const Expr& constraint) DMLC_THROW_EXCEPTION;
-  /*! \brief destructor */
-  ~ConstraintContext() DMLC_THROW_EXCEPTION {
-    exit_();
-  }
-
- private:
+  ConstraintContext(Analyzer* analyzer, Expr constraint)
+      : analyzer_(analyzer), constraint_(constraint) {}
+  // enter the scope.
+  void EnterWithScope();
+  // exit the scope.
+  void ExitWithScope();
+  /*! \brief The analyzer */
+  Analyzer* analyzer_;
+  /*! \brief The constraint */
+  Expr constraint_;
   /*! \brief function to be called in recovery */
   std::function<void()> exit_;
 };
