@@ -97,14 +97,23 @@ class CustomDatatypesLowerer : public IRMutator {
   }
 
   inline Expr Mutate_(const Call* call, const Expr& e) final {
-    // I'm actually unsure as to what makes sense when lowering a call of a custom datatype.
-    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(call->type.code());
+    auto type_code = call->type.code();
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code);
     Expr expr = IRMutator::Mutate_(call, e);
     call = expr.as<Call>();
     if (toBeLowered) {
-      auto new_call_type = UInt(call->type.bits(), call->type.lanes());
-      return Call::make(new_call_type, call->name, call->args, call->call_type, call->func,
-                        call->value_index);
+      CHECK(call->call_type == Call::Intrinsic || call->call_type == Call::PureIntrinsic)
+          << "Lowering non-intrinsic Calls not implemented";
+      auto lower = datatype::GetIntrinLowerFunc(target_, call->name, type_code);
+      CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
+                   << call->name << ", type " << static_cast<unsigned>(type_code) << " not found";
+      return (*lower)(e);
+      // TODO(gus) Not sure what to do in any other case.
+      // } else {
+      //   auto new_call_type = UInt(call->type.bits(), call->type.lanes());
+      //   return Call::make(new_call_type, call->name, call->args, call->call_type, call->func,
+      //                     call->value_index);
+      // }
     }
     return e;
   }
