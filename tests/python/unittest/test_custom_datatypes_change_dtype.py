@@ -121,7 +121,7 @@ def test_change_dtype_resnet():
     module, params = change_dtype(src_dtype, dst_dtype, module, params)
 
     # Convert the input into the correct format.
-    input = tvm.nd.array(np.random.rand(3, 299, 299).astype(src_dtype))
+    input = tvm.nd.array(np.random.rand(3, 224, 224).astype(src_dtype))
     input = convert_ndarray(dst_dtype, input)
 
     # Execute the model in the new datatype.
