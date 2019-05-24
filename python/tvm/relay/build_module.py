@@ -28,80 +28,9 @@ from . import _build_module
 from . import ir_pass
 from . import ty as _ty
 from . import expr as _expr
+from . import transform as _transform
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
-
-class BuildConfig(object):
-    """Configuration scope to set a build config option.
-
-    Parameters
-    ----------
-    kwargs
-        Keyword arguments of configurations to set.
-    """
-    current = None
-    defaults = {
-        "opt_level": 2,
-        "add_pass": None,
-        "disable_pass": None,
-        "fallback_device": None,
-    }
-
-    def __init__(self, **kwargs):
-        self._old_scope = None
-        for k, _ in kwargs.items():
-            if k not in BuildConfig.defaults:
-                raise ValueError("invalid argument %s, candidates are %s" %
-                                 (k, BuildConfig.defaults.keys()))
-        self._attr = kwargs
-
-    def __getattr__(self, name):
-        if name not in self._attr:
-            return BuildConfig.defaults[name]
-        return self._attr[name]
-
-    def __enter__(self):
-        # pylint: disable=protected-access
-        self._old_scope = BuildConfig.current
-        attr = BuildConfig.current._attr.copy()
-        attr.update(self._attr)
-        self._attr = attr
-        BuildConfig.current = self
-        return self
-
-    def __exit__(self, ptype, value, trace):
-        assert self._old_scope
-        BuildConfig.current = self._old_scope
-
-
-BuildConfig.current = BuildConfig()
-
-
-def build_config(**kwargs):
-    """Configure the build behavior by setting config variables.
-
-    Parameters
-    ----------
-    opt_level: int, default=2
-        Optimization level. See OPT_PASS_LEVEL for level of each pass.
-
-    add_pass: set of str
-        Optimization pass to be added regardless of optimization level.
-
-    disable_pass: set of str
-        Optimization pass to be disabled during optimization.
-
-    fallback_device : str or tvm.TVMContext
-        The fallback device. It is also used as the default device for
-        operators without specified device during heterogeneous execution.
-
-    Returns
-    -------
-    config: BuildConfig
-        The build configuration
-    """
-    return BuildConfig(**kwargs)
-
 
 def _update_target(target):
     target = target if target else _target.current_target()
@@ -189,7 +118,7 @@ class BuildModule(object):
         return graph_json, mod, params
 
     def _setup_build_config(self, params):
-        cfg = BuildConfig.current
+        cfg = _transform.PassContext.current()
 
         # Set opt_level.
         self.set_opt_level(cfg.opt_level)
@@ -199,24 +128,24 @@ class BuildModule(object):
             self.set_fallback_device(cfg.fallback_device)
 
         # Add required passes.
-        if cfg.add_pass:
+        if cfg.required_pass:
             passes = set()
-            if isinstance(cfg.add_pass, (list, tuple, set)):
-                passes = set(cfg.add_pass)
+            if isinstance(cfg.required_pass, (list, tuple, set)):
+                passes = set(cfg.required_pass)
             else:
                 raise TypeError("add_pass must be list, tuple, or set, but " +
-                                "got {}".format(type(cfg.add_pass)))
+                                "got {}".format(type(cfg.required_pass)))
             for pass_name in passes:
                 self.add_pass(pass_name)
 
         # Add disabled passes.
-        if cfg.disable_pass:
+        if cfg.disabled_pass:
             passes = set()
-            if isinstance(cfg.disable_pass, (list, tuple, set)):
-                passes = set(cfg.disable_pass)
+            if isinstance(cfg.disabled_pass, (list, tuple, set)):
+                passes = set(cfg.disabled_pass)
             else:
                 raise TypeError("disable_pass must be list, tuple, or set, " +
-                                "but got {}".format(type(cfg.disable_pass)))
+                                "but got {}".format(type(cfg.disabled_pass)))
             for pass_name in passes:
                 self.disable_pass(pass_name)
 
@@ -287,12 +216,11 @@ class BuildModule(object):
         fallback_device : str or tvm.TVMContext
             The fallback device used for heterogeneous execution.
         """
-        if isinstance(fallback_device, str):
+        if isinstance(fallback_device, (int, str)):
             fallback_device = _nd.context(fallback_device)
         if not isinstance(fallback_device, TVMContext):
-            raise TypeError("fallback_device is expected to be str " +
-                            "TVMContext, or dict of device name to target, " +
-                            "but received: {}".format(type(fallback_device)))
+            raise TypeError("fallback_device is expected to be str, int, or " +
+                            "TVMContext but received: {}".format(type(fallback_device)))
 
         self._set_fallback_device(fallback_device.device_type)
 

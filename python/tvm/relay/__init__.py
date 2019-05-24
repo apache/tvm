@@ -26,7 +26,8 @@ from . import module
 from . import adt
 from . import ir_pass
 from . import transform
-from .build_module import build, build_config, create_executor
+from .build_module import build, create_executor
+from .transform import build_config
 from . import prelude
 from . import parser
 from . import debug

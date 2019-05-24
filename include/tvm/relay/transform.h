@@ -56,11 +56,13 @@
 #ifndef TVM_RELAY_TRANSFORM_H_
 #define TVM_RELAY_TRANSFORM_H_
 
+#include <tvm/base.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -83,18 +85,69 @@ class PassContextNode : public RelayNode {
    */
   ErrorReporter err_reporter;
 
+  /*! \brief The default optimization level. */
+  int opt_level{2};
+
+  /*! \brief CPU is the default fallback device for heterogeneous execution. */
+  int fallback_device{static_cast<int>(kDLCPU)};
+
+  /*! \brief The list of required passes. */
+  tvm::Array<tvm::Expr> required_pass;
+  /*! \brief The list of disabled passes. */
+  tvm::Array<tvm::Expr> disabled_pass;
+
   PassContextNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("opt_level", &opt_level);
+    v->Visit("fallback_device", &fallback_device);
+    v->Visit("required_pass", &required_pass);
+    v->Visit("disabled_pass", &disabled_pass);
   }
-
-  TVM_DLL static PassContext make();
 
   static constexpr const char* _type_key = "relay.PassContext";
   TVM_DECLARE_NODE_TYPE_INFO(PassContextNode, RelayNode);
 };
 
-TVM_DEFINE_NODE_REF(PassContext, PassContextNode)
+class PassContext : public NodeRef {
+ public:
+  PassContext() {}
+  explicit PassContext(tvm::NodePtr<Node> n) : NodeRef(n) {}
+
+  /*
+   * \brief Constructor of a `PassContext` object.
+   *
+   * \param opt_level The optimization level that will be applied.
+   * \param fallback_device The fallback device used for heterogeneous
+   *        execution.
+   * \param required_pass The passes that are required for a context to execute
+   *        other passes.
+   * \param required_pass The passes that will be disabled during the
+   *        optimization under a context.
+   */
+  TVM_DLL PassContext(int opt_level,
+                      int fallback_device,
+                      tvm::Array<tvm::Expr> required_pass,
+                      tvm::Array<tvm::Expr> disabled_pass);
+
+  // Get the currently used pass context.
+  TVM_DLL static PassContext Current();
+
+  const PassContextNode* operator->() const;
+
+  using ContainerType = PassContextNode;
+  class Internal;
+
+ private:
+  // The entry of a pass context scope.
+  TVM_DLL void EnterWithScope();
+  // The exit of a pass context scope.
+  TVM_DLL void ExitWithScope();
+
+  // Classes to get the Python `with` like syntax.
+  friend class Internal;
+  friend class tvm::With<PassContext>;
+};
 
 /*
  * \brief The meta data of a pass.
@@ -150,20 +203,28 @@ class PassNode : public RelayNode {
   virtual PassInfo Info() const = 0;
 
   /*!
-   * \brief Set the context information for a pass.
-   *
-   * \param pass_ctx The context information for a certain pass.
-   */
-  virtual void SetContext(const PassContext& pass_ctx) = 0;
-
-  /*!
-   * \brief Execute the optimization pass using a functor.
+   * \brief Execute the optimization pass using a functor. This functor
+   * internally uses a current pass context.
    *
    * \param mod The module that an optimization pass runs on.
    *
    * \return The updated module.
    */
-  virtual Module operator()(const Module& mod) const = 0;
+  Module operator()(const Module& mod) const {
+    return this->operator()(mod, PassContext::Current());
+  }
+
+  /*!
+   * \brief Execute the optimization pass using a functor under a given pass context.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The pass context that will be used to help the execution of
+   *        optimizations.
+   *
+   * \return The updated module.
+   */
+  virtual Module operator()(const Module& mod,
+                            const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(tvm::AttrVisitor* v) override {}
 
@@ -189,13 +250,22 @@ class Sequential : public Pass {
  public:
   /*!
    * \brief The constructor of `Sequential`.
+   *
    * \param passes The passes to apply.
    * \param pass_info The pass metadata.
-   * \param disabled The passes that will not be applied.
    */
   TVM_DLL Sequential(tvm::Array<Pass> passes,
-                     PassInfo pass_info,
-                     tvm::Array<tvm::Expr> disabled);
+                     PassInfo pass_info);
+/*!
+   * \brief The constructor of `Sequential`.
+   *
+   * \param passes The passes to apply.
+   * \param name The name of a sequential pass. It's defaulted to "sequential".
+   *        This allows users to only provide a list of passes and execute them
+   *        under a given context.
+   */
+  TVM_DLL Sequential(tvm::Array<Pass> passes, std::string name = "sequential");
+
   Sequential() = default;
   explicit Sequential(tvm::NodePtr<::tvm::Node> n) : Pass(n) {}
 
