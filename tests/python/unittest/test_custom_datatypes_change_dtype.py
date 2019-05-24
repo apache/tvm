@@ -40,6 +40,9 @@ def setup():
         tvm.datatype.create_lower_func("BFloat16ToFloat_wrapper"), "Cast",
         "llvm", "float", "bfloat")
     tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("IntToBFloat16_wrapper"), "Cast",
+        "llvm", "bfloat", "int")
+    tvm.datatype.register_op(
         tvm.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
         "bfloat")
     tvm.datatype.register_op(
@@ -57,12 +60,32 @@ def setup():
     tvm.datatype.register_op(
         tvm.datatype.create_lower_func("BFloat16Max_wrapper"), "Max", "llvm",
         "bfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("BFloat16Sqrt_wrapper"),
+        "Call",
+        "llvm",
+        "bfloat",
+        intrinsic_name="sqrt")
+    # TODO(gus) not sure if this will work...
+    tvm.datatype.register_op(
+        tvm.datatype.lower_ite,
+        "Call",
+        "llvm",
+        "bfloat",
+        intrinsic_name="tvm_if_then_else")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("BFloat16Exp_wrapper"),
+        "Call",
+        "llvm",
+        "bfloat",
+        intrinsic_name="exp")
 
 
 def convert_ndarray(dst_dtype, array, executor):
     x = relay.var('x', shape=array.shape, dtype=array.dtype)
     cast = relay.Function([x], x.astype(dst_dtype))
     return executor.evaluate(cast)(array)
+
 
 def change_dtype(src, dst, expr, params, executor):
     cdtype = relay.frontend.ChangeDatatype(src, dst)
