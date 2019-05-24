@@ -168,6 +168,5 @@ def lower_ite(ite_intrin):
     dtype = "uint" + str(t.bits)
     if t.lanes > 1:
         dtype += "x" + str(t.lanes)
-    print(ite_intrin.args)
     return call_intrin(dtype, "tvm_if_then_else", ite_intrin.args[0],
                             ite_intrin.args[1], ite_intrin.args[2])
