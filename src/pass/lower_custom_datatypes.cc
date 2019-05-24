@@ -107,7 +107,7 @@ class CustomDatatypesLowerer : public IRMutator {
       auto lower = datatype::GetIntrinLowerFunc(target_, call->name, type_code);
       CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
                    << call->name << ", type " << static_cast<unsigned>(type_code) << " not found";
-      return (*lower)(e);
+      return (*lower)(expr);
       // TODO(gus) Not sure what to do in any other case.
       // } else {
       //   auto new_call_type = UInt(call->type.bits(), call->type.lanes());
