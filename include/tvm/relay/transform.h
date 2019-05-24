@@ -61,6 +61,7 @@
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
+#include <tvm/relay/op_attr_types.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -198,7 +199,7 @@ class Pass;
  */
 class PassNode : public RelayNode {
  public:
-  /*
+  /*!
    * \brief Get the pass information/meta data. */
   virtual PassInfo Info() const = 0;
 
@@ -300,11 +301,118 @@ Pass CreateModulePass(
  *
  * \return The created function pass.
  */
-Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<tvm::Expr>& required);
+TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
+                                  Function(Function, Module, PassContext)>& pass_func,
+                                int opt_level,
+                                const std::string& name,
+                                const tvm::Array<tvm::Expr>& required);
+
+/*! \brief Remove expressions which does not effect the program result.
+ *
+ * It will remove let bindings which are not referenced,
+ * and inline let bindings that are only used once.
+ *
+ * For example, this pass should turn `let a = 1 in 2` into `2`,
+ * as the value of the expression does not depend on a.
+ *
+ * As another example, `let a = 1 in a` will be optimized into 1.
+ *
+ * \return the pass.
+ */
+TVM_DLL Pass DeadCodeElimination();
+
+/*!
+ * \brief Fold constant expressions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FoldConstant();
+
+/*!
+ * \brief Fuse operations into expr into seperate functions.
+ *
+ * \param fuse_opt_level Optimization level. If it is -1 it will be inferred from pass context.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order.
+ *
+ * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
+ *                              rule function.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ForwardRewrite(const std::string& rewrite_map_attr_name,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)>
+                            fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order.
+ *
+ * \param rewrite_func The rewrite func that will apply to all operators.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ForwardRewrite(const FForwardRewrite& rewrite_func,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Rewrite the annotated program.
+ *
+ * \param fallback_device The fallback device which is the default device for
+ *                        operators without annotation.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
+
+/*!
+ * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
+ *
+ * It will turn an expression that is in a graph form (with sharing implicit),
+ * to an expression with explicit sharing (A-Normal Form).
+ *
+ * The scope of the root expression is the global scope.
+ *
+ * The scope of any non root expression is the least common ancestor of all it's scope.
+ *
+ * Values are ordered by post-DFS order in each scope.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ToANormalForm();
+
+/*!
+ * \brief Remove let binding and directly share via pointer instead.
+ *
+ * It will remove all let binding,
+ * and turn all of the variable bound by let into direct pointer reference.
+ *
+ * \return the expression in graph normal form.
+ */
+TVM_DLL Pass ToGraphNormalForm();
+
+/*!
+ * \brief Aggressive constant propagation/constant folding/inlining.
+ *
+ * It will do as much computation in compile time as possible.
+ * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
+ * As a side effect, code size will explode.
+ *
+ * \return the optimized expression.
+ */
+TVM_DLL Pass PartialEval();
 
 }  // namespace transform
 }  // namespace relay

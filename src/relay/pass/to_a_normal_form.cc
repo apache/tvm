@@ -333,5 +333,17 @@ Expr ToANormalForm(const Expr& e, const Module& m) {
 TVM_REGISTER_API("relay._ir_pass.to_a_normal_form")
 .set_body_typed(static_cast<Expr (*)(const Expr&, const Module&)>(ToANormalForm));
 
+namespace transform {
+
+Pass ToANormalForm() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(ToANormalForm(f, m));
+  };
+  return CreateFunctionPass(pass_func, 1, "to_a_normal_form", {});
+}
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm
