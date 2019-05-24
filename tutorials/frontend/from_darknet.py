@@ -16,10 +16,10 @@
 # under the License.
 """
 Compile YOLO-V2 and YOLO-V3 in DarkNet Models
-=================================
+=============================================
 **Author**: `Siju Samuel <https://siju-samuel.github.io/>`_
 
-This article is an introductory tutorial to deploy darknet models with NNVM.
+This article is an introductory tutorial to deploy darknet models with TVM.
 All the required models and libraries will be downloaded from the internet by the script.
 This script runs the YOLO-V2 and YOLO-V3 Model with the bounding boxes
 Darknet parsing have dependancy with CFFI and CV2 library
@@ -31,18 +31,19 @@ Please install CFFI and CV2 before executing this script
   pip install opencv-python
 """
 
-import nnvm
-import nnvm.frontend.darknet
-import tvm.relay.testing.yolo_detection
-import tvm.relay.testing.darknet
-import matplotlib.pyplot as plt
+# numpy and matplotlib
 import numpy as np
-import tvm
+import matplotlib.pyplot as plt
 import sys
 
+# tvm, relay
+import tvm
+from tvm import relay
 from ctypes import *
 from tvm.contrib.download import download_testdata
 from tvm.relay.testing.darknet import __darknetffi__
+import tvm.relay.testing.yolo_detection
+import tvm.relay.testing.darknet
 
 # Model name
 MODEL_NAME = 'yolov3'
@@ -53,7 +54,7 @@ MODEL_NAME = 'yolov3'
 # Download cfg and weights file if first time.
 CFG_NAME = MODEL_NAME + '.cfg'
 WEIGHTS_NAME = MODEL_NAME + '.weights'
-REPO_URL = 'https://github.com/siju-samuel/darknet/blob/master/'
+REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
 CFG_URL = REPO_URL + 'cfg/' + CFG_NAME + '?raw=true'
 WEIGHTS_URL = 'https://pjreddie.com/media/files/' + WEIGHTS_NAME
 
@@ -78,30 +79,31 @@ net = DARKNET_LIB.load_network(cfg_path.encode('utf-8'), weights_path.encode('ut
 dtype = 'float32'
 batch_size = 1
 
-print("Converting darknet to nnvm symbols...")
-sym, params = nnvm.frontend.darknet.from_darknet(net, dtype)
+data = np.empty([batch_size, net.c, net.h, net.w], dtype)
+shape_dict = {'data': data.shape}
+print("Converting darknet to relay functions...")
+sym, params = relay.frontend.from_darknet(net, dtype=dtype, shape=data.shape)
 
 ######################################################################
-# Compile the model on NNVM
+# Import the graph to Relay
 # -------------------------
 # compile the model
 target = 'llvm'
+target_host = 'llvm'
 ctx = tvm.cpu(0)
 data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {'data': data.shape}
 print("Compiling the model...")
-dtype_dict = {}
-with nnvm.compiler.build_config(opt_level=2):
-    graph, lib, params = nnvm.compiler.build(sym, target, shape, dtype_dict, params)
+with relay.build_config(opt_level=3):
+    graph, lib, params = relay.build(sym, target=target, target_host=target_host, params=params)
 
 [neth, netw] = shape['data'][2:] # Current image shape is 608x608
 ######################################################################
 # Load a test image
-# --------------------------------------------------------------------
+# -----------------
 test_image = 'dog.jpg'
 print("Loading the test image...")
-img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + \
-          test_image + '?raw=true'
+img_url = REPO_URL + 'data/' + test_image + '?raw=true'
 img_path = download_testdata(img_url, test_image, "data")
 
 data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
@@ -161,9 +163,9 @@ last_layer = net.layers[net.n - 1]
 tvm.relay.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
 
 coco_name = 'coco.names'
-coco_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + coco_name + '?raw=true'
+coco_url = REPO_URL + 'data/' + coco_name + '?raw=true'
 font_name = 'arial.ttf'
-font_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + font_name + '?raw=true'
+font_url = REPO_URL + 'data/' + font_name + '?raw=true'
 coco_path = download_testdata(coco_url, coco_name, module='data')
 font_path = download_testdata(font_url, font_name, module='data')
 
