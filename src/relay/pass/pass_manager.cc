@@ -37,6 +37,43 @@ namespace transform {
 
 using tvm::IRPrinter;
 
+/*!
+ * \brief A data structure to map the names of specific optimizations to
+ *        numeric optimization levels
+ */
+class OptPassLevel {
+ public:
+  /*!
+   * \brief Get level for an optimization pass
+   *
+   * \param key pass name
+   * \return int level
+   */
+  int operator[](const std::string& key) const {
+    const auto data = CreateMap();
+    auto it = data.find(key);
+    if (it == data.end()) {
+      return -1;
+    }
+    return it->second;
+  }
+
+ private:
+  static const std::unordered_map<std::string, int> CreateMap() {
+    const std::unordered_map<std::string, int> m = {
+      {"SimplifyInference", 0},
+      {"OpFusion", 1},
+      {"FoldConstant", 2},
+      {"CombineParallelConv2D", 3},
+      {"FoldScaleAxis", 3},
+      {"AlterOpLayout", 3},
+      {"CanonicalizeOps", 3},
+      {"EliminateCommonSubexpr", 3}
+    };
+    return m;
+  }
+};
+
 PassContext::PassContext(int opt_level, int fallback_device,
                          tvm::Array<tvm::Expr> required_pass,
                          tvm::Array<tvm::Expr> disabled_pass) {
@@ -119,15 +156,6 @@ class ModulePassNode : public PassNode {
   }
 
   /*!
-   * \brief Run a module pass on a certain module.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return Return the updated module.
-   */
-  Module operator()(const Module& mod) const final;
-
-  /*!
    * \brief Run a module pass on given pass context.
    *
    * \param mod The module that an optimization pass is applied on.
@@ -180,15 +208,6 @@ class FunctionPassNode : public PassNode {
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("pass_info", &pass_info);
   }
-
-  /*!
-   * \brief Run a function pass on a certain module.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return Return the updated module.
-   */
-  Module operator()(const Module& mod) const final;
 
   /*!
    * \brief Run a function pass on given pass context.
@@ -293,23 +312,15 @@ class SequentialNode : public PassNode {
 
   std::unordered_set<std::string> RequiredPasses(
       const Array<tvm::Expr>& disabled) const;
+
   /*!
    * \brief Perform optimizations on a series of passes. The aforementioned
    *        typical pass manager jobs could be done by it. This function could
    *        be overloaded to focus on different metrics, i.e. performance,
    *        memory footprint, etc.
    *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return Return the updated module.
-   */
-  Module operator()(const Module& mod) const final;
-
-  /*!
-   * \brief Run a series of passes on given pass context.
-   *
    * \param mod The module that these passes are applied on.
-   * \param mod The context that these passes execute on.
+   * \param pass_ctx The context that these passes execute on.
    *
    * \return Return the updated module.
    */
@@ -338,20 +349,7 @@ ModulePass ModulePassNode::make(
 }
 
 // Module -> Module optimizations.
-// TODO(zhiics) 1. Check and handle the required passes.
-//              2. Probably use CoW for all places that use module instead of
-//              returning the updated one.
-Module ModulePassNode::operator()(const Module& mod) const {
-  PassInfo pass_info = Info();
-  LOG(INFO) << "Executing module pass : " << pass_info.operator->()->name
-            << " with opt level: " << pass_info.operator->()->opt_level << "\n";
-  CHECK(mod.defined());
-  PassContext ctx = PassContext::Current();
-  auto updated_mod = pass_func(mod, ctx);
-  CHECK(updated_mod.defined());
-  return updated_mod;
-}
-
+// TODO(zhiics) Check and handle the required passes.
 Module ModulePassNode::operator()(const Module& mod,
                                   const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
@@ -375,24 +373,6 @@ FunctionPass FunctionPassNode::make(
 
 // Perform Module -> Module optimizations at the Function level.
 // TODO(zhiics) Check and handle the required passes.
-Module FunctionPassNode::operator()(const Module& mod) const {
-  PassInfo pass_info = Info();
-  LOG(INFO) << "Executing function pass : " << pass_info.operator->()->name
-            << " with opt level: " << pass_info.operator->()->opt_level << "\n";
-  CHECK(mod.defined());
-  Module new_mod = ModuleNode::make({}, mod->type_definitions);
-  PassContext ctx = PassContext::Current();
-
-  // Execute the pass function and return a new module.
-  for (const auto& it : mod->functions) {
-    auto updated_func =
-        SkipFunction(it.second) ? it.second : pass_func(it.second, ctx);
-    new_mod->Add(it.first, updated_func);
-  }
-
-  return new_mod;
-}
-
 Module FunctionPassNode::operator()(const Module& mod,
                                     const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
@@ -428,19 +408,6 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
 
 const SequentialNode* Sequential::operator->() const {
   return static_cast<const SequentialNode*>(this->node_.get());
-}
-
-// TODO(jroesch, zhiics): we currenlty only sequentially execute each pass in
-// a Sequential without the consideration of their orders. The phase
-// ordering problem needed to be handled in the future.
-Module SequentialNode::operator()(const Module& module) const {
-  Module mod = module;
-  for (const Pass& pass : passes) {
-    CHECK(pass.defined()) << "Found undefined pass for optimization.";
-    const auto* pn = pass.operator->();
-    mod = (*pn)(mod);
-  }
-  return mod;
 }
 
 void SequentialNode::ResolveDependency(const Module& mod) {
@@ -491,6 +458,9 @@ bool SequentialNode::pass_enabled(const std::string& pass_name) const {
   return ctx_node->opt_level >= opt_pass_level[pass_name];
 }
 
+// TODO(zhiics): we currenlty only sequentially execute each pass in
+// a Sequential without the consideration of their orders. The phase
+// ordering problem needed to be handled in the future.
 Module SequentialNode::operator()(const Module& module,
                                   const PassContext& pass_ctx) const {
   const auto* ctx_node = pass_ctx.operator->();

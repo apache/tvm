@@ -118,25 +118,39 @@ def build_config(opt_level=2,
                  required_pass=None,
                  disabled_pass=None):
     """Configure the build behavior by setting config variables.
+
     Parameters
     ----------
-    opt_level: int, default=2
-        Optimization level. See include/tvm/relay/transform.h for level of each
-        pass.
+    opt_level: int, optional
+        Optimization level. The optimization pass name and level are as the
+        following:
 
-    fallback_device : int or tvm.TVMContext
+        .. code-block:: python
+
+            OPT_PASS_LEVEL = {
+                "SimplifyInference": 0,
+                "OpFusion": 1,
+                "FoldConstant": 2,
+                "CombineParallelConv2D": 3,
+                "FoldScaleAxis": 3,
+                "AlterOpLayout": 3,
+                "CanonicalizeOps": 3,
+                "EliminateCommonSubexpr": 3,
+            }
+
+    fallback_device : int, str, or tvm.TVMContext, optional
         The fallback device. It is also used as the default device for
         operators without specified device during heterogeneous execution.
 
-    required_pass: set of str
+    required_pass: set of str, optional
         Optimization passes that are required regardless of optimization level.
 
-    disabled_pass: set of str
+    disabled_pass: set of str, optional
         Optimization passes to be disabled during optimization.
 
     Returns
     -------
-    config: PassContext
+    pass_context: PassContext
         The pass context for optimizations.
     """
     return PassContext(opt_level, fallback_device, required_pass,

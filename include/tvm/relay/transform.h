@@ -68,43 +68,6 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
-/*!
- * \brief A data structure to map the names of specific optimizations to
- *        numeric optimization levels
- */
-class OptPassLevel {
- public:
-  /*!
-   * \brief Get level for an optimization pass
-   *
-   * \param key pass name
-   * \return int level
-   */
-  int operator[](const std::string& key) const {
-    const auto data = CreateMap();
-    auto it = data.find(key);
-    if (it == data.end()) {
-      return -1;
-    }
-    return it->second;
-  }
-
- private:
-  static const std::unordered_map<std::string, int> CreateMap() {
-    const std::unordered_map<std::string, int> m = {
-      {"SimplifyInference", 0},
-      {"OpFusion", 1},
-      {"FoldConstant", 2},
-      {"CombineParallelConv2D", 3},
-      {"FoldScaleAxis", 3},
-      {"AlterOpLayout", 3},
-      {"CanonicalizeOps", 3},
-      {"EliminateCommonSubexpr", 3}
-    };
-    return m;
-  }
-};
-
 /*
  * \brief The context of pass.
  */
@@ -233,7 +196,9 @@ class PassNode : public RelayNode {
    *
    * \return The updated module.
    */
-  virtual Module operator()(const Module& mod) const = 0;
+  Module operator()(const Module& mod) const {
+    return this->operator()(mod, PassContext::Current());
+  }
 
   virtual Module operator()(const Module& mod,
                             const PassContext& pass_ctx) const = 0;

@@ -15,16 +15,33 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.relay.build_module
+tvm.relay.transform
 ----------------------
 
-.. automodule:: tvm.relay.build_module
+.. automodule:: tvm.relay.transform
 
-.. autofunction:: tvm.relay.build_module.build
+.. autofunction:: tvm.relay.transform.build_config
 
-.. autofunction:: tvm.relay.build_module.optimize
+.. autofunction:: tvm.relay.transform.module_pass
 
-.. autofunction:: tvm.relay.build_module.create_executor
+.. autofunction:: tvm.relay.transform.function_pass
 
-.. autoclass:: tvm.relay.build_module.GraphExecutor
+.. autofunction:: tvm.relay.transform.current_pass_context
+
+.. autoclass:: tvm.relay.transform.Pass
+    :members:
+
+.. autoclass:: tvm.relay.transform.PassInfo
+    :members:
+
+.. autoclass:: tvm.relay.transform.PassContext
+    :members:
+
+.. autoclass:: tvm.relay.transform.ModulePass
+    :members:
+
+.. autoclass:: tvm.relay.transform.FunctionPass
+    :members:
+
+.. autoclass:: tvm.relay.transform.Sequential
     :members:
