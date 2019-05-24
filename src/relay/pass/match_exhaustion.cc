@@ -70,11 +70,20 @@ class CandidateChecker : public PatternFunctor<MatchResult(const Pattern&, const
 
     // now check that subpatterns match
     CHECK(op->patterns.size() == ctor_cand->patterns.size());
+    bool unspecified = false;
     for (size_t i = 0; i < op->patterns.size(); i++) {
       MatchResult submatch = this->Check(op->patterns[i], ctor_cand->patterns[i]);
-      if (submatch != MatchResult::kMatch) {
-        return submatch;
+      // if we have a clash anywhere, then we can return clash
+      if (submatch == MatchResult::kClash) {
+        return MatchResult::kClash;
       }
+      if (submatch == MatchResult::kUnspecified) {
+        unspecified = true;
+      }
+    }
+    // only return unspecified if we have ruled out a clash
+    if (unspecified) {
+      return MatchResult::kUnspecified;
     }
     return MatchResult::kMatch;
   }
