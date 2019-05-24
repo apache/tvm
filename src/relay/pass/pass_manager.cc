@@ -25,7 +25,9 @@
 #include <dmlc/thread_local.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/device_api.h>
 
+#include <algorithm>
 #include <stack>
 #include <unordered_set>
 
@@ -90,30 +92,6 @@ PassContext PassContext::Current() {
   }
 }
 
-std::unordered_set<std::string> PassContextNode::ToStringSet(
-    const tvm::Array<tvm::Expr>& input) const {
-  std::unordered_set<std::string> ret;
-  for (const auto& it : input) {
-    const auto* strimm = it.as<tvm::ir::StringImm>();
-    CHECK(strimm);
-    ret.emplace(strimm->value);
-  }
-  return ret;
-}
-
-bool PassContextNode::pass_enabled(const std::string& pass_name) const {
-  const auto required = ToStringSet(this->required_pass);
-  const auto disabled = ToStringSet(this->disabled_pass);
-  if (disabled.count(pass_name)) {
-    return false;
-  }
-  if (required.count(pass_name)) {
-    return true;
-  }
-  return opt_level >= OPT_PASS_LEVEL[pass_name];
-}
-
-
 class ModulePass;
 
 /*!
@@ -150,14 +128,14 @@ class ModulePassNode : public PassNode {
   Module operator()(const Module& mod) const final;
 
   /*!
-   * \brief Apply a module pass on given pass context.
+   * \brief Run a module pass on given pass context.
    *
    * \param mod The module that an optimization pass is applied on.
    * \param mod The context that an optimization pass executes on.
    *
    * \return Return the updated module.
    */
-  Module Apply(const Module& mod, const PassContext& pass_ctx) const final;
+  Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -213,15 +191,14 @@ class FunctionPassNode : public PassNode {
   Module operator()(const Module& mod) const final;
 
   /*!
-   * \brief Apply a function pass on given pass context.
+   * \brief Run a function pass on given pass context.
    *
    * \param mod The module that an optimization pass is applied on.
    * \param mod The context that an optimization pass executes on.
    *
    * \return Return the updated module.
    */
-  Module Apply(const Module& mod, const PassContext& pass_ctx) const final;
-
+  Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -261,6 +238,12 @@ class SequentialNode : public PassNode {
   /* \brief The pass meta data.*/
   PassInfo pass_info;
 
+  /*!
+   * \brief A helper struct to get the optimization pass name to opt level
+   * mapping.
+   */
+  OptPassLevel opt_pass_level;
+
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -283,6 +266,15 @@ class SequentialNode : public PassNode {
   }
 
   /*!
+   * \brief Check if a pass is enabled.
+   *
+   * \param pass_name The name of an optimization/analysis pass.
+   *
+   * \return true if the pass is enabled. Otherwise, false.
+   */
+  bool pass_enabled(const std::string& pass_name) const;
+
+  /*!
    * \brief Resolve the pass dependency. It globs all required passes by
    *        a given pass and executes them.
    *
@@ -296,9 +288,11 @@ class SequentialNode : public PassNode {
    */
   void ResolveDependency(const Module& mod);
 
-  TVM_DLL std::unordered_set<std::string> DisabledPasses(
+  std::unordered_set<std::string> DisabledPasses(
       const Array<tvm::Expr>& disabled) const;
 
+  std::unordered_set<std::string> RequiredPasses(
+      const Array<tvm::Expr>& disabled) const;
   /*!
    * \brief Perform optimizations on a series of passes. The aforementioned
    *        typical pass manager jobs could be done by it. This function could
@@ -312,14 +306,14 @@ class SequentialNode : public PassNode {
   Module operator()(const Module& mod) const final;
 
   /*!
-   * \brief Apply a series of passes on given pass context.
+   * \brief Run a series of passes on given pass context.
    *
    * \param mod The module that these passes are applied on.
    * \param mod The context that these passes execute on.
    *
    * \return Return the updated module.
    */
-  Module Apply(const Module& mod, const PassContext& pass_ctx) const final;
+  Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
 
   static constexpr const char* _type_key = "relay.Sequential";
   TVM_DECLARE_NODE_TYPE_INFO(SequentialNode, PassNode);
@@ -358,8 +352,8 @@ Module ModulePassNode::operator()(const Module& mod) const {
   return updated_mod;
 }
 
-Module ModulePassNode::Apply(const Module& mod,
-                             const PassContext& pass_ctx) const {
+Module ModulePassNode::operator()(const Module& mod,
+                                  const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
   LOG(INFO) << "Executing module pass : " << pass_info.operator->()->name
             << " with opt level: " << pass_info.operator->()->opt_level << "\n";
@@ -399,8 +393,8 @@ Module FunctionPassNode::operator()(const Module& mod) const {
   return new_mod;
 }
 
-Module FunctionPassNode::Apply(const Module& mod,
-                               const PassContext& pass_ctx) const {
+Module FunctionPassNode::operator()(const Module& mod,
+                                    const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
   LOG(INFO) << "Executing function pass : " << pass_info.operator->()->name
             << " with opt level: " << pass_info.operator->()->opt_level << "\n";
@@ -469,8 +463,36 @@ std::unordered_set<std::string> SequentialNode::DisabledPasses(
   return ret;
 }
 
-Module SequentialNode::Apply(const Module& module,
-                             const PassContext& pass_ctx) const {
+std::unordered_set<std::string> SequentialNode::RequiredPasses(
+    const Array<tvm::Expr>& required) const {
+  std::unordered_set<std::string> ret;
+  for (const auto& it : required) {
+    const auto* str = it.as<tvm::ir::StringImm>();
+    CHECK(str) << "disabled passes must be string.";
+    ret.emplace(str->value);
+  }
+  return ret;
+}
+
+bool SequentialNode::pass_enabled(const std::string& pass_name) const {
+  PassContext ctx = PassContext::Current();
+
+  const PassContextNode* ctx_node = ctx.operator->();
+  auto required = RequiredPasses(ctx_node->required_pass);
+  auto disabled = DisabledPasses(ctx_node->required_pass);
+
+  if (disabled.count(pass_name)) {
+    return false;
+  }
+
+  if (required.count(pass_name)) {
+    return true;
+  }
+  return ctx_node->opt_level >= opt_pass_level[pass_name];
+}
+
+Module SequentialNode::operator()(const Module& module,
+                                  const PassContext& pass_ctx) const {
   const auto* ctx_node = pass_ctx.operator->();
   int opt_level = ctx_node->opt_level;
   auto disabled = DisabledPasses(ctx_node->disabled_pass);
@@ -485,7 +507,8 @@ Module SequentialNode::Apply(const Module& module,
     if (pass_opt_level > opt_level || disabled.count(pass_name)) {
       continue;
     }
-    mod = pass->Apply(mod, pass_ctx);
+    const auto* pn = pass.operator->();
+    mod = (*pn)(mod, pass_ctx);
   }
   return mod;
 }
@@ -608,14 +631,26 @@ TVM_REGISTER_API("relay._transform.PassContext")
   tvm::Array<tvm::Expr> disabled = args[3];
   *ret = PassContext(opt_level, fallback_device, required, disabled);
 });
-;
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<PassContextNode>([](const PassContextNode* node,
-                                tvm::IRPrinter* p) {
-    p->stream << "TODO(zhiics): printing context";
-    LOG(FATAL) << "PassContext printer has not been implemented yet."
-               << "\n";
+                               tvm::IRPrinter* p) {
+  p->stream << "Pass context information: " << "\n";
+  p->stream << "\topt_level: " << node->opt_level << "\n";
+  p->stream << "\tfallback device: " << runtime::DeviceName(node->opt_level)
+            << "\n";
+
+  p->stream << "\trequired passes: [" << node->opt_level;
+  for (const auto& it : node->required_pass) {
+    p->stream << it << " ";
+  }
+  p->stream << "]\n";
+
+  p->stream << "\tdisabled passes: [" << node->opt_level;
+  for (const auto& it : node->disabled_pass) {
+    p->stream << it << " ";
+  }
+  p->stream << "]";
 });
 
 // Enable after #3231 is merged.
@@ -624,7 +659,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 //   static void EnterScope(PassContext pass_ctx) {
 //     pass_ctx.EnterWithScope();
 //   }
-// 
+//
 //   static void ExitScope(PassContext pass_ctx) {
 //     pass_ctx.ExitWithScope();
 //   }

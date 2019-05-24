@@ -71,20 +71,8 @@ namespace transform {
  * \brief A data structure to map the names of specific optimizations to
  *        numeric optimization levels
  */
-struct OptPassLevel {
-  static const std::unordered_map<std::string, int> CreateMap() {
-    const std::unordered_map<std::string, int> m = {
-      {"SimplifyInference", 0},
-      {"OpFusion", 1},
-      {"FoldConstant", 2},
-      {"CombineParallelConv2D", 3},
-      {"FoldScaleAxis", 3},
-      {"AlterOpLayout", 3},
-      {"CanonicalizeOps", 3},
-      {"EliminateCommonSubexpr", 3}
-    };
-    return m;
-  }
+class OptPassLevel {
+ public:
   /*!
    * \brief Get level for an optimization pass
    *
@@ -98,6 +86,21 @@ struct OptPassLevel {
       return -1;
     }
     return it->second;
+  }
+
+ private:
+  static const std::unordered_map<std::string, int> CreateMap() {
+    const std::unordered_map<std::string, int> m = {
+      {"SimplifyInference", 0},
+      {"OpFusion", 1},
+      {"FoldConstant", 2},
+      {"CombineParallelConv2D", 3},
+      {"FoldScaleAxis", 3},
+      {"AlterOpLayout", 3},
+      {"CanonicalizeOps", 3},
+      {"EliminateCommonSubexpr", 3}
+    };
+    return m;
   }
 };
 
@@ -128,31 +131,6 @@ class PassContextNode : public RelayNode {
   /*! \brief The list of disabled passes. */
   tvm::Array<tvm::Expr> disabled_pass;
 
-  /*! 
-   * \brief A helper struct to get the optimization pass name to opt level
-   * mapping.
-   */
-  OptPassLevel OPT_PASS_LEVEL;
-
-  /*!
-   * \brief Convert a list of tvm StringImm to a `std::string` set.
-   *
-   * \param input. The input StringImm array.
-   *
-   * \return The coverted `std::strin`g set.
-   */
-  std::unordered_set<std::string> ToStringSet(
-      const tvm::Array<tvm::Expr>& input) const;
-
-  /*!
-   * \brief Check if a pass is enabled.
-   *
-   * \param pass_name The name of an optimization/analysis pass.
-   *
-   * \return true if the pass is enabled. Otherwise, false.
-   */
-  bool pass_enabled(const std::string& pass_name) const;
-
   PassContextNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -175,6 +153,7 @@ class PassContext : public NodeRef {
                       tvm::Array<tvm::Expr> required_pass,
                       tvm::Array<tvm::Expr> disabled_pass);
 
+  // Move exter/exit to private once #3231 is merged.
   // The entry of a pass context scope.
   TVM_DLL static void EnterWithScope(const PassContext& pass_ctx);
   // The exit of a pass context scope.
@@ -185,7 +164,7 @@ class PassContext : public NodeRef {
   const PassContextNode* operator->() const;
 
   using ContainerType = PassContextNode;
-  class Internal;
+  // class Internal;
 
  private:
   // Classes to get the Python `with` like syntax. Enabled after #3231 is merged
@@ -255,8 +234,8 @@ class PassNode : public RelayNode {
    */
   virtual Module operator()(const Module& mod) const = 0;
 
-  virtual Module Apply(const Module& mod,
-                       const PassContext& pass_ctx) const = 0;
+  virtual Module operator()(const Module& mod,
+                            const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(tvm::AttrVisitor* v) override {}
 
