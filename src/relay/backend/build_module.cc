@@ -445,7 +445,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       if (targets.size() == 1) {
         func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
         for (const auto& kv : targets) {
-          TargetContext tctx(kv.second);
+          With<Target> tctx(kv.second);
           func = CallPackedFunc("relay._ir_pass.AlterOpLayout", func);
         }
       } else {
@@ -466,9 +466,9 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   Target CreateDefaultTarget(int device_type) {
     std::string name = runtime::DeviceName(device_type);
-    if (name == "cpu") return Target::create("llvm");
-    if (name == "gpu") return Target::create("cuda");
-    return Target::create(name);
+    if (name == "cpu") return Target::Create("llvm");
+    if (name == "gpu") return Target::Create("cuda");
+    return Target::Create(name);
   }
   /*!
    * \brief Update the target and fallback device required for heterogeneous
@@ -548,7 +548,7 @@ class RelayBuildModule : public runtime::ModuleNode {
                   const RelayBuildConfig& cfg,
                   const std::unordered_map<std::string, tvm::runtime::NDArray> &params) {
     // convert
-    tvm_cfg_ = build_config();
+    tvm_cfg_ = BuildConfig::Create();
     TargetsMap device_target;
     if (targets_.size() > 1) {
       device_target = UpdateHeterogeneousInputs(targets_, cfg);

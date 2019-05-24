@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Compile executable modules.
  * \file build_module.cc
  */
@@ -148,8 +147,7 @@ TVM_REGISTER_API("_TargetCreate")
 TVM_REGISTER_API("_TargetFromString")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_str = args[0];
-
-  *ret = Target::create(target_str);
+  *ret = Target::Create(target_str);
   });
 
 std::vector<std::string> TargetNode::keys() const {
@@ -207,7 +205,7 @@ std::string GetDeviceName(const std::string& target_str) {
   return "";
 }
 
-Target Target::create(const std::string& target_str) {
+Target Target::Create(const std::string& target_str) {
   if (target_str.length() == 0) {
     LOG(ERROR) << "target_str must not be empty";
   }
@@ -231,25 +229,24 @@ Target Target::create(const std::string& target_str) {
 struct TVMTargetThreadLocalEntry {
   /*! \brief The current target context */
   std::stack<tvm::Target> context_stack;
-
-  TVMTargetThreadLocalEntry() {
-  }
 };
 
 /*! \brief Thread local store to hold the Target context stack. */
 typedef dmlc::ThreadLocalStore<TVMTargetThreadLocalEntry> TVMTargetThreadLocalStore;
 
-void Target::EnterTargetScope(const tvm::Target& target) {
+void Target::EnterWithScope() {
   TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
-  entry->context_stack.push(target);
+  entry->context_stack.push(*this);
 }
 
-void Target::ExitTargetScope() {
+void Target::ExitWithScope() {
   TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
+  CHECK(!entry->context_stack.empty());
+  CHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
-tvm::Target Target::current_target(bool allow_not_defined) {
+tvm::Target Target::Current(bool allow_not_defined) {
   TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
@@ -574,7 +571,7 @@ runtime::Module build(const Map<std::string, Array<LoweredFunc>>& inputs,
                       const BuildConfig& config) {
   Map<Target, Array<LoweredFunc>> updated_input;
   for (const auto& it : inputs) {
-    auto target = Target::create(it.first);
+    auto target = Target::Create(it.first);
     updated_input.Set(target, it.second);
   }
   return build(updated_input, target_host, config);
@@ -589,33 +586,35 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
   return build(inputs, target_host, config);
 }
 
-BuildConfig build_config() {
+BuildConfig BuildConfig::Create() {
   return BuildConfig(make_node<BuildConfigNode>());
 }
 
 /*! \brief Entry to hold the BuildConfig context stack. */
 struct TVMBuildConfigThreadLocalEntry {
   /*! \brief The default build config if the stack is empty */
-  tvm::BuildConfig default_config;
+  BuildConfig default_config;
 
   /*! \brief The current build config context */
-  std::stack<tvm::BuildConfig> context_stack;
+  std::stack<BuildConfig> context_stack;
 
   TVMBuildConfigThreadLocalEntry() :
-    default_config(build_config()) {
+      default_config(BuildConfig::Create()) {
   }
 };
 
 /*! \brief Thread local store to hold the BuildConfig context stack. */
 typedef dmlc::ThreadLocalStore<TVMBuildConfigThreadLocalEntry> TVMBuildConfigThreadLocalStore;
 
-void BuildConfig::EnterBuildConfigScope(const tvm::BuildConfig& build_config) {
+void BuildConfig::EnterWithScope() {
   TVMBuildConfigThreadLocalEntry *entry = TVMBuildConfigThreadLocalStore::Get();
-  entry->context_stack.push(build_config);
+  entry->context_stack.push(*this);
 }
 
-void BuildConfig::ExitBuildConfigScope() {
+void BuildConfig::ExitWithScope() {
   TVMBuildConfigThreadLocalEntry *entry = TVMBuildConfigThreadLocalStore::Get();
+  CHECK(!entry->context_stack.empty());
+  CHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
@@ -714,7 +713,7 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
 
 void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   auto node = static_cast<GenericFuncNode*>(node_.get());
-  auto target = Target::current_target(true);
+  auto target = Target::Current(true);
   PackedFunc func;
 
   if (target.defined()) {
@@ -740,16 +739,21 @@ TVM_REGISTER_API("_GetCurrentBuildConfig")
   *ret = BuildConfig::Current();
   });
 
+class BuildConfig::Internal {
+ public:
+  static void EnterScope(BuildConfig target) {
+    target.EnterWithScope();
+  }
+  static void ExitScope(BuildConfig target) {
+    target.ExitWithScope();
+  }
+};
+
 TVM_REGISTER_API("_EnterBuildConfigScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  BuildConfig target = args[0];
-  BuildConfig::EnterBuildConfigScope(target);
-  });
+.set_body_typed(BuildConfig::Internal::EnterScope);
 
 TVM_REGISTER_API("_ExitBuildConfigScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  BuildConfig::ExitBuildConfigScope();
-  });
+.set_body_typed(BuildConfig::Internal::ExitScope);
 
 TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -836,18 +840,23 @@ TVM_REGISTER_API("_GenericFuncCallFunc")
 TVM_REGISTER_API("_GetCurrentTarget")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   bool allow_not_defined = args[0];
-  *ret = Target::current_target(allow_not_defined);
+  *ret = Target::Current(allow_not_defined);
   });
+
+class Target::Internal {
+ public:
+  static void EnterScope(Target target) {
+    target.EnterWithScope();
+  }
+  static void ExitScope(Target target) {
+    target.ExitWithScope();
+  }
+};
 
 TVM_REGISTER_API("_EnterTargetScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  Target target = args[0];
-  Target::EnterTargetScope(target);
-  });
+.set_body_typed(Target::Internal::EnterScope);
 
 TVM_REGISTER_API("_ExitTargetScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  Target::ExitTargetScope();
-  });
+.set_body_typed(Target::Internal::ExitScope);
 
 }  // namespace tvm
