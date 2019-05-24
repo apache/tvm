@@ -77,7 +77,12 @@ def get_type_registered(type_code):
     return _api_internal._datatype_get_type_registered(type_code)
 
 
-def register_op(lower_func, op_name, target, type_name, src_type_name=None):
+def register_op(lower_func,
+                op_name,
+                target,
+                type_name,
+                src_type_name=None,
+                intrinsic_name=None):
     """Register an external function which computes the given op.
 
     Currently, this will only work with Casts and binary expressions

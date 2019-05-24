@@ -25,6 +25,7 @@ from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
 
 tgt = "llvm"
 
+
 def setup():
     # You must first load the library containing the datatype implementation.
     # In this case, we have built the test functions used below right into TVM.
@@ -72,15 +73,16 @@ def change_dtype(src, dst, expr, params, executor):
         (p, convert_ndarray(dst, params[p], executor)) for p in params)
     return expr, params
 
+
 def test_change_dtype_simple():
     shape = (3, 1)
     t = relay.TensorType(shape, 'float32')
     a = relay.var("a", t)
     b = relay.var("b", t)
-    func = relay.Function([a,b], a + b)
+    func = relay.Function([a, b], a + b)
 
-    A = tvm.nd.array(np.random.rand(3,1).astype('float32'))
-    B = tvm.nd.array(np.random.rand(3,1).astype('float32'))
+    A = tvm.nd.array(np.random.rand(3, 1).astype('float32'))
+    B = tvm.nd.array(np.random.rand(3, 1).astype('float32'))
 
     ex = relay.create_executor("graph")
     # Execute the model in the new datatype.
@@ -94,13 +96,14 @@ def test_change_dtype_simple():
     result_converted = convert_ndarray('float32', result, ex)
     print(result_converted)
 
+
 def test_change_dtype_resnet():
     expr, params = get_resnet()
 
     ex = relay.create_executor("graph")
 
     src_dtype = 'float32'
-    dst_dtype = 'custom[bfloat]16' # Change me to posit.
+    dst_dtype = 'custom[bfloat]16'  # Change me to posit.
     expr, params = change_dtype(src_dtype, dst_dtype, expr, params, ex)
 
     # Convert the input into the correct format.
@@ -111,10 +114,12 @@ def test_change_dtype_resnet():
         if not isinstance(node, relay.op.op.Op):
             if ("custom[bfloat]32" not in str(node.checked_type())):
                 print(node.checked_type())
+
     relay.ir_pass.post_order_visit(expr, print_info)
 
     # Execute the model in the new datatype.
     result = ex.evaluate(expr)(input, **params)
+
 
 def test_change_dtype_inception_v3():
     expr, params = get_inception()
@@ -122,7 +127,7 @@ def test_change_dtype_inception_v3():
     ex = relay.create_executor("graph")
 
     src_dtype = 'float32'
-    dst_dtype = 'custom[bfloat]16' # Change me to posit.
+    dst_dtype = 'custom[bfloat]16'  # Change me to posit.
     expr, params = change_dtype(src_dtype, dst_dtype, expr, params, ex)
 
     # Convert the input into the correct format.
@@ -133,10 +138,12 @@ def test_change_dtype_inception_v3():
         if not isinstance(node, relay.op.op.Op):
             if ("custom[bfloat]32" not in str(node.checked_type())):
                 print(node.checked_type())
+
     relay.ir_pass.post_order_visit(expr, print_info)
 
     # Execute the model in the new datatype.
     result = ex.evaluate(expr)(input, **params)
+
 
 def test_change_dtype_mobilenet():
     expr, params = get_mobilenet()
@@ -144,7 +151,7 @@ def test_change_dtype_mobilenet():
     ex = relay.create_executor("graph")
 
     src_dtype = 'float32'
-    dst_dtype = 'custom[bfloat]16' # Change me to posit.
+    dst_dtype = 'custom[bfloat]16'  # Change me to posit.
     expr, params = change_dtype(src_dtype, dst_dtype, expr, params, ex)
 
     # Convert the input into the correct format.
