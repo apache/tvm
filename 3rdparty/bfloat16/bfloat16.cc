@@ -121,7 +121,14 @@ float BFloat16ToFloat_wrapper(uint16_t in) {
   return out;
 }
 
-uint16_t BFloat16Add_wrapper(uint16_t a, uint16_t b) {
+TVM_DLL uint16_t IntToBFloat16_wrapper(int in) {
+  uint16_t out;
+  float in_f = (float)in;
+  FloatToBFloat16(&in_f, &out, 1);
+  return out;
+}
+
+TVM_DLL uint16_t BFloat16Add_wrapper(uint16_t a, uint16_t b) {
   uint16_t out;
   BFloat16Add(&a, &b, &out, 1);
   return out;
