@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -54,15 +54,22 @@ void Analyzer::Bind(const VarExpr& v, const Range& range) {
   // skip rewrite simplify
 }
 
-ConstraintContext::ConstraintContext(Analyzer* analyzer, const Expr& constraint) {
+
+void ConstraintContext::EnterWithScope() {
+  CHECK(exit_ == nullptr);
   // entering the scope.
-  auto f0 = analyzer->const_int_bound.EnterConstraint(constraint);
-  auto f1 = analyzer->modular_set.EnterConstraint(constraint);
+  auto f0 = analyzer_->const_int_bound.EnterConstraint(constraint_);
+  auto f1 = analyzer_->modular_set.EnterConstraint(constraint_);
   // recovery function.
   exit_ = [f0, f1]() {
     if (f1 != nullptr) f1();
     if (f0 != nullptr) f0();
   };
+}
+
+void ConstraintContext::ExitWithScope() {
+  CHECK(exit_ != nullptr);
+  exit_();
 }
 
 bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {

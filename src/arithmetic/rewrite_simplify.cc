@@ -1200,11 +1200,11 @@ Mutate_(const Select* op, const Expr& self) {
   Expr cond = Mutate(op->condition);
   Expr true_value, false_value;
   {
-    ConstraintContext constraint(parent_, cond);
+    With<ConstraintContext> constraint(parent_, cond);
     true_value = Mutate(op->true_value);
   }
   {
-    ConstraintContext constraint(parent_, Mutate(Not::make(cond)));
+    With<ConstraintContext> constraint(parent_, Mutate(Not::make(cond)));
     false_value = Mutate(op->false_value);
   }
   if (is_zero(cond)) {
@@ -1237,11 +1237,11 @@ Mutate_(const Call* op, const Expr& self) {
     Expr cond = Mutate(op->args[0]);
     Expr true_value, false_value;
     {
-      ConstraintContext constraint(parent_, cond);
+      With<ConstraintContext> constraint(parent_, cond);
       true_value = Mutate(op->args[1]);
     }
     {
-      ConstraintContext constraint(parent_, Mutate(Not::make(cond)));
+      With<ConstraintContext> constraint(parent_, Mutate(Not::make(cond)));
       false_value = Mutate(op->args[2]);
     }
     if (is_zero(cond)) {
