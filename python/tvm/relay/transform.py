@@ -73,21 +73,11 @@ class PassContext(RelayNode):
     disabled_pass : Optional[List[str]]
         The list of passes that are disabled.
     """
-    defaults = {
-        "opt_level": 2,
-        "required_pass": None,
-        "disabled_pass": None,
-        "fallback_device": _nd.cpu(),
-    }
-
-    def __init__(self, **kwargs):
-        for k, _ in kwargs.items():
-            if k not in PassContext.defaults:
-                raise ValueError("invalid argument %s, candidates are %s" %
-                                 (k, PassContext.defaults.keys()))
-
-        fallback_device = kwargs["fallback_device"] if "fallback_device" in \
-                            kwargs else PassContext.defaults["fallback_device"]
+    def __init__(self,
+                 opt_level=2,
+                 fallback_device=_nd.cpu(),
+                 required_pass=None,
+                 disabled_pass=None):
         if isinstance(fallback_device, str):
             fallback_device = _nd.context(fallback_device).device_type
         elif isinstance(fallback_device, TVMContext):
@@ -96,22 +86,15 @@ class PassContext(RelayNode):
             raise TypeError("required_pass is expected to be the type of " +
                             "int/str/TVMContext.")
 
-        required = kwargs["required_pass"] if "required_pass" in kwargs \
-                    else PassContext.defaults["required_pass"]
-        required = required if required else []
+        required = list(required_pass) if required_pass else []
         if not isinstance(required, (list, tuple)):
             raise TypeError("required_pass is expected to be the type of " +
                             "list/tuple/set.")
 
-        disabled = kwargs["disabled_pass"] if "disabled_pass" in kwargs \
-                    else PassContext.defaults["disabled_pass"]
-        disabled = disabled if disabled else []
+        disabled = list(disabled_pass) if disabled_pass else []
         if not isinstance(disabled, (list, tuple)):
             raise TypeError("disabled_pass is expected to be the type of " +
                             "list/tuple/set.")
-
-        opt_level = kwargs["opt_level"] if "opt_level" in kwargs \
-                    else PassContext.defaults["opt_level"]
 
         self.__init_handle_by_constructor__(_transform.PassContext, opt_level,
                                             fallback_device, required,
@@ -130,12 +113,20 @@ def current_pass_context():
     return _transform.GetCurrentPassContext()
 
 
-def build_config(**kwargs):
+def build_config(opt_level=2,
+                 fallback_device=_nd.cpu(),
+                 required_pass=None,
+                 disabled_pass=None):
     """Configure the build behavior by setting config variables.
     Parameters
     ----------
     opt_level: int, default=2
-        Optimization level. See OPT_PASS_LEVEL for level of each pass.
+        Optimization level. See include/tvm/relay/transform.h for level of each
+        pass.
+
+    fallback_device : int or tvm.TVMContext
+        The fallback device. It is also used as the default device for
+        operators without specified device during heterogeneous execution.
 
     required_pass: set of str
         Optimization passes that are required regardless of optimization level.
@@ -143,15 +134,13 @@ def build_config(**kwargs):
     disabled_pass: set of str
         Optimization passes to be disabled during optimization.
 
-    fallback_device : int or tvm.TVMContext
-        The fallback device. It is also used as the default device for
-        operators without specified device during heterogeneous execution.
     Returns
     -------
     config: PassContext
         The pass context for optimizations.
     """
-    return PassContext(**kwargs)
+    return PassContext(opt_level, fallback_device, required_pass,
+                       disabled_pass)
 
 
 @register_relay_node

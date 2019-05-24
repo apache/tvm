@@ -61,6 +61,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
