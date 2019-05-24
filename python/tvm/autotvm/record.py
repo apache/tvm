@@ -98,9 +98,7 @@ def encode(inp, result, protocol='json'):
                   result.all_cost,
                   result.timestamp),
 
-            "v": AUTOTVM_LOG_VERSION,
-
-            "s": result.sim_stats
+            "v": AUTOTVM_LOG_VERSION
         }
         return json.dumps(json_dict)
     if protocol == 'pickle':

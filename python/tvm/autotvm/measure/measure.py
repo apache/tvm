@@ -34,7 +34,7 @@ class MeasureInput(namedtuple("MeasureInput", ["target", "task", "config"])):
     """
 
 
-class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost", "timestamp", "sim_stats"])):
+class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost", "timestamp"])):
     """
     Stores all the results of a measurement
 
@@ -49,8 +49,6 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
         All cost of this measure, including rpc, compilation, test runs
     timestamp: float
         The absolute time stamp when we finish measurement.
-    sim_stats: Dictionary
-        Dictionary of VTA simulator statistics (only used when target is VTA)
     """
 
 
