@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload as get_inception
 from tvm.relay.testing.resnet import get_workload as get_resnet
 from tvm.relay.testing.mobilenet import get_workload as get_mobilenet
-from tvm.target.datatype import register, register_min_func, register_op, create_lower_func
+from tvm.target.datatype import register, register_min_func, register_op, create_lower_func, lower_ite
 
 tgt = "llvm"
 
@@ -66,6 +66,25 @@ def setup():
                 "bfloat")
     register_min_func(lambda num_bits: -3.38953139e38, "bfloat")
 
+    register_op(
+        create_lower_func("BFloat16Sqrt_wrapper"),
+        "Call",
+        "llvm",
+        "bfloat",
+        intrinsic_name="sqrt")
+    # TODO(gus) not sure if this will work...
+    register_op(
+        lower_ite,
+        "Call",
+        "llvm",
+        "bfloat",
+        intrinsic_name="tvm_if_then_else")
+    register_op(
+        create_lower_func("BFloat16Exp_wrapper"),
+        "Call",
+        "llvm",
+        "bfloat",
+        intrinsic_name="exp")
 
 
 def test_change_dtype_simple():
