@@ -583,6 +583,31 @@ def test_forward_rnn_layer():
         verify(mode, 64, 10, 64, 2)
         verify(mode, 64, 10, 32, 2)
 
+def test_forward_Crop():
+    def verify(xshape, yshape, offset=None):
+        x_data = np.random.uniform(size=xshape).astype("float32")
+        y_data = np.random.uniform(size=yshape).astype("float32")
+        if offset is None:
+            mx_sym = mx.sym.Crop(mx.sym.var("x"), mx.sym.var("y"))
+            ref_res = mx.nd.Crop(mx.nd.array(x_data), mx.nd.array(y_data))
+        else:
+            mx_sym = mx.sym.Crop(mx.sym.var("x"), mx.sym.var("y"), offset=offset)
+            ref_res = mx.nd.Crop(mx.nd.array(x_data), mx.nd.array(y_data), offset=offset)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": xshape, "y": yshape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                if offset is None or offset == (0, 0):
+                    op_res = intrp.evaluate(new_sym)(x_data, y_data)
+                else:
+                    op_res = intrp.evaluate(new_sym)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((1, 3, 40, 40), (1, 3, 20, 20))
+    verify((1, 3, 40, 40), (1, 3, 20, 20), (0, 0))
+    verify((1, 3, 40, 40), (1, 3, 20, 20), (10, 10))
+    verify((5, 32, 40, 40), (5, 32, 25, 25))
+    verify((5, 32, 40, 40), (5, 32, 25, 25), (5, 5))
+
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -624,3 +649,4 @@ if __name__ == '__main__':
     test_forward_gather_nd()
     test_forward_bilinear_resize()
     test_forward_rnn_layer()
+    test_forward_Crop()
