@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Compile Darknet Models
-=====================
-This article is a test script to test darknet models with NNVM.
+Test Darknet Models
+===================
+This article is a test script to test darknet models with Relay.
 All the required models and libraries will be downloaded from the internet
 by the script.
 """
@@ -26,18 +26,18 @@ import tvm
 from tvm.contrib import graph_runtime
 from tvm.contrib.download import download_testdata
 download_testdata.__test__ = False
-from nnvm import frontend
 from tvm.relay.testing.darknet import LAYERTYPE
 from tvm.relay.testing.darknet import __darknetffi__
-import nnvm.compiler
+from tvm.relay.frontend.darknet import ACTIVATION
+from tvm import relay
 
+REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
 DARKNET_LIB = 'libdarknet2.0.so'
-DARKNETLIB_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib/' \
-                                    + DARKNET_LIB + '?raw=true'
+DARKNETLIB_URL = REPO_URL + 'lib/' + DARKNET_LIB + '?raw=true'
 LIB = __darknetffi__.dlopen(download_testdata(DARKNETLIB_URL, DARKNET_LIB, module='darknet'))
 
 DARKNET_TEST_IMAGE_NAME = 'dog.jpg'
-DARKNET_TEST_IMAGE_URL = 'https://github.com/siju-samuel/darknet/blob/master/data/' + DARKNET_TEST_IMAGE_NAME +'?raw=true'
+DARKNET_TEST_IMAGE_URL = REPO_URL + 'data/' + DARKNET_TEST_IMAGE_NAME +'?raw=true'
 DARKNET_TEST_IMAGE_PATH = download_testdata(DARKNET_TEST_IMAGE_URL, DARKNET_TEST_IMAGE_NAME, module='data')
 
 def _read_memory_buffer(shape, data, dtype='float32'):
@@ -49,20 +49,22 @@ def _read_memory_buffer(shape, data, dtype='float32'):
         data_np[i] = data[i]
     return data_np.reshape(shape)
 
-def _get_tvm_output(net, data, build_dtype='float32'):
+def _get_tvm_output(net, data, build_dtype='float32', states=None):
     '''Compute TVM output'''
     dtype = 'float32'
-    sym, params = frontend.darknet.from_darknet(net, dtype)
-
+    sym, params = relay.frontend.from_darknet(net, data.shape, dtype)
     target = 'llvm'
     shape_dict = {'data': data.shape}
-    graph, library, params = nnvm.compiler.build(sym, target, shape_dict,
-                                                 build_dtype, params=params)
+    graph, library, params = relay.build(sym, target, params=params)
+
     # Execute on TVM
     ctx = tvm.cpu(0)
     m = graph_runtime.create(graph, library, ctx)
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
+    if states:
+        for name in states.keys():
+            m.set_input(name, tvm.nd.array(states[name].astype(dtype)))
     m.set_input(**params)
     m.run()
     # get outputs
@@ -133,16 +135,16 @@ def verify_darknet_frontend(net, build_dtype='float32'):
     for tvm_outs, darknet_out in zip(tvm_out, darknet_output):
         tvm.testing.assert_allclose(darknet_out, tvm_outs, rtol=1e-3, atol=1e-3)
 
-def verify_rnn_forward(net):
+def _test_rnn_network(net, states):
     '''Test network with given input data on both darknet and tvm'''
     def get_darknet_network_predict(net, data):
         return LIB.network_predict(net, data)
     from cffi import FFI
     ffi = FFI()
     np_arr = np.zeros([1, net.inputs], dtype='float32')
-    np_arr[0, 84] = 1
+    np_arr[0, 2] = 1
     cffi_arr = ffi.cast('float*', np_arr.ctypes.data)
-    tvm_out = _get_tvm_output(net, np_arr)[0]
+    tvm_out = _get_tvm_output(net, np_arr, states=states)[0]
     darknet_output = get_darknet_network_predict(net, cffi_arr)
     darknet_out = np.zeros(net.outputs, dtype='float32')
     for i in range(net.outputs):
@@ -263,7 +265,7 @@ def test_forward_avgpooling():
     verify_darknet_frontend(net)
     LIB.free_network(net)
 
-def test_forward_batch_norm():
+def test_forward_conv_batch_norm():
     '''test batch normalization layer'''
     net = LIB.make_network(1)
     layer = LIB.make_convolutional_layer(1, 224, 224, 3, 32, 1, 3, 2, 0, 1, 1, 0, 0, 0)
@@ -282,7 +284,7 @@ def test_forward_shortcut():
     layer_1 = LIB.make_convolutional_layer(1, 224, 224, 3, 32, 1, 3, 2, 0, 1, 0, 0, 0, 0)
     layer_2 = LIB.make_convolutional_layer(1, 111, 111, 32, 32, 1, 1, 1, 0, 1, 0, 0, 0, 0)
     layer_3 = LIB.make_shortcut_layer(1, 0, 111, 111, 32, 111, 111, 32)
-    layer_3.activation = 1
+    layer_3.activation = ACTIVATION.RELU
     layer_3.alpha = 1
     layer_3.beta = 1
     net.layers[0] = layer_1
@@ -360,7 +362,7 @@ def test_forward_elu():
     '''test elu activation layer'''
     net = LIB.make_network(1)
     layer_1 = LIB.make_convolutional_layer(1, 224, 224, 3, 32, 1, 3, 2, 0, 1, 0, 0, 0, 0)
-    layer_1.activation = 8
+    layer_1.activation = ACTIVATION.ELU
     net.layers[0] = layer_1
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
@@ -389,86 +391,6 @@ def test_forward_softmax_temperature():
     verify_darknet_frontend(net)
     LIB.free_network(net)
 
-def test_forward_rnn():
-    '''test RNN layer'''
-    net = LIB.make_network(1)
-    batch = 1
-    inputs = 256
-    outputs = 256
-    steps = 1
-    activation = 1
-    batch_normalize = 0
-    adam = 0
-    layer_1 = LIB.make_rnn_layer(batch, inputs, outputs, steps, activation, batch_normalize, adam)
-    net.layers[0] = layer_1
-    net.inputs = inputs
-    net.outputs = outputs
-    net.w = net.h = 0
-    LIB.resize_network(net, net.w, net.h)
-    verify_rnn_forward(net)
-    LIB.free_network(net)
-
-def _test_forward_crnn():
-    '''test CRNN layer'''
-    net = LIB.make_network(1)
-    batch = 1
-    c = 3
-    h = 224
-    w = 224
-    hidden_filters = c
-    output_filters = c
-    steps = 1
-    activation = 0
-    batch_normalize = 0
-    inputs = 256
-    outputs = 256
-    layer_1 = LIB.make_crnn_layer(batch, h, w, c, hidden_filters, output_filters,
-                                  steps, activation, batch_normalize)
-    net.layers[0] = layer_1
-    net.inputs = inputs
-    net.outputs = output_filters * h * w
-    net.w = w
-    net.h = h
-    LIB.resize_network(net, net.w, net.h)
-    verify_darknet_frontend(net)
-    LIB.free_network(net)
-
-def test_forward_lstm():
-    '''test LSTM layer'''
-    net = LIB.make_network(1)
-    batch = 1
-    inputs = 256
-    outputs = 256
-    steps = 1
-    batch_normalize = 0
-    adam = 0
-    layer_1 = LIB.make_lstm_layer(batch, inputs, outputs, steps, batch_normalize, adam)
-    net.layers[0] = layer_1
-    net.inputs = inputs
-    net.outputs = outputs
-    net.w = net.h = 0
-    LIB.resize_network(net, net.w, net.h)
-    verify_rnn_forward(net)
-    LIB.free_network(net)
-
-def test_forward_gru():
-    '''test GRU layer'''
-    net = LIB.make_network(1)
-    batch = 1
-    inputs = 256
-    outputs = 256
-    steps = 1
-    batch_normalize = 0
-    adam = 0
-    layer_1 = LIB.make_gru_layer(batch, inputs, outputs, steps, batch_normalize, adam)
-    net.layers[0] = layer_1
-    net.inputs = inputs
-    net.outputs = outputs
-    net.w = net.h = 0
-    LIB.resize_network(net, net.w, net.h)
-    verify_rnn_forward(net)
-    LIB.free_network(net)
-
 def test_forward_activation_logistic():
     '''test logistic activation layer'''
     net = LIB.make_network(1)
@@ -481,7 +403,7 @@ def test_forward_activation_logistic():
     size = 3
     stride = 2
     padding = 0
-    activation = 0
+    activation = ACTIVATION.LOGISTIC
     batch_normalize = 0
     binary = 0
     xnor = 0
@@ -495,6 +417,26 @@ def test_forward_activation_logistic():
     verify_darknet_frontend(net)
     LIB.free_network(net)
 
+def test_forward_rnn():
+    '''test RNN layer'''
+    net = LIB.make_network(1)
+    batch = 1
+    inputs = 4
+    outputs = 4
+    steps = 1
+    activation = ACTIVATION.RELU
+    batch_normalize = 0
+    adam = 0
+    layer_1 = LIB.make_rnn_layer(batch, inputs, outputs, steps, activation, batch_normalize, adam)
+    net.layers[0] = layer_1
+    net.inputs = inputs
+    net.outputs = outputs
+    net.w = net.h = 0
+    LIB.resize_network(net, net.w, net.h)
+    states = {"rnn0_state": np.zeros([1, net.inputs])}
+    _test_rnn_network(net, states)
+    LIB.free_network(net)
+
 if __name__ == '__main__':
     test_forward_resnet50()
     test_forward_alexnet()
@@ -504,13 +446,12 @@ if __name__ == '__main__':
     test_forward_convolutional()
     test_forward_maxpooling()
     test_forward_avgpooling()
-    test_forward_batch_norm()
+    test_forward_conv_batch_norm()
     test_forward_shortcut()
     test_forward_dense()
     test_forward_dense_batchnorm()
     test_forward_softmax()
     test_forward_softmax_temperature()
-    test_forward_rnn()
     test_forward_reorg()
     test_forward_region()
     test_forward_yolo_op()
@@ -518,8 +459,4 @@ if __name__ == '__main__':
     test_forward_l2normalize()
     test_forward_elu()
     test_forward_rnn()
-# FIXME: Skip CRNN test since it causes segfault in libdarknet2.0.so
-#    _test_forward_crnn()
-    test_forward_lstm()
-    test_forward_gru()
     test_forward_activation_logistic()
