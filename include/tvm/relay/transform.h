@@ -56,6 +56,7 @@
 #ifndef TVM_RELAY_TRANSFORM_H_
 #define TVM_RELAY_TRANSFORM_H_
 
+#include <tvm/base.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
@@ -117,23 +118,23 @@ class PassContext : public NodeRef {
                       tvm::Array<tvm::Expr> required_pass,
                       tvm::Array<tvm::Expr> disabled_pass);
 
-  // Move exter/exit to private once #3231 is merged.
-  // The entry of a pass context scope.
-  TVM_DLL static void EnterWithScope(const PassContext& pass_ctx);
-  // The exit of a pass context scope.
-  TVM_DLL static void ExitWithScope();
   // Get the currently used pass context.
   TVM_DLL static PassContext Current();
 
   const PassContextNode* operator->() const;
 
   using ContainerType = PassContextNode;
-  // class Internal;
+  class Internal;
 
  private:
-  // Classes to get the Python `with` like syntax. Enabled after #3231 is merged
-  // friend class Internal;
-  // friend class With<PassContext>;
+  // The entry of a pass context scope.
+  TVM_DLL void EnterWithScope();
+  // The exit of a pass context scope.
+  TVM_DLL void ExitWithScope();
+
+  // Classes to get the Python `with` like syntax.
+  friend class Internal;
+  friend class tvm::With<PassContext>;
 };
 
 /*

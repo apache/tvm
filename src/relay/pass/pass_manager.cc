@@ -105,17 +105,17 @@ struct RelayPassContextThreadLocalEntry {
 typedef dmlc::ThreadLocalStore<RelayPassContextThreadLocalEntry>
     RelayPassContextThreadLocalStore;
 
-void PassContext::EnterWithScope(const PassContext& pass_ctx) {
+void PassContext::EnterWithScope() {
   RelayPassContextThreadLocalEntry* entry =
       RelayPassContextThreadLocalStore::Get();
-  entry->context_stack.push(pass_ctx);
+  entry->context_stack.push(*this);
 }
 
 void PassContext::ExitWithScope() {
   RelayPassContextThreadLocalEntry* entry =
       RelayPassContextThreadLocalStore::Get();
   CHECK(!entry->context_stack.empty());
-  // CHECK(entry->context_stack.top().same_as(*this));
+  CHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
@@ -623,26 +623,25 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "]";
 });
 
-// Enable after #3231 is merged.
-// class PassContext::Internal {
-//  public:
-//   static void EnterScope(PassContext pass_ctx) {
-//     pass_ctx.EnterWithScope();
-//   }
-//
-//   static void ExitScope(PassContext pass_ctx) {
-//     pass_ctx.ExitWithScope();
-//   }
-// };
+class PassContext::Internal {
+ public:
+  static void EnterScope(PassContext pass_ctx) {
+    pass_ctx.EnterWithScope();
+  }
+
+  static void ExitScope(PassContext pass_ctx) {
+    pass_ctx.ExitWithScope();
+  }
+};
 
 TVM_REGISTER_API("relay._transform.GetCurrentPassContext")
 .set_body_typed(PassContext::Current);
 
 TVM_REGISTER_API("relay._transform.EnterPassContext")
-.set_body_typed(PassContext::EnterWithScope);
+.set_body_typed(PassContext::Internal::EnterScope);
 
 TVM_REGISTER_API("relay._transform.ExitPassContext")
-.set_body_typed(PassContext::ExitWithScope);
+.set_body_typed(PassContext::Internal::ExitScope);
 
 }  // namespace transform
 }  // namespace relay
