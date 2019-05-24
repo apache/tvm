@@ -187,7 +187,7 @@ class BuildConfig(NodeBase):
     def __exit__(self, ptype, value, trace):
         if self.dump_pass_ir:
             BuildConfig._dump_ir.exit()
-        _api_internal._ExitBuildConfigScope()
+        _api_internal._ExitBuildConfigScope(self)
 
     def __setattr__(self, name, value):
         if name in BuildConfig._node_defaults:

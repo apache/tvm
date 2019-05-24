@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -50,14 +50,14 @@ TEST(BuildModule, Basic) {
   auto args = Array<Tensor>({ A, B, C });
   std::unordered_map<Tensor, Buffer> binds;
 
-  auto config = build_config();
+  auto config = BuildConfig::Create();
   auto target = target::llvm();
 
   auto lowered = lower(s, args, "func", binds, config);
   auto module = build(lowered, target, Target(), config);
 
-  auto mali_target = Target::create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
-  CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali"); 
+  auto mali_target = Target::Create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
+  CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali");
 }
 
 TEST(BuildModule, Heterogeneous) {
@@ -105,7 +105,7 @@ TEST(BuildModule, Heterogeneous) {
   auto s1 = topi::cuda::schedule_injective(target_cuda, {elemwise_add});
   auto s2 = create_schedule({elemwise_sub->op});
 
-  auto config = build_config();
+  auto config = BuildConfig::Create();
   auto args1 = Array<Tensor>({A, B, elemwise_add});
   auto args2 = Array<Tensor>({copy, C, elemwise_sub});
 

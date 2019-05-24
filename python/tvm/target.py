@@ -133,7 +133,7 @@ class Target(NodeBase):
         return self
 
     def __exit__(self, ptype, value, trace):
-        _api_internal._ExitTargetScope()
+        _api_internal._ExitTargetScope(self)
 
 
 @register_node
