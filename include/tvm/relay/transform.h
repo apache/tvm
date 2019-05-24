@@ -331,11 +331,11 @@ TVM_DLL Pass FoldConstant();
 /*!
  * \brief Fuse operations into expr into seperate functions.
  *
- * \param fuse_opt_level Optimization level.
+ * \param fuse_opt_level Optimization level. If it is -1 it will be inferred from pass context.
  *
  * \return The pass.
  */
-TVM_DLL Pass FuseOps(int fuse_opt_level);
+TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order.
