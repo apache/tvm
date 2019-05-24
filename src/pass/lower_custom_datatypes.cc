@@ -115,7 +115,7 @@ class CustomDatatypesLowerer : public IRMutator {
       //                     call->value_index);
       // }
     }
-    return e;
+    return expr;
   }
 
 #define DEFINE_MUTATE__(OP)                                                        \
