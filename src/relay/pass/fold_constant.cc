@@ -215,5 +215,17 @@ Expr FoldConstant(const Expr& expr) {
 TVM_REGISTER_API("relay._ir_pass.FoldConstant")
 .set_body_typed(FoldConstant);
 
+namespace transform {
+
+Pass FoldConstant() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(FoldConstant(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "fold_constant", {});
+}
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm
