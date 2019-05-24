@@ -188,7 +188,10 @@ def test_change_dtype_mobilenet():
     # relay.ir_pass.post_order_visit(expr, print_info)
 
     # Execute the model in the new datatype.
-    result = ex.evaluate(expr)(input, **params)
+    with tvm.build_config(disable_vectorize=True):
+        result = ex.evaluate(expr)(input, **params)
+        print(convert_ndarray("float32", result, ex))
+
 
 if __name__ == "__main__":
     setup()
