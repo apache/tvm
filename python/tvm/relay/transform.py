@@ -63,14 +63,14 @@ class PassContext(RelayNode):
     opt_level : Optional[int]
         The optimization level of this pass.
 
-    fallback_device : Optional[int]
+    fallback_device : Optional[Union[int, str, TVMContext]]
         The fallback device type. It is also used as the default device for
         operators that are not annotated during heterogeneous execution.
 
-    required_pass : Optional[List[str]]
+    required_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are required by a certain pass.
 
-    disabled_pass : Optional[List[str]]
+    disabled_pass : Optional[Union[List[str], Set[str], Tuple[str]]]
         The list of passes that are disabled.
     """
     def __init__(self,
@@ -107,10 +107,10 @@ class PassContext(RelayNode):
     def __exit__(self, ptype, value, trace):
         _transform.ExitPassContext(self)
 
-
-def current_pass_context():
-    """Return the current pass context."""
-    return _transform.GetCurrentPassContext()
+    @staticmethod
+    def current():
+        """Return the current pass context."""
+        return _transform.GetCurrentPassContext()
 
 
 def build_config(opt_level=2,

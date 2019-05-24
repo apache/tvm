@@ -118,7 +118,7 @@ class BuildModule(object):
         return graph_json, mod, params
 
     def _setup_build_config(self, params):
-        cfg = _transform.current_pass_context()
+        cfg = _transform.PassContext.current()
 
         # Set opt_level.
         self.set_opt_level(cfg.opt_level)

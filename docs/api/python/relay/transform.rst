@@ -26,8 +26,6 @@ tvm.relay.transform
 
 .. autofunction:: tvm.relay.transform.function_pass
 
-.. autofunction:: tvm.relay.transform.current_pass_context
-
 .. autoclass:: tvm.relay.transform.Pass
     :members:
 

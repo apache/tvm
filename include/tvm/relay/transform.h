@@ -114,7 +114,19 @@ class PassContext : public NodeRef {
   PassContext() {}
   explicit PassContext(tvm::NodePtr<Node> n) : NodeRef(n) {}
 
-  TVM_DLL PassContext(int opt_level, int fallback_device,
+  /*
+   * \brief Constructor of a `PassContext` object.
+   *
+   * \param opt_level The optimization level that will be applied.
+   * \param fallback_device The fallback device used for heterogeneous
+   *        execution.
+   * \param required_pass The passes that are required for a context to execute
+   *        other passes.
+   * \param required_pass The passes that will be disabled during the
+   *        optimization under a context.
+   */
+  TVM_DLL PassContext(int opt_level,
+                      int fallback_device,
                       tvm::Array<tvm::Expr> required_pass,
                       tvm::Array<tvm::Expr> disabled_pass);
 
@@ -191,7 +203,8 @@ class PassNode : public RelayNode {
   virtual PassInfo Info() const = 0;
 
   /*!
-   * \brief Execute the optimization pass using a functor.
+   * \brief Execute the optimization pass using a functor. This functor
+   * internally uses a current pass context.
    *
    * \param mod The module that an optimization pass runs on.
    *
@@ -201,6 +214,15 @@ class PassNode : public RelayNode {
     return this->operator()(mod, PassContext::Current());
   }
 
+  /*!
+   * \brief Execute the optimization pass using a functor under a given pass context.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The pass context that will be used to help the execution of
+   *        optimizations.
+   *
+   * \return The updated module.
+   */
   virtual Module operator()(const Module& mod,
                             const PassContext& pass_ctx) const = 0;
 
@@ -228,11 +250,22 @@ class Sequential : public Pass {
  public:
   /*!
    * \brief The constructor of `Sequential`.
+   *
    * \param passes The passes to apply.
    * \param pass_info The pass metadata.
    */
   TVM_DLL Sequential(tvm::Array<Pass> passes,
                      PassInfo pass_info);
+/*!
+   * \brief The constructor of `Sequential`.
+   *
+   * \param passes The passes to apply.
+   * \param name The name of a sequential pass. It's defaulted to "sequential".
+   *        This allows users to only provide a list of passes and execute them
+   *        under a given context.
+   */
+  TVM_DLL Sequential(tvm::Array<Pass> passes, std::string name = "sequential");
+
   Sequential() = default;
   explicit Sequential(tvm::NodePtr<::tvm::Node> n) : Pass(n) {}
 

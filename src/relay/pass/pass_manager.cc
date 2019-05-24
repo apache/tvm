@@ -406,6 +406,14 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
   node_ = std::move(n);
 }
 
+Sequential::Sequential(tvm::Array<Pass> passes, std::string name) {
+  auto n = make_node<SequentialNode>();
+  n->passes = std::move(passes);
+  PassInfo pass_info = PassInfoNode::make(2, std::move(name), {});
+  n->pass_info = std::move(pass_info);
+  node_ = std::move(n);
+}
+
 const SequentialNode* Sequential::operator->() const {
   return static_cast<const SequentialNode*>(this->node_.get());
 }
