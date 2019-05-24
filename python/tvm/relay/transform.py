@@ -394,3 +394,235 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     if pass_func:
         return create_function_pass(pass_func)
     return create_function_pass
+
+
+def infer_type():
+    """Infer the type of an expr.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered type inference pass.
+    """
+    return _transform.InferType()
+
+
+def backward_fold_scale_axis():
+    """Backward fold axis scaling into weights of conv2d/dense.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass to backward fold expressions.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis before using
+    forward_fold_scale_axis. As backward folding targets common conv-bn
+    pattern.
+    """
+    return _transform.BackwardFoldScaleAxis()
+
+
+def forward_fold_scale_axis():
+    """Fold the scaling of axis into weights of conv2d/dense.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass to forward fold expressions.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis before using
+    forward_fold_scale_axis. As backward folding targets common conv-bn
+    pattern.
+    """
+    return _transform.ForwardFoldScaleAxis()
+
+
+def fold_scale_axis():
+    """Fold the scaling of axis into weights of conv2d/dense. This pass will
+    invoke both forward and backward scale folding.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass to fold expressions.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis before using
+    forward_fold_scale_axis. As backward folding targets common conv-bn
+    pattern.
+    """
+    return _transform.FoldScaleAxis()
+
+
+def simplify_inference():
+    """Simplify the data-flow graph for inference phase. An simplified expression
+    which is semantically equal to the input expression will be returned.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered to perform operator simplification.
+    """
+    return _transform.SimplifyInference()
+
+
+def canonicalize_ops():
+    """ Canonicalize special operators to basic operators.
+    This can simplify followed analysis. (e.g. expanding bias_add to
+    expand_dims and broadcast_add.)
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass performing the canonicalization.
+    """
+    return _transform.CanonicalizeOps()
+
+
+def dead_code_elimination():
+    """ Remove expressions which does not effect the program result (dead code).
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that eliminates the dead code in a Relay program.
+    """
+    return _transform.DeadCodeElimination()
+
+
+def fold_constant():
+    """Fold the constant expression in expr.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass for constant folding.
+    """
+    return _transform.FoldConstant()
+
+
+def fuse_ops(fuse_opt_level=-1):
+    """Fuse operators in an expr to a larger operator according to some rules.
+
+    Parameters
+    ----------
+    fuse_opt_level : int
+        The level of fuse optimization. -1 indicates that the level will be
+        inferred from pass context.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass for operator fusion.
+    """
+    return _transform.FuseOps(fuse_opt_level)
+
+
+def combine_parallel_conv2d(min_num_branches=3):
+    """Combine multiple conv2d operators into one.
+
+    Parameters
+    ----------
+    min_num_branches : int
+        The minimum number of required parallel branches for performing this
+        optimization.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that combines parallel conv2d operators.
+    """
+    return _transform.CombineParallelConv2D(min_num_branches)
+
+
+def alter_op_layout():
+    """Alternate the layouts of operators or replace primitive operators with
+    other expressions.
+    This pass can be used for computing convolution in custom layouts or
+    other general weight pre-transformation.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that alters the layout of operators.
+    """
+    return _transform.AlterOpLayout()
+
+
+def rewrite_annotated_ops(fallback_device):
+    """Rewrite the annotated program where annotation operators, e.g.
+    `on_deivce`, mark which device an expression should be scheduled to.
+    This pass helps heterogeneous execution where different operators may need
+    to be allocated on various devices.
+
+    Parameters
+    ----------
+    fallback_device : int
+        The fallback device type. It is also used as the default device for
+        operators with no annotated device.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that rewrites an expression with annotated
+        `on_device` operators.
+    """
+    return _transform.RewriteDeviceAnnotation(fallback_device)
+
+
+def to_a_normal_form():
+    """Turn Graph Normal Form expression into A Normal Form Expression.
+    The scope of the root expression is the global scope.
+    The scope of any non root expression is the least common ancestor of all it's scope.
+    Values are ordered by post-DFS order in each scope.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that transforms an expression into A Normal Form.
+    """
+    return _transform.ToANormalForm()
+
+
+def to_graph_normal_form():
+    """Turn A Normal Form expression into Graph Normal Form expression
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that transforms an expression into Graph Normal Form.
+    """
+    return _transform.ToGraphNormalForm()
+
+
+def eliminate_common_subexpr(fskip=None):
+    """Eliminate common subexpressions.
+
+    Parameters
+    ----------
+    fskip: Callable
+        The callback function that decides whether an expression should be
+        skipped.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that eliminates common subexpressions.
+    """
+    return _transform.EliminateCommonSubexpr(fskip)
+
+
+def partial_evaluate():
+    """Evaluate the static fragment of the code.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that performs partial evaluation on an expression.
+    """
+    return _transform.PartialEval()

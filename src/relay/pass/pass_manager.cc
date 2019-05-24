@@ -37,42 +37,69 @@ namespace transform {
 
 using tvm::IRPrinter;
 
-/*!
- * \brief A data structure to map the names of specific optimizations to
- *        numeric optimization levels
- */
-class OptPassLevel {
- public:
-  /*!
-   * \brief Get level for an optimization pass
-   *
-   * \param key pass name
-   * \return int level
-   */
-  int operator[](const std::string& key) const {
-    const auto data = CreateMap();
-    auto it = data.find(key);
-    if (it == data.end()) {
-      return -1;
+namespace {
+
+// TODO(zhiics) Maybe we can use PackedFunc here so that parameters can be
+// handled because we need to register the pass for Python invocation anyway.
+Pass GetPass(const std::string& pass_name) {
+  if (pass_name == "infer_type") {
+    return InferType();
+  } else if (pass_name == "simplify_inference") {
+    return SimplifyInference();
+  } else if (pass_name == "alter_op_layout") {
+    return AlterOpLayout();
+  } else if (pass_name == "canonicalize_ops") {
+    return CanonicalizeOps();
+  } else if (pass_name == "combine_parallel_conv2d") {
+    return CombineParallelConv2D();
+  } else if (pass_name == "fold_constant") {
+    return FoldConstant();
+  } else if (pass_name == "fold_scale_axis") {
+    return FoldScaleAxis();
+  } else if (pass_name == "to_a_normal_form") {
+    return ToANormalForm();
+  } else if (pass_name == "to_graph_normal_form") {
+    return ToGraphNormalForm();
+  } else {
+    LOG(FATAL) << pass_name << " has not been registered yet." << "\n";
+    return Pass(nullptr);
+  }
+}
+
+}  // namespace
+
+PassRegistry& PassRegistry::Global() {
+  static PassRegistry registry;
+  return registry;
+}
+
+const Pass PassRegistry::Lookup(const std::string& name) const {
+    auto it = registered_pass_map_.find(name);
+    if (it == registered_pass_map_.end()) {
+      return Pass(nullptr);
     }
     return it->second;
-  }
+}
 
- private:
-  static const std::unordered_map<std::string, int> CreateMap() {
-    const std::unordered_map<std::string, int> m = {
-      {"SimplifyInference", 0},
-      {"OpFusion", 1},
-      {"FoldConstant", 2},
-      {"CombineParallelConv2D", 3},
-      {"FoldScaleAxis", 3},
-      {"AlterOpLayout", 3},
-      {"CanonicalizeOps", 3},
-      {"EliminateCommonSubexpr", 3}
-    };
-    return m;
+const Pass PassRegistry::Lookup(const Pass& pass) const {
+  PassInfo info = pass->Info();
+  return Lookup(info->name);
+}
+
+const Pass PassRegistry::RegisterPass(const Pass& pass) {
+  CHECK(pass.defined()) << "Undefined passes are not allowed to be registered."
+                        << "\n";
+
+  PassInfo info = pass->Info();
+  std::string name = info->name;
+  const Pass pa = Lookup(name);
+  if (pa.defined()) {
+    return pa;
+  } else {
+    registered_pass_map_.insert({name, pass});
+    return pass;
   }
-};
+}
 
 struct RelayPassContextThreadLocalEntry {
   /*! \brief The default pass context. */
@@ -246,12 +273,6 @@ class SequentialNode : public PassNode {
   /* \brief The pass meta data.*/
   PassInfo pass_info;
 
-  /*!
-   * \brief A helper struct to get the optimization pass name to opt level
-   * mapping.
-   */
-  OptPassLevel opt_pass_level;
-
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -300,7 +321,7 @@ class SequentialNode : public PassNode {
       const Array<tvm::Expr>& disabled) const;
 
   std::unordered_set<std::string> RequiredPasses(
-      const Array<tvm::Expr>& disabled) const;
+      const Array<tvm::Expr>& required) const;
 
   /*!
    * \brief Perform optimizations on a series of passes. The aforementioned
@@ -338,14 +359,28 @@ ModulePass ModulePassNode::make(
 }
 
 // Module -> Module optimizations.
-// TODO(zhiics) Check and handle the required passes.
 Module ModulePassNode::operator()(const Module& mod,
                                   const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level << "\n";
+
   CHECK(mod.defined());
-  auto updated_mod = pass_func(mod, pass_ctx);
+  Module updated_mod = mod;
+  // Execute the required passes in a DFS way.
+  // TODO(zhiics) We may need to pass validation to detect the cyclic
+  // dependency.
+  PassRegistry& registry = PassRegistry::Global();
+  for (const auto& it : pass_info->required) {
+    const auto* name = it.as<tvm::ir::StringImm>();
+    CHECK(name);
+    Pass pass = registry.Lookup(name->value);
+    pass = pass.defined() ? pass : GetPass(name->value);
+    const auto* pass_node = pass.operator->();
+    updated_mod = (*pass_node)(updated_mod, pass_ctx);
+  }
+
+  updated_mod = pass_func(updated_mod, pass_ctx);
   CHECK(updated_mod.defined());
   return updated_mod;
 }
@@ -365,12 +400,29 @@ Module FunctionPassNode::operator()(const Module& mod,
                                     const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
   CHECK(mod.defined());
-  Module new_mod = ModuleNode::make({}, mod->type_definitions);
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level << "\n";
+
+  Module updated_mod = mod;
+  // Execute the required passes in a DFS way.
+  // TODO(zhiics) We may need to pass validation to detect the cyclic
+  // dependency.
+  PassRegistry& registry = PassRegistry::Global();
+  for (const auto& it : pass_info->required) {
+    const auto* name = it.as<tvm::ir::StringImm>();
+    CHECK(name);
+    Pass pass = registry.Lookup(name->value);
+    pass = pass.defined() ? pass : GetPass(name->value);
+    const auto* pass_node = pass.operator->();
+    updated_mod = (*pass_node)(updated_mod, pass_ctx);
+  }
+
+  Module new_mod = ModuleNode::make({}, mod->type_definitions);
   // Execute the pass function and return a new module.
   for (const auto& it : mod->functions) {
-    auto updated_func = SkipFunction(it.second) ? it.second : pass_func(it.second, mod, pass_ctx);
+    auto updated_func = SkipFunction(it.second)
+                            ? it.second
+                            : pass_func(it.second, updated_mod, pass_ctx);
     new_mod->Add(it.first, updated_func);
   }
 
@@ -439,7 +491,7 @@ bool SequentialNode::PassEnabled(const std::string& pass_name) const {
   PassContext ctx = PassContext::Current();
 
   auto required = RequiredPasses(ctx->required_pass);
-  auto disabled = DisabledPasses(ctx->required_pass);
+  auto disabled = DisabledPasses(ctx->disabled_pass);
 
   if (disabled.count(pass_name)) {
     return false;
@@ -448,29 +500,38 @@ bool SequentialNode::PassEnabled(const std::string& pass_name) const {
   if (required.count(pass_name)) {
     return true;
   }
-  return ctx->opt_level >= opt_pass_level[pass_name];
+
+  PassRegistry& registry = PassRegistry::Global();
+  const Pass registered_pass = registry.Lookup(pass_name);
+
+  if (!registered_pass.defined()) {
+    LOG(WARNING) << pass_name
+                 << " is not registered to the pass registry, it will be "
+                    "forced to execute."
+                 << "\n";
+    return true;
+  }
+
+  PassInfo info = registered_pass->Info();
+  return ctx->opt_level >= info->opt_level;
 }
 
 // TODO(zhiics): we currenlty only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
-// ordering problem needed to be handled in the future.
+// ordering problem needs to be handled in the future.
 Module SequentialNode::operator()(const Module& module,
                                   const PassContext& pass_ctx) const {
-  int opt_level = pass_ctx->opt_level;
-  auto disabled = DisabledPasses(pass_ctx->disabled_pass);
   Module mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
+
     PassInfo info = pass->Info();
     const auto& pass_name = info->name;
-    const auto& pass_opt_level = info->opt_level;
-    // Skip the pass if its optimization level is higher that the  one of in the
-    // pass context or if this pass is disabled.
-    if (pass_opt_level > opt_level || disabled.count(pass_name)) {
-      continue;
+    // Execute the pass if it is enabled.
+    if (pass_enabled(pass_name)) {
+      const auto* pn = pass.operator->();
+      mod = (*pn)(mod, pass_ctx);
     }
-    const auto* pn = pass.operator->();
-    mod = (*pn)(mod, pass_ctx);
   }
   return mod;
 }

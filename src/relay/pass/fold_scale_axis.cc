@@ -29,6 +29,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
 #include "pattern_util.h"
 #include "pass_util.h"
 
@@ -530,7 +531,7 @@ RELAY_REGISTER_OP("nn.conv2d")
 .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", Conv2DForwardRewrite);
 
 
-Expr ForwardFoldScaleAxis(Expr data) {
+Expr ForwardFoldScaleAxis(const Expr& data) {
   auto message = ForwardPrep().Prepare(data);
   auto fcontext = [&](const Call& call) -> NodeRef{
     auto it = message.find(call.get());
@@ -942,7 +943,7 @@ RELAY_REGISTER_OP("nn.conv2d")
 RELAY_REGISTER_OP("nn.conv2d")
 .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", Conv2DBackwardTransform);
 
-Expr BackwardFoldScaleAxis(Expr data) {
+Expr BackwardFoldScaleAxis(const Expr& data) {
   return make_node<BackwardTransformerNode>()->Fold(data);
 }
 
@@ -950,5 +951,51 @@ TVM_REGISTER_API("relay._ir_pass.backward_fold_scale_axis")
 .set_body_typed<Expr(Expr)>(BackwardFoldScaleAxis);
 
 }  // namespace fold_scale_axis
+
+namespace transform {
+
+Pass ForwardFoldScaleAxis() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          relay::fold_scale_axis::ForwardFoldScaleAxis(f));
+  };
+  Pass pass = CreateFunctionPass(pass_func, 3, "forward_fold_scale_axis",
+                                 {ir::StringImm::make("infer_type")});
+  return PassRegistry::Global().RegisterPass(pass);
+}
+
+Pass BackwardFoldScaleAxis() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          relay::fold_scale_axis::BackwardFoldScaleAxis(f));
+    };
+  Pass pass = CreateFunctionPass(pass_func, 3, "backward_fold_scale_axis",
+                                 {ir::StringImm::make("infer_type")});
+  return PassRegistry::Global().RegisterPass(pass);
+}
+
+Pass FoldScaleAxis() {
+  // FoldScaleAxis pass contains the following three passes. Therefore, we can
+  // register it as a sequential pass.
+  Pass pass = Sequential(
+      {FoldConstant(), BackwardFoldScaleAxis(), ForwardFoldScaleAxis()},
+      "fold_scale_axis");
+
+  return PassRegistry::Global().RegisterPass(pass);
+}
+
+TVM_REGISTER_API("relay._transform.ForwardFoldScaleAxis")
+.set_body_typed(ForwardFoldScaleAxis);
+
+TVM_REGISTER_API("relay._transform.BackwardFoldScaleAxis")
+.set_body_typed(BackwardFoldScaleAxis);
+
+TVM_REGISTER_API("relay._transform.FoldScaleAxis")
+.set_body_typed(FoldScaleAxis);
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm

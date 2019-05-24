@@ -35,6 +35,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 
 #include <memory>
 #include <unordered_map>
@@ -557,11 +558,15 @@ Pass RewriteAnnotatedOps(int fallback_device) {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(RewriteAnnotatedOps(f, fallback_device));
   };
-  return CreateFunctionPass(pass_func, 1, "rewrite_annotated_ops", {});
+  Pass pass = CreateFunctionPass(pass_func, 1, "rewrite_annotated_ops",
+                                 {ir::StringImm::make("infer_type")});
+  return PassRegistry::Global().RegisterPass(pass);
 }
+
+TVM_REGISTER_API("relay._transform.RewriteDeviceAnnotation")
+.set_body_typed(RewriteAnnotatedOps);
 
 }  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm
-

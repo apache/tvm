@@ -24,6 +24,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/transform.h>
 #include "./pattern_util.h"
 
 namespace tvm {
@@ -104,6 +105,23 @@ Expr SimplifyInference(const Expr& e) {
 
 TVM_REGISTER_API("relay._ir_pass.simplify_inference")
 .set_body_typed(SimplifyInference);
+
+namespace transform {
+
+Pass SimplifyInference() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(SimplifyInference(f));
+  };
+  Pass pass = CreateFunctionPass(pass_func, 0, "simplify_inference",
+                                 {ir::StringImm::make("infer_type")});
+  return PassRegistry::Global().RegisterPass(pass);
+}
+
+TVM_REGISTER_API("relay._transform.SimplifyInference")
+.set_body_typed(SimplifyInference);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

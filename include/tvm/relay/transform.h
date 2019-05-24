@@ -292,9 +292,9 @@ class Sequential : public Pass {
    * \param passes The passes to apply.
    * \param pass_info The pass metadata.
    */
-  TVM_DLL Sequential(tvm::Array<Pass> passes,
-                     PassInfo pass_info);
-/*!
+  TVM_DLL Sequential(tvm::Array<Pass> passes, PassInfo pass_info);
+
+  /*!
    * \brief The constructor of `Sequential`.
    *
    * \param passes The passes to apply.
@@ -311,6 +311,52 @@ class Sequential : public Pass {
   using ContainerType = Sequential;
 };
 
+/*!
+ * \brief A class to save registered passes.
+ */
+class PassRegistry {
+ public:
+  /*
+   * \brief Get the global pass registry.
+   */
+  static PassRegistry& Global();
+
+  /*
+   * \brief Look up a pass in the registered pass map using the pass name.
+   *
+   * \param name The name of the pass to be looked up.
+   *
+   * \return The correponding pass if it is found. Otherwise, an empty pass.
+   */
+  const Pass Lookup(const std::string& name) const;
+
+  /*
+   * \brief Look up a pass in the registered pass map.
+   *
+   * \param name The name of the pass to be looked up.
+   *
+   * \return The correponding pass if it is found. Otherwise, an empty pass.
+   */
+  const Pass Lookup(const Pass& pass) const;
+
+  /*
+   * \brief Register a pass.
+   *
+   * \param pass The pass to be required.
+   */
+  const Pass RegisterPass(const Pass& pass);
+
+ private:
+  PassRegistry() = default;
+  ~PassRegistry() = default;
+
+  PassRegistry(const PassRegistry&) = delete;
+  PassRegistry(PassRegistry&&) = delete;
+  PassRegistry& operator=(const PassRegistry&) = delete;
+  PassRegistry& operator=(PassRegistry&&) = delete;
+
+  std::unordered_map<std::string, const Pass> registered_pass_map_;
+};
 
 /*
  * \brief Create a module pass.
@@ -450,6 +496,98 @@ TVM_DLL Pass ToGraphNormalForm();
  * \return the optimized expression.
  */
 TVM_DLL Pass PartialEval();
+
+/*!
+ * \brief Simplify certain operators during inference. For example, batch norm
+ * will be unpacked into a number of simplified operators.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass SimplifyInference();
+
+/*!
+ * \brief Infer the type of an expression.
+ *
+ * The result of type checking is a new expression with unambigous
+ * type information filled in, as well as it's checked type field
+ * populated with the result type.
+ *
+ * \return The pass. 
+ */
+TVM_DLL Pass InferType();
+
+/*!
+ * \brief Infer the type of an expression.
+ *
+ * The result of type checking is a new expression with unambigous
+ * type information filled in, as well as it's checked type field
+ * populated with the result type.
+ *
+ * \param var The global variable corresponding to the function being optimized.
+ *
+ * \return The pass. 
+ */
+TVM_DLL Pass InferType(const GlobalVar& var);
+
+/*!
+ * \brief Search and eliminate common subexpression. For example, if there are
+ * two expressions evaluated to an identical value, a single variable is created
+ * and these two expressions are replaced by this variable.
+ *
+ * \param fskip The callback argument that allows to skip certain expressions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass EliminateCommonSubexpr(PackedFunc fskip);
+
+/*!
+ * \brief Combine parallel 2d convolutions into a single convolution if the
+ * number of branches of this conv2d operator is not less than
+ * `min_num_branch`.
+ *
+ * \param min_num_branch The minimun number of branches.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CombineParallelConv2D(uint64_t min_num_branches = 3);
+
+/*!
+ * \brief Backward fold axis scaling into weights of conv/dense operators.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass BackwardFoldScaleAxis();
+
+/*!
+ * \brief Forward fold axis scaling into weights of conv/dense operators.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ForwardFoldScaleAxis();
+
+/*!
+ * \brief A sequential pass that executes ForwardFoldScaleAxis and
+ * BackwardFoldScaleAxis passes.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FoldScaleAxis();
+
+/*!
+ * \brief Canonicalize some operators to the simplified operators. For example,
+ * bias_add can be canonicalized to expand_dims and broadcast_add.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CanonicalizeOps();
+
+/*!
+ * \brief Alternate the layouts of operators or replace primitive operators
+ * with other expressions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass AlterOpLayout();
 
 }  // namespace transform
 }  // namespace relay

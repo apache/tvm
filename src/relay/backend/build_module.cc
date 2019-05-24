@@ -25,10 +25,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
-#include <vector>
-#include <string>
+#include <tvm/relay/transform.h>
 #include <memory>
 
 #include "utils.h"
@@ -38,39 +36,7 @@ namespace relay {
 namespace backend {
 
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
-
-/*!
- * \brief A data structure to map the names of specific optimizations to
- *        numeric optimization levels
- *
- */
-struct OptPassLevel {
-  static const std::unordered_map<std::string, int> _data;
-  /*!
-   * \brief Get level for an optimization pass
-   *
-   * \param key pass name
-   * \return int level
-   */
-  int operator[](const std::string& key) const {
-    auto it = _data.find(key);
-    if (it == _data.end()) {
-      return -1;
-    }
-    return it->second;
-  }
-};
-
-const std::unordered_map<std::string, int> OptPassLevel::_data = {
-  {"SimplifyInference", 0},
-  {"OpFusion", 1},
-  {"FoldConstant", 2},
-  {"CombineParallelConv2D", 4},
-  {"FoldScaleAxis", 3},
-  {"AlterOpLayout", 3},
-  {"CanonicalizeOps", 3},
-  {"EliminateCommonSubexpr", 3}
-};
+using namespace tvm::relay::transform;
 
 /*!
  * \brief Output of building module
@@ -80,27 +46,6 @@ struct BuildOutput {
   std::string graph_json;
   runtime::Module mod;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
-};
-
-/*!
- * \brief Relay building config
- *
- */
-struct RelayBuildConfig {
-  int opt_level{2};
-  int fallback_device{static_cast<int>(kDLCPU)};
-  std::unordered_set<std::string> enabled_pass;
-  std::unordered_set<std::string> disabled_pass;
-  OptPassLevel OPT_PASS_LEVEL;
-  inline bool pass_enabled(const std::string& pass_name) const {
-    if (disabled_pass.count(pass_name)) {
-      return false;
-    }
-    if (enabled_pass.count(pass_name)) {
-      return true;
-    }
-    return opt_level >= OPT_PASS_LEVEL[pass_name];
-  }
 };
 
 /*!
@@ -156,18 +101,6 @@ struct GraphCodegen {
   }
 };
 
-template<typename R, typename ...Args>
-R CallPackedFunc(const std::string &name, Args... args) {
-  auto pf = GetPackedFunc(name);
-  return (*pf)(std::forward<Args>(args)...);
-}
-
-template<typename ...Args>
-Function CallPackedFunc(const std::string &name, Args... args) {
-  auto pf = GetPackedFunc(name);
-  return (*pf)(std::forward<Args>(args)...);
-}
-
 /*!
  * \brief Relay build module
  *
@@ -203,28 +136,6 @@ class RelayBuildModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->GetParams();
       });
-    } else if (name == "set_opt_level") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.num_args, 1);
-        int level = args[0];
-        this->SetOptLevel(level);
-      });
-    } else if (name == "set_fallback_device") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        CHECK_EQ(args.num_args, 1);
-        int dev = args[0];
-        this->SetFallBackDev(dev);
-      });
-    } else if (name == "add_pass") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        std::string pass_name = args[0];
-        this->AddPass(pass_name);
-      });
-    } else if (name == "disable_pass") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        std::string pass_name = args[0];
-        this->DisablePass(pass_name);
-      });
     } else if (name == "set_params") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Map<std::string, Constant> params = args[0];
@@ -246,30 +157,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   const std::string& GetGraphJSON() {
     return ret_.graph_json;
   }
-  /*!
-   * \brief Add extra pass into build cfg
-   *
-   * \param pass_name name of pass
-   */
-  void AddPass(const std::string& pass_name) {
-    cfg_.enabled_pass.insert(pass_name);
-  }
-  /*!
-   * \brief Disable a specific pass in cfg
-   *
-   * \param pass_name name of pass
-   */
-  void DisablePass(const std::string& pass_name) {
-    cfg_.disabled_pass.insert(pass_name);
-  }
-  /*!
-   * \brief Set the Fallback device
-   *
-   * \param device name
-   */
-  void SetFallBackDev(int dev) {
-    cfg_.fallback_device = dev;
-  }
+
   /*!
    * \brief Get the Module object
    *
@@ -316,15 +204,6 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Set the optimization level
-   *
-   * \param level
-   */
-  void SetOptLevel(char level) {
-    cfg_.opt_level = level;
-  }
-
-  /*!
    * \brief type key
    *
    * \return const char*
@@ -345,7 +224,7 @@ class RelayBuildModule : public runtime::ModuleNode {
              const tvm::Target& target_host) {
     targets_ = targets;
     target_host_ = target_host;
-    BuildRelay(func, cfg_, params_);
+    BuildRelay(func, params_);
   }
 
  protected:
@@ -378,85 +257,95 @@ class RelayBuildModule : public runtime::ModuleNode {
       if (repeat_var.count(arg)) {
         LOG(FATAL) << "Multiple args in the function have name " << kv.first;
       }
-      auto e = CallPackedFunc<Expr>("relay._make.Constant", kv.second);
-      bind_dict[arg] = e;
+      bind_dict[arg] = ConstantNode::make(kv.second);
     }
-    return CallPackedFunc("relay._expr.Bind", func, tvm::Map<relay::Var, Expr>(bind_dict));
+    Expr bound_expr = relay::Bind(func, bind_dict);
+    Function ret = Downcast<Function>(bound_expr);
+    CHECK(ret.defined())
+        << "The returning type is expected to be a Relay Function."
+        << "\n";
+    return ret;
   }
 
   /*!
-   * \brief Optimize Relay function
+   * \brief Optimize a Relay function.
    *
-   * \param func Input function
-   * \param target target device
-   * \param cfg Relay build config
-   * \param params params dict
-   * \return relay::Function
+   * \param func The input Relay function for optimization.
+   * \param targets The device type to `Target` mapping.
+   * \param params The param name to value mapping.
+   *
+   * \return func The updated Relay function after optimization.
    */
-  relay::Function Optimize(relay::Function func,
-                           const TargetsMap& targets,
-                           const RelayBuildConfig& cfg,
-                           const std::unordered_map<std::string, runtime::NDArray>& params) {
+  relay::Function Optimize(
+      relay::Function func,
+      const TargetsMap& targets,
+      const std::unordered_map<std::string, runtime::NDArray>& params) {
     if (params.size()) {
       func = BindParamsByName(func, params);
     }
-    if (cfg.pass_enabled("SimplifyInference")) {
-      func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-      func = CallPackedFunc("relay._ir_pass.simplify_inference", func);
-    }
-    if (cfg.pass_enabled("EliminateCommonSubexpr")) {
-      auto fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-        Expr expr = args[0];
-        if (expr.as<CallNode>()) {
-          auto call_node = expr.as<CallNode>();
-          auto op_node = call_node->op.as<OpNode>();
-          if (op_node->name == "cast") {
-            auto attrs = call_node->attrs.as<CastAttrs>();
-            if (attrs->dtype == HalideIR::Int(32)) {
-              *rv = true;
-            }
+
+    relay::Module relay_module = relay::ModuleNode::FromExpr(func);
+    relay_module = Optimize(relay_module, targets_, params);
+    CHECK(relay_module.defined());
+    GlobalVar var = relay_module->entry_func;
+    return relay_module->Lookup(var->name_hint);
+  }
+
+  /*!
+   * \brief Optimize a Relay module.
+   *
+   * \param relay_module The input Relay module where optmization will be
+   *        applied on.
+   * \param targets The device type to `Target` mapping.
+   * \param params The param name to value mapping.
+   *
+   * \return relay::Module The updated Relay module after optimization.
+   */
+  relay::Module Optimize(
+      relay::Module relay_module,
+      const TargetsMap& targets,
+      const std::unordered_map<std::string, runtime::NDArray>& params) {
+    Array<Pass> pass_seqs;
+    pass_seqs.push_back(transform::SimplifyInference());
+
+    // Can we move to the pass implementation file and make it as default?
+    auto fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+      Expr expr = args[0];
+      if (expr.as<CallNode>()) {
+        auto call_node = expr.as<CallNode>();
+        auto op_node = call_node->op.as<OpNode>();
+        if (op_node->name == "cast") {
+          auto attrs = call_node->attrs.as<CastAttrs>();
+          if (attrs->dtype == HalideIR::Int(32)) {
+            *rv = true;
           }
         }
-        *rv =  false;
-      });
-      func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-      func = CallPackedFunc("relay._ir_pass.eliminate_common_subexpr", func, fskip);
-    }
-    if (cfg.pass_enabled("CombineParallelConv2D")) {
-      const int min_num_branches = 3;
-      func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-      func = CallPackedFunc("relay._ir_pass.CombineParallelConv2D", func, min_num_branches);
-    }
-    if (cfg.pass_enabled("FoldConstant")) {
-      func = CallPackedFunc("relay._ir_pass.FoldConstant", func);
-    }
-    if (cfg.pass_enabled("FoldScaleAxis")) {
-      func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-      func = CallPackedFunc("relay._ir_pass.backward_fold_scale_axis", func);
-      func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-      func = CallPackedFunc("relay._ir_pass.forward_fold_scale_axis", func);
-      func = CallPackedFunc("relay._ir_pass.FoldConstant", func);
-    }
-    if (cfg.pass_enabled("CanonicalizeOps")) {
-      func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-      func = CallPackedFunc("relay._ir_pass.canonicalize_ops", func);
-    }
-    if (cfg.pass_enabled("AlterOpLayout")) {
-      if (targets.size() == 1) {
-        func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-        for (const auto& kv : targets) {
-          With<Target> tctx(kv.second);
-          func = CallPackedFunc("relay._ir_pass.AlterOpLayout", func);
-        }
-      } else {
-        LOG(WARNING) << "AlterOpLayout pass is not enabled for heterogeneous"
-                  << " execution yet.";
       }
+      *rv =  false;
+    });
+
+    pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
+    pass_seqs.push_back(transform::CombineParallelConv2D(3));
+    pass_seqs.push_back(transform::FoldScaleAxis());
+    pass_seqs.push_back(transform::CanonicalizeOps());
+
+    // Alter layout transformation is only applied to homogeneous execution yet.
+    if (targets.size() == 1) {
+      pass_seqs.push_back(transform::AlterOpLayout());
     }
-    if (cfg.pass_enabled("FoldConstant")) {
-      func = CallPackedFunc("relay._ir_pass.FoldConstant", func);
+    pass_seqs.push_back(transform::FoldConstant());
+
+    // Create a sequential pass and perform optimizations.
+    transform::Pass seq = transform::Sequential(pass_seqs);
+    if (targets.size() == 1) {
+      for (const auto& kv : targets) {
+        With<Target> tctx(kv.second);
+        relay_module = seq->operator()(relay_module);
+      }
+    } else {
+      relay_module = seq->operator()(relay_module);
     }
-    return func;
+    return relay_module;
   }
 
   /*!
@@ -477,20 +366,20 @@ class RelayBuildModule : public runtime::ModuleNode {
    * dictionary in this case.
    *
    * \param targets dictionary
-   * \param cfg
+   * \param fallback_device The fallback device for heterogeneous execution.
    * \return Map<tvm::Integer, tvm::Target>
    */
   TargetsMap UpdateHeterogeneousInputs(const TargetsMap& targets,
-                                       const RelayBuildConfig& cfg) {
+                                       int fallback_device) {
     TargetsMap device_target = targets;
     std::unordered_map<int64_t, tvm::Target> tmp_map;
     for (const auto& kv : targets) {
       tmp_map[kv.first->value] = kv.second;
     }
-    if (tmp_map.count(cfg.fallback_device) == 0) {
+    if (tmp_map.count(fallback_device) == 0) {
       device_target.Set(
-          cfg.fallback_device,
-          CreateDefaultTarget(cfg.fallback_device));
+          fallback_device,
+          CreateDefaultTarget(fallback_device));
     }
     return device_target;
   }
@@ -498,25 +387,24 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \brief Execute the device annotation passes to update the input program and
    *        target information.
    *
-   * \param func
-   * \param cfg
-   * \param targets_map_ptr
-   * \return Function
+   * \param func The input Relay function.
+   * \param fallback_device The fallback device for heterogeneous execution.
+   * \param targets_map_ptr The device type to `Target` map pointer.
+   *
+   * \return func The updated function after device annotation.
    */
   Function RunDeviceAnnotationPass(Function func,
-                                   const RelayBuildConfig& cfg,
+                                   int fallback_device,
                                    TargetsMap* targets_map_ptr) {
-    func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-    func = CallPackedFunc("relay._ir_pass.RewriteDeviceAnnotation", func,
-                          cfg.fallback_device);
-    auto device_map = CallPackedFunc<Map<Expr, Integer> >(
-        "relay._ir_pass.CollectDeviceInfo", func, nullptr);
+    auto new_func = relay::InferType(func, Module(nullptr));
+    new_func = relay::RewriteAnnotatedOps(new_func, fallback_device);
+    func = Downcast<Function>(new_func);
+    CHECK(func.defined());
+    auto device_map = relay::CollectDeviceInfo(func);
     if (device_map.size() == 0) {
-      auto annotation_map = CallPackedFunc<Map<Expr, Integer> >(
-          "relay._ir_pass.CollectDeviceAnnotationOps", func, nullptr);
+      auto annotation_map = relay::CollectDeviceAnnotationOps(func);
       if (annotation_map.size() == 0) {
-        targets_map_ptr->Set(
-            0, CreateDefaultTarget(cfg.fallback_device));
+        targets_map_ptr->Set(0, CreateDefaultTarget(fallback_device));
       } else {
         int64_t dev_type = -1;
         for (auto kv : annotation_map) {
@@ -541,28 +429,33 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \brief Build relay function to runtime module
    *
    * \param func Relay Function
-   * \param cfg Relay build config
    * \param params parameters
    */
-  void BuildRelay(Function func,
-                  const RelayBuildConfig& cfg,
-                  const std::unordered_map<std::string, tvm::runtime::NDArray> &params) {
+  void BuildRelay(
+      Function func,
+      const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
+    transform::PassContext pass_ctx = PassContext::Current();
+
     // convert
     tvm_cfg_ = BuildConfig::Create();
     TargetsMap device_target;
     if (targets_.size() > 1) {
-      device_target = UpdateHeterogeneousInputs(targets_, cfg);
+      device_target =
+          UpdateHeterogeneousInputs(targets_, pass_ctx->fallback_device);
     } else {
       device_target = targets_;
     }
-    func = Optimize(func, targets_, cfg, params);
+    func = Optimize(func, targets_, params);
     if (device_target.size() > 1) {
-      func = RunDeviceAnnotationPass(func, cfg, &device_target);
+      func = RunDeviceAnnotationPass(func, pass_ctx->fallback_device,
+                                     &device_target);
     }
-    // TODO(@jroesch): use the passes directly.
-    func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
-    func = CallPackedFunc("relay._ir_pass.FuseOps", func, cfg.opt_level, nullptr);
-    func = CallPackedFunc("relay._ir_pass.infer_type", func, nullptr);
+
+    auto new_func = relay::InferType(func, Module(nullptr));
+    new_func = relay::FuseOps(new_func, pass_ctx->opt_level, Module(nullptr));
+    new_func = relay::InferType(new_func, Module(nullptr));
+    func = Downcast<Function>(new_func);
+    CHECK(func.defined());
 
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
     graph_codegen_->Init(nullptr, device_target);
@@ -580,8 +473,6 @@ class RelayBuildModule : public runtime::ModuleNode {
   TargetsMap targets_;
   /*! \brief target host device */
   tvm::Target target_host_;
-  /*! \brief frontend optimization configure */
-  RelayBuildConfig cfg_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief building output */

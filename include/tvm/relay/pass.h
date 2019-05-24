@@ -359,6 +359,15 @@ TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
 TVM_DLL Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
 
 /*!
+ * \brief Collect the device anntation operators.
+ *
+ * \param expr The expression.
+ *
+ * \return The annotated expression to device type mapping for annotation ops.
+ */
+TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
+
+/*!
  * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
  *
  * It will turn an expression that is in a graph form (with sharing implicit),
@@ -402,6 +411,97 @@ TVM_DLL Expr ToGraphNormalForm(const Expr& e);
  * \return the optimized expression.
  */
 TVM_DLL Expr PartialEval(const Expr& e);
+
+/*!
+ * \brief Bind the free variables to a Relay expression.
+ *
+ * \param expr The expression.
+ * \param bind_map The variable to expression map that will be used to help the
+ *        binding.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& bind_map);
+
+/*!
+ * \brief Simplify certain operators during inference. For example, batch norm
+ * will be unpacked into a number of simplified operators.
+ *
+ * \param expr The expression.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr SimplifyInference(const Expr& e);
+
+/*!
+ * \brief Search and eliminate common subexpression. For example, if there are
+ * two expressions evaluated to an identical value, a single variable is created
+ * and these two expressions are replaced by this variable.
+ *
+ * \param expr The expression.
+ * \param fskip The callback argument that allows to skip certain expressions.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr EliminateCommonSubexpr(const Expr& expr, PackedFunc fskip);
+
+/*!
+ * \brief Combine parallel 2d convolutions into a single convolution if the
+ * number of branches of this conv2d operator is not less than
+ * `min_num_branch`.
+ *
+ * \param expr The expression.
+ * \param min_num_branch The minimun number of branches.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr CombineParallelConv2D(const Expr& expr, uint64_t min_num_branches);
+
+namespace fold_scale_axis {
+
+/*!
+ * \brief Backward fold axis scaling into weights of conv/dense operators.
+ *
+ * \param expr The input expression.
+ *
+ * \return The updated expression. 
+ */
+TVM_DLL Expr BackwardFoldScaleAxis(const Expr& expr);
+
+/*!
+ * \brief Forward fold axis scaling into weights of conv/dense operators.
+ *
+ * \param expr The input expression.
+ *
+ * \return The updated expression. 
+ */
+TVM_DLL Expr ForwardFoldScaleAxis(const Expr& expr);
+
+}  // namespace fold_scale_axis
+
+/*!
+ * \brief Canonicalize some operators to the simplified operators. For example,
+ * bias_add can be canonicalized to expand_dims and broadcast_add.
+ *
+ * \param expr The input expression.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr CanonicalizeOps(const Expr& expr);
+
+namespace alter_op_layout {
+
+/*!
+ * \brief Alternate the layouts of operators or replace primitive operators with
+ * other expressions.
+ *
+ * \param expr The input expression.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr AlterOpLayout(const Expr& expr);
+
+}  // namespace alter_op_layout
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {
