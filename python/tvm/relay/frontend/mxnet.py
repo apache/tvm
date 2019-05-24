@@ -279,11 +279,14 @@ def _mx_slice_axis(inputs, attrs):
 
 def _mx_crop_like(inputs, attrs):
     if len(inputs) < 2:
-        raise tvm.error.OpAttributeUnimplemented("Only support crop_like pattern for operator Crop.")
+        raise tvm.error.OpAttributeUnimplemented(
+            "Only support crop_like pattern for operator Crop.")
     if attrs.get_bool("center_crop", False):
-        raise tvm.error.OpAttributeUnimplemented("Center crop is not supported in operator Crop.")
+        raise tvm.error.OpAttributeUnimplemented(
+            "Center crop is not supported in operator Crop.")
     if attrs.get_int_tuple("h_w", (0, 0)) != (0, 0):
-        raise tvm.error.OpAttributeUnimplemented("Doesn't support h_w in operator Crop.")
+        raise tvm.error.OpAttributeUnimplemented(
+            "Doesn't support h_w in operator Crop.")
     offset = attrs.get_int_tuple("offset", (0, 0))
     new_attrs = {}
     if offset == (0, 0):
@@ -291,7 +294,8 @@ def _mx_crop_like(inputs, attrs):
         return _op.slice_like(*inputs, **new_attrs)
     like_shape = ir_pass.infer_type(inputs[1]).checked_type.shape
     new_attrs['begin'] = [0, 0, offset[0], offset[1]]
-    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2], offset[1]+like_shape[3]]
+    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                        offset[1]+like_shape[3]]
     return _op.strided_slice(inputs[0], **new_attrs)
 
 
