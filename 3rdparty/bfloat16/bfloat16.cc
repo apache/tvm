@@ -60,8 +60,7 @@ void BFloat16Add(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t siz
   FloatToBFloat16(&out_f, dst, 1);
 }
 
-void BFloat16Sub(const uint16_t* a, const uint16_t* b, uint16_t* dst,
-                 size_t size) {
+void BFloat16Sub(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t size) {
   float a_f, b_f;
   BFloat16ToFloat(a, &a_f, 1);
   BFloat16ToFloat(b, &b_f, 1);
@@ -69,8 +68,7 @@ void BFloat16Sub(const uint16_t* a, const uint16_t* b, uint16_t* dst,
   FloatToBFloat16(&out_f, dst, 1);
 }
 
-void BFloat16Mul(const uint16_t* a, const uint16_t* b, uint16_t* dst,
-                 size_t size) {
+void BFloat16Mul(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t size) {
   float a_f, b_f;
   BFloat16ToFloat(a, &a_f, 1);
   BFloat16ToFloat(b, &b_f, 1);
@@ -78,8 +76,7 @@ void BFloat16Mul(const uint16_t* a, const uint16_t* b, uint16_t* dst,
   FloatToBFloat16(&out_f, dst, 1);
 }
 
-void BFloat16Div(const uint16_t* a, const uint16_t* b, uint16_t* dst,
-                 size_t size) {
+void BFloat16Div(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t size) {
   float a_f, b_f;
   BFloat16ToFloat(a, &a_f, 1);
   BFloat16ToFloat(b, &b_f, 1);
@@ -87,8 +84,7 @@ void BFloat16Div(const uint16_t* a, const uint16_t* b, uint16_t* dst,
   FloatToBFloat16(&out_f, dst, 1);
 }
 
-void BFloat16Max(const uint16_t* a, const uint16_t* b, uint16_t* dst,
-                 size_t size) {
+void BFloat16Max(const uint16_t* a, const uint16_t* b, uint16_t* dst, size_t size) {
   float a_f, b_f;
   BFloat16ToFloat(a, &a_f, 1);
   BFloat16ToFloat(b, &b_f, 1);

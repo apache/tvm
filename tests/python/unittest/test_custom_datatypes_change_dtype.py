@@ -67,6 +67,7 @@ def setup():
     register_min_func(lambda num_bits: -3.38953139e38, "bfloat")
 
 
+
 def test_change_dtype_simple():
     shape = (3, 1)
     t = relay.TensorType(shape, 'float32')
@@ -132,7 +133,7 @@ def test_change_dtype_mobilenet():
     module, params = get_mobilenet()
 
     src_dtype = 'float32'
-    dst_dtype = 'custom[bfloat]16' # Change me to posit.
+    dst_dtype = 'custom[bfloat]16'
     module, params = change_dtype(src_dtype, dst_dtype, module, params)
 
     # Convert the input into the correct format.
@@ -143,6 +144,7 @@ def test_change_dtype_mobilenet():
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         ex = relay.create_executor('graph', mod=module)
         result = ex.evaluate()(input, **params)
+
 
 if __name__ == "__main__":
     setup()
