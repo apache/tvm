@@ -107,6 +107,18 @@ const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8
   return runtime::Registry::Get(ss.str());
 }
 
+const runtime::PackedFunc* GetIntrinLowerFunc(const std::string& target, const std::string& name,
+                                              uint8_t type_code) {
+  std::ostringstream ss;
+  ss << "tvm.datatype.lower.";
+  ss << target;
+  ss << ".Call.intrin.";
+  ss << name;
+  ss << ".";
+  ss << datatype::Registry::Global()->GetTypeName(type_code);
+  return runtime::Registry::Get(ss.str());
+}
+
 uint64_t ConvertConstScalar(uint8_t type_code, double value) {
   std::ostringstream ss;
   ss << "tvm.datatype.convertconstscalar.float.";

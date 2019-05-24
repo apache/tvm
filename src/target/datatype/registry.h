@@ -43,6 +43,8 @@ namespace datatype {
  *      For Casts: tvm.datatype.lower.<target>.Cast.<type>.<src_type>
  *        Example: tvm.datatype.lower.llvm.Cast.myfloat.float for a Cast from
  *                 float to myfloat.
+ * For intrinsic Calls: tvm.datatype.lower.<target>.Call.intrin.<name>.<type>
+ *             Example: tvm.datatype.lower.llvm.Call.intrin.sqrt.myfloat
  *  For other ops: tvm.datatype.lower.<target>.<op>.<type>
  *       Examples: tvm.datatype.lower.llvm.Add.myfloat
  *                 tvm.datatype.lower.llvm.FloatImm.posit
@@ -135,6 +137,16 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
  * \return Lowering function for FloatImms for the provided target and type
  */
 const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8_t type_code);
+
+/*!
+ * \brief Get lowering function for intrinsic Calls/pure intrinsic Calls
+ * \param target The target we are lowering to, e.g. "llvm"
+ * \param type_code The datatype of the Call
+ * \param name The intrinsic name
+ * \return Lowering function for intrinsic Calls for the provided target and type
+ */
+const runtime::PackedFunc* GetIntrinLowerFunc(const std::string& target, const std::string& name,
+                                              uint8_t type_code);
 
 /*!
  * \brief Get lowering function for other ops

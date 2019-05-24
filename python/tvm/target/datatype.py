@@ -15,12 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Custom datatype functionality"""
-import tvm._ffi
-
-import tvm.runtime._ffi_api
-from tvm._ffi import register_func as _register_func
+import tvm
 from tvm.runtime import convert, DataType
 from tvm.tir.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
+from tvm._ffi import register_func as _register_func
+from tvm.tir import call_intrin
 
 
 def register(type_name, type_code):
@@ -100,13 +99,20 @@ def register_op(lower_func, op_name, target, type_name, src_type_name=None):
     src_type_name : str
         If op_name is "Cast", then this should be set to the source datatype of
         the argument to the Cast. If op_name is not "Cast", this is unused.
+
+    intrinsic_name : str
+        If op_name is "Call" and intrinsic_name is not None, then we assume the
+        op is a Call to an Intrinsic, and intrinsic_name is the intrinsic's
+        name.
     """
 
     if op_name == "Cast":
         assert src_type_name is not None
-        lower_func_name = (
-            "tvm.datatype.lower." + target + "." + op_name + "." + type_name + "." + src_type_name
-        )
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
+                          + type_name + "." + src_type_name
+    elif op_name == "Call" and intrinsic_name is not None:
+        lower_func_name = "tvm.datatype.lower." + target + "." + op_name \
+                          + ".intrin." + intrinsic_name + "." + type_name
     else:
         lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." + type_name
     tvm._ffi.register_func(lower_func_name, lower_func)
@@ -139,7 +145,24 @@ def create_lower_func(extern_func_name):
             if t.lanes > 1:
                 dtype += "x" + str(t.lanes)
         if isinstance(op, (_Cast, _FloatImm)):
-            return tvm.tir.call_pure_extern(dtype, extern_func_name, op.value)
-        return tvm.tir.call_pure_extern(dtype, extern_func_name, op.a, op.b)
+            return _Call(dtype, extern_func_name, convert([op.value]),
+                         _Call.Extern)
+        elif isinstance(op, _Call) and (op.call_type == _Call.Intrinsic or
+                                        op.call_type == _Call.PureIntrinsic):
+            return _Call(dtype, extern_func_name, convert(op.args),
+                              _Call.Extern)
+        return _Call(dtype, extern_func_name, convert([op.a, op.b]),
+                     _Call.Extern)
 
     return lower
+
+def lower_ite(ite_intrin):
+    dtype = ite_intrin.dtype
+    t = _TVMType(dtype)
+    assert get_type_registered(t.type_code)
+    dtype = "uint" + str(t.bits)
+    if t.lanes > 1:
+        dtype += "x" + str(t.lanes)
+    print(ite_intrin.args)
+    return call_intrin(dtype, "tvm_if_then_else", ite_intrin.args[0],
+                            ite_intrin.args[1], ite_intrin.args[2])

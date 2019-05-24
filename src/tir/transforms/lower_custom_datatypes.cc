@@ -103,8 +103,18 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(call);
     call = expr.as<CallNode>();
     if (toBeLowered) {
-      auto new_call_type = DataType::UInt(call->dtype.bits(), call->dtype.lanes());
-      return CallNode::make(new_call_type, call->name, call->args, call->call_type);
+      CHECK(call->call_type == CallNode::Intrinsic || call->call_type == CallNode::PureIntrinsic)
+        << "Lowering non-intrinsic Calls not implemented";
+      auto lower = datatype::GetIntrinLowerFunc(target_, call->name, call->dtype.code());
+      CHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
+                   << call->name << ", type " << static_cast<unsigned>(call->dtype.code()) << " not found";
+      return (*lower)(expr);
+      // TODO(gus) Not sure what to do in any other case.
+      // } else {
+      // auto new_call_type = DataType::UInt(call->dtype.bits(), call->dtype.lanes());
+      // return Call::make(new_call_type, call->name, call->args, call->call_type, call->func,
+      //                   call->value_index);
+      // }
     }
     return expr;
   }
