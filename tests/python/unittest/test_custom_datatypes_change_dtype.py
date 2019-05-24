@@ -167,7 +167,7 @@ def test_change_dtype_mobilenet():
 
 if __name__ == "__main__":
     setup()
-    # test_change_dtype_inception_v3()
+    test_change_dtype_inception_v3()
     test_change_dtype_simple()
-    test_change_dtype_resnet()
     test_change_dtype_mobilenet()
+    test_change_dtype_resnet()
