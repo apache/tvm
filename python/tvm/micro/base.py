@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 """Base definitions for micro."""
 
 from __future__ import absolute_import
@@ -115,8 +132,8 @@ def create_micro_lib(src_path, device_type, cc=None, obj_path=None):
     # code path for creating shared objects in `tvm.module.load`.  So we replace
     # ".o" suffixes with ".obj".
     if obj_path.endswith(".o"):
-        # TODO(weberlo): Use TVM Python logging mechanism, if there is one.
-        print("WARNING: create_micro_lib: \".o\" suffix in \"{}\" has been replaced with \".obj\"")
+        logging.warning("\".o\" suffix in \"{}\" has been replaced with \".obj\""
+                        .format(obj_path))
         obj_path = replace_suffix(obj_path, "obj")
 
     options = ["-I" + path for path in find_include_path()] + ["-fno-stack-protector"]

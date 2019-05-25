@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file micro_session.cc
@@ -158,25 +177,13 @@ void MicroSession::PushToExecQueue(DevBaseOffset func, TVMArgs args) {
   // Write the task.
   low_level_device()->Write(init_symbol_map()["task"], &task, sizeof(task));
   // Zero out the last error.
-  DevBaseOffset last_err_offset = init_symbol_map()["last_error"];
   std::uintptr_t last_error = 0;
-  low_level_device()->Write(last_err_offset, &last_error, sizeof(std::uintptr_t));
+  low_level_device()->Write(init_symbol_map()["last_error"], &last_error, sizeof(std::uintptr_t));
 
   low_level_device()->Execute(utvm_main_symbol_addr_, utvm_done_symbol_addr_);
 
   // Check if there was an error during execution.  If so, log it.
-  low_level_device()->Read(last_err_offset, &last_error, sizeof(std::uintptr_t));
-  if (last_error) {
-    // First, retrieve the string `last_error` points to.
-    std::uintptr_t last_err_data_addr;
-    low_level_device()->Read(last_err_offset, &last_err_data_addr, sizeof(std::uintptr_t));
-    DevBaseOffset last_err_data_offset =
-        DevAddr(last_err_data_addr) - low_level_device()->base_addr();
-    // Then read the string from device to host and log it.
-    std::string last_error_str = ReadString(last_err_data_offset);
-    LOG(FATAL) << "error during micro function execution:\n"
-               << "  " << last_error_str;
-  }
+  CheckDeviceError();
 }
 
 BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
@@ -225,7 +232,7 @@ void MicroSession::SetInitBinaryPath(std::string path) {
   init_binary_path_ = path;
 }
 
-DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArgs& args) {
+DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArgs& args) {
   auto utvm_args_slot = encoder->Alloc<UTVMArgs>();
 
   const int* type_codes = args.type_codes;
@@ -246,6 +253,9 @@ DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArgs& a
         break;
       }
       // TODO(weberlo): Implement `double` and `int64` case.
+      case kDLFloat:
+      case kDLInt:
+      case kDLUInt:
       default:
         LOG(FATAL) << "Unsupported type code for writing args: " << type_codes[i];
         break;
@@ -262,7 +272,7 @@ DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArgs& a
   return utvm_args_slot.start_addr();
 }
 
-DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArray& arr) {
+DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr) {
   auto tvm_arr_slot = encoder->Alloc<TVMArray>();
   auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
 
@@ -294,6 +304,24 @@ DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArray& 
   dev_arr.strides = strides_addr.cast_to<int64_t*>();
   tvm_arr_slot.WriteValue(dev_arr);
   return tvm_arr_slot.start_addr();
+}
+
+void MicroSession::CheckDeviceError() {
+  DevBaseOffset last_err_offset = init_symbol_map()["last_error"];
+  std::uintptr_t last_error;
+  low_level_device()->Read(last_err_offset, &last_error, sizeof(std::uintptr_t));
+  if (last_error) {
+    // First, retrieve the string `last_error` points to.
+    std::uintptr_t last_err_data_addr;
+    low_level_device()->Read(last_err_offset, &last_err_data_addr, sizeof(std::uintptr_t));
+    DevBaseOffset last_err_data_offset =
+        DevAddr(last_err_data_addr) - low_level_device()->base_addr();
+    // Then read the string from device to host and log it.
+    std::string last_error_str = ReadString(last_err_data_offset);
+    LOG(FATAL) << "error during micro function execution:\n"
+               << "  dev str addr: 0x" << std::hex << last_err_data_addr << "\n"
+               << "  dev str data: " << last_error_str;
+  }
 }
 
 // initializes micro session and low-level device from Python frontend

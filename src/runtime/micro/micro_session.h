@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2019 by Contributors
  * \file micro_session.h
@@ -10,11 +29,6 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
 
-#include <cstddef>
-#include <cstdint>
-#include <string>
-#include <mutex>
-#include <memory>
 #include <unordered_map>
 
 #include "low_level_device.h"
@@ -215,7 +229,7 @@ class MicroSession {
    * \param args args to be appended
    * \return device address of the allocated args
    */
-  DevAddr EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArgs& args);
+  DevAddr EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArgs& args);
 
   /*!
    * \brief appends a `TVMArray` to the host-side buffer of `encoder`
@@ -223,7 +237,13 @@ class MicroSession {
    * \param arr TVMArray to be appended
    * \return device address of the allocated `TVMArray`
    */
-  DevAddr EncoderAppend(TargetDataLayoutEncoder* encoder, TVMArray& arr);
+  DevAddr EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr);
+
+  // TODO(weberlo): should there be both a check and log method?
+  /*!
+   * \brief checks and logs if there was an error during the device's most recent execution
+   */
+  void CheckDeviceError();
 };
 }  // namespace runtime
 }  // namespace tvm

@@ -23,6 +23,8 @@ void UTVMMain() {
 // These pointers are patched at load time to point to the workspace section.
 char *utvm_workspace_begin = (char*) 1;
 char *utvm_workspace_curr = (char*) 1;
+// Keep track of how many active allocations there are on the workspace.
+size_t num_active_allocs = 0;
 
 const char *last_error = (char*) 1;
 
@@ -32,12 +34,22 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
   utvm_workspace_curr += (8 - ((uintptr_t) utvm_workspace_curr % 8)) % 8;
   void* ret_ptr = (void*) utvm_workspace_curr;
   utvm_workspace_curr += size;
+  num_active_allocs++;
   return ret_ptr;
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  // TODO(weberlo): Actually free memory.
-  return 0;
+  num_active_allocs--;
+  if (num_active_allocs < 0) {
+    TVMAPISetLastError("free called with no active workspace allocations");
+    return -1;
+  } else if (num_active_allocs == 0) {
+    // No more allocations.  Reset workspace.
+    utvm_workspace_curr = utvm_workspace_begin;
+    return 0;
+  } else {
+    return 0;
+  }
 }
 
 void TVMAPISetLastError(const char* msg) {
