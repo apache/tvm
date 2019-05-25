@@ -29,6 +29,8 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
 
+#include <memory>
+#include <string>
 #include <unordered_map>
 
 #include "low_level_device.h"

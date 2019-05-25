@@ -24,8 +24,8 @@
  */
 
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/c_runtime_api.h>
 #include <memory>
+#include <string>
 #include "micro_session.h"
 #include "low_level_device.h"
 #include "target_data_layout_encoder.h"

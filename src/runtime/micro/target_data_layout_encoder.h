@@ -25,15 +25,7 @@
 #ifndef TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 #define TVM_RUNTIME_MICRO_TARGET_DATA_LAYOUT_ENCODER_H_
 
-#include <dmlc/memory_io.h>
-
-#include <algorithm>
-#include <cstring>
-#include <iomanip>
-#include <memory>
-#include <string>
 #include <vector>
-
 #include "device/utvm_runtime.h"
 
 namespace tvm {
