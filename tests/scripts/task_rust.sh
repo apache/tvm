@@ -48,7 +48,7 @@ cd tests/test_tvm_basic
 cargo run
 cd -
 
-cd tests/test_tvm_dylib
+cd tests/test_tvm_dso
 cargo run
 cd -
 
