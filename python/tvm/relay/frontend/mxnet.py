@@ -149,7 +149,7 @@ def _mx_conv2d_transpose(inputs, attrs):
     new_attrs["groups"] = attrs.get_int("num_group", 1)
     new_attrs["data_layout"] = data_layout
     new_attrs["kernel_layout"] = kernel_layout
-    use_bias = not attrs.get_bool("no_bias", False)
+    use_bias = not attrs.get_bool("no_bias", True)
     res = _op.nn.conv2d_transpose(inputs[0], inputs[1], **new_attrs)
 
     if use_bias:
@@ -277,6 +277,28 @@ def _mx_slice_axis(inputs, attrs):
     return _op.strided_slice(inputs[0], begin, end)
 
 
+def _mx_crop_like(inputs, attrs):
+    if len(inputs) < 2:
+        raise tvm.error.OpAttributeUnimplemented(
+            "Only support crop_like pattern for operator Crop.")
+    if attrs.get_bool("center_crop", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            "Center crop is not supported in operator Crop.")
+    if attrs.get_int_tuple("h_w", (0, 0)) != (0, 0):
+        raise tvm.error.OpAttributeUnimplemented(
+            "Doesn't support h_w in operator Crop.")
+    offset = attrs.get_int_tuple("offset", (0, 0))
+    new_attrs = {}
+    if offset == (0, 0):
+        new_attrs["axes"] = (2, 3)
+        return _op.slice_like(*inputs, **new_attrs)
+    like_shape = ir_pass.infer_type(inputs[1]).checked_type.shape
+    new_attrs['begin'] = [0, 0, offset[0], offset[1]]
+    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                        offset[1]+like_shape[3]]
+    return _op.strided_slice(inputs[0], **new_attrs)
+
+
 def _mx_split(inputs, attrs):
     axis = attrs.get_int("axis", 1)
     new_attrs = {}
@@ -298,6 +320,10 @@ def _mx_softmax_output(inputs, attrs):
     if attrs.get_bool("multi_output", False):
         return _op.nn.softmax(inputs[0], axis=1)
     return _op.nn.softmax(inputs[0])
+
+
+def _mx_linear_regression_output(inputs, _):
+    return inputs[0]
 
 
 def _mx_concat(inputs, attrs):
@@ -890,6 +916,7 @@ _convert_map = {
     "argsort"       : _mx_argsort,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
+    "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
@@ -905,11 +932,12 @@ _convert_map = {
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,
+    # Depricated:
+    "Crop"              : _mx_crop_like,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
-    # "Crop"          : _crop_like,
 }
 
 # set identity list
