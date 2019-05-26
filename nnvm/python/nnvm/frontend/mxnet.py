@@ -269,7 +269,7 @@ def _crop_like(inputs, attrs):
         raise tvm.error.OpAttributeUnimplemented(
             'Center crop is not supported in operator crop_like.')
     if len(inputs) < 2:
-        raise RuntimeError("Only support crop_like pattern.")
+        raise tvm.error.OpAttributeUnimplemented("Only support crop_like pattern.")
     new_attrs["axis"] = [2, 3]
     return get_nnvm_op('slice_like')(inputs[0], inputs[1], **new_attrs)
 
