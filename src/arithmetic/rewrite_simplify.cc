@@ -295,7 +295,7 @@ Mutate_(const Sub* op, const Expr& self) {
                        c1.Eval()->value != 0);
     TVM_TRY_REWRITE_IF(x - ((x - y) / c1) * c1, (x - y) % c1 + y,
                        c1.Eval()->value != 0);
-    TVM_TRY_REWRITE_IF(((x - y) / c1) * c1 - x, (y - x) % c1 - y,
+    TVM_TRY_REWRITE_IF(((x - y) / c1) * c1 - x, 0 - (x - y) % c1 - y,
                        c1.Eval()->value != 0);
 
     TVM_TRY_REWRITE_IF(x * c2 - (x / c1) * c3, (x % c1) * c2,
@@ -313,7 +313,7 @@ Mutate_(const Sub* op, const Expr& self) {
     TVM_TRY_REWRITE_IF(x * c2 - ((x - y) / c1) * c3, ((x - y) % c1 + y) * c2,
                        c1.Eval()->value != 0 &&
                        c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
-    TVM_TRY_REWRITE_IF(((x - y) / c1) * c3 - x * c2, ((y - x) % c1 - y) * c2,
+    TVM_TRY_REWRITE_IF(((x - y) / c1) * c3 - x * c2, (0 - (x - y) % c1 - y) * c2,
                        c1.Eval()->value != 0 &&
                        c3.Eval()->value == c1.Eval()->value * c2.Eval()->value);
 
@@ -428,6 +428,7 @@ Mutate_(const Div* op, const Expr& self) {
     // TryConstFold doesn't work for negative cases because it is also used by legacy
     // parts of tvm which still assume euclidean div. In this simplifier we assume that the division
     // is truncated, so perform const folding again.
+    // NOTE: trunc div required
     if ((c1 / c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
@@ -647,6 +648,7 @@ Mutate_(const Mod* op, const Expr& self) {
                        CanProveGreaterEqual(y.Eval(), 0));
 
     // canonicalization: x % c == x % (-c) for truncated division
+    // NOTE: trunc div required
     TVM_TRY_RECURSIVE_REWRITE_IF(x % c1,
                                  x % PConst<Expr>(make_const(op->type, -c1.Eval()->value)),
                                  c1.Eval()->value < 0);
@@ -1071,25 +1073,31 @@ Mutate_(const LT* op, const Expr& self) {
     TVM_TRY_REWRITE_IF(x * c2 < c1, x < (c1 - 1) / c2 + 1,
                        c1.Eval()->value > 0 &&
                        c2.Eval()->value > 0);
+    // NOTE: trunc div required
     TVM_TRY_REWRITE_IF(x * c2 < c1, x < c1 / c2,
                        c1.Eval()->value <= 0 &&
                        c2.Eval()->value > 0);
+    // NOTE: trunc div required (euclidean is ok too, floored is not)
     TVM_TRY_REWRITE_IF(x * c2 < c1, (c1 - 1) / c2 - 1 < x,
                        c1.Eval()->value > 0 &&
                        c2.Eval()->value < 0);
+    // NOTE: trunc div required (floored is ok too, euclidean is not)
     TVM_TRY_REWRITE_IF(x * c2 < c1, c1 / c2 < x,
                        c1.Eval()->value <= 0 &&
                        c2.Eval()->value < 0);
 
+    // NOTE: trunc div required
     TVM_TRY_REWRITE_IF(c1 < x * c2, (c1 + 1) / c2 - 1 < x,
                        c1.Eval()->value < 0 &&
                        c2.Eval()->value > 0);
     TVM_TRY_REWRITE_IF(c1 < x * c2, c1 / c2 < x,
                        c1.Eval()->value >= 0 &&
                        c2.Eval()->value > 0);
+    // NOTE: trunc div required (floored is ok too, euclidean is not)
     TVM_TRY_REWRITE_IF(c1 < x * c2, x < (c1 + 1) / c2 + 1,
                        c1.Eval()->value < 0 &&
                        c2.Eval()->value < 0);
+    // NOTE: trunc div required (euclidean is ok too, floored is not)
     TVM_TRY_REWRITE_IF(c1 < x * c2, x < c1 / c2,
                        c1.Eval()->value >= 0 &&
                        c2.Eval()->value < 0);
@@ -1097,6 +1105,7 @@ Mutate_(const LT* op, const Expr& self) {
     TVM_TRY_REWRITE_IF(x / c1 < c2, x < c1 * c2,
                        c1.Eval()->value > 0 &&
                        c2.Eval()->value > 0);
+    // NOTE: trunc div required
     TVM_TRY_REWRITE_IF(x / c1 < c2, x < c1 * (c2 - 1) + 1,
                        c1.Eval()->value > 0 &&
                        c2.Eval()->value <= 0);
@@ -1104,6 +1113,7 @@ Mutate_(const LT* op, const Expr& self) {
     TVM_TRY_REWRITE_IF(c1 < x / c2, (c1 + 1) * c2 - 1 < x,
                        c1.Eval()->value >= 0 &&
                        c2.Eval()->value > 0);
+    // NOTE: trunc div required
     TVM_TRY_REWRITE_IF(c1 < x / c2, c1 * c2 < x,
                        c1.Eval()->value < 0 &&
                        c2.Eval()->value > 0);

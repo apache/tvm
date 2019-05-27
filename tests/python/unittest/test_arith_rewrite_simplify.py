@@ -234,14 +234,14 @@ def test_sub_index_simplify():
     ck.verify(y - ((y + z) / 5) * 5, (y + z) % 5 - z)
     ck.verify(((y + z) / 5) * 5 - y, z - (y + z) % 5)
     ck.verify(y - ((y - z) / 5) * 5, (y - z) % 5 + z)
-    ck.verify(((y - z) / 5) * 5 - y, (z - y) % 5 - z)
+    ck.verify(((y - z) / 5) * 5 - y, 0 - (y - z) % 5 - z)
 
     ck.verify(y * 3 - (y / 2) * 6, (y % 2) * 3)
     ck.verify((y / 3) * 6 - y * 2, (y % 3) * (-2))
     ck.verify(y * 5 - ((y + z) / 2) * 10, ((y + z) % 2 - z) * 5)
     ck.verify(y * 5 - ((y - z) / 2) * 10, ((y - z) % 2 + z) * 5)
     ck.verify(((y + z) / 3) * 6 - y * 2, (z - (y + z) % 3) * 2)
-    ck.verify(((y - z) / 3) * 6 - y * 2, ((z - y) % 3 - z) * 2)
+    ck.verify(((y - z) / 3) * 6 - y * 2, (0 - (y - z) % 3 - z) * 2)
 
 def test_mul_index_simplify():
     ck = RewriteChecker()
