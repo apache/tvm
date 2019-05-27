@@ -485,7 +485,7 @@ def _test_upsampling(layout, method):
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "NEAREST_NEIGHBOR":
-        ref = topi.testing.upsampling_python(data, scale, layout)
+        ref = topi.testing.upsampling_python(data, (scale, scale), layout)
     else:
         ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
     for target, ctx in ctx_list():
