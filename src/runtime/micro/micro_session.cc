@@ -87,19 +87,19 @@ void MicroSession::InitSession(TVMArgs args) {
 
 DevBaseOffset MicroSession::AllocateInSection(SectionKind type, size_t size) {
   switch (type) {
-    case kText:
+    case SectionKind::kText:
       return text_allocator_->Allocate(size);
-    case kRodata:
+    case SectionKind::kRodata:
       return rodata_allocator_->Allocate(size);
-    case kData:
+    case SectionKind::kData:
       return data_allocator_->Allocate(size);
-    case kBss:
+    case SectionKind::kBss:
       return bss_allocator_->Allocate(size);
-    case kArgs:
+    case SectionKind::kArgs:
       return args_allocator_->Allocate(size);
-    case kStack:
+    case SectionKind::kStack:
       return stack_allocator_->Allocate(size);
-    case kHeap:
+    case SectionKind::kHeap:
       return heap_allocator_->Allocate(size);
     default:
       LOG(FATAL) << "Unsupported section type during allocation";
@@ -109,25 +109,25 @@ DevBaseOffset MicroSession::AllocateInSection(SectionKind type, size_t size) {
 
 void MicroSession::FreeInSection(SectionKind type, DevBaseOffset ptr) {
   switch (type) {
-    case kText:
+    case SectionKind::kText:
       text_allocator_->Free(ptr);
       return;
-    case kRodata:
+    case SectionKind::kRodata:
       rodata_allocator_->Free(ptr);
       return;
-    case kData:
+    case SectionKind::kData:
       data_allocator_->Free(ptr);
       return;
-    case kBss:
+    case SectionKind::kBss:
       bss_allocator_->Free(ptr);
       return;
-    case kArgs:
+    case SectionKind::kArgs:
       args_allocator_->Free(ptr);
       return;
-    case kStack:
+    case SectionKind::kStack:
       stack_allocator_->Free(ptr);
       return;
-    case kHeap:
+    case SectionKind::kHeap:
       heap_allocator_->Free(ptr);
       return;
     default:
@@ -192,15 +192,15 @@ BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
   SectionLocation data;
   SectionLocation bss;
 
-  text.size = GetSectionSize(binary_path, kText);
-  rodata.size = GetSectionSize(binary_path, kRodata);
-  data.size = GetSectionSize(binary_path, kData);
-  bss.size = GetSectionSize(binary_path, kBss);
+  text.size = GetSectionSize(binary_path, SectionKind::kText);
+  rodata.size = GetSectionSize(binary_path, SectionKind::kRodata);
+  data.size = GetSectionSize(binary_path, SectionKind::kData);
+  bss.size = GetSectionSize(binary_path, SectionKind::kBss);
 
-  text.start = AllocateInSection(kText, text.size);
-  rodata.start = AllocateInSection(kRodata, rodata.size);
-  data.start = AllocateInSection(kData, data.size);
-  bss.start = AllocateInSection(kBss, bss.size);
+  text.start = AllocateInSection(SectionKind::kText, text.size);
+  rodata.start = AllocateInSection(SectionKind::kRodata, rodata.size);
+  data.start = AllocateInSection(SectionKind::kData, data.size);
+  bss.start = AllocateInSection(SectionKind::kBss, bss.size);
   CHECK(text.start != nullptr && rodata.start != nullptr && data.start != nullptr &&
         bss.start != nullptr) << "not enough space to load module on device";
   const DevBaseAddr base_addr = low_level_device_->base_addr();
@@ -210,10 +210,10 @@ BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
       rodata.start + base_addr,
       data.start + base_addr,
       bss.start + base_addr);
-  std::string text_contents = ReadSection(relocated_bin, kText);
-  std::string rodata_contents = ReadSection(relocated_bin, kRodata);
-  std::string data_contents = ReadSection(relocated_bin, kData);
-  std::string bss_contents = ReadSection(relocated_bin, kBss);
+  std::string text_contents = ReadSection(relocated_bin, SectionKind::kText);
+  std::string rodata_contents = ReadSection(relocated_bin, SectionKind::kRodata);
+  std::string data_contents = ReadSection(relocated_bin, SectionKind::kData);
+  std::string bss_contents = ReadSection(relocated_bin, SectionKind::kBss);
   low_level_device_->Write(text.start, &text_contents[0], text.size);
   low_level_device_->Write(rodata.start, &rodata_contents[0], rodata.size);
   low_level_device_->Write(data.start, &data_contents[0], data.size);

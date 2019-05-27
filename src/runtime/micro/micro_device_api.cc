@@ -52,11 +52,11 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        TVMType type_hint) final {
-    return session_->AllocateInSection(kHeap, nbytes).cast_to<void*>();
+    return session_->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    session_->FreeInSection(kHeap, DevBaseOffset(reinterpret_cast<std::uintptr_t>(ptr)));
+    session_->FreeInSection(SectionKind::kHeap, DevBaseOffset(reinterpret_cast<std::uintptr_t>(ptr)));
   }
 
   void CopyDataFromTo(const void* from,
@@ -101,11 +101,11 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
-    return session_->AllocateInSection(kWorkspace, size).cast_to<void*>();
+    return session_->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
-    session_->FreeInSection(kWorkspace, DevBaseOffset(reinterpret_cast<std::uintptr_t>(data)));
+    session_->FreeInSection(SectionKind::kWorkspace, DevBaseOffset(reinterpret_cast<std::uintptr_t>(data)));
   }
 
   /*!

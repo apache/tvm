@@ -37,7 +37,7 @@ namespace runtime {
 /*!
  * \brief enum of device memory region sections
  */
-enum SectionKind : int {
+enum class SectionKind : int {
   kText = 0,
   kRodata = 1,
   kData = 2,

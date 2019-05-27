@@ -57,14 +57,14 @@ DevBaseOffset DevBaseOffset::operator+(size_t n) {
 
 const char* SectionToString(SectionKind section) {
   switch (section) {
-    case kText: return "text";
-    case kRodata: return "rodata";
-    case kData: return "data";
-    case kBss: return "bss";
-    case kArgs: return "args";
-    case kStack: return "stack";
-    case kHeap: return "heap";
-    case kWorkspace: return "workspace";
+    case SectionKind::kText: return "text";
+    case SectionKind::kRodata: return "rodata";
+    case SectionKind::kData: return "data";
+    case SectionKind::kBss: return "bss";
+    case SectionKind::kArgs: return "args";
+    case SectionKind::kStack: return "stack";
+    case SectionKind::kHeap: return "heap";
+    case SectionKind::kWorkspace: return "workspace";
     default: return "";
   }
 }
@@ -96,8 +96,9 @@ std::string RelocateBinarySections(std::string binary_path,
 }
 
 std::string ReadSection(std::string binary, SectionKind section) {
-  CHECK(section == kText || section == kRodata || section == kData || section == kBss)
-    << "ReadSection requires section to be one of text, rodata, data, or bss.";
+  CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
+        section == SectionKind::kData || section == SectionKind::kBss)
+      << "ReadSection requires section to be one of text, rodata, data, or bss.";
   const auto* f = Registry::Get("tvm_callback_read_binary_section");
   CHECK(f != nullptr)
     << "Require tvm_callback_read_binary_section to exist in registry";
@@ -109,8 +110,9 @@ std::string ReadSection(std::string binary, SectionKind section) {
 }
 
 size_t GetSectionSize(std::string binary_path, SectionKind section, size_t align) {
-  CHECK(section == kText || section == kRodata || section == kData || section == kBss)
-    << "GetSectionSize requires section to be one of text, rodata, data, or bss.";
+  CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
+        section == SectionKind::kData || section == SectionKind::kBss)
+      << "GetSectionSize requires section to be one of text, rodata, data, or bss.";
   const auto* f = Registry::Get("tvm_callback_get_section_size");
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
