@@ -16,6 +16,7 @@
 # under the License.
 """TVM operator upsampling compute."""
 from __future__ import absolute_import
+import tvm
 import topi
 from ..util import simplify
 
@@ -53,5 +54,4 @@ def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
         out_shape = (simplify(data.shape[1] * scale), simplify(data.shape[2] * scale))
     else:
         raise ValueError("not support this layout {} yet".format(layout))
-
     return topi.cpp.nn.upsampling(data, out_shape, layout, method)
