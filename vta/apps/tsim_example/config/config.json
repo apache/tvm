@@ -1,5 +1,5 @@
 {
-  "TARGET" : "verilog",
+  "TARGET" : "chisel",
   "TOP_NAME" : "TestAccel",
   "BUILD_NAME" : "build",
   "USE_TRACE" : "OFF",
