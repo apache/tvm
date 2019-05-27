@@ -227,6 +227,25 @@ def test_sub_index_simplify():
     ck.verify(x - (x / 3) * 3, x % 3)
     ck.verify((x + 5) / 3 - x / 3, (((x + 2) % 3) + 5)/ 3)
 
+    ck.verify(y - (y / (-5)) * (-5), y % 5)
+    ck.verify((y / 3) * 3 - y, 0 - y % 3)
+    ck.verify(y - ((y - 6) / 5) * 5, (y + (-6)) % 5 + 6)
+    ck.verify(((y - 6) / 5) * 5 - y, (-6) - (y + (-6)) % 5)
+    ck.verify(y - ((y + z) / 5) * 5, (y + z) % 5 - z)
+    ck.verify(((y + z) / 5) * 5 - y, z - (y + z) % 5)
+    ck.verify(y - ((y - z) / 5) * 5, (y - z) % 5 + z)
+    ck.verify(((y - z) / 5) * 5 - y, 0 - (y - z) % 5 - z)
+
+    ck.verify(y * 3 - (y / 2) * 6, (y % 2) * 3)
+    ck.verify((y / 3) * 6 - y * 2, (y % 3) * (-2))
+    ck.verify(y * 5 - ((y + z) / 2) * 10, ((y + z) % 2 - z) * 5)
+    ck.verify(y * 5 - ((y - z) / 2) * 10, ((y - z) % 2 + z) * 5)
+    ck.verify(((y + z) / 3) * 6 - y * 2, (z - (y + z) % 3) * 2)
+    ck.verify(((y - z) / 3) * 6 - y * 2, (0 - (y - z) % 3 - z) * 2)
+    ck.verify(5 * y - ((y + z) / 2) * 10, ((y + z) % 2 - z) * 5)
+    ck.verify(5 * y - 10 * ((y - z) / 2), ((y - z) % 2 + z) * 5)
+    ck.verify(6 * ((y + z) / 3) - y * 2, (z - (y + z) % 3) * 2)
+    ck.verify(((y - z) / 3) * 6 - 2 * y, (0 - (y - z) % 3 - z) * 2)
 
 def test_mul_index_simplify():
     ck = RewriteChecker()
@@ -292,6 +311,11 @@ def test_mod_index_simplify():
     ck.verify((x + 10) % 2, x % 2)
     ck.verify((x + y * 10) % 2, x % 2)
     ck.verify((x* 10 + 1 + y * 2 + 2) % 2, 1)
+    ck.verify(x * 10 % -2, 0)
+    ck.verify((x * 10 + y) % -2, y % 2)
+    ck.verify((x + 10) % -2, x % 2)
+    ck.verify((x + y * 10) % -2, x % 2)
+    ck.verify((x* 10 + 1 + y * 2 + 2) % -2, 1)
 
 
 def test_min_index_simplify():
@@ -449,6 +473,50 @@ def test_cmp_simplify():
     ck.verify(x / 2 < 3, x < 6)
     ck.verify(x * 4 <= 2, x <= 0)
     ck.verify(3 < x / 2, tvm.expr.LT(7, x))
+    ck.verify(x / 3 >= 0, tvm.expr.LE(-2, x))
+    ck.verify((0 - x * 3) <= 0, tvm.expr.LE(0, x))
+    ck.verify((0 - x * 3) >= 0, tvm.expr.LE(x, 0))
+    ck.verify(2 * x <= 0, x <= 0)
+
+    ck.verify(x * 2 >= 3, tvm.expr.LE(2, x))
+    ck.verify(x * 2 >= 2, tvm.expr.LE(1, x))
+    ck.verify(x * 2 >= 1, tvm.expr.LE(1, x))
+    ck.verify(x * 2 >= 0, tvm.expr.LE(0, x))
+    ck.verify(x * 2 >= -1, tvm.expr.LE(0, x))
+    ck.verify(x * 2 >= -2, tvm.expr.LE(-1, x))
+    ck.verify(x * 2 >= -3, tvm.expr.LE(-1, x))
+
+    ck.verify(x * 2 <= 3, tvm.expr.LE(x, 1))
+    ck.verify(x * 2 <= 2, tvm.expr.LE(x, 1))
+    ck.verify(x * 2 <= 1, tvm.expr.LE(x, 0))
+    ck.verify(x * 2 <= 0, tvm.expr.LE(x, 0))
+    ck.verify(x * 2 <= -1, tvm.expr.LE(x, -1))
+    ck.verify(x * 2 <= -2, tvm.expr.LE(x, -1))
+    ck.verify(x * 2 <= -3, tvm.expr.LE(x, -2))
+
+    ck.verify(x * (-2) >= 3, tvm.expr.LE(x, -2))
+    ck.verify(x * (-2) >= 2, tvm.expr.LE(x, -1))
+    ck.verify(x * (-2) >= 1, tvm.expr.LE(x, -1))
+    ck.verify(x * (-2) >= 0, tvm.expr.LE(x, 0))
+    ck.verify(x * (-2) >= -1, tvm.expr.LE(x, 0))
+    ck.verify(x * (-2) >= -2, tvm.expr.LE(x, 1))
+    ck.verify(x * (-2) >= -3, tvm.expr.LE(x, 1))
+
+    ck.verify(x * (-2) <= 3, tvm.expr.LE(-1, x))
+    ck.verify(x * (-2) <= 2, tvm.expr.LE(-1, x))
+    ck.verify(x * (-2) <= 1, tvm.expr.LE(0, x))
+    ck.verify(x * (-2) <= 0, tvm.expr.LE(0, x))
+    ck.verify(x * (-2) <= -1, tvm.expr.LE(1, x))
+    ck.verify(x * (-2) <= -2, tvm.expr.LE(1, x))
+    ck.verify(x * (-2) <= -3, tvm.expr.LE(2, x))
+
+    ck.verify(x / 2 >= 1, tvm.expr.LE(2, x))
+    ck.verify(x / 2 >= 0, tvm.expr.LE(-1, x))
+    ck.verify(x / 2 >= -1, tvm.expr.LE(-3, x))
+
+    ck.verify(x / 2 <= 1, tvm.expr.LE(x, 3))
+    ck.verify(x / 2 <= 0, tvm.expr.LE(x, 1))
+    ck.verify(x / 2 <= -1, tvm.expr.LE(x, -2))
 
     ck.verify(x / 4 * 4 < x, tvm.expr.LT(0, x % 4))
     ck.verify(x / 4 * 4 >= x, tvm.expr.LE(x % 4, 0))
@@ -480,6 +548,7 @@ def test_cmp_simplify():
     ck.verify(x*y <= 0, tvm.const(1, "bool"))
     ck.verify((x + 1)*(y - 1) < 0, tvm.const(1, "bool"))
     ck.verify(y*y >= 0, tvm.const(1, "bool"))
+    ck.verify(x*6 <= -3, tvm.const(0, "bool"))
 
 
 def test_logical_simplify():

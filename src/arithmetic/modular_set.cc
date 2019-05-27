@@ -26,6 +26,8 @@
 #include <tvm/expr_operator.h>
 #include <tvm/ir_functor_ext.h>
 #include <limits>
+#include <utility>
+#include <unordered_map>
 #include "pattern_match.h"
 
 namespace tvm {
