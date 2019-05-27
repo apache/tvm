@@ -16,7 +16,6 @@
 # under the License.
 """TVM operator upsampling compute."""
 from __future__ import absolute_import
-import tvm
 import topi
 from ..util import simplify
 
