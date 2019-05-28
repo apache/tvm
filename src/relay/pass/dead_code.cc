@@ -158,8 +158,7 @@ Pass DeadCodeElimination() {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(DeadCodeElimination(f));
   };
-  Pass dec = CreateFunctionPass(pass_func, 1, "dead_code_elimination", {});
-  return PassRegistry::Global().RegisterPass(dec);
+  return CreateFunctionPass(pass_func, 1, "dead_code_elimination", {});
 }
 
 TVM_REGISTER_API("relay._transform.DeadCodeElimination")

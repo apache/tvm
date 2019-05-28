@@ -424,10 +424,10 @@ def test_sequential_with_scoping():
         return relay.Function([x], z1)
 
     seq = _transform.Sequential([
-        relay.transform.infer_type(),
-        relay.transform.fold_constant(),
-        relay.transform.eliminate_common_subexpr(),
-        relay.transform.alter_op_layout()
+        relay.transform.InferType(),
+        relay.transform.FoldConstant(),
+        relay.transform.EliminateCommonSubexpr(),
+        relay.transform.AlterOpLayout()
     ])
 
     mod = relay.Module({"main": before()})

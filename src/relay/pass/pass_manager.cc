@@ -44,62 +44,39 @@ namespace {
 Pass GetPass(const std::string& pass_name) {
   if (pass_name == "infer_type") {
     return InferType();
-  } else if (pass_name == "simplify_inference") {
-    return SimplifyInference();
   } else if (pass_name == "alter_op_layout") {
     return AlterOpLayout();
   } else if (pass_name == "canonicalize_ops") {
     return CanonicalizeOps();
   } else if (pass_name == "combine_parallel_conv2d") {
     return CombineParallelConv2D();
+  } else if (pass_name == "dead_code_elimination") {
+    return DeadCodeElimination();
+  } else if (pass_name == "eliminate_common_subexpr") {
+    return DeadCodeElimination();
   } else if (pass_name == "fold_constant") {
     return FoldConstant();
+  } else if (pass_name == "backward_fold_scale_axis") {
+    return FoldScaleAxis();
+  } else if (pass_name == "forward_fold_scale_axis") {
+    return FoldScaleAxis();
   } else if (pass_name == "fold_scale_axis") {
     return FoldScaleAxis();
+  } else if (pass_name == "partial_eval") {
+    return SimplifyInference();
+  } else if (pass_name == "simplify_inference") {
+    return SimplifyInference();
   } else if (pass_name == "to_a_normal_form") {
     return ToANormalForm();
   } else if (pass_name == "to_graph_normal_form") {
     return ToGraphNormalForm();
   } else {
-    LOG(FATAL) << pass_name << " has not been registered yet." << "\n";
+    LOG(WARNING) << pass_name << " has not been registered yet." << "\n";
     return Pass(nullptr);
   }
 }
 
 }  // namespace
-
-PassRegistry& PassRegistry::Global() {
-  static PassRegistry registry;
-  return registry;
-}
-
-const Pass PassRegistry::Lookup(const std::string& name) const {
-    auto it = registered_pass_map_.find(name);
-    if (it == registered_pass_map_.end()) {
-      return Pass(nullptr);
-    }
-    return it->second;
-}
-
-const Pass PassRegistry::Lookup(const Pass& pass) const {
-  PassInfo info = pass->Info();
-  return Lookup(info->name);
-}
-
-const Pass PassRegistry::RegisterPass(const Pass& pass) {
-  CHECK(pass.defined()) << "Undefined passes are not allowed to be registered."
-                        << "\n";
-
-  PassInfo info = pass->Info();
-  std::string name = info->name;
-  const Pass pa = Lookup(name);
-  if (pa.defined()) {
-    return pa;
-  } else {
-    registered_pass_map_.insert({name, pass});
-    return pass;
-  }
-}
 
 struct RelayPassContextThreadLocalEntry {
   /*! \brief The default pass context. */
@@ -370,12 +347,10 @@ Module ModulePassNode::operator()(const Module& mod,
   // Execute the required passes in a DFS way.
   // TODO(zhiics) We may need to pass validation to detect the cyclic
   // dependency.
-  PassRegistry& registry = PassRegistry::Global();
   for (const auto& it : pass_info->required) {
     const auto* name = it.as<tvm::ir::StringImm>();
     CHECK(name);
-    Pass pass = registry.Lookup(name->value);
-    pass = pass.defined() ? pass : GetPass(name->value);
+    auto pass = GetPass(name->value);
     const auto* pass_node = pass.operator->();
     updated_mod = (*pass_node)(updated_mod, pass_ctx);
   }
@@ -407,12 +382,10 @@ Module FunctionPassNode::operator()(const Module& mod,
   // Execute the required passes in a DFS way.
   // TODO(zhiics) We may need to pass validation to detect the cyclic
   // dependency.
-  PassRegistry& registry = PassRegistry::Global();
   for (const auto& it : pass_info->required) {
     const auto* name = it.as<tvm::ir::StringImm>();
     CHECK(name);
-    Pass pass = registry.Lookup(name->value);
-    pass = pass.defined() ? pass : GetPass(name->value);
+    auto pass = GetPass(name->value);
     const auto* pass_node = pass.operator->();
     updated_mod = (*pass_node)(updated_mod, pass_ctx);
   }
@@ -501,18 +474,16 @@ bool SequentialNode::PassEnabled(const std::string& pass_name) const {
     return true;
   }
 
-  PassRegistry& registry = PassRegistry::Global();
-  const Pass registered_pass = registry.Lookup(pass_name);
+  const Pass pass = GetPass(pass_name);
 
-  if (!registered_pass.defined()) {
+  if (!pass.defined()) {
     LOG(WARNING) << pass_name
-                 << " is not registered to the pass registry, it will be "
-                    "forced to execute."
+                 << " is not registered yet, it will be forced to execute."
                  << "\n";
     return true;
   }
 
-  PassInfo info = registered_pass->Info();
+  PassInfo info = pass->Info();
   return ctx->opt_level >= info->opt_level;
 }
 

@@ -960,9 +960,8 @@ Pass ForwardFoldScaleAxis() {
       return Downcast<Function>(
           relay::fold_scale_axis::ForwardFoldScaleAxis(f));
   };
-  Pass pass = CreateFunctionPass(pass_func, 3, "forward_fold_scale_axis",
-                                 {ir::StringImm::make("infer_type")});
-  return PassRegistry::Global().RegisterPass(pass);
+  return CreateFunctionPass(pass_func, 3, "forward_fold_scale_axis",
+                            {ir::StringImm::make("infer_type")});
 }
 
 Pass BackwardFoldScaleAxis() {
@@ -971,9 +970,8 @@ Pass BackwardFoldScaleAxis() {
       return Downcast<Function>(
           relay::fold_scale_axis::BackwardFoldScaleAxis(f));
     };
-  Pass pass = CreateFunctionPass(pass_func, 3, "backward_fold_scale_axis",
-                                 {ir::StringImm::make("infer_type")});
-  return PassRegistry::Global().RegisterPass(pass);
+  return CreateFunctionPass(pass_func, 3, "backward_fold_scale_axis",
+                            {ir::StringImm::make("infer_type")});
 }
 
 Pass FoldScaleAxis() {
@@ -982,15 +980,8 @@ Pass FoldScaleAxis() {
   Pass pass = Sequential(
       {FoldConstant(), BackwardFoldScaleAxis(), ForwardFoldScaleAxis()},
       "fold_scale_axis");
-
-  return PassRegistry::Global().RegisterPass(pass);
+  return pass;
 }
-
-TVM_REGISTER_API("relay._transform.ForwardFoldScaleAxis")
-.set_body_typed(ForwardFoldScaleAxis);
-
-TVM_REGISTER_API("relay._transform.BackwardFoldScaleAxis")
-.set_body_typed(BackwardFoldScaleAxis);
 
 TVM_REGISTER_API("relay._transform.FoldScaleAxis")
 .set_body_typed(FoldScaleAxis);

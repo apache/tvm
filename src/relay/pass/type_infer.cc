@@ -816,17 +816,7 @@ Pass InferType() {
     [=](Function f, Module m, PassContext pc) {
       return Downcast<Function>(InferType(f, m));
   };
-  Pass pass = CreateFunctionPass(pass_func, 0, "infer_type", {});
-  return PassRegistry::Global().RegisterPass(pass);
-}
-
-Pass InferType(const GlobalVar& var) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
-      return Downcast<Function>(InferType(f, m, var));
-  };
-  Pass pass = CreateFunctionPass(pass_func, 0, "infer_type_var", {});
-  return PassRegistry::Global().RegisterPass(pass);
+  return CreateFunctionPass(pass_func, 0, "infer_type", {});
 }
 
 TVM_REGISTER_API("relay._transform.InferType")

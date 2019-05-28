@@ -113,9 +113,8 @@ Pass SimplifyInference() {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(SimplifyInference(f));
   };
-  Pass pass = CreateFunctionPass(pass_func, 0, "simplify_inference",
-                                 {ir::StringImm::make("infer_type")});
-  return PassRegistry::Global().RegisterPass(pass);
+  return CreateFunctionPass(pass_func, 0, "simplify_inference",
+                            {ir::StringImm::make("infer_type")});
 }
 
 TVM_REGISTER_API("relay._transform.SimplifyInference")

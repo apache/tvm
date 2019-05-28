@@ -806,8 +806,7 @@ Pass PartialEval() {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(PartialEval(f));
   };
-  Pass pass = CreateFunctionPass(pass_func, 1, "partial_eval", {});
-  return PassRegistry::Global().RegisterPass(pass);
+  return CreateFunctionPass(pass_func, 1, "partial_eval", {});
 }
 
 TVM_REGISTER_API("relay._transform.PartialEval")

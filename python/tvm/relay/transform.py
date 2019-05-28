@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
+# pylint: disable=invalid-name
 """
 This file contains the pass manager for Relay which exposes different
 granularity of interfaces for users to implement and use passes more
@@ -396,7 +397,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     return create_function_pass
 
 
-def infer_type():
+def InferType():
     """Infer the type of an expr.
 
     Returns
@@ -407,41 +408,7 @@ def infer_type():
     return _transform.InferType()
 
 
-def backward_fold_scale_axis():
-    """Backward fold axis scaling into weights of conv2d/dense.
-
-    Returns
-    -------
-    ret : tvm.relay.Pass
-        The registered pass to backward fold expressions.
-
-    Note
-    ----
-    It is recommended to call backward_fold_scale_axis before using
-    forward_fold_scale_axis. As backward folding targets common conv-bn
-    pattern.
-    """
-    return _transform.BackwardFoldScaleAxis()
-
-
-def forward_fold_scale_axis():
-    """Fold the scaling of axis into weights of conv2d/dense.
-
-    Returns
-    -------
-    ret : tvm.relay.Pass
-        The registered pass to forward fold expressions.
-
-    Note
-    ----
-    It is recommended to call backward_fold_scale_axis before using
-    forward_fold_scale_axis. As backward folding targets common conv-bn
-    pattern.
-    """
-    return _transform.ForwardFoldScaleAxis()
-
-
-def fold_scale_axis():
+def FoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense. This pass will
     invoke both forward and backward scale folding.
 
@@ -452,14 +419,14 @@ def fold_scale_axis():
 
     Note
     ----
-    It is recommended to call backward_fold_scale_axis before using
+    Internally, we will call backward_fold_scale_axis before using
     forward_fold_scale_axis. As backward folding targets common conv-bn
     pattern.
     """
     return _transform.FoldScaleAxis()
 
 
-def simplify_inference():
+def SimplifyInference():
     """Simplify the data-flow graph for inference phase. An simplified expression
     which is semantically equal to the input expression will be returned.
 
@@ -471,7 +438,7 @@ def simplify_inference():
     return _transform.SimplifyInference()
 
 
-def canonicalize_ops():
+def CanonicalizeOps():
     """ Canonicalize special operators to basic operators.
     This can simplify followed analysis. (e.g. expanding bias_add to
     expand_dims and broadcast_add.)
@@ -484,7 +451,7 @@ def canonicalize_ops():
     return _transform.CanonicalizeOps()
 
 
-def dead_code_elimination():
+def DeadCodeElimination():
     """ Remove expressions which does not effect the program result (dead code).
 
     Returns
@@ -495,7 +462,7 @@ def dead_code_elimination():
     return _transform.DeadCodeElimination()
 
 
-def fold_constant():
+def FoldConstant():
     """Fold the constant expression in expr.
 
     Returns
@@ -506,7 +473,7 @@ def fold_constant():
     return _transform.FoldConstant()
 
 
-def fuse_ops(fuse_opt_level=-1):
+def FuseOps(fuse_opt_level=-1):
     """Fuse operators in an expr to a larger operator according to some rules.
 
     Parameters
@@ -523,7 +490,7 @@ def fuse_ops(fuse_opt_level=-1):
     return _transform.FuseOps(fuse_opt_level)
 
 
-def combine_parallel_conv2d(min_num_branches=3):
+def CombineParallelConv2D(min_num_branches=3):
     """Combine multiple conv2d operators into one.
 
     Parameters
@@ -540,7 +507,7 @@ def combine_parallel_conv2d(min_num_branches=3):
     return _transform.CombineParallelConv2D(min_num_branches)
 
 
-def alter_op_layout():
+def AlterOpLayout():
     """Alternate the layouts of operators or replace primitive operators with
     other expressions.
     This pass can be used for computing convolution in custom layouts or
@@ -554,7 +521,7 @@ def alter_op_layout():
     return _transform.AlterOpLayout()
 
 
-def rewrite_annotated_ops(fallback_device):
+def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
     `on_deivce`, mark which device an expression should be scheduled to.
     This pass helps heterogeneous execution where different operators may need
@@ -575,7 +542,7 @@ def rewrite_annotated_ops(fallback_device):
     return _transform.RewriteDeviceAnnotation(fallback_device)
 
 
-def to_a_normal_form():
+def ToANormalForm():
     """Turn Graph Normal Form expression into A Normal Form Expression.
     The scope of the root expression is the global scope.
     The scope of any non root expression is the least common ancestor of all it's scope.
@@ -589,7 +556,7 @@ def to_a_normal_form():
     return _transform.ToANormalForm()
 
 
-def to_graph_normal_form():
+def ToGraphNormalForm():
     """Turn A Normal Form expression into Graph Normal Form expression
 
     Returns
@@ -600,7 +567,7 @@ def to_graph_normal_form():
     return _transform.ToGraphNormalForm()
 
 
-def eliminate_common_subexpr(fskip=None):
+def EliminateCommonSubexpr(fskip=None):
     """Eliminate common subexpressions.
 
     Parameters
@@ -617,7 +584,7 @@ def eliminate_common_subexpr(fskip=None):
     return _transform.EliminateCommonSubexpr(fskip)
 
 
-def partial_evaluate():
+def PartialEval():
     """Evaluate the static fragment of the code.
 
     Returns

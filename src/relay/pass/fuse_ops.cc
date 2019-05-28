@@ -974,9 +974,8 @@ Pass FuseOps(int fuse_opt_level) {
     int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
     return Downcast<Function>(FuseOps(f, opt_level, m));
   };
-  Pass pass = CreateFunctionPass(pass_func, 1, "fuse_ops",
-                                 {ir::StringImm::make("infer_type")});
-  return PassRegistry::Global().RegisterPass(pass);
+  return CreateFunctionPass(pass_func, 1, "fuse_ops",
+                            {ir::StringImm::make("infer_type")});
 }
 
 TVM_REGISTER_API("relay._transform.FuseOps")

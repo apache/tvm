@@ -86,8 +86,7 @@ Pass ToGraphNormalForm() {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(ToGraphNormalForm(f));
   };
-  Pass pass = CreateFunctionPass(pass_func, 1, "to_graph_normal_form", {});
-  return PassRegistry::Global().RegisterPass(pass);
+  return CreateFunctionPass(pass_func, 1, "to_graph_normal_form", {});
 }
 
 TVM_REGISTER_API("relay._transform.ToGraphNormalForm")

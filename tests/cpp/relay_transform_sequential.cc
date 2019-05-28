@@ -73,8 +73,10 @@ TEST(Relay, Sequential) {
       relay::transform::EliminateCommonSubexpr(tvm::PackedFunc(nullptr)));
   pass_seqs.push_back(relay::transform::AlterOpLayout());
 
-  auto pfb = tvm::runtime::Registry::Get("relay._module.Module_FromExpr");
-  relay::Module mod = (*pfb)(func);
+  relay::GlobalVar var = relay::GlobalVarNode::make("main");
+  tvm::Map<relay::GlobalVar, relay::Function> m;
+  m.Set(var, func);
+  auto mod = relay::ModuleNode::make(m, {});
   relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
   {
     tvm::With<relay::transform::PassContext> pass_ctx(
@@ -85,7 +87,6 @@ TEST(Relay, Sequential) {
 
   CHECK(mod.defined());
 
-  relay::GlobalVar var = mod->entry_func;
   relay::Function f;
   for (const auto& kv : mod->functions) {
     f = kv.second;
@@ -99,16 +100,11 @@ TEST(Relay, Sequential) {
   y1 = relay::CallNode::make(add_op, {x1, y1});
   auto zz = relay::CallNode::make(add_op, {y1, c1});
   zz = relay::CallNode::make(add_op, {zz, zz});
-  relay::Function expected =
+  relay::Function expected_func =
       relay::FunctionNode::make(relay::FreeVars(zz), zz, relay::Type(), {});
 
   // Infer type for the expected function.
-  auto infer = tvm::runtime::Registry::Get("relay._ir_pass.infer_type");
-  if (!infer) {
-    LOG(FATAL) << "infer_type pass is not registered";
-  }
-  expected = (*infer)(expected, nullptr);
-
+  auto expected = relay::InferType(expected_func, relay::Module(nullptr));
   CHECK(relay::AlphaEqual(f, expected));
 }
 

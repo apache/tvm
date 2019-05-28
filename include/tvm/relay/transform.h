@@ -311,53 +311,6 @@ class Sequential : public Pass {
   using ContainerType = Sequential;
 };
 
-/*!
- * \brief A class to save registered passes.
- */
-class PassRegistry {
- public:
-  /*
-   * \brief Get the global pass registry.
-   */
-  static PassRegistry& Global();
-
-  /*
-   * \brief Look up a pass in the registered pass map using the pass name.
-   *
-   * \param name The name of the pass to be looked up.
-   *
-   * \return The correponding pass if it is found. Otherwise, an empty pass.
-   */
-  const Pass Lookup(const std::string& name) const;
-
-  /*
-   * \brief Look up a pass in the registered pass map.
-   *
-   * \param name The name of the pass to be looked up.
-   *
-   * \return The correponding pass if it is found. Otherwise, an empty pass.
-   */
-  const Pass Lookup(const Pass& pass) const;
-
-  /*
-   * \brief Register a pass.
-   *
-   * \param pass The pass to be required.
-   */
-  const Pass RegisterPass(const Pass& pass);
-
- private:
-  PassRegistry() = default;
-  ~PassRegistry() = default;
-
-  PassRegistry(const PassRegistry&) = delete;
-  PassRegistry(PassRegistry&&) = delete;
-  PassRegistry& operator=(const PassRegistry&) = delete;
-  PassRegistry& operator=(PassRegistry&&) = delete;
-
-  std::unordered_map<std::string, const Pass> registered_pass_map_;
-};
-
 /*
  * \brief Create a module pass.
  *
@@ -515,19 +468,6 @@ TVM_DLL Pass SimplifyInference();
  * \return The pass. 
  */
 TVM_DLL Pass InferType();
-
-/*!
- * \brief Infer the type of an expression.
- *
- * The result of type checking is a new expression with unambigous
- * type information filled in, as well as it's checked type field
- * populated with the result type.
- *
- * \param var The global variable corresponding to the function being optimized.
- *
- * \return The pass. 
- */
-TVM_DLL Pass InferType(const GlobalVar& var);
 
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are
