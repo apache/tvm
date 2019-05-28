@@ -46,7 +46,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCH
         out_size = (in_height*scale, in_width*scale)
         b_np = topi.testing.bilinear_resize_python(a_np, out_size, layout)
     else:
-        b_np = topi.testing.upsampling_python(a_np, scale, layout)
+        b_np = topi.testing.upsampling_python(a_np, (scale, scale), layout)
 
     def check_device(device):
         ctx = tvm.context(device, 0)

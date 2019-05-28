@@ -48,7 +48,7 @@ def test_resize():
         if method == "BILINEAR":
             ref_res = topi.testing.bilinear_resize_python(x_data, size, layout)
         else:
-            ref_res = topi.testing.upsampling_python(x_data, scale, layout)
+            ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize(x, size, layout, method, False)
         assert "size=" in z.astext()

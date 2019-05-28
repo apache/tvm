@@ -179,7 +179,7 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
 
     a_np = np.full(input_dim, 1, dtype=dtype)
     if mode == 'NN':
-        b_np = topi.testing.upsampling_python(a_np, scale)
+        b_np = topi.testing.upsampling_python(a_np, (scale, scale))
     else:
         new_h = input_dim[2] * scale
         new_w = input_dim[3] * scale
