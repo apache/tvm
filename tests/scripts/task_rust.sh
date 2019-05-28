@@ -48,6 +48,10 @@ cd tests/test_tvm_basic
 cargo run
 cd -
 
+cd tests/test_tvm_dso
+cargo run
+cd -
+
 # run NNVM graph test
 cd tests/test_nnvm
 cargo run

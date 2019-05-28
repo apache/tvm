@@ -16,35 +16,11 @@
 # under the License.
 
 [package]
-name = "tvm-runtime"
-version = "0.1.0"
+name = "test-tvm-dso"
+version = "0.0.0"
 license = "Apache-2.0"
-description = "A static TVM runtime"
-repository = "https://github.com/dmlc/tvm"
-readme = "README.md"
-keywords = ["tvm", "nnvm"]
-categories = ["api-bindings", "science"]
 authors = ["TVM Contributors"]
-edition = "2018"
-
-[features]
-default = ["nom/std"]
-sgx = ["nom/alloc"]
 
 [dependencies]
-bounded-spsc-queue = "0.4.0"
-failure = "0.1.5"
-itertools = "0.7.8"
-lazy_static = "1.1.0"
-ndarray="0.12.1"
-nom = {version = "4.0.0", default-features = false }
-serde = "1.0.59"
-serde_derive = "1.0.79"
-serde_json = "1.0.17"
-tvm-common = { version = "0.1.0", path = "../common/" }
-
-[target.'cfg(not(target_env = "sgx"))'.dependencies]
-num_cpus = "1.8.0"
-
-[target.'cfg(not(any(target_arch = "wasm32", target_env = "sgx")))'.dependencies]
-libloading = "0.5"
+ndarray="0.12"
+tvm-runtime = { path = "../../" }
