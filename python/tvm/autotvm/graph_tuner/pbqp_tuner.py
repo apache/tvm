@@ -28,7 +28,7 @@ class PBQPTuner(BaseGraphTuner):
     This graph coloring algorithm mainly comes from:
 
     Lang Hames and Bernhard Scholz.
-    Nearly optimal reg-ister allocation with pbqp.JMLC 2006.
+    Nearly optimal register allocation with pbqp.JMLC 2006.
     LNCS, vol.4228,pp. 346-361, 2016
     """
     def __init__(self, *args, **kwargs):
