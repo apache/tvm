@@ -20,7 +20,6 @@
 package test
 
 import chisel3._
-import chisel3.experimental.{RawModule, withClockAndReset}
 import vta.dpi._
 import accel._
 
@@ -29,21 +28,19 @@ import accel._
   * Instantiate Host and Memory DPI modules.
   *
   */
-class VTASimShell extends RawModule {
+class VTASimShell extends Module {
   val io = IO(new Bundle {
-    val clock = Input(Clock())
-    val reset = Input(Bool())
     val host = new VTAHostDPIMaster
     val mem = new VTAMemDPIClient
   })
   val host = Module(new VTAHostDPI)
   val mem = Module(new VTAMemDPI)
-  mem.io.reset := io.reset
-  mem.io.clock := io.clock
-  host.io.reset := io.reset
-  host.io.clock := io.clock
-  io.mem <> mem.io.dpi
+  mem.io.dpi <> io.mem
+  mem.io.reset := reset
+  mem.io.clock := clock
   io.host <> host.io.dpi
+  host.io.reset := reset
+  host.io.clock := clock
 }
 
 /** Test accelerator.
@@ -51,15 +48,10 @@ class VTASimShell extends RawModule {
   * Instantiate and connect the simulation-shell and the accelerator.
   *
   */
-class TestAccel extends RawModule {
-  val clock = IO(Input(Clock()))
-  val reset = IO(Input(Bool()))
-
+class TestAccel extends Module {
+  val io = IO(new Bundle {})
   val sim_shell = Module(new VTASimShell)
-  val vta_accel = withClockAndReset(clock, reset) { Module(new Accel) }
-
-  sim_shell.io.clock := clock
-  sim_shell.io.reset := reset
+  val vta_accel = Module(new Accel)
   vta_accel.io.host <> sim_shell.io.host
   sim_shell.io.mem <> vta_accel.io.mem
 }
