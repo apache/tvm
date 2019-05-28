@@ -545,7 +545,7 @@ TVM_DLL Pass EliminateCommonSubexpr(PackedFunc fskip);
  * number of branches of this conv2d operator is not less than
  * `min_num_branch`.
  *
- * \param min_num_branch The minimun number of branches.
+ * \param min_num_branches The minimun number of branches.
  *
  * \return The pass.
  */

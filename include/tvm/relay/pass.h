@@ -431,7 +431,7 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& bind_map);
  *
  * \return The updated expression.
  */
-TVM_DLL Expr SimplifyInference(const Expr& e);
+TVM_DLL Expr SimplifyInference(const Expr& expr);
 
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are
@@ -451,7 +451,7 @@ TVM_DLL Expr EliminateCommonSubexpr(const Expr& expr, PackedFunc fskip);
  * `min_num_branch`.
  *
  * \param expr The expression.
- * \param min_num_branch The minimun number of branches.
+ * \param min_num_branches The minimun number of branches.
  *
  * \return The updated expression.
  */
