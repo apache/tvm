@@ -417,7 +417,7 @@ def _test_upsample_nearest():
     y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[1.0, 1.0, 2.0, 2.0])
 
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = topi.testing.upsampling_python(in_array, scale, "NCHW")
+    out_array = topi.testing.upsampling_python(in_array, (scale, scale), "NCHW")
 
     graph = helper.make_graph([y],
                               'upsample_nearest_test',
