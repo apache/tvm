@@ -65,7 +65,7 @@ const std::unordered_map<std::string, int> OptPassLevel::_data = {
   {"SimplifyInference", 0},
   {"OpFusion", 1},
   {"FoldConstant", 2},
-  {"CombineParallelConv2D", 3},
+  {"CombineParallelConv2D", 4},
   {"FoldScaleAxis", 3},
   {"AlterOpLayout", 3},
   {"CanonicalizeOps", 3},
