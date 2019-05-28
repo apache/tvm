@@ -3,7 +3,7 @@
    \file tvm/src/codegen/custom_datatypes/mybfloat16.cc
    \brief Small bfloat16 library for use in unittests
 
-  Code originally from Tensorflow; taken and simplified. Original license:
+  Code originally from TensorFlow; taken and simplified. Original license:
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
