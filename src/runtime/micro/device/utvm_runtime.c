@@ -32,7 +32,8 @@ UTVMTask task;
 void UTVMDone() {}
 
 void UTVMMain() {
-  task.func((void*) task.args->values, (void*) task.args->type_codes, task.args->num_args);
+  task.func((void*) task.args->values, (void*) task.args->type_codes,
+            task.args->num_args);  // NOLINT(*)
   UTVMDone();
 }
 
@@ -40,18 +41,18 @@ void UTVMMain() {
 // `NULL`.  Why?
 
 // These pointers are patched at load time to point to the workspace section.
-char *utvm_workspace_begin = (char*) 1;
-char *utvm_workspace_curr = (char*) 1;
+char *utvm_workspace_begin = (char*) 1;  // NOLINT(*)
+char *utvm_workspace_curr = (char*) 1;  // NOLINT(*)
 // Keep track of how many active allocations there are on the workspace.
 size_t num_active_allocs = 0;
 
-const char *last_error = (char*) 1;
+const char *last_error = (char*) 1;  // NOLINT(*)
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
                                int dtype_code_hint, int dtype_bits_hint) {
   // Align up to 8 bytes.
-  utvm_workspace_curr += (8 - ((uintptr_t) utvm_workspace_curr % 8)) % 8;
-  void* ret_ptr = (void*) utvm_workspace_curr;
+  utvm_workspace_curr += (8 - ((uintptr_t) utvm_workspace_curr % 8)) % 8;  // NOLINT(*)
+  void* ret_ptr = (void*) utvm_workspace_curr;  // NOLINT(*)
   utvm_workspace_curr += size;
   num_active_allocs++;
   return ret_ptr;

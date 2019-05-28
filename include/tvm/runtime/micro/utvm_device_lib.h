@@ -57,7 +57,7 @@ float min(float a, float b) {
   }
 }
 
-float max(float a, float b) {
+float max(float a, float b) {  // NOLINT(*)
   if (a > b) {
     return a;
   } else {
