@@ -23,9 +23,7 @@
  */
 #include <tvm/build_module.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/transform.h>
 #include <memory>
 
@@ -307,24 +305,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       const std::unordered_map<std::string, runtime::NDArray>& params) {
     Array<Pass> pass_seqs;
     pass_seqs.push_back(transform::SimplifyInference());
-
-    // Can we move to the pass implementation file and make it as default?
-    auto fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-      Expr expr = args[0];
-      if (expr.as<CallNode>()) {
-        auto call_node = expr.as<CallNode>();
-        auto op_node = call_node->op.as<OpNode>();
-        if (op_node->name == "cast") {
-          auto attrs = call_node->attrs.as<CastAttrs>();
-          if (attrs->dtype == HalideIR::Int(32)) {
-            *rv = true;
-          }
-        }
-      }
-      *rv =  false;
-    });
-
-    pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
+    pass_seqs.push_back(transform::EliminateCommonSubexpr());
     pass_seqs.push_back(transform::CombineParallelConv2D(3));
     pass_seqs.push_back(transform::FoldScaleAxis());
     pass_seqs.push_back(transform::CanonicalizeOps());

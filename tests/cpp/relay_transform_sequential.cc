@@ -69,8 +69,7 @@ TEST(Relay, Sequential) {
   tvm::Array<relay::transform::Pass> pass_seqs;
   pass_seqs.push_back(relay::transform::InferType());
   pass_seqs.push_back(relay::transform::DeadCodeElimination());
-  pass_seqs.push_back(
-      relay::transform::EliminateCommonSubexpr(tvm::PackedFunc(nullptr)));
+  pass_seqs.push_back(relay::transform::EliminateCommonSubexpr());
   pass_seqs.push_back(relay::transform::AlterOpLayout());
 
   relay::GlobalVar var = relay::GlobalVarNode::make("main");

@@ -58,9 +58,11 @@
 
 #include <tvm/base.h>
 #include <tvm/packed_func_ext.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <string>
 #include <unordered_map>
@@ -338,7 +340,7 @@ Pass CreateModulePass(
  * \return The created function pass.
  */
 TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
-                                  Function(Function, Module, PassContext)>& pass_func,
+                                Function(Function, Module, PassContext)>& pass_func,
                                 int opt_level,
                                 const std::string& name,
                                 const tvm::Array<tvm::Expr>& required);
@@ -478,7 +480,22 @@ TVM_DLL Pass InferType();
  *
  * \return The pass.
  */
-TVM_DLL Pass EliminateCommonSubexpr(PackedFunc fskip);
+TVM_DLL Pass EliminateCommonSubexpr(
+    PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+      Expr expr = args[0];
+      if (expr.as<CallNode>()) {
+        auto call_node = expr.as<CallNode>();
+        auto op_node = call_node->op.as<OpNode>();
+        if (op_node->name == "cast") {
+          auto attrs = call_node->attrs.as<CastAttrs>();
+          if (attrs->dtype == HalideIR::Int(32)) {
+            *rv = true;
+          }
+        }
+      }
+      *rv = false;
+    })
+);
 
 /*!
  * \brief Combine parallel 2d convolutions into a single convolution if the

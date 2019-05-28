@@ -499,7 +499,7 @@ Module SequentialNode::operator()(const Module& module,
     PassInfo info = pass->Info();
     const auto& pass_name = info->name;
     // Execute the pass if it is enabled.
-    if (pass_enabled(pass_name)) {
+    if (PassEnabled(pass_name)) {
       const auto* pn = pass.operator->();
       mod = (*pn)(mod, pass_ctx);
     }
