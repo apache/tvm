@@ -76,8 +76,8 @@ namespace transform {
 class PassContext;
 
 /*!
- * \brief PassContextNode contains the information that a pass can rely on, such as
- * analysis results.
+ * \brief PassContextNode contains the information that a pass can rely on,
+ * such as analysis results.
  */
 class PassContextNode : public RelayNode {
  public:
@@ -110,32 +110,51 @@ class PassContextNode : public RelayNode {
   TVM_DECLARE_NODE_TYPE_INFO(PassContextNode, RelayNode);
 };
 
+/*!
+ * \brief PassContext that is used to configure the pass behavior.
+ *
+ * \code
+ *
+ *  auto new_ctx = PassContext::Create();
+ *  ctx->opt_level = 2;
+ *  ctx->fallback_device = kDLCPU;
+ *  With<PassContext> scope(ctx);
+ *  // pass context in effect.
+ *
+ * \endcode
+ */
 class PassContext : public NodeRef {
  public:
   PassContext() {}
-  explicit PassContext(tvm::NodePtr<Node> n) : NodeRef(n) {}
-
-  /*
-   * \brief Constructor of a `PassContext` object.
-   *
-   * \param opt_level The optimization level that will be applied.
-   * \param fallback_device The fallback device used for heterogeneous
-   *        execution.
-   * \param required_pass The passes that are required for a context to execute
-   *        other passes.
-   * \param required_pass The passes that will be disabled during the
-   *        optimization under a context.
+  explicit PassContext(NodePtr<::tvm::Node> n) : NodeRef(n) {}
+  /*!
+   * \brief const accessor.
+   * \return const access pointer.
    */
-  TVM_DLL PassContext(int opt_level,
-                      int fallback_device,
-                      tvm::Array<tvm::Expr> required_pass,
-                      tvm::Array<tvm::Expr> disabled_pass);
-
-  // Get the currently used pass context.
+  const PassContextNode* operator->() const {
+    CHECK(node_.get() != nullptr);
+    return static_cast<const PassContextNode*>(node_.get());
+  }
+  /*!
+   * \brief mutable accessor.
+   * \return mutable access pointer.
+   */
+  PassContextNode* operator->() {
+    CHECK(node_.get() != nullptr);
+    return static_cast<PassContextNode*>(node_.get());
+  }
+  /*!
+   * \brief Construct a PassContext containing the default configurations.
+   * \return The new PassContext.
+   */
+  TVM_DLL static PassContext Create();
+  /*!
+   * \brief Get the default pass context in the current scope.
+   * \return The pass context.
+   */
   TVM_DLL static PassContext Current();
 
-  const PassContextNode* operator->() const;
-
+  // accessor.
   using ContainerType = PassContextNode;
   class Internal;
 
@@ -204,25 +223,23 @@ class PassNode : public RelayNode {
   virtual PassInfo Info() const = 0;
 
   /*!
-   * \brief Execute the optimization pass using a functor. This functor
-   * internally uses a current pass context.
+   * \brief Transform mod using the default PassContext in the current scope.
    *
    * \param mod The module that an optimization pass runs on.
    *
-   * \return The updated module.
+   * \return The transformed module.
    */
   Module operator()(const Module& mod) const {
     return this->operator()(mod, PassContext::Current());
   }
 
   /*!
-   * \brief Execute the optimization pass using a functor under a given pass context.
+   * \brief Transform mod using a functor under a given pass context.
    *
    * \param mod The module that an optimization pass runs on.
-   * \param pass_ctx The pass context that will be used to help the execution of
-   *        optimizations.
+   * \param pass_ctx The pass context that can provide information for the optimization.
    *
-   * \return The updated module.
+   * \return The transformed module.
    */
   virtual Module operator()(const Module& mod,
                             const PassContext& pass_ctx) const = 0;
@@ -235,14 +252,34 @@ class PassNode : public RelayNode {
 
 class Pass : public NodeRef {
  public:
-  Pass() = default;
-  explicit Pass(NodePtr<tvm::Node> p) : NodeRef(p) {}
-
-  PassNode* operator->() const {
-    return static_cast<PassNode*>(this->node_.get());
+  /*!
+   * \brief Transform mod using the default PassContext in the current scope.
+   *
+   * \param mod The module that an optimization pass runs on.
+   *
+   * \return The transformed module.
+   */
+  Module operator()(const Module& mod) const {
+    const PassNode* node = operator->();
+    CHECK(node != nullptr);
+    return node->operator()(mod);
+  }
+  /*!
+   * \brief Transform mod using a functor under a given pass context.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The pass context that can provide information for the optimization.
+   *
+   * \return The transformed module.
+   */
+  Module operator()(const Module& mod,
+                    const PassContext& pass_ctx) const {
+    const PassNode* node = operator->();
+    CHECK(node != nullptr);
+    return node->operator()(mod, pass_ctx);
   }
 
-  using ContainerType = PassNode;
+  TVM_DEFINE_NODE_REF_METHODS(Pass, NodeRef, PassNode);
 };
 
 class SequentialNode;
