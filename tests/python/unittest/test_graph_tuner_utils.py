@@ -14,6 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# NOTE: We name this test file to start with test_graph_tuner
+# to make it execute after zero_rank tensor test cases. This
+# helps avoid topi arithmetic operator overloading issue.
+# TODO: restore the file name after this issue is resolved.
 import tvm
 
 from tvm import autotvm, relay
