@@ -66,17 +66,14 @@ TEST(Relay, Sequential) {
   (*reg)("add", "FTVMSchedule", *sch, 10);
 
   // Run sequential passes.
-  tvm::Array<relay::transform::Pass> pass_seqs;
-  pass_seqs.push_back(relay::transform::InferType());
-  pass_seqs.push_back(relay::transform::DeadCodeElimination());
-  pass_seqs.push_back(relay::transform::EliminateCommonSubexpr());
-  pass_seqs.push_back(relay::transform::AlterOpLayout());
-
-  relay::GlobalVar var = relay::GlobalVarNode::make("main");
-  tvm::Map<relay::GlobalVar, relay::Function> m;
-  m.Set(var, func);
-  auto mod = relay::ModuleNode::make(m, {});
+  tvm::Array<relay::transform::Pass> pass_seqs{
+      relay::transform::InferType(),
+      relay::transform::DeadCodeElimination(),
+      relay::transform::EliminateCommonSubexpr(),
+      relay::transform::AlterOpLayout()
+  };
   relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
+  auto mod = relay::ModuleNode::FromExpr(func);
   {
     tvm::With<relay::transform::PassContext> pass_ctx(
         relay::transform::PassContext(3, 1, {}, {}));
@@ -85,11 +82,9 @@ TEST(Relay, Sequential) {
   }
 
   CHECK(mod.defined());
-
-  relay::Function f;
-  for (const auto& kv : mod->functions) {
-    f = kv.second;
-  }
+  auto entry_func = mod->entry_func;
+  CHECK(entry_func.defined());
+  relay::Function f = mod->Lookup(entry_func->name_hint);
   CHECK(f.defined());
 
   // Expected function
