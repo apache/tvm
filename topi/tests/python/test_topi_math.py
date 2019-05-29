@@ -29,13 +29,21 @@ def test_util():
 
 
 def test_ewise():
-    m = tvm.var('m')
-    l = tvm.var('l')
-    A = tvm.placeholder((m, l), name='A')
+    def test_apply(
+        func,
+        name,
+        f_numpy,
+        low,
+        high,
+        shape=(20, 3),
+        dtype=tvm.float32,
+        check_round=False,
+        skip_name_check=False,
+    ):
+        m = tvm.var("m")
+        l = tvm.var("l")
+        A = tvm.placeholder((m, l), dtype=dtype, name="A")
 
-    shape = (20, 3)
-
-    def test_apply(func, name, f_numpy, low, high, check_round=False, skip_name_check=False):
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
         if not skip_name_check:
@@ -63,7 +71,6 @@ def test_ewise():
         for device in get_all_backend():
             check_device(device)
 
-
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
     test_apply(topi.sign, "sign", np.sign, -100, 100, skip_name_check=True)
@@ -71,11 +78,12 @@ def test_ewise():
     test_apply(topi.abs, "fabs", np.abs, -100, 100)
     test_apply(topi.round, "round", np.round, -100, 100, check_round=True)
     test_apply(topi.exp, "exp", np.exp, -1, 1)
-    test_apply(topi.tanh, "tanh", np.tanh, -10, 10)
-    test_apply(topi.sigmoid, "sigmoid", lambda x:1/(1+np.exp(-x)), -1, 1)
+    test_apply(topi.tanh, "tanh", np.tanh, -10, 10, shape=(128, 128))
+    test_apply(topi.tanh, "tanh", np.tanh, -10, 10, shape=(128, 128), dtype="float64")
+    test_apply(topi.sigmoid, "sigmoid", lambda x: 1 / (1 + np.exp(-x)), -1, 1)
     test_apply(topi.log, "log", np.log, 0, 100)
     test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
-    test_apply(topi.rsqrt, "rsqrt", lambda x:np.ones_like(x)/np.sqrt(x), 0, 100, skip_name_check=True)
+    test_apply(topi.rsqrt, "rsqrt", lambda x: np.ones_like(x) / np.sqrt(x), 0, 100, skip_name_check=True)
 
 
 def test_cast():
@@ -93,7 +101,7 @@ def test_cast():
         b_np = a_np.astype(to_dtype)
 
         for device in get_all_backend():
-            ctx = tvm.context(device,  0)
+            ctx = tvm.context(device, 0)
             if not ctx.exist:
                 print("Skip because %s is not enabled" % device)
                 continue
