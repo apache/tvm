@@ -484,6 +484,54 @@ def _decode_image():
         return inputs[0]
     return _impl
 
+def _crop_and_resize():
+    def _impl(inputs, attr, params):
+        # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
+        # boxes is a 2-D tensor of shape [num_boxes, 4], 4 is for [y1, x1, y2, x2]
+        try:
+            boxes = params.pop(inputs[1].name_hint).asnumpy().tolist()
+            box_ind = params.pop(inputs[2].name_hint).asnumpy().tolist()
+            crop_size = params.pop(inputs[3].name_hint).asnumpy().tolist()
+        except (IndexError, KeyError):
+            boxes = _infer_value(inputs[1], params).asnumpy().tolist()
+            box_ind = _infer_value(inputs[2], params).asnumpy().tolist()
+            crop_size = _infer_value(inputs[3], params).asnumpy().tolist()
+
+        data_shape = attr['_input_shapes'][inputs[0]]
+        data_dim = len(data_shape)
+        method = attr['method'].decode()
+
+        attrs = {}
+        attrs['size'] = crop_size
+        attrs['layout'] = 'NHWC'
+        if method.lower() == 'nearest':
+            raise tvm.error.OpAttributeUnimplemented(
+                'Attribute method=nearest is not supported')
+        else:
+            attrs['align_corners'] = True
+            attrs['method'] = 'BILINEAR'
+
+        out = None
+        begin = [0] * data_dim
+        size = data_shape[:]
+        for idx in box_ind:
+            # 1) Crop
+            # y is mapped to the image coordinate at y * (image_height - 1)
+            # x is mapped to the image coordinate at x * (image_width - 1)
+            begin[0] = idx
+            begin[1] = int(round(boxes[idx][0] * (data_shape[1] - 1)))
+            begin[2] = int(round(boxes[idx][1] * (data_shape[2] - 1)))
+            size[0] = idx + 1
+            size[1] = int(round((data_shape[1] - 1) * boxes[idx][2])) + 1
+            size[2] = int(round((data_shape[2] - 1) * boxes[idx][3])) + 1
+            res_crop = _op.strided_slice(inputs[0], begin=begin, end=size)
+
+            # 2) Resize
+            res_resize = _get_relay_op('resize')(res_crop, **attrs)
+            out = _op.concatenate([out, res_resize], axis=0) if out else res_resize
+        return out
+    return _impl
+
 def _cast():
     def _impl(inputs, attr, params):
         return inputs[0].astype(attr['DstT'].name)
@@ -512,6 +560,21 @@ def _resize_bilinear():
         return AttrCvt(op_name="resize",
                        ignores=['Tdim'],
                        extras={'method': "BILINEAR"})(inputs, attr)
+    return _impl
+
+def _resize_nearest_neighbor():
+    def _impl(inputs, attr, params):
+        size = attr['_output_shapes'][0][1:3]
+        if -1 in size:
+            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
+        attr['size'] = size
+        inputs.pop(1)
+        # NHWC
+        attr['layout'] = 'NHWC'
+
+        return AttrCvt(op_name="resize",
+                       ignores=['Tdim'],
+                       extras={'method': "NEAREST_NEIGHBOR"})(inputs, attr)
     return _impl
 
 def _check_numerics():
@@ -593,7 +656,7 @@ def _slice():
                 end[i] = data_shape[i] - begin[i]
             else:
                 end[i] += begin[i]
-        return _op.strided_slice(inputs[0], begin=begin, end=size)
+        return _op.strided_slice(inputs[0], begin=begin, end=end)
     return _impl
 
 
@@ -1243,6 +1306,7 @@ _convert_map = {
     'Concat'                            : _concat(),
     'ConcatV2'                          : _concatV2(),
     'Conv2D'                            : _conv('conv'),
+    'CropAndResize'                     : _crop_and_resize(),
     'DecodeJpeg'                        : _decode_image(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
     'DepthToSpace'                      : _depth_to_space(),
@@ -1295,6 +1359,7 @@ _convert_map = {
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
     'ResizeBicubic'                     : _resize_bilinear(),
+    'ResizeNearestNeighbor'             : _resize_nearest_neighbor(),
     'ReverseV2'                         : _reverse_v2(),
     'RightShift'                        : AttrCvt('right_shift'),
     'Round'                             : AttrCvt('round'),
