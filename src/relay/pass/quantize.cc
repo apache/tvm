@@ -504,10 +504,10 @@ RELAY_REGISTER_OP("nn.relu")
 RELAY_REGISTER_OP("strided_slice")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
 
-
-Expr MaxPoolRealize(const Call& ref_call,
-                    const Array<Expr>& new_args,
-                    const NodeRef& ctx) {
+/* \brief for unary operators which requantize its input to dtype_nbit */
+Expr CastDtypeInputRealize(const Call& ref_call,
+                           const Array<Expr>& new_args,
+                           const NodeRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
@@ -520,7 +520,10 @@ Expr MaxPoolRealize(const Call& ref_call,
 }
 
 RELAY_REGISTER_OP("nn.max_pool2d")
-.set_attr<FForwardRewrite>("FQRealizeRewrite", MaxPoolRealize);
+.set_attr<FForwardRewrite>("FQRealizeRewrite", CastDtypeInputRealize);
+
+RELAY_REGISTER_OP("stop_fusion")
+.set_attr<FForwardRewrite>("FQRealizeRewrite", CastDtypeInputRealize);
 
 
 Expr AvgPoolRealize(const Call& ref_call,
@@ -645,6 +648,55 @@ Pass QuantizeRealizePass() {
 
 TVM_REGISTER_API("relay._quantize.QuantizeRealize")
 .set_body_typed(QuantizeRealizePass);
+
+class VtaStoreInjector : public ExprMutator {
+ private:
+  const CallNode* GetPreviousNode(const CallNode* n) {
+    if (n == nullptr || n->args.size() == 0) {
+      return nullptr;
+    }
+    return n->args[0].as<CallNode>();
+  }
+
+ public:
+  Expr VisitExpr_(const CallNode* n) final {
+    static const Op& conv2d = Op::Get("nn.conv2d");
+    static const Op& add = Op::Get("add");
+    static const Op& relu = Op::Get("nn.relu");
+    auto new_e = ExprMutator::VisitExpr_(n);
+    const CallNode* n0 = new_e.as<CallNode>();
+    // conv->add->relu->[here]
+    if (n0 && n0->op.same_as(relu)) {
+      const CallNode* n1 = n0->args[0].as<CallNode>();
+      if (n1 && n1->op.same_as(add)) {
+        const CallNode* n2 = n1->args[0].as<CallNode>();
+        if (n2 && n2->op.same_as(conv2d)) {
+          return StopFusion(new_e);
+        }
+      }
+    }
+    // conv->add->[here]->add
+    if (n0 && n0->op.same_as(add)) {
+      const CallNode* n1 = n0->args[1].as<CallNode>();
+      if (n1 && n1->op.same_as(add)) {
+        const CallNode* n2 = n1->args[0].as<CallNode>();
+        if (n2 && n2->op.same_as(conv2d)) {
+          Expr child = StopFusion(n0->args[1]);
+          return CallNode::make(add, {n0->args[0], child}, Attrs{}, {});
+        }
+      }
+    }
+    return new_e;
+  }
+};
+
+Expr VtaStoreHint(const Expr& e) {
+  return VtaStoreInjector().Mutate(e);
+}
+
+TVM_REGISTER_API("relay._quantize.vta_store_hint")
+.set_body_typed(VtaStoreHint);
+
 
 }  // namespace quantize
 }  // namespace relay
