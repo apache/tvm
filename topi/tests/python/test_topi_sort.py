@@ -33,7 +33,7 @@ def test_argsort():
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.argsort(data, axis=-1, is_ascend=False, flag=False)
+            out = topi.argsort(data, axis=-1, is_ascend=False)
             s = topi.generic.schedule_argsort(out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
