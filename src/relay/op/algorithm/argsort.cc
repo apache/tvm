@@ -18,9 +18,9 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
- * \file sort.cc
- * \brief Sort operators
+ *  Copyright (c) 2019 by Contributors
+ * \file argsort.cc
+ * \brief Argsort operators
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/algorithm.h>

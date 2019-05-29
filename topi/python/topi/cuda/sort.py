@@ -239,7 +239,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
     return ib.get()
 
 @argsort.register(["cuda", "gpu"])
-def argsort_gpu(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32", flag=0):
+def argsort_gpu(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
 
@@ -248,25 +248,24 @@ def argsort_gpu(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32", f
     data: tvm.Tensor
         The input array.
 
-    valid_count : tvm.Tensor
+    valid_count : tvm.Tensor, optional
         The number of valid elements to be sorted.
 
-    axis : int
+    axis : int, optional
         Axis long which to sort the input tensor.
 
-    is_ascend : boolean
+    is_ascend : boolean, optional
         Whether to sort in ascending or descending order.
 
-    flag : boolean
-        Whether this argsort is used in nms operator
+    dtype : string, optional
+        DType of the output indices.
 
     Returns
     -------
     out : tvm.Tensor
         The output of this function.
     """
-    if flag:
-        assert valid_count is not None
+    if valid_count is not None:
         sorted_data = identity(data)
         sorted_data_buf = api.decl_buffer(data.shape, data.dtype, "sorted_data_buf",
                                           data_alignment=8)
@@ -313,30 +312,35 @@ def schedule_argsort(outs):
 
 @topk.register(["cuda", "gpu"])
 def topk_gpu(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
-    """Performs sorting along the given axis and returns an array of indicies
-    having same shape as an input array that index data in sorted order.
+    """Get the top k elements in an input tensor along the given axis.
 
     Parameters
     ----------
-    data: tvm.Tensor
-        The input array.
+    data : tvm.Tensor
+        The input tensor.
 
-    valid_count : tvm.Tensor
-        The number of valid elements to be sorted.
+    k : int, optional
+        Number of top elements to select. Return all elements if k < 1.
 
-    axis : int
+    axis : int, optional
         Axis long which to sort the input tensor.
 
-    is_ascend : boolean
+    ret_type: str, optional
+        The return type [both, values, indices].
+        "both": return both top k data and indices.
+        "values": return top k data only.
+        "indices": return top k indices only.
+
+    is_ascend : boolean, optional
         Whether to sort in ascending or descending order.
 
-    flag : boolean
-        Whether this argsort is used in nms operator
+    dtype : string, optional
+        The data type of the indices output.
 
     Returns
     -------
-    out : tvm.Tensor
-        The output of this function.
+    out : tvm.Tensor or List[tvm.Tensor]
+        The computed result.
     """
     assert ret_type in ["both", "values", "indices"]
     ndim = len(data.shape)

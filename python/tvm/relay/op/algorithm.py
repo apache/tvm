@@ -37,7 +37,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
         Whether to sort in ascending or descending order.
 
     dtype : string, optional
-        DType of the output indices.
+        The data type of the output indices.
 
     Returns
     -------
@@ -48,4 +48,36 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
 
 
 def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
+    """Get the top k elements in an input tensor along the given axis.
+
+    ret_type specifies the return type, can be one of ("both", "values", "indices").
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data tensor.
+
+    k : int, optional
+        Number of top elements to select. Return all elements if k < 1.
+
+    axis : int, optional
+        Axis long which to sort the input tensor.
+
+    ret_type: str, optional
+        The return type [both, values, indices].
+        "both": return both top k data and indices.
+        "values": return top k data only.
+        "indices": return top k indices only.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
+
+    dtype : string, optional
+        The data type of the indices output.
+
+    Returns
+    -------
+    out : relay.Expr or List[relay.Expr]
+        The computed result.
+    """
     return _make.topk(data, k, axis, ret_type, is_ascend, dtype)

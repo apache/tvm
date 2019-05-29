@@ -36,7 +36,7 @@ def compute_argsort(attrs, inputs, _, target):
     axis = get_const_int(attrs.axis)
     is_ascend = bool(get_const_int(attrs.is_ascend))
     dtype = attrs.dtype
-    return [topi.argsort(inputs[0], axis=axis, is_ascend=is_ascend, dtype=dtype, flag=False)]
+    return [topi.argsort(inputs[0], axis=axis, is_ascend=is_ascend, dtype=dtype)]
 
 
 register_pattern("argsort", OpPattern.OPAQUE)
@@ -57,7 +57,9 @@ def compute_topk(attrs, inputs, _, target):
     ret_type = attrs.ret_type
     is_ascend = bool(get_const_int(attrs.is_ascend))
     dtype = attrs.dtype
-    return [topi.topk(inputs[0], k, axis, ret_type, is_ascend, dtype)]
+    out = topi.topk(inputs[0], k, axis, ret_type, is_ascend, dtype)
+    out = out if isinstance(out, list) else [out]
+    return out
 
 
 register_pattern("topk", OpPattern.OPAQUE)

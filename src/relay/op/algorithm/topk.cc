@@ -88,8 +88,7 @@ TVM_REGISTER_API("relay.op._make.topk")
 .set_body_typed(MakeTopK);
 
 RELAY_REGISTER_OP("topk")
-.describe(R"doc(Returns the indices that would sort an
-input array along the given axis.
+.describe(R"doc(Get the top k elements in an input tensor along the given axis.
 )doc" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_attrs_type_key("relay.attrs.TopKAttrs")

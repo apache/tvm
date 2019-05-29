@@ -49,7 +49,6 @@ def test_topk():
         x = relay.var("x", relay.TensorType(shape, "float32"))
         out = relay.topk(x, k, axis, ret_type, is_ascend, dtype)
         func = relay.Function([x], out)
-        print(relay.ir_pass.infer_type(func))
         np_data = np.random.uniform(size=shape).astype("float32")
         if is_ascend:
             np_indices = np.argsort(np_data, axis=axis)
@@ -69,27 +68,24 @@ def test_topk():
         np_indices = np_indices.astype(dtype)
 
         for target, ctx in ctx_list():
-            #for kind in ["graph", "debug"]:
-            for kind in ["debug"]:
-                print(kind)
+            for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(np_data)
                 if ret_type == "both":
                     tvm.testing.assert_allclose(op_res[0].asnumpy(), np_values)
                     tvm.testing.assert_allclose(op_res[1].asnumpy(), np_indices)
                 elif ret_type == "values":
-                    tvm.testing.assert_allclose(op_res[0].asnumpy(), np_values)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), np_values)
                 else:
-                    tvm.testing.assert_allclose(op_res[0].asnumpy(), np_indices)
+                    tvm.testing.assert_allclose(op_res.asnumpy(), np_indices)
     for k in [0, 1, 5]:
         for axis in [0, -1, 1]:
             for ret_type in ["both", "values", "indices"]:
                 for dtype in ["int64", "float32"]:
-                    print(k, axis, ret_type, dtype)
                     verify_topk(k, axis, ret_type, False, dtype)
                     verify_topk(k, axis, ret_type, True, dtype)
 
 
 if __name__ == "__main__":
-    #test_argsort()
+    test_argsort()
     test_topk()
