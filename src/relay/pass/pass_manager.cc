@@ -74,21 +74,6 @@ class OptPassLevel {
   }
 };
 
-PassContext::PassContext(int opt_level, int fallback_device,
-                         tvm::Array<tvm::Expr> required_pass,
-                         tvm::Array<tvm::Expr> disabled_pass) {
-  auto ctx = make_node<PassContextNode>();
-  ctx->opt_level = opt_level;
-  ctx->fallback_device = fallback_device;
-  ctx->required_pass = std::move(required_pass);
-  ctx->disabled_pass = std::move(disabled_pass);
-  node_ = std::move(ctx);
-}
-
-const PassContextNode* PassContext::operator->() const {
-  return static_cast<const PassContextNode*>(node_.get());
-}
-
 struct RelayPassContextThreadLocalEntry {
   /*! \brief The default pass context. */
   PassContext default_context;
@@ -127,6 +112,10 @@ PassContext PassContext::Current() {
   } else {
     return entry->default_context;
   }
+}
+
+PassContext PassContext::Create() {
+  return PassContext(make_node<PassContextNode>());
 }
 
 class ModulePass;
@@ -291,7 +280,7 @@ class SequentialNode : public PassNode {
    *
    * \return true if the pass is enabled. Otherwise, false.
    */
-  bool pass_enabled(const std::string& pass_name) const;
+  bool PassEnabled(const std::string& pass_name) const;
 
   /*!
    * \brief Resolve the pass dependency. It globs all required passes by
@@ -353,9 +342,8 @@ ModulePass ModulePassNode::make(
 Module ModulePassNode::operator()(const Module& mod,
                                   const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
-  LOG(INFO) << "Executing module pass : " << pass_info.operator->()->name
-            << " with opt level: " << pass_info.operator->()->opt_level << "\n";
-
+  DLOG(INFO) << "Executing module pass : " << pass_info->name
+             << " with opt level: " << pass_info->opt_level << "\n";
   CHECK(mod.defined());
   auto updated_mod = pass_func(mod, pass_ctx);
   CHECK(updated_mod.defined());
@@ -376,11 +364,10 @@ FunctionPass FunctionPassNode::make(
 Module FunctionPassNode::operator()(const Module& mod,
                                     const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
-  LOG(INFO) << "Executing function pass : " << pass_info.operator->()->name
-            << " with opt level: " << pass_info.operator->()->opt_level << "\n";
   CHECK(mod.defined());
   Module new_mod = ModuleNode::make({}, mod->type_definitions);
-
+  DLOG(INFO) << "Executing module pass : " << pass_info->name
+             << " with opt level: " << pass_info->opt_level << "\n";
   // Execute the pass function and return a new module.
   for (const auto& it : mod->functions) {
     auto updated_func = SkipFunction(it.second) ? it.second : pass_func(it.second, mod, pass_ctx);
@@ -448,12 +435,11 @@ std::unordered_set<std::string> SequentialNode::RequiredPasses(
   return ret;
 }
 
-bool SequentialNode::pass_enabled(const std::string& pass_name) const {
+bool SequentialNode::PassEnabled(const std::string& pass_name) const {
   PassContext ctx = PassContext::Current();
 
-  const PassContextNode* ctx_node = ctx.operator->();
-  auto required = RequiredPasses(ctx_node->required_pass);
-  auto disabled = DisabledPasses(ctx_node->required_pass);
+  auto required = RequiredPasses(ctx->required_pass);
+  auto disabled = DisabledPasses(ctx->required_pass);
 
   if (disabled.count(pass_name)) {
     return false;
@@ -462,7 +448,7 @@ bool SequentialNode::pass_enabled(const std::string& pass_name) const {
   if (required.count(pass_name)) {
     return true;
   }
-  return ctx_node->opt_level >= opt_pass_level[pass_name];
+  return ctx->opt_level >= opt_pass_level[pass_name];
 }
 
 // TODO(zhiics): we currenlty only sequentially execute each pass in
@@ -470,15 +456,14 @@ bool SequentialNode::pass_enabled(const std::string& pass_name) const {
 // ordering problem needed to be handled in the future.
 Module SequentialNode::operator()(const Module& module,
                                   const PassContext& pass_ctx) const {
-  const auto* ctx_node = pass_ctx.operator->();
-  int opt_level = ctx_node->opt_level;
-  auto disabled = DisabledPasses(ctx_node->disabled_pass);
+  int opt_level = pass_ctx->opt_level;
+  auto disabled = DisabledPasses(pass_ctx->disabled_pass);
   Module mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
     PassInfo info = pass->Info();
-    const auto& pass_name = info.operator->()->name;
-    const auto& pass_opt_level = info.operator->()->opt_level;
+    const auto& pass_name = info->name;
+    const auto& pass_opt_level = info->opt_level;
     // Skip the pass if its optimization level is higher that the  one of in the
     // pass context or if this pass is disabled.
     if (pass_opt_level > opt_level || disabled.count(pass_name)) {
@@ -540,14 +525,7 @@ TVM_REGISTER_API("relay._transform.CreateModulePass")
 
 TVM_REGISTER_API("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  Pass pass = args[0];
-  Module mod = args[1];
-  CHECK(pass.defined())
-      << "Running an undefined pass is not allowed."
-      << "\n";
-
-  const auto* pn = pass.operator->();
-  *ret = (*pn)(mod);
+  *ret = args[0].operator Pass()(args[1]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -602,11 +580,16 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_REGISTER_API("relay._transform.PassContext")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
+  auto pctx = PassContext::Create();
   int opt_level = args[0];
   int fallback_device = args[1];
   tvm::Array<tvm::Expr> required = args[2];
   tvm::Array<tvm::Expr> disabled = args[3];
-  *ret = PassContext(opt_level, fallback_device, required, disabled);
+  pctx->opt_level = opt_level;
+  pctx->fallback_device = fallback_device;
+  pctx->required_pass = std::move(required);
+  pctx->disabled_pass = std::move(disabled);
+  *ret = pctx;
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
