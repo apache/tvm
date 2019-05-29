@@ -74,7 +74,7 @@ class TaskExtractEnv:
     """Global environment for extracting tuning tasks from nnvm graph"""
     current = None
 
-    def __init__(self):
+    def __init__(self, allow_duplicate=False):
         import topi
 
         # topi compute -> autotvm task name
@@ -106,6 +106,7 @@ class TaskExtractEnv:
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
         }
 
+        self.allow_duplicate = allow_duplicate
         self._register_tracing()
         self._register_topi_task()
         self.task_collection = []
@@ -123,10 +124,9 @@ class TaskExtractEnv:
                     assert not kwargs, "Do not support extracting tuning tasks when" \
                                        "kwargs is used in TOPI function call." \
                                        "Please modify it to use only positional args."
-
                     if compute_func in self.wanted_topi_funcs:  # record this call
                         key = (self.topi_to_task[compute_func], serialize_args(args))
-                        if key not in self.task_collection:
+                        if self.allow_duplicate or key not in self.task_collection:
                             self.task_collection.append(key)
                     return compute_func.fdefault(*args)
             _local_scope(topi_compute)
@@ -262,8 +262,15 @@ class TaskExtractEnv:
         return self.task_collection
 
     @staticmethod
-    def get():
+    def get(allow_duplicate=False):
         """Get the single instance of TaskExtractEnv
+
+        Parameters
+        ----------
+        allow_duplicate : boolean
+            Whether to fetch all workloads in the network,
+            even though some of them are the same. This is
+            useful for graph tuning.
 
         Returns
         -------
@@ -271,7 +278,9 @@ class TaskExtractEnv:
             The single instance of TaskExtractEnv
         """
         if not TaskExtractEnv.current:
-            TaskExtractEnv.current = TaskExtractEnv()
+            TaskExtractEnv.current = TaskExtractEnv(allow_duplicate)
+        else:
+            TaskExtractEnv.current.allow_duplicate = allow_duplicate
         return TaskExtractEnv.current
 
 
