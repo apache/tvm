@@ -32,8 +32,8 @@ UTVMTask task;
 void UTVMDone() {}
 
 void UTVMMain() {
-  task.func((void*) task.args->values, (void*) task.args->type_codes,
-            task.args->num_args);  // NOLINT(*)
+  task.func((void*) task.args->values, (void*) task.args->type_codes,  // NOLINT(*)
+            task.args->num_args);
   UTVMDone();
 }
 
