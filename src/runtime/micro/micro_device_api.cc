@@ -56,7 +56,8 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    session_->FreeInSection(SectionKind::kHeap, DevBaseOffset(reinterpret_cast<std::uintptr_t>(ptr)));
+    session_->FreeInSection(SectionKind::kHeap,
+                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(ptr)));
   }
 
   void CopyDataFromTo(const void* from,
@@ -105,7 +106,8 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
-    session_->FreeInSection(SectionKind::kWorkspace, DevBaseOffset(reinterpret_cast<std::uintptr_t>(data)));
+    session_->FreeInSection(SectionKind::kWorkspace,
+                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(data)));
   }
 
   /*!
