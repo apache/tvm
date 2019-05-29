@@ -321,10 +321,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (targets.size() == 1) {
       for (const auto& kv : targets) {
         With<Target> tctx(kv.second);
-        relay_module = seq->operator()(relay_module);
+        relay_module = seq(relay_module);
       }
     } else {
-      relay_module = seq->operator()(relay_module);
+      relay_module = seq(relay_module);
     }
     return relay_module;
   }

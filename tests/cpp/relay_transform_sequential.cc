@@ -74,11 +74,13 @@ TEST(Relay, Sequential) {
   };
   relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
   auto mod = relay::ModuleNode::FromExpr(func);
+  auto pass_ctx = relay::transform::PassContext::Create();
+  pass_ctx->opt_level = 3;
+  pass_ctx->fallback_device = 1;
   {
-    tvm::With<relay::transform::PassContext> pass_ctx(
-        relay::transform::PassContext(3, 1, {}, {}));
+    tvm::With<relay::transform::PassContext> ctx_scope(pass_ctx);
     tvm::With<tvm::Target> tctx(tvm::Target::Create("llvm"));
-    mod = seq->operator()(mod);
+    mod = seq(mod);
   }
 
   CHECK(mod.defined());

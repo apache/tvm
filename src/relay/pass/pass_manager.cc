@@ -351,8 +351,7 @@ Module ModulePassNode::operator()(const Module& mod,
     const auto* name = it.as<tvm::ir::StringImm>();
     CHECK(name);
     auto pass = GetPass(name->value);
-    const auto* pass_node = pass.operator->();
-    updated_mod = (*pass_node)(updated_mod, pass_ctx);
+    updated_mod = pass(updated_mod, pass_ctx);
   }
 
   updated_mod = pass_func(updated_mod, pass_ctx);
@@ -386,8 +385,7 @@ Module FunctionPassNode::operator()(const Module& mod,
     const auto* name = it.as<tvm::ir::StringImm>();
     CHECK(name);
     auto pass = GetPass(name->value);
-    const auto* pass_node = pass.operator->();
-    updated_mod = (*pass_node)(updated_mod, pass_ctx);
+    updated_mod = pass(updated_mod, pass_ctx);
   }
 
   Module new_mod = ModuleNode::make({}, mod->type_definitions);
@@ -500,8 +498,7 @@ Module SequentialNode::operator()(const Module& module,
     const auto& pass_name = info->name;
     // Execute the pass if it is enabled.
     if (PassEnabled(pass_name)) {
-      const auto* pn = pass.operator->();
-      mod = (*pn)(mod, pass_ctx);
+      mod = pass(mod, pass_ctx);
     }
   }
   return mod;
@@ -557,15 +554,17 @@ TVM_REGISTER_API("relay._transform.CreateModulePass")
 
 TVM_REGISTER_API("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = args[0].operator Pass()(args[1]);
+  Pass pass = args[0];
+  Module mod = args[1];
+  *ret = pass(mod);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ModulePassNode>([](const ModulePassNode* node,
                                  tvm::IRPrinter* p) {
-  const PassInfoNode* pn = node->Info().operator->();
-  p->stream << "Run Module pass: " << pn->name
-            << " at the optimization level " << pn->opt_level;
+  const PassInfo info = node->Info();
+  p->stream << "Run Module pass: " << info->name
+            << " at the optimization level " << info->opt_level;
 });
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
@@ -576,9 +575,9 @@ TVM_REGISTER_API("relay._transform.CreateFunctionPass")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
                                    tvm::IRPrinter* p) {
-  const PassInfoNode* pn = node->Info().operator->();
-  p->stream << "Run Function pass: " << pn->name
-            << " at the optimization level " << pn->opt_level;
+  const PassInfo info = node->Info();
+  p->stream << "Run Function pass: " << info->name
+            << " at the optimization level " << info->opt_level;
 });
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
@@ -596,14 +595,13 @@ TVM_REGISTER_API("relay._transform.Sequential")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<SequentialNode>([](const SequentialNode* node,
                                  tvm::IRPrinter* p) {
-  const PassInfoNode* seq_pn = node->Info().operator->();
-  p->stream << "Run Sequential pass: " << seq_pn->name
-            << " at the optimization level " << seq_pn->opt_level << ". ";
+  const PassInfo info = node->Info();
+  p->stream << "Run Sequential pass: " << info->name
+            << " at the optimization level " << info->opt_level << ". ";
   p->stream << "The passes will be executed are: [";
   for (const auto& it : node->passes) {
-    const PassNode* pn = it.operator->();
-    const PassInfoNode* pass_info_node = pn->Info().operator->();
-    p->stream << pass_info_node->name << " ";
+    const PassInfo pass_info = it->Info();
+    p->stream << pass_info->name << " ";
   }
   p->stream << "]";
 });
