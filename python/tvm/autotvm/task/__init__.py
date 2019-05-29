@@ -28,6 +28,7 @@ from .code_hash import attach_code_hash, attach_code_hash_to_arg
 from .dispatcher import dispatcher, DispatchContext, ApplyConfig, ApplyHistoryBest, \
     FallbackContext, clear_fallback_cache, ApplyGraphBest
 
-from .topi_integration import register_topi_compute, register_topi_schedule
+from .topi_integration import register_topi_compute, register_topi_schedule, \
+    TaskExtractEnv
 from .nnvm_integration import extract_from_graph, extract_from_multiple_graph
 from .relay_integration import extract_from_program, extract_from_multiple_program

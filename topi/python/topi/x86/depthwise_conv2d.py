@@ -25,7 +25,8 @@ from .. import generic, tag
 from ..nn.pad import pad
 from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
-from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, _get_workload
+from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, _get_workload, \
+    depthwise_conv2d_infer_layout
 
 from .util import get_fp32_len
 
@@ -206,7 +207,7 @@ def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
     # change shape with the value in config
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     new_data_shape = (batch, in_channel // ic_bn, height, width, ic_bn)
-    new_kernel_shape = (out_channel // oc_bn, kh, kw, oc_bn)
+    new_kernel_shape = (out_channel // oc_bn, 1, kh, kw, 1, oc_bn)
     new_data = tvm.placeholder(new_data_shape, data.dtype)
     new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
 
@@ -217,3 +218,18 @@ def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
                                     data_layout, out_layout, dtype)
     s = schedule_depthwise_conv2d_NCHWc(cfg, [C])
     return s, [new_data, new_kernel, C]
+
+@depthwise_conv2d_infer_layout.register("cpu")
+def _depthwise_conv2d_infer_layout(workload, cfg):
+    _, data, kernel, strides, padding, dilation, dtype = workload
+    batch_size, in_channel, in_height, in_width = data[:-1]
+    filter_channel, channel_multiplier, k_height, k_width = kernel[:-1]
+    out_channel = filter_channel * channel_multiplier
+    out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
+    out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
+    tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
+    in_layout = "NCHW%dc" % tile_ic
+    out_shape = (batch_size, out_channel // tile_oc, out_height, out_width, tile_oc)
+    out_layout = "NCHW%dc" % tile_oc
+    return ((in_shape, in_layout),), ((out_shape, out_layout),)
