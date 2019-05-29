@@ -104,6 +104,7 @@ class BuildModule(object):
         if params:
             self._set_params(params)
         # Build the function
+        print(func)
         self._build(func, target, target_host)
         # Get artifacts
         graph_json = self.get_json()

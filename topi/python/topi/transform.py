@@ -128,7 +128,7 @@ def flip(a, axis=0):
     """
     return cpp.flip(a, axis)
 
-def strided_slice(a, begin, end, strides=None):
+def strided_slice(a, begin, end, strides=[]):
     """Slice of an array.
 
     Parameters

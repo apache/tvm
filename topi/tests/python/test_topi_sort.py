@@ -22,12 +22,9 @@ import topi
 import topi.testing
 
 def test_argsort():
-    dshape = (1, 8)
-    valid_count_shape = (2,)
+    dshape = (20, 100)
     data = tvm.placeholder(dshape, name="data", dtype="float32")
-    valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
     np_data = np.random.rand(dshape[0], dshape[1]).astype(data.dtype)
-    np_valid_count = np.array([4]).astype(valid_count.dtype)
     np_result = np.argsort(-np_data)
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -36,40 +33,40 @@ def test_argsort():
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.argsort(data, valid_count, axis=-1, is_ascend=False, flag=False)
+            out = topi.argsort(data, axis=-1, is_ascend=False, flag=False)
             s = topi.generic.schedule_argsort(out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype="float32"), ctx)
-        f = tvm.build(s, [data, valid_count, out], device)
-        f(tvm_data, tvm_valid_count, tvm_out)
+        f = tvm.build(s, [data, out], device)
+        f(tvm_data, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result.astype("float32"), rtol=1e0)
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
 
-def verify_topk(k, axis, ret_type, dtype):
-    shape = (5, 6)
+def verify_topk(k, axis, ret_type, is_ascend, dtype):
+    shape = (20, 100)
     data_dtype = "float32"
     data = tvm.placeholder(shape, name="data", dtype=data_dtype)
-    outs = topi.topk(data, k, axis, ret_type, dtype=dtype)
-    outs = outs if isinstance(outs, list) else [outs]
+
     np_data = np.random.uniform(size=shape).astype(data_dtype)
-    np_indices = np.argsort(-np_data, axis=axis)
+    if is_ascend:
+        np_indices = np.argsort(np_data, axis=axis)
+    else:
+        np_indices = np.argsort(-np_data, axis=axis)
+    kk = k if k >= 1 else shape[axis]
     if axis == 0:
-        np_indices = np_indices[:k, :].astype(dtype)
+        np_indices = np_indices[:kk, :]
         np_values = np.zeros(np_indices.shape).astype(data_dtype)
         for i in range(shape[1]):
             np_values[:, i] = np_data[np_indices[:, i], i]
     else:
-        np_indices = np_indices[:, :k]
+        np_indices = np_indices[:, :kk]
         np_values = np.zeros(np_indices.shape).astype(data_dtype)
         for i in range(shape[0]):
             np_values[i, :] = np_data[i, np_indices[i, :]]
-    # print(np_data)
-    # print(np_indices)
-    # print(np_values)
+    np_indices = np_indices.astype(dtype)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -78,16 +75,15 @@ def verify_topk(k, axis, ret_type, dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            outs = topi.topk(data, k, axis, ret_type, is_ascend, dtype)
+            outs = outs if isinstance(outs, list) else [outs]
             s = topi.generic.schedule_topk(outs)
-
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_res = []
         for t in outs:
             tvm_res.append(tvm.nd.empty(t.shape, dtype=t.dtype, ctx=ctx))
         f = tvm.build(s, [data] + outs, device)
         f(tvm_data, *tvm_res)
-        # for t in tvm_res:
-        #     print(t.asnumpy())
         if ret_type == "both":
             tvm.testing.assert_allclose(tvm_res[0].asnumpy(), np_values)
             tvm.testing.assert_allclose(tvm_res[1].asnumpy(), np_indices)
@@ -100,11 +96,14 @@ def verify_topk(k, axis, ret_type, dtype):
         check_device(device)
 
 def test_topk():
-    verify_topk(1, -1, "both", "int64")
-    verify_topk(3, -1, "both", "int64")
-    verify_topk(1, 0, "both", "int64")
-    verify_topk(3, 0, "both", "int64")
+    for k in [0, 1, 5]:
+        for axis in [0, -1, 1]:
+            for ret_type in ["both", "values", "indices"]:
+                for dtype in ["int64", "float32"]:
+                    verify_topk(k, axis, ret_type, True, dtype)
+                    verify_topk(k, axis, ret_type, False, dtype)
+
 
 if __name__ == "__main__":
-    #test_argsort()
+    test_argsort()
     test_topk()

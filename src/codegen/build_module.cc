@@ -83,7 +83,7 @@ Target CreateTarget(const std::string& target_name,
     t->device_type = kDLGPU;
     t->keys_array.push_back(ir::StringImm::make("cuda"));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
-    t->max_num_threads = 512;
+    t->max_num_threads = 1024;
     t->thread_warp_size = 32;
   } else if (target_name == "rocm" || target_name == "opencl") {
     // For now assume rocm schedule for opencl

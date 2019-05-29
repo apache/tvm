@@ -36,8 +36,7 @@ bool TopKRel(const Array<Type>& types,
              const TypeReporter& reporter) {
   // `types` contains: [data, result]
   const TopKAttrs* param = attrs.as<TopKAttrs>();
-  int num_output = (param->ret_type == "both") ? 2 : 1;
-  CHECK_EQ(types.size(), num_output + 1);
+  CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data);
   size_t ndim = data->shape.size();
@@ -54,13 +53,14 @@ bool TopKRel(const Array<Type>& types,
       out_shape.push_back(param->k);
     }
   }
+  auto values_ty = TensorTypeNode::make(out_shape, data->dtype);
+  auto indices_ty = TensorTypeNode::make(out_shape, param->dtype);
   if (param->ret_type == "both") {
-    reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));
-    reporter->Assign(types[2], TensorTypeNode::make(out_shape, param->dtype));
+    reporter->Assign(types[1], TupleTypeNode::make({values_ty, indices_ty}));
   } else if (param->ret_type == "values") {
-    reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));
+    reporter->Assign(types[1], values_ty);
   } else if (param->ret_type == "indices") {
-    reporter->Assign(types[1], TensorTypeNode::make(out_shape, param->dtype));
+    reporter->Assign(types[1], indices_ty);
   } else {
     LOG(FATAL) << "Unsupported ret type: " << param->ret_type;
   }

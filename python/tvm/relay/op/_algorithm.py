@@ -36,7 +36,28 @@ def compute_argsort(attrs, inputs, _, target):
     axis = get_const_int(attrs.axis)
     is_ascend = bool(get_const_int(attrs.is_ascend))
     dtype = attrs.dtype
-    return [topi.argsort(inputs[0], None, axis=axis, is_ascend=is_ascend, dtype=dtype, flag=False)]
+    return [topi.argsort(inputs[0], axis=axis, is_ascend=is_ascend, dtype=dtype, flag=False)]
 
 
 register_pattern("argsort", OpPattern.OPAQUE)
+
+
+@register_schedule("topk")
+def schedule_topk(_, outs, target):
+    """Schedule definition of argsort"""
+    with target:
+        return topi.generic.schedule_topk(outs)
+
+
+@register_compute("topk")
+def compute_topk(attrs, inputs, _, target):
+    """Compute definition of argsort"""
+    k = get_const_int(attrs.k)
+    axis = get_const_int(attrs.axis)
+    ret_type = attrs.ret_type
+    is_ascend = bool(get_const_int(attrs.is_ascend))
+    dtype = attrs.dtype
+    return [topi.topk(inputs[0], k, axis, ret_type, is_ascend, dtype)]
+
+
+register_pattern("topk", OpPattern.OPAQUE)

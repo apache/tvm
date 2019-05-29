@@ -21,7 +21,7 @@ from tvm import api
 from .util import get_const_tuple
 
 @tvm.target.generic_func
-def argsort(data, valid_count, axis=-1, is_ascend=1, dtype="float32", flag=0):
+def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32", flag=False):
     """Performs sorting along the given axis and returns an array
     of indices having the same shape as an input array that index
     data in sorted order.
@@ -138,12 +138,13 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     out : tvm.Tensor
         Sorted index tensor.
     """
+    assert ret_type in ["both", "values", "indices"]
     data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     out_shape = list(get_const_tuple(data.shape))
-    if k >= 0:
+    if k >= 1:
         out_shape[axis] = k
     out_bufs = []
-    if ret_type in ["both", "value"]:
+    if ret_type in ["both", "values"]:
         out_bufs.append(api.decl_buffer(out_shape, data.dtype, "value_buf", data_alignment=8))
     if ret_type in ["both", "indices"]:
         out_bufs.append(api.decl_buffer(out_shape, dtype, "indices_buf", data_alignment=8))
