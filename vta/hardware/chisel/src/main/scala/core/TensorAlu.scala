@@ -246,35 +246,9 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
       printf("[TensorAlu] [uop] dst:%x src:%x\n", uop_dst, uop_src)
     }
 
-    // I'll fix this in a following commit
-    //when (state === sIdle && io.start) {
-    //  when (dec.alu_op === ALU_OP_MIN) {
-    //    printf("[TensorAlu] [MIN] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-    //      dec.uop_begin, dec.uop_end,
-    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-    //  } .elsewhen (dec.alu_op === ALU_OP_MAX) {
-    //    printf("[TensorAlu] [MAX] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-    //      dec.uop_begin, dec.uop_end,
-    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-    //  } .elsewhen (dec.alu_op === ALU_OP_ADD) {
-    //    printf("[TensorAlu] [ADD] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-    //      dec.uop_begin, dec.uop_end,
-    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-    //  } .elsewhen (dec.alu_op === ALU_OP_SHR) {
-    //    printf("[TensorAlu] [SHR] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-    //      dec.uop_begin, dec.uop_end,
-    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-    //  } .elsewhen (dec.alu_op === ALU_OP_SHL) {
-    //    printf("[TensorAlu] [SHL] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-    //      dec.uop_begin, dec.uop_end,
-    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-    //  }
-    //}
+    when (state === sIdle && io.start) {
+      printf(p"[TensorAlu] decode:$dec\n")
+    }
 
     alu.io.acc_a.data.bits.foreach { tensor =>
       tensor.zipWithIndex.foreach { case(elem, i) =>
