@@ -222,10 +222,17 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
 });
 
 template<typename DataType, typename IndicesType>
-void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, int axis, bool is_ascend) {
+void topk(DLTensor* input,
+          DLTensor* out_values,
+          DLTensor* out_indices,
+          int k,
+          int axis,
+          bool is_ascend) {
   DataType* data_ptr = static_cast<DataType *>(input->data);
-  DataType* values_ptr = (out_values == nullptr) ? nullptr : static_cast<DataType *>(out_values->data);
-  IndicesType* indices_ptr = (out_indices == nullptr) ? nullptr : static_cast<IndicesType *>(out_indices->data);
+  DataType* values_ptr = (out_values == nullptr) ? nullptr :
+          static_cast<DataType *>(out_values->data);
+  IndicesType* indices_ptr = (out_indices == nullptr) ? nullptr :
+          static_cast<IndicesType *>(out_indices->data);
   std::vector<std::pair<int64_t, DataType> > sorter;
 
   int axis_mul_before = 1;
@@ -258,10 +265,12 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
       int64_t cnt = k > 0 ? k : input->shape[axis];
       for (int64_t kk = 0; kk < cnt; ++kk) {
         if (indices_ptr != nullptr) {
-          indices_ptr[dst_base_idx + kk * axis_mul_after] = static_cast<IndicesType>(sorter[kk].first);
+          indices_ptr[dst_base_idx + kk * axis_mul_after] =
+                  static_cast<IndicesType>(sorter[kk].first);
         }
         if (values_ptr != nullptr) {
-          values_ptr[dst_base_idx + kk * axis_mul_after] = static_cast<DataType>(sorter[kk].second);
+          values_ptr[dst_base_idx + kk * axis_mul_after] =
+                  static_cast<DataType>(sorter[kk].second);
         }
       }
     }
