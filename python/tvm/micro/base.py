@@ -19,9 +19,7 @@
 
 from __future__ import absolute_import
 
-import struct
 import logging
-import subprocess
 import os
 
 import tvm.module
@@ -83,7 +81,7 @@ def from_source_module(mod, device_type):
     return micro_mod
 
 
-def create_micro_lib(src_path, device_type, cc=None, obj_path=None):
+def create_micro_lib(src_path, device_type, compile_cmd=None, obj_path=None):
     """Compiles code into a binary for the target micro device.
 
     Parameters
@@ -94,7 +92,7 @@ def create_micro_lib(src_path, device_type, cc=None, obj_path=None):
     device_type : str
         type of low-level device
 
-    cc : str, optional
+    compile_cmd : str, optional
         compiler command to be used
 
     obj_path : str, optional
@@ -106,12 +104,12 @@ def create_micro_lib(src_path, device_type, cc=None, obj_path=None):
     obj_path : bytearray
         compiled binary file path
     """
-    # Choose compiler based on device type (if `cc` wasn't specified).
-    if cc is None:
+    # Choose compiler based on device type (if `compile_cmd` wasn't specified).
+    if compile_cmd is None:
         if device_type == "host":
-            cc = "gcc"
+            compile_cmd = "gcc"
         elif device_type == "openocd":
-            cc = "riscv-gcc"
+            compile_cmd = "riscv-gcc"
         else:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
 
@@ -121,9 +119,8 @@ def create_micro_lib(src_path, device_type, cc=None, obj_path=None):
             return os.path.join(
                 os.path.dirname(s),
                 ".".join(os.path.basename(s).split(".")[:-1] + [new_suffix]))
-        else:
-            # No existing extension; we can just append.
-            return s + "." + new_suffix
+        # No existing extension; we can just append.
+        return s + "." + new_suffix
 
     if obj_path is None:
         obj_name = replace_suffix(src_path, "obj")
@@ -132,13 +129,13 @@ def create_micro_lib(src_path, device_type, cc=None, obj_path=None):
     # code path for creating shared objects in `tvm.module.load`.  So we replace
     # ".o" suffixes with ".obj".
     if obj_path.endswith(".o"):
-        logging.warning("\".o\" suffix in \"{}\" has been replaced with \".obj\""
-                        .format(obj_path))
+        logging.warning(
+            "\".o\" suffix in \"%s\" has been replaced with \".obj\"" % obj_path)
         obj_path = replace_suffix(obj_path, "obj")
 
     options = ["-I" + path for path in find_include_path()] + ["-fno-stack-protector"]
     # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
-    create_lib(obj_path, src_path, options, cc)
+    create_lib(obj_path, src_path, options, compile_cmd)
     return obj_path
 
 

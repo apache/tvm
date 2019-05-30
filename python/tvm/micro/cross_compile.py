@@ -19,16 +19,13 @@
 
 from __future__ import absolute_import
 
-import struct
-import logging
 import subprocess
-import os
 
 from .._ffi.function import _init_api
 from .._ffi.base import py_str
 
 
-def create_lib(output, sources, options=None, cc="gcc"):
+def create_lib(output, sources, options=None, compile_cmd="gcc"):
     """Compiles source code into a binary object file
 
     Parameters
@@ -42,10 +39,10 @@ def create_lib(output, sources, options=None, cc="gcc"):
     options: list
         list of additional option strings
 
-    cc : str, optional
+    compile_cmd : str, optional
         compiler string
     """
-    cmd = [cc]
+    cmd = [compile_cmd]
     cmd += ["-c"]
     cmd += ["-o", output]
     if isinstance(sources, str):

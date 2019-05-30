@@ -18,11 +18,9 @@
 """Utilities for binary file manipulation"""
 import os
 import subprocess
-import os
 from . import util
 from .._ffi.base import py_str
-from .._ffi.libinfo import find_include_path
-from ..api import register_func, convert
+from ..api import register_func
 
 
 @register_func("tvm_callback_get_section_size")
@@ -68,7 +66,8 @@ def tvm_callback_get_section_size(binary_path, section_name):
             # need to collect the size from *multiple* entries in the command
             # output.
             if section_size != 0 and not entry_name.startswith(".rodata"):
-                raise RuntimeError("multiple entries in `size` output for section {}".format(section_name))
+                raise RuntimeError(
+                    "multiple entries in `size` output for section {}".format(section_name))
             section_size += entry_size
     return section_size
 
@@ -232,4 +231,3 @@ def tvm_callback_get_symbol_map(binary):
         map_str += line[2] + "\n"
         map_str += line[0] + "\n"
     return map_str
-
