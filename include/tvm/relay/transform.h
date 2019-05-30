@@ -480,22 +480,7 @@ TVM_DLL Pass InferType();
  *
  * \return The pass.
  */
-TVM_DLL Pass EliminateCommonSubexpr(
-    PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-      Expr expr = args[0];
-      if (expr.as<CallNode>()) {
-        auto call_node = expr.as<CallNode>();
-        auto op_node = call_node->op.as<OpNode>();
-        if (op_node->name == "cast") {
-          auto attrs = call_node->attrs.as<CastAttrs>();
-          if (attrs->dtype == HalideIR::Int(32)) {
-            *rv = true;
-          }
-        }
-      }
-      *rv = false;
-    })
-);
+TVM_DLL Pass EliminateCommonSubexpr(PackedFunc fskip = nullptr);
 
 /*!
  * \brief Combine parallel 2d convolutions into a single convolution if the
