@@ -94,7 +94,7 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
         indices_out = ib.buffer_ptr(indices_out)
     nthread_tx = max_threads
     nthread_bx = shape[axis] // max_threads + 1
-    
+
     tx = tvm.thread_axis("threadIdx.x")
     bx = tvm.thread_axis("vthread")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
@@ -110,7 +110,8 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
             with ib.if_scope(tid < shape[axis]):
                 values_out[base_idx + tid * axis_mul_after] = data[base_idx + tid * axis_mul_after]
                 if indices_out is not None:
-                    indices_out[base_idx + tid * axis_mul_after] = tvm.generic.cast(tid, indices_out.dtype)
+                    indices_out[base_idx + tid * axis_mul_after] = \
+                        tvm.generic.cast(tid, indices_out.dtype)
     ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
                           tvm.convert(['shared']),
                           tvm.expr.Call.Intrinsic, None, 0))
@@ -124,8 +125,9 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
                 with ib.if_scope(tid < (current_sort_num + 1) // 2):
                     offset = base_idx + (2 * tid + (k % 2)) * axis_mul_after
                     if is_ascend:
-                        with ib.if_scope(tvm.all(2 * tid + (k % 2) + 1 < current_sort_num,
-                                                 values_out[offset] > values_out[offset + axis_mul_after])):
+                        with ib.if_scope(tvm.all(
+                                2 * tid + (k % 2) + 1 < current_sort_num,
+                                values_out[offset] > values_out[offset + axis_mul_after])):
                             temp_data[0] = values_out[offset]
                             values_out[offset] = values_out[offset + axis_mul_after]
                             values_out[offset + axis_mul_after] = temp_data[0]
@@ -134,8 +136,9 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
                                 indices_out[offset] = indices_out[offset + axis_mul_after]
                                 indices_out[offset + axis_mul_after] = temp_index[0]
                     else:
-                        with ib.if_scope(tvm.all(2 * tid + (k % 2) + 1 < current_sort_num,
-                                                 values_out[offset] < values_out[offset + axis_mul_after])):
+                        with ib.if_scope(tvm.all(
+                                2 * tid + (k % 2) + 1 < current_sort_num,
+                                values_out[offset] < values_out[offset + axis_mul_after])):
                             temp_data[0] = values_out[offset]
                             values_out[offset] = values_out[offset + axis_mul_after]
                             values_out[offset + axis_mul_after] = temp_data[0]

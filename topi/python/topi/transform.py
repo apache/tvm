@@ -128,7 +128,7 @@ def flip(a, axis=0):
     """
     return cpp.flip(a, axis)
 
-def strided_slice(a, begin, end, strides=[]):
+def strided_slice(a, begin, end, strides=None):
     """Slice of an array.
 
     Parameters
@@ -151,6 +151,8 @@ def strided_slice(a, begin, end, strides=[]):
     -------
     ret : tvm.Tensor
     """
+    if strides is None:
+        strides = []
     return cpp.strided_slice(a, begin, end, strides)
 
 
