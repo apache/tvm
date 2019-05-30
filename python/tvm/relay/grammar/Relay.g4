@@ -111,8 +111,8 @@ expr
   // | 'debug'                                # debug
   ;
 
-func: 'fn'        (typeParamSeq)? '(' argList ')' ('->' type_)? body ;
-defn: 'def' ident (typeParamSeq)? '(' argList ')' ('->' type_)? body ;
+func: 'fn'        typeParamSeq? '(' argList ')' ('->' type_)? body ;
+defn: 'def' ident typeParamSeq? '(' argList ')' ('->' type_)? body ;
 
 argList
   : varList
