@@ -19,7 +19,7 @@
 
 grammar Relay;
 
-SEMVER: 'v0.0.1' ;
+SEMVER: 'v0.0.1.1' ;
 
 // Lexing
 // comments

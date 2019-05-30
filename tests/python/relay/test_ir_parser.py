@@ -28,7 +28,7 @@ if enabled():
 else:
     raises_parse_error = lambda x: x
 
-SEMVER = "v0.0.1"
+SEMVER = "v0.0.1.1"
 
 BINARY_OPS = {
     "*": relay.multiply,
