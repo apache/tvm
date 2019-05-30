@@ -146,7 +146,7 @@ type_
   | 'Tensor' '[' shapeSeq ',' type_ ']'             # tensorType
   // currently unused
   // | typeIdent '[' (type_ (',' type_)*)? ']'         # callType
-  | 'fn' (typeParamSeq)? '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
+  | 'fn' typeParamSeq? '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
   | '_'                                             # incompleteType
   | NAT                                             # intType
   ;
