@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Testing if we can generate code in topi style"""
+"""Test resnet18 conv2d layers"""
 
 import tvm
 from tvm import autotvm
