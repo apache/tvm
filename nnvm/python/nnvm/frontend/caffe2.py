@@ -19,7 +19,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from nnvm import symbol as _sym
-from .common import get_nnvm_op
+from .common import get_nnvm_op, Renamer, AttrConverter as AttrCvt
 from .onnx_caffe2_utils import dimension_picker, dimension_constraint, infer_channels, revert_caffe2_pad
 from . import onnx
 

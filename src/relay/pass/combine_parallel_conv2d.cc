@@ -355,9 +355,7 @@ Expr CombineParallelConv2D(const Expr& expr, uint64_t min_num_branches) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.CombineParallelConv2D")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = CombineParallelConv2D(args[0], args[1]);
-});
+.set_body_typed(CombineParallelConv2D);
 
 }  // namespace relay
 }  // namespace tvm

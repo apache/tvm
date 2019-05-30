@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -51,9 +51,7 @@ Closure ClosureNode::make(tvm::Map<Var, Value> env, Function func) {
 }
 
 TVM_REGISTER_API("relay._make.Closure")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ClosureNode::make(args[0], args[1]);
-  });
+.set_body_typed(ClosureNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ClosureNode>([](const ClosureNode* node, tvm::IRPrinter* p) {
@@ -67,9 +65,7 @@ TupleValue TupleValueNode::make(tvm::Array<Value> value) {
 }
 
 TVM_REGISTER_API("relay._make.TupleValue")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = TupleValueNode::make(args[0]);
-  });
+.set_body_typed(TupleValueNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TupleValueNode>([](const TupleValueNode* node, tvm::IRPrinter* p) {
@@ -90,10 +86,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   });
 
 TVM_REGISTER_API("relay._make.TensorValue")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    runtime::NDArray data = args[0];
-    *ret = TensorValueNode::make(data);
-  });
+.set_body_typed(TensorValueNode::make);
 
 RefValue RefValueNode::make(Value value) {
   NodePtr<RefValueNode> n = make_node<RefValueNode>();
@@ -102,9 +95,7 @@ RefValue RefValueNode::make(Value value) {
 }
 
 TVM_REGISTER_API("relay._make.RefValue")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = RefValueNode::make(args[0]);
-  });
+.set_body_typed(RefValueNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<RefValueNode>([](const RefValueNode* node,
@@ -121,9 +112,7 @@ ConstructorValue ConstructorValueNode::make(Constructor constructor,
 }
 
 TVM_REGISTER_API("relay._make.ConstructorValue")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = ConstructorValueNode::make(args[0], args[1]);
-  });
+.set_body_typed(ConstructorValueNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ConstructorValueNode>([](const ConstructorValueNode* node,
@@ -289,17 +278,19 @@ class Interpreter :
     return TupleValueNode::make(values);
   }
 
-  // TODO(@jroesch): this doesn't support mutual letrec.
-  Value MakeClosure(const Function& func, const Var& letrec_name = Var()) {
+  // TODO(@jroesch): this doesn't support mututal letrec
+  inline Value MakeClosure(const Function& func, Var letrec_name = Var()) {
     tvm::Map<Var, Value> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
     for (const auto& var : free_vars) {
       // Evaluate the free var (which could be a function call) if it hasn't
       // shown up in a letting binding that has invoked the function.
-      if (!letrec_name.defined() || letrec_name != var) {
-        captured_mod.Set(var, Eval(var));
+      if (letrec_name.defined() && letrec_name == var) {
+        continue;
       }
+
+      captured_mod.Set(var, Eval(var));
     }
 
     // We must use mutation here to build a self referential closure.
@@ -307,7 +298,7 @@ class Interpreter :
     auto mut_closure =
         static_cast<ClosureNode*>(const_cast<Node*>(closure.get()));
     mut_closure->env.Set(letrec_name, closure);
-    return closure;
+    return std::move(closure);
   }
 
   Value VisitExpr_(const FunctionNode* func_node) final {
@@ -614,9 +605,7 @@ CreateInterpreter(
 }
 
 TVM_REGISTER_API("relay.backend.CreateInterpreter")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = CreateInterpreter(args[0], args[1], args[2]);
-  });
+.set_body_typed(CreateInterpreter);
 
 TVM_REGISTER_NODE_TYPE(ClosureNode);
 TVM_REGISTER_NODE_TYPE(TupleValueNode);

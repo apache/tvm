@@ -17,7 +17,7 @@
 """
 Tuning High Performance Convolution on NVIDIA GPUs
 =========================================================================
-**Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
+**Author**: `Lianmin Zheng <https://github.com/merrymercy>`_
 
 This is an advanced tutorial for writing high performance tunable template for
 NVIDIA GPU. By running auto-tuner on this template, we can outperform the
@@ -34,7 +34,7 @@ vendor provided library CuDNN in many cases.
 #
 #   pip3 install --user psutil xgboost tornado
 #
-# To make tvm run faster in tuning, it is recommended to use cython
+# To make TVM run faster in tuning, it is recommended to use cython
 # as FFI of tvm. In the root directory of tvm, execute
 #
 # .. code-block:: bash

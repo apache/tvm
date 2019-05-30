@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -375,10 +375,10 @@ DLContext CPUContext() {
 }
 
 FInterpreter CPUInterpreter() {
-  Target target = Target::create("llvm");
+  Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  BuildConfigContext fresh_build_ctx(build_config());
+  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
   return CreateInterpreter(Module(nullptr), CPUContext(), target);
 }
@@ -585,7 +585,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   // Constant evaluate a expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
     Expr infered = InferType(expr, Module(nullptr));
-    Expr fused = FuseOps(infered, 0);
+    Expr fused = FuseOps(infered, 0, Module(nullptr));
     Expr fused_infered = InferType(fused, Module(nullptr));
     return Reify(executor_(fused_infered), ll);
   }
@@ -800,6 +800,18 @@ TVM_REGISTER_API("relay._ir_pass.partial_evaluate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = PartialEval(args[0]);
   });
+
+namespace transform {
+
+Pass PartialEval() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(PartialEval(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "partial_eval", {});
+}
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

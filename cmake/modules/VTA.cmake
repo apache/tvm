@@ -66,6 +66,13 @@ elseif(PYTHON)
     target_include_directories(vta PUBLIC
       "/usr/local/intelFPGA_lite/18.0/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
   endif()
+
+  if(NOT USE_VTA_TSIM STREQUAL "OFF")
+    include_directories("vta/include")
+    file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
+  endif()
+
 else()
   message(STATUS "Cannot found python in env, VTA build is skipped..")
 endif()

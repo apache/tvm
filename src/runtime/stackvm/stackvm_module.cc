@@ -142,9 +142,7 @@ Module StackVMModuleCreate(std::unordered_map<std::string, StackVM> fmap,
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_stackvm")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = StackVMModuleNode::LoadFromFile(args[0], args[1]);
-  });
+.set_body_typed(StackVMModuleNode::LoadFromFile);
 
 }  // namespace runtime
 }  // namespace tvm

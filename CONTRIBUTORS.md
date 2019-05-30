@@ -44,6 +44,7 @@ We do encourage everyone to work anything they are interested in.
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Masahiro Masuda](https://github.com/masahi): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
@@ -54,7 +55,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Yao Wang](https://github.com/kevinthesun): @kevinthesun: - topi, vision
-- [Eddie Yan](https://github.com/eqy): @eqy - runtime, autotvm, rpc, topi
+- [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, topi, relay
 
 ## Reviewers
@@ -64,7 +65,9 @@ We do encourage everyone to work anything they are interested in.
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Wei Chen](https://github.com/wweic): @wweic
 - [Zhi Chen](https://github.com/zhiics): @zhiics
+- [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
+- [Hao Lu](https://github.com/hlu1): @hlu1
 - [Nick Hynes](https://github.com/nhynes): @nhynes
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Yizhi Liu](https://github.com/yzhliu) : @yzhliu
@@ -91,6 +94,7 @@ We do encourage everyone to work anything they are interested in.
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly
 - [Jian Weng](https://github.com/were): @were
 - [Zhao Wu](https://github.com/FrozenGene): @FrozenGene
+- [Bing Xu](https://github.com/antinucleon): @antinucleon
 - [Eddie Yan](https://github.com/eqy): @eqy
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy

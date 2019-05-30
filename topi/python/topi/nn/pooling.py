@@ -113,3 +113,44 @@ def pool(data,
     """
     return cpp.nn.pool(data, kernel, stride, padding,
                        POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)
+
+def adaptive_pool(data,
+                  output_size,
+                  pool_type,
+                  layout="NCHW"):
+    """Perform pooling on height and width dimension of data.
+       The pooling kernel and stride sizes are automatically chosen for desired
+       output sizes.
+       It decides the height and width dimension according to the layout string,
+       in which 'W' and 'H' means width and height respectively.
+       Width and height dimension cannot be split.
+       For example, NCHW, NCHW16c, etc. are valid for pool,
+       while NCHW16w, NCHW16h are not.
+       See parameter `layout` for more information of the layout string convention.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        n-D with shape of layout
+
+    output_size : tuple of int
+        output height and width.
+
+    pool_type : str
+        Pool type, 'max' or 'avg'
+
+    layout: string
+        Layout of the input data.
+        The layout is supposed to be composed of upper cases, lower cases and numbers,
+        where upper case indicates a dimension and
+        the corresponding lower case with factor size indicates the split dimension.
+        For example, NCHW16c can describe a 5-D tensor of
+        [batch_size, channel, height, width, channel_block],
+        in which channel_block=16 is a split of dimension channel.
+
+    Returns
+    -------
+    output : tvm.Tensor
+        n-D in the same layout
+    """
+    return cpp.nn.adaptive_pool(data, output_size, POOL_TYPE_CODE[pool_type], layout)

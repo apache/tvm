@@ -207,10 +207,8 @@ class DebugResult(object):
     def display_debug_result(self):
         """Displays the debugger result"
         """
-        header = ["Node Name", "Ops", "Time(us)", "Time(%)", "Start Time", \
-                    "End Time", "Shape", "Inputs", "Outputs"]
-        lines = ["---------", "---", "--------", "-------", "----------", \
-                    "--------", "-----", "------", "-------"]
+        header = ["Node Name", "Ops", "Time(us)", "Time(%)", "Shape", "Inputs", "Outputs"]
+        lines = ["---------", "---", "--------", "-------", "-----", "------", "-------"]
         eid = 0
         data = []
         total_time = sum(time[0] for time in self._time_list)
@@ -223,12 +221,11 @@ class DebugResult(object):
                     continue
                 name = node['name']
                 shape = str(self._output_tensor_list[eid].shape)
-                time_us = round(time[0] * 1000000, 2)
-                time_percent = round(((time[0] / total_time) * 100), 2)
+                time_us = round(time[0] * 1000000, 3)
+                time_percent = round(((time[0] / total_time) * 100), 3)
                 inputs = str(node['attrs']['num_inputs'])
                 outputs = str(node['attrs']['num_outputs'])
-                node_data = [name, op, time_us, time_percent, str(time[1]), str(time[2]), \
-                             shape, inputs, outputs]
+                node_data = [name, op, time_us, time_percent, shape, inputs, outputs]
                 data.append(node_data)
                 eid += 1
         fmt = ""

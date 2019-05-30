@@ -72,7 +72,10 @@ Operation ExternOpNode::make(std::string name,
   CHECK_EQ(inputs.size(), input_placeholders.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
     CHECK_EQ(inputs[i]->dtype, input_placeholders[i]->dtype);
-    CHECK(inputs[i]->shape.same_as(input_placeholders[i]->shape));
+    CHECK_EQ(inputs[i]->shape.size(), input_placeholders[i]->shape.size());
+    for (size_t dim = 0; dim < inputs[i]->shape.size(); ++dim) {
+        CHECK(inputs[i]->shape[dim].same_as(input_placeholders[i]->shape[dim]));
+    }
     CHECK_EQ(input_placeholders[i]->strides.size(), 0U);
   }
   n->inputs = std::move(inputs);

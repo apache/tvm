@@ -64,7 +64,7 @@ RELAY_REGISTER_UNARY_OP("exp")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::exp));
 
 RELAY_REGISTER_UNARY_OP("sqrt")
-.describe(R"code(Returns the rsqrt input array, computed element-wise.
+.describe(R"code(Returns the sqrt input array, computed element-wise.
 
 .. math::
    sqrt(x)
@@ -73,6 +73,15 @@ RELAY_REGISTER_UNARY_OP("sqrt")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::sqrt));
 
+RELAY_REGISTER_UNARY_OP("rsqrt")
+.describe(R"code(Returns the rsqrt input array, computed element-wise.
+
+.. math::
+   1/sqrt(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::rsqrt));
 
 RELAY_REGISTER_UNARY_OP("zeros_like")
 .describe(R"code(Returns an array of zeros, with same type and shape as the input.

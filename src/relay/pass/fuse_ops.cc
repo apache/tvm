@@ -267,7 +267,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const TupleNode* op) final {
     CHECK(graph_.node_map.count(op));
     Node* tuple_node = graph_.node_map.at(op);
-    tuple_node->pattern = kInjective;
+    tuple_node->pattern = kTuple;
     for (const Expr& field : op->fields) {
       if (field->checked_type().as<TensorTypeNode>()) {
         this->Update(field, tuple_node, kInjective);
@@ -661,12 +661,36 @@ class GraphPartitioner {
       // no actions needed if the current node have no dominator
       if (dom_node->parent == nullptr) continue;
       CHECK(!graph_node->extern_ref);
-      // Skip if current node is already fused to the parent.
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
+
+      if (phase == 2) {
+        // Fuse injective ops into intermediate tuples, if any
+        if (group_node->pattern > kInjective) continue;
+        Group* dom_parent_group = groups_[dom_parent_gindex];
+        Group* dom_root_group = dom_parent_group->FindRoot();
+        // If dom node group has a tuple as its root, we do not fuse tuple fields into it
+        if (dom_root_group->pattern == kTuple) continue;
+        if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= kInjective) {
+          // Now we know the tuple has been fused into subsequent injective ops
+          auto fcond = [](OpPatternKind kind, bool is_sink) {
+            return kind <= kInjective;
+          };
+          // dom_root_group can also be tuple, as in inception layers
+          // CheckPath is needed to avoid fusing two intermediate tuples
+          if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
+            CommitFuse(graph_node, dom_node->parent->gnode);
+          }
+        }
+        continue;
+      }
+
+      // Skip if current node is already fused to the parent.
       if (groups_[dom_parent_gindex] != nullptr &&
           group_node->FindRoot() == groups_[dom_parent_gindex]->FindRoot()) {
         continue;
       }
+      // Do not fuse into tuple for now
+      if (groups_[dom_parent_gindex]->pattern == kTuple) continue;
       // Try to fuse current node to its post-dominator.
       if (group_node->pattern == kOutEWiseFusable) {
         if (phase != 0) continue;
@@ -691,10 +715,13 @@ class GraphPartitioner {
           // The final terminal node can already be fused to a OutEWiseFusable group.
           auto fcond = [](OpPatternKind kind, bool is_sink) {
             if (!is_sink) {
-              return kind <= kBroadcast;
+              // Elemwise, broadcast, and injective ops on the parallel branches
+              // are allowed be fused to the elemwise/broadcast master.
+              return kind <= kInjective;
             } else {
               return (kind <= kBroadcast ||
                       kind == kCommReduce ||
+                      kind == kInjective ||
                       kind == kOutEWiseFusable);
             }
           };
@@ -702,7 +729,7 @@ class GraphPartitioner {
             CommitFuse(graph_node, dom_node->parent->gnode);
           }
         }
-      } else if (group_node->pattern == kInjective) {
+      } else if (group_node->pattern == kInjective || group_node->pattern == kTuple) {
         // defer injective fusion to second phase.
         // so conv2d always finishes fusing.
         if (phase != 1) continue;
@@ -728,7 +755,7 @@ GraphPartitioner::Partition(const IndexedForwardGraph& graph) {
   // get post dominator tree
   auto post_dom_tree = DominatorTree::PostDom(arena_, graph);
   // run fusion algorithm.
-  for (int phase = 0; phase < 2; ++phase) {
+  for (int phase = 0; phase < 3; ++phase) {
     this->RunFuse(graph, post_dom_tree, phase);
   }
   return std::move(groups_);
@@ -781,6 +808,7 @@ class FuseMutator : private ExprMutator {
   std::unordered_map<const Node*, GraphPartitioner::Group*> gmap_;
   /* \brief Internal group information map. */
   std::unordered_map<GraphPartitioner::Group*, GroupInfo> ginfo_;
+
   // Skip primitive function.
   Expr VisitExpr_(const FunctionNode* fn_node) {
     if (fn_node->IsPrimitive()) {
@@ -789,6 +817,7 @@ class FuseMutator : private ExprMutator {
       return ExprMutator::VisitExpr_(fn_node);
     }
   }
+
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
     static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
@@ -821,29 +850,11 @@ class FuseMutator : private ExprMutator {
 
   Expr VisitExpr_(const TupleNode* tuple) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
-    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     if (ret_group == gmap_.at(tuple)) {
-      // This tuple is the root of its group. Check if all fields come from other groups.
-      bool isolated = new_fields.size() == ginfo_[ret_group].params.size();
-      for (size_t i = 0; i < new_fields.size() && isolated; ++i) {
-        isolated &= (new_fields[i].same_as(ginfo_[ret_group].params[i]));
-      }
-      if (isolated) {
-        // Do not put a isolated tuple into a function
-        return ExprMutator::VisitExpr_(tuple);
-      }
-      // This tuple has been fused with other ops before it
-      for (size_t i = 0; i < new_fields.size(); i++) {
-        // Copy function arguments to tuple field of the output because currently graph memory
-        // planer doesn't support inplace operations
-        if (new_fields[i].as<VarNode>()) {
-          auto copy = Copy(new_fields[i]);
-          new_fields.Set(i, copy);
-        }
-      }
-      return MakeNewFunction(ret_group, tuple->checked_type(), TupleNode::make(new_fields));
+      return ExprMutator::VisitExpr_(tuple);
     }
     // This tuple is an intermediate node in the group
+    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     return TupleNode::make(new_fields);
   }
 
@@ -861,13 +872,21 @@ class FuseMutator : private ExprMutator {
       return MakeNewFunction(ret_group, tuple_get->checked_type(), new_node);
     }
     // This is an intermediate node in the group
-    return new_node;
+    return std::move(new_node);
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
+    // If the function has no call, it is not a primitive function.
+    struct HasCallVisitor : ExprVisitor {
+      bool has_call = false;
+      void VisitExpr_(const CallNode* op) final {
+        has_call = true;
+      }
+    } visitor;
+    visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = FunctionNode::make(ginfo.params, body, ret_type, {});
-    func = FunctionSetAttr(func, "Primitive", tvm::Integer(1));
+    func = FunctionSetAttr(func, "Primitive", tvm::Integer(visitor.has_call));
     return CallNode::make(func, ginfo.arguments, Attrs());
   }
 
@@ -902,18 +921,62 @@ class FuseMutator : private ExprMutator {
   }
 };
 
+// Temporary solution, should be handled by implementing a "FunctionPass"
+// which applies fusion to each function.
+struct GlobalVarLiveness : ExprVisitor {
+  Module module;
+  std::set<GlobalVar> visited;
 
-Expr FuseOps(const Expr& expr, int fuse_opt_level) {
+  explicit GlobalVarLiveness(const Module& mod) : module(mod), visited() {}
+
+  void VisitExpr_(const GlobalVarNode* gvar_node) {
+    auto gvar = GetRef<GlobalVar>(gvar_node);
+    if (visited.find(gvar) == visited.end()) {
+      visited.insert(gvar);
+      this->VisitExpr(this->module->Lookup(gvar));
+    }
+  }
+};
+
+std::set<GlobalVar> LiveGlobals(const Module& mod, const Expr& expr) {
+  auto gvl = GlobalVarLiveness(mod);
+  gvl.VisitExpr(expr);
+  return gvl.visited;
+}
+
+Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& module) {
   // First we convert all chains of fusable ops into
   // abstracted functions which we mark as primtive
   // then we convert these primtive functions into
   // new operators.
-  return FuseMutator().Transform(expr, fuse_opt_level);
+  if (!module.defined()) {
+    return FuseMutator().Transform(expr, fuse_opt_level);
+  } else {
+    auto lgvs = LiveGlobals(module, expr);
+    for (auto lv : lgvs) {
+      auto body = module->Lookup(lv);
+      auto e = FuseMutator().Transform(body, fuse_opt_level);
+      module->Add(lv, Downcast<Function>(e), true);
+    }
+    return FuseMutator().Transform(expr, fuse_opt_level);
+  }
 }
 
 TVM_REGISTER_API("relay._ir_pass.FuseOps")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = FuseOps(args[0], args[1]);
-});
+.set_body_typed(FuseOps);
+
+namespace transform {
+
+Pass FuseOps(int fuse_opt_level) {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
+    return Downcast<Function>(FuseOps(f, opt_level, m));
+  };
+  return CreateFunctionPass(pass_func, 1, "fuse_ops", {});
+}
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm

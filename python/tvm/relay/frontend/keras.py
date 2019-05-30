@@ -18,8 +18,8 @@
 """Keras frontend."""
 from __future__ import absolute_import as _abs
 import sys
-import tvm
 import numpy as np
+import tvm
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op

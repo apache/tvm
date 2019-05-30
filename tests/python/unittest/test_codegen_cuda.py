@@ -125,8 +125,38 @@ def test_cuda_make_int8x4():
     check_cuda(64, 0)
     check_cuda(64, -3)
 
+
+def test_cuda_inf_nan():
+    target = 'cuda'
+    def check_inf_nan(ctx, n, value, dtype):
+        A = tvm.placeholder((n,), name='A', dtype=dtype)
+        inf_value = tvm.const(value, dtype=dtype)
+        C = tvm.compute((n,), lambda i: inf_value, name='C')
+        s = tvm.create_schedule(C.op)
+        s[C].bind(s[C].op.axis[0], tvm.thread_axis("threadIdx.x"))
+        fun = tvm.build(s, [A, C], target)
+        a = tvm.nd.empty((n,), A.dtype, ctx)
+        c = tvm.nd.empty((n,), A.dtype, ctx)
+        # Only need to test compiling here
+        fun(a, c)
+
+    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    ctx = tvm.context(target, 0)
+
+    check_inf_nan(ctx, 1, -float('inf'), 'float32')
+    check_inf_nan(ctx, 1, -float('inf'), 'float64')
+    check_inf_nan(ctx, 1, float('inf'), 'float32')
+    check_inf_nan(ctx, 1, float('inf'), 'float64')
+    check_inf_nan(ctx, 1, float('nan'), 'float32')
+    check_inf_nan(ctx, 1, float('nan'), 'float64')
+
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
     test_cuda_vectorize_load()
     test_cuda_make_int8x4()
+    test_cuda_inf_nan()

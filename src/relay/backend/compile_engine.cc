@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -127,7 +127,9 @@ class ScheduleGetter :
       schedule =
           fschedule[master_op_](master_attrs_, tensor_outs, target_);
       for (const auto& scalar : scalars_) {
-        schedule[scalar].compute_inline();
+        if (schedule->Contain(scalar)) {
+          schedule[scalar].compute_inline();
+        }
       }
     }
     return std::make_pair(schedule, cfunc);
@@ -342,7 +344,7 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_[key] = value;
     }
     // Enforce use the target.
-    TargetContext target_ctx(key->target);
+    With<Target> target_scope(key->target);
 
     CHECK(!value->cached_func.defined());
     auto spair = CreateSchedule(key->source_func, key->target);
@@ -369,7 +371,9 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_node->funcs = (*f)(
           spair.first, all_args, cache_node->func_name, key->source_func);
     } else {
-      LOG(FATAL) << "relay.backend.lower is not registred";
+      tvm::BuildConfig bcfg = BuildConfig::Create();
+      std::unordered_map<Tensor, Buffer> binds;
+      cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
     }
     value->cached_func = CachedFunc(cache_node);
     return value;

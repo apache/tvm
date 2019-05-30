@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -35,8 +35,11 @@ using FInterpreter = runtime::TypedPackedFunc<Value(Expr)>;
 
 class ConstantChecker : private ExprVisitor {
  public:
-  // Check whether an expression is constant. The results are memorized.
+  // Check whether an expression is constant. The results are memoized.
   bool Check(const Expr& expr) {
+    // The `ConstantNode` case is common enough that we check directly for the
+    // case here, to avoid the time overhead of dispatching through the vtable
+    // and the space overhead of memoizing always-true results.
     if (expr.as<ConstantNode>()) {
       return true;
     }
@@ -44,7 +47,7 @@ class ConstantChecker : private ExprVisitor {
     if (it != memo_.end())
       return it->second;
     VisitExpr(expr);
-    return memo_[expr];  // return memorized result or the default value false
+    return memo_[expr];  // return memoized result or the default value false
   }
 
  private:
@@ -153,7 +156,7 @@ class ConstantFolder : public ExprMutator {
   // Constant evaluate a expression.
   Expr ConstEvaluate(Expr expr) {
     expr = InferType(expr, Module(nullptr));
-    expr = FuseOps(expr, 0);
+    expr = FuseOps(expr, 0, Module(nullptr));
     expr = InferType(expr, Module(nullptr));
     return ValueToExpr(executor_(expr));
   }
@@ -200,19 +203,29 @@ Expr FoldConstant(const Expr& expr) {
   DLContext ctx;
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
-  Target target = Target::create("llvm");
+  Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  BuildConfigContext fresh_build_ctx(build_config());
+  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
   return ConstantFolder(CreateInterpreter(
       Module(nullptr), ctx, target)).Mutate(expr);
 }
 
 TVM_REGISTER_API("relay._ir_pass.FoldConstant")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = FoldConstant(args[0]);
-});
+.set_body_typed(FoldConstant);
+
+namespace transform {
+
+Pass FoldConstant() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(FoldConstant(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "fold_constant", {});
+}
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

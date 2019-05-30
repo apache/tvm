@@ -52,6 +52,12 @@ def test_layout():
 def test_bilayout_convertible():
     # not convertible
     assert tvm.bijective_layout("NCHW", "ABCD") is None
+    assert tvm.bijective_layout("__undef__", "NCHW") is None
+    assert tvm.bijective_layout("NCHW", "__undef__") is None
+    assert tvm.bijective_layout("__undef__", "__undef__") is None
+    assert tvm.bijective_layout("", "NCHW") is None
+    assert tvm.bijective_layout("NCHW", "") is None
+    assert tvm.bijective_layout("", "") is None
     # convertible
     assert tvm.bijective_layout("NCHW", "NCHW16c") is not None
 

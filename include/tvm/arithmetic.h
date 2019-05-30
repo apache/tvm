@@ -48,11 +48,7 @@ namespace arith {
 
 // Forward declare Analyzer
 class Analyzer;
-/*!
- * \brief reference class to ConstIntBoundNode
- * \sa ConstIntBoundNode
- */
-class ConstIntBound;
+
 /*!
  * \brief Constant integer up and lower bound(inclusive).
  *  Useful for value bound analysis.
@@ -69,8 +65,6 @@ class ConstIntBoundNode : public Node {
     v->Visit("max_value", &max_value);
   }
 
-  TVM_DLL static ConstIntBound make(int64_t min_value, int64_t max_value);
-
   /*! \brief Number to represent +inf */
   static const constexpr int64_t kPosInf = std::numeric_limits<int64_t>::max();
   /*!
@@ -83,7 +77,23 @@ class ConstIntBoundNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(ConstIntBoundNode, Node);
 };
 
-TVM_DEFINE_NODE_REF(ConstIntBound, ConstIntBoundNode);
+/*!
+ * \brief reference class to ConstIntBoundNode
+ * \sa ConstIntBoundNode
+ */
+class ConstIntBound : public NodeRef {
+ public:
+  /*!
+   * \brief constructor by fields.
+   * \param min_value The mininum value.
+   * \param max_value The maximum value.
+   */
+  TVM_DLL ConstIntBound(int64_t min_value, int64_t max_value);
+
+  static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
+  static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
+  TVM_DEFINE_NODE_REF_METHODS(ConstIntBound, NodeRef, ConstIntBoundNode);
+};
 
 /*!
  * \brief Analyzer to get constant integer bound over expression.
@@ -134,11 +144,6 @@ class ConstIntBoundAnalyzer {
 };
 
 /*!
- * \brief reference of ModularSetNode
- * \sa ModularSetNode
- */
-class ModularSet;
-/*!
  * \brief Range of a linear integer function.
  *  Use to do specify the possible index values.
  *
@@ -162,13 +167,20 @@ class ModularSetNode : public Node {
     v->Visit("base", &base);
   }
 
-  TVM_DLL static ModularSet make(int64_t coeff, int64_t base);
-
   static constexpr const char* _type_key = "arith.ModularSet";
   TVM_DECLARE_NODE_TYPE_INFO(ModularSetNode, Node);
 };
 
-TVM_DEFINE_NODE_REF(ModularSet, ModularSetNode);
+/*!
+ * \brief reference of ModularSetNode
+ * \sa ModularSetNode
+ */
+class ModularSet : public NodeRef {
+ public:
+  TVM_DLL ModularSet(int64_t coeff, int64_t base);
+
+  TVM_DEFINE_NODE_REF_METHODS(ModularSet, NodeRef, ModularSetNode);
+};
 
 /*!
  * \brief Analyzer to get modular information over expression.
@@ -278,14 +290,14 @@ class CanonicalSimplifier {
 };
 
 /*!
- * \brief A RAII constraint context.
+ * \brief Constraint context.
  *
  * \code
  *
  *  Var("x");
  *  arith::Analyzer analyzer;
  *  {
- *    arith::ConstraintContext cctx(&analyzer, x % 3 == 0);
+ *    With<arith::ConstraintContext> scope(&analyzer, x % 3 == 0);
  *    CHECK_EQ(analyzer.modular_set(x)->coeff, 3);
  *  }
  *  // constraint no longer in effect.
@@ -294,19 +306,24 @@ class CanonicalSimplifier {
  * \endcode
  */
 class ConstraintContext {
- public:
+ private:
+  // declare friend to enable with.
+  friend class With<ConstraintContext>;
   /*!
    * \brief Construct a constraint context.
    * \param analyzer The analyzer.
    * \param constraint The constraint to be applied.
    */
-  ConstraintContext(Analyzer* analyzer, const Expr& constraint) DMLC_THROW_EXCEPTION;
-  /*! \brief destructor */
-  ~ConstraintContext() DMLC_THROW_EXCEPTION {
-    exit_();
-  }
-
- private:
+  ConstraintContext(Analyzer* analyzer, Expr constraint)
+      : analyzer_(analyzer), constraint_(constraint) {}
+  // enter the scope.
+  void EnterWithScope();
+  // exit the scope.
+  void ExitWithScope();
+  /*! \brief The analyzer */
+  Analyzer* analyzer_;
+  /*! \brief The constraint */
+  Expr constraint_;
   /*! \brief function to be called in recovery */
   std::function<void()> exit_;
 };
@@ -327,9 +344,9 @@ class Analyzer {
   ConstIntBoundAnalyzer const_int_bound;
   /*! \brief sub-analyzer: modular set */
   ModularSetAnalyzer modular_set;
-  /*! \brief sub-analyzer rewrite simplfy */
+  /*! \brief sub-analyzer rewrite simplify */
   RewriteSimplifier rewrite_simplify;
-  /*! \brief sub-analyzer rewrite simplfy */
+  /*! \brief sub-analyzer canonical simplify */
   CanonicalSimplifier canonical_simplify;
   /*! \brief constructor */
   Analyzer();

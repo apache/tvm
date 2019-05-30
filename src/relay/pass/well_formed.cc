@@ -79,10 +79,7 @@ bool WellFormed(const Expr& e) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.well_formed")
-  .set_body([](TVMArgs args, TVMRetValue *ret) {
-      Expr e = args[0];
-      *ret = WellFormed(e);
-    });
+.set_body_typed(WellFormed);
 
 }  // namespace relay
 }  // namespace tvm

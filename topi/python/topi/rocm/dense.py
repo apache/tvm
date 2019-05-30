@@ -14,18 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable
+# pylint: disable=invalid-name, unused-variable, unused-argument
 """Schedule for dense operator"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import autotvm
 from tvm.contrib import rocblas
 import topi
 from ..nn.dense import dense, dense_default
 from .. import tag
 from .. import generic
 
-@dense.register("rocm")
-def dense_rocm(data, weight, bias=None):
+@autotvm.register_topi_compute(dense, "rocm", "direct")
+def dense_rocm(cfg, data, weight, bias=None, out_dtype=None):
     """Dense operator for rocm backend.
 
     Parameters
@@ -39,6 +40,9 @@ def dense_rocm(data, weight, bias=None):
     bias : tvm.Tensor, optional
         1-D with shape [out_dim]
 
+    out_dtype : str
+        The output type. This is used for mixed precision.
+
     Returns
     -------
     output : tvm.Tensor
@@ -48,21 +52,24 @@ def dense_rocm(data, weight, bias=None):
         "only support 2-dim dense"
     if bias is not None:
         assert len(bias.shape) == 1
+    if out_dtype is None:
+        out_dtype = data.dtype
     batch, in_dim = data.shape
     out_dim, _ = weight.shape
     target = tvm.target.current_target()
     if "rocblas" in target.libs:
+        assert out_dtype == data.dtype, "Mixed precision not supported."
         matmul = rocblas.matmul(data, weight, False, True)
         if bias is not None:
             matmul = tvm.compute((batch, out_dim), \
                                  lambda i, j: matmul[i, j] + bias[j], \
                                  tag=tag.BROADCAST)
         return matmul
-    return dense_default(data, weight, bias)
+    return dense_default(data, weight, bias, out_dtype)
 
 
-@generic.schedule_dense.register(["rocm"])
-def schedule_dense(outs):
+@autotvm.register_topi_schedule(generic.schedule_dense, "rocm", "direct")
+def schedule_dense(cfg, outs):
     """Schedule for dense operator.
 
     Parameters
@@ -79,4 +86,4 @@ def schedule_dense(outs):
     target = tvm.target.current_target()
     if target.target_name == "rocm" and "rocblas" in target.libs:
         return generic.schedule_extern(outs)
-    return topi.cuda.schedule_dense(outs)
+    return topi.cuda.schedule_dense(cfg, outs)

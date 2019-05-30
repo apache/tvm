@@ -32,7 +32,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
-#include <tvm/relay/attrs/nn.h>
 #include <string>
 
 
@@ -301,7 +300,7 @@ inline Expr Add(Expr lhs, Expr rhs) {
 }
 
 
-inline Expr Substract(Expr lhs, Expr rhs) {
+inline Expr Subtract(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("subtract");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
@@ -325,6 +324,11 @@ inline Expr ZerosLike(Expr e) {
 
 inline Expr OnesLike(Expr e) {
   static const Op& op = Op::Get("ones_like");
+  return CallNode::make(op, {e});
+}
+
+inline Expr CollapseSumLike(Expr e) {
+  static const Op& op = Op::Get("collapse_sum_like");
   return CallNode::make(op, {e});
 }
 

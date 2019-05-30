@@ -514,7 +514,7 @@ class InsnQueue : public BaseQueue {
     }
     // Impossible condition
     CHECK(from != kLoadStage || to != kStoreStage);
-    CHECK(to != kLoadStage || to != kComputeStage);
+    CHECK(from != kStoreStage || to != kLoadStage);
   }
   // Insert dependency push of load
   void DepPush(int from, int to) {

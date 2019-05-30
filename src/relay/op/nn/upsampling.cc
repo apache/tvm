@@ -110,9 +110,7 @@ Expr MakeUpSampling(Expr data,
 
 
 TVM_REGISTER_API("relay.op.nn._make.upsampling")
-.set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 4>(MakeUpSampling, args, rv);
-  });
+.set_body_typed(MakeUpSampling);
 
 
 RELAY_REGISTER_OP("nn.upsampling")

@@ -76,3 +76,7 @@ cargo run --bin float
 cargo run --bin array
 cargo run --bin string
 cd -
+
+cd examples/resnet
+cargo build
+cd -

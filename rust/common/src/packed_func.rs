@@ -155,7 +155,7 @@ TVMPODValue! {
         Bytes(val) => {
             (TVMValue { v_handle: val.clone() as *const _ as *mut c_void }, TVMTypeCode_kBytes)
         }
-        Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMTypeCode_kStr)}
+        Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMTypeCode_kStr) }
     }
 }
 
@@ -260,9 +260,21 @@ impl<'a> From<&'a str> for TVMArgValue<'a> {
     }
 }
 
+impl<'a> From<String> for TVMArgValue<'a> {
+    fn from(s: String) -> Self {
+        Self::String(CString::new(s).unwrap())
+    }
+}
+
 impl<'a> From<&'a CStr> for TVMArgValue<'a> {
     fn from(s: &'a CStr) -> Self {
         Self::Str(s)
+    }
+}
+
+impl<'a> From<&'a TVMByteArray> for TVMArgValue<'a> {
+    fn from(s: &'a TVMByteArray) -> Self {
+        Self::Bytes(s)
     }
 }
 

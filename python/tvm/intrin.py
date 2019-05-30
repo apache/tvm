@@ -260,7 +260,7 @@ def log(x):
 
 
 def sqrt(x):
-    """Take log of input x.
+    """Take square root of input x.
 
     Parameters
     ----------
@@ -273,6 +273,22 @@ def sqrt(x):
         The result.
     """
     return call_pure_intrin(x.dtype, "sqrt", x)
+
+
+def rsqrt(x):
+    """Take reciprocal of square root of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "rsqrt", x)
 
 
 def floor(x):

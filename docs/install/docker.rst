@@ -19,13 +19,13 @@
 
 Docker Images
 =============
-We provide several prebuilt docker images to quickly try out tvm.
+We provide several prebuilt docker images to quickly try out TVM.
 These images are also helpful run through TVM demo and tutorials.
 You can get the docker images via the following steps.
 We need `docker <https://docs.docker.com/engine/installation/>`_ and
 `nvidia-docker <https://github.com/NVIDIA/nvidia-docker/>`_ if we want to use cuda.
 
-First, clone tvm repo to get the auxiliary scripts
+First, clone TVM repo to get the auxiliary scripts
 
 .. code:: bash
 
@@ -46,7 +46,8 @@ This auxiliary script does the following things:
 
 - Mount current directory to /workspace
 - Switch user to be the same user that calls the bash.sh (so you can read/write host system)
-- Use the host-side network (so you can use jupyter notebook)
+- Use the host-side network on Linux. Use the bridge network and expose port 8888 on macOS,
+  because host networking driver isn't supported. (so you can use jupyter notebook)
 
 
 Then you can start a jupyter notebook by typing
@@ -55,6 +56,16 @@ Then you can start a jupyter notebook by typing
 
    jupyter notebook
 
+You might see an error ``OSError: [Errno 99] Cannot assign requested address`` when starting
+a jupyter notebook on macOS. You can change the binding IP address by
+
+.. code:: bash
+
+   jupyter notebook --ip=0.0.0.0
+
+Note that on macOS, because we use bridge network, jupyter notebook will be reportedly running
+at an URL like ``http://{container_hostname}:8888/?token=...``. You should replace the ``container_hostname``
+with ``localhost`` when pasting it into browser.
 
 Docker Source
 -------------

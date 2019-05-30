@@ -110,14 +110,14 @@ def schedule_pool(outs, layout):
     return s
 
 
-@generic.schedule_global_pool.register(["cpu"])
-def schedule_global_pool(outs):
-    """Schedule for global pool
+@generic.schedule_adaptive_pool.register(["cpu"])
+def schedule_adaptive_pool(outs):
+    """Schedule for adaptive pool
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of pool
+          The computation graph description of adaptive pool
           in the format of an array of tensors.
 
     Returns
@@ -139,7 +139,7 @@ def schedule_global_pool(outs):
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
-        elif OP.tag.startswith('global_pool'):
+        elif OP.tag.startswith('adaptive_pool'):
             Pool = OP.output(0)
             _parallel_sch(s[Pool], outs[0].shape)
         else:

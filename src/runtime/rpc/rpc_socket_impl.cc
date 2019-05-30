@@ -110,9 +110,7 @@ void RPCServerLoop(int sockfd) {
 }
 
 TVM_REGISTER_GLOBAL("rpc._Connect")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = RPCClientConnect(args[0], args[1], args[2]);
-  });
+.set_body_typed(RPCClientConnect);
 
 TVM_REGISTER_GLOBAL("rpc._ServerLoop")
 .set_body([](TVMArgs args, TVMRetValue* rv) {

@@ -133,7 +133,7 @@ class Target(NodeBase):
         return self
 
     def __exit__(self, ptype, value, trace):
-        _api_internal._ExitTargetScope()
+        _api_internal._ExitTargetScope(self)
 
 
 @register_node
@@ -296,7 +296,7 @@ def override_native_generic_func(func_name):
 def generic_func(fdefault):
     """Wrap a target generic function.
 
-    Generic function allows registeration of further functions
+    Generic function allows registration of further functions
     that can be dispatched on current target context.
     If no registered dispatch is matched, the fdefault will be called.
 

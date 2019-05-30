@@ -47,54 +47,54 @@ def test_simulated_quantize():
     assert out.args[3].checked_type == relay.ty.TensorType(tuple(), "float32")
 
 
-# def test_quantize_pass():
-#     def quantize_weight(arr):
-#         maximum = np.amax(np.abs(arr.asnumpy()))
-#         scale = 2**math.ceil(math.log(maximum, 2))
-#         out = np.around(arr.asnumpy() / scale * 128).astype('int8')
-#         out = np.clip(out, -127, 127)
-#         return relay.const(out, 'int8')
-#
-#     n, c, h, w = 1, 3, 224, 224
-#     def make_graph(data):
-#         weight = relay.var("conv_weight")
-#         out = relay.nn.conv2d(data, weight, kernel_size=(3, 3), padding=(1, 1), channels=c)
-#         out = relay.Function(relay.ir_pass.free_vars(out), out)
-#         return out
-#
-#     def make_qgraph(data, weight):
-#         out = data * relay.const(32.0)
-#         out = relay.round(out)
-#         out = relay.clip(out, a_min=-127, a_max=127)
-#         out = out.astype('int8')
-#
-#         out = relay.nn.conv2d(out, weight, kernel_size=(3, 3),
-#                               padding=(1, 1), channels=c, out_dtype='int32')
-#         out = out.astype('float32')
-#         out = relay.multiply(out, relay.const(0.00024414062))
-#         out = relay.Function(relay.ir_pass.free_vars(out), out)
-#         return out
-#
-#     data = relay.var("data", relay.TensorType((n, c, h, w), "float32"))
-#     graph = make_graph(data)
-#     dataset, params = make_dataset(graph, 10)
-#
-#     with qtz.qconfig(skip_k_conv=0, global_scale=4.0,
-#                      round_for_shift=False, store_lowbit_output=False):
-#         qgraph0 = qtz.quantize(graph, params)
-#         qgraph0 = relay.ir_pass.infer_type(qgraph0)
-#
-#     conv_weight = quantize_weight(params['conv_weight'])
-#     qgraph1 = make_qgraph(data, conv_weight)
-#     qgraph1 = relay.ir_pass.infer_type(qgraph1)
-#
-#     graph = relay.create_executor('graph')
-#     res0 = graph.evaluate(qgraph0)(dataset[0]['data'])
-#     res1 = graph.evaluate(qgraph1)(dataset[0]['data'])
-#     tvm.testing.assert_allclose(res0.asnumpy(), res1.asnumpy(), rtol=1e-3)
+def test_quantize_pass():
+    def quantize_weight(arr):
+        maximum = np.amax(np.abs(arr.asnumpy()))
+        scale = 2**math.ceil(math.log(maximum, 2))
+        out = np.around(arr.asnumpy() / scale * 128).astype('int8')
+        out = np.clip(out, -127, 127)
+        return relay.const(out, 'int8')
+
+    n, c, h, w = 1, 3, 224, 224
+    def make_graph(data):
+        weight = relay.var("conv_weight")
+        out = relay.nn.conv2d(data, weight, kernel_size=(3, 3), padding=(1, 1), channels=c)
+        out = relay.Function(relay.ir_pass.free_vars(out), out)
+        return out
+
+    def make_qgraph(data, weight):
+        out = data * relay.const(32.0)
+        out = relay.round(out)
+        out = relay.clip(out, a_min=-127, a_max=127)
+        out = out.astype('int8')
+
+        out = relay.nn.conv2d(out, weight, kernel_size=(3, 3),
+                              padding=(1, 1), channels=c, out_dtype='int32')
+        out = out.astype('float32')
+        out = relay.multiply(out, relay.const(0.00024414062))
+        out = relay.Function(relay.ir_pass.free_vars(out), out)
+        return out
+
+    data = relay.var("data", relay.TensorType((n, c, h, w), "float32"))
+    graph = make_graph(data)
+    dataset, params = make_dataset(graph, 10)
+
+    with qtz.qconfig(skip_k_conv=0, global_scale=4.0,
+                     round_for_shift=False, store_lowbit_output=False):
+        qgraph0 = qtz.quantize(graph, params)
+        qgraph0 = relay.ir_pass.infer_type(qgraph0)
+
+    conv_weight = quantize_weight(params['conv_weight'])
+    qgraph1 = make_qgraph(data, conv_weight)
+    qgraph1 = relay.ir_pass.infer_type(qgraph1)
+
+    graph = relay.create_executor('graph')
+    res0 = graph.evaluate(qgraph0)(dataset[0]['data'])
+    res1 = graph.evaluate(qgraph1)(dataset[0]['data'])
+    tvm.testing.assert_allclose(res0.asnumpy(), res1.asnumpy(), rtol=1e-3)
 
 
 if __name__ == "__main__":
     np.random.seed(42)
     test_simulated_quantize()
-    # test_quantize_pass()
+    test_quantize_pass()

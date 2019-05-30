@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -53,6 +53,8 @@ inline Type String2Type(std::string s) {
   return TVMType2Type(runtime::String2TVMType(s));
 }
 
+using runtime::Object;
+using runtime::ObjectCell;
 
 // indexer to index all the ndoes
 class NodeIndexer : public AttrVisitor {
@@ -61,6 +63,8 @@ class NodeIndexer : public AttrVisitor {
   std::vector<Node*> node_list{nullptr};
   std::unordered_map<DLTensor*, size_t> tensor_index;
   std::vector<DLTensor*> tensor_list;
+  std::unordered_map<ObjectCell*, size_t> vm_obj_index;
+  std::vector<ObjectCell*> vm_obj_list;
 
   void Visit(const char* key, double* value) final {}
   void Visit(const char* key, int64_t* value) final {}
@@ -73,6 +77,7 @@ class NodeIndexer : public AttrVisitor {
   void Visit(const char* key, NodeRef* value) final {
     MakeIndex(value->node_.get());
   }
+
   void Visit(const char* key, runtime::NDArray* value) final {
     DLTensor* ptr = const_cast<DLTensor*>((*value).operator->());
     if (tensor_index.count(ptr)) return;
@@ -80,6 +85,15 @@ class NodeIndexer : public AttrVisitor {
     tensor_index[ptr] = tensor_list.size();
     tensor_list.push_back(ptr);
   }
+
+  void Visit(const char* key, Object* value) final {
+    ObjectCell* ptr = value->ptr_.get();
+    if (vm_obj_index.count(ptr)) return;
+    CHECK_EQ(vm_obj_index.size(), vm_obj_list.size());
+    vm_obj_index[ptr] = vm_obj_list.size();
+    vm_obj_list.push_back(ptr);
+  }
+
   // make index of all the children of node
   void MakeIndex(Node* node) {
     if (node == nullptr) return;
@@ -163,6 +177,7 @@ class JSONAttrGetter : public AttrVisitor {
  public:
   const std::unordered_map<Node*, size_t>* node_index_;
   const std::unordered_map<DLTensor*, size_t>* tensor_index_;
+  const std::unordered_map<ObjectCell*, size_t>* vm_obj_index_;
   JSONNode* node_;
 
   void Visit(const char* key, double* value) final {
@@ -196,6 +211,10 @@ class JSONAttrGetter : public AttrVisitor {
   void Visit(const char* key, runtime::NDArray* value) final {
     node_->attrs[key] = std::to_string(
         tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
+  }
+  void Visit(const char* key, Object* value) final {
+    node_->attrs[key] = std::to_string(
+        vm_obj_index_->at(value->ptr_.get()));
   }
   // Get the node
   void Get(Node* node) {
@@ -250,6 +269,8 @@ class JSONAttrSetter : public AttrVisitor {
  public:
   const std::vector<NodePtr<Node> >* node_list_;
   const std::vector<runtime::NDArray>* tensor_list_;
+  const std::vector<Object>* vm_obj_list_;
+
   JSONNode* node_;
 
   std::string GetValue(const char* key) const {
@@ -303,6 +324,12 @@ class JSONAttrSetter : public AttrVisitor {
     ParseValue(key, &index);
     CHECK_LE(index, tensor_list_->size());
     *value = tensor_list_->at(index);
+  }
+  void Visit(const char* key, Object* value) final {
+    size_t index;
+    ParseValue(key, &index);
+    CHECK_LE(index, vm_obj_list_->size());
+    *value = vm_obj_list_->at(index);
   }
   // set node to be current JSONNode
   void Set(Node* node) {
@@ -480,6 +507,9 @@ class NodeAttrSetter : public AttrVisitor {
   }
   void Visit(const char* key, runtime::NDArray* value) final {
     *value = GetAttr(key).operator runtime::NDArray();
+  }
+  void Visit(const char* key, Object* value) final {
+    *value = GetAttr(key).operator Object();
   }
 
  private:

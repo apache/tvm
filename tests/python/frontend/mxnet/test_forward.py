@@ -170,6 +170,14 @@ def test_forward_pooling():
     mx_sym = mx.sym.Pooling(data, kernel=(3, 3), pad=(1, 1), pool_type='max')
     verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
 
+def test_forward_adaptive_pooling():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.contrib.AdaptiveAvgPooling2D(data, output_size=(1,))
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 1, 1))
+
+    mx_sym = mx.sym.contrib.AdaptiveAvgPooling2D(data, output_size=(3, 3))
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 3, 3))
+
 def test_forward_lrn():
     data = mx.sym.var('data')
     mx_sym = mx.sym.LRN(data, alpha=2, beta=2, knorm=1, nsize=5)
@@ -527,6 +535,79 @@ def test_forward_bilinear_resize():
     mx_sym = mx.sym.contrib.BilinearResize2D(data, height=5, width=10)
     verify_mxnet_frontend_impl(mx_sym, (1, 2, 3, 4), (1, 2, 5, 10))
 
+def test_forward_rnn_layer():
+    def verify(mode, input_size, seq_len, hidden_size, num_layers, batch=1):
+        if mode == "rnn":
+            layer = gluon.rnn.RNN(hidden_size, num_layers)
+        elif mode == "gru":
+            layer = gluon.rnn.GRU(hidden_size, num_layers)
+        else: # mode == "lstm"
+            layer = gluon.rnn.LSTM(hidden_size, num_layers)
+        num_states = 2 if mode == "lstm" else 1
+        layer.initialize()
+
+        dtype = "float32"
+        data_np = np.random.uniform(size=(seq_len, batch, input_size)).astype(dtype)
+        states_np = []
+        states_mx = []
+        shape_dict = {'data0': data_np.shape}
+        inputs = {'data0': data_np}
+        for i in range(num_states):
+            s = np.random.uniform(size=(num_layers, batch, hidden_size)).astype(dtype)
+            states_np.append(s)
+            states_mx.append(mx.nd.array(s))
+            shape_dict['data%s' % (i+1)] = s.shape
+            inputs['data%s' % (i+1)] = s
+
+        layer.hybridize()
+        mx_out, mx_states = layer(mx.nd.array(data_np), states_mx)
+        mx_res = [mx_out] + mx_states
+        mx_sym = layer._cached_graph[1]
+        mx_params = {}
+        for name, param in layer.collect_params().items():
+            mx_params[name] = param._reduce()
+
+        new_sym, params = relay.frontend.from_mxnet(
+            mx_sym, shape=shape_dict, arg_params=mx_params)
+        for target, ctx in ctx_list():
+            # only test graph runtime because debug runtime is too slow
+            for kind in ["graph"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(**inputs, **params)
+                assert len(op_res) == len(mx_res)
+                for i, val in enumerate(op_res):
+                    tvm.testing.assert_allclose(val.asnumpy(), mx_res[i].asnumpy(), rtol=1e-3)
+
+    for mode in ["rnn", "gru", "lstm"]:
+        verify(mode, 64, 10, 64, 1)
+        verify(mode, 64, 10, 64, 2)
+        verify(mode, 64, 10, 32, 2)
+
+def test_forward_Crop():
+    def verify(xshape, yshape, offset=None):
+        x_data = np.random.uniform(size=xshape).astype("float32")
+        y_data = np.random.uniform(size=yshape).astype("float32")
+        if offset is None:
+            mx_sym = mx.sym.Crop(mx.sym.var("x"), mx.sym.var("y"))
+            ref_res = mx.nd.Crop(mx.nd.array(x_data), mx.nd.array(y_data))
+        else:
+            mx_sym = mx.sym.Crop(mx.sym.var("x"), mx.sym.var("y"), offset=offset)
+            ref_res = mx.nd.Crop(mx.nd.array(x_data), mx.nd.array(y_data), offset=offset)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": xshape, "y": yshape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                if offset is None or offset == (0, 0):
+                    op_res = intrp.evaluate(new_sym)(x_data, y_data)
+                else:
+                    op_res = intrp.evaluate(new_sym)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((1, 3, 40, 40), (1, 3, 20, 20))
+    verify((1, 3, 40, 40), (1, 3, 20, 20), (0, 0))
+    verify((1, 3, 40, 40), (1, 3, 20, 20), (10, 10))
+    verify((5, 32, 40, 40), (5, 32, 25, 25))
+    verify((5, 32, 40, 40), (5, 32, 25, 25), (5, 5))
+
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -542,6 +623,7 @@ if __name__ == '__main__':
     test_forward_split_squeeze()
     test_forward_expand_dims()
     test_forward_pooling()
+    test_forward_adaptive_pooling()
     test_forward_lrn()
     test_forward_ones()
     test_forward_zeros()
@@ -566,3 +648,5 @@ if __name__ == '__main__':
     test_forward_take()
     test_forward_gather_nd()
     test_forward_bilinear_resize()
+    test_forward_rnn_layer()
+    test_forward_Crop()

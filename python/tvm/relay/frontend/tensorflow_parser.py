@@ -85,11 +85,9 @@ class TFParser(object):
                                                         tags,
                                                         self._model_dir)
             output_names = set()
-            for k in meta_graph_def.signature_def.keys():
-                outputs_tensor_info = meta_graph_def.signature_def[k].outputs
-                for output_tensor in outputs_tensor_info.values():
-                    output_names.add(output_tensor.name)
-            output_names = [i.replace(":0", "") for i in output_names]
+            for sig_def in meta_graph_def.signature_def.values():
+                for output_tensor in sig_def.outputs.values():
+                    output_names.add(output_tensor.name.replace(":0", ""))
             return ",".join(output_names)
 
     def _load_saved_model(self):

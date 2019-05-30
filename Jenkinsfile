@@ -38,7 +38,7 @@
 // - Tag the new version as the lates
 // - Periodically cleanup the old versions on local workers
 //
-ci_lint = "tvmai/ci-lint:v0.50"
+ci_lint = "tvmai/ci-lint:v0.51"
 ci_gpu = "tvmai/ci-gpu:v0.51"
 ci_cpu = "tvmai/ci-cpu:v0.50"
 ci_i386 = "tvmai/ci-i386:v0.50"
@@ -92,10 +92,13 @@ def make(docker_type, path, make_flag) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
+      // always run cpp test when build
+      sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
     } catch (exc) {
       echo 'Incremental compilation failed. Fall back to build from scratch'
       sh "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}"
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
+      sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
     }
   }
 }
@@ -183,7 +186,6 @@ stage('Build') {
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_cpp_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
@@ -216,7 +218,7 @@ stage('Build') {
 }
 
 stage('Unit Test') {
-  parallel 'python2/3: GPU': {
+  parallel 'python3: GPU': {
     node('GPU') {
       ws('workspace/tvm/ut-python-gpu') {
         init_git()
@@ -228,7 +230,7 @@ stage('Unit Test') {
       }
     }
   },
-  'python2/3: i386': {
+  'python3: i386': {
     node('CPU') {
       ws('workspace/tvm/ut-python-i386') {
         init_git()

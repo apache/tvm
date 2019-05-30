@@ -488,6 +488,8 @@ struct NonMaximumSuppressionParam : public dmlc::Parameter<NonMaximumSuppression
   bool force_suppress;
   int top_k;
   int id_index;
+  int coord_start;
+  int score_index;
   int max_output_size;
   bool invalid_to_bottom;
   DMLC_DECLARE_PARAMETER(NonMaximumSuppressionParam) {
@@ -500,6 +502,10 @@ struct NonMaximumSuppressionParam : public dmlc::Parameter<NonMaximumSuppression
       .describe("Suppress all detections regardless of class_id.");
     DMLC_DECLARE_FIELD(top_k).set_default(-1)
       .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    DMLC_DECLARE_FIELD(coord_start).set_default(2)
+      .describe("Start index of the consecutive 4 coordinates.");
+    DMLC_DECLARE_FIELD(score_index).set_default(1)
+      .describe("Index of the scores/confidence of boxes.");
     DMLC_DECLARE_FIELD(id_index).set_default(0)
       .describe("Axis index of id.");
     DMLC_DECLARE_FIELD(return_indices).set_default(true)
