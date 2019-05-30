@@ -941,7 +941,9 @@ class CommandQueue {
     insn->memory_type = dst_memory_type;
     insn->sram_base = dst_sram_index;
     DataBuffer* src = DataBuffer::FromHandle(src_dram_addr);
-    insn->dram_base = src->phy_addr() / GetElemBytes(dst_memory_type) + src_elem_offset;
+    uint32_t elem_bytes = GetElemBytes(dst_memory_type);
+    CHECK_GE(VTA_PAGE_BYTES, elem_bytes);
+    insn->dram_base = src->phy_addr() / elem_bytes + src_elem_offset;
     insn->y_size = y_size;
     insn->x_size = x_size;
     insn->x_stride = x_stride;
