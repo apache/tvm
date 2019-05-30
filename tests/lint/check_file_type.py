@@ -157,7 +157,7 @@ def main():
         report += "\nFound %d files that are now allowed\n" % len(error_list)
         report += ("We do not check in binary files into the repo.\n"
                    "If necessary, please discuss with committers and"
-                   "modify tests/scripts/check_file_type.py to enable the file you need.\n")
+                   "modify tests/lint/check_file_type.py to enable the file you need.\n")
         sys.stderr.write(report)
         sys.stderr.flush()
         sys.exit(-1)
