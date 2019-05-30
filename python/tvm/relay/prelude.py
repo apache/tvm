@@ -62,49 +62,6 @@ class Prelude:
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), z)
         self.mod[self.tl] = Function([x], Match(x, [cons_case]), self.l(a), [a])
 
-    def define_list_nth(self):
-        """Defines a function to get the nth element of a list.
-
-        nth(l) : list[a] -> a
-        """
-        self.nth = GlobalVar("nth")
-        a = TypeVar("a")
-        x = Var("x", self.l(a))
-        n = Var("n", self.nat())
-
-        y = Var("y")
-        z_case = Clause(PatternConstructor(self.z), self.hd(x))
-        s_case = Clause(PatternConstructor(self.s, [PatternVar(y)]), self.nth(self.tl(x), y))
-        self.mod[self.nth] = Function([x, n], Match(n, [z_case, s_case]), a, [a])
-
-    def define_list_hd(self):
-        """Defines a function to get the head of a list. Assume the list has at least one
-        element.
-
-        hd(l) : list[a] -> a
-        """
-        self.hd = GlobalVar("hd")
-        a = TypeVar("a")
-        x = Var("x", self.l(a))
-        y = Var("y")
-        z = Var("z")
-        cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), y)
-        self.mod[self.hd] = Function([x], Match(x, [cons_case]), a, [a])
-
-
-    def define_list_tl(self):
-        """Defines a function to get the tail of a list.
-
-        tl(l) : list[a] -> list[a]
-        """
-        self.tl = GlobalVar("tl")
-        a = TypeVar("a")
-        x = Var("x", self.l(a))
-        y = Var("y")
-        z = Var("z")
-        cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), z)
-        self.mod[self.tl] = Function([x], Match(x, [cons_case]), self.l(a), [a])
-
 
     def define_list_nth(self):
         """Defines a function to get the nth element of a list.
