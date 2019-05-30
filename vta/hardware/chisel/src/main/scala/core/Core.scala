@@ -45,10 +45,10 @@ case object CoreKey extends Field[CoreParams]
 
 /** Core.
   *
-  * The core is the main-module that defines the current VTA architecture by
-  * connecting memory and compute modules together such as load/store and
-  * compute. Most of the connections in the core are bulk (<>), and we should
-  * try to keep it this way, because it is easier to understand what is going on.
+  * The core defines the current VTA architecture by connecting memory and
+  * compute modules together such as load/store and compute. Most of the
+  * connections in the core are bulk (<>), and we should try to keep it this
+  * way, because it is easier to understand what is going on.
   *
   * Also, the core must be instantiated by a shell using the
   * VTA Control Register (VCR) and the VTA Memory Engine (VME) interfaces.
