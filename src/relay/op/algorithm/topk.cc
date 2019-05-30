@@ -39,14 +39,14 @@ bool TopKRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   CHECK(data);
-  size_t ndim = data->shape.size();
+  int ndim = data->shape.size();
   int axis = param->axis;
   if (axis < 0) {
     axis += ndim;
   }
   CHECK(axis >= 0 && axis < ndim);
   Array<IndexExpr> out_shape;
-  for (size_t i = 0; i < ndim; ++i) {
+  for (int i = 0; i < ndim; ++i) {
     if (i != axis || param->k < 1) {
       out_shape.push_back(data->shape[i]);
     } else {
