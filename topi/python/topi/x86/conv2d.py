@@ -415,7 +415,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
 
     dtype = data.dtype
     out_dtype = dtype if out_dtype in ("same", "") else out_dtype
-    is_depthwise = groups == in_channel and groups == out_channel
+    kshape = get_const_tuple(kernel.shape)
+    is_depthwise = groups == kshape[0] and kshape[1] == 1
 
     # only optimize for NCHW
     if layout != 'NCHW':
