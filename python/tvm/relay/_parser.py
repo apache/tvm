@@ -467,8 +467,11 @@ class ParseTreeToRelayIR(RelayVisitor):
         return None
 
     def visitIdentType(self, ctx):
+        '''
+        Handle type identifier.
+        type: (RelayParser.IdentTypeContext) -> Union[ty.TensorType, str]
+        '''
         # TODO(@jroesch) Identifier Type doesn't make sense should be Type Identifier.
-        # type: (RelayParser.IdentTypeContext) -> Union[ty.TensorType, str]
         type_ident = ctx.CNAME().getText()
 
         # Look through all type prefixes for a match
@@ -480,7 +483,6 @@ class ParseTreeToRelayIR(RelayVisitor):
         if type_param:
             return type_param
 
-        print(type_ident)
         raise ParseError("Unknown builtin type: {}".format(type_ident))
 
     # def visitCallType(self, ctx):

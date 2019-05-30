@@ -539,13 +539,16 @@ class Prelude:
 __PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
 
 def load_prelude(mod=None):
+    '''Parses the portions of the Prelude written in Relay's text format and adds
+    them to the module. Returns the module (a new one if none is passed).
+    '''
     from .parser import fromtext
 
     if mod is None:
         mod = Module({})
 
-    file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
-    with open(file) as prelude:
+    prelude_file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
+    with open(prelude_file) as prelude:
         prelude = fromtext(prelude.read())
         assert isinstance(mod, Module)
         mod.update(prelude)
