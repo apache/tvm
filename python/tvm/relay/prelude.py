@@ -22,7 +22,9 @@ from .expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
-from .module import Module
+from .parser import fromtext, enabled as parser_enabled
+
+__PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
 
 class Prelude:
     """Contains standard definitions."""
@@ -502,11 +504,27 @@ class Prelude:
                                           FuncType([a], a),
                                           [a])
 
+    def load_prelude(self):
+        """
+        Parses the portions of the Prelude written in Relay's text format and adds
+        them to the module.
+        """
+        prelude_file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
+        with open(prelude_file) as prelude:
+            prelude = fromtext(prelude.read())
+            self.mod.update(prelude)
+            self.id = self.mod["id"]
+            self.compose = self.mod["compose"]
+
 
     def __init__(self, mod):
-        self.mod = load_prelude(mod)
-        self.id = self.mod["id"]
-        self.compose = self.mod["compose"]
+        self.mod = mod
+        if parser_enabled():
+            self.load_prelude()
+        else:
+            self.define_id()
+            self.define_compose()
+
         self.define_list_adt()
         self.define_list_hd()
         self.define_list_tl()
@@ -535,22 +553,3 @@ class Prelude:
         self.define_tree_size()
 
         self.define_iterate()
-
-__PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
-
-def load_prelude(mod=None):
-    '''
-    Parses the portions of the Prelude written in Relay's text format and adds
-    them to the module. Returns the module (a new one if none is passed).
-    '''
-    from .parser import fromtext
-
-    if mod is None:
-        mod = Module({})
-
-    prelude_file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
-    with open(prelude_file) as prelude:
-        prelude = fromtext(prelude.read())
-        assert isinstance(mod, Module)
-        mod.update(prelude)
-        return mod
