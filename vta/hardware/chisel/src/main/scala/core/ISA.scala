@@ -56,11 +56,8 @@ trait ISAConstants
    val OP_A = 4.asUInt(OP_BITS.W)
    val OP_X = 5.asUInt(OP_BITS.W)
 
-   val ALU_OP_MIN = 0.asUInt(C_ALU_OP_BITS.W)
-   val ALU_OP_MAX = 1.asUInt(C_ALU_OP_BITS.W)
-   val ALU_OP_ADD = 2.asUInt(C_ALU_OP_BITS.W)
-   val ALU_OP_SHR = 3.asUInt(C_ALU_OP_BITS.W)
-   val ALU_OP_SHL = 4.asUInt(C_ALU_OP_BITS.W)
+   val ALU_OP_NUM = 5
+   val ALU_OP = Enum(ALU_OP_NUM)
 
    val M_ID_U = 0.asUInt(M_ID_BITS.W)
    val M_ID_W = 1.asUInt(M_ID_BITS.W)

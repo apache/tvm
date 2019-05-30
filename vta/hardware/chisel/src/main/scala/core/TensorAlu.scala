@@ -31,28 +31,21 @@ class Alu(implicit p: Parameters) extends Module {
     val b = Input(SInt(aluBits.W))
     val y = Output(SInt(aluBits.W))
   })
-  val min = Mux(io.a < io.b, io.a, io.b)
-  val max = Mux(io.a < io.b, io.b, io.a)
-  val add = io.a + io.b
 
+  // FIXME: the following three will change once we support properly SHR and SHL
   val ub = io.b.asUInt
   val width = log2Ceil(aluBits)
-  val m = ~ub(width - 1, 0) + 1.U // FIXME: there should be a SHL and SHR instruction
-  val n = ub(width - 1, 0)
-  val shl = io.a << m
-  val shr = io.a >> n
+  val m = ~ub(width - 1, 0) + 1.U
 
-  io.y :=
-    MuxLookup(io.opcode,
-              io.a, // default
-      Array(
-        ALU_OP_MIN -> min,
-        ALU_OP_MAX -> max,
-        ALU_OP_ADD -> add,
-        ALU_OP_SHR -> shr,
-	ALU_OP_SHL -> shl
-      )
-    )
+  val n = ub(width - 1, 0)
+  val fop = Seq(Mux(io.a < io.b, io.a, io.b),
+                Mux(io.a < io.b, io.b, io.a),
+                io.a + io.b,
+                io.a >> n,
+	        io.a << m)
+
+  val opmux = Seq.tabulate(ALU_OP_NUM)(i => ALU_OP(i) -> fop(i))
+  io.y := MuxLookup(io.opcode, io.a, opmux)
 }
 
 class AluReg(implicit p: Parameters) extends Module {
@@ -221,7 +214,8 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorImm.data.bits.foreach { b => b.foreach { c => c := dec.alu_imm } }
 
   // alu
-  val neg_shift = dec.alu_op === ALU_OP_SHR & dec.alu_imm(C_ALU_IMM_BITS-1)
+  val isSHR = dec.alu_op === ALU_OP(3)
+  val neg_shift = isSHR & dec.alu_imm(C_ALU_IMM_BITS-1)
   val fixme_alu_op = Cat(neg_shift, Mux(neg_shift, 0.U, dec.alu_op))
   alu.io.opcode := fixme_alu_op
   alu.io.acc_a.data.valid := io.acc.rd.data.valid & state === sReadTensorB
@@ -252,34 +246,35 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
       printf("[TensorAlu] [uop] dst:%x src:%x\n", uop_dst, uop_src)
     }
 
-    when (state === sIdle && io.start) {
-      when (dec.alu_op === ALU_OP_MIN) {
-        printf("[TensorAlu] [MIN] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-          dec.uop_begin, dec.uop_end,
-	  dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-          dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-      } .elsewhen (dec.alu_op === ALU_OP_MAX) {
-        printf("[TensorAlu] [MAX] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-          dec.uop_begin, dec.uop_end,
-          dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-          dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-      } .elsewhen (dec.alu_op === ALU_OP_ADD) {
-        printf("[TensorAlu] [ADD] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-          dec.uop_begin, dec.uop_end,
-          dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-          dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-      } .elsewhen (dec.alu_op === ALU_OP_SHR) {
-        printf("[TensorAlu] [SHR] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-          dec.uop_begin, dec.uop_end,
-          dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-          dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-      } .elsewhen (dec.alu_op === ALU_OP_SHL) {
-        printf("[TensorAlu] [SHL] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
-          dec.uop_begin, dec.uop_end,
-          dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
-          dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
-      }
-    }
+    // I'll fix this in a following commit
+    //when (state === sIdle && io.start) {
+    //  when (dec.alu_op === ALU_OP_MIN) {
+    //    printf("[TensorAlu] [MIN] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
+    //      dec.uop_begin, dec.uop_end,
+    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
+    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
+    //  } .elsewhen (dec.alu_op === ALU_OP_MAX) {
+    //    printf("[TensorAlu] [MAX] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
+    //      dec.uop_begin, dec.uop_end,
+    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
+    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
+    //  } .elsewhen (dec.alu_op === ALU_OP_ADD) {
+    //    printf("[TensorAlu] [ADD] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
+    //      dec.uop_begin, dec.uop_end,
+    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
+    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
+    //  } .elsewhen (dec.alu_op === ALU_OP_SHR) {
+    //    printf("[TensorAlu] [SHR] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
+    //      dec.uop_begin, dec.uop_end,
+    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
+    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
+    //  } .elsewhen (dec.alu_op === ALU_OP_SHL) {
+    //    printf("[TensorAlu] [SHL] uop_begin:%x uop_end:%x lp[0]:%x lp[1]:%x dst[0]:%x dst[1]:%x src[0]:%x src[1]:%x useImm:%x imm:%x\n",
+    //      dec.uop_begin, dec.uop_end,
+    //      dec.lp_0, dec.lp_1, dec.dst_0, dec.dst_1,
+    //      dec.src_0, dec.src_1, dec.alu_use_imm, dec.alu_imm)
+    //  }
+    //}
 
     alu.io.acc_a.data.bits.foreach { tensor =>
       tensor.zipWithIndex.foreach { case(elem, i) =>
