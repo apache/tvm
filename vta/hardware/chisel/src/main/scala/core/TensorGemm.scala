@@ -73,7 +73,7 @@ class DotProduct(dataBits: Int = 8, size: Int = 16) extends Module {
   val da = Seq.tabulate(s(0))(i => RegNext(io.a(s(0) + i)))
   val db = Seq.tabulate(s(0))(i => RegNext(io.b(s(0) + i)))
   val m = Seq.tabulate(2)(i =>
-    Seq.fill(s(0))(Module(new MAC(dataBits = 8, cBits = b + i, outBits = b + i + 1)))
+    Seq.fill(s(0))(Module(new MAC(dataBits = dataBits, cBits = b + i, outBits = b + i + 1)))
   )
   val a = Seq.tabulate(p)(i =>
     Seq.fill(s(i + 1))(Module(new Adder(dataBits = b + i + 2, outBits = b + i + 3)))
