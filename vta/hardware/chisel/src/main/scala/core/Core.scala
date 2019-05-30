@@ -85,9 +85,9 @@ class Core(implicit p: Parameters) extends Module {
   load.io.wgt_baddr := io.vcr.ptrs(3)
 
   // The compute module performs the following:
-  // * Load micro-ops (uops) and accumulations (acc)
-  // * Compute dense and ALU instructions (tasks)
-  // * Store results back to scratchpads (SRAMs)
+  // - Load micro-ops (uops) and accumulations (acc)
+  // - Compute dense and ALU instructions (tasks)
+  // - Store results back to scratchpads (SRAMs)
   compute.io.i_post(0) := load.io.o_post
   compute.io.i_post(1) := store.io.o_post
   compute.io.inst <> fetch.io.inst.co
