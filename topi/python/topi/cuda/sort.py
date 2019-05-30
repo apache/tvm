@@ -125,27 +125,19 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
                 with ib.if_scope(tid < (current_sort_num + 1) // 2):
                     offset = base_idx + (2 * tid + (k % 2)) * axis_mul_after
                     if is_ascend:
-                        with ib.if_scope(tvm.all(
-                                2 * tid + (k % 2) + 1 < current_sort_num,
-                                values_out[offset] > values_out[offset + axis_mul_after])):
-                            temp_data[0] = values_out[offset]
-                            values_out[offset] = values_out[offset + axis_mul_after]
-                            values_out[offset + axis_mul_after] = temp_data[0]
-                            if indices_out is not None:
-                                temp_index[0] = indices_out[offset]
-                                indices_out[offset] = indices_out[offset + axis_mul_after]
-                                indices_out[offset + axis_mul_after] = temp_index[0]
+                        cond = tvm.all(2 * tid + (k % 2) + 1 < current_sort_num,
+                                       values_out[offset] > values_out[offset + axis_mul_after])
                     else:
-                        with ib.if_scope(tvm.all(
-                                2 * tid + (k % 2) + 1 < current_sort_num,
-                                values_out[offset] < values_out[offset + axis_mul_after])):
-                            temp_data[0] = values_out[offset]
-                            values_out[offset] = values_out[offset + axis_mul_after]
-                            values_out[offset + axis_mul_after] = temp_data[0]
-                            if indices_out is not None:
-                                temp_index[0] = indices_out[offset]
-                                indices_out[offset] = indices_out[offset + axis_mul_after]
-                                indices_out[offset + axis_mul_after] = temp_index[0]
+                        cond = tvm.all(2 * tid + (k % 2) + 1 < current_sort_num,
+                                       values_out[offset] < values_out[offset + axis_mul_after])
+                    with ib.if_scope(cond):
+                        temp_data[0] = values_out[offset]
+                        values_out[offset] = values_out[offset + axis_mul_after]
+                        values_out[offset + axis_mul_after] = temp_data[0]
+                        if indices_out is not None:
+                            temp_index[0] = indices_out[offset]
+                            indices_out[offset] = indices_out[offset + axis_mul_after]
+                            indices_out[offset + axis_mul_after] = temp_index[0]
                 ib.emit(tvm.make.Call(None, 'tvm_storage_sync',
                                       tvm.convert(['shared']),
                                       tvm.expr.Call.Intrinsic, None, 0))
