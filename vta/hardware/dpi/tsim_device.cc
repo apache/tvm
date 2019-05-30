@@ -70,8 +70,18 @@ void VTADPIInit(VTAContextHandle handle,
   _mem_dpi = mem_dpi;
 }
 
+
+// Override Verilator finish definition
+// VL_USER_FINISH needs to be defined when compiling Verilator code
+void vl_finish(const char* filename, int linenum, const char* hier) {
+  Verilated::gotFinish(true);
+  VL_PRINTF("[TSIM] exiting simulation\n");
+}
+
 int VTADPISim(uint64_t max_cycles) {
   uint64_t trace_count = 0;
+  Verilated::flushCall();
+  Verilated::gotFinish(false);
 
 #if VM_TRACE
   uint64_t start = 0;
