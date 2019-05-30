@@ -19,7 +19,7 @@
 
 grammar Relay;
 
-SEMVER: 'v0.0.1.1' ;
+SEMVER: 'v0.0.2' ;
 
 // Lexing
 // comments
@@ -134,8 +134,7 @@ attr: CNAME '=' expr ;
 
 typeParamSeq
   : '[' ']'
-  | '[' ident ']'
-  | '[' ident (',' ident)+ ']'
+  | '[' ident (',' ident)* ']'
   ;
 
 type_
