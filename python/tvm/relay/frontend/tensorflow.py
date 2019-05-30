@@ -1082,6 +1082,15 @@ def _softplus():
         return _get_relay_op('log')(add_out)
     return _impl
 
+def _topk():
+    def _impl(inputs, attr, params):
+        k = params.pop(inputs.pop(1).name_hint).asnumpy()
+        is_ascend = False if attr['sorted'] else None # TODO: arg value for original ordering
+        return AttrCvt(op_name='topk',
+                       ignores=['sorted'],
+                       extras={'k': int(k), 'is_ascend': is_ascend})(inputs, attr)
+    return _impl
+
 def _logical(name):
     def _impl(inputs, attr, params):
         return AttrCvt(op_name=name)(inputs, attr)
@@ -1271,6 +1280,7 @@ _convert_map = {
     'Sum'                               : _sum(),
     'Tanh'                              : AttrCvt('tanh'),
     'Tile'                              : _tile(),
+    'TopKV2'                            : _topk(),
     'Transpose'                         : _transpose(),
     'Unpack'                            : _unpack(),
 
