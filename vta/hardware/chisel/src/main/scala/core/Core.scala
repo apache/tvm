@@ -84,7 +84,7 @@ class Core(implicit p: Parameters) extends Module {
   load.io.inp_baddr := io.vcr.ptrs(2)
   load.io.wgt_baddr := io.vcr.ptrs(3)
 
-  // The compute module perform the following:
+  // The compute module performs the following:
   // * Load micro-ops (uops) and accumulations (acc)
   // * Compute dense and ALU instructions (tasks)
   // * Store results back to scratchpads (SRAMs)
