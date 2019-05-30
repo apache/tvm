@@ -23,6 +23,7 @@ import chisel3._
 import vta.util.config._
 import vta.shell._
 
+/** Core parameters */
 case class CoreParams (
   batch: Int = 1,
   blockOut: Int = 16,
@@ -42,6 +43,18 @@ case class CoreParams (
 
 case object CoreKey extends Field[CoreParams]
 
+/** Core.
+  *
+  * The core is the main-module that defines the current VTA architecture by
+  * connecting memory and compute modules together such as load/store and
+  * compute. Most of the connections in the core are bulk (<>), and we should
+  * try to keep it this way, because it is easier to understand what is going on.
+  *
+  * Also, the core must be instantiated by a shell using the
+  * VTA Control Register (VCR) and the VTA Memory Engine (VME) interfaces.
+  * More info about these interfaces and modules can be found in the shell
+  * directory.
+  */
 class Core(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val vcr = new VCRClient
@@ -52,7 +65,7 @@ class Core(implicit p: Parameters) extends Module {
   val compute = Module(new Compute)
   val store = Module(new Store)
 
-  // vme
+  // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.vme.rd(0) <> fetch.io.vme_rd
   io.vme.rd(1) <> compute.io.vme_rd(0)
   io.vme.rd(2) <> load.io.vme_rd(0)
@@ -60,18 +73,21 @@ class Core(implicit p: Parameters) extends Module {
   io.vme.rd(4) <> compute.io.vme_rd(1)
   io.vme.wr(0) <> store.io.vme_wr
 
-  // fetch
+  // Fetch instructions (tasks) from memory (DRAM) into queues (SRAMs)
   fetch.io.launch := io.vcr.launch
   fetch.io.ins_baddr := io.vcr.ptrs(0)
   fetch.io.ins_count := io.vcr.vals(0)
 
-  // load
+  // Load inputs and weights from memory (DRAM) into scratchpads (SRAMs)
   load.io.i_post := compute.io.o_post(0)
   load.io.inst <> fetch.io.inst.ld
   load.io.inp_baddr := io.vcr.ptrs(2)
   load.io.wgt_baddr := io.vcr.ptrs(3)
 
-  // compute
+  // The compute module perform the following:
+  // * Load micro-ops (uops) and accumulations (acc)
+  // * Compute dense and ALU instructions (tasks)
+  // * Store results back to scratchpads (SRAMs)
   compute.io.i_post(0) := load.io.o_post
   compute.io.i_post(1) := store.io.o_post
   compute.io.inst <> fetch.io.inst.co
@@ -80,13 +96,13 @@ class Core(implicit p: Parameters) extends Module {
   compute.io.inp <> load.io.inp
   compute.io.wgt <> load.io.wgt
 
-  // store
+  // Store results back to memory (DRAM) from scratchpads (SRAMs)
   store.io.i_post := compute.io.o_post(1)
   store.io.inst <> fetch.io.inst.st
   store.io.out_baddr := io.vcr.ptrs(5)
   store.io.out <> compute.io.out
 
-  // finish
+  // Finish instruction is executed and asserts the VCR finish flag
   val finish = RegNext(compute.io.finish)
   io.vcr.finish := finish
 }
