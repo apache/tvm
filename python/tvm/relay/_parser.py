@@ -467,9 +467,9 @@ class ParseTreeToRelayIR(RelayVisitor):
         return None
 
     def visitTypeIdent(self, ctx):
+        # type: (RelayParser.TypeIdentContext) -> Union[ty.TensorType, str]
         '''
         Handle type identifier.
-        type: (RelayParser.TypeIdentContext) -> Union[ty.TensorType, str]
         '''
         type_ident = ctx.CNAME().getText()
 
@@ -479,7 +479,7 @@ class ParseTreeToRelayIR(RelayVisitor):
                 return ty.scalar_type(type_ident)
 
         type_param = lookup(self.type_param_scopes, type_ident)
-        if type_param:
+        if type_param is not None:
             return type_param
 
         raise ParseError("Unknown builtin type: {}".format(type_ident))
