@@ -57,15 +57,19 @@ struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
 
   TVM_DECLARE_ATTRS(TopKAttrs, "relay.attrs.TopkAttrs") {
     TVM_ATTR_FIELD(k).set_default(1)
-      .describe("");
+      .describe("Number of top elements to select");
     TVM_ATTR_FIELD(axis).set_default(-1)
-      .describe("Axis");
+      .describe("Axis along which to sort the input tensor.");
+    TVM_ATTR_FIELD(ret_type).set_default("both")
+      .describe("The return type [both, values, indices]."
+                "both - return both top k data and indices."
+                "values - return top k data only."
+                "indices - return top k indices only.");
     TVM_ATTR_FIELD(is_ascend).set_default(false)
-      .describe("");
+      .describe("Whether to sort in ascending or descending order."
+                "By default, sort in descending order");
     TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
       .describe("Data type of the output indices.");
-    TVM_ATTR_FIELD(ret_type).set_default("both")
-      .describe("Return type");
   }
 };
 
