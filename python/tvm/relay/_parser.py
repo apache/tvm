@@ -466,12 +466,11 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type (RelayParser.IncompleteTypeContext) -> None:
         return None
 
-    def visitIdentType(self, ctx):
+    def visitTypeIdent(self, ctx):
         '''
         Handle type identifier.
-        type: (RelayParser.IdentTypeContext) -> Union[ty.TensorType, str]
+        type: (RelayParser.TypeIdentContext) -> Union[ty.TensorType, str]
         '''
-        # TODO(@jroesch) Identifier Type doesn't make sense should be Type Identifier.
         type_ident = ctx.CNAME().getText()
 
         # Look through all type prefixes for a match

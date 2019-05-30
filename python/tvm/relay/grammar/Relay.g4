@@ -142,10 +142,10 @@ type_
   : '(' ')'                                         # tupleType
   | '(' type_ ',' ')'                               # tupleType
   | '(' type_ (',' type_)+ ')'                      # tupleType
-  | identType                                       # identTypeType
+  | typeIdent                                       # typeIdentType
   | 'Tensor' '[' shapeSeq ',' type_ ']'             # tensorType
   // currently unused
-  // | identType '[' (type_ (',' type_)*)? ']'         # callType
+  // | typeIdent '[' (type_ (',' type_)*)? ']'         # callType
   | 'fn' (typeParamSeq)? '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
   | '_'                                             # incompleteType
   | NAT                                             # intType
@@ -164,7 +164,7 @@ shape
   | NAT                             # intShape
   ;
 
-identType: CNAME ;
+typeIdent : CNAME ;
 // int8, int16, int32, int64
 // uint8, uint16, uint32, uint64
 // float16, float32, float64
