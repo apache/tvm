@@ -21,6 +21,12 @@ package vta.core
 
 import vta.util.config._
 
+/** CoreConfig.
+  *
+  * This is one supported configuration for VTA. This file will
+  * be eventually filled out with class configurations that can be
+  * mixed/matched with Shell configurations for different backends.
+  */
 class CoreConfig extends Config((site, here, up) => {
   case CoreKey => CoreParams(
     batch = 1,
