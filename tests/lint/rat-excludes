@@ -34,8 +34,11 @@ build
 _static
 _build
 .*~
-./python/tvm/relay/grammar/py2/Relay.*
-./python/tvm/relay/grammar/py3/Relay.*
+
+# Relay parser
+RelayLexer.py
+RelayParser.py
+RelayVisitor.py
 
 # Specific files
 package-list
