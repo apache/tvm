@@ -31,7 +31,7 @@ def run(run_func):
     """
     env = get_env()
 
-    if env.TARGET == "sim" or env.TARGET == "tsim":
+    if env.TARGET in ["sim", "tsim"]:
 
         # Talk to local RPC if necessary to debug RPC server.
         # Compile vta on your host with make at the root.
