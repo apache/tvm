@@ -68,11 +68,15 @@ ALLOW_EXTENSION = {
     "sbt",
     "properties",
     "v",
+    # generated parser
+    "interp",
+    "tokens"
     }
 
 # List of file names allowed
 ALLOW_FILE_NAME = {
     ".gitignore",
+    ".gitattributes",
     "README",
     "Makefile",
     "Doxyfile",
