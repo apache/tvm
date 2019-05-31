@@ -282,7 +282,7 @@ RELAY_REGISTER_OP("concatenate")
 .add_type_rel("Concatenate", ConcatenateRel<ConcatenateAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout)
 .set_attr<FTVMCompute>("FTVMCompute", ConcatenateCompute)
-.set_attr<TOpPattern>("TOpPattern", kInjective);
+.set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 TVM_REGISTER_NODE_TYPE(StackAttrs);
 
