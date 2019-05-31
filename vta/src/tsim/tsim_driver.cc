@@ -30,7 +30,6 @@ using tvm::runtime::Module;
 
 class DPILoader {
  public:
-
   void Init(Module module) {
     mod_ = module;
   }
@@ -61,9 +60,7 @@ class Device {
           vta_phy_addr_t out_phy_addr,
           uint32_t insn_count,
           uint32_t wait_cycles) {
-
     this->Init();
-
     this->Launch(insn_phy_addr,
                  uop_phy_addr,
                  inp_phy_addr,
@@ -72,11 +69,8 @@ class Device {
                  out_phy_addr,
                  insn_count,
                  wait_cycles);
-
     this->WaitForCompletion(wait_cycles);
-
     dev_->Finish();
-
     return 0;
   }
 
@@ -120,7 +114,7 @@ class Device {
     for (i = 0; i < wait_cycles; i++) {
       val = dev_->ReadReg(0x00);
       val &= 0x2;
-      if (val == 0x2) break; // finish
+      if (val == 0x2) break;  // finish
     }
   }
 
@@ -150,7 +144,7 @@ void VTAMemFree(void* buf) {
 }
 
 vta_phy_addr_t VTAMemGetPhyAddr(void* buf) {
-  return (uint64_t) ((uint64_t*) buf);
+  return reinterpret_cast<uint64_t>(reinterpret_cast<uint64_t*>(buf));
 }
 
 void VTAFlushCache(vta_phy_addr_t buf, int size) {
@@ -176,7 +170,6 @@ int VTADeviceRun(VTADeviceHandle handle,
                  vta_phy_addr_t out_phy_addr,
                  uint32_t insn_count,
                  uint32_t wait_cycles) {
-
   return static_cast<vta::tsim::Device*>(handle)->Run(
       insn_phy_addr,
       uop_phy_addr,
