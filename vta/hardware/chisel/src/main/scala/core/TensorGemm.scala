@@ -25,6 +25,7 @@ import chisel3.experimental._
 import vta.util.config._
 import scala.math.pow
 
+/** Pipelined multiply and accumulate */
 class MAC(dataBits: Int = 8, cBits: Int = 16, outBits: Int = 17) extends Module {
   require (cBits >= dataBits * 2)
   require (outBits >= dataBits * 2)
@@ -44,6 +45,7 @@ class MAC(dataBits: Int = 8, cBits: Int = 16, outBits: Int = 17) extends Module 
   io.y := add
 }
 
+/** Pipelined adder */
 class Adder(dataBits: Int = 8, outBits: Int = 17) extends Module {
   require (outBits >= dataBits)
   val io = IO(new Bundle {
@@ -58,6 +60,7 @@ class Adder(dataBits: Int = 8, outBits: Int = 17) extends Module {
   io.y := add
 }
 
+/** Pipelined DotProduct based on MAC and Adder */
 class DotProduct(dataBits: Int = 8, size: Int = 16) extends Module {
   val errMsg = s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
   require(size >= 4 && isPow2(size), errMsg)
@@ -100,6 +103,7 @@ class DotProduct(dataBits: Int = 8, size: Int = 16) extends Module {
   io.y := a(p-1)(0).io.y
 }
 
+/** Perform matric-vector-multiplication based on DotProduct */
 class MatrixVectorCore(implicit p: Parameters) extends Module {
   val accBits = p(CoreKey).accBits
   val size = p(CoreKey).blockOut
@@ -133,6 +137,15 @@ class MatrixVectorCore(implicit p: Parameters) extends Module {
   io.out.data.valid := vld.asUInt.andR
 }
 
+/** TensorGemm.
+  *
+  * This unit instantiate the MatrixVectorCore and go over the
+  * micro-ops (uops) which are used to read inputs, weights and biases,
+  * and writes results back to the acc and out scratchpads.
+  *
+  * Also, the TensorGemm uses the reset field in the Gemm instruction to
+  * clear or zero-out the acc-scratchpad locations based on the micro-ops.
+  */
 class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val start = Input(Bool())

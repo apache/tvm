@@ -23,7 +23,7 @@ import chisel3._
 import chisel3.util._
 import vta.util.config._
 
-/** ALU */
+/** ALU datapath */
 class Alu(implicit p: Parameters) extends Module {
   val aluBits = p(CoreKey).accBits
   val io = IO(new Bundle {
@@ -49,7 +49,7 @@ class Alu(implicit p: Parameters) extends Module {
   io.y := MuxLookup(io.opcode, io.a, opmux)
 }
 
-/** Pipeline ALU */
+/** Pipelined ALU */
 class AluReg(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val opcode = Input(UInt(C_ALU_OP_BITS.W))
