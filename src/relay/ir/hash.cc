@@ -219,6 +219,9 @@ class RelayHashHandler:
   size_t BindVar(const NodeRef& var) {
     size_t hash = std::hash<int>()(var_counter++);
     CHECK_EQ(hash_map_.count(var), 0);
+    if (auto var_node = var.as<VarNode>()) {
+      hash = Combine(hash, TypeHash(var_node->type_annotation));
+    }
     hash_map_[var] = hash;
 
     const auto* ty_param = var.as<TypeVarNode>();
