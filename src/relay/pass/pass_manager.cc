@@ -42,33 +42,33 @@ namespace {
 // TODO(zhiics) Maybe we can use PackedFunc here so that parameters can be
 // handled because we need to register the pass for Python invocation anyway.
 Pass GetPass(const std::string& pass_name) {
-  if (pass_name == "infer_type") {
+  if (pass_name == "InferType") {
     return InferType();
-  } else if (pass_name == "alter_op_layout") {
+  } else if (pass_name == "AlterOpLayout") {
     return AlterOpLayout();
-  } else if (pass_name == "canonicalize_ops") {
+  } else if (pass_name == "CanonicalizeOps") {
     return CanonicalizeOps();
-  } else if (pass_name == "combine_parallel_conv2d") {
+  } else if (pass_name == "CombineParallelConv2d") {
     return CombineParallelConv2D();
-  } else if (pass_name == "dead_code_elimination") {
+  } else if (pass_name == "DeadCodeElimination") {
     return DeadCodeElimination();
-  } else if (pass_name == "eliminate_common_subexpr") {
+  } else if (pass_name == "EliminateCommonSubexpr") {
     return DeadCodeElimination();
-  } else if (pass_name == "fold_constant") {
+  } else if (pass_name == "FoldConstant") {
     return FoldConstant();
-  } else if (pass_name == "backward_fold_scale_axis") {
+  } else if (pass_name == "BackwardFoldScaleAxis") {
     return FoldScaleAxis();
-  } else if (pass_name == "forward_fold_scale_axis") {
+  } else if (pass_name == "ForwardFoldScaleAxis") {
     return FoldScaleAxis();
-  } else if (pass_name == "fold_scale_axis") {
+  } else if (pass_name == "FoldScaleAxis") {
     return FoldScaleAxis();
-  } else if (pass_name == "partial_eval") {
+  } else if (pass_name == "PartialEvaluate") {
     return SimplifyInference();
-  } else if (pass_name == "simplify_inference") {
+  } else if (pass_name == "SimplifyInference") {
     return SimplifyInference();
-  } else if (pass_name == "to_a_normal_form") {
+  } else if (pass_name == "ToANormalForm") {
     return ToANormalForm();
-  } else if (pass_name == "to_graph_normal_form") {
+  } else if (pass_name == "ToGraphNormalForm") {
     return ToGraphNormalForm();
   } else {
     LOG(WARNING) << pass_name << " has not been registered yet." << "\n";

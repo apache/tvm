@@ -584,7 +584,7 @@ def EliminateCommonSubexpr(fskip=None):
     return _transform.EliminateCommonSubexpr(fskip)
 
 
-def PartialEval():
+def PartialEvaluate():
     """Evaluate the static fragment of the code.
 
     Returns
@@ -592,4 +592,4 @@ def PartialEval():
     ret : tvm.relay.Pass
         The registered pass that performs partial evaluation on an expression.
     """
-    return _transform.PartialEval()
+    return _transform.PartialEvaluate()

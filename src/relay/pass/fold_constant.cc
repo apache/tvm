@@ -223,7 +223,7 @@ Pass FoldConstant() {
     [=](Function f, Module m, PassContext pc) {
       return Downcast<Function>(FoldConstant(f));
   };
-  return CreateFunctionPass(pass_func, 2, "fold_constant", {});
+  return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }
 
 TVM_REGISTER_API("relay._transform.FoldConstant")

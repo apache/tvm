@@ -960,8 +960,8 @@ Pass ForwardFoldScaleAxis() {
       return Downcast<Function>(
           relay::fold_scale_axis::ForwardFoldScaleAxis(f));
   };
-  return CreateFunctionPass(pass_func, 3, "forward_fold_scale_axis",
-                            {ir::StringImm::make("infer_type")});
+  return CreateFunctionPass(pass_func, 3, "ForwardFoldScaleAxis",
+                            {ir::StringImm::make("InferType")});
 }
 
 Pass BackwardFoldScaleAxis() {
@@ -970,8 +970,8 @@ Pass BackwardFoldScaleAxis() {
       return Downcast<Function>(
           relay::fold_scale_axis::BackwardFoldScaleAxis(f));
     };
-  return CreateFunctionPass(pass_func, 3, "backward_fold_scale_axis",
-                            {ir::StringImm::make("infer_type")});
+  return CreateFunctionPass(pass_func, 3, "BackwardFoldScaleAxis",
+                            {ir::StringImm::make("InferType")});
 }
 
 Pass FoldScaleAxis() {
@@ -979,7 +979,7 @@ Pass FoldScaleAxis() {
   // register it as a sequential pass.
   Pass pass = Sequential(
       {FoldConstant(), BackwardFoldScaleAxis(), ForwardFoldScaleAxis()},
-      "fold_scale_axis");
+      "FoldScaleAxis");
   return pass;
 }
 

@@ -816,7 +816,7 @@ Pass InferType() {
     [=](Function f, Module m, PassContext pc) {
       return Downcast<Function>(InferType(f, m));
   };
-  return CreateFunctionPass(pass_func, 0, "infer_type", {});
+  return CreateFunctionPass(pass_func, 0, "InferType", {});
 }
 
 TVM_REGISTER_API("relay._transform.InferType")

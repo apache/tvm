@@ -558,8 +558,8 @@ Pass RewriteAnnotatedOps(int fallback_device) {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(RewriteAnnotatedOps(f, fallback_device));
   };
-  return CreateFunctionPass(pass_func, 1, "rewrite_annotated_ops",
-                            {ir::StringImm::make("infer_type")});
+  return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps",
+                            {ir::StringImm::make("InferType")});
 }
 
 TVM_REGISTER_API("relay._transform.RewriteDeviceAnnotation")

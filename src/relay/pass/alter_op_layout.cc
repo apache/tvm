@@ -360,8 +360,8 @@ Pass AlterOpLayout() {
     [=](Function f, Module m, PassContext pc) {
       return Downcast<Function>(relay::alter_op_layout::AlterOpLayout(f));
   };
-  return CreateFunctionPass(pass_func, 3, "alter_op_layout",
-                            {ir::StringImm::make("infer_type")});
+  return CreateFunctionPass(pass_func, 3, "AlterOpLayout",
+                            {ir::StringImm::make("InferType")});
 }
 
 TVM_REGISTER_API("relay._transform.AlterOpLayout")

@@ -806,10 +806,10 @@ Pass PartialEval() {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(PartialEval(f));
   };
-  return CreateFunctionPass(pass_func, 1, "partial_eval", {});
+  return CreateFunctionPass(pass_func, 1, "PartialEvaluate", {});
 }
 
-TVM_REGISTER_API("relay._transform.PartialEval")
+TVM_REGISTER_API("relay._transform.PartialEvaluate")
 .set_body_typed(PartialEval);
 
 }  // namespace transform

@@ -340,7 +340,7 @@ Pass ToANormalForm() {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(ToANormalForm(f, m));
   };
-  return CreateFunctionPass(pass_func, 1, "to_a_normal_form", {});
+  return CreateFunctionPass(pass_func, 1, "ToANormalForm", {});
 }
 
 TVM_REGISTER_API("relay._transform.ToANormalForm")
