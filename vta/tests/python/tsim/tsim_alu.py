@@ -61,7 +61,7 @@ def check_alu(tid, tvm_op, np_op=None, use_imm=False):
         vta.program_fpga(remote, bitstream=None)
 
     # In simulation mode, host the RPC server locally.
-    elif env.TARGET == "sim" or env.TARGET == "tsim":
+    elif env.TARGET in ["sim", "tsim"]:
         remote = rpc.LocalSession()
 
     if env.TARGET == "tsim":
