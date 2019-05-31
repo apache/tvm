@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -82,6 +82,28 @@ TVM_ADD_FILELINE)
                           const Type& out_dtype, const Target& target) -> Array<Tensor> {
                          return {topi::identity(inputs[0])};
                        });
+
+Expr ForceCast(Expr data) {
+  static const Op& op = Op::Get("force_cast");
+  return CallNode::make(op, {data}, Attrs{}, {});
+}
+
+RELAY_REGISTER_OP("force_cast")
+.describe(R"code(Annotate an expression to prevent it being fused with previous expressions.)code"
+TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input data.")
+.add_type_rel("Identity", IdentityRel)
+.set_support_level(10)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute",
+                       [](const Attrs& attrs, const Array<Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                         return {topi::identity(inputs[0])};
+                       });
+
 
 RELAY_REGISTER_OP("bitpack_start")
 .describe(R"code(

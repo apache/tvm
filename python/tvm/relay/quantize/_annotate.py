@@ -171,14 +171,16 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
-    if lhs_kind is None or lhs_kind != QAnnotateKind.INPUT:
+    # print('conv2d lhs kind: {0}'.format(lhs_kind))
+    # print('conv2d lhs: \n{0}'.format(lhs_expr))
+    # print('\n\n\n')
+    if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
 
     assert rhs_kind is None
     rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
@@ -241,25 +243,43 @@ def add_rewrite(ref_call, new_args, ctx):
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
+    # print('add lhs kind: {0}'.format(lhs_kind))
+    # print('add rhs kind: {0}'.format(rhs_kind))
 
     if lhs_kind is None and rhs_kind is None:
         return None
+
     if lhs_kind is None and rhs_kind is not None:
         # quantize lhs to INPUT field if it is normal expression
+        assert rhs_kind == QAnnotateKind.INPUT
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+        expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+        # print('execute add with INPUT')
+        return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+
     if lhs_kind is not None and rhs_kind is None:
         if isinstance(rhs_expr, _expr.Constant):
             # quantize rhs to WEIGHT field if it is Constant
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+            assert lhs_kind == QAnnotateKind.ACTIVATION
+            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
         else:
             # quantize rhs to INPUT field if it is not Constant
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
-    if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
-        # quantize rhs to INPUT field if both lhs and rhs are ACTIVATION
-        rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+            raise ValueError
 
-    expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+    if lhs_kind is not None and rhs_kind is not None:
+        if lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.INPUT:
+            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+            # print('execute add with INPUT')
+            return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+        if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
+            # quantize rhs to INPUT field if both lhs and rhs are ACTIVATION
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
+
+            expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
 @register_annotate_function("stop_fusion")
@@ -294,6 +314,7 @@ register_annotate_function("clip", identity_rewrite)
 register_annotate_function("nn.relu", identity_rewrite)
 register_annotate_function("strided_slice", identity_rewrite)
 register_annotate_function("nn.avg_pool2d", identity_rewrite)
+register_annotate_function("stop_fusion", identity_rewrite)
 
 
 def pool2d_rewrite(ref_call, new_args, ctx):
@@ -312,6 +333,20 @@ def pool2d_rewrite(ref_call, new_args, ctx):
 
 
 register_annotate_function("nn.max_pool2d", pool2d_rewrite)
+
+@register_annotate_function("force_cast")
+def force_cast_rewrite(ref_call, new_args, ctx):
+    if _conv_counter() <= current_qconfig().skip_k_conv:
+        return None
+    expr, x_kind = _get_expr_kind(new_args[0])
+
+    if x_kind is None:
+        return new_args[0]
+    if x_kind == QAnnotateKind.ACTIVATION:
+        expr = attach_simulated_quantize(expr, QAnnotateKind.INPUT)
+
+    expr = _forward_op(ref_call, [expr])
+    return QAnnotateExpr(expr, QAnnotateKind.INPUT)
 
 
 @register_annotate_function("concatenate")
@@ -333,3 +368,74 @@ def concatenate_rewrite(ref_call, new_args, ctx):
             expr_list[i] = attach_simulated_quantize(expr_list[i], QAnnotateKind.ACTIVATION)
     expr = _forward_op(ref_call, [_expr.Tuple(expr_list)])
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+
+
+# register for vta stop fusion
+def register_vta_rewrite(op_name, frewrite=None, level=10):
+    def _register(func):
+        return _op.op._Register(op_name, "FQVtaRewrite", func, level)
+    return _register(frewrite) if frewrite is not None else _register
+
+@register_relay_node
+class QVtaExpr(_expr.TempExpr):
+    def __init__(self, expr):
+        self.__init_handle_by_constructor__(
+            _quantize.make_vta_expr, expr)
+
+    def realize(self):
+        return _quantize.temp_expr_realize(self)
+
+
+def vta_expr_check(expr):
+    if isinstance(expr, QVtaExpr):
+        return True, expr.expr
+    return False, expr
+
+# def _stop_fusion(expr):
+#     return _quantize.make_stop_fusion(expr)
+
+@register_vta_rewrite("nn.conv2d")
+def conv2d_vta_rewrite(ref_call, new_args, ctx):
+    cnt = _conv_counter()
+    if cnt < current_qconfig().skip_k_conv:
+        _set_conv_counter(cnt + 1)
+        return None
+    _set_conv_counter(cnt + 1)
+
+
+    data_cond, data = vta_expr_check(new_args[0])
+    kernel_cond, kernel = vta_expr_check(new_args[1])
+
+    assert not kernel_cond
+    if data_cond:
+        data = new_args[0].realize()
+    ret = _forward_op(ref_call, [data, kernel])
+    return QVtaExpr(ret)
+
+def identity_vta_rewrite(ref_call, new_args, ctx):
+    cond, expr = vta_expr_check(new_args[0])
+    if cond:
+        return QVtaExpr(_forward_op(ref_call, [expr]))
+    else:
+        return None
+
+register_vta_rewrite("nn.relu", identity_vta_rewrite)
+register_vta_rewrite("nn.max_pool2d", identity_vta_rewrite)
+
+
+# @register_vta_rewrite("nn.max_pool2d")
+# def pool_vta_rewrite(ref_call, new_args, ctx):
+#     pass
+
+@register_vta_rewrite("add")
+def add_vta_rewrite(ref_call, new_args, ctx):
+    lhs_cond, lhs = vta_expr_check(new_args[0])
+    rhs_cond, rhs = vta_expr_check(new_args[1])
+    if lhs_cond and rhs_cond:
+        lhs = new_args[0].realize()
+        rhs = new_args[1].realize()
+        return _forward_op(ref_call, [lhs, rhs])
+    elif lhs_cond and not rhs_cond:
+        return QVtaExpr(_forward_op(ref_call, [lhs, rhs]))
+    else:
+        return None

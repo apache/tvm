@@ -90,7 +90,7 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .add_argument("clip_min", "Tensor", "lower bound. It should be a scalar")
 .add_argument("clip_max", "Tensor", "upper bound. It should be a scalar")
 .set_attrs_type_key("relay.attrs.SimulatedQuantizeAttrs")
-.set_support_level(10)
+.set_support_level(11)
 .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 
 TVM_REGISTER_API("relay._quantize.simulated_quantize")
@@ -111,13 +111,14 @@ TVM_REGISTER_API("relay._quantize.simulated_quantize")
 
 Expr QAnnotateExprNode::Realize() const {
   const auto& cfg = QConfig::Current();
-  if (cfg->store_lowbit_output) {
-    // store low bit output back for VTA
-    const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
-    return (*f)(this->expr, static_cast<int>(kQInput));
-  } else {
-    return expr;
-  }
+  return expr;
+  // if (cfg->store_lowbit_output) {
+  //   // store low bit output back for VTA
+  //   const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
+  //   return (*f)(this->expr, static_cast<int>(kQInput));
+  // } else {
+  //   return expr;
+  // }
 }
 
 QAnnotateExpr QAnnotateExprNode::make(Expr expr, QAnnotateKind kind) {
@@ -132,6 +133,23 @@ TVM_REGISTER_API("relay._quantize.make_annotate_expr")
     *ret = QAnnotateExprNode::make(args[0],
       static_cast<QAnnotateKind>(args[1].operator int()));
   });
+
+
+TVM_REGISTER_API("relay._quantize.annotate")
+.set_body_typed<Expr(Expr)>([] (const Expr& expr) {
+  std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
+      if (e->derived_from<TempExprNode>()) {
+        const auto* n = e.as<QAnnotateExprNode>();
+        CHECK(n);
+        const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
+        Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
+        return static_cast<Expr>(QAnnotateExprNode::make(ret, kQInput));
+      }
+      return e;
+    };
+  return ForwardRewrite(expr, "FQAnnotateRewrite", nullptr, nullptr);
+});
+
 
 // =============
 // realize pass
@@ -385,7 +403,17 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
 
   // unify the data type
   CHECK_EQ(ref_args.size(), args.size());
-  DataType dtype = cfg->dtype_activation;
+  DataType dtype;
+  if (nptrs[0]->dtype == cfg->dtype_activation) {
+    DataType dtype = cfg->dtype_activation;
+    ret.Set(1, Cast(ret[1], dtype));
+  } else if (nptrs[1]->dtype == cfg->dtype_input) {
+    DataType dtype = cfg->dtype_input;
+    ret.Set(0, Cast(ret[0], dtype));
+  } else {
+    LOG(FATAL) << "should not touch here.";
+  }
+
   for (size_t i = 0; i < ret.size(); ++i) {
     auto ref_arg = ref_args[i].as<CallNode>();
     if (nptrs[i]->dtype != dtype) {
@@ -504,6 +532,9 @@ RELAY_REGISTER_OP("nn.relu")
 RELAY_REGISTER_OP("strided_slice")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
 
+RELAY_REGISTER_OP("stop_fusion")
+.set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
+
 /* \brief for unary operators which requantize its input to dtype_nbit */
 Expr CastDtypeInputRealize(const Call& ref_call,
                            const Array<Expr>& new_args,
@@ -520,9 +551,6 @@ Expr CastDtypeInputRealize(const Call& ref_call,
 }
 
 RELAY_REGISTER_OP("nn.max_pool2d")
-.set_attr<FForwardRewrite>("FQRealizeRewrite", CastDtypeInputRealize);
-
-RELAY_REGISTER_OP("stop_fusion")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", CastDtypeInputRealize);
 
 
@@ -545,6 +573,29 @@ Expr AvgPoolRealize(const Call& ref_call,
 
 RELAY_REGISTER_OP("nn.avg_pool2d")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", AvgPoolRealize);
+
+Expr ForceCastRealize(const Call& ref_call,
+                      const Array<Expr>& new_args,
+                      const NodeRef& ctx) {
+  const QConfig& cfg = QConfig::Current();
+  CHECK_EQ(new_args.size(), 1);
+  if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
+    Expr ret = Cast(n->data, cfg->dtype_input);
+    return QRealizeIntExprNode::make(ret, n->dom_scale, cfg->dtype_input);
+  }
+  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  return Expr(nullptr);
+}
+
+RELAY_REGISTER_OP("force_cast")
+.set_attr<FForwardRewrite>("FQRealizeRewrite", ForceCastRealize);
+
+TVM_REGISTER_API("relay._quantize.realize")
+.set_body_typed<Expr(Expr)>([](const Expr& e) {
+  Expr ret = ForwardRewrite(e, "FQRealizeRewrite", nullptr, nullptr);
+  return ret;
+});
+
 
 // =============
 // qconfig
@@ -649,53 +700,46 @@ Pass QuantizeRealizePass() {
 TVM_REGISTER_API("relay._quantize.QuantizeRealize")
 .set_body_typed(QuantizeRealizePass);
 
-class VtaStoreInjector : public ExprMutator {
- private:
-  const CallNode* GetPreviousNode(const CallNode* n) {
-    if (n == nullptr || n->args.size() == 0) {
-      return nullptr;
-    }
-    return n->args[0].as<CallNode>();
-  }
+// =============
+// Insert stop_fusion for vta.
 
- public:
-  Expr VisitExpr_(const CallNode* n) final {
-    static const Op& conv2d = Op::Get("nn.conv2d");
-    static const Op& add = Op::Get("add");
-    static const Op& relu = Op::Get("nn.relu");
-    auto new_e = ExprMutator::VisitExpr_(n);
-    const CallNode* n0 = new_e.as<CallNode>();
-    // conv->add->relu->[here]
-    if (n0 && n0->op.same_as(relu)) {
-      const CallNode* n1 = n0->args[0].as<CallNode>();
-      if (n1 && n1->op.same_as(add)) {
-        const CallNode* n2 = n1->args[0].as<CallNode>();
-        if (n2 && n2->op.same_as(conv2d)) {
-          return StopFusion(new_e);
-        }
-      }
-    }
-    // conv->add->[here]->add
-    if (n0 && n0->op.same_as(add)) {
-      const CallNode* n1 = n0->args[1].as<CallNode>();
-      if (n1 && n1->op.same_as(add)) {
-        const CallNode* n2 = n1->args[0].as<CallNode>();
-        if (n2 && n2->op.same_as(conv2d)) {
-          Expr child = StopFusion(n0->args[1]);
-          return CallNode::make(add, {n0->args[0], child}, Attrs{}, {});
-        }
-      }
-    }
-    return new_e;
-  }
-};
 
-Expr VtaStoreHint(const Expr& e) {
-  return VtaStoreInjector().Mutate(e);
+Expr QVtaExprNode::Realize() const {
+  Expr ret = ForceCast(this->expr);
+  return StopFusion(ret);
 }
 
-TVM_REGISTER_API("relay._quantize.vta_store_hint")
-.set_body_typed(VtaStoreHint);
+QVtaExpr QVtaExprNode::make(Expr expr) {
+  auto rnode = make_node<QVtaExprNode>();
+  rnode->expr = expr;
+  return QVtaExpr(rnode);
+}
+
+TVM_REGISTER_API("relay._quantize.rewrite_for_vta")
+.set_body_typed<Expr(Expr)>([] (const Expr& expr) {
+  return ForwardRewrite(expr, "FQVtaRewrite", nullptr, nullptr);
+});
+
+
+TVM_REGISTER_API("relay._quantize.make_vta_expr")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = QVtaExprNode::make(args[0]);
+  });
+
+
+TVM_REGISTER_API("relay._quantize.make_stop_fusion")
+.set_body_typed<Expr(Expr)>([] (const Expr& expr) {
+  return StopFusion(expr);
+});
+
+TVM_REGISTER_API("relay._quantize.temp_expr_realize")
+.set_body_typed<Expr(Expr)>([] (const Expr& expr) {
+  const QVtaExprNode* n = expr.as<QVtaExprNode>();
+  CHECK(n);
+  return n->Realize();
+});
+
+
 
 
 }  // namespace quantize

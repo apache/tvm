@@ -349,3 +349,45 @@ def quantize(graph, params=None, dataset=None):
             mod = optimize(mod)
             mod = quantize_seq(mod)
     return mod[mod.entry_func.name_hint]
+
+def quantize_vta(graph, params=None, dataset=None):
+
+    """ The quantization procedure for VTA specifically.
+
+    Parameters
+    ---------
+    graph: Function
+        The original graph.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for constant folding.
+
+    dataset: list of dict of Var -> NDArray
+        The calibration dataset.
+
+    Returns
+    -------
+    ret: Function
+        The graph after quantization
+    """
+
+    # TODO(zhiics) Move this to the pass manager.
+    graph = optimize(graph, params)
+
+    print('original graph')
+    print(graph)
+    graph = _quantize.rewrite_for_vta(graph)
+    print('after rewrite for vta')
+    print(graph)
+
+    graph = annotate(graph)
+    graph = calibrate(graph, dataset)
+    print('after calibrate')
+    print(graph)
+    graph = realize(graph)
+    graph = _ir_pass.fold_constant(graph)
+
+    print('after realize')
+    print(graph)
+    return graph
