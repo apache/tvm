@@ -137,7 +137,7 @@ class MicroSession {
    * \param args TVMArgs passed into the micro.init packedfunc
    * \note must be called upon first call to Global()
    */
-  void InitSession(TVMArgs args);
+  void InitSession(const TVMArgs& args);
 
   /*!
    * \brief allocate memory in section
@@ -166,7 +166,7 @@ class MicroSession {
    * \param func address of the function to be executed
    * \param args args to the packed function
    */
-  void PushToExecQueue(DevBaseOffset func, TVMArgs args);
+  void PushToExecQueue(DevBaseOffset func, const TVMArgs& args);
 
   /*!
    * \brief loads binary onto device

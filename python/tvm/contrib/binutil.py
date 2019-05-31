@@ -157,7 +157,7 @@ SECTIONS
 
 @register_func("tvm_callback_read_binary_section")
 def tvm_callback_read_binary_section(binary, section):
-    """Returns the contents of the specified section in the binary file
+    """Returns the contents of the specified section in the binary byte array
 
     Parameters
     ----------
@@ -204,7 +204,7 @@ def tvm_callback_get_symbol_map(binary):
     Parameters
     ----------
     binary : bytearray
-        the object file
+        contents of the binary
 
     Return
     ------

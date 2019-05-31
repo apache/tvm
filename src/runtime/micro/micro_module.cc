@@ -54,7 +54,7 @@ class MicroModuleNode final : public ModuleNode {
    * \brief initializes module by establishing device connection and loads binary
    * \param binary_path path of the binary to be loaded
    */
-  void InitMicroModule(const std::string binary_path) {
+  void InitMicroModule(const std::string& binary_path) {
     session_ = MicroSession::Global();
     low_level_device_ = session_->low_level_device();
     binary_path_ = binary_path;
@@ -71,8 +71,7 @@ class MicroModuleNode final : public ModuleNode {
    * \param func_offset offset of the function to be run
    * \param args type-erased arguments passed to the function
    */
-  void RunFunction(std::string func_name, DevBaseOffset func_offset, TVMArgs args) {
-    // TODO(weberlo): Why do we need `func_name`?
+  void RunFunction(const std::string& func_name, DevBaseOffset func_offset, const TVMArgs& args) {
     session_->PushToExecQueue(func_offset, args);
   }
 
@@ -94,7 +93,7 @@ class MicroModuleNode final : public ModuleNode {
    * \brief patches a function pointer in this module to an implementation
    * \param func_name name of the function pointer being patched
    */
-  void PatchImplHole(const std::string func_name) {
+  void PatchImplHole(const std::string& func_name) {
     const DevBaseOffset init_impl_offset = session_->init_symbol_map()[func_name];
     void* init_impl_addr = (low_level_device_->base_addr() + init_impl_offset).cast_to<void*>();
     std::stringstream func_name_underscore;

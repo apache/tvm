@@ -79,7 +79,7 @@ static std::string AddrToString(void* addr) {
   return string_addr;
 }
 
-std::string RelocateBinarySections(std::string binary_path,
+std::string RelocateBinarySections(const std::string& binary_path,
                                    DevAddr text,
                                    DevAddr rodata,
                                    DevAddr data,
@@ -95,7 +95,7 @@ std::string RelocateBinarySections(std::string binary_path,
   return relocated_bin;
 }
 
-std::string ReadSection(std::string binary, SectionKind section) {
+std::string ReadSection(const std::string& binary, SectionKind section) {
   CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
         section == SectionKind::kData || section == SectionKind::kBss)
       << "ReadSection requires section to be one of text, rodata, data, or bss.";
@@ -109,7 +109,7 @@ std::string ReadSection(std::string binary, SectionKind section) {
   return section_contents;
 }
 
-size_t GetSectionSize(std::string binary_path, SectionKind section, size_t align) {
+size_t GetSectionSize(const std::string& binary_path, SectionKind section, size_t align) {
   CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
         section == SectionKind::kData || section == SectionKind::kBss)
       << "GetSectionSize requires section to be one of text, rodata, data, or bss.";

@@ -62,6 +62,9 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   num_active_allocs--;
   if (num_active_allocs < 0) {
     TVMAPISetLastError("free called with no active workspace allocations");
+    // Reset allocations and workspace (for future task executions).
+    num_active_allocs = 0;
+    utvm_workspace_curr = utvm_workspace_begin;
     return -1;
   } else if (num_active_allocs == 0) {
     // No more allocations.  Reset workspace.

@@ -48,7 +48,8 @@ class CodeGenCHost final : public CodeGenC {
   void VisitStmt_(const AssertStmt *op) final; // NOLINT(*)
 
  private:
-  std::string module_name;
+  std::string module_name_;
+
   void PrintGetFuncFromBackend(std::string func_name, std::string packed_func_name);
   void PrintFuncCall(std::string packed_func_name, int num_args);
 };

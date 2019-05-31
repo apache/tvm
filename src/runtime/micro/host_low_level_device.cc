@@ -42,6 +42,8 @@ class HostLowLevelDevice final : public LowLevelDevice {
   explicit HostLowLevelDevice(size_t num_bytes)
     : size_(num_bytes) {
     size_t size_in_pages = (num_bytes + kPageSize - 1) / kPageSize;
+    // TODO(weberlo): Set permissions per section (e.g., read-write perms for
+    // the heap, execute perms for text, etc.).
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
     int mmap_flags = MAP_ANONYMOUS | MAP_PRIVATE;
     base_addr_ = DevBaseAddr(

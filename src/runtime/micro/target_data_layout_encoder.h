@@ -31,6 +31,8 @@
 namespace tvm {
 namespace runtime {
 
+// TODO(weberlo): Handle endianness.
+
 /*!
  * \brief data encoder for uTVM that builds a host-side buffer
  */
@@ -54,11 +56,11 @@ class TargetDataLayoutEncoder {
     ~Slot();
 
     /*!
-     * \brief writes `sizeof(T) * num_elems` bytes of data from `src_ptr`
-     * \param src_ptr address of the buffer to be read from
+     * \brief writes `sizeof(T) * num_elems` bytes of data from `arr`
+     * \param arr array to be read from
      * \param num_elems number of elements in array
      */
-    void WriteRaw(const T* src_ptr, size_t num_elems);
+    void WriteArray(const T* arr, size_t num_elems);
 
     /*!
      * \brief writes `val`
@@ -157,18 +159,18 @@ TargetDataLayoutEncoder::Slot<T>::~Slot() {
 }
 
 template <typename T>
-void TargetDataLayoutEncoder::Slot<T>::WriteRaw(const T* src_ptr, size_t num_elems) {
+void TargetDataLayoutEncoder::Slot<T>::WriteArray(const T* arr, size_t num_elems) {
   if (num_elems == 0) return;
   size_t size = sizeof(T) * num_elems;
   CHECK(curr_offset_ + size <= size_) << "not enough space in slot";
   uint8_t* curr_ptr = &(parent_->data())[start_offset_ + curr_offset_];
-  std::memcpy(curr_ptr, src_ptr, size);
+  std::memcpy(curr_ptr, arr, size);
   curr_offset_ += size;
 }
 
 template <typename T>
 void TargetDataLayoutEncoder::Slot<T>::WriteValue(const T& val) {
-  WriteRaw(&val, 1);
+  WriteArray(&val, 1);
 }
 
 template <typename T>

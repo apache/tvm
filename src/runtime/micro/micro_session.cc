@@ -59,14 +59,15 @@ MicroSession::MicroSession() {
 
 MicroSession::~MicroSession() { }
 
-void MicroSession::InitSession(TVMArgs args) {
-  std::string device_type = args[0];
+void MicroSession::InitSession(const TVMArgs& args) {
+  const std::string& device_type = args[0];
+  const std::string& binary_path = args[1];
+  SetInitBinaryPath(binary_path);
   if (device_type == "host") {
     low_level_device_ = HostLowLevelDeviceCreate(kMemorySize);
-    SetInitBinaryPath(args[1]);
   } else if (device_type == "openocd") {
-    low_level_device_ = OpenOCDLowLevelDeviceCreate(args[2]);
-    SetInitBinaryPath(args[1]);
+    int port = args[2];
+    low_level_device_ = OpenOCDLowLevelDeviceCreate(port);
   } else {
     LOG(FATAL) << "Unsupported micro low-level device";
   }
@@ -152,7 +153,7 @@ std::string MicroSession::ReadString(DevBaseOffset str_offset) {
   return result.str();
 }
 
-void MicroSession::PushToExecQueue(DevBaseOffset func, TVMArgs args) {
+void MicroSession::PushToExecQueue(DevBaseOffset func, const TVMArgs& args) {
   void (*func_dev_addr)(void*, void*, int32_t) =
       reinterpret_cast<void (*)(void*, void*, int32_t)>(
       (func + low_level_device()->base_addr()).value());
@@ -261,7 +262,7 @@ DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMA
         break;
     }
   }
-  type_codes_slot.WriteRaw(type_codes, num_args);
+  type_codes_slot.WriteArray(type_codes, num_args);
 
   UTVMArgs dev_args = {
     .values = tvm_vals_slot.start_addr().cast_to<TVMValue*>(),
@@ -279,12 +280,12 @@ DevAddr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMA
   // `shape` and `strides` are stored on the host, so we need to write them to
   // the device first. The `data` field is already allocated on the device and
   // is a device pointer, so we don't need to write it.
-  shape_slot.WriteRaw(arr.shape, arr.ndim);
+  shape_slot.WriteArray(arr.shape, arr.ndim);
   DevAddr shape_addr = shape_slot.start_addr();
   DevAddr strides_addr = DevAddr(nullptr);
   if (arr.strides != nullptr) {
     auto stride_slot = encoder->Alloc<int64_t>(arr.ndim);
-    stride_slot.WriteRaw(arr.strides, arr.ndim);
+    stride_slot.WriteArray(arr.strides, arr.ndim);
     strides_addr = stride_slot.start_addr();
   }
 

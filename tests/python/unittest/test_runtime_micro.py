@@ -17,17 +17,13 @@
 
 import os
 
+from nose.tools import nottest
 import numpy as np
 import tvm
 from tvm.contrib import graph_runtime, util
 from tvm import relay
 import tvm.micro as micro
 from tvm.relay.testing import resnet
-
-import mxnet as mx
-from mxnet.gluon.model_zoo.vision import get_model
-from mxnet.gluon.utils import download
-from PIL import Image
 
 # We use the host emulated micro device, because it's simpler and faster to
 # test.
@@ -150,8 +146,15 @@ def test_resnet_random():
     assert result.sum() != 0.0
 
 
+# TODO(weberlo): Enable this test or move the code somewhere else.
+@nottest
 def test_resnet_pretrained():
     """Test classification with a pretrained ResNet18 model."""
+    import mxnet as mx
+    from mxnet.gluon.model_zoo.vision import get_model
+    from mxnet.gluon.utils import download
+    from PIL import Image
+
     # TODO(weberlo) there's a significant amount of overlap between here and
     # `tutorials/frontend/from_mxnet.py`.  Should refactor.
     dtype = "float32"
@@ -200,5 +203,3 @@ if __name__ == "__main__":
     test_workspace_add()
     test_graph_runtime()
     test_resnet_random()
-    # TODO(weberlo): Uncomment this test (or add it as a tutorial?)
-    # test_resnet_pretrained()

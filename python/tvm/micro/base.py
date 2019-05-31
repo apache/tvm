@@ -102,7 +102,7 @@ def create_micro_lib(src_path, device_type, compile_cmd=None, obj_path=None):
     Return
     ------
     obj_path : bytearray
-        compiled binary file path
+        compiled binary file path (will match input `obj_path`, if it was specified)
     """
     # Choose compiler based on device type (if `compile_cmd` wasn't specified).
     if compile_cmd is None:
@@ -130,7 +130,7 @@ def create_micro_lib(src_path, device_type, compile_cmd=None, obj_path=None):
     # ".o" suffixes with ".obj".
     if obj_path.endswith(".o"):
         logging.warning(
-            "\".o\" suffix in \"%s\" has been replaced with \".obj\"" % obj_path)
+            "\".o\" suffix in \"%s\" has been replaced with \".obj\"", obj_path)
         obj_path = replace_suffix(obj_path, "obj")
 
     options = ["-I" + path for path in find_include_path()] + ["-fno-stack-protector"]

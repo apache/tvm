@@ -60,12 +60,13 @@ class DeviceLocation {
   /*! \brief construct a location with value `value` */
   explicit DeviceLocation(std::uintptr_t value) : value_(value) {}
 
-  /*! \brief construct a null location */
+  /*! \brief default constructor */
   DeviceLocation() : value_(0) {}
 
   /*! \brief construct a null location */
   explicit DeviceLocation(std::nullptr_t value) : value_(0) {}
 
+  /*! \brief destructor */
   virtual ~DeviceLocation() {}
 
   /*!
@@ -81,14 +82,15 @@ class DeviceLocation {
   template <typename T>
   T cast_to() const { return reinterpret_cast<T>(value_); }
 
+  /*! \brief check if location is null */
   bool operator==(std::nullptr_t) const { return value_ == 0; }
+  /*! \brief check if location is not null */
   bool operator!=(std::nullptr_t) const { return value_ != 0; }
 
  protected:
+  /*! \brief raw value storing the location */
   std::uintptr_t value_;
 };
-
-// TODO(weberlo): Finish docs
 
 class DevAddr;
 class DevBaseAddr;
@@ -97,38 +99,54 @@ class DevBaseOffset;
 /*! \brief absolute device address */
 class DevAddr : public DeviceLocation {
  public:
+  /*! \brief construct an absolute address with value `value` */
   explicit DevAddr(std::uintptr_t val) : DeviceLocation(val) {}
 
+  /*! \brief default constructor */
   DevAddr() : DeviceLocation() {}
 
+  /*! \brief construct a null absolute address */
   explicit DevAddr(std::nullptr_t val) : DeviceLocation(val) {}
 
+  /*! \brief subtract a base address from an absolute address to get a base offset */
   DevBaseOffset operator-(DevBaseAddr base);
+
+  /*! \brief add an integer to an absolute address to get an absolute address */
   DevAddr operator+(size_t n);
 };
 
 /*! \brief base address of the device */
 class DevBaseAddr : public DeviceLocation {
  public:
-  explicit DevBaseAddr(std::uintptr_t val) : DeviceLocation(val) {}
+  /*! \brief construct a base address with value `value` */
+  explicit DevBaseAddr(std::uintptr_t value) : DeviceLocation(value) {}
 
+  /*! \brief default constructor */
   DevBaseAddr() : DeviceLocation() {}
 
-  explicit DevBaseAddr(std::nullptr_t val) : DeviceLocation(val) {}
+  /*! \brief construct a null base address */
+  explicit DevBaseAddr(std::nullptr_t value) : DeviceLocation(value) {}
 
+  /*! \brief add a base address with a base offset to get an absolute address */
   DevAddr operator+(DevBaseOffset offset);
 };
 
 /*! \brief offset from device base address */
 class DevBaseOffset : public DeviceLocation {
  public:
-  explicit DevBaseOffset(std::uintptr_t val) : DeviceLocation(val) {}
+  /*! \brief construct a base offset with value `value` */
+  explicit DevBaseOffset(std::uintptr_t value) : DeviceLocation(value) {}
 
+  /*! \brief default constructor */
   DevBaseOffset() : DeviceLocation() {}
 
-  explicit DevBaseOffset(std::nullptr_t val) : DeviceLocation(val) {}
+  /*! \brief construct a null base offset */
+  explicit DevBaseOffset(std::nullptr_t value) : DeviceLocation(value) {}
 
+  /*! \brief add a base offset to a base address to get an absolute address */
   DevAddr operator+(DevBaseAddr base);
+
+  /*! \brief add an integer to a base offset to increase the offset */
   DevBaseOffset operator+(size_t n);
 };
 
@@ -147,7 +165,7 @@ class SymbolMap {
    * \param binary contents of binary object file
    * \param base_addr base address of the target device
    */
-  SymbolMap(std::string binary, DevBaseAddr base_addr) {
+  SymbolMap(const std::string& binary, DevBaseAddr base_addr) {
     const auto* f = Registry::Get("tvm_callback_get_symbol_map");
     CHECK(f != nullptr) << "require tvm_callback_get_symbol_map to exist in registry";
     TVMByteArray arr;
@@ -173,7 +191,7 @@ class SymbolMap {
    * \param name name of the symbol
    * \return on-device offset of the symbol
    */
-  DevBaseOffset operator[](std::string name) {
+  DevBaseOffset operator[](const std::string& name) {
     auto result = map_.find(name);
     CHECK(result != map_.end()) << "\"" << name << "\" not in symbol map";
     return result->second;
@@ -269,7 +287,7 @@ const char* SectionToString(SectionKind section);
  * \param bss new bss section address
  * \return relocated binary file contents
  */
-std::string RelocateBinarySections(std::string binary_name,
+std::string RelocateBinarySections(const std::string& binary_name,
                                    DevAddr text,
                                    DevAddr rodata,
                                    DevAddr data,
@@ -281,7 +299,7 @@ std::string RelocateBinarySections(std::string binary_name,
  * \param section section type to be read
  * \return contents of the section
  */
-std::string ReadSection(std::string binary, SectionKind section);
+std::string ReadSection(const std::string& binary, SectionKind section);
 
 /*!
  * \brief finds size of the section in the binary
@@ -290,7 +308,7 @@ std::string ReadSection(std::string binary, SectionKind section);
  * \param align alignment of the returned size (default: 8)
  * \return size of the section if it exists, 0 otherwise
  */
-size_t GetSectionSize(std::string binary_name,
+size_t GetSectionSize(const std::string& binary_name,
                       SectionKind section,
                       size_t align = kDefaultSizeAlignment);
 }  // namespace runtime
