@@ -57,13 +57,13 @@ def stats():
     x = tvm.get_global_func("vta.simulator.profiler_status")()
     return json.loads(x)
 
-def tsim_init(hw):
+def tsim_init(hw_lib):
     cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     vta_build_path = os.path.join(cur_path, "..", "..", "..", "build")
     ext = ".dylib" if sys.platform == "darwin" else ".so"
-    hw_lib = os.path.join(vta_build_path, hw + ext)
+    lib = os.path.join(vta_build_path, hw_lib + ext)
     f = tvm.get_global_func("tvm.vta.tsim.init")
-    m = tvm.module.load(hw_lib, "vta-tsim")
+    m = tvm.module.load(lib, "vta-tsim")
     f(m)
 
 
