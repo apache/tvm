@@ -559,6 +559,46 @@ def test_alter_layout_prelu():
 
     assert(alpha_equal(a, b))
 
+def test_alter_layout_depthwise_conv2d():
+    """Test depthwise_conv2d operator"""
+    def before():
+        x = relay.var("x", shape=(1, 32, 56, 56))
+        w = relay.var("w", shape=(32, 1, 3, 3))
+        y = relay.nn.conv2d(x, w, padding=(1, 1), channels=32, kernel_size=(3, 3), groups=32)
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    import topi
+    @register_alter_op_layout("nn.conv2d", level=111)
+    def alter_conv2d(attrs, inputs, tinfos):
+        return topi.x86.conv2d._alter_conv2d_layout(attrs, inputs, tinfos, relay)
+
+    def expected():
+        x = relay.var("x", shape=(1, 32, 56, 56))
+        w = relay.var("w", shape=(32, 1, 3, 3))
+        x = relay.layout_transform(x, "NCHW", "NCHW8c")
+        w = relay.layout_transform(w, "OIHW", "OIHW1i8o")
+        y = relay.nn.contrib_depthwise_conv2d_nchwc(x, w, padding=(1, 1), channels=32, kernel_size=(3, 3),
+                                                    groups=32, data_layout="NCHW8c", kernel_layout="OIHW1i8o",
+                                                    out_layout="NCHW8c")
+        y = relay.layout_transform(y, "NCHW8c", "NCHW")
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = canonicalize_ops(a)
+    a = infer_type(a)
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
+    assert(alpha_equal(a, b))
+
+
+
 
 if __name__ == "__main__":
     test_alter_op()
@@ -572,3 +612,4 @@ if __name__ == "__main__":
     test_alter_layout_nchw_upsamping_op()
     test_alter_layout_strided_slice()
     test_alter_layout_prelu()
+    test_alter_layout_depthwise_conv2d()
