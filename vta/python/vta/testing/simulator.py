@@ -17,9 +17,9 @@
 """Utilities to start simulator."""
 import ctypes
 import json
+import sys
+import os
 import tvm
-import os.path as osp
-from sys import platform
 from ..libinfo import find_libvta
 
 def _load_lib():
@@ -58,10 +58,10 @@ def stats():
     return json.loads(x)
 
 def tsim_init(hw):
-    cur_path = osp.dirname(osp.abspath(osp.expanduser(__file__)))
-    vta_build_path = osp.join(cur_path, "..", "..","..", "build")
-    ext = ".dylib" if platform == "darwin" else ".so"
-    hw_lib = osp.join(vta_build_path, hw + ext)
+    cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    vta_build_path = os.path.join(cur_path, "..", "..","..", "build")
+    ext = ".dylib" if sys.platform == "darwin" else ".so"
+    hw_lib = os.path.join(vta_build_path, hw + ext)
     f = tvm.get_global_func("tvm.vta.tsim.init")
     m = tvm.module.load(hw_lib, "vta-tsim")
     f(m)
