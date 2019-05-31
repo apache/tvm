@@ -22,7 +22,7 @@ from .expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
-from .parser import fromtext, enabled as parser_enabled
+from .parser import fromtext
 
 __PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
 
@@ -455,35 +455,6 @@ class Prelude:
                                        Match(t, [rose_case]), scalar_type('int32'), [a])
 
 
-    def define_id(self):
-        """Defines a function that return its argument.
-
-        Signature: fn<a>(x : a) -> a
-        """
-        self.id = GlobalVar("id")
-        a = TypeVar("a")
-        x = Var("x", a)
-        self.mod[self.id] = Function([x], x, a, [a])
-
-
-    def define_compose(self):
-        """Defines a function that composes two function.
-
-        Signature: fn<a, b, c>(f : fn(b) -> c, g : fn(a) -> b) -> fn(a) -> c
-        """
-        self.compose = GlobalVar("compose")
-        a = TypeVar("a")
-        b = TypeVar("b")
-        c = TypeVar("c")
-        f = Var("f", FuncType([b], c))
-        g = Var("g", FuncType([a], b))
-        x = Var("x")
-        self.mod[self.compose] = Function([f, g],
-                                          Function([x], f(g(x))),
-                                          FuncType([a], c),
-                                          [a, b, c])
-
-
     def define_iterate(self):
         """Defines a function that take a number n and a function f;
         returns a closure that takes an argument and applies f
@@ -519,11 +490,7 @@ class Prelude:
 
     def __init__(self, mod):
         self.mod = mod
-        if parser_enabled():
-            self.load_prelude()
-        else:
-            self.define_id()
-            self.define_compose()
+        self.load_prelude()
 
         self.define_list_adt()
         self.define_list_hd()
