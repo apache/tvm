@@ -24,6 +24,12 @@ import chisel3.util._
 import vta.util.config._
 import vta.shell._
 
+/** UopMaster.
+  *
+  * Uop interface used by a master module, i.e. TensorAlu or TensorGemm,
+  * to request a micro-op (uop) from the uop-scratchpad. The index (idx) is
+  * used as an address to find the uop in the uop-scratchpad.
+  */
 class UopMaster(implicit p: Parameters) extends Bundle {
   val addrBits = log2Ceil(p(CoreKey).uopMemDepth)
   val idx = ValidIO(UInt(addrBits.W))
@@ -31,6 +37,12 @@ class UopMaster(implicit p: Parameters) extends Bundle {
   override def cloneType = new UopMaster().asInstanceOf[this.type]
 }
 
+/** UopClient.
+  *
+  * Uop interface used by a client module, i.e. LoadUop, to receive
+  * a request from a master module, i.e. TensorAlu or TensorGemm.
+  * The index (idx) is used as an address to find the uop in the uop-scratchpad.
+  */
 class UopClient(implicit p: Parameters) extends Bundle {
   val addrBits = log2Ceil(p(CoreKey).uopMemDepth)
   val idx = Flipped(ValidIO(UInt(addrBits.W)))
@@ -38,6 +50,13 @@ class UopClient(implicit p: Parameters) extends Bundle {
   override def cloneType = new UopClient().asInstanceOf[this.type]
 }
 
+/** LoadUop.
+  *
+  * Load micro-ops (uops) from memory, i.e. DRAM, and store them in the
+  * uop-scratchpad. Currently, micro-ops are 32-bit wide and loaded in
+  * group of 2 given the fact that the DRAM payload is 8-bytes. This module
+  * should be modified later on to support different DRAM sizes efficiently.
+  */
 class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {

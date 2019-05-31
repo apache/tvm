@@ -210,9 +210,9 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module 
   when (state === sIdle) {
     inflight := 0.U
   } .elsewhen (!dec.reset) {
-    when (state === sExe) {
+    when (state === sExe && inflight =/= ((1 << pBits) - 1).asUInt) { // overflow check
       inflight := inflight + 1.U
-    } .elsewhen (mvc.io.acc_o.data.valid) {
+    } .elsewhen (mvc.io.acc_o.data.valid && inflight =/= 0.U) { // underflow check
       inflight := inflight - 1.U
     }
   }
