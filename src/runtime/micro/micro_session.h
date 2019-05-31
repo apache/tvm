@@ -133,11 +133,16 @@ class MicroSession {
   }
 
   /*!
-   * \brief initializes session by setting up a low-level device
+   * \brief initializes session by setting up a low-level device and initting allocators for it
    * \param args TVMArgs passed into the micro.init packedfunc
    * \note must be called upon first call to Global()
    */
   void InitSession(const TVMArgs& args);
+
+  /*!
+   * \brief ends the session by destructing the low-level device and its allocators
+   */
+  void EndSession();
 
   /*!
    * \brief allocate memory in section

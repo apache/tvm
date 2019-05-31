@@ -25,24 +25,12 @@ from tvm import relay
 import tvm.micro as micro
 from tvm.relay.testing import resnet
 
-# We use the host emulated micro device, because it's simpler and faster to
-# test.
+# Use the host emulated micro device, because it's simpler and faster to test.
 DEVICE_TYPE = "host"
+BINUTIL_PREFIX = ""
+HOST_SESSION = micro.Session(DEVICE_TYPE, BINUTIL_PREFIX)
 
-# TODO(weberlo): Add example program to test scalar double/int TVMValue
-# serialization.
-
-def relay_micro_build(func: relay.Function, params={}):
-    """Create a graph runtime module with a micro device context."""
-    with tvm.build_config(disable_vectorize=True):
-        with relay.build_config(opt_level=3):
-            graph, host_mod, params = relay.build(func, target="c", params=params)
-
-    micro_mod = micro.from_source_module(host_mod, DEVICE_TYPE)
-    ctx = tvm.micro_dev(0)
-    mod = graph_runtime.create(graph, micro_mod, ctx)
-    return mod, params
-
+# TODO(weberlo): Add example program to test scalar double/int TVMValue serialization.
 
 def test_add():
     """Test a program which performs addition."""
@@ -57,19 +45,19 @@ def test_add():
     s = tvm.create_schedule(C.op)
 
     func_name = "fadd"
-    host_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
+    c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
 
-    micro.init(DEVICE_TYPE)
-    micro_mod = micro.from_source_module(host_mod, DEVICE_TYPE)
-    micro_func = micro_mod[func_name]
-    ctx = tvm.micro_dev(0)
-    a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
-    b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
-    c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-    micro_func(a, b, c)
+    with HOST_SESSION as sess:
+        micro_mod = sess.create_micro_mod(c_mod)
+        micro_func = micro_mod[func_name]
+        ctx = tvm.micro_dev(0)
+        a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
+        micro_func(a, b, c)
 
-    tvm.testing.assert_allclose(
-        c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(
+                c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 
 def test_workspace_add():
@@ -86,18 +74,18 @@ def test_workspace_add():
     s = tvm.create_schedule(C.op)
 
     func_name = "fadd_two_workspace"
-    host_mod = tvm.build(s, [A, C], target="c", name=func_name)
+    c_mod = tvm.build(s, [A, C], target="c", name=func_name)
 
-    micro.init(DEVICE_TYPE)
-    micro_mod = micro.from_source_module(host_mod, DEVICE_TYPE)
-    micro_func = micro_mod[func_name]
-    ctx = tvm.micro_dev(0)
-    a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
-    c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
-    micro_func(a, c)
+    with HOST_SESSION as sess:
+        micro_mod = sess.create_micro_mod(c_mod)
+        micro_func = micro_mod[func_name]
+        ctx = tvm.micro_dev(0)
+        a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
+        c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
+        micro_func(a, c)
 
-    tvm.testing.assert_allclose(
-        c.asnumpy(), a.asnumpy() + 2.0)
+        tvm.testing.assert_allclose(
+                c.asnumpy(), a.asnumpy() + 2.0)
 
 
 def test_graph_runtime():
@@ -111,16 +99,16 @@ def test_graph_runtime():
     z = relay.add(xx, relay.const(1.0))
     func = relay.Function([x], z)
 
-    micro.init(DEVICE_TYPE)
-    mod, params = relay_micro_build(func)
+    with HOST_SESSION as sess:
+        mod, params = sess.micro_build(func)
 
-    mod.set_input(**params)
-    x_in = np.random.uniform(size=shape[0]).astype(dtype)
-    mod.run(x=x_in)
-    result = mod.get_output(0).asnumpy()
+        mod.set_input(**params)
+        x_in = np.random.uniform(size=shape[0]).astype(dtype)
+        mod.run(x=x_in)
+        result = mod.get_output(0).asnumpy()
 
-    tvm.testing.assert_allclose(
-        result, x_in * x_in + 1.0)
+        tvm.testing.assert_allclose(
+                result, x_in * x_in + 1.0)
 
 
 def test_resnet_random():
@@ -128,22 +116,22 @@ def test_resnet_random():
     resnet_func, params = resnet.get_workload(num_classes=10,
                                               num_layers=18,
                                               image_shape=(3, 32, 32))
-    # Remove the final softmax layer, because uTVM does not currently support
-    # it.
+    # Remove the final softmax layer, because uTVM does not currently support it.
     resnet_func_no_sm = relay.Function(resnet_func.params,
                                        resnet_func.body.args[0],
                                        resnet_func.ret_type)
-    micro.init(DEVICE_TYPE)
-    # TODO(weberlo): Use `resnet_func` once we have libc support.
-    mod, params = relay_micro_build(resnet_func_no_sm, params=params)
-    mod.set_input(**params)
-    # Generate random input.
-    data = np.random.uniform(size=mod.get_input(0).shape)
-    mod.run(data=data)
-    result = mod.get_output(0).asnumpy()
-    # We gave a random input, so all we want is a result with some nonzero
-    # entries.
-    assert result.sum() != 0.0
+
+    with HOST_SESSION as sess:
+        # TODO(weberlo): Use `resnet_func` once we have libc support.
+        mod, params = sess.micro_build(resnet_func_no_sm, params=params)
+        mod.set_input(**params)
+        # Generate random input.
+        data = np.random.uniform(size=mod.get_input(0).shape)
+        mod.run(data=data)
+        result = mod.get_output(0).asnumpy()
+        # We gave a random input, so all we want is a result with some nonzero
+        # entries.
+        assert result.sum() != 0.0
 
 
 # TODO(weberlo): Enable this test or move the code somewhere else.
@@ -183,19 +171,19 @@ def test_resnet_pretrained():
     block = get_model("resnet18_v1", pretrained=True)
     func, params = relay.frontend.from_mxnet(block,
                                              shape={"data": image.shape})
-    micro.init(DEVICE_TYPE)
-    mod, params = relay_micro_build(func, params=params)
 
-    # Set model weights.
-    mod.set_input(**params)
-    # Execute with `image` as the input.
-    mod.run(data=image)
-    # Get outputs.
-    tvm_output = mod.get_output(0)
-    prediction_idx = np.argmax(tvm_output.asnumpy()[0])
-    prediction = synset[prediction_idx]
+    with HOST_SESSION as sess:
+        mod, params = sess.micro_build(func, params=params)
+        # Set model weights.
+        mod.set_input(**params)
+        # Execute with `image` as the input.
+        mod.run(data=image)
+        # Get outputs.
+        tvm_output = mod.get_output(0)
 
-    assert prediction == "tiger cat"
+        prediction_idx = np.argmax(tvm_output.asnumpy()[0])
+        prediction = synset[prediction_idx]
+        assert prediction == "tiger cat"
 
 
 if __name__ == "__main__":

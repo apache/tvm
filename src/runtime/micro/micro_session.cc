@@ -33,7 +33,11 @@
 namespace tvm {
 namespace runtime {
 
-MicroSession::MicroSession() {
+MicroSession::MicroSession() { }
+
+MicroSession::~MicroSession() { }
+
+void MicroSession::InitSession(const TVMArgs& args) {
   text_allocator_ = std::unique_ptr<MicroSectionAllocator>(
       new MicroSectionAllocator(kTextStart,
                                 kRodataStart));
@@ -55,11 +59,7 @@ MicroSession::MicroSession() {
   heap_allocator_ = std::unique_ptr<MicroSectionAllocator>(
       new MicroSectionAllocator(kHeapStart,
                                 kWorkspaceStart));
-}
 
-MicroSession::~MicroSession() { }
-
-void MicroSession::InitSession(const TVMArgs& args) {
   const std::string& device_type = args[0];
   const std::string& binary_path = args[1];
   SetInitBinaryPath(binary_path);
@@ -84,6 +84,18 @@ void MicroSession::InitSession(const TVMArgs& args) {
       (workspace_start + low_level_device_->base_addr().value()).cast_to<void*>();
   low_level_device()->Write(workspace_start_hole_offset, &workspace_hole_fill, sizeof(void*));
   low_level_device()->Write(workspace_curr_hole_offset, &workspace_hole_fill, sizeof(void*));
+}
+
+void MicroSession::EndSession() {
+  text_allocator_ = nullptr;
+  rodata_allocator_ = nullptr;
+  data_allocator_ = nullptr;
+  bss_allocator_ = nullptr;
+  args_allocator_ = nullptr;
+  stack_allocator_ = nullptr;
+  heap_allocator_ = nullptr;
+
+  low_level_device_ = nullptr;
 }
 
 DevBaseOffset MicroSession::AllocateInSection(SectionKind type, size_t size) {
@@ -326,10 +338,17 @@ void MicroSession::CheckDeviceError() {
 }
 
 // initializes micro session and low-level device from Python frontend
-TVM_REGISTER_GLOBAL("micro._MicroInit")
+TVM_REGISTER_GLOBAL("micro._InitSession")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::shared_ptr<MicroSession> session = MicroSession::Global();
     session->InitSession(args);
+    });
+
+// ends micro session and destructs low-level device from Python frontend
+TVM_REGISTER_GLOBAL("micro._EndSession")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    std::shared_ptr<MicroSession> session = MicroSession::Global();
+    session->EndSession();
     });
 }  // namespace runtime
 }  // namespace tvm
