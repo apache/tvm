@@ -85,10 +85,13 @@ class PythonConverter(ExprFunctor):
 
     def optimize(self, prog: Expr):
         '''Performs optimizations necessary to be able to generate code for prog.'''
+        # TODO: use pass manager
+
         # unwrap tuple wrappers (some op calls produce them)
         unwrapped = prog.astuple() if isinstance(prog, relay.TupleWrapper) else prog
         check = relay.ir_pass.infer_type(unwrapped, self.mod)
         assert relay.ir_pass.well_formed(check)
+
         # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
         # and fusion (to get primitive functions)
         simplify = relay.ir_pass.simplify_inference(check)
@@ -106,22 +109,22 @@ class PythonConverter(ExprFunctor):
         return re.sub(r'\W', '', name)
 
 
-    # generates a unique variable name starting from the hint
-    def generate_var_name(self, name_hint: str):
+    def generate_var_name(self, name_hint: str) -> str:
+        '''Generates a unique variable name starting from the hint.'''
         name = '{}_var_{}'.format(self.sanitize(name_hint), self.var_no)
         self.var_no += 1
         return name
 
 
-    # generates a unique function name starting from the hint
-    def generate_function_name(self, name_hint: str):
+    def generate_function_name(self, name_hint: str) -> str:
+        '''Generates a unique function name starting from the hint.'''
         name = '{}_fun_{}'.format(self.sanitize(name_hint), self.fun_no)
         self.fun_no += 1
         return name
 
 
-    # returns the var name for the given Relay variable
-    def get_var_name(self, var: Expr):
+    def get_var_name(self, var: Expr) -> str:
+        '''Returns the var name for the given Realy variable.'''
         if var in self.var_map:
             return self.var_map[var]
         name = self.generate_var_name(var.name_hint)
@@ -129,17 +132,16 @@ class PythonConverter(ExprFunctor):
         return name
 
 
-    # returns n variable AST node for the given Relay var depending on
-    # whether it must appear in an assignment or not
     def include_var(self, var: Expr, assign=False):
+        '''Returns a variable AST node for the given Relay var depending on
+        whether it must appear in an assignment or not.'''
         name = self.get_var_name(var)
         return Name(name, Store() if assign else Load())
 
 
-    # Given the name of a Python method with dots (e.g.,
-    # 'relay.var'), returns an appropriate AST object corresponding
-    # to that name
     def parse_name(self, name: str):
+        '''Given the name of a Python method with dots (e.g., 'relay.var'),
+        returns an appropriate AST object corresponding to that name.'''
         attributes = name.split('.')
         ret = Name(attributes[0], Load())
         for i in range(len(attributes) - 1):
@@ -149,7 +151,7 @@ class PythonConverter(ExprFunctor):
 
     def parse_numpy_array(self, arr):
         '''Given a Numpy array, produces an appropriate Python array
-        or numerical literal representing its contents'''
+        or numerical literal representing its contents.'''
         parse_single = lambda i: NameConstant(i) if isinstance(i, bool) else Num(i)
         if arr.ndim == 0:
             return parse_single(arr.item())
@@ -162,9 +164,9 @@ class PythonConverter(ExprFunctor):
         return ast.List(elts, Load())
 
 
-    # Given a list of call args or tuple fields, converts each
-    # and returns their ASTs and their defs lists (in order)
     def convert_fields(self, fields: [Expr]):
+        '''Given a list of call args or tuple fields, converts
+        each and returns their ASTs and their defs lists (in order).'''
         bodies = []
         defs = []
         for field in fields:
@@ -174,8 +176,8 @@ class PythonConverter(ExprFunctor):
         return (bodies, defs)
 
 
-    # wraps the passed expression in a thunk
     def convert_to_thunk(self, name_hint: str, expr: Expr):
+        '''Wraps the passed expression in a thunk.'''
         body, defs = self.visit(expr)
         thunk_name = self.generate_function_name(name_hint)
         thunk = self.create_def(thunk_name, [], defs + [Return(body)])
@@ -210,13 +212,13 @@ class PythonConverter(ExprFunctor):
         return defs
 
 
-    # simple function call
     def create_call(self, func_name: str, arguments):
+        '''Creates a simple function call.'''
         return ast.Call(self.parse_name(func_name), arguments, [])
 
 
-    # wrapper over raw AST node, whose constructor is inconvenient
     def create_def(self, func_name: str, arguments: [str], body):
+        '''Wrapper over function definition AST node, whose constructor is inconvenient.'''
         return ast.FunctionDef(
             func_name,
             ast.arguments([ast.arg(argument, None)
@@ -595,16 +597,18 @@ class PythonConverter(ExprFunctor):
         pass
 
 
-def to_python(expr: Expr, mod=relay.Module(), target=tvm.target.create('llvm')):
+def to_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
     '''Converts the given Relay expression into a Python script (as a Python AST object).
     For easiest debugging, import the astor package and use to_source().'''
+    mod = mod if mod is not None else relay.Module()
     converter = PythonConverter(mod, target)
     return converter.convert(expr)
 
 
-def run_as_python(expr: Expr, mod=relay.Module(), target=tvm.target.create('llvm')):
+def run_as_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
     '''Converts the given Relay expression into a Python script and
     executes it.'''
+    mod = mod if mod is not None else relay.Module()
     py_ast = to_python(expr, mod, target)
     code = compile(py_ast, '<string>', 'exec')
     var_map = {
