@@ -87,10 +87,8 @@ class Device {
               vta_phy_addr_t out_phy_addr,
               uint32_t insn_count,
               uint32_t wait_cycles) {
-
     // launch simulation thread
     dev_->Launch(wait_cycles);
-
     dev_->WriteReg(0x10, insn_count);
     dev_->WriteReg(0x14, insn_phy_addr);
     dev_->WriteReg(0x18, insn_phy_addr >> 32);
@@ -104,7 +102,6 @@ class Device {
     dev_->WriteReg(0x38, acc_phy_addr >> 32);
     dev_->WriteReg(0x3c, 0);
     dev_->WriteReg(0x40, out_phy_addr >> 32);
-
     // start
     dev_->WriteReg(0x00, 0x1);
   }
