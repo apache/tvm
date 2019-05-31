@@ -443,6 +443,16 @@ def PartialEvaluate():
     """
     return _transform.PartialEvaluate()
 
+def CanonicalizeExpr():
+    """
+    Canonicalize an expression to make operator fusion more efficient.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that canonicalizes an expression.
+    """
+    return _transform.CanonicalizeExpr()
 
 def module_pass(pass_func=None, opt_level=None, name=None, required=None):
     """Create a module pass. This function returns a callback when pass_func
