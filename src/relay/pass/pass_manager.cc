@@ -71,7 +71,7 @@ Pass GetPass(const std::string& pass_name) {
   } else if (pass_name == "ToGraphNormalForm") {
     return ToGraphNormalForm();
   } else {
-    LOG(WARNING) << pass_name << " has not been registered yet." << "\n";
+    LOG(FATAL) << pass_name << " has not been registered yet." << "\n";
     return Pass(nullptr);
   }
 }
@@ -441,7 +441,7 @@ std::unordered_set<std::string> SequentialNode::DisabledPasses(
   std::unordered_set<std::string> ret;
   for (const auto& it : disabled) {
     const auto* str = it.as<tvm::ir::StringImm>();
-    CHECK(str) << "disabled passes must be string.";
+    CHECK(str) << "Disabled pass name must be string.";
     ret.emplace(str->value);
   }
   return ret;
@@ -452,7 +452,7 @@ std::unordered_set<std::string> SequentialNode::RequiredPasses(
   std::unordered_set<std::string> ret;
   for (const auto& it : required) {
     const auto* str = it.as<tvm::ir::StringImm>();
-    CHECK(str) << "disabled passes must be string.";
+    CHECK(str) << "Required pass name must be string.";
     ret.emplace(str->value);
   }
   return ret;
@@ -473,14 +473,6 @@ bool SequentialNode::PassEnabled(const std::string& pass_name) const {
   }
 
   const Pass pass = GetPass(pass_name);
-
-  if (!pass.defined()) {
-    LOG(WARNING) << pass_name
-                 << " is not registered yet, it will be forced to execute."
-                 << "\n";
-    return true;
-  }
-
   PassInfo info = pass->Info();
   return ctx->opt_level >= info->opt_level;
 }

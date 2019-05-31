@@ -327,7 +327,8 @@ def test_sequential_pass():
     def test_only_module_pass():
         passes = [module_pass]
         sequential = _transform.Sequential(opt_level=1, passes=passes)
-        ret_mod = sequential(mod)
+        with relay.build_config(required_pass=["mod_transform"]):
+            ret_mod = sequential(mod)
         # Check the subtract function.
         sub_var, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, sub)
@@ -341,7 +342,8 @@ def test_sequential_pass():
         # Check the subtract function.
         passes = [function_pass]
         sequential = _transform.Sequential(opt_level=1, passes=passes)
-        ret_mod = sequential(mod)
+        with relay.build_config(required_pass=["func_transform"]):
+            ret_mod = sequential(mod)
         _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
 
@@ -355,7 +357,9 @@ def test_sequential_pass():
         mod = relay.Module({v_sub: sub, v_log: log})
         passes = [module_pass, function_pass]
         sequential = _transform.Sequential(opt_level=1, passes=passes)
-        ret_mod = sequential(mod)
+        required = ["mod_transform", "func_transform"]
+        with relay.build_config(required_pass=required):
+            ret_mod = sequential(mod)
 
         # Check the abs function is added.
         abs_var, abs_func = get_var_func()
