@@ -23,6 +23,7 @@ import chisel3._
 import chisel3.util._
 import vta.util.config._
 
+/** ALU */
 class Alu(implicit p: Parameters) extends Module {
   val aluBits = p(CoreKey).accBits
   val io = IO(new Bundle {
@@ -48,6 +49,7 @@ class Alu(implicit p: Parameters) extends Module {
   io.y := MuxLookup(io.opcode, io.a, opmux)
 }
 
+/** Pipeline ALU */
 class AluReg(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val opcode = Input(UInt(C_ALU_OP_BITS.W))
@@ -71,6 +73,7 @@ class AluReg(implicit p: Parameters) extends Module {
   io.y.bits := alu.io.y.asUInt
 }
 
+/** Vector of pipeline ALUs */
 class AluVector(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val opcode = Input(UInt(C_ALU_OP_BITS.W))
@@ -96,6 +99,13 @@ class AluVector(implicit p: Parameters) extends Module {
   io.out.data.valid := valid.asUInt.andR
 }
 
+/** TensorAlu.
+  *
+  * This unit instantiate the ALU vector unit (AluVector) and go over the
+  * micro-ops (uops) which are used to read the source operands (vectors)
+  * from the acc-scratchpad and then they are written back the same
+  * acc-scratchpad.
+  */
 class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val start = Input(Bool())
