@@ -24,6 +24,7 @@ import vta.util.config._
 import vta.interface.axi._
 import vta.core._
 
+/** Shell parameters. */
 case class ShellParams(
   hostParams: AXIParams,
   memParams: AXIParams,
@@ -33,6 +34,11 @@ case class ShellParams(
 
 case object ShellKey extends Field[ShellParams]
 
+/** VTAShell.
+  *
+  * The VTAShell is based on a VME, VCR and core. This creates a complete VTA
+  * system that can be used for simulation or real hardware.
+  */
 class VTAShell(implicit p: Parameters) extends Module {
   val io = IO(new Bundle{
     val host = new AXILiteClient(p(ShellKey).hostParams)

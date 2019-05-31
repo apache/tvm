@@ -27,8 +27,10 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.LinkedHashMap
 import vta.interface.axi._
 
-// VCR - VTA Control Registers
-
+/** VCR parameters.
+  *
+  * These parameters are used on VCR interfaces and modules.
+  */
 case class VCRParams()
 {
   val nValsReg: Int = 1
@@ -41,9 +43,15 @@ case class VCRParams()
   require (nPtrsReg > 0)
 }
 
+/** VCRBase. Parametrize base class. */
 abstract class VCRBase(implicit p: Parameters)
   extends GenericParameterizedBundle(p)
 
+/** VCRMaster.
+  *
+  * This is the master interface used by VCR in the VTAShell to control
+  * the Core unit.
+  */
 class VCRMaster(implicit p: Parameters) extends VCRBase {
   val vp = p(ShellKey).vcrParams
   val mp = p(ShellKey).memParams
@@ -54,6 +62,11 @@ class VCRMaster(implicit p: Parameters) extends VCRBase {
   val vals = Output(Vec(vp.nValsReg, UInt(vp.regBits.W)))
 }
 
+/** VCRClient.
+  *
+  * This is the client interface used by the Core module to communicate
+  * to the VCR in the VTAShell.
+  */
 class VCRClient(implicit p: Parameters) extends VCRBase {
   val vp = p(ShellKey).vcrParams
   val mp = p(ShellKey).memParams
@@ -64,6 +77,13 @@ class VCRClient(implicit p: Parameters) extends VCRBase {
   val vals = Input(Vec(vp.nValsReg, UInt(vp.regBits.W)))
 }
 
+/** VTA Control Registers (VCR).
+  *
+  * This unit provides control registers (32 and 64 bits) to be used by a control'
+  * unit, typically a host processor. These registers are read-only by the core
+  * at the moment but this will likely change once we add support to general purpose
+  * registers that could be used as event counters by the Core unit.
+  */
 class VCR(implicit p: Parameters) extends Module {
   val io = IO(new Bundle{
     val host = new AXILiteClient(p(ShellKey).hostParams)
@@ -172,6 +192,8 @@ class VCR(implicit p: Parameters) extends Module {
   val ctrlRegList = List(c0, c1, c2, c3)
 
   io.vcr.launch := c0(0)
+
+  // interrupts not supported atm
   io.vcr.irq := false.B
 
   // Write pointer and value registers

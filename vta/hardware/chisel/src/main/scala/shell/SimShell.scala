@@ -25,6 +25,12 @@ import vta.interface.axi._
 import vta.shell._
 import vta.dpi._
 
+/** VTAHost.
+  *
+  * This module translate the DPI protocol into AXI. This is a simulation only
+  * module and used to test host-to-VTA communication. This module should be updated
+  * for testing hosts using a different bus protocol, other than AXI.
+  */
 class VTAHost(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val axi = new AXILiteMaster(p(ShellKey).hostParams)
@@ -37,6 +43,12 @@ class VTAHost(implicit p: Parameters) extends Module {
   io.axi <> host_axi.io.axi
 }
 
+/** VTAMem.
+  *
+  * This module translate the DPI protocol into AXI. This is a simulation only
+  * module and used to test VTA-to-memory communication. This module should be updated
+  * for testing memories using a different bus protocol, other than AXI.
+  */
 class VTAMem(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val axi = new AXIClient(p(ShellKey).memParams)
@@ -49,6 +61,11 @@ class VTAMem(implicit p: Parameters) extends Module {
   mem_axi.io.axi <> io.axi
 }
 
+/** SimShell.
+  *
+  * The simulation shell instantiate a host and memory simulation modules and it is
+  * intended to be connected to the VTAShell.
+  */
 class SimShell(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val mem = new AXIClient(p(ShellKey).memParams)

@@ -25,8 +25,10 @@ import vta.util.config._
 import vta.util.genericbundle._
 import vta.interface.axi._
 
-// VME - VTA Memory Engine
-
+/** VME parameters.
+  *
+  * These parameters are used on VME interfaces and modules.
+  */
 case class VMEParams() {
   val nReadClients: Int = 5
   val nWriteClients: Int = 1
@@ -34,9 +36,14 @@ case class VMEParams() {
   require (nWriteClients == 1, s"\n\n[VTA] [VMEParams] nWriteClients must be 1, only one-write-client support atm\n\n")
 }
 
+/** VMEBase. Parametrize base class. */
 abstract class VMEBase(implicit p: Parameters)
   extends GenericParameterizedBundle(p)
 
+/** VMECmd.
+  *
+  * This interface is used for creating write and read requests to memory.
+  */
 class VMECmd(implicit p: Parameters) extends VMEBase {
   val addrBits = p(ShellKey).memParams.addrBits
   val lenBits = p(ShellKey).memParams.lenBits
@@ -44,6 +51,11 @@ class VMECmd(implicit p: Parameters) extends VMEBase {
   val len = UInt(lenBits.W)
 }
 
+/** VMEReadMaster.
+  *
+  * This interface is used by modules inside the core to generate read requests
+  * and receive responses from VME.
+  */
 class VMEReadMaster(implicit p: Parameters) extends Bundle {
   val dataBits = p(ShellKey).memParams.dataBits
   val cmd = Decoupled(new VMECmd)
@@ -52,6 +64,11 @@ class VMEReadMaster(implicit p: Parameters) extends Bundle {
     new VMEReadMaster().asInstanceOf[this.type]
 }
 
+/** VMEReadClient.
+  *
+  * This interface is used by the VME to receive read requests and generate
+  * responses to modules inside the core.
+  */
 class VMEReadClient(implicit p: Parameters) extends Bundle {
   val dataBits = p(ShellKey).memParams.dataBits
   val cmd = Flipped(Decoupled(new VMECmd))
@@ -60,6 +77,11 @@ class VMEReadClient(implicit p: Parameters) extends Bundle {
     new VMEReadClient().asInstanceOf[this.type]
 }
 
+/** VMEWriteMaster.
+  *
+  * This interface is used by modules inside the core to generate write requests
+  * to the VME.
+  */
 class VMEWriteMaster(implicit p: Parameters) extends Bundle {
   val dataBits = p(ShellKey).memParams.dataBits
   val cmd = Decoupled(new VMECmd)
@@ -69,6 +91,11 @@ class VMEWriteMaster(implicit p: Parameters) extends Bundle {
     new VMEWriteMaster().asInstanceOf[this.type]
 }
 
+/** VMEWriteClient.
+  *
+  * This interface is used by the VME to handle write requests from modules inside
+  * the core.
+  */
 class VMEWriteClient(implicit p: Parameters) extends Bundle {
   val dataBits = p(ShellKey).memParams.dataBits
   val cmd = Flipped(Decoupled(new VMECmd))
@@ -78,6 +105,11 @@ class VMEWriteClient(implicit p: Parameters) extends Bundle {
     new VMEWriteClient().asInstanceOf[this.type]
 }
 
+/** VMEMaster.
+  *
+  * Pack nRd number of VMEReadMaster interfaces and nWr number of VMEWriteMaster
+  * interfaces.
+  */
 class VMEMaster(implicit p: Parameters) extends Bundle {
   val nRd = p(ShellKey).vmeParams.nReadClients
   val nWr = p(ShellKey).vmeParams.nWriteClients
@@ -85,6 +117,11 @@ class VMEMaster(implicit p: Parameters) extends Bundle {
   val wr = Vec(nWr, new VMEWriteMaster)
 }
 
+/** VMEClient.
+  *
+  * Pack nRd number of VMEReadClient interfaces and nWr number of VMEWriteClient
+  * interfaces.
+  */
 class VMEClient(implicit p: Parameters) extends Bundle {
   val nRd = p(ShellKey).vmeParams.nReadClients
   val nWr = p(ShellKey).vmeParams.nWriteClients
@@ -92,6 +129,11 @@ class VMEClient(implicit p: Parameters) extends Bundle {
   val wr = Vec(nWr, new VMEWriteClient)
 }
 
+/** VTA Memory Engine (VME).
+  *
+  * This unit multiplexes the memory controller interface for the Core. Currently,
+  * it supports single-writer and multiple-reader mode and it is also based on AXI.
+  */
 class VME(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val mem = new AXIMaster(p(ShellKey).memParams)

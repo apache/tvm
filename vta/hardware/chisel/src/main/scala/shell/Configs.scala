@@ -24,6 +24,7 @@ import chisel3.util._
 import vta.util.config._
 import vta.interface.axi._
 
+/** PynqConfig. Shell configuration for Pynq */
 class PynqConfig extends Config((site, here, up) => {
   case ShellKey => ShellParams(
     hostParams = AXIParams(
@@ -36,6 +37,7 @@ class PynqConfig extends Config((site, here, up) => {
     vmeParams = VMEParams())
 })
 
+/** F1Config. Shell configuration for F1 */
 class F1Config extends Config((site, here, up) => {
   case ShellKey => ShellParams(
     hostParams = AXIParams(
