@@ -24,6 +24,12 @@ import chisel3.util._
 import vta.util.config._
 import vta.shell._
 
+/** TensorParams.
+  *
+  * This Bundle derives parameters for each tensorType, including inputs (inp),
+  * weights (wgt), biases (acc), and outputs (out). This is used to avoid
+  * doing the same boring calculations over and over again.
+  */
 class TensorParams(tensorType: String = "none")(implicit p: Parameters) extends Bundle {
   val errorMsg = s"\n\n[VTA] [TensorParams] only inp, wgt, acc, and out supported\n\n"
 
@@ -56,6 +62,13 @@ class TensorParams(tensorType: String = "none")(implicit p: Parameters) extends 
   val memAddrBits = log2Ceil(memDepth)
 }
 
+/** TensorMaster.
+  *
+  * This interface issue read and write tensor-requests to scratchpads. For example,
+  * The TensorGemm unit uses this interface for managing the inputs (inp), weights (wgt),
+  * biases (acc), and outputs (out).
+  *
+  */
 class TensorMaster(tensorType: String = "none")
   (implicit p: Parameters) extends TensorParams(tensorType) {
     val rd = new Bundle {
@@ -79,6 +92,12 @@ class TensorMaster(tensorType: String = "none")
     new TensorMaster(tensorType).asInstanceOf[this.type]
 }
 
+/** TensorClient.
+  *
+  * This interface receives read and write tensor-requests to scratchpads. For example,
+  * The TensorLoad unit uses this interface for receiving read and write requests from
+  * the TensorGemm unit.
+  */
 class TensorClient(tensorType: String = "none")
   (implicit p: Parameters) extends TensorParams(tensorType) {
     val rd = new Bundle {
@@ -97,6 +116,12 @@ class TensorClient(tensorType: String = "none")
     new TensorClient(tensorType).asInstanceOf[this.type]
 }
 
+/** TensorMasterData.
+  *
+  * This interface is only used for datapath only purposes and the direction convention
+  * is based on the TensorMaster interface, which means this is an input. This interface
+  * is used on datapath only module such MatrixVectorCore or AluVector.
+  */
 class TensorMasterData(tensorType: String = "none")
   (implicit p: Parameters) extends TensorParams(tensorType) {
   val data = Flipped(ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W)))))
@@ -104,6 +129,12 @@ class TensorMasterData(tensorType: String = "none")
     new TensorMasterData(tensorType).asInstanceOf[this.type]
 }
 
+/** TensorClientData.
+  *
+  * This interface is only used for datapath only purposes and the direction convention
+  * is based on the TensorClient interface, which means this is an output. This interface
+  * is used on datapath only module such MatrixVectorCore or AluVector.
+  */
 class TensorClientData(tensorType: String = "none")
   (implicit p: Parameters) extends TensorParams(tensorType) {
   val data = ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W))))
@@ -111,6 +142,7 @@ class TensorClientData(tensorType: String = "none")
     new TensorClientData(tensorType).asInstanceOf[this.type]
 }
 
+/** TensorPadCtrl. Zero-padding controller for TensorLoad. */
 class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1) extends Module {
   val errorMsg = s"\n\n\n[VTA-ERROR] only YPad0, YPad1, XPad0, or XPad1 supported\n\n\n"
   require (padType == "YPad0" || padType == "YPad1"
@@ -181,6 +213,7 @@ class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1) extends Modul
   io.done := state === sActive & ycnt === ymax & xcnt === xmax
 }
 
+/** TensorDataCtrl. Data controller for TensorLoad. */
 class TensorDataCtrl(sizeFactor: Int = 1, strideFactor: Int = 1)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
