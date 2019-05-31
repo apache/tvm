@@ -27,6 +27,7 @@
 #ifndef TVM_RELAY_PASS_PATTERN_UTIL_H_
 #define TVM_RELAY_PASS_PATTERN_UTIL_H_
 
+#include <builtin_fp16.h>
 #include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
@@ -48,6 +49,9 @@ namespace relay {
     {__VA_ARGS__}                                       \
   } else if (type == Float(32)) {                       \
     typedef float DType;                                \
+    {__VA_ARGS__}                                       \
+  } else if (type == Float(16)) {                       \
+    typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
   } else if (type == Int(64)) {                         \
     typedef int64_t DType;                              \
@@ -204,7 +208,14 @@ template<typename T>
 inline Constant MakeConstantScalar(DataType dtype, T value) {
   runtime::NDArray arr = runtime::NDArray::Empty({}, Type2TVMType(dtype), {kDLCPU, 0});
   TVM_DTYPE_DISPATCH(dtype, DType, {
-    *static_cast<DType*>(arr->data) = value;
+    if (dtype == Float(16)) {
+      // convert to float16
+      // storage is uint16_t
+      *static_cast<DType*>(arr->data) =
+        __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
+    } else {
+      *static_cast<DType*>(arr->data) = value;
+    }
   })
   return ConstantNode::make(arr);
 }

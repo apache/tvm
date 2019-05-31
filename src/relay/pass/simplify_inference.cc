@@ -36,11 +36,13 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
                             Expr moving_mean,
                             Expr moving_var,
                             Type tdata) {
+  auto ttype = tdata.as<TensorTypeNode>();
+  CHECK(ttype);
   const auto param = attrs.as<BatchNormAttrs>();
-  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
+  Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
   Expr var_add_eps = Add(moving_var, epsilon);
   Expr sqrt_var = Sqrt(var_add_eps);
-  Expr scale = Divide(MakeConstantScalar(Float(32), 1.0f), sqrt_var);
+  Expr scale = Divide(MakeConstantScalar(ttype->dtype, 1.0f), sqrt_var);
 
   if (param->scale) {
     scale = Multiply(scale, gamma);
@@ -52,8 +54,6 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
   }
 
   int axis = param->axis;
-  auto ttype = tdata.as<TensorTypeNode>();
-  CHECK(ttype);
   auto ndim = ttype->shape.size();
   scale = ExpandBiasToMatchAxis(scale, ndim, {axis});
   shift = ExpandBiasToMatchAxis(shift, ndim, {axis});
