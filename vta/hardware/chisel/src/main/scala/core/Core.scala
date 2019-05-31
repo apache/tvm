@@ -87,7 +87,6 @@ class Core(implicit p: Parameters) extends Module {
   // The compute module performs the following:
   // - Load micro-ops (uops) and accumulations (acc)
   // - Compute dense and ALU instructions (tasks)
-  // - Store results back to scratchpads (SRAMs)
   compute.io.i_post(0) := load.io.o_post
   compute.io.i_post(1) := store.io.o_post
   compute.io.inst <> fetch.io.inst.co
@@ -96,7 +95,9 @@ class Core(implicit p: Parameters) extends Module {
   compute.io.inp <> load.io.inp
   compute.io.wgt <> load.io.wgt
 
-  // Store results back to memory (DRAM) from scratchpads (SRAMs)
+  // The store module performs the following:
+  // - Writes results from compute into scratchpads (SRAMs)
+  // - Store results from scratchpads (SRAMs) to memory (DRAM)
   store.io.i_post := compute.io.o_post(1)
   store.io.inst <> fetch.io.inst.st
   store.io.out_baddr := io.vcr.ptrs(5)

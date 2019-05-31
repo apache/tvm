@@ -24,6 +24,14 @@ import chisel3.util._
 import vta.util.config._
 import vta.shell._
 
+/** Compute.
+  *
+  * The compute unit is in charge of the following:
+  * - Loading micro-ops from memory (loadUop module)
+  * - Loading biases (acc) from memory (tensorAcc module)
+  * - Compute ALU instructions (tensorAlu module)
+  * - Compute GEMM instructions (tensorGemm module)
+  */
 class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
