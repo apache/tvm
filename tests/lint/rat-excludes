@@ -23,7 +23,7 @@
 .*\.csv
 .*\.mk
 .*\.log
-.*\.intrp
+.*\.interp
 .*\.tokens
 
 # Generated modules
@@ -34,8 +34,8 @@ build
 _static
 _build
 .*~
-python/tvm/relay/grammar/py2/Relay.*
-python/tvm/relay/grammar/py3/Relay.*
+./python/tvm/relay/grammar/py2/Relay*
+./python/tvm/relay/grammar/py3/Relay*
 
 # Specific files
 package-list
