@@ -59,7 +59,7 @@ def stats():
 
 def tsim_init(hw):
     cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    vta_build_path = os.path.join(cur_path, "..", "..","..", "build")
+    vta_build_path = os.path.join(cur_path, "..", "..", "..", "build")
     ext = ".dylib" if sys.platform == "darwin" else ".so"
     hw_lib = os.path.join(vta_build_path, hw + ext)
     f = tvm.get_global_func("tvm.vta.tsim.init")
