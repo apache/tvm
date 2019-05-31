@@ -22,9 +22,9 @@ package vta.core
 import chisel3._
 import chisel3.util._
 
-/** ISAConstants
+/** ISAConstants.
   *
-  * These constants are used for decoding (parsing) fields on instructions
+  * These constants are used for decoding (parsing) fields on instructions.
   */
 trait ISAConstants
 {
@@ -69,11 +69,11 @@ trait ISAConstants
    val M_ID_A = 3.asUInt(M_ID_BITS.W)
 }
 
-/** ISA
+/** ISA.
   *
   * This is the VTA ISA, here we specify the cares and dont-cares that makes
   * decoding easier. Since instructions are quite long 128-bit, we could generate
-  * these based on ISAConstants
+  * these based on ISAConstants.
   *
   * FIXME: VSHX should be replaced by VSHR and VSHL once we modify the compiler
   * TODO: Add VXOR to clear accumulator

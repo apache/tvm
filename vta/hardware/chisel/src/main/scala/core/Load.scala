@@ -24,6 +24,13 @@ import chisel3.util._
 import vta.util.config._
 import vta.shell._
 
+/** Load.
+  *
+  * Load inputs and weights from memory (DRAM) into scratchpads (SRAMs).
+  * This module instantiate the TensorLoad unit which is in charge of
+  * loading 1D or 2D tensors to on-chip memories, so it can be used by
+  * other modules such as Compute.
+  */
 class Load(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
