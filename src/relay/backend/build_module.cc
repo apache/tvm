@@ -371,7 +371,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \return updated_module The updated module after device annotation.
    */
   relay::Module RunDeviceAnnotationPass(const relay::Module& relay_module,
-                                   int fallback_device) {
+                                        int fallback_device) {
     UpdateHeterogeneousInputs(fallback_device);
     auto rewrite = transform::RewriteAnnotatedOps(fallback_device);
     auto updated_module = rewrite(relay_module);
