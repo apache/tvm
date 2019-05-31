@@ -157,6 +157,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
     // start
     when (state === sIdle && start) {
       when (dec.io.isSync) {
+        printf("[Compute] start sync\n")
       } .elsewhen (dec.io.isLoadUop) {
         printf("[Compute] start load uop\n")
       } .elsewhen (dec.io.isLoadAcc) {
@@ -171,7 +172,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
     }
     // done
     when (state === sSync) {
-      printf("[Load] done sync\n")
+      printf("[Compute] done sync\n")
     }
     when (state === sExe) {
       when (done) {
