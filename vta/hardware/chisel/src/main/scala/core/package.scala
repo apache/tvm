@@ -19,4 +19,5 @@
 
 package vta
 
+/** This trick makes ISAConstants globally available */
 package object core extends vta.core.ISAConstants
