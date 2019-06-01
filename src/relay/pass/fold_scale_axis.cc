@@ -978,7 +978,7 @@ Pass FoldScaleAxis() {
   // FoldScaleAxis pass contains the following three passes. Therefore, we can
   // register it as a sequential pass.
   Pass pass = Sequential(
-      {FoldConstant(), BackwardFoldScaleAxis(), ForwardFoldScaleAxis()},
+      {BackwardFoldScaleAxis(), ForwardFoldScaleAxis(), FoldConstant()},
       "FoldScaleAxis");
   return pass;
 }
