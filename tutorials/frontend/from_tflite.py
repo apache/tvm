@@ -52,7 +52,7 @@ or you could generate TFLite package by yourself. The steps are as following:
     flatc --version
 
     # Get the TFLite schema.
-    wget https://raw.githubusercontent.com/tensorflow/tensorflow/r1.12/tensorflow/contrib/lite/schema/schema.fbs
+    wget https://raw.githubusercontent.com/tensorflow/tensorflow/r1.13/tensorflow/lite/schema/schema.fbs
 
     # Generate TFLite package.
     flatc --python schema.fbs
@@ -144,7 +144,7 @@ func, params = relay.frontend.from_tflite(tflite_model,
 
 # target x86 CPU
 target = "llvm"
-with relay.transform.build_config(opt_level=3):
+with relay.build_config(opt_level=3):
     graph, lib, params = relay.build(func, target, params=params)
 
 ######################################################################
@@ -180,11 +180,9 @@ label_file_url = ''.join(['https://raw.githubusercontent.com/',
 label_file = "labels_mobilenet_quant_v1_224.txt"
 label_path = download_testdata(label_file_url, label_file, module='data')
 
-# map id to 1001 classes
-labels = dict()
+# list of 1001 classes
 with open(label_path) as f:
-    for id, line in enumerate(f):
-        labels[id] = line
+    labels = f.readlines()
 
 # convert result to 1D data
 predictions = np.squeeze(tvm_output)
