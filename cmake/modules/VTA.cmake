@@ -29,8 +29,7 @@ elseif(PYTHON)
       --use-cfg=${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)
   endif()
 
-  execute_process(COMMAND ${VTA_CONFIG} --target OUTPUT_VARIABLE __vta_target)
-  string(STRIP ${__vta_target} VTA_TARGET)
+  execute_process(COMMAND ${VTA_CONFIG} --target OUTPUT_VARIABLE VTA_TARGET OUTPUT_STRIP_TRAILING_WHITESPACE)
 
   message(STATUS "Build VTA runtime with target: " ${VTA_TARGET})
 
