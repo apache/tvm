@@ -49,7 +49,7 @@ sudo apt install verilator sbt
 ## Setup in TVM
 
 1. Install `verilator` and `sbt` as described above
-2. Enable VTA TSIM by turning on the switch `USE_VTA_TSIM` in config.cmake
+2. Set the VTA TARGET to `tsim` on `<tvm-root>/vta/config/vta_config.json`
 3. Build tvm
 
 ## How to run VTA TSIM examples
