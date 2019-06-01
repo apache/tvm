@@ -176,7 +176,11 @@ class RewriteAnnotation : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    if (IsOnDeviceNode(call_node) || IsDeviceCopyNode(call_node)) {
+    if (IsOnDeviceNode(call_node)) {
+      return this->VisitExpr(call_node->args[0]);
+    }
+
+    if (IsDeviceCopyNode(call_node)) {
       return ExprMutator::VisitExpr_(call_node);
     }
 
@@ -358,6 +362,9 @@ class DeviceInfo {
    public:
     void Visit(const Expr& expr) {
       if (const auto* fn = expr.as<FunctionNode>()) {
+        for (const auto& param : fn->params) {
+          this->VisitExpr(param);
+        }
         this->VisitExpr(fn->body);
       } else {
         this->VisitExpr(expr);
@@ -402,7 +409,7 @@ class DeviceInfo {
     }
 
     void VisitExpr_(const VarNode* vn) final {
-        post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
+      post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
     }
 
     void VisitExpr_(const LetNode* ln) final {
