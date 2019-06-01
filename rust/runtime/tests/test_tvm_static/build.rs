@@ -47,4 +47,7 @@ fn main() {
 
     let mut builder = Builder::new(File::create(format!("{}/libtest.a", out_dir)).unwrap());
     builder.append_path(format!("{}/test.o", out_dir)).unwrap();
+
+    println!("cargo:rustc-link-lib=static=test");
+    println!("cargo:rustc-link-search=native={}", out_dir);
 }

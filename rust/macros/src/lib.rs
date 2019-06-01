@@ -10,38 +10,51 @@ use proc_quote::quote;
 pub fn import_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::LitStr).value();
 
-    let path = dbg!(Path::new(&input).canonicalize().unwrap());
+    let path = Path::new(&input).canonicalize().unwrap();
     let mut fd = File::open(path).unwrap();
     let mut buffer = Vec::new();
     fd.read_to_end(&mut buffer).unwrap();
 
     let fn_names = match goblin::Object::parse(&buffer).unwrap() {
-        goblin::Object::Elf(elf) => {
-            println!("elf: {:#?}", &elf);
-            panic!();
-        }
-        goblin::Object::Mach(goblin::mach::Mach::Binary(obj)) => {
-            obj.symbols().filter_map(|s| match s {
-                Ok((name, nlist))
-                    if nlist.is_global()
-                        && nlist.n_sect != 0
-                        && !name.ends_with("tvm_module_ctx") =>
-                {
-                    Some(syn::Ident::new(
-                        if name.starts_with('_') { // Mach objects prepend a _ to globals.
-                            &name[1..]
-                        } else {
-                            &name
-                        },
-                        proc_macro2::Span::call_site(),
-                    ))
+        goblin::Object::Elf(elf) => elf
+            .syms
+            .iter()
+            .filter_map(|s| {
+                if s.st_type() == 0 || goblin::elf::sym::type_to_str(s.st_type()) == "FILE" {
+                    return None;
                 }
-                _ => None,
+                match elf.strtab.get(s.st_name) {
+                    Some(Ok(name)) if name != "" => {
+                        Some(syn::Ident::new(name, proc_macro2::Span::call_site()))
+                    }
+                    _ => None,
+                }
             })
+            .collect::<Vec<_>>(),
+        goblin::Object::Mach(goblin::mach::Mach::Binary(obj)) => {
+            obj.symbols()
+                .filter_map(|s| match s {
+                    Ok((name, nlist))
+                        if nlist.is_global()
+                            && nlist.n_sect != 0
+                            && !name.ends_with("tvm_module_ctx") =>
+                    {
+                        Some(syn::Ident::new(
+                            if name.starts_with('_') {
+                                // Mach objects prepend a _ to globals.
+                                &name[1..]
+                            } else {
+                                &name
+                            },
+                            proc_macro2::Span::call_site(),
+                        ))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         }
         _ => panic!("Unsupported object format."),
-    }
-    .collect::<Vec<_>>();
+    };
 
     let extern_fns = quote! {
         mod ext {
