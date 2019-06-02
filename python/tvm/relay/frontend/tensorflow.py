@@ -353,7 +353,6 @@ def _conv(opname):
         # NCHW Layout require weights transpose
         if attr['data_format'] == 'NCHW':
             tmp_shape = attr['_input_shapes'][inputs[1]]
-            tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
             if opname == 'conv':
                 tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
                 inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
@@ -408,8 +407,9 @@ def _conv(opname):
                   'not valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
-
         if opname == 'depthwise':
+            if depth_mult > 1:
+                raise tvm.error.OpNotImplemented('depth_mult > 1 of operator DepthwiseConv2dNative is not supported.')
             attr['groups'] = attr['channels']
 
         # Fix padding

@@ -463,9 +463,8 @@ def _reshape():
 
 def _bias_add():
     def _impl(inputs, attr, params):
-        if attr['data_format'] == 'NCHW':
-            bias_shape = attr['_input_shapes'][inputs[1]][0]
-            bias = _sym.reshape(inputs[1], shape=(bias_shape, 1, 1))
+        if attr['data_format'].decode("utf-8") == 'NCHW':
+            bias = _sym.reshape(inputs[1], newshape=(1, -1, 1, 1))
         else:
             bias = inputs[1]
         return _sym.broadcast_add(inputs[0], bias)
