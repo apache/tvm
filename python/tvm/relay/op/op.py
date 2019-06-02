@@ -112,6 +112,8 @@ class OpPattern(object):
     COMM_REDUCE = 3
     # Complex op, can still fuse ewise into it
     OUT_ELEMWISE_FUSABLE = 4
+    # Represents tuple node
+    TUPLE = 7
     # Not fusable opaque op
     OPAQUE = 8
 
@@ -216,6 +218,13 @@ def schedule_injective(attrs, outputs, target):
     """Generic schedule for binary broadcast."""
     with target:
         return topi.generic.schedule_injective(outputs)
+
+
+def schedule_concatenate(attrs, outputs, target):
+    """Generic schedule for concatinate."""
+    with target:
+        return topi.generic.schedule_concatenate(outputs)
+
 
 __DEBUG_COUNTER__ = 0
 

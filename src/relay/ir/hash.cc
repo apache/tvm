@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -219,6 +219,9 @@ class RelayHashHandler:
   size_t BindVar(const NodeRef& var) {
     size_t hash = std::hash<int>()(var_counter++);
     CHECK_EQ(hash_map_.count(var), 0);
+    if (auto var_node = var.as<VarNode>()) {
+      hash = Combine(hash, TypeHash(var_node->type_annotation));
+    }
     hash_map_[var] = hash;
 
     const auto* ty_param = var.as<TypeVarNode>();
@@ -271,6 +274,7 @@ class RelayHashHandler:
     }
 
     for (auto t : call->type_args) {
+      CHECK(t.defined());
       hash = Combine(hash, TypeHash(t));
     }
 
@@ -394,7 +398,6 @@ class RelayHashHandler:
     size_t hash = std::hash<std::string>()(PatternWildcardNode::_type_key);
     return hash;
   }
-
  private:
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, size_t, NodeHash, NodeEqual> hash_map_;

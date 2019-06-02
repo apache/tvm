@@ -19,6 +19,7 @@ from tvm import relay
 from tvm.relay.ir_pass import free_vars, free_type_vars, gradient
 from tvm.relay import create_executor
 from tvm.relay.prelude import Prelude
+from tvm.relay.testing import add_nat_definitions, make_nat_expr
 
 import numpy as np
 
@@ -174,13 +175,14 @@ def test_tuple():
 def test_pow():
     mod = relay.Module()
     p = Prelude(mod)
+    add_nat_definitions(p)
     shape = (10, 10)
     dtype = 'float32'
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     double = relay.Function([x], x + x)
     i = relay.var("i", t)
-    func = relay.Function([i], relay.Call(p.iterate(double, p.s(p.s(p.s(p.z())))), [i]))
+    func = relay.Function([i], p.nat_iterate(double, make_nat_expr(p, 3))(i))
     back_func = relay.ir_pass.infer_type(gradient(func, mod=mod), mod=mod)
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     i_nd = rand(dtype, *shape)

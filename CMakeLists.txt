@@ -32,6 +32,7 @@ tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" O
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
+tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(USE_SGX "Build with SGX" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
@@ -84,6 +85,7 @@ else(MSVC)
   include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    message("Build in Debug mode")
     set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS} -rdynamic")
     set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS} -rdynamic")
   else()
@@ -120,6 +122,8 @@ file(GLOB_RECURSE RELAY_SRCS
     )
 list(APPEND COMPILER_SRCS ${RELAY_SRCS})
 
+file(GLOB DATATYPE_SRCS src/codegen/datatype/*.cc)
+list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 
 if(NOT MSVC)
   file(GLOB COMPILER_VERILOG_SRCS src/codegen/verilog/*.cc)
@@ -139,12 +143,17 @@ file(GLOB TOPI_SRCS
 )
 file(GLOB_RECURSE HALIDEIR_SRCS 3rdparty/HalideIR/src/*.cpp)
 list(APPEND COMPILER_SRCS ${HALIDEIR_SRCS})
-file(GLOB RUNTIME_SRCS src/runtime/*.cc)
+file(GLOB RUNTIME_SRCS
+  src/runtime/*.cc
+  src/runtime/vm/*.cc
+)
 
 # Package runtime rules
 if(NOT USE_RTTI)
   add_definitions(-DDMLC_ENABLE_RTTI=0)
 endif()
+
+list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
 
 if(USE_RPC)
   message(STATUS "Build with RPC support...")
@@ -196,6 +205,13 @@ include(cmake/modules/contrib/HybridDump.cmake)
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
+
+if(USE_RELAY_DEBUG)
+  message(STATUS "Building Relay in debug mode...")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
+  set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
+endif(USE_RELAY_DEBUG)
+
 if(NOT USE_SGX STREQUAL "OFF")
   add_dependencies(tvm sgx_edl)
   add_dependencies(tvm_runtime sgx_edl tvm_t)

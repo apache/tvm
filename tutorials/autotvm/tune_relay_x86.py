@@ -20,7 +20,7 @@ Auto-tuning a convolutional network for x86 CPU
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Eddie Yan <https://github.com/eqy>`_
 
 This is a tutorial about how to tune convolution neural network
-for x86 cpu.
+for x86 CPU.
 """
 import os
 import numpy as np
@@ -30,6 +30,7 @@ from tvm import autotvm
 from tvm import relay
 from tvm.relay import testing
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
+from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
@@ -70,7 +71,7 @@ def get_network(name, batch_size):
 
     return net, params, input_shape, output_shape
 
-# Replace "llvm" with the correct target of your cpu.
+# Replace "llvm" with the correct target of your CPU.
 # For example, for AWS EC2 c5 instance with Intel Xeon
 # Platinum 8000 series, the target should be "llvm -mcpu=skylake-avx512".
 # For AWS EC2 c4 instance with Intel Xeon E5-2666 v3, it should be
@@ -81,9 +82,10 @@ batch_size = 1
 dtype = "float32"
 model_name = "resnet-18"
 log_file = "%s.log" % model_name
+graph_opt_sch_file = "%s_graph_opt.log" % model_name
 
 # Set number of threads used for tuning based on the number of
-# physical cpu cores on your machine.
+# physical CPU cores on your machine.
 num_threads = 1
 os.environ["TVM_NUM_THREADS"] = str(num_threads)
 
@@ -91,7 +93,7 @@ os.environ["TVM_NUM_THREADS"] = str(num_threads)
 #################################################################
 # Configure tensor tuning settings and create tasks
 # -------------------------------------------------
-# To get better kernel execution performance on x86 cpu,
+# To get better kernel execution performance on x86 CPU,
 # we need to change data layout of convolution kernel from
 # "NCHW" to "NCHWc". To deal with this situation, we define
 # conv2d_NCHWc operator in topi. We will tune this operator
@@ -157,6 +159,16 @@ def tune_kernels(tasks,
                            autotvm.callback.progress_bar(n_trial, prefix=prefix),
                            autotvm.callback.log_to_file(log_filename)])
 
+# Use graph tuner to achieve graph level optimal schedules
+# Set use_DP=False if it takes too long to finish.
+def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
+    target_op = [relay.nn.conv2d]
+    Tuner = DPTuner if use_DP else PBQPTuner
+    executor = Tuner(graph, {"data": dshape}, records, target_op, target)
+    executor.benchmark_layout_transform(min_exec_num=2000)
+    executor.run()
+    executor.write_opt_sch2record_file(opt_sch_file)
+
 
 ########################################################################
 # Finally, we launch tuning jobs and evaluate the end-to-end performance.
@@ -171,9 +183,10 @@ def tune_and_evaluate(tuning_opt):
     # run tuning tasks
     print("Tuning...")
     tune_kernels(tasks, **tuning_opt)
+    tune_graph(net, data_shape, log_file, graph_opt_sch_file)
 
-    # compile kernels with history best records
-    with autotvm.apply_history_best(log_file):
+    # compile kernels with graph-level best records
+    with autotvm.apply_graph_best(graph_opt_sch_file):
         print("Compile...")
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build_module.build(

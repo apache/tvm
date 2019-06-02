@@ -399,7 +399,7 @@ reg.register_pattern("avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 def schedule_global_max_pool2d(_, outs, target):
     """Schedule definition of global_max_pool2d"""
     with tvm.target.create(target):
-        return topi.generic.schedule_global_pool(outs)
+        return topi.generic.schedule_adaptive_pool(outs)
 
 reg.register_pattern("global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -409,7 +409,7 @@ reg.register_pattern("global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 def schedule_global_avg_pool2d(_, outs, target):
     """Schedule definition of global_avg_pool2d"""
     with tvm.target.create(target):
-        return topi.generic.schedule_global_pool(outs)
+        return topi.generic.schedule_adaptive_pool(outs)
 
 reg.register_pattern("global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 

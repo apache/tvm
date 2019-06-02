@@ -37,7 +37,7 @@ namespace tvm {
 
 /*!
 * \brief Container for target device information.
-* Use target::llvm, target::cuda etc functions instead of constructing directly.
+*   Use target::llvm, target::cuda etc functions instead of constructing directly.
 */
 class TargetNode : public Node {
  public:
@@ -89,65 +89,47 @@ class TargetNode : public Node {
   mutable std::string str_repr_;
 };
 
+/*! \brief reference cpass to the target. */
 class Target : public NodeRef {
  public:
   Target() {}
   explicit Target(NodePtr<Node> n) : NodeRef(n) {}
-
   /*!
   * \brief Create a Target given a string
   * \param target_str the string to parse
   */
-  TVM_DLL static Target create(const std::string& target_str);
-
+  TVM_DLL static Target Create(const std::string& target_str);
   /*!
-  * \brief Push a new target context onto the thread local stack. The Target on top of
-  * the stack is used to determine which specialization to use when invoking a GenericFunc.
-  * \param target The target to set as the current context.
-  */
-  TVM_DLL static void EnterTargetScope(const tvm::Target& target);
+   * \brief Get the current target context from thread local storage.
+   * \param allow_not_defined If the context stack is empty and this is set to true, an
+   *   undefined Target will be returned. Otherwise, an empty context stack will cause a
+   *   runtime error.
+   * \return The target that is the current context. The target may not be defined if
+   * allow_not_defined is true.
+   */
+  TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
 
-  /*!
-  * \brief Pop a target off the thread local context stack, restoring the previous target
-  * as the current context.
-  */
-  TVM_DLL static void ExitTargetScope();
-
-  /*!
-  * \brief Get the current target context from thread local storage.
-  * \param allow_not_defined If the context stack is empty and this is set to true, an
-  * undefined Target will be returned. Otherwise, an empty context stack will cause a
-  * runtime error.
-  * \return The target that is the current context. The target may not be defined if
-  * allow_not_defined is true.
-  */
-  TVM_DLL static tvm::Target current_target(bool allow_not_defined = true);
-
-  inline const TargetNode* operator->() const {
+  const TargetNode* operator->() const {
       return static_cast<const TargetNode*>(node_.get());
   }
 
   using ContainerType = TargetNode;
-};
-
-/*!
- * \brief RAII container to provide a scoped target context. Pushes a target onto the
- * context stack when constructed, and pops it when destructed.
- */
-struct TargetContext {
+  class Internal;
+ private:
+  // enable with syntax.
+  friend class Internal;
+  friend class With<Target>;
   /*!
-   * \brief Enter a new target context. The given target becomes the new current context.
-   * When the TargetContext is destructed, the previous context is restored.
-   * \param target The target to set as the new current context.
+   * \brief Push a new target context onto the thread local stack.
+   *  The Target on top of the stack is used to determine which
+   *  specialization to use when invoking a GenericFunc.
    */
-  explicit TargetContext(const tvm::Target& target) {
-    Target::EnterTargetScope(target);
-  }
-
-  /*! \brief Destructor. Pops the context off the thread local stack. */
-  ~TargetContext() {
-    Target::ExitTargetScope();
-  }
+  TVM_DLL void EnterWithScope();
+  /*!
+   * \brief Pop a target off the thread local context stack,
+   *  restoring the previous target as the current context.
+   */
+  TVM_DLL void ExitWithScope();
 };
 
 /*! \brief This namespace provides functions to construct Target instances */
@@ -190,11 +172,9 @@ TVM_DLL Target stackvm(const std::vector<std::string>& options =
 
 }  // namespace target
 
-class BuildConfig;
-
 /*!
-* \brief Container for build configuration options
-*/
+ * \brief Container for build configuration options
+ */
 class BuildConfigNode : public Node {
  public:
   /*!
@@ -246,6 +226,9 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to disable select rewriting. */
   bool disable_select_rewriting = false;
 
+  /*! \brief Whether to disable loop vectorization. */
+  bool disable_vectorize = false;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
@@ -260,6 +243,7 @@ class BuildConfigNode : public Node {
     v->Visit("dump_pass_ir", &dump_pass_ir);
     v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
     v->Visit("disable_select_rewriting", &disable_select_rewriting);
+    v->Visit("disable_vectorize", &disable_vectorize);
   }
 
   static constexpr const char* _type_key = "BuildConfig";
@@ -267,68 +251,47 @@ class BuildConfigNode : public Node {
 };
 
 /*!
-* \brief Container for build configuration options
-*/
+ * \brief Build configuration for compilations.
+ */
 class BuildConfig : public ::tvm::NodeRef {
  public:
   BuildConfig() {}
   explicit BuildConfig(NodePtr<::tvm::Node> n) : NodeRef(n) {}
-
   const BuildConfigNode* operator->() const {
     return static_cast<const BuildConfigNode*>(node_.get());
   }
-
   BuildConfigNode* operator->() {
     return static_cast<BuildConfigNode*>(node_.get());
   }
-
   /*!
-   * \brief Push a new BuildConfig context onto the thread local stack.
-   * \param build_config The configuration to set as the current context.
+   * \brief Construct a BuildConfig containing a empty build config node.
+   * \return The new BuildConfig
    */
-  TVM_DLL static void EnterBuildConfigScope(const tvm::BuildConfig& build_config);
-
-  /*!
-   * \brief Pop a build config off the thread local context stack, restoring the previous
-   * configuration as the current context.
-   */
-  TVM_DLL static void ExitBuildConfigScope();
-
+  TVM_DLL static BuildConfig Create();
   /*!
    * \brief Get the current BuildConfig context from thread local storage, or a default
    * configuration if a BuildConfig scope has not been entered.
    * \return The configuration that is the current context.
    */
-  TVM_DLL static tvm::BuildConfig Current();
+  TVM_DLL static BuildConfig Current();
 
   using ContainerType = BuildConfigNode;
-};
+  class Internal;
 
-/*!
- * \brief RAII container to provide a scoped BuildConfig context. Pushes a configuration onto the
- * context stack when constructed, and pops it when destructed.
- */
-struct BuildConfigContext {
+ private:
+  // Enable with syntax.
+  friend class With<BuildConfig>;
   /*!
-   * \brief Enter a new BuildConfig context. The given BuildConfig becomes the new current
-   * context. When the BuildConfigContext is destructed, the previous context is restored.
-   * \param build_config The BuildConfig to set as the new current context.
+   * \brief Push a new BuildConfig context onto the thread local stack.
    */
-  explicit BuildConfigContext(const tvm::BuildConfig& build_config) {
-    BuildConfig::EnterBuildConfigScope(build_config);
-  }
+  TVM_DLL void EnterWithScope();
 
-  /*! \brief Destructor. Pops the context off the thread local stack. */
-  ~BuildConfigContext() {
-    BuildConfig::ExitBuildConfigScope();
-  }
+  /*!
+   * \brief Pop a build config off the thread local context stack,
+   * restoring the previous configuration as the current context.
+   */
+  TVM_DLL void ExitWithScope();
 };
-
-/*!
-* \brief Construct a BuildConfig containing a new BuildConfigNode
-* \return The new BuildConfig
-*/
-TVM_DLL BuildConfig build_config();
 
 /*!
 * \brief Build a LoweredFunc given a schedule, args and binds
@@ -344,6 +307,19 @@ TVM_DLL Array<LoweredFunc> lower(Schedule sch,
                                  const std::string& name,
                                  const std::unordered_map<Tensor, Buffer>& binds,
                                  const BuildConfig& config);
+/*!
+* \brief Split host/device function and running necessary pass before build
+* \param funcs The functions to be built.
+* \param target The target device to build for.
+* \param target_host The target for building host code. To use the default, pass Target()
+* \param config The build configuration.
+* \return The Array<Array<LoweredFunc>> with 2 elements. First is host function Array,
+          second is device function array
+*/
+TVM_DLL Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
+                                                        const Target& target,
+                                                        const Target& target_host,
+                                                        const BuildConfig& config);
 
 /*!
 * \brief Build a device and host module for a specific target from an array of lowered functions.
@@ -355,6 +331,35 @@ TVM_DLL Array<LoweredFunc> lower(Schedule sch,
 */
 TVM_DLL runtime::Module build(const Array<LoweredFunc>& funcs,
                               const Target& target,
+                              const Target& target_host,
+                              const BuildConfig& config);
+
+/*!
+ * \brief Build a device and host module for a specific target from a map
+ * contains target to a list of lowered functions pairs. This function is used
+ * for heterogeneous build.
+ * \param input The map contains target to a list of lowered functions pairs.
+ * \param target_host The target for building host code. To use the default,
+ *        pass Target().
+ * \param config The build configuration.
+ * \return The built module that contains code for different processors.
+ */
+TVM_DLL runtime::Module build(const Map<Target, Array<LoweredFunc>>& input,
+                              const Target& target_host,
+                              const BuildConfig& config);
+
+/*!
+ * \brief Build a device and host module for a specific target from a map
+ * contains target to a list of lowered functions pairs. This function is used
+ * for heterogeneous build.
+ * \param input The map contains target string to a list of lowered functions
+ *        pairs.
+ * \param target_host The target for building host code. To use the default,
+ *        pass Target().
+ * \param config The build configuration.
+ * \return The built module that contains code for different processors.
+ */
+TVM_DLL runtime::Module build(const Map<std::string, Array<LoweredFunc>>& input,
                               const Target& target_host,
                               const BuildConfig& config);
 

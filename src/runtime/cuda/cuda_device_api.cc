@@ -26,6 +26,7 @@
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
+#include <cuda.h>
 #include <cuda_runtime.h>
 #include "cuda_common.h"
 
@@ -73,9 +74,10 @@ class CUDADeviceAPI final : public DeviceAPI {
         return;
       }
       case kDeviceName: {
-        cudaDeviceProp props;
-        CUDA_CALL(cudaGetDeviceProperties(&props, ctx.device_id));
-        *rv = std::string(props.name);
+        std::string name(256, 0);
+        CUDA_DRIVER_CALL(cuDeviceGetName(&name[0], name.size(), ctx.device_id));
+        name.resize(strlen(name.c_str()));
+        *rv = std::move(name);
         return;
       }
       case kMaxClockRate: {

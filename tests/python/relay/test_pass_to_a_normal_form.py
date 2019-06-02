@@ -21,6 +21,7 @@ from tvm.relay.ir_pass import to_a_normal_form, alpha_equal, infer_type
 from tvm.relay import op, create_executor
 from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
 from tvm.relay.prelude import Prelude
+from tvm.relay.testing import add_nat_definitions, count
 
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
@@ -130,19 +131,10 @@ def test_ref():
     check_eval(to_a_normal_form(body), 3)
 
 
-# this is an example of using the adt value in python side
-def count(n):
-    assert isinstance(n, ConstructorValue)
-    if n.constructor.name_hint == 's':
-        return 1 + count(n.fields[0])
-    else:
-        assert n.constructor.name_hint == 'z'
-        return 0
-
-
-def test_add():
+def test_nat_add():
     mod = relay.Module()
     p = Prelude(mod)
+    add_nat_definitions(p)
     nat = p.nat
     add = p.add
     s = p.s
@@ -183,4 +175,5 @@ if __name__ == '__main__':
     test_ref()
     test_add()
     test_let()
+    test_nat_add()
     test_function()

@@ -44,7 +44,7 @@ def initialize_box_adt(mod):
 
 
 def test_monomorphic_let():
-    "Program: let x = 1; x"
+    "Program: let %x = 1; %x"
     sb = relay.ScopeBuilder()
     x = sb.let('x', relay.const(1.0, "float64"))
     sb.ret(x)
@@ -53,7 +53,7 @@ def test_monomorphic_let():
 
 
 def test_single_op():
-    "Program: fn (x : float32) { let t1 = f(x); t1 }"
+    "Program: fn (%x : float32) { let %t1 = f(%x); %t1 }"
     x = relay.var('x', shape=[])
     func = relay.Function([x], op.log(x))
     ttype = relay.TensorType([], dtype='float32')
@@ -63,8 +63,9 @@ def test_single_op():
 def test_add_broadcast_op():
     """
     Program:
-        fn (x: Tensor[(10, 4), f32], y: Tensor[(5, 10, 1), f32]) -> Tensor[(5, 10, 4), f32] {
-            x + y
+        fn (%x: Tensor[(10, 4), float32], %y: Tensor[(5, 10, 1), float32])
+            -> Tensor[(5, 10, 4), float32] {
+            %x + %y
         }
     """
     x = relay.var('x', shape=(10, 4))
@@ -80,10 +81,10 @@ def test_add_broadcast_op():
 
 def test_dual_op():
     """Program:
-       fn (x : Tensor[f32, (10, 10)]) {
-         let t1 = log(x);
-         let t2 = add(t1, x);
-         t1
+       fn (%x : Tensor[(10, 10), float32]) {
+         let %t1 = log(x);
+         let %t2 = add(%t1, %x);
+         %t1
        }
     """
     tp = relay.TensorType((10, 10), "float32")
@@ -99,8 +100,8 @@ def test_dual_op():
 
 def test_decl():
     """Program:
-       def f(x : Tensor[(10, 10), f32]) {
-           log(x)
+       def @f(%x : Tensor[(10, 10), float32]) {
+           log(%x)
        }
     """
     tp = relay.TensorType((10, 10))
@@ -113,11 +114,11 @@ def test_decl():
 def test_recursion():
     """
     Program:
-       def f(n: i32, data: f32) -> f32 {
-          if (n == 0) {
-              data
+       def @f(%n: int32, %data: float32) -> float32 {
+          if (%n == 0) {
+              %data
           } else {
-              f(n - 1, log(data))
+              @f(%n - 1, log(%data))
           }
        }
     """
@@ -134,7 +135,7 @@ def test_recursion():
         sb.ret(f(relay.subtract(n, relay.const(1, ti32)), relay.log(data)))
     mod = relay.Module()
     mod[f] = relay.Function([n, data], sb.get())
-    assert "%3 = @f(%1, %2)" in mod.astext()
+    assert "@f(%1, %2) /* ty=float32 */" in mod.astext()
     assert mod[f].checked_type == relay.FuncType([ti32, tf32], tf32)
 
 

@@ -79,5 +79,17 @@ Expr ToGraphNormalForm(const Expr& e) {
 TVM_REGISTER_API("relay._ir_pass.to_graph_normal_form")
 .set_body_typed(ToGraphNormalForm);
 
+namespace transform {
+
+Pass ToGraphNormalForm() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(ToGraphNormalForm(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "to_graph_normal_form", {});
+}
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm

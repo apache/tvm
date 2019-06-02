@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,6 +26,8 @@
 #include <tvm/expr_operator.h>
 #include <tvm/ir_functor_ext.h>
 #include <limits>
+#include <utility>
+#include <unordered_map>
 #include "pattern_match.h"
 
 namespace tvm {
@@ -35,11 +37,12 @@ using namespace ir;
 
 TVM_REGISTER_NODE_TYPE(ModularSetNode);
 
-ModularSet ModularSetNode::make(int64_t coeff, int64_t base) {
+ModularSet::ModularSet(int64_t coeff, int64_t base) {
   auto node = make_node<ModularSetNode>();
   node->coeff = coeff;
   node->base = base;
-  return ModularSet(node);
+  // finish construction.
+  node_ = std::move(node);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -366,13 +369,13 @@ class ModularSetAnalyzer::Impl :
    * \return Bound that represent everything dtype can represent.
    */
   static Entry Nothing() {
-      return Entry(0, 1);
+    return Entry(0, 1);
   }
 };
 
 ModularSet ModularSetAnalyzer::operator()(const Expr& expr) {
   Entry ret = impl_->VisitExpr(expr);
-  return ModularSetNode::make(ret.coeff, ret.base);
+  return ModularSet(ret.coeff, ret.base);
 }
 
 void ModularSetAnalyzer::Update(const Var& var,

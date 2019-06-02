@@ -211,6 +211,29 @@ def test_squeeze():
 
     tvm.testing.assert_allclose(out_shape, tvm_out.shape)
 
+def test_flatten():
+
+    in_shape = (1, 3, 4, 4)
+    axis = 1
+    ref_shape = (1, 48)
+
+    flatten_node = helper.make_node("Flatten", ["in"], ["out"], axis = axis)
+
+    graph = helper.make_graph([flatten_node],
+                              "flatten_test",
+                              inputs = [helper.make_tensor_value_info("in",
+                                            TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out",
+                                            TensorProto.FLOAT, list(ref_shape))])
+
+    model = helper.make_model(graph, producer_name='flatten_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=in_shape).astype('int32')
+        tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
+
+    tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+
 def test_unsqueeze():
     in_shape = (3, 3)
     axis = (0, 3, 4)
@@ -394,7 +417,7 @@ def _test_upsample_nearest():
     y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[1.0, 1.0, 2.0, 2.0])
 
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
-    out_array = topi.testing.upsampling_python(in_array, scale, "NCHW")
+    out_array = topi.testing.upsampling_python(in_array, (scale, scale), "NCHW")
 
     graph = helper.make_graph([y],
                               'upsample_nearest_test',
@@ -427,9 +450,39 @@ def _test_upsample_bilinear():
         tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
+def _test_upsample_bilinear_opset9():
+    scale = 2
+    in_shape = (1, 1, 3, 3)
+    out_shape = (1, 1, 3*scale, 3*scale)
+    y = helper.make_node("Upsample", ['in','scales'], ['out'], mode='linear')
+    scales=[1.0, 1.0, 2.0, 2.0]
+    in_array = np.random.uniform(size=in_shape).astype(np.float32)
+    out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW")
+
+    ref_array = np.array(scales)
+    ref_node = helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=['scales'],
+                                 value=onnx.helper.make_tensor(name = 'const_tensor',
+                                                               data_type = TensorProto.FLOAT,
+                                                               dims = ref_array.shape,
+                                                               vals = ref_array.flatten().astype(float)))
+
+    graph = helper.make_graph([ref_node, y],
+                              'upsample_bilinear_opset9_test',
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='upsample_bilinear_opset9_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
+        tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
+
 def test_upsample():
     _test_upsample_nearest()
     _test_upsample_bilinear()
+    _test_upsample_bilinear_opset9()
 
 def _test_softmax(inshape, axis):
     opname = 'Softmax'
@@ -694,10 +747,15 @@ def verify_constantfill(is_shape, input_dim, out_dim, value, dtype, **kwargs):
     else:
         fill_node = helper.make_node("ConstantFill", ["input_a"], ["out"], value=value, dtype=dtype, **kwargs)
 
+    if is_shape == True:
+        inputs = []
+    else:
+        inputs = [helper.make_tensor_value_info("input_a",
+                  TensorProto.FLOAT, list(input_dim))]
+
     graph = helper.make_graph([fill_node],
                               "fill_test",
-                              inputs = [helper.make_tensor_value_info("input_a",
-                                            TensorProto.FLOAT, list(input_dim))],
+                              inputs,
                               outputs = [helper.make_tensor_value_info("out",
                                             TensorProto.FLOAT, list(out.shape))])
 
@@ -897,6 +955,8 @@ def test_binary_ops():
     verify_binary_ops("Div", x, y, x / y, broadcast=None)
     verify_binary_ops("Div", x, z, x / z, broadcast=True)
     verify_binary_ops("Sum", x, y, x + y, broadcast=None)
+    verify_binary_ops("Greater", x, y, x > y, broadcast=True)
+    verify_binary_ops("Less", x, y, x < y, broadcast=True)
 
 def test_single_ops():
     in_shape = (1, 2, 3, 3)
@@ -1011,6 +1071,7 @@ def test_LogSoftmax():
                               {'axis': 1})
 
 if __name__ == '__main__':
+    test_flatten()
     test_reshape()
     test_shape()
     test_power()

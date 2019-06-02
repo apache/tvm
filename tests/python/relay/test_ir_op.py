@@ -30,7 +30,7 @@ def test_op_attr():
 def test_op_level1():
     x = relay.Var("x")
 
-    for op_name in ["log", "exp", "sqrt", "tanh"]:
+    for op_name in ["log", "exp", "sqrt", "rsqrt","tanh"]:
         y = getattr(relay, op_name)(x)
         assert y.op.name == op_name
         assert y.op.support_level == 1

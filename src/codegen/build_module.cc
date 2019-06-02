@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Compile executable modules.
  * \file build_module.cc
  */
@@ -45,7 +44,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 /*!
 * \brief Construct a Target node from the given name and options.
 * \param target_name The major target name. Should be one of
-* {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "opengl", "ext_dev"}
+* {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hybrid", "llvm", "metal",
+*  "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
 * \param options Additional options appended to the target
 * \return The constructed Target
 */
@@ -147,8 +147,7 @@ TVM_REGISTER_API("_TargetCreate")
 TVM_REGISTER_API("_TargetFromString")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_str = args[0];
-
-  *ret = Target::create(target_str);
+  *ret = Target::Create(target_str);
   });
 
 std::vector<std::string> TargetNode::keys() const {
@@ -206,7 +205,7 @@ std::string GetDeviceName(const std::string& target_str) {
   return "";
 }
 
-Target Target::create(const std::string& target_str) {
+Target Target::Create(const std::string& target_str) {
   if (target_str.length() == 0) {
     LOG(ERROR) << "target_str must not be empty";
   }
@@ -230,25 +229,24 @@ Target Target::create(const std::string& target_str) {
 struct TVMTargetThreadLocalEntry {
   /*! \brief The current target context */
   std::stack<tvm::Target> context_stack;
-
-  TVMTargetThreadLocalEntry() {
-  }
 };
 
 /*! \brief Thread local store to hold the Target context stack. */
 typedef dmlc::ThreadLocalStore<TVMTargetThreadLocalEntry> TVMTargetThreadLocalStore;
 
-void Target::EnterTargetScope(const tvm::Target& target) {
+void Target::EnterWithScope() {
   TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
-  entry->context_stack.push(target);
+  entry->context_stack.push(*this);
 }
 
-void Target::ExitTargetScope() {
+void Target::ExitWithScope() {
   TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
+  CHECK(!entry->context_stack.empty());
+  CHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
-tvm::Target Target::current_target(bool allow_not_defined) {
+tvm::Target Target::Current(bool allow_not_defined) {
   TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
@@ -310,7 +308,7 @@ bool LLVMEnabled() {
 
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
-  if (target->device_type == kDLCPU) {
+  if (target.defined() && target->device_type == kDLCPU) {
     return target;
   } else {
     if (LLVMEnabled()) {
@@ -391,7 +389,11 @@ Stmt BuildStmt(Schedule sch,
   if (loop_partition) {
     stmt = ir::LoopPartition(stmt, config->partition_const_loop);
   }
-  stmt = ir::VectorizeLoop(stmt);
+  if (config->disable_vectorize) {
+    stmt = ir::SkipVectorize(stmt);
+  } else {
+    stmt = ir::VectorizeLoop(stmt);
+  }
   stmt = ir::InjectVirtualThread(stmt);
   stmt = ir::InjectDoubleBuffer(stmt, config->double_buffer_split_loop);
   stmt = ir::StorageRewrite(stmt);
@@ -422,25 +424,24 @@ Array<LoweredFunc> lower(Schedule sch,
   return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
 
-runtime::Module build(const Array<LoweredFunc>& funcs,
-                      const Target& target,
-                      const Target& target_host,
-                      const BuildConfig& config) {
+Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
+                                                const Target& target,
+                                                const Target& target_host,
+                                                const BuildConfig& config) {
   std::unordered_set<std::string> all_names;
-  for (const auto &x : funcs) {
-    CHECK(all_names.count(x->name) == 0) << "Duplicate function name " << x->name;
+  for (const auto& x : funcs) {
+    CHECK(all_names.count(x->name) == 0)
+        << "Duplicate function name " << x->name;
     all_names.insert(x->name);
   }
-
-  auto target_host_val = target_host.defined() ? target_host : DefaultTargetHost(target);
 
   Array<LoweredFunc> fhost;
   Array<LoweredFunc> fdevice;
 
   for (const auto& x : funcs) {
     CHECK(ir::VerifyMemory(x, target->device_type))
-        << "Direct host side access to device memory is detected in " << x->func_name()
-        << ". Did you forget to bind?";
+        << "Direct host side access to device memory is detected in "
+        << x->func_name() << ". Did you forget to bind?";
 
     if (x->func_type == kMixedFunc) {
       auto func = x;
@@ -449,6 +450,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
       }
 
       func = ir::ThreadSync(func, "shared");
+      func = ir::ThreadSync(func, "warp");
       func = ir::LowerThreadAllreduce(func, target->thread_warp_size);
       auto fsplits = ir::SplitHostDevice(func);
       fhost.push_back(fsplits[0]);
@@ -464,12 +466,32 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     }
   }
 
+  for (size_t i = 0; i < fdevice.size(); i++) {
+    auto warp_size = target->thread_warp_size;
+    auto func = fdevice[i];
+    func = ir::LowerWarpMemory(fdevice[i], warp_size);
+    fdevice.Set(i, func);
+  }
+
   auto keys = target->keys();
-  bool target_is_gpu =
-    std::find(keys.begin(), keys.end(), "gpu") != keys.end();
+  bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
   if (target_is_gpu && fdevice.size() == 0) {
-    LOG(WARNING) << "Specified target " + target->str() +
-      " but cannot find device code. Did you forget to bind?";
+    LOG(WARNING) << "Specified target "
+                 << target->str()
+                 << " but cannot find device code. Did you forget to bind?";
+  }
+
+  for (size_t i = 0; i < fdevice.size(); ++i) {
+    auto func = fdevice[i];
+    func = ir::LowerIntrin(func, target->target_name);
+    fdevice.Set(i, func);
+  }
+
+  if (target->device_type == target::llvm()->device_type &&
+        target_host == target) {
+    CHECK(fdevice.empty()) << "No device code should be generated when target "
+                           << "and host_target are both llvm target."
+                           << "\n";
   }
 
   for (size_t i = 0; i < fhost.size(); ++i) {
@@ -479,57 +501,120 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
     fhost.Set(i, func);
   }
 
-
-  for (size_t i = 0; i < fdevice.size(); ++i) {
-    auto func = fdevice[i];
-    func = ir::LowerIntrin(func, target->target_name);
-    fdevice.Set(i, func);
-  }
-
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
-    func = ir::LowerIntrin(func, target_host_val->target_name);
+    func = ir::LowerIntrin(func, target_host->target_name);
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }
+  return {fhost, fdevice};
+}
 
-  auto mhost = codegen::Build(fhost, target_host_val->str());
+// Create a module for a specific device (target). The lowered functions
+// associated with the host is returned as well.
+runtime::Module DeviceBuild(const Array<LoweredFunc>& fdevice,
+                            const Target& target) {
+  if (!fdevice.empty()) {
+    return codegen::Build(fdevice, target->str());
+  } else {
+    return runtime::Module(nullptr);
+  }
+}
 
-  if (fdevice.size() > 0) {
-    auto mdev = codegen::Build(fdevice, target->str());
-    mhost.Import(mdev);
+// Build for heterogeneous execution.
+runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
+                      const Target& target_host,
+                      const BuildConfig& config) {
+  Array<LoweredFunc> fhost_all;
+  std::vector<runtime::Module> device_modules;
+
+  Target target_host_val = target_host;
+  if (!target_host.defined()) {
+    for (const auto& it : inputs) {
+      if (it.first->device_type == kDLCPU) {
+        target_host_val = it.first;
+        break;
+      }
+    }
   }
 
+  if (!target_host_val.defined()) {
+    target_host_val = DefaultTargetHost(target_host_val);
+  }
+
+  for (const auto& it : inputs) {
+    auto host_dev_funcs =
+        split_dev_host_funcs(it.second, it.first, target_host_val, config);
+    auto& fhost = host_dev_funcs[0];
+    auto& fdevice = host_dev_funcs[1];
+    // Get the module for a certain target.
+    runtime::Module mdev = DeviceBuild(fdevice, it.first);
+    for (const auto& it : fhost) {
+      fhost_all.push_back(it);
+    }
+    device_modules.push_back(mdev);
+  }
+
+  runtime::Module mhost = codegen::Build(fhost_all, target_host_val->str());
+  // Import all modules
+  for (const auto& it : device_modules) {
+    if (it.operator->()) {
+      mhost.Import(it);
+    }
+  }
   return mhost;
 }
 
-BuildConfig build_config() {
+// Build for heterogeneous execution when target is a string.
+runtime::Module build(const Map<std::string, Array<LoweredFunc>>& inputs,
+                      const Target& target_host,
+                      const BuildConfig& config) {
+  Map<Target, Array<LoweredFunc>> updated_input;
+  for (const auto& it : inputs) {
+    auto target = Target::Create(it.first);
+    updated_input.Set(target, it.second);
+  }
+  return build(updated_input, target_host, config);
+}
+
+// Build for homogeneous execution.
+runtime::Module build(const Array<LoweredFunc>& funcs,
+                      const Target& target,
+                      const Target& target_host,
+                      const BuildConfig& config) {
+  Map<Target, Array<LoweredFunc>> inputs = {{target, funcs}};
+  return build(inputs, target_host, config);
+}
+
+BuildConfig BuildConfig::Create() {
   return BuildConfig(make_node<BuildConfigNode>());
 }
 
 /*! \brief Entry to hold the BuildConfig context stack. */
 struct TVMBuildConfigThreadLocalEntry {
   /*! \brief The default build config if the stack is empty */
-  tvm::BuildConfig default_config;
+  BuildConfig default_config;
 
   /*! \brief The current build config context */
-  std::stack<tvm::BuildConfig> context_stack;
+  std::stack<BuildConfig> context_stack;
 
   TVMBuildConfigThreadLocalEntry() :
-    default_config(build_config()) {
+      default_config(BuildConfig::Create()) {
   }
 };
 
 /*! \brief Thread local store to hold the BuildConfig context stack. */
 typedef dmlc::ThreadLocalStore<TVMBuildConfigThreadLocalEntry> TVMBuildConfigThreadLocalStore;
 
-void BuildConfig::EnterBuildConfigScope(const tvm::BuildConfig& build_config) {
+void BuildConfig::EnterWithScope() {
   TVMBuildConfigThreadLocalEntry *entry = TVMBuildConfigThreadLocalStore::Get();
-  entry->context_stack.push(build_config);
+  entry->context_stack.push(*this);
 }
 
-void BuildConfig::ExitBuildConfigScope() {
+void BuildConfig::ExitWithScope() {
   TVMBuildConfigThreadLocalEntry *entry = TVMBuildConfigThreadLocalStore::Get();
+  CHECK(!entry->context_stack.empty());
+  CHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
@@ -560,6 +645,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "dump_pass_ir=" << op->dump_pass_ir << ", ";
   p->stream << "instrument_bound_checkers=" << op->instrument_bound_checkers << ", ";
   p->stream << "disable_select_rewriting=" << op->disable_select_rewriting;
+  p->stream << "disable_vectorize=" << op->disable_vectorize;
   p->stream << ")";
 });
 
@@ -627,7 +713,7 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
 
 void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   auto node = static_cast<GenericFuncNode*>(node_.get());
-  auto target = Target::current_target(true);
+  auto target = Target::Current(true);
   PackedFunc func;
 
   if (target.defined()) {
@@ -653,16 +739,21 @@ TVM_REGISTER_API("_GetCurrentBuildConfig")
   *ret = BuildConfig::Current();
   });
 
+class BuildConfig::Internal {
+ public:
+  static void EnterScope(BuildConfig target) {
+    target.EnterWithScope();
+  }
+  static void ExitScope(BuildConfig target) {
+    target.ExitWithScope();
+  }
+};
+
 TVM_REGISTER_API("_EnterBuildConfigScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  BuildConfig target = args[0];
-  BuildConfig::EnterBuildConfigScope(target);
-  });
+.set_body_typed(BuildConfig::Internal::EnterScope);
 
 TVM_REGISTER_API("_ExitBuildConfigScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  BuildConfig::ExitBuildConfigScope();
-  });
+.set_body_typed(BuildConfig::Internal::ExitScope);
 
 TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -749,18 +840,23 @@ TVM_REGISTER_API("_GenericFuncCallFunc")
 TVM_REGISTER_API("_GetCurrentTarget")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   bool allow_not_defined = args[0];
-  *ret = Target::current_target(allow_not_defined);
+  *ret = Target::Current(allow_not_defined);
   });
+
+class Target::Internal {
+ public:
+  static void EnterScope(Target target) {
+    target.EnterWithScope();
+  }
+  static void ExitScope(Target target) {
+    target.ExitWithScope();
+  }
+};
 
 TVM_REGISTER_API("_EnterTargetScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  Target target = args[0];
-  Target::EnterTargetScope(target);
-  });
+.set_body_typed(Target::Internal::EnterScope);
 
 TVM_REGISTER_API("_ExitTargetScope")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  Target::ExitTargetScope();
-  });
+.set_body_typed(Target::Internal::ExitScope);
 
 }  // namespace tvm

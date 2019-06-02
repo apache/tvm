@@ -97,15 +97,19 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
     if (old_in_shapes[defined_idx].size() >= old_in_shapes[undef_idx].size()) {
       layouts.Set(undef_idx,
                   layouts[defined_idx].SubLayout(
-                  old_in_shapes[defined_idx].size() - old_in_shapes[undef_idx].size(),
-                  old_in_shapes[undef_idx].size()));
-      return Array<Array<Layout> > {layouts, {layouts[defined_idx]}};
+                      old_in_shapes[defined_idx].size() - old_in_shapes[undef_idx].size(),
+                      old_in_shapes[undef_idx].size()));
+      return Array<Array<Layout> >{layouts, {layouts[defined_idx]}};
     } else {
       // only know the tensor with smaller dimensions,
       // so we cannot infer the final broadcasted output.
       // fails in this case.
-      return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
+      return Array<Array<Layout> >{{Layout::Undef()}, {Layout::Undef()}};
     }
+  } else if (layouts[0].defined() && layouts[1].defined() &&
+            (layouts[0].ndim() == 0 || layouts[1].ndim() == 0)) {
+    int scalar = layouts[0].ndim() == 0 ? 0 : 1;
+    return Array<Array<Layout> >{layouts, {layouts[1-scalar]}};
   } else {
     // try to broadcast the tensors to the larger dimension
     int large_idx = layouts[0].ndim_primal() >= layouts[1].ndim_primal() ? 0 : 1;

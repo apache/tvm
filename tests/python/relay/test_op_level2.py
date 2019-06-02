@@ -86,9 +86,13 @@ def test_conv2d_run():
                         fref=None,
                         groups=1,
                         dilation=(1, 1),
+                        except_targets=None,
                         **attrs):
-        x = relay.var("x", shape=dshape)
-        w = relay.var("w")
+        if except_targets is None:
+          except_targets = []
+          
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
         y = relay.nn.conv2d(x, w,
                             padding=padding,
                             dilation=dilation,
@@ -100,11 +104,15 @@ def test_conv2d_run():
         dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
         if fref is None:
             ref_res = topi.testing.conv2d_nchw_python(
-                data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding)
+                data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding,
+                groups=groups)
         else:
             ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
 
+
         for target, ctx in ctx_list():
+            if target in except_targets:
+                continue
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
@@ -116,6 +124,21 @@ def test_conv2d_run():
                     padding=(1, 1), channels=32, groups=32, kernel_size=(3 ,3),
                     fref=lambda x, w: topi.testing.depthwise_conv2d_python_nchw(
                         x, w, (1, 1), "SAME"))
+
+    # CUDA is disabled for 'direct' schedule:
+    # https://github.com/dmlc/tvm/pull/3070#issuecomment-486597553
+    # group conv2d
+    dshape = (1, 32, 18, 18)
+    kshape = (32, 4, 3, 3)
+    run_test_conv2d("float32", "float32", 1, dshape, kshape,
+                    padding=(1, 1), channels=32, groups=8, kernel_size=(3 ,3),
+                    except_targets=['cuda'])
+    # also group conv2d
+    dshape = (1, 32, 18, 18)
+    kshape = (64, 1, 3, 3)
+    run_test_conv2d("float32", "float32", 1, dshape, kshape,
+                    padding=(1, 1), channels=64, groups=32, kernel_size=(3 ,3),
+                    except_targets=['cuda'])
 
     # normal conv2d
     dshape = (1, 3, 224, 224)
@@ -293,7 +316,6 @@ def test_avg_pool2d_no_count_pad():
         op_res1 = intrp1.evaluate(func)(data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
-
 def test_flatten_infer_type():
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
     x = relay.var("x", relay.TensorType((d1, d2, d3, d4), "float32"))
@@ -463,7 +485,7 @@ def _test_upsampling(layout, method):
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "NEAREST_NEIGHBOR":
-        ref = topi.testing.upsampling_python(data, scale, layout)
+        ref = topi.testing.upsampling_python(data, (scale, scale), layout)
     else:
         ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
     for target, ctx in ctx_list():

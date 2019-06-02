@@ -55,11 +55,18 @@ elseif(PYTHON)
     set_target_properties(vta PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
   endif(APPLE)
 
-  # PYNQ rules for Pynq v2.3
+  # PYNQ rules for Pynq v2.4
   if(${VTA_TARGET} STREQUAL "pynq")
     find_library(__cma_lib NAMES cma PATH /usr/lib)
     target_link_libraries(vta ${__cma_lib})
   endif()
+
+  if(NOT USE_VTA_TSIM STREQUAL "OFF")
+    include_directories("vta/include")
+    file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
+  endif()
+
 else()
   message(STATUS "Cannot found python in env, VTA build is skipped..")
 endif()

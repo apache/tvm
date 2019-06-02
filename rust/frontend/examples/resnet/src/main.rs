@@ -84,7 +84,7 @@ fn main() {
     let runtime_create_fn = Function::get("tvm.graph_runtime.create").unwrap();
     let runtime_create_fn_ret = call_packed!(
         runtime_create_fn,
-        &graph,
+        graph,
         &lib,
         &ctx.device_type,
         &ctx.device_id
@@ -107,8 +107,7 @@ fn main() {
         .get_function("set_input", false)
         .unwrap();
 
-    let data_str = "data".to_string();
-    call_packed!(set_input_fn, &data_str, &input).unwrap();
+    call_packed!(set_input_fn, "data".to_string(), &input).unwrap();
     // get `run` function from runtime module
     let ref run_fn = graph_runtime_module.get_function("run", false).unwrap();
     // execute the run function. Note that it has no argument

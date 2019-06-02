@@ -18,34 +18,36 @@
  */
 
 /*!
- * \file tvm/relay/logging.h
- * \brief A wrapper around dmlc-core/logging.h which adds the ability
- * to toggle logging via an environment variable.
+ * \file tvm/relay/attrs/vision.h
+ * \brief Auxiliary attributes for vision operators.
  */
+#ifndef TVM_RELAY_ATTRS_ALGORITHM_H_
+#define TVM_RELAY_ATTRS_ALGORITHM_H_
 
-#ifndef TVM_RELAY_LOGGING_H_
-#define TVM_RELAY_LOGGING_H_
-
-#include <dmlc/logging.h>
+#include <tvm/attrs.h>
 #include <string>
-#include <cstdlib>
-#include <iostream>
 
 namespace tvm {
 namespace relay {
 
-static bool logging_enabled() {
-  if (auto var = std::getenv("RELAY_LOG")) {
-    std::string is_on(var);
-    return is_on == "1";
-  } else {
-      return false;
-  }
-}
+/*! \brief Attributes used in argsort operators */
+struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
+  int axis;
+  bool is_ascend;
+  DataType dtype;
 
-#define RELAY_LOG(severity) LOG_IF(severity, logging_enabled())
+  TVM_DECLARE_ATTRS(ArgsortAttrs, "relay.attrs.ArgsortAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(-1)
+      .describe("Axis along which to sort the input tensor."
+                "If not given, the flattened array is used.");
+    TVM_ATTR_FIELD(is_ascend).set_default(true)
+      .describe("Whether to sort in ascending or descending order."
+                "By default, sort in ascending order");
+    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
+      .describe("DType of the output indices.");
+  }
+};
 
 }  // namespace relay
 }  // namespace tvm
-
-#endif  // TVM_RELAY_LOGGING_H_
+#endif  // TVM_RELAY_ATTRS_ALGORITHM_H_

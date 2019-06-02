@@ -208,7 +208,50 @@ def test_shape_of():
             tvm.testing.assert_allclose(op_res.asnumpy(),
                                         np.array(shape).astype('int32'))
 
+def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
+    def start_index(index, odim, idim):
+        return int(np.floor(index * idim / odim))
+
+    def end_index(index, odim, idim):
+        return int(np.ceil((index + 1) * idim / odim))
+
+    np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
+    n, c, h, w = dshape
+    oh, ow = out_size
+    oshape = (n, c) + out_size
+    np_out = np.zeros(oshape).astype(dtype)
+    np_op = np.mean if pool_type == "avg" else np.max
+    for i in range(n):
+        for j in range(c):
+            for k in range(oh):
+                k_start = start_index(k, oh, h)
+                k_end = end_index(k, oh, h)
+                k_sl = slice(k_start, k_end)
+                for l in range(ow):
+                    l_start = start_index(l, ow, w)
+                    l_end = end_index(l, ow, w)
+                    l_sl = slice(l_start, l_end)
+                    np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
+
+    opfunc = relay.contrib.adaptive_avg_pool2d if pool_type == "avg" else relay.contrib.adaptive_max_pool2d
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    y = opfunc(x, out_size, layout)
+    func = relay.Function([x], y)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        relay_out = intrp1.evaluate(func)(np_data)
+        tvm.testing.assert_allclose(relay_out.asnumpy(), np_out, rtol=1e-5, atol=1e-5)
+
+def test_adaptive_pool2d():
+    verify_adaptive_pool2d((1, 9, 224, 224), (1, 1), "max")
+    verify_adaptive_pool2d((1, 3, 224, 224), (2, 3), "avg")
+    verify_adaptive_pool2d((1, 14, 56, 78), (34, 13), "max")
+    verify_adaptive_pool2d((1, 5, 46, 97), (4, 96), "avg")
+
+
 if __name__ == "__main__":
+    test_adaptive_pool2d()
     test_collapse_sum_like()
     test_broadcast_to_like()
     test_slice_like()

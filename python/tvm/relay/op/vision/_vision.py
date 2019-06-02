@@ -103,12 +103,15 @@ def compute_nms(attrs, inputs, _, target):
     iou_threshold = get_const_float(attrs.iou_threshold)
     force_suppress = bool(get_const_int(attrs.force_suppress))
     top_k = get_const_int(attrs.top_k)
+    coord_start = get_const_int(attrs.coord_start)
+    score_index = get_const_int(attrs.score_index)
     id_index = get_const_int(attrs.id_index)
     invalid_to_bottom = bool(get_const_int(attrs.invalid_to_bottom))
     return [
         topi.vision.non_max_suppression(inputs[0], inputs[1], max_output_size,
                                         iou_threshold, force_suppress, top_k,
-                                        id_index, return_indices, invalid_to_bottom)
+                                        coord_start, score_index, id_index,
+                                        return_indices, invalid_to_bottom)
     ]
 
 

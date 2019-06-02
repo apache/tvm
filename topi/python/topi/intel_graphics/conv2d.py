@@ -54,7 +54,6 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
 
 @conv2d_alter_layout.register(["intel_graphics"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, F):
-    import nnvm.symbol as sym
 
     copy_inputs = [s for s in inputs]
 
@@ -73,9 +72,13 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
             break
 
     new_attrs = {k: attrs[k] for k in attrs.keys()}
-    new_attrs['kernel_layout'] = 'OIHW%do' % (oc_bn)
+    new_attrs["kernel_layout"] = 'OIHW%do' % (oc_bn)
 
-    if F == sym:
+    if F.__name__ == 'tvm.relay.op':
+        # Derive channels for frontends (e.g ONNX) that miss "channel" field.
+        new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
+
+    if F.__name__ == 'nnvm.symbol':
         out = F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
     else:
         out = F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)

@@ -103,6 +103,7 @@ typedef enum {
   kStr = 11U,
   kBytes = 12U,
   kNDArrayContainer = 13U,
+  kObject = 14U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
@@ -112,7 +113,9 @@ typedef enum {
   kNNVMLast = 20U,
   // The following section of code is used for non-reserved types.
   kExtReserveEnd = 64U,
-  kExtEnd = 128U
+  kExtEnd = 128U,
+  // The rest of the space is used for custom, user-supplied datatypes
+  kCustomBegin = 129U,
 } TVMTypeCode;
 
 /*!

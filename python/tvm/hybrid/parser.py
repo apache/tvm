@@ -25,7 +25,7 @@ import numbers
 
 from enum import Enum
 
-from .util import _internal_assert
+from .util import _internal_assert, _apply_indices
 from . import calls
 from . import util
 from .preprocessor import determine_variable_usage
@@ -112,7 +112,7 @@ class HybridParser(ast.NodeVisitor):
     }
 
 
-    def __init__(self, args, usage, symbols, func_name=None):
+    def __init__(self, args, usage, symbols, closure_vars, func_name=None):
         """
         Parameters
         ----------
@@ -121,6 +121,12 @@ class HybridParser(ast.NodeVisitor):
 
         usage: A dict of variables used in last in this function
             Provided by last lower pass, which collects this information
+
+        symbols : list of str
+            The symbol list of the global context of the function.
+
+        closure_vars: dict
+            A dict of external name reference captured by this function.
 
         Returns
         -------
@@ -135,6 +141,8 @@ class HybridParser(ast.NodeVisitor):
         for k, v in symbols.items():
             if isinstance(v, types.FunctionType):
                 self.add_symbol(k, Symbol.Callable, v)
+
+        self.closure_vars = closure_vars
 
         self.binds = {} # Thread binds
         self.device = 0 # Is it generating device
@@ -236,7 +244,11 @@ class HybridParser(ast.NodeVisitor):
     def visit_Name(self, node):
         name = node.id
         if sys.version_info[0] == 2 and name in ['True', 'False']:
-            return _api.convert(eval(name)) #pylint: disable=eval-used
+            return _api.convert(ast.literal_eval(name))
+
+        if name in self.closure_vars:
+            return _api.convert(self.closure_vars[name])
+
         ty, entry = self.symbols[name]
         _internal_assert(name in self.symbols, "Unknown symbol %s!" % name)
         if ty in [Symbol.LoopVar, Symbol.Input, Symbol.ConstLoopVar]:
@@ -356,10 +368,12 @@ class HybridParser(ast.NodeVisitor):
         buf = self.visit(node.value)
         return getattr(buf, node.attr)
 
-
     def visit_Subscript(self, node):
         args = self.visit(node.slice)
         if isinstance(node.value, ast.Name):
+            if node.value.id in self.closure_vars:
+                args = ast.literal_eval(str(args))
+                return _api.convert(_apply_indices(self.closure_vars[node.value.id], args))
 
             buf = self.visit(node.value)
             if isinstance(buf, Array):
@@ -576,7 +590,7 @@ class HybridParser(ast.NodeVisitor):
         return _make.AssertStmt(test, mesg, util.make_nop())
 
 
-def parse_python(src, symbols, args):
+def parse_python(src, args, symbols, closure_vars):
     """The helper function of calling the AST visitor
 
     Parameters
@@ -585,13 +599,16 @@ def parse_python(src, symbols, args):
         If an ast.node, then directly lower it.
         If a str, then parse it to ast and lower it.
 
-    symbols : str
-        The symbol list of the global context of the function.
-
     args : list of Tensors or Vars
         The argument lists to the function.
         It is NOT encouraged to write a function without arguments.
         It is NOT encouraged to write a function with side effect.
+
+    symbols : list of str
+        The symbol list of the global context of the function.
+
+    closure_vars: dict
+        A dict of external name reference captured by this function.
 
     Returns
     -------
@@ -600,14 +617,14 @@ def parse_python(src, symbols, args):
     """
     root = ast.parse(src) if isinstance(src, str) else src
     _internal_assert(root, ast.AST)
-    var_usage = determine_variable_usage(root, args, symbols)
-    parser = HybridParser(args, var_usage, symbols)
+    var_usage = determine_variable_usage(root, args, symbols, closure_vars)
+    parser = HybridParser(args, var_usage, symbols, closure_vars)
     parser.parsed_body = parser.visit(root)
     _internal_assert(parser.returned, 'No valid return found in the function body!')
     return parser
 
 
-def source_to_op(src, symbols, args):
+def source_to_op(src, args, symbols, closure_vars):
     """Another level of wrapper
 
     Parameters
@@ -616,20 +633,23 @@ def source_to_op(src, symbols, args):
         If an ast.node, then directly lower it.
         If a str, then parse it to ast and lower it.
 
-    symbols : str
-        The symbol list of the global context of the function.
-
     args : list of Tensors or Vars
         The argument lists to the function.
         It is NOT encouraged to write a function without arguments.
         It is NOT encouraged to write a function with side effect.
+
+    symbols : list of str
+        The symbol list of the global context of the function.
+
+    closure_vars: dict
+        A dict of external name reference captured by this function.
 
     Returns
     -------
     res : list of output tensors
         The result of output tensors of the formed OpNode.
     """
-    parser = parse_python(src, symbols, args)
+    parser = parse_python(src, args, symbols, closure_vars)
 
     input_tensors = []
     for i in args:

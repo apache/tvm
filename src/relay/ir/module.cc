@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -59,9 +59,13 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
 
 GlobalVar ModuleNode::GetGlobalVar(const std::string& name) {
   auto it = global_var_map_.find(name);
-  CHECK(it != global_var_map_.end())
-      << "Cannot find global var " << name << " in the Module";
-  return (*it).second;
+  if (it == global_var_map_.end()) {
+    auto gvar = GlobalVarNode::make(name);
+    global_var_map_.Set(name, gvar);
+    return gvar;
+  } else {
+    return (*it).second;
+  }
 }
 
 void ModuleNode::AddUnchecked(const GlobalVar& var,
@@ -214,6 +218,11 @@ TVM_REGISTER_API("relay._module.Module_LookupDef_str")
 .set_body_typed<TypeData(Module, std::string)>([](Module mod, std::string var) {
     return mod->LookupDef(var);
   });
+
+TVM_REGISTER_API("relay._module.Module_FromExpr")
+.set_body_typed<Module(Expr)>([](Expr e) {
+    return ModuleNode::FromExpr(e);
+});
 
 TVM_REGISTER_API("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {

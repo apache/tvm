@@ -332,14 +332,36 @@ struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
   }
 };
 
+/*! \brief Attributes for adaptive pool operator */
+struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
+  Array<IndexExpr> output_size;
+  std::string layout;
+
+  TVM_DECLARE_ATTRS(AdaptivePool2DAttrs, "relay.attrs.AdaptivePool2DAttrs") {
+    TVM_ATTR_FIELD(output_size).set_default(Array<IndexExpr>({}))
+      .describe("Output height and width.");
+    TVM_ATTR_FIELD(layout).set_default("NCHW")
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                  "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                  "dimensions respectively. Convolution is applied on the 'H' and"
+                  "'W' dimensions.");
+  }
+};
+
 
 /*! \brief Attributes for dense operator */
 struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   IndexExpr units;
+  DataType out_dtype;
 
   TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
     TVM_ATTR_FIELD(units)
         .describe("Number of hidden units of the dense transformation.");
+
+    // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
   }
 };
 

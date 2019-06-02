@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,6 +28,7 @@
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/image.h>
 #include <topi/nn.h>
+#include <topi/nn/bias_add.h>
 #include <topi/nn/softmax.h>
 #include <topi/nn/flatten.h>
 #include <vector>
@@ -90,7 +91,12 @@ RELAY_REGISTER_OP("nn.bias_add")
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("bias", "1D Tensor", "Bias.")
 .set_support_level(1)
-.add_type_rel("BiasAdd", BiasAddRel);
+.add_type_rel("BiasAdd", BiasAddRel)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<Tensor>& inputs,
+                                        const Type& out_type, const Target& target) {
+    const auto* param = attrs.as<BiasAddAttrs>();
+    return tvm::Array<tvm::Tensor>{topi::nn::bias_add(inputs[0], inputs[1], param->axis)};
+});
 
 
 // relay.nn.dense
@@ -125,8 +131,12 @@ bool DenseRel(const Array<Type>& types,
     oshape.Set((oshape.size() - 1), wshape[0]);
   }
 
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }
 
@@ -134,9 +144,11 @@ bool DenseRel(const Array<Type>& types,
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeDense(Expr data,
                Expr weight,
-               IndexExpr units) {
+               IndexExpr units,
+               DataType out_dtype) {
   auto attrs = make_node<DenseAttrs>();
   attrs->units = units;
+  attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
@@ -226,6 +238,23 @@ bool PReluRel(const Array<Type>& types,
   return true;
 }
 
+template<typename T>
+Array<Array<Layout> > PReluInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+
+  CHECK_EQ(old_in_layouts.size(), 2U);
+  CHECK_EQ(old_in_shapes.size(), 2U);
+  Layout data_layout = old_in_layouts[0];
+  if (new_in_layouts.defined()) {
+    CHECK_EQ(new_in_layouts.size(), 2U);
+  }
+  return Array<Array<Layout> >{{data_layout, Layout("C")},
+                               {data_layout}};
+}
+
 // Positional relay function to create prelu operator used by frontend FFI.
 Expr MakePRelu(Expr data,
                Expr alpha,
@@ -253,7 +282,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 .add_argument("alpha", "Tensor", "Input channelwise alpha.")
 .set_support_level(3)
 .add_type_rel("PRelu", PReluRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout<PReluAttrs>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
                     const Array<Tensor>& inputs,
@@ -658,7 +687,7 @@ bool BatchMatmulRel(const Array<Type>& types,
   const auto* x = types[0].as<TensorTypeNode>();
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
-  if (x->shape.size() != 3 || y->shape.size() != 3) return false;
+  CHECK(x->shape.size() == 3 && y->shape.size() == 3);
   CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
       << "BatchDot: batch dimension doesn't match, "
       << " x shape=" << x->shape

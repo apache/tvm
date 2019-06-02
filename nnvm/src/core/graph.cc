@@ -78,6 +78,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
              (const NodePtr& n) {
       CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
       uint32_t nid = static_cast<uint32_t>(nodes_.size());
+      CHECK(n);
       for (const auto &subgraph : n->attrs.subgraphs)
         subgraphs.push_back(subgraph);
       // nodes_

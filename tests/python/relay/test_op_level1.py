@@ -30,6 +30,10 @@ def relu(x):
     np.maximum(x_copy, 0, x_copy)
     return x_copy
 
+def rsqrt(x):
+    one = np.ones_like(x)
+    return one / np.sqrt(x)
+
 def test_unary_op():
     def check_single_op(opfunc, ref):
         shape = (10, 4)
@@ -38,7 +42,7 @@ def test_unary_op():
         x = relay.var("x", tp)
         y = opfunc(x)
         # test printer
-        assert ("%0 = {}(%x)".format(y.op.name)) in y.astext()
+        assert ("{}(%x)".format(y.op.name)) in y.astext()
         # test type inference
         assert relay.ir_pass.infer_type(y).checked_type == tp
 
@@ -57,6 +61,7 @@ def test_unary_op():
     for opfunc, ref in [(tvm.relay.log, np.log),
                         (tvm.relay.exp, np.exp),
                         (tvm.relay.sqrt, np.sqrt),
+                        (tvm.relay.rsqrt, rsqrt),
                         (tvm.relay.sigmoid, sigmoid),
                         (tvm.relay.tanh, np.tanh),
                         (relay.nn.relu, relu)]:
@@ -78,7 +83,7 @@ def test_binary_op():
         y = relay.var("y", t2)
         z = opfunc(x, y)
         # test printer
-        assert ("%0 = {}(%x, %y)".format(z.op.name)) in z.astext()
+        assert ("{}(%x, %y)".format(z.op.name)) in z.astext()
         assert relay.ir_pass.infer_type(z).checked_type == t1
 
         if ref is not None:

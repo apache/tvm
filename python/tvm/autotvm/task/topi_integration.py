@@ -74,7 +74,7 @@ class TaskExtractEnv:
     """Global environment for extracting tuning tasks from nnvm graph"""
     current = None
 
-    def __init__(self):
+    def __init__(self, allow_duplicate=False):
         import topi
 
         # topi compute -> autotvm task name
@@ -87,6 +87,7 @@ class TaskExtractEnv:
             topi.nn.dense: "topi_nn_dense",
             topi.nn.bitserial_conv2d_nchw: "topi_nn_bitserial_conv2d_nchw",
             topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
+            topi.nn.bitserial_dense: "topi_nn_bitserial_dense",
             topi.nn.deformable_conv2d_nchw: "topi_nn_deformable_conv2d_nchw",
         }
 
@@ -101,9 +102,11 @@ class TaskExtractEnv:
             topi.nn.dense: [topi.generic.schedule_dense],
             topi.nn.bitserial_conv2d_nchw: [topi.generic.schedule_bitserial_conv2d_nchw],
             topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
+            topi.nn.bitserial_dense: [topi.generic.schedule_bitserial_dense],
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
         }
 
+        self.allow_duplicate = allow_duplicate
         self._register_tracing()
         self._register_topi_task()
         self.task_collection = []
@@ -121,10 +124,9 @@ class TaskExtractEnv:
                     assert not kwargs, "Do not support extracting tuning tasks when" \
                                        "kwargs is used in TOPI function call." \
                                        "Please modify it to use only positional args."
-
                     if compute_func in self.wanted_topi_funcs:  # record this call
                         key = (self.topi_to_task[compute_func], serialize_args(args))
-                        if key not in self.task_collection:
+                        if self.allow_duplicate or key not in self.task_collection:
                             self.task_collection.append(key)
                     return compute_func.fdefault(*args)
             _local_scope(topi_compute)
@@ -188,7 +190,7 @@ class TaskExtractEnv:
         def _topi_nn_dense(*args, **kwargs):
             assert not kwargs, "Do not support kwargs in template function call"
             args = deserialize_args(args)
-            data, weight, bias = args
+            data, weight, bias, _ = args
             C = topi.nn.dense(*args, **kwargs)
             s = topi.generic.schedule_dense([C])
             if bias is not None:
@@ -200,18 +202,25 @@ class TaskExtractEnv:
             args = deserialize_args(args)
             C = topi.nn.bitserial_conv2d_nhwc(*args, **kwargs)
             s = topi.generic.nn.schedule_bitserial_conv2d_nhwc([C])
-            data = args[0]
-            kernel = args[1]
-            return s, [data, kernel, C]
+            A, W = args[:2]
+            return s, [A, W, C]
 
         @register("topi_nn_bitserial_conv2d_nchw")
         def _topi_bitserial_conv2d_nchw(*args, **kwargs):
             args = deserialize_args(args)
             C = topi.nn.bitserial_conv2d_nchw(*args, **kwargs)
             s = topi.generic.nn.schedule_bitserial_conv2d_nchw([C])
-            data = args[0]
-            kernel = args[1]
-            return s, [data, kernel, C]
+            A, W = args[:2]
+            return s, [A, W, C]
+
+        @register("topi_nn_bitserial_dense")
+        def _topi_nn_bitserial_dense(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            A, W = args[:2]
+            C = topi.nn.bitserial_dense(*args, **kwargs)
+            s = topi.generic.schedule_bitserial_dense([C])
+            return s, [A, W, C]
 
         @register("topi_nn_deformable_conv2d_nchw")
         def _topi_nn_deformable_conv2d_nchw(*args, **kwargs):
@@ -253,8 +262,15 @@ class TaskExtractEnv:
         return self.task_collection
 
     @staticmethod
-    def get():
+    def get(allow_duplicate=False):
         """Get the single instance of TaskExtractEnv
+
+        Parameters
+        ----------
+        allow_duplicate : boolean
+            Whether to fetch all workloads in the network,
+            even though some of them are the same. This is
+            useful for graph tuning.
 
         Returns
         -------
@@ -262,7 +278,9 @@ class TaskExtractEnv:
             The single instance of TaskExtractEnv
         """
         if not TaskExtractEnv.current:
-            TaskExtractEnv.current = TaskExtractEnv()
+            TaskExtractEnv.current = TaskExtractEnv(allow_duplicate)
+        else:
+            TaskExtractEnv.current.allow_duplicate = allow_duplicate
         return TaskExtractEnv.current
 
 

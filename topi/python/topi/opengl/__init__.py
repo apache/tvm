@@ -6,4 +6,4 @@ from .conv2d_nchw import schedule_conv2d_nchw
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
 from .softmax import schedule_softmax
 from .dense import schedule_dense
-from .pooling import schedule_pool, schedule_global_pool
+from .pooling import schedule_pool, schedule_adaptive_pool

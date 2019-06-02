@@ -35,7 +35,7 @@ and Firefly-RK3399 for opencl example.
 # Build TVM Runtime on Device
 # ---------------------------
 #
-# The first step is to build tvm runtime on the remote device.
+# The first step is to build the TVM runtime on the remote device.
 #
 # .. note::
 #
@@ -43,8 +43,8 @@ and Firefly-RK3399 for opencl example.
 #   executed on the target device, e.g. Raspberry Pi. And we assume it
 #   has Linux running.
 #
-# Since we do compilation on local machine, the remote device is only used
-# for running the generated code. We only need to build tvm runtime on
+# Since we do compilation on the local machine, the remote device is only used
+# for running the generated code. We only need to build the TVM runtime on
 # the remote device.
 #
 # .. code-block:: bash

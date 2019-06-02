@@ -52,6 +52,22 @@ def allocate(shape, dtype='float32', scope='global'): #pylint: disable=unused-ar
     return numpy.zeros(shape).astype(dtype)
 
 
+def rsqrt(x):
+    """
+    Computes reciprocal of square root of x element-wise
+
+    Parameters
+    ----------
+    x: Tensor
+
+    Returns
+    -------
+    res: Tensor
+        The result of reciprocal of square root of x
+    """
+    return numpy.ones_like(x) / numpy.sqrt(x)
+
+
 def popcount(x):
     """
     Count ones in the binary representation of number x
@@ -103,6 +119,7 @@ HYBRID_GLOBALS = {
     'allocate'       : allocate,
     'output_tensor'  : allocate,
     'sqrt'           : numpy.sqrt,
+    'rsqrt'          : rsqrt,
     'log'            : numpy.log,
     'tanh'           : numpy.tanh,
     'power'          : numpy.power,

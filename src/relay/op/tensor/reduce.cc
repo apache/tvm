@@ -154,6 +154,9 @@ Array<Tensor> ReduceCompute(const Attrs& attrs,
                             F f) {
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   CHECK(param != nullptr);
+  if (inputs[0]->shape.size() == 0) {
+    return { topi::identity(inputs[0]) };
+  }
   auto axes = param->axis;
   if (param->exclude) {
     axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
@@ -251,7 +254,6 @@ bool ReduceRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
-  CHECK(static_cast<int>(data->shape.size()) != 0);
   std::vector<IndexExpr>&& in_shape = AsVector(data->shape);
 
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
@@ -350,6 +352,43 @@ Example::
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", SumCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
+Array<Tensor> AllCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::all);
+}
+
+
+RELAY_REGISTER_REDUCE_OP("all")
+.describe(R"code(Computes the logical AND of boolean array elements over given axes.
+
+Example::
+
+  data = [[[ True,  True,  True],
+           [ True,  True,  True],
+           [False,  True, False]],
+          [[ True, False, False],
+           [ True,  True, False],
+           [False,  True,  True]]]
+
+  all(data, axis=1)
+  [[False,  True, False],
+   [False, False, False]]
+
+  all(data, axis=0)
+  [[ True, False, False],
+   [ True,  True, False],
+   [False,  True, False]]
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", AllCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 

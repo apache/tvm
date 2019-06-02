@@ -69,8 +69,16 @@ def test_compile_injective_with_tuple():
     relay.build(func, 'llvm')
 
 
+def test_compile_tuple_dup():
+    x = relay.var("data", shape=(16, 16))
+    log = relay.log(x)
+    output = relay.Tuple([log, log])
+    f = relay.Function([x], output)
+    relay.build(f, 'llvm')
+
+
 if __name__ == "__main__":
     test_compile_engine()
     test_compile_placeholder_bypass()
     test_compile_injective_with_tuple()
-
+    test_compile_tuple_dup()

@@ -19,13 +19,13 @@
 
 Install from Source
 ===================
-This page gives instructions on how to build and install the tvm package from
+This page gives instructions on how to build and install the TVM package from
 scratch on various systems. It consists of two steps:
 
 1. First build the shared library from the C++ codes (`libtvm.so` for linux, `libtvm.dylib` for macOS and `libtvm.dll` for windows).
 2. Setup for the language packages (e.g. Python Package).
 
-To get started, clone tvm repo from github. It is important to clone the submodules along, with ``--recursive`` option.
+To get started, clone TVM repo from github. It is important to clone the submodules along, with ``--recursive`` option.
 
 .. code:: bash
 
@@ -63,7 +63,7 @@ The minimal building requirements are
 - If you want to use the NNVM compiler, then LLVM is required
 
 We use cmake to build the library.
-The configuration of tvm can be modified by `config.cmake`.
+The configuration of TVM can be modified by `config.cmake`.
 
 
 - First, check the cmake in your system. If you do not have cmake,
@@ -111,7 +111,7 @@ Building on Windows
 
 TVM support build via MSVC using cmake. The minimum required VS version is **Visual Studio Community 2015 Update 3**.
 In order to generate the VS solution file using cmake,
-make sure you have a recent version of cmake added to your path and then from the tvm directory:
+make sure you have a recent version of cmake added to your path and then from the TVM directory:
 
 .. code:: bash
 
@@ -159,7 +159,7 @@ Method 1
 
 
 Method 2
-   Install tvm python bindings by `setup.py`:
+   Install TVM python bindings by `setup.py`:
 
    .. code:: bash
 

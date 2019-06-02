@@ -207,24 +207,53 @@ void BoundDeducer::Init() {
 }
 
 void BoundDeducer::Transform() {
+  // We will ensure to set expr_ such that it contains target_
   if (const LT* op = expr_.as<LT>()) {
-    is_greater = false;
-    expr_      = op->a;
-    // a < b -> a <= b - 1
-    result     = op->b - 1;
+    if (GetPath(target_, op->a).empty()) {
+      // a < b -> b >= a + 1
+      is_greater = true;
+      expr_ = op->b;
+      result = op->a + 1;
+    } else {
+      // a < b -> a <= b - 1
+      is_greater = false;
+      expr_ = op->a;
+      result = op->b - 1;
+    }
   } else if (const LE* op = expr_.as<LE>()) {
-    is_greater = false;
-    expr_      = op->a;
-    result     = op->b;
+    if (GetPath(target_, op->a).empty()) {
+      // a <= b -> b >= a
+      is_greater = true;
+      expr_ = op->b;
+      result = op->a;
+    } else {
+      is_greater = false;
+      expr_ = op->a;
+      result = op->b;
+    }
   } else if (const GT* op = expr_.as<GT>()) {
-    is_greater = true;
-    expr_      = op->a;
-    // a > b -> a >= b + 1
-    result     = op->b + 1;
+    if (GetPath(target_, op->a).empty()) {
+      // a > b -> b <= a - 1
+      is_greater = false;
+      expr_ = op->b;
+      result = op->a - 1;
+    } else {
+      // a > b -> a >= b + 1
+      is_greater = true;
+      expr_ = op->a;
+      result = op->b + 1;
+    }
   } else if (const GE* op = expr_.as<GE>()) {
-    is_greater = true;
-    expr_      = op->a;
-    result     = op->b;
+    if (GetPath(target_, op->a).empty()) {
+      // a >= b -> b <= a
+      is_greater = false;
+      expr_ = op->b;
+      result = op->a;
+    } else {
+      is_greater = true;
+      expr_ = op->a;
+      result = op->b;
+    }
   } else {
     success = false;
   }

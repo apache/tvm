@@ -206,6 +206,37 @@ Expr ForwardRewrite(const Expr& expr,
   return ForwardRewriter(&rewrite_func, fcontext, fmulti_ref_trigger).Rewrite(expr);
 }
 
+namespace transform {
+
+using std::function;
+
+Pass ForwardRewrite(const std::string& rewrite_map_attr_name,
+                    function<NodeRef(const Call&)> fcontext,
+                    function<Expr(const Expr&)> fmulti_ref_trigger) {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(ForwardRewrite(f,
+                                             rewrite_map_attr_name,
+                                             fcontext,
+                                             fmulti_ref_trigger));
+  };
+  return CreateFunctionPass(pass_func, 1, "forward_rewrite", {});
+}
+
+Pass ForwardRewrite(const FForwardRewrite& rewrite_func,
+                    function<NodeRef(const Call&)> fcontext,
+                    function<Expr(const Expr&)> fmulti_ref_trigger) {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(ForwardRewrite(f,
+                                             rewrite_func,
+                                             fcontext,
+                                             fmulti_ref_trigger));
+  };
+  return CreateFunctionPass(pass_func, 1, "forward_rewrite", {});
+}
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

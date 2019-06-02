@@ -30,7 +30,9 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/pass.h>
 #include <tvm/data_layout.h>
+#include "pattern_util.h"
 
 namespace tvm {
 namespace relay {
@@ -65,7 +67,7 @@ int64_t ConvMacCount(const Call& call_node) {
   }
   Array<Expr> args = call_node->args;
   CHECK(args.size() == 2)
-      << "The number of input arguments of a CONV 2D node should be 2.";
+    << "The number of input arguments of a CONV 2D node should be 2.";
   const auto* conv_2d_attr = call_node->attrs.as<Conv2DAttrs>();
   const auto* data_type = args[0]->checked_type().as<TensorTypeNode>();
   Array<IndexExpr> data_shape = data_type->shape;
@@ -73,18 +75,21 @@ int64_t ConvMacCount(const Call& call_node) {
   int32_t C_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('C'));
   int32_t c_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('c'));
   CHECK(C_ind != -1)
-      << "There is no input channel dimension.";
+    << "There is no input channel dimension.";
   int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
   if (c_ind != -1)
     input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImm>()->value);
   Array<IndexExpr> kernel_size = conv_2d_attr->kernel_size;
   CHECK(kernel_size.size() == 2)
-      << "The dimension of the kernel size in Conv 2D should be 2.";
+    << "The dimension of the kernel in Conv 2D should be 2.";
   const auto* expr = call_node->checked_type().as<TensorTypeNode>();
   Array<IndexExpr> output_tensor = expr->shape;
   CHECK(output_tensor.size() == 4 || output_tensor.size() == 5)
-      << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
-  int64_t count = input_channel * GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
+    << "The dimension of the output tensor in Conv 2D should be 4 or 5.";
+  int64_t count = GetCartesianProd(output_tensor) * GetCartesianProd(kernel_size);
+  CHECK_EQ(input_channel % conv_2d_attr->groups, 0)
+  << "The number of input channels is not divisble by groups.";
+  count *= input_channel/conv_2d_attr->groups;
   return count;
 }
 

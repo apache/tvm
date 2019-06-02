@@ -20,9 +20,9 @@ import tvm
 from .. import tag
 from .. import generic
 
-@generic.schedule_global_pool.register(["opengl"])
-def schedule_global_pool(outs):
-    """Schedule for global_pool.
+@generic.schedule_adaptive_pool.register(["opengl"])
+def schedule_adaptive_pool(outs):
+    """Schedule for adaptive pool.
 
     Parameters
     ----------
@@ -33,7 +33,7 @@ def schedule_global_pool(outs):
     Returns
     -------
     s: Schedule
-        The computation schedule for global_pool.
+        The computation schedule for adaptive pool.
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
@@ -57,7 +57,7 @@ def schedule_global_pool(outs):
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule global_pool
-        elif OP.tag.startswith('global_pool'):
+        elif OP.tag.startswith('adaptive_pool'):
             Pool = OP.output(0)
             _schedule(Pool)
         else:
@@ -107,8 +107,8 @@ def schedule_pool(outs, layout):
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
-            for tensor in OP.input_tensors and tensor.op not in scheduled_ops:
-                if tensor.op.input_tensors:
+            for tensor in OP.input_tensors:
+                if tensor.op not in scheduled_ops and tensor.op.input_tensors:
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):

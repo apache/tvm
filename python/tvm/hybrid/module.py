@@ -62,7 +62,7 @@ class HybridModule(object):
 
     def __call__(self, *args):
         if _is_tvm_arg_types(args):
-            return source_to_op(self.root_, globals(), args)
+            return source_to_op(self.root_, args, globals(), {})
         return self.func_(*args)
 
 
