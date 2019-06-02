@@ -18,11 +18,13 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 from ..expr import const
+from ..ir_pass import infer_type
 from .op import register_gradient
-from .transform import collapse_sum_like, broadcast_to_like, where
-from .tensor import exp, negative, power, less
+from .transform import collapse_sum_like, broadcast_to_like, where, cast
+from .tensor import exp, negative, power, less, equal, divide
 from .tensor import zeros_like, ones_like
-
+from .reduce import sum
+from .nn import dense
 
 @register_gradient("log")
 def log_grad(orig, grad):
@@ -110,3 +112,43 @@ def collapse_sum_like_grad(orig, grad):
     """Returns [broadcast_to_like(grad, x), 0]"""
     x, y = orig.args
     return [broadcast_to_like(grad, x), zeros_like(y)]
+
+@register_gradient("sum")
+def sum_grad(orig, grad):
+    """Returns [broadcast_to_like(grad, x)]"""
+    return [broadcast_to_like(grad, orig.args[0])]
+
+@register_gradient("max")
+def max_grad(orig, grad):
+    """Returns the gradient of max"""
+    x, axis = orig.args[0], orig.attrs.axis
+    orig = broadcast_to_like(orig, x)
+    grad = broadcast_to_like(grad, x)
+    indicators = cast(equal(orig, x), 'float32')
+    count = broadcast_to_like(sum(indicators, axis, True), x)
+    return [divide(indicators, count) * grad]
+
+@register_gradient("nn.softmax")
+def softmax_grad(orig, grad):
+    """Returns [(grad - sum(grad * orig, orig.attrs.axis, True)) * orig]"""
+    return [(grad - sum(grad * orig, orig.attrs.axis, True)) * orig]
+
+@register_gradient("negative")
+def negative_grad(orig, grad):
+    return [-broadcast_to_like(grad, orig.args[0])]
+
+# UNTESTED BELOW
+
+@register_gradient("nn.dense")
+def dense_grad(orig, grad):
+    x, y = orig.args
+    return [collapse_sum_like(dense(grad, y), x),
+            collapse_sum_like(dense(grad, x), y)]
+
+@register_gradient("cast")
+def cast_grad(orig, grad):
+    return [grad.astype(orig.attrs.dtype)]
+
+@register_gradient("reshape")
+def reshape_grad(orig, grad):
+    return [broadcast_to_like(grad, orig.args[0])]

@@ -53,7 +53,8 @@ def test_unary_op():
                         (tvm.relay.sigmoid, lambda x: sigmoid(x) * (1 - sigmoid(x))),
                         (tvm.relay.tanh, lambda x: 1 - np.tanh(x) * np.tanh(x)),
                         (tvm.relay.sqrt, lambda x: 0.5 * np.power(x, -0.5)),
-                        (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x)))]:
+                        (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
+                        (tvm.relay.negative, lambda x: -1 * np.ones_like(x))]:
         check_single_op(opfunc, ref)
 
 
@@ -86,7 +87,37 @@ def test_binary_op():
                         (relay.divide, lambda x, y: [1 / y, - x / (y**2)])]:
         check_binary_op(opfunc, ref)
 
+def test_reduce_op():
+    def softmax_grad_naive(x_data, axis):
+        x = relay.var("x", relay.TensorType(x_data.shape))
+        max_x = relay.max(x, axis, True)
+        z = relay.exp(x - max_x) / relay.sum(relay.exp(x - max_x), axis, True)
+        naive_fwd = relay.Function([x], z)
+        naive_bwd = infer_type(gradient(infer_type(naive_fwd)))
+
+        return naive_bwd
+
+    def test_softmax():
+        s = (5, 10, 9, 4)
+        t = relay.TensorType(s)
+        x = relay.var("x", t)
+        axis = 2
+        z = relay.nn.softmax(x, axis)
+
+        x_data = np.random.rand(*s).astype(t.dtype)
+        ref_func = softmax_grad_naive(x_data, axis)
+        fwd_func = infer_type(relay.Function([x], z))
+        bwd_func = infer_type(gradient(fwd_func))
+
+        for target, ctx in ctx_list():
+            intrp = relay.create_executor(ctx=ctx, target=target)
+            ref_res, (ref_grad,) = intrp.evaluate(ref_func)(x_data)
+            softmax_res, (softmax_grad,) = intrp.evaluate(bwd_func)(x_data)
+            np.testing.assert_allclose(softmax_grad.asnumpy(), ref_grad.asnumpy(), rtol=0.01, atol=0.000001)
+
+    test_softmax()
 
 if __name__ == "__main__":
     test_unary_op()
     test_binary_op()
+    test_reduce_op()
