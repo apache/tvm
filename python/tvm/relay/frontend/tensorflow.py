@@ -319,7 +319,6 @@ def _conv(opname):
         # NCHW Layout require weights transpose
         if attr['data_format'] == 'NCHW':
             tmp_shape = attr['_input_shapes'][inputs[1]]
-            tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
             if opname == 'conv':
                 tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
                 inputs[1] = _op.transpose(inputs[1], axes=(3, 2, 0, 1))
@@ -374,8 +373,9 @@ def _conv(opname):
                   'not valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
-
         if opname == 'depthwise':
+            if depth_mult > 1:
+                raise tvm.error.OpNotImplemented('depth_mult > 1 of operator DepthwiseConv2dNative is not supported.')
             attr['groups'] = attr['channels']
 
         # Fix padding
@@ -585,9 +585,9 @@ def _reshape():
 
 def _bias_add():
     def _impl(inputs, attr, params):
-        if attr['data_format'] == 'NCHW':
-            bias_shape = attr['_input_shapes'][inputs[1]]
-            bias = _op.reshape(inputs[1], newshape=tuple([bias_shape, 1, 1]))
+        # Must expand for proper broadcasting in NCHW.
+        if attr['data_format'].decode("utf-8") == 'NCHW':
+            bias = _op.reshape(inputs[1], newshape=(1, -1, 1, 1))
         else:
             bias = inputs[1]
         return _op.add(inputs[0], bias)
