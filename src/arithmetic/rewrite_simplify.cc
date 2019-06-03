@@ -634,10 +634,12 @@ Mutate_(const Mod* op, const Expr& self) {
     TVM_TRY_REWRITE_IF((x * c1 + y) % c2, y % c2,
                        c2.Eval()->value > 0 &&
                        c1.Eval()->value % c2.Eval()->value == 0 &&
+                       CanProveGreaterEqual((x * c1).Eval(), 0) &&
                        CanProveGreaterEqual(y.Eval(), 0));
 
     TVM_TRY_REWRITE_IF((x + c1) % c2, x % c2,
                        c2.Eval()->value > 0 &&
+                       c1.Eval()->value >= 0 &&
                        c1.Eval()->value % c2.Eval()->value == 0 &&
                        CanProveGreaterEqual(x.Eval(), 0));
 
@@ -645,7 +647,7 @@ Mutate_(const Mod* op, const Expr& self) {
                        c2.Eval()->value > 0 &&
                        c1.Eval()->value % c2.Eval()->value == 0 &&
                        CanProveGreaterEqual(x.Eval(), 0) &&
-                       CanProveGreaterEqual(y.Eval(), 0));
+                       CanProveGreaterEqual((y * c1).Eval(), 0));
 
     // canonicalization: x % c == x % (-c) for truncated division
     // NOTE: trunc div required
