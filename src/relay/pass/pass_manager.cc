@@ -285,7 +285,7 @@ ModulePass ModulePassNode::make(
 Module ModulePassNode::operator()(const Module& mod,
                                   const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
-  DLOG(INFO) << "Executing module pass : "
+DLOG(INFO) << "Executing module pass : "
              << pass_info->name
              << " with opt level: "
              << pass_info->opt_level;
@@ -313,6 +313,7 @@ Module FunctionPassNode::operator()(const Module& mod,
              << pass_info->name
              << " with opt level: "
              << pass_info->opt_level;
+
   Module updated_mod = mod;
   // Execute the pass function and return a new module.
   std::vector<std::pair<GlobalVar, Function> > updates;

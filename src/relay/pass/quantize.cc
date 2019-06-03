@@ -614,5 +614,48 @@ TVM_REGISTER_API("relay._quantize._ExitQConfigScope")
 .set_body_typed(QConfig::ExitQConfigScope);
 
 }  // namespace quantize
+
+namespace transform {
+
+using namespace relay::quantize;
+
+Pass QuantizeAnnotate() {
+  std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
+    if (e->derived_from<TempExprNode>()) {
+      const auto* n = e.as<QAnnotateExprNode>();
+      CHECK(n);
+      const PackedFunc* f =
+          runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
+      Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
+      return static_cast<Expr>(QAnnotateExprNode::make(ret, kQInput));
+    }
+    return e;
+  };
+
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          ForwardRewrite(f, "FQAnnotateRewrite", fmulti_ref));
+  };
+  return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
+}
+
+TVM_REGISTER_API("relay._transform.QuantizeAnnotate")
+.set_body_typed(QuantizeAnnotate);
+
+Pass QuantizeRealize() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          ForwardRewrite(f, "FQRealizeRewrite", nullptr, nullptr));
+  };
+  return CreateFunctionPass(pass_func, 1, "QuantizeRealize", {});
+}
+
+TVM_REGISTER_API("relay._transform.QuantizeRealize")
+.set_body_typed(QuantizeRealize);
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm
