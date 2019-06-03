@@ -112,7 +112,7 @@ class OperatorConverter(object):
         op_code_str = self.builtin_op_code[op_code_id]
         if op_code_id == BuiltinOperator.CUSTOM:
             # Custom operator
-            raise NotImplementedError("Not Support Custom Operator Now")
+            raise NotImplementedError("Custom operators are currently not supported")
         return op_code_str
 
     def get_input_tensors(self, op):
