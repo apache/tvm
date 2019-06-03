@@ -58,6 +58,7 @@ def stats():
     return json.loads(x)
 
 def tsim_init(hw_lib):
+    """Init hardware library for TSIM"""
     cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     vta_build_path = os.path.join(cur_path, "..", "..", "..", "build")
     ext = ".dylib" if sys.platform == "darwin" else ".so"
