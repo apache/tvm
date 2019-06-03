@@ -419,12 +419,13 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     # only optimize for NCHW
     if layout != 'NCHW':
         return None
-    if groups != 1 and not is_depthwise:
-        return None
 
     assert attrs["kernel_layout"] == "OIHW"
     kshape = get_const_tuple(kernel.shape)
     is_depthwise = groups == kshape[0] and kshape[1] == 1
+
+    if groups != 1 and not is_depthwise:
+        return None
 
     dispatch_ctx = autotvm.task.DispatchContext.current
     target = tvm.target.current_target()
