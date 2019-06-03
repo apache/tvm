@@ -48,6 +48,8 @@ def test_topk():
         shape = (20, 100)
         x = relay.var("x", relay.TensorType(shape, "float32"))
         out = relay.topk(x, k, axis, ret_type, is_ascend, dtype)
+        if isinstance(out, relay.expr.TupleWrapper):
+            out = out.astuple()
         func = relay.Function([x], out)
         np_data = np.random.uniform(size=shape).astype("float32")
         if is_ascend:
