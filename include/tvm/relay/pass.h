@@ -359,6 +359,15 @@ TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
 TVM_DLL Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
 
 /*!
+ * \brief Collect the device anntation operators.
+ *
+ * \param expr The expression.
+ *
+ * \return The annotated expression to device type mapping for annotation ops.
+ */
+TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
+
+/*!
  * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
  *
  * It will turn an expression that is in a graph form (with sharing implicit),
@@ -402,6 +411,17 @@ TVM_DLL Expr ToGraphNormalForm(const Expr& e);
  * \return the optimized expression.
  */
 TVM_DLL Expr PartialEval(const Expr& e);
+
+/*!
+ * \brief Bind the free variables to a Relay expression.
+ *
+ * \param expr The expression.
+ * \param bind_map The variable to expression map that will be used to help the
+ *        binding.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& bind_map);
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {

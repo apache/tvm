@@ -797,9 +797,7 @@ Expr PartialEval(const Expr& e) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.partial_evaluate")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = PartialEval(args[0]);
-  });
+.set_body_typed(PartialEval);
 
 namespace transform {
 
@@ -808,8 +806,11 @@ Pass PartialEval() {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(PartialEval(f));
   };
-  return CreateFunctionPass(pass_func, 1, "partial_eval", {});
+  return CreateFunctionPass(pass_func, 1, "PartialEvaluate", {});
 }
+
+TVM_REGISTER_API("relay._transform.PartialEvaluate")
+.set_body_typed(PartialEval);
 
 }  // namespace transform
 

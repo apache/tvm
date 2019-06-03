@@ -27,6 +27,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/transform.h>
 #include <tvm/tvm.h>
 #include <tuple>
 #include <vector>
@@ -338,17 +339,35 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
 // Limiations:
 // 1. the altered op should have the same number of arguments as the previous one
 // 2. do not support nested tuple arguments
-TVM_REGISTER_API("relay._ir_pass.AlterOpLayout")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+Expr AlterOpLayout(const Expr& expr) {
   TransformMemorizer transformMemorizer(make_node<TransformMemorizerNode>());
   auto fcontext = [&](const Call& call) -> NodeRef{
     return transformMemorizer;
   };
 
-  *ret = ForwardRewrite(args[0], AlterOpLayoutRewrite, fcontext);
-});
+  return ForwardRewrite(expr, AlterOpLayoutRewrite, fcontext);
+}
+
+TVM_REGISTER_API("relay._ir_pass.AlterOpLayout")
+.set_body_typed(AlterOpLayout);
 
 }  // namespace alter_op_layout
+
+namespace transform {
+
+Pass AlterOpLayout() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(relay::alter_op_layout::AlterOpLayout(f));
+  };
+  return CreateFunctionPass(pass_func, 3, "AlterOpLayout",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay._transform.AlterOpLayout")
+.set_body_typed(AlterOpLayout);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

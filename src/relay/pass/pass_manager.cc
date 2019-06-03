@@ -37,42 +37,46 @@ namespace transform {
 
 using tvm::IRPrinter;
 
-/*!
- * \brief A data structure to map the names of specific optimizations to
- *        numeric optimization levels
- */
-class OptPassLevel {
- public:
-  /*!
-   * \brief Get level for an optimization pass
-   *
-   * \param key pass name
-   * \return int level
-   */
-  int operator[](const std::string& key) const {
-    const auto data = CreateMap();
-    auto it = data.find(key);
-    if (it == data.end()) {
-      return -1;
-    }
-    return it->second;
-  }
+namespace {
 
- private:
-  static const std::unordered_map<std::string, int> CreateMap() {
-    const std::unordered_map<std::string, int> m = {
-      {"SimplifyInference", 0},
-      {"OpFusion", 1},
-      {"FoldConstant", 2},
-      {"CombineParallelConv2D", 3},
-      {"FoldScaleAxis", 3},
-      {"AlterOpLayout", 3},
-      {"CanonicalizeOps", 3},
-      {"EliminateCommonSubexpr", 3}
-    };
-    return m;
+// TODO(zhiics) Maybe we can use PackedFunc here so that parameters can be
+// handled because we need to register the pass for Python invocation anyway.
+Pass GetPass(const std::string& pass_name) {
+  if (pass_name == "InferType") {
+    return InferType();
+  } else if (pass_name == "AlterOpLayout") {
+    return AlterOpLayout();
+  } else if (pass_name == "CanonicalizeOps") {
+    return CanonicalizeOps();
+  } else if (pass_name == "CombineParallelConv2d") {
+    return CombineParallelConv2D();
+  } else if (pass_name == "DeadCodeElimination") {
+    return DeadCodeElimination();
+  } else if (pass_name == "EliminateCommonSubexpr") {
+    return DeadCodeElimination();
+  } else if (pass_name == "FoldConstant") {
+    return FoldConstant();
+  } else if (pass_name == "BackwardFoldScaleAxis") {
+    return FoldScaleAxis();
+  } else if (pass_name == "ForwardFoldScaleAxis") {
+    return FoldScaleAxis();
+  } else if (pass_name == "FoldScaleAxis") {
+    return FoldScaleAxis();
+  } else if (pass_name == "PartialEvaluate") {
+    return SimplifyInference();
+  } else if (pass_name == "SimplifyInference") {
+    return SimplifyInference();
+  } else if (pass_name == "ToANormalForm") {
+    return ToANormalForm();
+  } else if (pass_name == "ToGraphNormalForm") {
+    return ToGraphNormalForm();
+  } else {
+    LOG(FATAL) << pass_name << " has not been registered yet." << "\n";
+    return Pass(nullptr);
   }
-};
+}
+
+}  // namespace
 
 struct RelayPassContextThreadLocalEntry {
   /*! \brief The default pass context. */
@@ -246,12 +250,6 @@ class SequentialNode : public PassNode {
   /* \brief The pass meta data.*/
   PassInfo pass_info;
 
-  /*!
-   * \brief A helper struct to get the optimization pass name to opt level
-   * mapping.
-   */
-  OptPassLevel opt_pass_level;
-
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -300,7 +298,7 @@ class SequentialNode : public PassNode {
       const Array<tvm::Expr>& disabled) const;
 
   std::unordered_set<std::string> RequiredPasses(
-      const Array<tvm::Expr>& disabled) const;
+      const Array<tvm::Expr>& required) const;
 
   /*!
    * \brief Perform optimizations on a series of passes. The aforementioned
@@ -338,14 +336,25 @@ ModulePass ModulePassNode::make(
 }
 
 // Module -> Module optimizations.
-// TODO(zhiics) Check and handle the required passes.
 Module ModulePassNode::operator()(const Module& mod,
                                   const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level << "\n";
+
   CHECK(mod.defined());
-  auto updated_mod = pass_func(mod, pass_ctx);
+  Module updated_mod = mod;
+  // Execute the required passes in a DFS way.
+  // TODO(zhiics) We may need to pass validation to detect the cyclic
+  // dependency.
+  for (const auto& it : pass_info->required) {
+    const auto* name = it.as<tvm::ir::StringImm>();
+    CHECK(name);
+    auto pass = GetPass(name->value);
+    updated_mod = pass(updated_mod, pass_ctx);
+  }
+
+  updated_mod = pass_func(updated_mod, pass_ctx);
   CHECK(updated_mod.defined());
   return updated_mod;
 }
@@ -365,12 +374,26 @@ Module FunctionPassNode::operator()(const Module& mod,
                                     const PassContext& pass_ctx) const {
   PassInfo pass_info = Info();
   CHECK(mod.defined());
-  Module new_mod = ModuleNode::make({}, mod->type_definitions);
   DLOG(INFO) << "Executing module pass : " << pass_info->name
              << " with opt level: " << pass_info->opt_level << "\n";
+
+  Module updated_mod = mod;
+  // Execute the required passes in a DFS way.
+  // TODO(zhiics) We may need to pass validation to detect the cyclic
+  // dependency.
+  for (const auto& it : pass_info->required) {
+    const auto* name = it.as<tvm::ir::StringImm>();
+    CHECK(name);
+    auto pass = GetPass(name->value);
+    updated_mod = pass(updated_mod, pass_ctx);
+  }
+
+  Module new_mod = ModuleNode::make({}, mod->type_definitions);
   // Execute the pass function and return a new module.
   for (const auto& it : mod->functions) {
-    auto updated_func = SkipFunction(it.second) ? it.second : pass_func(it.second, mod, pass_ctx);
+    auto updated_func = SkipFunction(it.second)
+                            ? it.second
+                            : pass_func(it.second, updated_mod, pass_ctx);
     new_mod->Add(it.first, updated_func);
   }
 
@@ -418,7 +441,7 @@ std::unordered_set<std::string> SequentialNode::DisabledPasses(
   std::unordered_set<std::string> ret;
   for (const auto& it : disabled) {
     const auto* str = it.as<tvm::ir::StringImm>();
-    CHECK(str) << "disabled passes must be string.";
+    CHECK(str) << "Disabled pass name must be string.";
     ret.emplace(str->value);
   }
   return ret;
@@ -429,7 +452,7 @@ std::unordered_set<std::string> SequentialNode::RequiredPasses(
   std::unordered_set<std::string> ret;
   for (const auto& it : required) {
     const auto* str = it.as<tvm::ir::StringImm>();
-    CHECK(str) << "disabled passes must be string.";
+    CHECK(str) << "Required pass name must be string.";
     ret.emplace(str->value);
   }
   return ret;
@@ -439,7 +462,7 @@ bool SequentialNode::PassEnabled(const std::string& pass_name) const {
   PassContext ctx = PassContext::Current();
 
   auto required = RequiredPasses(ctx->required_pass);
-  auto disabled = DisabledPasses(ctx->required_pass);
+  auto disabled = DisabledPasses(ctx->disabled_pass);
 
   if (disabled.count(pass_name)) {
     return false;
@@ -448,29 +471,27 @@ bool SequentialNode::PassEnabled(const std::string& pass_name) const {
   if (required.count(pass_name)) {
     return true;
   }
-  return ctx->opt_level >= opt_pass_level[pass_name];
+
+  const Pass pass = GetPass(pass_name);
+  PassInfo info = pass->Info();
+  return ctx->opt_level >= info->opt_level;
 }
 
 // TODO(zhiics): we currenlty only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
-// ordering problem needed to be handled in the future.
+// ordering problem needs to be handled in the future.
 Module SequentialNode::operator()(const Module& module,
                                   const PassContext& pass_ctx) const {
-  int opt_level = pass_ctx->opt_level;
-  auto disabled = DisabledPasses(pass_ctx->disabled_pass);
   Module mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
+
     PassInfo info = pass->Info();
     const auto& pass_name = info->name;
-    const auto& pass_opt_level = info->opt_level;
-    // Skip the pass if its optimization level is higher that the  one of in the
-    // pass context or if this pass is disabled.
-    if (pass_opt_level > opt_level || disabled.count(pass_name)) {
-      continue;
+    // Execute the pass if it is enabled.
+    if (PassEnabled(pass_name)) {
+      mod = pass(mod, pass_ctx);
     }
-    const auto* pn = pass.operator->();
-    mod = (*pn)(mod, pass_ctx);
   }
   return mod;
 }
@@ -525,15 +546,17 @@ TVM_REGISTER_API("relay._transform.CreateModulePass")
 
 TVM_REGISTER_API("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = args[0].operator Pass()(args[1]);
+  Pass pass = args[0];
+  Module mod = args[1];
+  *ret = pass(mod);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ModulePassNode>([](const ModulePassNode* node,
                                  tvm::IRPrinter* p) {
-  const PassInfoNode* pn = node->Info().operator->();
-  p->stream << "Run Module pass: " << pn->name
-            << " at the optimization level " << pn->opt_level;
+  const PassInfo info = node->Info();
+  p->stream << "Run Module pass: " << info->name
+            << " at the optimization level " << info->opt_level;
 });
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
@@ -544,9 +567,9 @@ TVM_REGISTER_API("relay._transform.CreateFunctionPass")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
                                    tvm::IRPrinter* p) {
-  const PassInfoNode* pn = node->Info().operator->();
-  p->stream << "Run Function pass: " << pn->name
-            << " at the optimization level " << pn->opt_level;
+  const PassInfo info = node->Info();
+  p->stream << "Run Function pass: " << info->name
+            << " at the optimization level " << info->opt_level;
 });
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
@@ -564,14 +587,13 @@ TVM_REGISTER_API("relay._transform.Sequential")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<SequentialNode>([](const SequentialNode* node,
                                  tvm::IRPrinter* p) {
-  const PassInfoNode* seq_pn = node->Info().operator->();
-  p->stream << "Run Sequential pass: " << seq_pn->name
-            << " at the optimization level " << seq_pn->opt_level << ". ";
+  const PassInfo info = node->Info();
+  p->stream << "Run Sequential pass: " << info->name
+            << " at the optimization level " << info->opt_level << ". ";
   p->stream << "The passes will be executed are: [";
   for (const auto& it : node->passes) {
-    const PassNode* pn = it.operator->();
-    const PassInfoNode* pass_info_node = pn->Info().operator->();
-    p->stream << pass_info_node->name << " ";
+    const PassInfo pass_info = it->Info();
+    p->stream << pass_info->name << " ";
   }
   p->stream << "]";
 });

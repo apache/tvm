@@ -29,6 +29,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
 #include "./pattern_util.h"
 #include "../../common/arena.h"
 
@@ -973,8 +974,12 @@ Pass FuseOps(int fuse_opt_level) {
     int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
     return Downcast<Function>(FuseOps(f, opt_level, m));
   };
-  return CreateFunctionPass(pass_func, 1, "fuse_ops", {});
+  return CreateFunctionPass(pass_func, 1, "FuseOps",
+                            {ir::StringImm::make("InferType")});
 }
+
+TVM_REGISTER_API("relay._transform.FuseOps")
+.set_body_typed(FuseOps);
 
 }  // namespace transform
 

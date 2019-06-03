@@ -158,8 +158,11 @@ Pass DeadCodeElimination() {
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(DeadCodeElimination(f));
   };
-  return CreateFunctionPass(pass_func, 1, "dead_code_elimination", {});
+  return CreateFunctionPass(pass_func, 1, "DeadCodeElimination", {});
 }
+
+TVM_REGISTER_API("relay._transform.DeadCodeElimination")
+.set_body_typed(DeadCodeElimination);
 
 }  // namespace transform
 

@@ -38,6 +38,7 @@
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "./expr_subst.h"
@@ -356,6 +357,22 @@ Expr CombineParallelConv2D(const Expr& expr, uint64_t min_num_branches) {
 
 TVM_REGISTER_API("relay._ir_pass.CombineParallelConv2D")
 .set_body_typed(CombineParallelConv2D);
+
+namespace transform {
+
+Pass CombineParallelConv2D(uint64_t min_num_branches) {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(CombineParallelConv2D(f, min_num_branches));
+  };
+  return CreateFunctionPass(pass_func, 4, "CombineParallelConv2d",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay._transform.CombineParallelConv2D")
+.set_body_typed(CombineParallelConv2D);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

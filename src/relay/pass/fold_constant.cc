@@ -26,6 +26,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
@@ -220,10 +221,13 @@ namespace transform {
 Pass FoldConstant() {
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
-    return Downcast<Function>(FoldConstant(f));
+      return Downcast<Function>(FoldConstant(f));
   };
-  return CreateFunctionPass(pass_func, 1, "fold_constant", {});
+  return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }
+
+TVM_REGISTER_API("relay._transform.FoldConstant")
+.set_body_typed(FoldConstant);
 
 }  // namespace transform
 

@@ -220,7 +220,7 @@ Pass ForwardRewrite(const std::string& rewrite_map_attr_name,
                                              fcontext,
                                              fmulti_ref_trigger));
   };
-  return CreateFunctionPass(pass_func, 1, "forward_rewrite", {});
+  return CreateFunctionPass(pass_func, 1, "ForwardRewrite", {});
 }
 
 Pass ForwardRewrite(const FForwardRewrite& rewrite_func,
@@ -233,7 +233,7 @@ Pass ForwardRewrite(const FForwardRewrite& rewrite_func,
                                              fcontext,
                                              fmulti_ref_trigger));
   };
-  return CreateFunctionPass(pass_func, 1, "forward_rewrite", {});
+  return CreateFunctionPass(pass_func, 1, "ForwardRewriteFunc", {});
 }
 
 }  // namespace transform
