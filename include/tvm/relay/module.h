@@ -87,14 +87,14 @@ class ModuleNode : public RelayNode {
    * \param update Controls whether you can replace a definition in the
    * environment.
    */
-  void Add(const GlobalVar& var, const Function& func, bool update = false);
+  TVM_DLL void Add(const GlobalVar& var, const Function& func, bool update = false);
 
   /*!
    * \brief Add a type-level definition to the global environment.
    * \param var The var of the global type definition.
    * \param type The type definition.
    */
-  void AddDef(const GlobalTypeVar& var, const TypeData& type);
+  TVM_DLL void AddDef(const GlobalTypeVar& var, const TypeData& type);
 
   /*!
    * \brief Add a function to the global environment.
@@ -103,69 +103,69 @@ class ModuleNode : public RelayNode {
    *
    * It does not do type inference as Add does.
    */
-  void AddUnchecked(const GlobalVar& var, const Function& func);
+  TVM_DLL void AddUnchecked(const GlobalVar& var, const Function& func);
 
   /*!
    * \brief Update a function in the global environment.
    * \param var The name of the global function to update.
    * \param func The new function.
    */
-  void Update(const GlobalVar& var, const Function& func);
+  TVM_DLL void Update(const GlobalVar& var, const Function& func);
 
   /*!
    * \brief Remove a function from the global environment.
    * \param var The name of the global function to update.
    */
-  void Remove(const GlobalVar& var);
+  TVM_DLL void Remove(const GlobalVar& var);
 
   /*!
    * \brief Lookup a global function by its variable.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
-  GlobalVar GetGlobalVar(const std::string& str);
+  TVM_DLL GlobalVar GetGlobalVar(const std::string& str);
 
   /*!
    * \brief Look up a global function by its name.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
-  GlobalTypeVar GetGlobalTypeVar(const std::string& str);
+  TVM_DLL GlobalTypeVar GetGlobalTypeVar(const std::string& str);
 
   /*!
    * \brief Lookup a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.
    */
-  Function Lookup(const GlobalVar& var);
+  TVM_DLL Function Lookup(const GlobalVar& var);
 
   /*!
    * \brief Lookup a global function by its string name
    * \param name The name of the function.
    * \returns The function named by the argument.
    */
-  Function Lookup(const std::string& name);
+  TVM_DLL Function Lookup(const std::string& name);
 
   /*!
    * \brief Lookup a global type definition by its variable.
    * \param var The var of the global type definition.
    * \return The type definition.
    */
-  TypeData LookupDef(const GlobalTypeVar& var);
+  TVM_DLL TypeData LookupDef(const GlobalTypeVar& var);
 
   /*!
    * \brief Lookup a global type definition by its name.
    * \param var The name of the global type definition.
    * \return The type definition.
    */
-  TypeData LookupDef(const std::string& var);
+  TVM_DLL TypeData LookupDef(const std::string& var);
 
   /*!
    * \brief Update the functions inside this environment by
    *        functions in another environment.
    * \param other The other environment.
    */
-  void Update(const Module& other);
+  TVM_DLL void Update(const Module& other);
 
   /*! \brief Construct a module from a standalone expression.
    *
@@ -177,7 +177,7 @@ class ModuleNode : public RelayNode {
    *
    * \returns A module with expr set as the entry point.
    */
-  static Module FromExpr(
+  TVM_DLL static Module FromExpr(
     const Expr& expr,
     const tvm::Map<GlobalVar, Function>& global_funcs = {});
 
