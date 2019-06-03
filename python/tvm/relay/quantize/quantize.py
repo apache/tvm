@@ -22,7 +22,6 @@ import numpy as np
 from . import _quantize
 from .. import expr as _expr
 from .. import ir_pass as _ir_pass
-from .. import transform as _transform
 from .. import op as _op
 from ... import make as _make
 from ..base import NodeBase, register_relay_node
@@ -301,8 +300,6 @@ def optimize(func, params=None):
                   "FoldConstant",
                   "CanonicalizeOps"]
 
-    cfg = _transform.build_config(required_pass=opt_passes)
-
     if params:
         name_dict = {}
         for arg in func.params:
@@ -321,25 +318,25 @@ def optimize(func, params=None):
             bind_dict[arg] = _expr.const(v)
         func = _expr.bind(func, bind_dict)
 
-    if "SimplifyInference" in cfg.required_pass:
+    if "SimplifyInference" in opt_passes:
         func = _ir_pass.infer_type(func)
         func = _ir_pass.simplify_inference(func)
 
-    if "FoldConstant" in cfg.required_pass:
+    if "FoldConstant" in opt_passes:
         func = _ir_pass.fold_constant(func)
 
-    if "FoldScaleAxis" in cfg.required_pass:
+    if "FoldScaleAxis" in opt_passes:
         func = _ir_pass.infer_type(func)
         func = _ir_pass.backward_fold_scale_axis(func)
         func = _ir_pass.infer_type(func)
         func = _ir_pass.forward_fold_scale_axis(func)
         func = _ir_pass.fold_constant(func)
 
-    if "CanonicalizeOps" in cfg.required_pass:
+    if "CanonicalizeOps" in opt_passes:
         func = _ir_pass.infer_type(func)
         func = _ir_pass.canonicalize_ops(func)
 
-    if "FoldConstant" in cfg.required_pass:
+    if "FoldConstant" in opt_passes:
         func = _ir_pass.fold_constant(func)
 
     return func
