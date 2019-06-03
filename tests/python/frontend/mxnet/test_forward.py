@@ -608,6 +608,45 @@ def test_forward_Crop():
     verify((5, 32, 40, 40), (5, 32, 25, 25))
     verify((5, 32, 40, 40), (5, 32, 25, 25), (5, 5))
 
+def test_forward_argsort():
+    def verify(shape, axis, is_ascend, dtype="float32"):
+        x_np = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.argsort(mx.nd.array(x_np), axis=axis, is_ascend=is_ascend, dtype=dtype)
+        mx_sym = mx.sym.argsort(mx.sym.var("x"), axis=axis, is_ascend=is_ascend, dtype=dtype)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((2, 3, 4), axis=0, is_ascend=False)
+    verify((1, 4, 6), axis=1, is_ascend=True)
+    verify((3, 5, 6), axis=-3, is_ascend=False, dtype="int32")
+
+def test_forward_topk():
+    def verify(shape, k, axis, ret_type, is_ascend=False, dtype="float32"):
+        x_np = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.topk(mx.nd.array(x_np), k=k, axis=axis, ret_typ=ret_type,
+                             is_ascend=is_ascend, dtype=dtype)
+        mx_sym = mx.sym.topk(mx.sym.var("x"), k=k, axis=axis, ret_typ=ret_type,
+                             is_ascend=is_ascend, dtype=dtype)
+        new_sym, _ = relay.frontend.from_mxnet(mx_sym, {"x": shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(new_sym)(x_np)
+                if isinstance(ref_res, list):
+                    assert len(op_res) == len(ref_res)
+                    for i, t in enumerate(op_res):
+                        tvm.testing.assert_allclose(t.asnumpy(), ref_res[i].asnumpy())
+                else:
+                    tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((3, 4), k=1, axis=0, ret_type="both")
+    verify((3, 4), k=1, axis=-1, ret_type="indices")
+    verify((3, 5, 6), k=2, axis=2, ret_type="value")
+    verify((3, 5, 6), k=2, axis=1, ret_type="value", is_ascend=True)
+    verify((3, 5, 6), k=0, axis=2, ret_type="both", dtype="int32")
+
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -650,3 +689,5 @@ if __name__ == '__main__':
     test_forward_bilinear_resize()
     test_forward_rnn_layer()
     test_forward_Crop()
+    test_forward_argsort()
+    test_forward_topk()

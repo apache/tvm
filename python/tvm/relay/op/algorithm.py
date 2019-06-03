@@ -17,8 +17,9 @@
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
 from . import _make
+from ..expr import TupleWrapper
 
-def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
+def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
 
@@ -47,7 +48,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32"):
     return _make.argsort(data, axis, is_ascend, dtype)
 
 
-def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
+def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int32"):
     """Get the top k elements in an input tensor along the given axis.
 
     ret_type specifies the return type, can be one of ("both", "values", "indices").
@@ -80,4 +81,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     out : relay.Expr or List[relay.Expr]
         The computed result.
     """
-    return _make.topk(data, k, axis, ret_type, is_ascend, dtype)
+    out = _make.topk(data, k, axis, ret_type, is_ascend, dtype)
+    if ret_type == "both":
+        return TupleWrapper(out, 2)
+    return out

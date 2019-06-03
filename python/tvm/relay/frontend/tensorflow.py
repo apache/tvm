@@ -1084,11 +1084,16 @@ def _softplus():
 
 def _topk():
     def _impl(inputs, attr, params):
-        k = params.pop(inputs.pop(1).name_hint).asnumpy()
-        is_ascend = False if attr['sorted'] else None # TODO: arg value for original ordering
+        k = int(params.pop(inputs.pop(1).name_hint).asnumpy())
+        if k < 1:
+            raise tvm.error.OpAttributeInvalid(
+                'Attribute k must be positive in operator TopKV2')
+        if attr['sorted'] is False:
+            raise tvm.error.OpAttributeUnimplemented(
+                'Attribute sorted=False is not supported in operator TopKV2')
         return AttrCvt(op_name='topk',
                        ignores=['sorted'],
-                       extras={'k': int(k), 'is_ascend': is_ascend})(inputs, attr)
+                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})(inputs, attr)
     return _impl
 
 def _logical(name):

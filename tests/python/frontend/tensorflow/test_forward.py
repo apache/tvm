@@ -758,20 +758,18 @@ def test_forward_split():
 # TopKV2
 # ------
 
-def _test_forward_top_k_v2(in_shape, k, sorted, dtype):
-    np_data = np.random.uniform(-100, 100, size=in_shape).astype(dtype)
-
+def _test_forward_top_k_v2(in_shape, k):
+    np_data = np.random.uniform(-100, 100, size=in_shape).astype("float32")
     tf.reset_default_graph()
-    in_data = tf.placeholder(dtype, in_shape, name="in_data")
-    tf.math.top_k(in_data, k, sorted, name='TopK')
+    in_data = tf.placeholder("float32", in_shape, name="in_data")
+    tf.math.top_k(in_data, k, name='TopK')
     compare_tf_with_tvm([np_data], ['in_data:0'], 'TopK:0')
 
 def test_forward_top_k_v2():
-    #_test_forward_top_k_v2((3,), 0, True, 'int32')
-    _test_forward_top_k_v2((3,), 1, True, 'float32')
-    _test_forward_top_k_v2((3,), 3, True, 'float32')
-    _test_forward_top_k_v2((3, 5, 7), 3, True, 'float32')
-    #_test_forward_top_k_v2((3, 5, 13), 11, False, 'float32')
+    _test_forward_top_k_v2((3,), 1)
+    _test_forward_top_k_v2((3,), 3)
+    _test_forward_top_k_v2((3, 5, 7), 3)
+    _test_forward_top_k_v2((3, 5, 7), 3)
 
 
 #######################################################################
