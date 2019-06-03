@@ -327,7 +327,8 @@ def test_sequential_pass():
     def test_only_module_pass():
         passes = [module_pass]
         sequential = _transform.Sequential(opt_level=1, passes=passes)
-        ret_mod = sequential(mod)
+        with relay.build_config(required_pass=["mod_transform"]):
+            ret_mod = sequential(mod)
         # Check the subtract function.
         sub_var, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, sub)
@@ -341,7 +342,8 @@ def test_sequential_pass():
         # Check the subtract function.
         passes = [function_pass]
         sequential = _transform.Sequential(opt_level=1, passes=passes)
-        ret_mod = sequential(mod)
+        with relay.build_config(required_pass=["func_transform"]):
+            ret_mod = sequential(mod)
         _, new_sub = extract_var_func(ret_mod, v_sub.name_hint)
         check_func(new_sub, get_ref_sub())
 
@@ -355,7 +357,9 @@ def test_sequential_pass():
         mod = relay.Module({v_sub: sub, v_log: log})
         passes = [module_pass, function_pass]
         sequential = _transform.Sequential(opt_level=1, passes=passes)
-        ret_mod = sequential(mod)
+        required = ["mod_transform", "func_transform"]
+        with relay.build_config(required_pass=required):
+            ret_mod = sequential(mod)
 
         # Check the abs function is added.
         abs_var, abs_func = get_var_func()
@@ -400,7 +404,48 @@ def test_sequential_pass():
     test_multiple_passes()
 
 
+def test_sequential_with_scoping():
+    shape = (1, 2, 3)
+    c_data = np.array(shape).astype("float32")
+    tp = relay.TensorType(shape, "float32")
+    def before():
+        c = relay.const(c_data)
+        x = relay.var("x", tp)
+        y = relay.add(c, c)
+        y = relay.multiply(y, relay.const(2, "float32"))
+        y = relay.add(x, y)
+        z = relay.add(y, c)
+        z1 = relay.add(y, c)
+        z2 = relay.add(z, z1)
+        return relay.Function([x], z2)
+
+    def expected():
+        x = relay.var("x", tp)
+        c_folded = (c_data + c_data) * 2
+        y = relay.add(x, relay.const(c_folded))
+        z = relay.add(y, relay.const(c_data))
+        z1 = relay.add(z, z)
+        return relay.Function([x], z1)
+
+    seq = _transform.Sequential([
+        relay.transform.InferType(),
+        relay.transform.FoldConstant(),
+        relay.transform.EliminateCommonSubexpr(),
+        relay.transform.AlterOpLayout()
+    ])
+
+    mod = relay.Module({"main": before()})
+    with relay.build_config(opt_level=3):
+        with tvm.target.create("llvm"):
+            mod = seq(mod)
+
+    zz = mod["main"]
+    zexpected = ir_pass.infer_type(expected())
+    assert relay.ir_pass.alpha_equal(zz, zexpected)
+
+
 if __name__ == "__main__":
     test_module_pass()
     test_function_pass()
     test_sequential_pass()
+    test_sequential_with_scoping()

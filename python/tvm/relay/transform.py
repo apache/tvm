@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
+# pylint: disable=invalid-name
 """
 This file contains the pass manager for Relay which exposes different
 granularity of interfaces for users to implement and use passes more
@@ -394,3 +395,201 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     if pass_func:
         return create_function_pass(pass_func)
     return create_function_pass
+
+
+def InferType():
+    """Infer the type of an expr.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered type inference pass.
+    """
+    return _transform.InferType()
+
+
+def FoldScaleAxis():
+    """Fold the scaling of axis into weights of conv2d/dense. This pass will
+    invoke both forward and backward scale folding.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass to fold expressions.
+
+    Note
+    ----
+    Internally, we will call backward_fold_scale_axis before using
+    forward_fold_scale_axis. As backward folding targets common conv-bn
+    pattern.
+    """
+    return _transform.FoldScaleAxis()
+
+
+def SimplifyInference():
+    """Simplify the data-flow graph for inference phase. An simplified expression
+    which is semantically equal to the input expression will be returned.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered to perform operator simplification.
+    """
+    return _transform.SimplifyInference()
+
+
+def CanonicalizeOps():
+    """ Canonicalize special operators to basic operators.
+    This can simplify followed analysis. (e.g. expanding bias_add to
+    expand_dims and broadcast_add.)
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass performing the canonicalization.
+    """
+    return _transform.CanonicalizeOps()
+
+
+def DeadCodeElimination():
+    """ Remove expressions which does not effect the program result (dead code).
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that eliminates the dead code in a Relay program.
+    """
+    return _transform.DeadCodeElimination()
+
+
+def FoldConstant():
+    """Fold the constant expression in expr.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass for constant folding.
+    """
+    return _transform.FoldConstant()
+
+
+def FuseOps(fuse_opt_level=-1):
+    """Fuse operators in an expr to a larger operator according to some rules.
+
+    Parameters
+    ----------
+    fuse_opt_level : int
+        The level of fuse optimization. -1 indicates that the level will be
+        inferred from pass context.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass for operator fusion.
+    """
+    return _transform.FuseOps(fuse_opt_level)
+
+
+def CombineParallelConv2D(min_num_branches=3):
+    """Combine multiple conv2d operators into one.
+
+    Parameters
+    ----------
+    min_num_branches : int
+        The minimum number of required parallel branches for performing this
+        optimization.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that combines parallel conv2d operators.
+    """
+    return _transform.CombineParallelConv2D(min_num_branches)
+
+
+def AlterOpLayout():
+    """Alternate the layouts of operators or replace primitive operators with
+    other expressions.
+    This pass can be used for computing convolution in custom layouts or
+    other general weight pre-transformation.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that alters the layout of operators.
+    """
+    return _transform.AlterOpLayout()
+
+
+def RewriteAnnotatedOps(fallback_device):
+    """Rewrite the annotated program where annotation operators, e.g.
+    `on_deivce`, mark which device an expression should be scheduled to.
+    This pass helps heterogeneous execution where different operators may need
+    to be allocated on various devices.
+
+    Parameters
+    ----------
+    fallback_device : int
+        The fallback device type. It is also used as the default device for
+        operators with no annotated device.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that rewrites an expression with annotated
+        `on_device` operators.
+    """
+    return _transform.RewriteDeviceAnnotation(fallback_device)
+
+
+def ToANormalForm():
+    """Turn Graph Normal Form expression into A Normal Form Expression.
+    The scope of the root expression is the global scope.
+    The scope of any non root expression is the least common ancestor of all it's scope.
+    Values are ordered by post-DFS order in each scope.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that transforms an expression into A Normal Form.
+    """
+    return _transform.ToANormalForm()
+
+
+def ToGraphNormalForm():
+    """Turn A Normal Form expression into Graph Normal Form expression
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that transforms an expression into Graph Normal Form.
+    """
+    return _transform.ToGraphNormalForm()
+
+
+def EliminateCommonSubexpr(fskip=None):
+    """Eliminate common subexpressions.
+
+    Parameters
+    ----------
+    fskip: Callable
+        The callback function that decides whether an expression should be
+        skipped.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that eliminates common subexpressions.
+    """
+    return _transform.EliminateCommonSubexpr(fskip)
+
+
+def PartialEvaluate():
+    """Evaluate the static fragment of the code.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that performs partial evaluation on an expression.
+    """
+    return _transform.PartialEvaluate()

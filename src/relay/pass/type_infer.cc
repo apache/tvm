@@ -43,6 +43,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 #include "./pass_util.h"
 #include "type_solver.h"
 #include "../ir/type_functor.h"
@@ -807,5 +808,23 @@ TVM_REGISTER_API("relay._ir_pass.infer_type")
 .set_body_typed<Expr(const Expr&, const Module&)>([](const Expr& expr, const Module& mod_ref) {
     return InferType(expr, mod_ref);
   });
+
+namespace transform {
+
+Pass InferType() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(InferType(f, m));
+  };
+  return CreateFunctionPass(pass_func, 0, "InferType", {});
+}
+
+TVM_REGISTER_API("relay._transform.InferType")
+.set_body_typed<Pass()>([]() {
+  return InferType();
+});
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm
