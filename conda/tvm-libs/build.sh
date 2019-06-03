@@ -34,7 +34,7 @@ fi
 rm -rf build || true
 mkdir -p build
 cd build
-cmake $METAL_OPT $CUDA_OPT -DUSE_LLVM=$PREFIX/bin/llvm-config -DINSTALL_DEV=ON -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" ..
+cmake $METAL_OPT $CUDA_OPT -DUSE_LLVM=$PREFIX/bin/llvm-config -DINSTALL_DEV=ON -DCMAKE_INSTALL_PREFIX="$PREFIX" ..
 make -j${CPU_COUNT} VERBOSE=1
 make install
 cd ..
