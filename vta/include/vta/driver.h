@@ -45,6 +45,10 @@ extern "C" {
 #define VTA_MAX_XFER (1<<22)
 #endif
 
+/*! PAGE SIZE */
+#define VTA_PAGE_BITS 12
+#define VTA_PAGE_BYTES (1 << VTA_PAGE_BITS)
+
 /*! \brief Device resource context  */
 typedef void * VTADeviceHandle;
 

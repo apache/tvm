@@ -913,16 +913,33 @@ class CommandQueue {
   }
 
   uint32_t GetElemBytes(uint32_t memory_id) {
+    uint32_t elem_bytes = 0;
     switch (memory_id) {
-      case VTA_MEM_ID_UOP: return VTA_UOP_ELEM_BYTES;
-      case VTA_MEM_ID_INP: return VTA_INP_ELEM_BYTES;
-      case VTA_MEM_ID_WGT: return VTA_WGT_ELEM_BYTES;
-      case VTA_MEM_ID_ACC: return VTA_ACC_ELEM_BYTES;
-      case VTA_MEM_ID_OUT: return VTA_INP_ELEM_BYTES;
-      default: break;
+      case VTA_MEM_ID_UOP:
+          elem_bytes = VTA_UOP_ELEM_BYTES;
+          break;
+      case VTA_MEM_ID_INP:
+          elem_bytes = VTA_INP_ELEM_BYTES;
+          break;
+      case VTA_MEM_ID_WGT:
+          elem_bytes = VTA_WGT_ELEM_BYTES;
+          break;
+      case VTA_MEM_ID_ACC:
+          elem_bytes = VTA_ACC_ELEM_BYTES;
+          break;
+      case VTA_MEM_ID_OUT:
+          elem_bytes = VTA_INP_ELEM_BYTES;
+          break;
+      default:
+          LOG(FATAL) << "Memory id not recognized:" << memory_id;
+          break;
     }
-    LOG(FATAL) << "Memory id not recognized:" << memory_id;
-    return 0;
+    /*
+     * elements size should not larger than VTA_PAGE_BYTES.
+     * 
+     */
+    CHECK_GE(VTA_PAGE_BYTES, elem_bytes);
+    return elem_bytes;
   }
 
   void LoadBuffer2D(void* src_dram_addr,
