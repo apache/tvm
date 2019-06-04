@@ -401,7 +401,7 @@ def upsampling(data,
     with data of shape (n, c, h, w)
     out will have a shape (n, c, h*scale, w*scale)
 
-    method indicates the algorithm to be used while calculating ghe out value
+    method indicates the algorithm to be used while calculating the out value
     and method can be one of ("BILINEAR", "NEAREST_NEIGHBOR")
 
     Parameters

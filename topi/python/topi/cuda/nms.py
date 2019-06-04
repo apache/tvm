@@ -732,7 +732,7 @@ def non_max_suppression_gpu(data, valid_count, max_output_size=-1,
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis], tag=tag.ELEMWISE)
-    sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False, flag=True)
+    sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
 
     sort_tensor_buf = api.decl_buffer(sort_tensor.shape, sort_tensor.dtype,
                                       "sort_tensor_buf", data_alignment=8)

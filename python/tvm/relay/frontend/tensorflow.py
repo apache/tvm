@@ -1082,6 +1082,20 @@ def _softplus():
         return _get_relay_op('log')(add_out)
     return _impl
 
+def _topk():
+    def _impl(inputs, attr, params):
+        k = int(params.pop(inputs.pop(1).name_hint).asnumpy())
+        if k < 1:
+            raise tvm.error.OpAttributeInvalid(
+                'Attribute k must be positive in operator TopKV2')
+        if attr['sorted'] is False:
+            raise tvm.error.OpAttributeUnimplemented(
+                'Attribute sorted=False is not supported in operator TopKV2')
+        return AttrCvt(op_name='topk',
+                       ignores=['sorted'],
+                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})(inputs, attr)
+    return _impl
+
 def _logical(name):
     def _impl(inputs, attr, params):
         return AttrCvt(op_name=name)(inputs, attr)
@@ -1271,6 +1285,7 @@ _convert_map = {
     'Sum'                               : _sum(),
     'Tanh'                              : AttrCvt('tanh'),
     'Tile'                              : _tile(),
+    'TopKV2'                            : _topk(),
     'Transpose'                         : _transpose(),
     'Unpack'                            : _unpack(),
 

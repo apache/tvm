@@ -151,6 +151,8 @@ def strided_slice(a, begin, end, strides=None):
     -------
     ret : tvm.Tensor
     """
+    if strides is None:
+        strides = []
     return cpp.strided_slice(a, begin, end, strides)
 
 
