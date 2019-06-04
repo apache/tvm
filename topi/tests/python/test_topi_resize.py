@@ -23,8 +23,7 @@ import math
 
 from common import get_all_backend
 
-def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, out_width, layout='NCHW', align_corners=False):
-
+def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width, layout='NCHW', align_corners=False, method="BILINEAR"):
     if layout == 'NCHW':
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='float32')
         dtype = A.dtype
@@ -39,9 +38,14 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
 
-    B = topi.image.resize(A, (out_height, out_width), layout=layout, align_corners=align_corners)
+    B = topi.image.resize(A, (out_height, out_width), layout=layout, align_corners=align_corners, method=method)
 
-    b_np = topi.testing.bilinear_resize_python(a_np, (out_height, out_width), layout, align_corners)
+    if method == "BILINEAR":
+        b_np = topi.testing.bilinear_resize_python(a_np, (out_height, out_width), layout, align_corners)
+    else:
+        scale_h = out_height / in_height
+        scale_w = out_width / in_width
+        b_np = topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -61,15 +65,19 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
     for device in get_all_backend():
         check_device(device)
 
+
 def test_resize():
     # Scale NCHW
-    verify_bilinear_scale(4, 16, 32, 32, 50, 50, 'NCHW')
+    verify_resize(4, 16, 32, 32, 50, 50, 'NCHW')
     # Scale NCHW + Align Corners
-    verify_bilinear_scale(6, 32, 64, 64, 20, 20, 'NCHW', True)
+    verify_resize(6, 32, 64, 64, 20, 20, 'NCHW', True)
     # Scale NHWC
-    verify_bilinear_scale(4, 16, 32, 32, 50, 50, "NHWC")
+    verify_resize(4, 16, 32, 32, 50, 50, "NHWC")
     # Scale NHWC + Align Corners
-    verify_bilinear_scale(6, 32, 64, 64, 20, 20, "NHWC", True)
+    verify_resize(6, 32, 64, 64, 20, 20, "NHWC", True)
+    # Nearest + Fractional
+    verify_resize(4, 16, 32, 32, 50, 50, 'NCHW', method="NEAREST_NEIGHBOR")
+    verify_resize(4, 16, 32, 32, 50, 50, 'NHWC', method="NEAREST_NEIGHBOR")
 
 if __name__ == "__main__":
     test_resize()

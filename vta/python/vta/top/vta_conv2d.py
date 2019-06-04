@@ -165,7 +165,7 @@ def find_schedules(layer, vt_only=False, best_only=False):
                     fil_sched.append(schedule)
                     xfer_size.append(_get_data_movement_byte(schedule, layer))
 
-    if best_only:
+    if best_only and xfer_size:
         return [fil_sched[xfer_size.index(min(xfer_size))]]
     return fil_sched
 
@@ -501,5 +501,10 @@ RESNET = {
 }
 
 for idx in RESNET:
-    scheds = find_schedules(RESNET[idx], vt_only=True, best_only=True)[0]
-    _WL2PLAN[RESNET[idx]] = scheds
+    f_schedules = find_schedules(RESNET[idx], vt_only=True, best_only=True)
+    if f_schedules:
+        scheds = f_schedules[0]
+        _WL2PLAN[RESNET[idx]] = scheds
+    else:
+        logging.warning("No valid schedule was found for the workload on current vta configuration")
+        break

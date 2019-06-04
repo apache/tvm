@@ -28,7 +28,7 @@ from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
 from ..nn.conv2d import conv2d, conv2d_NCHWc, \
-    conv2d_alter_layout, _get_workload as _get_conv2d_workload
+    conv2d_alter_layout, conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
 from ..nn.pad import pad
@@ -473,6 +473,21 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
         if F.__name__ == 'nnvm.symbol':
             return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
         return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
+
+
+@conv2d_infer_layout.register("cpu")
+def _conv2d_infer_layout(workload, cfg):
+    _, data, kernel, strides, padding, dilation, layout, dtype = workload
+    batch_size, in_channel, in_height, in_width = data[:-1]
+    out_channel, _, k_height, k_width = kernel[:-1]
+    out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
+    out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
+    tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
+    in_layout = "NCHW%dc" % tile_ic
+    out_shape = (batch_size, out_channel // tile_oc, out_height, out_width, tile_oc)
+    out_layout = "NCHW%dc" % tile_oc
+    return ((in_shape, in_layout),), ((out_shape, out_layout),)
 
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')

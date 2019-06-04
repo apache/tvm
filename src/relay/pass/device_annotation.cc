@@ -35,6 +35,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 
 #include <memory>
 #include <unordered_map>
@@ -176,7 +177,11 @@ class RewriteAnnotation : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    if (IsOnDeviceNode(call_node) || IsDeviceCopyNode(call_node)) {
+    if (IsOnDeviceNode(call_node)) {
+      return this->VisitExpr(call_node->args[0]);
+    }
+
+    if (IsDeviceCopyNode(call_node)) {
       return ExprMutator::VisitExpr_(call_node);
     }
 
@@ -358,6 +363,9 @@ class DeviceInfo {
    public:
     void Visit(const Expr& expr) {
       if (const auto* fn = expr.as<FunctionNode>()) {
+        for (const auto& param : fn->params) {
+          this->VisitExpr(param);
+        }
         this->VisitExpr(fn->body);
       } else {
         this->VisitExpr(expr);
@@ -402,7 +410,7 @@ class DeviceInfo {
     }
 
     void VisitExpr_(const VarNode* vn) final {
-        post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
+      post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
     }
 
     void VisitExpr_(const LetNode* ln) final {
@@ -550,6 +558,21 @@ TVM_REGISTER_API("relay._ir_pass.RewriteDeviceAnnotation")
 TVM_REGISTER_API("relay._ir_pass.CollectDeviceAnnotationOps")
 .set_body_typed(CollectDeviceAnnotationOps);
 
+namespace transform {
+
+Pass RewriteAnnotatedOps(int fallback_device) {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(RewriteAnnotatedOps(f, fallback_device));
+  };
+  return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay._transform.RewriteDeviceAnnotation")
+.set_body_typed(RewriteAnnotatedOps);
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm
-

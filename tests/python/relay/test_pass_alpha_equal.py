@@ -594,7 +594,24 @@ def test_graph_equal():
     # Check the difference in the text format.
     assert not alpha_equal(z0, z3)
 
+def test_hash_unequal():
+    x1 = relay.var("x1", shape=(10, 10), dtype="float32")
+    y1 = relay.var("y1", shape=(10, 10), dtype="float32")
+    func1 = relay.Function([x1, y1], relay.add(x1, y1))
 
+    # func2 is exactly same structure with same variables shapes and dtypes
+    x2 = relay.var("x2", shape=(10, 10), dtype="float32")
+    y2 = relay.var("y2", shape=(10, 10), dtype="float32")
+    func2 = relay.Function([x2, y2], relay.add(x2, y2))
+
+    assert ir_pass.structural_hash(func1) == ir_pass.structural_hash(func2)
+
+    # func3 is same as func1 but with different var shapes
+    x3 = relay.var("x3", shape=(20, 10), dtype="float32")
+    y3 = relay.var("y3", shape=(20, 10), dtype="float32")
+    func3 = relay.Function([x3, y3], relay.add(x3, y3))
+
+    assert not ir_pass.structural_hash(func1) == ir_pass.structural_hash(func3)
 
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
@@ -617,3 +634,4 @@ if __name__ == "__main__":
     test_op_alpha_equal()
     test_var_alpha_equal()
     test_graph_equal()
+    test_hash_unequal()

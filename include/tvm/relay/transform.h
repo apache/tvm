@@ -56,11 +56,16 @@
 #ifndef TVM_RELAY_TRANSFORM_H_
 #define TVM_RELAY_TRANSFORM_H_
 
+#include <tvm/base.h>
 #include <tvm/packed_func_ext.h>
+#include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
+#include <tvm/relay/op.h>
+#include <tvm/relay/op_attr_types.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -73,8 +78,8 @@ namespace transform {
 class PassContext;
 
 /*!
- * \brief PassContextNode contains the information that a pass can rely on, such as
- * analysis results.
+ * \brief PassContextNode contains the information that a pass can rely on,
+ * such as analysis results.
  */
 class PassContextNode : public RelayNode {
  public:
@@ -83,18 +88,88 @@ class PassContextNode : public RelayNode {
    */
   ErrorReporter err_reporter;
 
+  /*! \brief The default optimization level. */
+  int opt_level{2};
+
+  /*! \brief CPU is the default fallback device for heterogeneous execution. */
+  int fallback_device{static_cast<int>(kDLCPU)};
+
+  /*! \brief The list of required passes. */
+  tvm::Array<tvm::Expr> required_pass;
+  /*! \brief The list of disabled passes. */
+  tvm::Array<tvm::Expr> disabled_pass;
+
   PassContextNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("opt_level", &opt_level);
+    v->Visit("fallback_device", &fallback_device);
+    v->Visit("required_pass", &required_pass);
+    v->Visit("disabled_pass", &disabled_pass);
   }
-
-  TVM_DLL static PassContext make();
 
   static constexpr const char* _type_key = "relay.PassContext";
   TVM_DECLARE_NODE_TYPE_INFO(PassContextNode, RelayNode);
 };
 
-TVM_DEFINE_NODE_REF(PassContext, PassContextNode)
+/*!
+ * \brief PassContext that is used to configure the pass behavior.
+ *
+ * \code
+ *
+ *  auto new_ctx = PassContext::Create();
+ *  ctx->opt_level = 2;
+ *  ctx->fallback_device = kDLCPU;
+ *  With<PassContext> scope(ctx);
+ *  // pass context in effect.
+ *
+ * \endcode
+ */
+class PassContext : public NodeRef {
+ public:
+  PassContext() {}
+  explicit PassContext(NodePtr<::tvm::Node> n) : NodeRef(n) {}
+  /*!
+   * \brief const accessor.
+   * \return const access pointer.
+   */
+  const PassContextNode* operator->() const {
+    CHECK(node_.get() != nullptr);
+    return static_cast<const PassContextNode*>(node_.get());
+  }
+  /*!
+   * \brief mutable accessor.
+   * \return mutable access pointer.
+   */
+  PassContextNode* operator->() {
+    CHECK(node_.get() != nullptr);
+    return static_cast<PassContextNode*>(node_.get());
+  }
+  /*!
+   * \brief Construct a PassContext containing the default configurations.
+   * \return The new PassContext.
+   */
+  TVM_DLL static PassContext Create();
+  /*!
+   * \brief Get the default pass context in the current scope.
+   * \return The pass context.
+   */
+  TVM_DLL static PassContext Current();
+
+  // accessor.
+  using ContainerType = PassContextNode;
+  class Internal;
+
+ private:
+  // The entry of a pass context scope.
+  TVM_DLL void EnterWithScope();
+  // The exit of a pass context scope.
+  TVM_DLL void ExitWithScope();
+
+  // Classes to get the Python `with` like syntax.
+  friend class Internal;
+  friend class tvm::With<PassContext>;
+};
 
 /*
  * \brief The meta data of a pass.
@@ -145,25 +220,31 @@ class Pass;
  */
 class PassNode : public RelayNode {
  public:
-  /*
+  /*!
    * \brief Get the pass information/meta data. */
   virtual PassInfo Info() const = 0;
 
   /*!
-   * \brief Set the context information for a pass.
-   *
-   * \param pass_ctx The context information for a certain pass.
-   */
-  virtual void SetContext(const PassContext& pass_ctx) = 0;
-
-  /*!
-   * \brief Execute the optimization pass using a functor.
+   * \brief Transform mod using the default PassContext in the current scope.
    *
    * \param mod The module that an optimization pass runs on.
    *
-   * \return The updated module.
+   * \return The transformed module.
    */
-  virtual Module operator()(const Module& mod) const = 0;
+  Module operator()(const Module& mod) const {
+    return this->operator()(mod, PassContext::Current());
+  }
+
+  /*!
+   * \brief Transform mod using a functor under a given pass context.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The pass context that can provide information for the optimization.
+   *
+   * \return The transformed module.
+   */
+  virtual Module operator()(const Module& mod,
+                            const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(tvm::AttrVisitor* v) override {}
 
@@ -173,14 +254,34 @@ class PassNode : public RelayNode {
 
 class Pass : public NodeRef {
  public:
-  Pass() = default;
-  explicit Pass(NodePtr<tvm::Node> p) : NodeRef(p) {}
-
-  PassNode* operator->() const {
-    return static_cast<PassNode*>(this->node_.get());
+  /*!
+   * \brief Transform mod using the default PassContext in the current scope.
+   *
+   * \param mod The module that an optimization pass runs on.
+   *
+   * \return The transformed module.
+   */
+  Module operator()(const Module& mod) const {
+    const PassNode* node = operator->();
+    CHECK(node != nullptr);
+    return node->operator()(mod);
+  }
+  /*!
+   * \brief Transform mod using a functor under a given pass context.
+   *
+   * \param mod The module that an optimization pass runs on.
+   * \param pass_ctx The pass context that can provide information for the optimization.
+   *
+   * \return The transformed module.
+   */
+  Module operator()(const Module& mod,
+                    const PassContext& pass_ctx) const {
+    const PassNode* node = operator->();
+    CHECK(node != nullptr);
+    return node->operator()(mod, pass_ctx);
   }
 
-  using ContainerType = PassNode;
+  TVM_DEFINE_NODE_REF_METHODS(Pass, NodeRef, PassNode);
 };
 
 class SequentialNode;
@@ -189,20 +290,28 @@ class Sequential : public Pass {
  public:
   /*!
    * \brief The constructor of `Sequential`.
+   *
    * \param passes The passes to apply.
    * \param pass_info The pass metadata.
-   * \param disabled The passes that will not be applied.
    */
-  TVM_DLL Sequential(tvm::Array<Pass> passes,
-                     PassInfo pass_info,
-                     tvm::Array<tvm::Expr> disabled);
+  TVM_DLL Sequential(tvm::Array<Pass> passes, PassInfo pass_info);
+
+  /*!
+   * \brief The constructor of `Sequential`.
+   *
+   * \param passes The passes to apply.
+   * \param name The name of a sequential pass. It's defaulted to "sequential".
+   *        This allows users to only provide a list of passes and execute them
+   *        under a given context.
+   */
+  TVM_DLL Sequential(tvm::Array<Pass> passes, std::string name = "sequential");
+
   Sequential() = default;
   explicit Sequential(tvm::NodePtr<::tvm::Node> n) : Pass(n) {}
 
   const SequentialNode* operator->() const;
   using ContainerType = Sequential;
 };
-
 
 /*
  * \brief Create a module pass.
@@ -230,11 +339,197 @@ Pass CreateModulePass(
  *
  * \return The created function pass.
  */
-Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<tvm::Expr>& required);
+TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
+                                Function(Function, Module, PassContext)>& pass_func,
+                                int opt_level,
+                                const std::string& name,
+                                const tvm::Array<tvm::Expr>& required);
+
+/*! \brief Remove expressions which does not effect the program result.
+ *
+ * It will remove let bindings which are not referenced,
+ * and inline let bindings that are only used once.
+ *
+ * For example, this pass should turn `let a = 1 in 2` into `2`,
+ * as the value of the expression does not depend on a.
+ *
+ * As another example, `let a = 1 in a` will be optimized into 1.
+ *
+ * \return the pass.
+ */
+TVM_DLL Pass DeadCodeElimination();
+
+/*!
+ * \brief Fold constant expressions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FoldConstant();
+
+/*!
+ * \brief Fuse operations into expr into seperate functions.
+ *
+ * \param fuse_opt_level Optimization level. If it is -1 it will be inferred from pass context.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order.
+ *
+ * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
+ *                              rule function.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ForwardRewrite(const std::string& rewrite_map_attr_name,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)>
+                            fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order.
+ *
+ * \param rewrite_func The rewrite func that will apply to all operators.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ForwardRewrite(const FForwardRewrite& rewrite_func,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Rewrite the annotated program.
+ *
+ * \param fallback_device The fallback device which is the default device for
+ *                        operators without annotation.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
+
+/*!
+ * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
+ *
+ * It will turn an expression that is in a graph form (with sharing implicit),
+ * to an expression with explicit sharing (A-Normal Form).
+ *
+ * The scope of the root expression is the global scope.
+ *
+ * The scope of any non root expression is the least common ancestor of all it's scope.
+ *
+ * Values are ordered by post-DFS order in each scope.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ToANormalForm();
+
+/*!
+ * \brief Remove let binding and directly share via pointer instead.
+ *
+ * It will remove all let binding,
+ * and turn all of the variable bound by let into direct pointer reference.
+ *
+ * \return the expression in graph normal form.
+ */
+TVM_DLL Pass ToGraphNormalForm();
+
+/*!
+ * \brief Aggressive constant propagation/constant folding/inlining.
+ *
+ * It will do as much computation in compile time as possible.
+ * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
+ * As a side effect, code size will explode.
+ *
+ * \return the optimized expression.
+ */
+TVM_DLL Pass PartialEval();
+
+/*!
+ * \brief Simplify certain operators during inference. For example, batch norm
+ * will be unpacked into a number of simplified operators.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass SimplifyInference();
+
+/*!
+ * \brief Infer the type of an expression.
+ *
+ * The result of type checking is a new expression with unambigous
+ * type information filled in, as well as it's checked type field
+ * populated with the result type.
+ *
+ * \return The pass. 
+ */
+TVM_DLL Pass InferType();
+
+/*!
+ * \brief Search and eliminate common subexpression. For example, if there are
+ * two expressions evaluated to an identical value, a single variable is created
+ * and these two expressions are replaced by this variable.
+ *
+ * \param fskip The callback argument that allows to skip certain expressions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass EliminateCommonSubexpr(PackedFunc fskip = nullptr);
+
+/*!
+ * \brief Combine parallel 2d convolutions into a single convolution if the
+ * number of branches of this conv2d operator is not less than
+ * `min_num_branch`.
+ *
+ * \param min_num_branches The minimun number of branches.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CombineParallelConv2D(uint64_t min_num_branches = 3);
+
+/*!
+ * \brief Backward fold axis scaling into weights of conv/dense operators.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass BackwardFoldScaleAxis();
+
+/*!
+ * \brief Forward fold axis scaling into weights of conv/dense operators.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ForwardFoldScaleAxis();
+
+/*!
+ * \brief A sequential pass that executes ForwardFoldScaleAxis and
+ * BackwardFoldScaleAxis passes.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FoldScaleAxis();
+
+/*!
+ * \brief Canonicalize some operators to the simplified operators. For example,
+ * bias_add can be canonicalized to expand_dims and broadcast_add.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CanonicalizeOps();
+
+/*!
+ * \brief Alternate the layouts of operators or replace primitive operators
+ * with other expressions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass AlterOpLayout();
 
 }  // namespace transform
 }  // namespace relay

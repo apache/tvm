@@ -279,7 +279,7 @@ struct ReverseAD : ExprMutator {
         }
         std::vector<Expr> orig_args;
         for (const auto& arg : args) {
-          orig_args.push_back(GetField(VisitExpr(arg), 0));
+          orig_args.push_back(GetField(arg, 0));
         }
         Expr orig = CallNode::make(op->op, orig_args, op->attrs, op->type_args);
         Var orig_var = ll->Push(orig);

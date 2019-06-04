@@ -26,6 +26,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/transform.h>
 #include "pattern_util.h"
 
 namespace tvm {
@@ -62,6 +63,22 @@ Expr CanonicalizeOps(const Expr& e) {
 
 TVM_REGISTER_API("relay._ir_pass.canonicalize_ops")
 .set_body_typed(CanonicalizeOps);
+
+namespace transform {
+
+Pass CanonicalizeOps() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(CanonicalizeOps(f));
+  };
+  return CreateFunctionPass(pass_func, 3, "CanonicalizeOps",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay._transform.CanonicalizeOps")
+.set_body_typed(CanonicalizeOps);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

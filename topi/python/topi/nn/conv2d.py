@@ -94,6 +94,26 @@ def conv2d_alter_layout(attrs, inputs, tinfos, F):
     # not to change by default
     return None
 
+@tvm.target.generic_func
+def conv2d_infer_layout(workload, cfg):
+    """Infer input/output shapes and layouts from a workload and cfg.
+
+    Parameters
+    ----------
+    workload : tuple
+        conv2d workload
+
+    cfg : tuple
+        tvm.autotvm config
+
+    Returns
+    -------
+    Output : [tuple of tuple and str, tuple of tuple and str]
+        Input shapes and layouts, and output shapes and layouts
+    """
+    raise ValueError("missing register for topi.nn.conv2d_infer_layout")
+
+
 
 def _get_workload(data, kernel, stride, padding, out_dtype, data_layout='NCHW'):
     """ Get the workload structure. """

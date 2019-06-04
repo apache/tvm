@@ -43,7 +43,7 @@ def verify_keras_frontend(keras_model, need_transpose=True):
     def get_tvm_output(xs, target, ctx, dtype='float32'):
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
         func, params = relay.frontend.from_keras(keras_model, shape_dict)
-        with relay.build_module.build_config(opt_level=2):
+        with relay.transform.build_config(opt_level=2):
             graph, lib, params = relay.build(func, target, params=params)
         m = graph_runtime.create(graph, lib, ctx)
         for name, x in zip(keras_model.input_names, xs):

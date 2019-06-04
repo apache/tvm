@@ -24,6 +24,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/transform.h>
 #include "./pattern_util.h"
 
 namespace tvm {
@@ -36,11 +37,13 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
                             Expr moving_mean,
                             Expr moving_var,
                             Type tdata) {
+  auto ttype = tdata.as<TensorTypeNode>();
+  CHECK(ttype);
   const auto param = attrs.as<BatchNormAttrs>();
-  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
+  Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
   Expr var_add_eps = Add(moving_var, epsilon);
   Expr sqrt_var = Sqrt(var_add_eps);
-  Expr scale = Divide(MakeConstantScalar(Float(32), 1.0f), sqrt_var);
+  Expr scale = Divide(MakeConstantScalar(ttype->dtype, 1.0f), sqrt_var);
 
   if (param->scale) {
     scale = Multiply(scale, gamma);
@@ -52,8 +55,6 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
   }
 
   int axis = param->axis;
-  auto ttype = tdata.as<TensorTypeNode>();
-  CHECK(ttype);
   auto ndim = ttype->shape.size();
   scale = ExpandBiasToMatchAxis(scale, ndim, {axis});
   shift = ExpandBiasToMatchAxis(shift, ndim, {axis});
@@ -104,6 +105,22 @@ Expr SimplifyInference(const Expr& e) {
 
 TVM_REGISTER_API("relay._ir_pass.simplify_inference")
 .set_body_typed(SimplifyInference);
+
+namespace transform {
+
+Pass SimplifyInference() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(SimplifyInference(f));
+  };
+  return CreateFunctionPass(pass_func, 0, "SimplifyInference",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay._transform.SimplifyInference")
+.set_body_typed(SimplifyInference);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm
