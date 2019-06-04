@@ -141,9 +141,8 @@ def negative_grad(orig, grad):
 @register_gradient("nn.dense")
 def dense_grad(orig, grad):
     data, weight = orig.args
-    #return [zeros_like(orig.args[0]), zeros_like(orig.args[1])]
-    return [collapse_sum_like(transpose(transpose(weight) * grad), data),
-            collapse_sum_like(transpose(grad * transpose(data)), weight)]
+    return [collapse_sum_like(grad * transpose(weight), data),
+            collapse_sum_like(data * transpose(grad), weight)]
 
 @register_gradient("cast")
 def cast_grad(orig, grad):
