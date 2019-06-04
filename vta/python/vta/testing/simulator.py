@@ -58,11 +58,18 @@ def stats():
     return json.loads(x)
 
 def tsim_init(hw_lib):
-    """Init hardware library for TSIM"""
+    """Init hardware shared library for TSIM
+
+     Parameters
+     ------------
+     hw_lib : str
+        Name of hardware shared library
+    """
     cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     vta_build_path = os.path.join(cur_path, "..", "..", "..", "build")
-    ext = ".dylib" if sys.platform == "darwin" else ".so"
-    lib = os.path.join(vta_build_path, hw_lib + ext)
+    if not hw_lib.endswith(("dylib", "so")):
+        hw_lib += ".dylib" if sys.platform == "darwin" else ".so"
+    lib = os.path.join(vta_build_path, hw_lib)
     f = tvm.get_global_func("tvm.vta.tsim.init")
     m = tvm.module.load(lib, "vta-tsim")
     f(m)
