@@ -564,6 +564,7 @@ def test_cmp_simplify():
     ck.verify((x + 1)*(y - 1) < 0, tvm.const(1, "bool"))
     ck.verify(y*y >= 0, tvm.const(1, "bool"))
     ck.verify(x*6 <= -3, tvm.const(0, "bool"))
+    ck.verify((y - 1) % 3 == 0, (y + (-1)) % 3 == 0)
 
 
 def test_logical_simplify():
