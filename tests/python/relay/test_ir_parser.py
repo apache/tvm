@@ -60,9 +60,12 @@ TYPES = {
     "float16x4",
 }
 
+def parse_text(code):
+    return relay.fromtext(SEMVER + "\n" + code)
+
 def parses_as(code, expr):
     # type: (str, relay.Expr) -> bool
-    return alpha_equal(relay.fromtext(SEMVER + "\n" + code), expr)
+    return alpha_equal(parse_text(code), expr)
 
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
@@ -100,42 +103,42 @@ def test_comments():
 
 
 def test_int_literal():
-    assert isinstance(relay.fromtext(SEMVER+"1"), relay.Constant)
-    assert isinstance(relay.fromtext(SEMVER+"1").data, tvm.ndarray.NDArray)
+    assert isinstance(parse_text("1"), relay.Constant)
+    assert isinstance(parse_text("1").data, tvm.ndarray.NDArray)
 
-    assert get_scalar(relay.fromtext(SEMVER+"1")) == 1
-    assert get_scalar(relay.fromtext(SEMVER+"10")) == 10
-    assert get_scalar(relay.fromtext(SEMVER+"0")) == 0
-    assert get_scalar(relay.fromtext(SEMVER+"-100")) == -100
-    assert get_scalar(relay.fromtext(SEMVER+"-05")) == -5
+    assert get_scalar(parse_text("1")) == 1
+    assert get_scalar(parse_text("10")) == 10
+    assert get_scalar(parse_text("0")) == 0
+    assert get_scalar(parse_text("-100")) == -100
+    assert get_scalar(parse_text("-05")) == -5
 
 
 def test_float_literal():
-    assert get_scalar(relay.fromtext(SEMVER+"1.0")) == 1.0
-    assert isclose(get_scalar(relay.fromtext(SEMVER+"1.56667")), 1.56667)
-    assert get_scalar(relay.fromtext(SEMVER+"0.0")) == 0.0
-    assert get_scalar(relay.fromtext(SEMVER+"-10.0")) == -10.0
+    assert get_scalar(parse_text("1.0")) == 1.0
+    assert isclose(get_scalar(parse_text("1.56667")), 1.56667)
+    assert get_scalar(parse_text("0.0")) == 0.0
+    assert get_scalar(parse_text("-10.0")) == -10.0
 
     # scientific notation
-    assert isclose(get_scalar(relay.fromtext(SEMVER+"1e-1")), 1e-1)
-    assert get_scalar(relay.fromtext(SEMVER+"1e+1")) == 1e+1
-    assert isclose(get_scalar(relay.fromtext(SEMVER+"1E-1")), 1E-1)
-    assert get_scalar(relay.fromtext(SEMVER+"1E+1")) == 1E+1
-    assert isclose(get_scalar(relay.fromtext(SEMVER+"1.0e-1")), 1.0e-1)
-    assert get_scalar(relay.fromtext(SEMVER+"1.0e+1")) == 1.0e+1
-    assert isclose(get_scalar(relay.fromtext(SEMVER+"1.0E-1")), 1.0E-1)
-    assert get_scalar(relay.fromtext(SEMVER+"1.0E+1")) == 1.0E+1
+    assert isclose(get_scalar(parse_text("1e-1")), 1e-1)
+    assert get_scalar(parse_text("1e+1")) == 1e+1
+    assert isclose(get_scalar(parse_text("1E-1")), 1E-1)
+    assert get_scalar(parse_text("1E+1")) == 1E+1
+    assert isclose(get_scalar(parse_text("1.0e-1")), 1.0e-1)
+    assert get_scalar(parse_text("1.0e+1")) == 1.0e+1
+    assert isclose(get_scalar(parse_text("1.0E-1")), 1.0E-1)
+    assert get_scalar(parse_text("1.0E+1")) == 1.0E+1
 
 
 def test_bool_literal():
-    assert get_scalar(relay.fromtext(SEMVER+"True")) == True
-    assert get_scalar(relay.fromtext(SEMVER+"False")) == False
+    assert get_scalar(parse_text("True")) == True
+    assert get_scalar(parse_text("False")) == False
 
 
 def test_negative():
-    assert isinstance(relay.fromtext(SEMVER+"let %x = 1; -%x").body, relay.Call)
-    assert get_scalar(relay.fromtext(SEMVER+"--10")) == 10
-    assert get_scalar(relay.fromtext(SEMVER+"---10")) == -10
+    assert isinstance(parse_text("let %x = 1; -%x").body, relay.Call)
+    assert get_scalar(parse_text("--10")) == 10
+    assert get_scalar(parse_text("---10")) == -10
 
 
 def test_bin_op():
@@ -147,13 +150,13 @@ def test_bin_op():
 
 
 def test_parens():
-    assert alpha_equal(relay.fromtext(SEMVER+"1 * 1 + 1"), relay.fromtext(SEMVER+"(1 * 1) + 1"))
-    assert not alpha_equal(relay.fromtext(SEMVER+"1 * 1 + 1"), relay.fromtext(SEMVER+"1 * (1 + 1)"))
+    assert alpha_equal(parse_text("1 * 1 + 1"), parse_text("(1 * 1) + 1"))
+    assert not alpha_equal(parse_text("1 * 1 + 1"), parse_text("1 * (1 + 1)"))
 
 
 def test_op_assoc():
-    assert alpha_equal(relay.fromtext(SEMVER+"1 * 1 + 1 < 1 == 1"), relay.fromtext(SEMVER+"(((1 * 1) + 1) < 1) == 1"))
-    assert alpha_equal(relay.fromtext(SEMVER+"1 == 1 < 1 + 1 * 1"), relay.fromtext(SEMVER+"1 == (1 < (1 + (1 * 1)))"))
+    assert alpha_equal(parse_text("1 * 1 + 1 < 1 == 1"), parse_text("(((1 * 1) + 1) < 1) == 1"))
+    assert alpha_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
 
 
 @nottest
@@ -165,17 +168,17 @@ def test_vars():
     # assert temp_var.name == "1"
 
     # var
-    var = relay.fromtext(SEMVER+"let %foo = (); %foo")
+    var = parse_text("let %foo = (); %foo")
     assert isinstance(var.body, relay.Var)
     assert var.body.name_hint == "foo"
 
     # global var
-    global_var = relay.fromtext(SEMVER+"@foo")
+    global_var = parse_text("@foo")
     assert isinstance(global_var, relay.GlobalVar)
     assert global_var.name_hint == "foo"
 
     # operator id
-    op = relay.fromtext(SEMVER+"foo")
+    op = parse_text("foo")
     assert isinstance(op, relay.Op)
     assert op.name == "foo"
 
@@ -241,17 +244,17 @@ def test_graph():
 
 @raises_parse_error
 def test_graph_wrong_order():
-    relay.fromtext(SEMVER+"%1 = (); %1")
+    parse_text("%1 = (); %1")
 
 
 @raises_parse_error
 def test_let_global_var():
-    relay.fromtext(SEMVER+"let @x = 1; ()")
+    parse_text("let @x = 1; ()")
 
 
 @raises_parse_error
 def test_let_op():
-    relay.fromtext(SEMVER+"let x = 1; ()")
+    parse_text("let x = 1; ()")
 
 
 def test_tuple():
@@ -508,7 +511,7 @@ def test_incomplete_type():
 
 def test_builtin_types():
     for builtin_type in TYPES:
-        relay.fromtext(SEMVER+"let %_ : {} = (); ()".format(builtin_type))
+        parse_text("let %_ : {} = (); ()".format(builtin_type))
 
 
 @nottest
