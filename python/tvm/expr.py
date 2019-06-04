@@ -349,6 +349,16 @@ class StringImm(ConstExpr):
         self.__init_handle_by_constructor__(
             _make.StringImm, value)
 
+    def __eq__(self, other):
+        if isinstance(other, ConstExpr):
+            return self.value == other.value
+        return self.value == other
+
+    def __ne__(self, other):
+        if isinstance(other, ConstExpr):
+            return self.value != other.value
+        return self.value != other
+
 
 @register_node
 class Cast(Expr):
