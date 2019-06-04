@@ -193,7 +193,7 @@ Python dependencies
 
        pip install --user tornado psutil xgboost
        
-   * If you want to parse Relay text format progams, you must use Python 3 and run the following
+   * TVM comes with a Relay text format parser; however, if you want to change the parser and/or build the parser yourself, you must use Python 3 and run the following
 
    .. code:: bash
 
