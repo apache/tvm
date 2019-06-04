@@ -192,6 +192,12 @@ Python dependencies
    .. code:: bash
 
        pip install --user tornado psutil xgboost
+       
+   * If you want to parse Relay text format progams, you must use Python 3 and run the following
+
+   .. code:: bash
+
+       pip install --user mypy orderedset antlr4-python3-runtime
 
 
 Install Contrib Libraries
