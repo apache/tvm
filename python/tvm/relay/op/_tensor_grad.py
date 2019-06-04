@@ -20,7 +20,7 @@ from __future__ import absolute_import
 from ..expr import const
 from ..ir_pass import infer_type
 from .op import register_gradient
-from .transform import collapse_sum_like, broadcast_to_like, where, cast
+from .transform import collapse_sum_like, broadcast_to_like, where, cast, transpose, reshape_like
 from .tensor import exp, negative, power, less, equal, divide
 from .tensor import zeros_like, ones_like
 from .reduce import sum
@@ -31,7 +31,6 @@ def log_grad(orig, grad):
     """Returns [grad * (1 / x)]"""
     x = orig.args[0]
     return [grad * ones_like(x) / x]
-
 
 @register_gradient("exp")
 def exp_grad(orig, grad):
@@ -100,7 +99,7 @@ def divide_grad(orig, grad):
 @register_gradient("zeros_like")
 def zeros_like_grad(orig, grad):
     """Returns [0]"""
-    return [orig]
+    return [zeros_like(orig.args[0])]
 
 @register_gradient("ones_like")
 def ones_like_grad(orig, grad):
@@ -124,6 +123,7 @@ def max_grad(orig, grad):
     x, axis = orig.args[0], orig.attrs.axis
     orig = broadcast_to_like(orig, x)
     grad = broadcast_to_like(grad, x)
+    #indicators = broadcast_to_like(equal(orig, x), x) # should cast as well
     indicators = cast(equal(orig, x), 'float32')
     count = broadcast_to_like(sum(indicators, axis, True), x)
     return [divide(indicators, count) * grad]
@@ -135,20 +135,32 @@ def softmax_grad(orig, grad):
 
 @register_gradient("negative")
 def negative_grad(orig, grad):
-    return [-broadcast_to_like(grad, orig.args[0])]
+    return [negative(broadcast_to_like(grad, orig.args[0]))]
 
 # UNTESTED BELOW
 
 @register_gradient("nn.dense")
 def dense_grad(orig, grad):
-    x, y = orig.args
-    return [collapse_sum_like(dense(grad, y), x),
-            collapse_sum_like(dense(grad, x), y)]
+    data, weight = orig.args
+    #return [zeros_like(orig.args[0]), zeros_like(orig.args[1])]
+    return [collapse_sum_like(transpose(transpose(weight) * grad), data),
+            collapse_sum_like(transpose(grad * transpose(data)), weight)]
 
 @register_gradient("cast")
 def cast_grad(orig, grad):
-    return [grad.astype(orig.attrs.dtype)]
+    # TODO(@altanh): this is broken
+    return [broadcast_to_like(grad, orig.args[0])]
 
 @register_gradient("reshape")
 def reshape_grad(orig, grad):
-    return [broadcast_to_like(grad, orig.args[0])]
+    # TODO(@altanh): fix reshape_like documentation
+    return [reshape_like(grad, orig.args[0])]
+
+@register_gradient("take")
+def take_grad(orig, grad):
+    x, y = orig.args
+    return [broadcast_to_like(grad, x), zeros_like(y)]
+
+@register_gradient("shape_of")
+def shape_of_grad(orig, grad):
+    return [zeros_like(orig.args[0])]
