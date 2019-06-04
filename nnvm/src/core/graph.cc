@@ -76,6 +76,8 @@ IndexedGraph::IndexedGraph(const Graph &g) {
 
   DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr, &subgraphs]
              (const NodePtr& n) {
+      const auto& is_ghost = Op::GetAttr<TIsGhost>("TIsGhost");
+      if (!n->is_variable() && is_ghost.get(n->op(), false)) return;
       CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
       uint32_t nid = static_cast<uint32_t>(nodes_.size());
       CHECK(n);
@@ -103,6 +105,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
       inputs_rptr.push_back(input_entries_.size());
       // control deps
       for (const auto& nptr : n->control_deps) {
+        if (!nptr->is_variable() && is_ghost.get(nptr->op(), false)) continue;
         auto it = node2index_.find(nptr.get());
         CHECK(it != node2index_.end() && it->first == nptr.get());
         control_deps_.push_back(it->second);
