@@ -345,7 +345,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     CHECK_EQ(func->params.size(), args_registers.size());
     for (size_t i = 0; i < func->params.size(); i++) {
       auto ty = func->params[i]->checked_type();
-      if (auto tensor_ty = ty.as<TensorTypeNode>()) {
+      if (ty.as<TensorTypeNode>()) {
         unpacked_arg_regs.push_back(args_registers[i]);
         arity += 1;
       } else if (auto tuple_ty = ty.as<TupleTypeNode>()) {
