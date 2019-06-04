@@ -188,7 +188,7 @@ def run(device = "vta"):
             relay_graph = relay.ir_pass.fold_constant(relay_graph)
 
         # Compile Relay program.
-        with relay.build_module.build_config(opt_level=3, disable_pass={"AlterOpLayout"}):
+        with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             if target.device_name != "vta":
                 graph, lib, params = relay.build(
                     relay_graph, target=target,
