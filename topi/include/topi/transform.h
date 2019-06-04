@@ -938,6 +938,50 @@ inline Tensor gather_nd(const Tensor& data,
 }
 
 /*!
+* \brief Batch gather elements from a n-dimension array.
+*
+* \param data The source array.
+* \param indices The indices of the values to extract.
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
+*
+* \return A Tensor whose op member is the batch_gather operation
+*/
+inline Tensor batch_gather(const Tensor& data,
+                           const Tensor& indices,
+                           std::string name = "T_batch_gather",
+                           std::string tag = kInjective) {
+  size_t ndim_d = data->shape.size();
+  size_t ndim_i = indices->shape.size();
+  CHECK_GE(ndim_d, 2) << "data tensor must have at least 2 dimensions";
+  CHECK_GE(ndim_i, 1) << "indices tensor must have 1 dimension";
+  Array<Expr> out_shape;
+  out_shape.push_back(data->shape[0]);  // batch_size
+  for (size_t i = 0; i < ndim_i; ++i) {
+    out_shape.push_back(indices->shape[i]);
+  }
+  // same as gather with axis = 1
+  for (size_t i = 2; i < ndim_d; ++i) {
+    out_shape.push_back(data->shape[i]);
+  }
+  return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          Array<Expr> indices_position;
+          for (size_t i = 0; i < ndim_i; ++i) {
+            indices_position.push_back(out_index[i + 1]);
+          }
+          Array<Expr> real_indices;
+          real_indices.push_back(out_index[0]);
+          real_indices.push_back(indices(indices_position));
+          for (size_t i = ndim_i + 1; i < out_index.size(); ++i) {
+            real_indices.push_back(out_index[i]);
+          }
+          return data(real_indices);
+        },
+        name, tag);
+}
+
+/*!
  * \brief Creates an operation that calculates a matrix multiplication
  *  (row-major notation):
  *      A(i, k) * B(k, j), if trans_a == trans_b

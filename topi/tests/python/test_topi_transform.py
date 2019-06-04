@@ -329,12 +329,41 @@ def verify_gather_nd(src_shape, indices_src, indices_dtype):
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(out_tensor)
 
-        func = tvm.build(s, [A, indices, out_tensor] , device, name="take")
+        func = tvm.build(s, [A, indices, out_tensor] , device, name="gather_nd")
         shape_size = 1
         for i in range(len(src_shape)):
             shape_size = shape_size * src_shape[i]
         data_npy = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
         out_npys = topi.testing.gather_nd_python(data_npy, indices_src)
+
+        data_nd = tvm.nd.array(data_npy, ctx)
+        indices_nd = tvm.nd.array(indices_src, ctx)
+        out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=src_dtype)
+        func(data_nd, indices_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+
+    for device in get_all_backend():
+        check_device(device)
+
+def verify_batch_gather(src_shape, indices_shape, indices_dtype):
+    src_dtype = "float32"
+    indices_src = np.random.randint(size=indices_shape, low=0, high=src_shape[1]).astype(indices_dtype)
+    A = tvm.placeholder(shape=src_shape, dtype=src_dtype, name="A")
+    indices = tvm.placeholder(shape=indices_src.shape, dtype=indices_dtype, name="indices")
+    out_tensor = topi.batch_gather(a=A, indices=indices)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(out_tensor)
+
+        func = tvm.build(s, [A, indices, out_tensor] , device, name="batch_gather")
+        data_npy = np.random.randn(*src_shape).astype(A.dtype)
+        out_npys = topi.testing.batch_gather_python(data_npy, indices_src)
 
         data_nd = tvm.nd.array(data_npy, ctx)
         indices_nd = tvm.nd.array(indices_src, ctx)
@@ -537,6 +566,15 @@ def test_gather_nd():
         verify_gather_nd((2, 3, 4, 5), [[1, 0], [2, 1], [3, 2], [4, 2]],
                          indices_dtype)
 
+def test_batch_gather():
+    indices_dtype = "int32"
+    verify_batch_gather((10, 48), (1, 16), indices_dtype)
+    verify_batch_gather((10, 48), (1, 16,), indices_dtype)
+    verify_batch_gather((4, 16, 4), (1, 16), indices_dtype)
+    verify_batch_gather((4, 16, 4, 4), (1, 16), indices_dtype)
+    verify_batch_gather((4, 16, 4, 4), (1, 8, 4), indices_dtype)
+    verify_batch_gather((4, 16, 4, 4), (2, 8, 4), indices_dtype)
+
 def test_arange():
     verify_arange(None, 20, None)
     verify_arange(None, 20, 2)
@@ -632,3 +670,4 @@ if __name__ == "__main__":
     test_repeat()
     test_tile()
     test_shape()
+    test_batch_gather()

@@ -50,6 +50,7 @@ _reg.register_schedule("stack", schedule_injective)
 _reg.register_schedule("concatenate", schedule_concatenate)
 _reg.register_schedule("_contrib_reverse_reshape", schedule_injective)
 _reg.register_schedule("gather_nd", schedule_injective)
+_reg.register_schedule("batch_gather", schedule_injective)
 
 # layout_transform
 _reg.register_schedule("layout_transform", schedule_injective)

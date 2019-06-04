@@ -291,6 +291,24 @@ def gather_nd(a, indices):
     return cpp.gather_nd(a, indices)
 
 
+def batch_gather(a, indices):
+    """Batch gather elements from a n-dimension array..
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The source array.
+
+    indices : tvm.Tensor
+        The indices of the values to extract.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.batch_gather(a, indices)
+
+
 def matmul(a, b, transp_a=False, transp_b=False):
     """
     Creates an operation that calculates a matrix multiplication (row-major notation):

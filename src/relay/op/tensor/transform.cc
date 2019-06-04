@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -2218,5 +2218,76 @@ output shape will simply be (Y_0, ..., Y_{K-1}).
 .set_attr<FTVMCompute>("FTVMCompute", GatherNDCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+
+// batch_gather op
+bool BatchGatherRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+
+  if (data == nullptr || indices == nullptr) {
+    return false;
+  }
+
+  size_t ndim_d = data->shape.size();
+  size_t ndim_i = indices->shape.size();
+  CHECK_GE(ndim_d, 2) << "data tensor must have at least 2 dimensions";
+  CHECK_GE(ndim_i, 1) << "indices tensor must have 1 dimension";
+
+  Array<IndexExpr> oshape;
+  oshape.push_back(data->shape[0]);
+  for (size_t i = 0; i < ndim_i; i++) {
+    oshape.push_back(indices->shape[i]);
+  }
+  for (size_t i = 2; i < ndim_d; i++) {
+    oshape.push_back(data->shape[i]);
+  }
+
+  CHECK(!oshape.empty()) << "output tensor cannot be empty";
+
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+Array<Tensor> BatchGatherCompute(const Attrs& attrs,
+                                 const Array<Tensor>& inputs,
+                                 const Type& out_type,
+                                 const Target& target) {
+  return { topi::batch_gather(inputs[0], inputs[1]) };
+}
+
+Expr MakeBatchGather(Expr data, Expr indices) {
+  static const Op& op = Op::Get("batch_gather");
+  return CallNode::make(op, {data, indices}, Attrs(), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.batch_gather")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+  runtime::detail::unpack_call<Expr, 2>(MakeBatchGather, args, rv);
+});
+
+RELAY_REGISTER_OP("batch_gather")
+.describe(R"code(Batch gather operation.
+Given DATA tensor of rank r >= 2, and INDICES tensor of rank q >= 1,
+gather entries of the second dimension (the first dimension is the batch)
+of DATA indexed by INDICES, and concatenate them in an output tensor of
+rank q + r - 1. Given data of size [A, A1, ..., AN] and indices of size
+[B1, ..., BM], the output is of size [A, B1, ..., BM, A2, ..., AN].
+
+- **data**: tensor of rank r >= 2 with the first dimension in DATA being batch size
+- **indices**: tensor of rank q >= 1
+- **out**: tensor of rank q + r - 1
+
+)code" TVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data.")
+.add_argument("indices", "Tensor", "Indices of data")
+.set_num_inputs(2)
+.set_support_level(3)
+.add_type_rel("BatchGather", BatchGatherRel)
+.set_attr<FTVMCompute>("FTVMCompute", BatchGatherCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 }  // namespace relay
 }  // namespace tvm
