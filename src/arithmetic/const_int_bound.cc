@@ -190,7 +190,7 @@ class ConstIntBoundAnalyzer::Impl :
                          std::min(a.max_value, b_max_cap));
       } else {
         return MakeBound(std::max(a.min_value, -b_max_cap),
-                         std::min(a.max_value, b_max_cap));
+                         std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
       }
     } else {
       CHECK(!b.is_const(0)) << "mod by zero";
