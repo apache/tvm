@@ -163,6 +163,14 @@ def test_equality():
     d = (c != c)
     assert not d
 
+
+def test_equality_string_imm():
+    x = 'a'
+    y = tvm.make.StringImm(x)
+    x == y.value
+    x == y
+
+
 if __name__ == "__main__":
     test_cast()
     test_attr()
@@ -178,3 +186,4 @@ if __name__ == "__main__":
     test_all()
     test_bitwise()
     test_equality()
+    test_equality_string_imm()
