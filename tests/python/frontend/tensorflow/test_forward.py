@@ -754,6 +754,24 @@ def test_forward_split():
     _test_split((3, 6, 4), -2, [1, 4, 1], 'float32')
 
 
+######################################################################
+# TopKV2
+# ------
+
+def _test_forward_top_k_v2(in_shape, k):
+    np_data = np.random.uniform(-100, 100, size=in_shape).astype("float32")
+    tf.reset_default_graph()
+    in_data = tf.placeholder("float32", in_shape, name="in_data")
+    tf.math.top_k(in_data, k, name='TopK')
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'TopK:0')
+
+def test_forward_top_k_v2():
+    _test_forward_top_k_v2((3,), 1)
+    _test_forward_top_k_v2((3,), 3)
+    _test_forward_top_k_v2((3, 5, 7), 3)
+    _test_forward_top_k_v2((3, 5, 7), 3)
+
+
 #######################################################################
 # Unstack
 # -------
@@ -1704,6 +1722,7 @@ if __name__ == '__main__':
     test_forward_split()
     test_forward_unstack()
     test_forward_tile()
+    test_forward_top_k_v2()
 
     # Activations
     test_forward_sigmoid()

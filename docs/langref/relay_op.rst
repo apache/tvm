@@ -172,6 +172,7 @@ This level enables additional math and transform operators.
    :nosignatures:
 
    tvm.relay.argsort
+   tvm.relay.topk
 
 
 **Level 10: Temporary Operators**
@@ -309,6 +310,7 @@ Level 5 Definitions
 Level 6 Definitions
 -------------------
 .. autofunction:: tvm.relay.argsort
+.. autofunction:: tvm.relay.topk
 
 
 Level 10 Definitions

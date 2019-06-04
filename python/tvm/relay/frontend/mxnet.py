@@ -683,6 +683,21 @@ def _mx_argsort(inputs, attrs):
     return _op.argsort(inputs[0], **new_attrs)
 
 
+def _mx_topk(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["k"] = attrs.get_int("k", 1)
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
+    ret_type = attrs.get_str("ret_typ", "indices")
+    if ret_type == "mask":
+        raise tvm.error.OpAttributeUnimplemented(
+            "Attribute ret_type=mask is not supported in topk operator")
+    new_attrs["ret_type"] = "values" if ret_type == "value" else ret_type
+    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    return _op.topk(inputs[0], **new_attrs)
+
+
 def _mx_rnn_param_concat(inputs, _):
     # We don't need to concatenate RNN params because we will unravel the RNN op
     return [inputs]
@@ -914,6 +929,7 @@ _convert_map = {
     "shape_array"   : _mx_shape_array,
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
+    "topk"          : _mx_topk,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,

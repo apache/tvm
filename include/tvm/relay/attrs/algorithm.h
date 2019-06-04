@@ -48,6 +48,31 @@ struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
   }
 };
 
+struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
+  int k;
+  int axis;
+  bool is_ascend;
+  std::string ret_type;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(TopKAttrs, "relay.attrs.TopkAttrs") {
+    TVM_ATTR_FIELD(k).set_default(1)
+      .describe("Number of top elements to select");
+    TVM_ATTR_FIELD(axis).set_default(-1)
+      .describe("Axis along which to sort the input tensor.");
+    TVM_ATTR_FIELD(ret_type).set_default("both")
+      .describe("The return type [both, values, indices]."
+                "both - return both top k data and indices."
+                "values - return top k data only."
+                "indices - return top k indices only.");
+    TVM_ATTR_FIELD(is_ascend).set_default(false)
+      .describe("Whether to sort in ascending or descending order."
+                "By default, sort in descending order");
+    TVM_ATTR_FIELD(dtype).set_default(NullValue<DataType>())
+      .describe("Data type of the output indices.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_ALGORITHM_H_

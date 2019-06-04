@@ -218,9 +218,9 @@ def take(data, indices, axis=None, mode="clip"):
         the flattened input array is used.
 
     mode : str, optional
-        Specifies how out-of-bound indices will behave.
-        clip - clip to the range (default)
-        wrap - wrap around the indices
+        Specifies how out-of-bound indices will behave [clip, wrap].
+        clip: clip to the range (default).
+        wrap: wrap around the indices.
 
     Returns
     -------

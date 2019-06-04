@@ -99,6 +99,8 @@ List of operators
    topi.shape
    topi.layout_transform
    topi.image.resize
+   topi.argsort
+   topi.topk
 
 
 List of schedules
@@ -163,6 +165,8 @@ topi
 .. autofunction:: topi.tile
 .. autofunction:: topi.shape
 .. autofunction:: topi.layout_transform
+.. autofunction:: topi.argsort
+.. autofunction:: topi.topk
 
 topi.nn
 ~~~~~~~
