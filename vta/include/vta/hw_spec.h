@@ -365,9 +365,6 @@ extern "C" {
 #define VTA_UOP_ALU_1_0 (VTA_UOP_ALU_0_1 + 1)
 /*! GEMM Micro-op end position of the inp_idx field */
 #define VTA_UOP_ALU_1_1 (VTA_UOP_ALU_1_0 + VTA_LOG_INP_BUFF_DEPTH - 1)
-/*! PAGE SIZE */
-#define VTA_PAGE_BITS 12
-#define VTA_PAGE_BYTES (1 << VTA_PAGE_BITS)
 
 /*! \brief VTA generic instruction */
 typedef struct {

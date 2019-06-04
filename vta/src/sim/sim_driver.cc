@@ -198,7 +198,7 @@ class DRAM {
   // The bits in page table
   static constexpr vta_phy_addr_t kPageBits = VTA_PAGE_BITS;
   // page size, also the maximum allocable size 16 K
-  static constexpr vta_phy_addr_t kPageSize = 1 << kPageBits;
+  static constexpr vta_phy_addr_t kPageSize = VTA_PAGE_BYTES;
   /*! \brief A page in the DRAM */
   struct Page {
     /*! \brief Data Type */
