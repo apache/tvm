@@ -580,6 +580,9 @@ runtime::Module build(const Map<std::string, Array<LoweredFunc>>& inputs,
   Map<Target, Array<LoweredFunc>> updated_input;
   for (const auto& it : inputs) {
     auto target = Target::Create(it.first);
+    if (target->device_name == "vta") {
+      target = Target::Create("ext_dev");
+    }
     updated_input.Set(target, it.second);
   }
   return build(updated_input, target_host, config);
