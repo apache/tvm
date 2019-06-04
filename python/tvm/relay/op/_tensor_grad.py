@@ -20,7 +20,7 @@ from __future__ import absolute_import
 from ..expr import const
 from ..ir_pass import infer_type
 from .op import register_gradient
-from .transform import collapse_sum_like, broadcast_to_like, where, cast, transpose, reshape_like
+from .transform import collapse_sum_like, broadcast_to_like, where, cast, transpose, reshape_like, cast_like
 from .tensor import exp, negative, power, less, equal, divide
 from .tensor import zeros_like, ones_like
 from .reduce import sum
@@ -123,8 +123,7 @@ def max_grad(orig, grad):
     x, axis = orig.args[0], orig.attrs.axis
     orig = broadcast_to_like(orig, x)
     grad = broadcast_to_like(grad, x)
-    #indicators = broadcast_to_like(equal(orig, x), x) # should cast as well
-    indicators = cast(equal(orig, x), 'float32')
+    indicators = cast_like(equal(orig, x), grad)
     count = broadcast_to_like(sum(indicators, axis, True), x)
     return [divide(indicators, count) * grad]
 
@@ -148,12 +147,11 @@ def dense_grad(orig, grad):
 
 @register_gradient("cast")
 def cast_grad(orig, grad):
-    # TODO(@altanh): this is broken
+    grad = cast_like(grad, orig.args[0])
     return [broadcast_to_like(grad, orig.args[0])]
 
 @register_gradient("reshape")
 def reshape_grad(orig, grad):
-    # TODO(@altanh): fix reshape_like documentation
     return [reshape_like(grad, orig.args[0])]
 
 @register_gradient("take")
