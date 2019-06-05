@@ -15,5 +15,81 @@
 # specific language governing permissions and limitations
 # under the License.
 
+CONFIG = DefaultF1Config
+TOP = VTA
+TOP_TEST = Test
+BUILD_NAME = build
+USE_TRACE = 0
+VTA_LIBNAME = libvta_hw
+
+config_test = $(TOP_TEST)$(CONFIG)
+vta_dir = $(abspath ../../)
+tvm_dir = $(abspath ../../../)
+verilator_inc_dir = /usr/local/share/verilator/include
+verilator_build_dir = $(vta_dir)/$(BUILD_NAME)/verilator
+chisel_build_dir = $(vta_dir)/$(BUILD_NAME)/chisel
+
+verilator_opt = --cc
+verilator_opt += +define+RANDOMIZE_GARBAGE_ASSIGN
+verilator_opt += +define+RANDOMIZE_REG_INIT
+verilator_opt += +define+RANDOMIZE_MEM_INIT
+verilator_opt += --x-assign unique
+verilator_opt += --output-split 20000
+verilator_opt += --output-split-cfuncs 20000
+verilator_opt += --top-module ${TOP_TEST}
+verilator_opt += -Mdir ${verilator_build_dir}
+verilator_opt += -I$(chisel_build_dir)
+
+cxx_flags = -O2 -Wall -fPIC -shared
+cxx_flags += -fvisibility=hidden -std=c++11
+cxx_flags += -DVL_TSIM_NAME=V$(TOP_TEST)
+cxx_flags += -DVL_PRINTF=printf
+cxx_flags += -DVL_USER_FINISH
+cxx_flags += -DVM_COVERAGE=0
+cxx_flags += -DVM_SC=0
+cxx_flags += -Wno-sign-compare
+cxx_flags += -include V$(TOP_TEST).h
+cxx_flags += -I$(verilator_build_dir)
+cxx_flags += -I$(verilator_inc_dir)
+cxx_flags += -I$(verilator_inc_dir)/vltstd
+cxx_flags += -I$(vta_dir)/include
+cxx_flags += -I$(tvm_dir)/include
+cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
+
+cxx_files = $(verilator_inc_dir)/verilated.cpp
+cxx_files += $(verilator_inc_dir)/verilated_dpi.cpp
+cxx_files += $(wildcard $(verilator_build_dir)/*.cpp)
+cxx_files += $(vta_dir)/hardware/dpi/tsim_device.cc
+
+ifneq ($(USE_TRACE), 0)
+  verilator_opt += --trace
+  cxx_flags += -DVM_TRACE=1
+  cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
+  cxx_files += $(verilator_inc_dir)/verilated_vcd_c.cpp
+else
+  cxx_flags += -DVM_TRACE=0
+endif
+
+default: lib
+
+lib: $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
+$(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so: $(verilator_build_dir)/V$(TOP_TEST).cpp
+	g++ $(cxx_flags) $(cxx_files) -o $@
+
+verilator: $(verilator_build_dir)/V$(TOP_TEST).cpp
+$(verilator_build_dir)/V$(TOP_TEST).cpp: $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v
+	verilator $(verilator_opt) $<
+
+verilog: $(chisel_build_dir)/$(TOP).$(CONFIG).v
+$(chisel_build_dir)/$(TOP).$(CONFIG).v:
+	sbt 'runMain vta.$(CONFIG) --target-dir $(chisel_build_dir) --top-name $(TOP).$(CONFIG)'
+
+verilog_test: $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v
+$(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v:
+	sbt 'runMain vta.$(config_test) --target-dir $(chisel_build_dir) --top-name $(TOP_TEST).$(CONFIG)'
+
 clean:
 	-rm -rf target project/target project/project
+
+cleanall:
+	-rm -rf $(vta_dir)/$(BUILD_NAME)

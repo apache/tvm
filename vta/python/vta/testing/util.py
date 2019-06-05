@@ -31,7 +31,7 @@ def run(run_func):
     """
     env = get_env()
 
-    if env.TARGET == "sim":
+    if env.TARGET in ["sim", "tsim"]:
 
         # Talk to local RPC if necessary to debug RPC server.
         # Compile vta on your host with make at the root.
@@ -48,7 +48,8 @@ def run(run_func):
             # Make sure simulation library exists
             # If this fails, build vta on host (make)
             # with TARGET="sim" in the json.config file.
-            assert simulator.enabled()
+            if env.TARGET == "sim":
+                assert simulator.enabled()
             run_func(env, rpc.LocalSession())
 
     elif env.TARGET == "pynq":

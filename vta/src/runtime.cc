@@ -56,7 +56,7 @@ struct DataBuffer {
     return data_;
   }
   /*! \return Physical address of the data. */
-  uint32_t phy_addr() const {
+  vta_phy_addr_t phy_addr() const {
     return phy_addr_;
   }
   /*!
@@ -113,7 +113,7 @@ struct DataBuffer {
   /*! \brief The internal data. */
   void* data_;
   /*! \brief The physical address of the buffer, excluding header. */
-  uint32_t phy_addr_;
+  vta_phy_addr_t phy_addr_;
 };
 
 /*!
@@ -302,7 +302,7 @@ class BaseQueue {
     return dram_buffer_;
   }
   /*! \return Physical address of DRAM. */
-  uint32_t dram_phy_addr() const {
+  vta_phy_addr_t dram_phy_addr() const {
     return dram_phy_addr_;
   }
   /*! \return Whether there is pending information. */
@@ -367,7 +367,7 @@ class BaseQueue {
   // The buffer in DRAM
   char* dram_buffer_{nullptr};
   // Physics address of the buffer
-  uint32_t dram_phy_addr_;
+  vta_phy_addr_t dram_phy_addr_;
 };
 
 /*!
@@ -424,7 +424,11 @@ class UopQueue : public BaseQueue {
       CHECK((dram_end_ - dram_begin_) == (sram_end_ - sram_begin_));
       insn->memory_type = VTA_MEM_ID_UOP;
       insn->sram_base = sram_begin_;
+#ifdef USE_TSIM
+      insn->dram_base = (uint32_t) dram_phy_addr_ + dram_begin_*kElemBytes;
+#else
       insn->dram_base = dram_phy_addr_ / kElemBytes + dram_begin_;
+#endif
       insn->y_size = 1;
       insn->x_size = (dram_end_ - dram_begin_);
       insn->x_stride = (dram_end_ - dram_begin_);
@@ -958,7 +962,11 @@ class CommandQueue {
     insn->memory_type = dst_memory_type;
     insn->sram_base = dst_sram_index;
     DataBuffer* src = DataBuffer::FromHandle(src_dram_addr);
+#ifdef USE_TSIM
+    insn->dram_base = (uint32_t) src->phy_addr() + src_elem_offset*GetElemBytes(dst_memory_type);
+#else
     insn->dram_base = src->phy_addr() / GetElemBytes(dst_memory_type) + src_elem_offset;
+#endif
     insn->y_size = y_size;
     insn->x_size = x_size;
     insn->x_stride = x_stride;
@@ -981,7 +989,11 @@ class CommandQueue {
     insn->memory_type = src_memory_type;
     insn->sram_base = src_sram_index;
     DataBuffer* dst = DataBuffer::FromHandle(dst_dram_addr);
+#ifdef USE_TSIM
+    insn->dram_base = (uint32_t) dst->phy_addr() + dst_elem_offset*GetElemBytes(src_memory_type);
+#else
     insn->dram_base = dst->phy_addr() / GetElemBytes(src_memory_type) + dst_elem_offset;
+#endif
     insn->y_size = y_size;
     insn->x_size = x_size;
     insn->x_stride = x_stride;
@@ -1046,11 +1058,24 @@ class CommandQueue {
 
     // Make sure that we don't exceed contiguous physical memory limits
     CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
+#ifdef USE_TSIM
+    int timeout = VTADeviceRun(
+        device_,
+        insn_queue_.dram_phy_addr(),
+        uop_queue_.dram_phy_addr(),
+        inp_phy_addr_,
+        wgt_phy_addr_,
+        acc_phy_addr_,
+        out_phy_addr_,
+        insn_queue_.count(),
+        wait_cycles);
+#else
     int timeout = VTADeviceRun(
         device_,
         insn_queue_.dram_phy_addr(),
         insn_queue_.count(),
         wait_cycles);
+#endif
     CHECK_EQ(timeout, 0);
     // Reset buffers
     uop_queue_.Reset();
@@ -1124,6 +1149,18 @@ class CommandQueue {
   static void Shutdown() {
     ThreadLocal().reset();
   }
+
+#ifdef USE_TSIM
+  void SetBufPhyAddr(uint32_t type, vta_phy_addr_t addr) {
+    switch (type) {
+      case VTA_MEM_ID_INP: inp_phy_addr_ = addr;
+      case VTA_MEM_ID_WGT: wgt_phy_addr_ = addr;
+      case VTA_MEM_ID_ACC: acc_phy_addr_ = addr;
+      case VTA_MEM_ID_OUT: out_phy_addr_ = addr;
+      default: break;
+    }
+  }
+#endif
 
  private:
   // Push GEMM uop to the command buffer
@@ -1229,6 +1266,16 @@ class CommandQueue {
   InsnQueue<VTA_MAX_XFER, true, true> insn_queue_;
   // Device handle
   VTADeviceHandle device_{nullptr};
+#ifdef USE_TSIM
+  // Input phy addr
+  vta_phy_addr_t inp_phy_addr_{0};
+  // Weight phy addr
+  vta_phy_addr_t wgt_phy_addr_{0};
+  // Accumulator phy addr
+  vta_phy_addr_t acc_phy_addr_{0};
+  // Output phy addr
+  vta_phy_addr_t out_phy_addr_{0};
+#endif
 };
 
 }  // namespace vta
@@ -1317,6 +1364,10 @@ void VTALoadBuffer2D(VTACommandHandle cmd,
                      uint32_t y_pad_after,
                      uint32_t dst_sram_index,
                      uint32_t dst_memory_type) {
+#ifdef USE_TSIM
+  vta::DataBuffer* src = vta::DataBuffer::FromHandle(src_dram_addr);
+  static_cast<vta::CommandQueue*>(cmd)->SetBufPhyAddr(dst_memory_type, src->phy_addr());
+#endif
   static_cast<vta::CommandQueue*>(cmd)->
       LoadBuffer2D(src_dram_addr, src_elem_offset,
                    x_size, y_size, x_stride,
@@ -1333,6 +1384,10 @@ void VTAStoreBuffer2D(VTACommandHandle cmd,
                       uint32_t x_size,
                       uint32_t y_size,
                       uint32_t x_stride) {
+#ifdef USE_TSIM
+  vta::DataBuffer* dst = vta::DataBuffer::FromHandle(dst_dram_addr);
+  static_cast<vta::CommandQueue*>(cmd)->SetBufPhyAddr(src_memory_type, dst->phy_addr());
+#endif
   static_cast<vta::CommandQueue*>(cmd)->
       StoreBuffer2D(src_sram_index, src_memory_type,
                     dst_dram_addr, dst_elem_offset,
