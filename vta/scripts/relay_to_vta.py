@@ -15,47 +15,47 @@ import vta
 from vta.testing import simulator
 from vta.top import graph_pack
 
-parser = argparse.ArgumentParser(description='Train a model for image classification.')
-parser.add_argument('--model', type=str, required=False, default='resnet18_v1',
-                    help='Input model name.')
-parser.add_argument('--start-name', type=str, default='nn.max_pool2d',
-                    help='The name of the node where packing starts')
-parser.add_argument('--stop-name', type=str, default='nn.global_avg_pool2d',
-                    help='The name of the node where packing stops')
-parser.add_argument('--debug-profile', action='store_true',
-                    help='Show layer-wise time cost profiling results')
-parser.add_argument('--device', default="vta",
-                    help='Select device target, either "vta" or "vtacpu"')
-parser.add_argument('--measurements', type=int, default=1,
-                    help='Number of measurements')
 
-opt = parser.parse_args()
+def classification_demo(opt):
+    """Image classification demo.
 
-# Helper function to read in image
-# Takes in Image object, returns an ND array
-def process_image(image):
-    # Convert to neural network input format
-    image = np.array(image) - np.array([123., 117., 104.])
-    image /= np.array([58.395, 57.12, 57.375])
-    image = image.transpose((2, 0, 1))
-    image = image[np.newaxis, :]
-
-    return tvm.nd.array(image.astype("float32"))
-
-if __name__ == '__main__':
+    Parameters
+    ----------
+    opt: a dictionary obtained from argparse
+    """
+    
+    # Make sure that TVM was compiled with RPC=1
+    assert tvm.module.enabled("rpc")
 
     # Read in VTA environment
     env = vta.get_env()
 
-    # Measure build start time
-    reconfig_start = time.time()
+    # Download ImageNet Categories
+    url = "https://github.com/uwsaml/web-data/raw/master/vta/models/"
+    categ_fn = "synset.txt"
+    for fn in ["synset.txt"]:
+        if not isfile(fn):
+            download.download(join(url, fn), fn)
+    synset = eval(open(categ_fn).read())
+
+    # Download test image
+    image_url = 'https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg'
+    response = requests.get(image_url)
+
+    # Prepare test image for inference
+    image = Image.open(BytesIO(response.content)).resize((224, 224))
+    image = np.array(image) - np.array([123., 117., 104.])
+    image /= np.array([58.395, 57.12, 57.375])
+    image = image.transpose((2, 0, 1))
+    image = image[np.newaxis, :]
+    image = np.repeat(image, env.BATCH, axis=0)
 
     # We configure both the bitstream and the runtime system on the Pynq
     # to match the VTA configuration specified by the vta_config.json file.
     if env.TARGET != "sim":
 
-        # Make sure that TVM was compiled with RPC=1
-        assert tvm.module.enabled("rpc")
+        # Measure build start time
+        reconfig_start = time.time()
 
         # Get remote from fleet node
         tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
@@ -65,12 +65,10 @@ if __name__ == '__main__':
             exit()
         remote = autotvm.measure.request_remote(env.TARGET, tracket_host, tracket_port, timeout=10000)
 
-        # Reconfigure the JIT runtime
-        vta.reconfig_runtime(remote)
-
-        # Program the FPGA with a pre-compiled VTA bitstream.
+        # Reconfigure the JIT runtime and FPGA.
         # You can program the FPGA with your own custom bitstream
         # by passing the path to the bitstream file instead of None.
+        vta.reconfig_runtime(remote)
         vta.program_fpga(remote, bitstream=None)
 
         # Report on reconfiguration time
@@ -78,10 +76,10 @@ if __name__ == '__main__':
         print("Reconfigured FPGA and RPC runtime in {0:.2f}s!".format(reconfig_time))
 
     # In simulation mode, host the RPC server locally.
-    elif env.TARGET == "sim":
+    else:
         remote = rpc.LocalSession()
 
-    # TVM target and context
+    # Create a TVM target and execution context
     target = tvm.target.create("llvm -device={}".format(opt.device))
     ctx = remote.ext_dev(0) if opt.device == "vta" else remote.cpu(0)
 
@@ -134,19 +132,16 @@ if __name__ == '__main__':
                     graph, lib, params = relay.build(
                         relay_prog, target=target,
                         params=params, target_host=target_host)
-
-        # Save the compiled inference graph library
-        assert tvm.module.enabled("rpc")
-        temp = util.tempdir()
-        lib.save(temp.relpath("graphlib.o"))
-
-        # Send the inference library over to the remote RPC server
-        remote.upload(temp.relpath("graphlib.o"))
-        lib = remote.load_module("graphlib.o")
-
-        # Measure build time
+        
+        # Measure Relay build time
         build_time = time.time() - build_start
         print(opt.model + " inference graph built in {0:.2f}s!".format(build_time))
+
+        # Send the inference library over to the remote RPC server
+        temp = util.tempdir()
+        lib.save(temp.relpath("graphlib.o"))
+        remote.upload(temp.relpath("graphlib.o"))
+        lib = remote.load_module("graphlib.o")
 
         # If detailed runtime info is needed build with debug runtime
         if opt.debug_profile:
@@ -154,25 +149,8 @@ if __name__ == '__main__':
         else:
             m = graph_runtime.create(graph, lib, ctx)
 
-        # Set the network parameters
+        # Set the network parameters and inputs
         m.set_input(**params)
-
-        # Read in ImageNet Categories
-        url = "https://github.com/uwsaml/web-data/raw/master/vta/models/"
-        categ_fn = "synset.txt"
-        for fn in ["synset.txt"]:
-            if not isfile(fn):
-                download.download(join(url, fn), fn)
-        synset = eval(open(categ_fn).read())
-
-        # Read in test image
-        image_url = 'https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg'
-        response = requests.get(image_url)
-        image = Image.open(BytesIO(response.content)).resize((224, 224))
-
-        # Set the input
-        image = process_image(image)
-        image = np.repeat(image.asnumpy(), env.BATCH, axis=0)
         m.set_input('data', image)
 
         # Perform inference
@@ -197,3 +175,24 @@ if __name__ == '__main__':
         print("                     #4:", synset[top_categories[-4]])
         print("                     #5:", synset[top_categories[-5]])
         print("Performed inference in %.2fms/sample (std = %.2f)" % (mean, std))
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='Train a model for image classification.')
+    parser.add_argument('--model', type=str, required=False, default='resnet18_v1',
+                        help='Input model name.')
+    parser.add_argument('--start-name', type=str, default='nn.max_pool2d',
+                        help='The name of the node where packing starts')
+    parser.add_argument('--stop-name', type=str, default='nn.global_avg_pool2d',
+                        help='The name of the node where packing stops')
+    parser.add_argument('--debug-profile', action='store_true',
+                        help='Show layer-wise time cost profiling results')
+    parser.add_argument('--device', default="vta",
+                        help='Select device target, either "vta" or "vtacpu"')
+    parser.add_argument('--measurements', type=int, default=1,
+                        help='Number of measurements')
+
+    opt = parser.parse_args()
+
+    classification_demo(opt)
