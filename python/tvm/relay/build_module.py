@@ -21,7 +21,6 @@ from a Relay expression.
 import warnings
 import numpy as np
 
-from tvm._ffi.runtime_ctypes import TVMContext
 from tvm import expr as tvm_expr
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
@@ -63,10 +62,6 @@ class BuildModule(object):
         self._get_graph_json = self.mod["get_graph_json"]
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
-        self._add_pass = self.mod["add_pass"]
-        self._disable_pass = self.mod["disable_pass"]
-        self._set_opt_level = self.mod["set_opt_level"]
-        self._set_fallback_device = self.mod["set_fallback_device"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
 
@@ -108,8 +103,9 @@ class BuildModule(object):
         """
         target = _update_target(target)
 
-        # Setup the build configurations passed in through `with build_config`.
-        self._setup_build_config(params)
+        # Setup the params.
+        if params:
+            self._set_params(params)
         # Build the function
         self._build(func, target, target_host)
         # Get artifacts
@@ -164,28 +160,6 @@ class BuildModule(object):
             inputs[name] = _expr.const(param)
         self._set_params_func(inputs)
 
-    def add_pass(self, pass_name):
-        """Add a pass to the pass list.
-
-        Parameters
-        ----------
-        pass_name : str
-            The name of the pass that will be added to the list of passes used
-            for optimizations.
-        """
-        self._add_pass(pass_name)
-
-    def disable_pass(self, pass_name):
-        """Add a pass to the disabled pass list.
-
-        Parameters
-        ----------
-        pass_name : str
-            The name of a pass. This pass will be added to the list of passes
-            that are disabled during optimization.
-        """
-        self._disable_pass(pass_name)
-
     def get_json(self):
         """Return the json file of the built program."""
         return self._get_graph_json()
@@ -201,32 +175,6 @@ class BuildModule(object):
         for key, value in params.items():
             ret[key] = value.data
         return ret
-
-    def set_opt_level(self, level):
-        """Set the optimization level.
-
-        Parameters
-        ----------
-        level : int
-            The optimization level for build.
-        """
-        self._set_opt_level(level)
-
-    def set_fallback_device(self, fallback_device):
-        """Set the fallback device for heterogeneous execution.
-
-        Parameters
-        ----------
-        fallback_device : str or tvm.TVMContext
-            The fallback device used for heterogeneous execution.
-        """
-        if isinstance(fallback_device, (int, str)):
-            fallback_device = _nd.context(fallback_device)
-        if not isinstance(fallback_device, TVMContext):
-            raise TypeError("fallback_device is expected to be str, int, or " +
-                            "TVMContext but received: {}".format(type(fallback_device)))
-
-        self._set_fallback_device(fallback_device.device_type)
 
 
 def build(mod, target=None, target_host=None, params=None):
