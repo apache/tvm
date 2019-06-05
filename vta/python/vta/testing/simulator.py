@@ -17,6 +17,8 @@
 """Utilities to start simulator."""
 import ctypes
 import json
+import sys
+import os
 import tvm
 from ..libinfo import find_libvta
 
@@ -54,6 +56,23 @@ def stats():
     """
     x = tvm.get_global_func("vta.simulator.profiler_status")()
     return json.loads(x)
+
+def tsim_init(hw_lib):
+    """Init hardware shared library for TSIM
+
+     Parameters
+     ------------
+     hw_lib : str
+        Name of hardware shared library
+    """
+    cur_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    vta_build_path = os.path.join(cur_path, "..", "..", "..", "build")
+    if not hw_lib.endswith(("dylib", "so")):
+        hw_lib += ".dylib" if sys.platform == "darwin" else ".so"
+    lib = os.path.join(vta_build_path, hw_lib)
+    f = tvm.get_global_func("tvm.vta.tsim.init")
+    m = tvm.module.load(lib, "vta-tsim")
+    f(m)
 
 
 LIBS = _load_lib()

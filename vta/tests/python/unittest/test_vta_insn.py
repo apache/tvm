@@ -68,6 +68,10 @@ def test_save_load_out():
         y_np = x_np.astype(y.dtype)
         x_nd = tvm.nd.array(x_np, ctx)
         y_nd = tvm.nd.empty(y_np.shape, ctx=ctx, dtype=y_np.dtype)
+
+        if env.TARGET == "tsim":
+            simulator.tsim_init("libvta_hw")
+
         f(x_nd, y_nd)
         np.testing.assert_equal(y_np, y_nd.asnumpy())
 
@@ -126,6 +130,10 @@ def test_padded_load():
              :] = x_np
         x_nd = tvm.nd.array(x_np, ctx)
         y_nd = tvm.nd.empty(y_np.shape, ctx=ctx, dtype=y_np.dtype)
+
+        if env.TARGET == "tsim":
+            simulator.tsim_init("libvta_hw")
+
         f(x_nd, y_nd)
         np.testing.assert_equal(y_np, y_nd.asnumpy())
 
@@ -196,6 +204,9 @@ def test_gemm():
                                               w_np[i,j].T.astype(env.acc_dtype))
             y_np = np.right_shift(y_np, 8)
             y_np = np.clip(y_np, 0, (1<<(env.INP_WIDTH-1))-1).astype(y.dtype)
+
+            if env.TARGET == "tsim":
+                simulator.tsim_init("libvta_hw")
 
             if env.TARGET == "sim":
                 simulator.clear_stats()
@@ -351,6 +362,10 @@ def test_alu():
             a_nd = tvm.nd.array(a_np, ctx)
             res_nd = tvm.nd.array(
                 np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
+
+            if env.TARGET == "tsim":
+                simulator.tsim_init("libvta_hw")
+
             if use_imm:
                 f(a_nd, res_nd)
             else:
@@ -420,6 +435,10 @@ def test_relu():
         a_nd = tvm.nd.array(a_np, ctx)
         res_nd = tvm.nd.array(
             np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
+
+        if env.TARGET == "tsim":
+            simulator.tsim_init("libvta_hw")
+
         f(a_nd, res_nd)
         np.testing.assert_equal(res_np, res_nd.asnumpy())
 
@@ -479,6 +498,10 @@ def test_shift_and_scale():
         a_nd = tvm.nd.array(a_np, ctx)
         res_nd = tvm.nd.array(
             np.zeros((m, n, env.BATCH, env.BLOCK_OUT)).astype(res.dtype), ctx)
+
+        if env.TARGET == "tsim":
+            simulator.tsim_init("libvta_hw")
+
         f(a_nd, res_nd)
         np.testing.assert_equal(res_np, res_nd.asnumpy())
 
@@ -503,11 +526,12 @@ if __name__ == "__main__":
     print("Load/store test")
     test_save_load_out()
     print("Padded load test")
-    #test_padded_load()
+    test_padded_load()
     print("GEMM test")
     test_gemm()
-    test_alu()
     print("ALU test")
+    test_alu()
+    print("Relu test")
     test_relu()
     print("Shift and scale")
     test_shift_and_scale()

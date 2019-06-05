@@ -21,6 +21,9 @@ package vta.dpi
 
 import chisel3._
 import chisel3.util._
+import vta.util.config._
+import vta.interface.axi._
+import vta.shell._
 
 /** Host DPI parameters */
 trait VTAHostDPIParams {
@@ -69,4 +72,84 @@ class VTAHostDPI extends BlackBox with HasBlackBoxResource {
     val dpi = new VTAHostDPIMaster
   })
   setResource("/verilog/VTAHostDPI.v")
+}
+
+/** Host DPI to AXI Converter.
+  *
+  * Convert Host DPI to AXI for VTAShell
+  */
+
+class VTAHostDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Module {
+  val io = IO(new Bundle {
+    val dpi = new VTAHostDPIClient
+    val axi = new AXILiteMaster(p(ShellKey).hostParams)
+  })
+  val addr = RegInit(0.U.asTypeOf(chiselTypeOf(io.dpi.req.addr)))
+  val data = RegInit(0.U.asTypeOf(chiselTypeOf(io.dpi.req.value)))
+  val sIdle :: sReadAddress :: sReadData :: sWriteAddress :: sWriteData :: sWriteResponse :: Nil = Enum(6)
+  val state = RegInit(sIdle)
+
+  switch (state) {
+    is (sIdle) {
+      when (io.dpi.req.valid) {
+        when (io.dpi.req.opcode) {
+          state := sWriteAddress
+        } .otherwise {
+          state := sReadAddress
+        }
+      }
+    }
+    is (sReadAddress) {
+      when (io.axi.ar.ready) {
+        state := sReadData
+      }
+    }
+    is (sReadData) {
+      when (io.axi.r.valid) {
+        state := sIdle
+      }
+    }
+    is (sWriteAddress) {
+      when (io.axi.aw.ready) {
+        state := sWriteData
+      }
+    }
+    is (sWriteData) {
+      when (io.axi.w.ready) {
+        state := sWriteResponse
+      }
+    }
+    is (sWriteResponse) {
+      when (io.axi.b.valid) {
+        state := sIdle
+      }
+    }
+  }
+
+  when (state === sIdle && io.dpi.req.valid) {
+    addr := io.dpi.req.addr
+    data := io.dpi.req.value
+  }
+
+  io.axi.aw.valid := state === sWriteAddress
+  io.axi.aw.bits.addr := addr
+  io.axi.w.valid := state === sWriteData
+  io.axi.w.bits.data := data
+  io.axi.w.bits.strb := "h_f".U
+  io.axi.b.ready := state === sWriteResponse
+
+  io.axi.ar.valid := state === sReadAddress
+  io.axi.ar.bits.addr := addr
+  io.axi.r.ready := state === sReadData
+
+  io.dpi.req.deq := (state === sReadAddress & io.axi.ar.ready) | (state === sWriteAddress & io.axi.aw.ready)
+  io.dpi.resp.valid := io.axi.r.valid
+  io.dpi.resp.bits := io.axi.r.bits.data
+
+  if (debug) {
+    when (state === sWriteAddress && io.axi.aw.ready) { printf("[VTAHostDPIToAXI] [AW] addr:%x\n", addr) }
+    when (state === sReadAddress && io.axi.ar.ready) { printf("[VTAHostDPIToAXI] [AR] addr:%x\n", addr) }
+    when (io.axi.r.fire()) { printf("[VTAHostDPIToAXI] [R] value:%x\n", io.axi.r.bits.data) }
+    when (io.axi.w.fire()) { printf("[VTAHostDPIToAXI] [W] value:%x\n", io.axi.w.bits.data) }
+  }
 }
