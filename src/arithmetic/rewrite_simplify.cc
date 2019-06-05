@@ -87,10 +87,10 @@ TryCompare(const Expr& x, int64_t val) {
   if (dbound->max_value < val) {
     return kLT;
   }
-  if (dbound->min_value >= val) {
+  if (dbound->min_value == val) {
     return kGE;
   }
-  if (dbound->max_value <= val) {
+  if (dbound->max_value == val) {
     return kLE;
   }
   if (val == 0) {
