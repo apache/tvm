@@ -142,8 +142,8 @@ def test_nat_add():
     ctx = tvm.context("llvm", 0)
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
-    assert count(intrp.evaluate(add(s(z()), s(z())))) == 2
-    assert count(intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
+    assert count(p, intrp.evaluate(add(s(z()), s(z())))) == 2
+    assert count(p, intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
     assert "let" in mod[add].astext()
 
 

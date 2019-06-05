@@ -491,7 +491,6 @@ class Prelude:
     def __init__(self, mod):
         self.mod = mod
         self.load_prelude()
-
         self.define_list_adt()
         self.define_list_hd()
         self.define_list_tl()

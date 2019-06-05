@@ -317,10 +317,12 @@ Module FunctionPassNode::operator()(const Module& mod,
   // Execute the pass function and return a new module.
   std::vector<std::pair<GlobalVar, Function> > updates;
   for (const auto& it : mod->functions) {
+    std::cout << pass_info->name << " for func " << it.first << "\n";
     auto updated_func = SkipFunction(it.second)
                             ? it.second
                             : pass_func(it.second, updated_mod, pass_ctx);
     updates.push_back({it.first, updated_func});
+    std::cout << pass_info->name << " for func " << it.first << "done \n";
   }
 
   for (const auto& pair : updates) {

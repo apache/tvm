@@ -97,7 +97,6 @@ def _eval_vm(mod, ctx, *args):
     args: List[tvm.NDArray, np.ndarray]
         The arguments to evaluate.
     """
-
     mod = optimize(mod)
     args = list(args)
     assert isinstance(args, list)

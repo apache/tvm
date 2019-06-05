@@ -182,17 +182,22 @@ RELAY_DEFINE_NODE_REF(RefValue, RefValueNode, Value);
 class ConstructorValue;
 
 struct ConstructorValueNode : ValueNode {
-  Constructor constructor;
+  int tag;
 
   tvm::Array<Value> fields;
 
+  /*! \brief Optional field tracking ADT constructor. */
+  Constructor constructor;
+
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("constructor", &constructor);
+    v->Visit("tag", &tag);
     v->Visit("fields", &fields);
+    v->Visit("constructor", &constructor);
   }
 
-  TVM_DLL static ConstructorValue make(Constructor constructor,
-                                       tvm::Array<Value> fields);
+  TVM_DLL static ConstructorValue make(int tag,
+                                       tvm::Array<Value> fields,
+                                       Constructor construtor = {});
 
   static constexpr const char* _type_key = "relay.ConstructorValue";
   TVM_DECLARE_NODE_TYPE_INFO(ConstructorValueNode, ValueNode);
