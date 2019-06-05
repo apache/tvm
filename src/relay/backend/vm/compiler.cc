@@ -411,8 +411,8 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     if (return_val_count > 1) {
       // return value is a tuple, we need to create a tuple
       std::vector<Index> fields_registers;
-      for (size_t i = func->params.size(); i < arity; ++i) {
-        fields_registers.push_back(args_registers[i]);
+      for (size_t i = arity - return_val_count; i < arity; ++i) {
+        fields_registers.push_back(unpacked_arg_regs[i]);
       }
       Emit(Instruction::AllocDatatype(0, return_val_count, fields_registers, NewRegister()));
     }
