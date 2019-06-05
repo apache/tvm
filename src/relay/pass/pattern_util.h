@@ -361,6 +361,18 @@ inline Expr LeftShift(Expr x, Expr nbit) {
 }
 
 
+inline Expr Max(Expr x, Expr y) {
+  static const Op& op = Op::Get("maximum");
+  return CallNode::make(op, {x, y}, Attrs(), {});
+}
+
+
+inline Expr Min(Expr x, Expr y) {
+  static const Op& op = Op::Get("minimum");
+  return CallNode::make(op, {x, y}, Attrs(), {});
+}
+
+
 inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
@@ -372,6 +384,26 @@ inline Expr Copy(Expr data) {
   return CallNode::make(op, {data}, Attrs(), {});
 }
 
+inline Expr Reshape(Expr data, Array<Integer> newshape) {
+  static const Op& op = Op::Get("reshape");
+  auto attrs = make_node<ReshapeAttrs>();
+  attrs->newshape = newshape;
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+inline Expr ForwardOp(const Call& ref_call, const Array<Expr>& args) {
+  return CallNode::make(ref_call->op,
+    args, ref_call->attrs, ref_call->type_args);
+}
+
+inline Expr Ones(Array<IndexExpr> shape,
+                     DataType dtype) {
+  auto attrs = make_node<InitOpAttrs>();
+  attrs->shape = std::move(shape);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("ones");
+  return CallNode::make(op, {}, Attrs(attrs), {});
+}
 
 Expr MakeConcatenate(Expr data, int axis);
 

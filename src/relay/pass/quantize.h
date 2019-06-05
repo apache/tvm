@@ -108,6 +108,7 @@ class QRealizeExprNode : public TempExprNode {
  public:
   /*! \brief The original expression */
   Expr data;
+  std::string data_layout;
   static constexpr const char* _type_key = "relay.quantize.QRealizeExpr";
   TVM_DECLARE_BASE_NODE_INFO(QRealizeExprNode, TempExprNode);
 };
@@ -125,11 +126,12 @@ class QRealizeIntExprNode : public QRealizeExprNode {
     v->Visit("data", &data);
     v->Visit("dom_scale", &dom_scale);
     v->Visit("dtype", &dtype);
+    v->Visit("data_layout", &data_layout);
   }
 
   Expr Realize() const final;
 
-  TVM_DLL static QRealizeIntExpr make(Expr data, Expr dom_scale, DataType dtype);
+  TVM_DLL static QRealizeIntExpr make(Expr data, Expr dom_scale, DataType dtype, std::string data_layout);
 
   static constexpr const char * _type_key = "relay.quantize.QRealizeIntExpr";
   TVM_DECLARE_NODE_TYPE_INFO(QRealizeIntExprNode, QRealizeExprNode);
@@ -152,10 +154,14 @@ class QConfigNode : public Node {
   DataType dtype_weight = Int(8);
   DataType dtype_activation = Int(32);
   double global_scale = 8.0;
+  //TODO(eqy): int skip_k_conv = 1;
+  int passthrough_bound = 1e9;
   Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
   bool round_for_shift = true;
   bool store_lowbit_output = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
+  //TODO(eqy): bool use_stop_fusion = true;
+  std::string granularity = "layer";
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("nbit_input", &nbit_input);
@@ -165,10 +171,14 @@ class QConfigNode : public Node {
     v->Visit("dtype_weight", &dtype_weight);
     v->Visit("dtype_activation", &dtype_activation);
     v->Visit("global_scale", &global_scale);
+    v->Visit("passthrough_bound", &passthrough_bound);
+    //TODO(eqy): v->Visit("skip_k_conv", &skip_k_conv);
     v->Visit("skip_conv_layers", &skip_conv_layers);
     v->Visit("round_for_shift", &round_for_shift);
     v->Visit("store_lowbit_output", &store_lowbit_output);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
+    //TODO(eqy): v->Visit("use_stop_fusion", &use_stop_fusion);
+    v->Visit("granularity", &granularity);
   }
 
   static constexpr const char* _type_key = "relay.quantize.QConfig";

@@ -17,7 +17,10 @@
 #pylint: disable=unused-argument
 """Automatic quantization toolkit."""
 from __future__ import absolute_import
+import time
 import numpy as np
+from scipy import stats
+
 
 from . import _quantize
 from .. import expr as _expr
@@ -26,7 +29,9 @@ from .. import analysis as _analysis
 from .. import transform as _transform
 from .. import op as _op
 from ... import make as _make
+from ..._ffi.function import register_func
 from ..base import NodeBase, register_relay_node
+
 
 
 class QAnnotateKind(object):
@@ -75,6 +80,17 @@ class QConfig(NodeBase):
         "round_for_shift": True,
         "store_lowbit_output": True,
         "debug_enabled_ops": None,
+#TODO(eqy)
+#=======
+#        "skip_k_conv": 1,
+#        "skip_conv_layers": None,
+        "passthrough_bound": 1e9,
+#        "round_for_shift": True,
+#        "store_lowbit_output": True,
+        "debug_enabled_ops": None,
+#        "use_stop_fusion": True,
+        "granularity": "layer",
+#>>>>>>> check in
     }
 
     # pylint: disable=no-member
@@ -187,15 +203,316 @@ class AnnotateContext(object):
     def __exit__(self, ptype, value, traceback):
         pass
 
-
 def annotate_context():
     """Get the global singleton scope"""
     if AnnotateContext.Current is None:
         AnnotateContext.Current = AnnotateContext()
     return AnnotateContext.Current
 
+#TODO(eqy)
+#def calibrate(graph, mod=None, ctx=None):
+#=======
+SCALE_COUNTER = 0
 
-def calibrate(graph, mod=None, ctx=None):
+
+def _get_scale_counter():
+    """Get the global counter for scale setting."""
+    return SCALE_COUNTER
+
+
+def _set_scale_counter(n):
+    """Set the value of the global scale setting counter."""
+    global SCALE_COUNTER
+    SCALE_COUNTER = n
+
+
+LAYOUT_MAP = None
+
+
+def _set_layout_map(layout_map):
+    global LAYOUT_MAP
+    LAYOUT_MAP = layout_map
+
+
+def _layout_walk(expr):
+    conv2d_op = _op.get("nn.conv2d")
+    if isinstance(expr, _expr.Call):
+        if expr.op == conv2d_op:
+            return expr.attrs.data_layout if expr.attrs.out_layout == "" else expr.attrs.out_layout
+        else:
+            for arg in expr.args:
+                if arg in LAYOUT_MAP:
+                    return LAYOUT_MAP[arg]
+                ret = _layout_walk(arg)
+                if ret is not None:
+                    return ret
+            return None
+    elif isinstance(expr, _expr.Tuple):
+        for arg in expr.fields:
+            ret = _layout_walk(arg)
+            if ret is not None:
+                return ret
+        return None
+    elif isinstance(expr, _expr.TupleGetItem):
+        return _layout_walk(expr.tuple_value)
+    raise Exception
+
+
+@register_func("relay.quantize._get_layout")
+def _get_layout(expr):
+    try:
+        return LAYOUT_MAP[expr]
+    except KeyError:
+        ret = _layout_walk(expr)
+        if ret is not None:
+            return ret
+        raise KeyError
+
+
+
+def annotate(graph, layout_map):
+    """Given a float32 graph, annotate will rewrite the graph
+    and return back a graph which simulates the error brought by
+    current quantization scheme.
+
+    Parameters
+    ---------
+    graph: Function
+        The original graph
+
+    Returns
+    -------
+    ret: Function
+        The graph after annotation
+    """
+    _set_conv_counter(0)  # reset counter
+    _set_layout_map(layout_map)
+    return _quantize.annotate(graph)
+
+
+def tag_layout(graph):
+    conv2d_op = _op.get("nn.conv2d")
+    dense_op = _op.get("nn.dense")
+    _op_layout_map = dict()
+    # layouts to tag later
+    deferred = set()
+
+    def extract_call_layout(args):
+        cur_layout = None
+        for arg in args:
+            if isinstance(arg, _expr.Call):
+                assert arg in _op_layout_map
+                if cur_layout is None:
+                    cur_layout = _op_layout_map[arg]
+                else:
+                    assert cur_layout == _op_layout_map[arg]
+            elif isinstance(arg, _expr.Tuple):
+                return extract_call_layout(arg.fields)
+            elif isinstance(arg, _expr.TupleGetItem):
+                return extract_call_layout(arg.tuple_value.args)
+        return cur_layout
+
+    def visit_func(expr):
+        """Internal visit function"""
+        if isinstance(expr, _expr.Call):
+            cur_layout = None
+            if expr.op == conv2d_op:
+                if expr.attrs.out_layout == "":
+                    _op_layout_map[expr] = expr.attrs.data_layout
+                else:
+                    _op_layout_map[expr] = expr.attrs.out_layout
+                cur_layout = _op_layout_map[expr]
+            else:
+                cur_layout = extract_call_layout(expr.args)
+                if cur_layout is None:
+                    deferred.add(expr)
+                else:
+                    _op_layout_map[expr] = cur_layout
+            if cur_layout is not None:
+                for arg in expr.args:
+                    if arg in deferred:
+                        _op_layout_map[arg] = cur_layout
+                        deferred.remove(arg)
+
+    _ir_pass.post_order_visit(graph, visit_func)
+    if len(deferred) > 0:
+        raise ValueError
+
+    return _op_layout_map
+
+
+_WEIGHT_SCALE_OPTS = [2**i for i in range(-10, 8)]
+
+
+def slice_idx(begin, end):
+    import tvm.expr
+    assert len(begin) == len(end)
+    for i in range(0, len(begin)):
+        if not isinstance(end[i], tvm.expr.IntImm) or end[i].value - begin[i].value == 0:
+            continue
+        return begin[i].value, end[i].value
+    raise ValueError
+
+
+# ALIGN weight * data scales for convolution
+def match_scales(graph, const_params, mode='max'):
+    conv2d_op = _op.get("nn.conv2d")
+    quantize_op = _op.get("relay.op.annotation.simulated_quantize")
+
+    def visit_func(expr):
+        if isinstance(expr, _expr.Call):
+            if expr.op == conv2d_op:
+                quant_weight = expr.args[1]
+                weight_data, weight_scale_var, _, _  = quant_weight.args
+                weight_scale = const_params[weight_scale_var].data
+
+                if expr.args[0].op != quantize_op and\
+                    expr.args[1].op == quantize_op:
+                    unified_scale = np.empty(weight_scale.asnumpy().shape, dtype='float32')
+                    # only weight shift possible
+                    parent = expr.args[0].args[0]
+                    assert parent.op == quantize_op
+                    _, data_scale_var, _, _, = parent.args
+                    data_scale = const_params[data_scale_var].data
+                    if data_scale.shape != weight_scale.shape:
+                        assert expr.args[0].op == _op.get("strided_slice")
+                        begin, end = slice_idx(expr.args[0].attrs.begin, expr.args[0].attrs.end)
+                        product = data_scale.asnumpy()[begin:end] * weight_scale.asnumpy()
+                    else:
+                        product = data_scale.asnumpy() * weight_scale.asnumpy()
+                    if mode == 'max':
+                        unified_scale = max(product)
+                    else:
+                        unified_scale = min(product)
+                    # (d * s_d) * (w * s_w) = (o * s_d * s_w)
+                    # (d * s_d) * (w * s_w') = (o * s_u)
+                    # s_w' = s_u/s_d
+                    gaps = unified_scale/product
+                    weight_scale_transform = np.empty(gaps.shape, dtype='float32')
+                    for i in range(0, gaps.shape[0]):
+                        shift_width = np.log2(gaps[i])
+                        if shift_width == 0:
+                            weight_scale_transform[i] = 1.0
+                        else:
+                            weight_scale_transform[i] = 2**shift_width
+                    new_weight_scale = weight_scale.asnumpy()*weight_scale_transform
+                    const_params[weight_scale_var] = _expr.const(new_weight_scale)
+                    return
+                elif expr.args[0].op == quantize_op and\
+                    expr.args[1].op != quantize_op:
+                    raise ValueError
+                elif expr.args[0].op != quantize_op and\
+                     expr.args[1].op != quantize_op:
+                    raise ValueError
+
+                quant_data = expr.args[0]
+                _, data_scale_var, _, _ = quant_data.args
+                data_scale = const_params[data_scale_var].data
+                assert len(data_scale.shape) == 1
+                assert len(weight_scale.shape) == 1
+                if data_scale.shape[0] == 1:
+                    assert weight_scale.shape[0] == 1
+                else:
+                    assert weight_scale.shape[0] == data_scale.shape[0] or\
+                    weight_scale.shape[0] == 1 # depthwise, no need to unify scales
+                    if weight_scale.shape[0] != 1:
+                        product = data_scale.asnumpy() * weight_scale.asnumpy()
+                        if mode == 'max':
+                            unified_scale = max(product)
+                        else:
+                            unified_scale = np.median(product)
+                        # (d * s_d) * (w * s_w) = (o * s_d * s_w)
+                        # (d * s_d) * (w * s_w') = (o * s_u)
+                        # s_w' = s_u/s_d
+                        gaps = unified_scale/product
+                        data_scale_transform = np.empty(gaps.shape, dtype='float32')
+                        weight_scale_transform = np.empty(gaps.shape, dtype='float32')
+                        for i in range(0, gaps.shape[0]):
+                            shift_width = np.log2(gaps[i])
+                            if shift_width == 0:
+                                weight_scale_transform[i] = 1.0
+                            else:
+                                # magic heuristic, change data scales more
+                                # aggressively than weight scales for
+                                # compensation
+                                weight_scale_transform[i] = 2**(shift_width//2)
+                        data_scale_transform = gaps/weight_scale_transform
+                        new_data_scale = data_scale.asnumpy()*data_scale_transform
+                        new_weight_scale = weight_scale.asnumpy()*weight_scale_transform
+                        const_params[weight_scale_var] = _expr.const(new_weight_scale)
+                        const_params[data_scale_var] = _expr.const(new_data_scale)
+
+    _ir_pass.post_order_visit(graph, visit_func)
+    return const_params
+
+
+def _simulate_quantize(array, scale):
+    # simulate rounding error
+
+    valid_bit = 7
+    valid_range = 2**valid_bit
+    clip_min = - (valid_range - 1)
+    clip_max = valid_range - 1
+
+    scale = scale / valid_range
+    assert scale > 0
+    scaled_data = array/scale
+    clipped_data = np.clip(scaled_data, clip_min, clip_max)
+
+    round_data = np.round(clipped_data)
+    return round_data*scale
+
+def _mse_chooser(act, granularity, layout, op_hint):
+    t1 = time.time()
+    assert len(act.shape) <= 4, "Unsupported layout"
+    # TODO block layouts
+    assert layout.upper() == layout, "Blocked layouts not supported"
+    if granularity == 'channel':
+        if len(act.shape) >= len(layout):
+            if 'O' in layout and 'I' in layout:
+                channel_dim = layout.index('I')
+            else:
+                channel_dim = layout.index('C')
+            channels = act.shape[channel_dim]
+        elif 'dense' in op_hint:
+            channel_dim = 1
+            channels = 1 
+        else:
+            assert 'broadcastable' in op_hint, "trying to broadcast non-broadcastable op"
+            for i in range(0, len(act.shape)):
+                if act.shape[i] != 1:
+                    channel_dim = i
+                    channels = act.shape[i]
+        scales = np.array([0.0]*channels, dtype='float32')
+        for i in range(0, channels):
+            mses = list()
+            for config_opt in _WEIGHT_SCALE_OPTS:
+                sliced_act = np.take(act, i, channel_dim)
+                q = _simulate_quantize(sliced_act, config_opt)
+                mse = ((sliced_act - q)**2).mean()
+                mses.append(mse)
+                if mse == 0.0:
+                    # use mode as fallback
+                    scales[i] = -1
+                    break
+            if scales[i] == 0.0:
+                scales[i] = _WEIGHT_SCALE_OPTS[np.argmin(mses)]
+        mode = stats.mode(scales[scales > 0.0])[0]
+        scales[scales < 0] = mode
+        t2 = time.time()
+        return scales
+    else:
+        mses = list()
+        for config_opt in _WEIGHT_SCALE_OPTS:
+            q = _simulate_quantize(act, config_opt)
+            mse = ((act - q)**2).mean()
+            mses.append(mse)
+        t2 = time.time()
+        scale = _WEIGHT_SCALE_OPTS[np.argmin(mses)]
+        return np.array([scale], dtype='float32')
+
+
+def calibrate(graph, dataset=None, profile_mode=False, scales=None):
     """The calibrate procedure will try to calculate the content of
     dom_scale, nbit, clip_min, clip_max for every `simulated_quantize`
     operator.
@@ -216,42 +533,99 @@ def calibrate(graph, mod=None, ctx=None):
     ret: Function
         The graph after calibration
     """
-    def power2_scale(arr):
+
+    if profile_mode:
+        assert scales is None, "scales should not be passed in with profile_mode"
+    else:
+        assert scales is not None, "did not receive scales"
+
+    def power2_scale(arr, granularity, layout, op_hint):
         """calculate weight scale with nearest mode-2 scale"""
         val = np.amax(np.abs(arr.asnumpy()))
-        return 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
+
+        # TODO blocked layout
+        if granularity == 'channel' or granularity == 'layer':
+            scale = _mse_chooser(arr.asnumpy(), granularity, layout, op_hint)
+            return scale
+            if len(arr.shape) >= 4:
+                if 'I' in layout:
+                    channel_dim = layout.index('I')
+                else:
+                    channel_dim = layout.index('C')
+                channels = arr.shape[channel_dim]
+                scales = list()
+                for i in range(0, channels):
+                    val = np.amax(np.abs(np.take(arr.asnumpy(), i, channel_dim)))
+                    scale = 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
+                    scales.append(scale)
+                return np.array(scales, dtype='float32')
+            else:
+                scale = 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
+                return np.array([scale], dtype='float32')
+        else:
+            return 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
 
     cfg = current_qconfig()
     const_params = {}
     quantize_op = _op.get("relay.op.annotation.simulated_quantize")
+    profile_data = []
+    scale_idx = 0
 
     def visit_func(expr):
         """Internal visit function"""
+        nonlocal scale_idx
         if isinstance(expr, _expr.Call) and expr.op == quantize_op:
             _, ndom_scale, nclip_min, nclip_max = expr.args
             attrs = expr.attrs
             kind = attrs.kind
+            granularity = attrs.granularity
+            layout = attrs.layout
+
             nbit = cfg.get_nbit_by_kind(kind)
 
             valid_bit = nbit - attrs.sign
-
-            if kind == QAnnotateKind.WEIGHT:
-                var = expr.args[0]
-                assert isinstance(var, _expr.Constant)
-                scale = power2_scale(var.data)
-            else:
-                scale = cfg.global_scale
+            valid_range = 2**valid_bit
 
             def _make_const(val):
                 return _expr.const(val, 'float32')
 
-            valid_range = 2**valid_bit
-            const_params[ndom_scale] = _make_const(scale / valid_range)
+            if kind == QAnnotateKind.WEIGHT:
+                var = expr.args[0]
+                assert isinstance(var, _expr.Constant)
+                data = var.data
+                if False and 'add' in attrs.op_hint:
+                    data_np = data.asnumpy()
+                    zero_ind = data_np < 2**-4
+                    data_np[zero_ind] = np.mean(data_np)
+                    data = _make_const(data).data
+                scale = power2_scale(data, granularity, layout, attrs.op_hint)
+                const = _make_const(scale / valid_range)
+                assert len(const.data.shape) == 1
+                const_params[ndom_scale] = const
+            else:
+                if profile_mode:
+                    profile_data.append((ndom_scale.name_hint, expr.args[0],
+                                         granularity, layout))
+                else:
+                    const = _make_const(scales[scale_idx]/valid_range)
+                    const_params[ndom_scale] = const
+                    assert len(const.data.shape) == 1
+                    scale_idx += 1
             const_params[nclip_min] = _make_const(- (valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))
 
     _analysis.post_order_visit(graph, visit_func)
-    return _expr.bind(graph, const_params)
+    if profile_mode:
+        for i, val  in enumerate(profile_data):
+            profile_data[i] = (val[0], _expr.bind(val[1], const_params), val[2], val[3])
+    else:
+        const_params = match_scales(graph, const_params)
+#TODO(eqy):
+#    return _expr.bind(graph, const_params)
+#=======
+    #_ir_pass.post_order_visit(graph, visit_func)
+    return _expr.bind(graph, const_params), profile_data
+#>>>>>>> check in
 
 
 def annotate():

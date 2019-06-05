@@ -64,6 +64,21 @@ class ConstantChecker : private ExprVisitor {
     }
     memo_[GetRef<Tuple>(n)] = result;
   }
+
+
+  void VisitExpr_(const CallNode* call) final {
+    bool result = true;
+    result &= Check(call->op);
+    
+    for (auto arg : call->args) {
+        result &= Check(arg);
+    }
+    memo_[GetRef<Call>(call)] = result;
+  }
+
+  void VisitExpr_(const OpNode* op) final {
+    memo_[GetRef<Op>(op)] = true;
+  }
 };
 
 
