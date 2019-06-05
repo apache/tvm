@@ -49,6 +49,17 @@ def test_split():
     res = veval(f, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
 
+def test_split_no_fuse():
+    x = relay.var('x', shape=(12,))
+    y = relay.split(x, 3, axis=0).astuple()
+    z = relay.concatenate([relay.TupleGetItem(y, 0)], axis=0)
+    z = relay.annotation.stop_fusion(z)
+    f = relay.Function([x], z)
+    x_data = np.random.rand(12,).astype('float32')
+    res = veval(f, x_data)
+    tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
+
+
 def test_id():
     x = relay.var('x', shape=(10, 10))
     f = relay.Function([x], x)
@@ -259,6 +270,8 @@ if __name__ == "__main__":
     test_tuple_second()
     test_let_scalar()
     test_let_tensor()
+    test_split()
+    test_split_no_fuse()
     # TODO(@jroesch): restore when match is supported
     # test_list_constructor()
     test_closure()
