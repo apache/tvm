@@ -43,6 +43,8 @@ namespace tvm {
 namespace relay {
 namespace quantize {
 
+using namespace relay::transform;
+
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
   int kind;
@@ -588,12 +590,6 @@ TVM_REGISTER_API("relay._quantize._EnterQConfigScope")
 TVM_REGISTER_API("relay._quantize._ExitQConfigScope")
 .set_body_typed(QConfig::ExitQConfigScope);
 
-}  // namespace quantize
-
-namespace transform {
-
-using namespace relay::quantize;
-
 Pass QuantizeAnnotate() {
   std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
     if (e->derived_from<TempExprNode>()) {
@@ -615,10 +611,10 @@ Pass QuantizeAnnotate() {
   return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
 }
 
-TVM_REGISTER_API("relay._transform.QuantizeAnnotate")
+TVM_REGISTER_API("relay._quantize.QuantizeAnnotate")
 .set_body_typed(QuantizeAnnotate);
 
-Pass QuantizeRealize() {
+Pass QuantizeRealizePass() {
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
       return Downcast<Function>(
@@ -627,10 +623,9 @@ Pass QuantizeRealize() {
   return CreateFunctionPass(pass_func, 1, "QuantizeRealize", {});
 }
 
-TVM_REGISTER_API("relay._transform.QuantizeRealize")
-.set_body_typed(QuantizeRealize);
+TVM_REGISTER_API("relay._quantize.QuantizeRealize")
+.set_body_typed(QuantizeRealizePass);
 
-}  // namespace transform
-
+}  // namespace quantize
 }  // namespace relay
 }  // namespace tvm

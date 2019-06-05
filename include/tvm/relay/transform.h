@@ -532,22 +532,6 @@ TVM_DLL Pass CanonicalizeOps();
  */
 TVM_DLL Pass AlterOpLayout();
 
-/*!
- * \brief Rewrite a graph and return a graph that simulates the error introduced
- * by the current quantization scheme.
- *
- * \return The pass.
- */
-TVM_DLL Pass QuantizeAnnotate();
-
-/*!
- * \brief This pass transforms the simulated quantized graph to a low-bit
- * integer graph.
- *
- * \return The pass.
- */
-TVM_DLL Pass QuantizeRealize();
-
 }  // namespace transform
 }  // namespace relay
 }  // namespace tvm

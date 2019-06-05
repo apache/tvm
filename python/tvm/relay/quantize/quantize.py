@@ -23,6 +23,7 @@ from . import _quantize
 from .. import expr as _expr
 from .. import module as _module
 from .. import ir_pass as _ir_pass
+from .. import transform as _transform
 from .. import op as _op
 from ... import make as _make
 from ..base import NodeBase, register_relay_node
@@ -238,6 +239,33 @@ def calibrate(graph, mod=None, ctx=None):
     return _expr.bind(graph, const_params)
 
 
+def annotate():
+    """Given a float32 graph, this pass will rewrite the graph and return
+    a graph which simulates the error brought by the current quantization
+    scheme.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass for quantization annotation.
+    """
+    return _quantize.QuantizeAnnotate()
+
+
+def realize():
+    """The realize pass will transform the simulated quantized graph, which
+    actually computes with float32, to a real low-bit integer graph. It will
+    replace the `simulated_quantize` with several fine-grained operators like
+    add, multiply, and shift as much as possible for better performance.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass for quantization realization.
+    """
+    return _quantize.QuantizeRealize()
+
+
 def _bind_params(func, params):
     """Bind the params to the expression.
     """
@@ -295,14 +323,16 @@ def quantize(graph, params=None, dataset=None):
                                       _transform.FoldConstant()])
 
     calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
-                                              name="calibrate")
+                                              name="QuantizeCalibrate")
     _set_conv_counter(0)  # reset counter
-    quantize_seq = _transform.Sequential([_transform.QuantizeAnnotate(),
+    quantize_seq = _transform.Sequential([annotate(),
                                           calibrate_pass,
-                                          _transform.QuantizeRealize(),
+                                          realize(),
                                           _transform.FoldConstant()])
-
-    with _transform.PassContext(opt_level=3, required_pass=["calibrate"]):
+    with _transform.PassContext(opt_level=3,
+                                required_pass=["QuantizeAnnotate",
+                                               "QuantizeCalibrate",
+                                               "QuantizeRealize"]):
         mod = optimize(mod)
         mod = quantize_seq(mod)
     return mod[mod.entry_func.name_hint]
