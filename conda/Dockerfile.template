@@ -15,7 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM nvidia/cuda:9.2-devel-centos6
+FROM nvidia/cuda:{{ cuda_version }}-devel-centos6
+
+RUN curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v{{ cudnn_short_version }}/cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz -O && \
+    tar --no-same-owner -xzf cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz -C /usr/local && \
+    rm cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz && \
+    ldconfig
+
 
 RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh  && \
      chmod +x ~/miniconda.sh && \
@@ -30,4 +36,4 @@ ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
 WORKDIR /workspace
 RUN chmod -R a+w /workspace
 
-CMD conda build --output-folder /workspace/conda/pkg --variants '{cuda: True, cuda_version: 9.2}' /workspace/conda/tvm-libs
+CMD conda build --output-folder /workspace/conda/pkg --variants '{cuda: True, cuda_version: {{ cuda_version }}}' /workspace/conda/tvm-libs
