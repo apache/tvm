@@ -2,6 +2,6 @@
   "TARGET" : "verilog",
   "TOP_NAME" : "TestAccel",
   "BUILD_NAME" : "build",
-  "USE_TRACE" : "OFF",
+  "USE_TRACE" : "off",
   "TRACE_NAME" : "trace"
 }
