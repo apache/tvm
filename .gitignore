@@ -220,3 +220,7 @@ patched.txt
 # pipenv file
 Pipfile
 Pipfile.lock
+
+# conda package artifacts
+conda/Dockerfile.cuda*
+conda/pkg
