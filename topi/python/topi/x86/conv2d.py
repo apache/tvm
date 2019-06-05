@@ -26,7 +26,7 @@ from tvm.autotvm.task.topi_integration import deserialize_args
 from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
-from ..util import get_const_tuple
+from ..util import get_const_tuple, get_shape
 from ..nn.conv2d import conv2d, conv2d_NCHWc, \
     conv2d_alter_layout, conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
@@ -420,8 +420,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     if layout != 'NCHW':
         return None
 
-    assert attrs["kernel_layout"] == "OIHW"
-    kshape = get_const_tuple(kernel.shape)
+    kshape = get_shape(kernel.shape, attrs["kernel_layout"], "OIHW")
     is_depthwise = groups == kshape[0] and kshape[1] == 1
 
     if groups != 1 and not is_depthwise:
