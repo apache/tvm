@@ -177,7 +177,6 @@ def attach_simulated_quantize(data, kind, layout=None, op_hint="", sign=True, ro
 
     quantize_op = _op.get("relay.op.annotation.simulated_quantize")
     if isinstance(data, _expr.Call) and data.op == quantize_op:
-        print(data.op)
         if data.attrs.kind == kind and data.attrs.sign == sign and data.attrs.rounding == rounding:
             return data
 

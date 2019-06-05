@@ -269,7 +269,6 @@ def _get_layout(expr):
         raise KeyError
 
 
-
 def annotate(graph, layout_map):
     """Given a float32 graph, annotate will rewrite the graph
     and return back a graph which simulates the error brought by
@@ -462,7 +461,7 @@ def _simulate_quantize(array, scale):
     round_data = np.round(clipped_data)
     return round_data*scale
 
-def _mse_chooser(act, granularity, layout, op_hint):
+def _mse_chooser(act, granularity, layout, op_hint=None):
     t1 = time.time()
     assert len(act.shape) <= 4, "Unsupported layout"
     # TODO block layouts
@@ -474,7 +473,7 @@ def _mse_chooser(act, granularity, layout, op_hint):
             else:
                 channel_dim = layout.index('C')
             channels = act.shape[channel_dim]
-        elif 'dense' in op_hint:
+        elif op_hint is not None and 'dense' in op_hint:
             channel_dim = 1
             channels = 1 
         else:
@@ -533,7 +532,6 @@ def calibrate(graph, dataset=None, profile_mode=False, scales=None):
     ret: Function
         The graph after calibration
     """
-
     if profile_mode:
         assert scales is None, "scales should not be passed in with profile_mode"
     else:
@@ -740,3 +738,149 @@ def quantize(graph, params=None, dataset=None):
         mod = quantize_seq(mod)
 
     return mod["main"]
+
+#TODO(eqy)
+#    # TODO(zhiics) Move this to the pass manager.
+#    graph = optimize(graph, params)
+#
+#    graph = annotate(graph)
+#    graph = calibrate(graph, dataset)
+#    graph = realize(graph)
+#    graph = _ir_pass.fold_constant(graph)
+#    return graph
+
+def _evaluate(val_data, batch_fn, graph, lib, params, ctx, free_vars=[], config=[], num_classes=1000, early_stopping=32, log_iter=2):
+    import mxnet as mx
+    """Evaluate function for profiling."""
+    import tvm
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    from tvm.contrib import graph_runtime
+
+    # create runtime module
+    m = graph_runtime.create(graph, lib, ctx)
+    scales = {}
+
+    for i in range(0, len(free_vars)):
+        free_var = free_vars[i]
+        if i >= len(config):
+            shape = m.get_input(i+1).shape
+            dummy = np.empty(shape=shape)
+            if len(dummy.shape) > 0:
+                dummy[:] = np.nan
+            else:
+                dummy = np.nan
+            params[str(free_var.name_hint)] = np.array(dummy)
+        else:
+            params[str(free_var.name_hint)] = np.array(config[i]/128)
+
+    m.set_input(**params)
+    batch_size = 1
+    oshape = (batch_size, num_classes)
+    out_arr = tvm.nd.empty(oshape, "float32")
+    # setup evaluaiton metric
+    acc_top1 = mx.metric.Accuracy()
+    acc_top5 = mx.metric.TopKAccuracy(5)
+    val_data.reset()
+    acc_top1.reset()
+    acc_top5.reset()
+    # execute
+
+    output_collection = [None]*(m.get_num_outputs() - 1)
+    for i, batch in enumerate(val_data):
+        data, label = batch_fn(batch, [mx.cpu(0)])
+        m.run(data=data[0].asnumpy())
+        m.run(data=data[0].asnumpy(), **scales)
+        m.get_output(0, out_arr)
+        for o in range(0, len(output_collection)):
+            if output_collection[o] is None:
+                output_collection[o] = m.get_output(o+1).asnumpy()
+            else:
+                output_collection[o] = np.concatenate((output_collection[o], m.get_output(o+1).asnumpy()))
+        acc_top1.update(label, [mx.nd.array(out_arr.asnumpy())])
+        acc_top5.update(label, [mx.nd.array(out_arr.asnumpy())])
+        _, top1 = acc_top1.get()
+        _, top5 = acc_top5.get()
+
+        if not (i + 1) % log_iter:
+            nsamples = (i + 1) * batch_size
+            print('[{0:d} samples] evaluation: acc-top1={1:f} acc-top5={2:f}'.format(nsamples, top1, top5))
+
+        if (i+1)*batch_size >= early_stopping:
+            return top1, output_collection
+
+#def autoquantize(graph_callback, tr_data, tr_batch_fn, granularity='layer'):
+def autoquantize(graph, params, tr_data, tr_batch_fn, granularity='layer'):
+
+    import tvm
+    import copy
+    from tvm import relay
+    from tvm.relay import ir_pass
+
+    #graph, params = graph_callback()
+
+    graph = optimize(graph, params)
+    with qconfig(skip_k_conv=0,
+                 passthrough_bound=int(-1),
+                 nbit_input=8,
+                 nbit_weight=8,
+                 global_scale=8.0,
+                 dtype_input='int8',
+                 dtype_weight='int8',
+                 dtype_activation='int32',
+                 store_lowbit_output=True,
+                 debug_enabled_ops=None,
+                 granularity=granularity):
+        layout_map = tag_layout(graph)
+        graph = annotate(graph, layout_map)
+        annotated = copy.deepcopy(graph)
+        graph = ir_pass.infer_type(graph)
+        graph, profile_data = calibrate(graph, profile_mode=True, scales=None)
+        
+        free_vars = list(ir_pass.free_vars(graph))
+        graph = relay.Function(list(graph.params) + free_vars,
+                                graph.body, graph.ret_type,
+                                graph.type_params, graph.attrs)
+        additional_outputs = list()
+        metadata = list()
+        for hint, data, granularity, layout in profile_data:
+            additional_outputs.append(data)
+            metadata.append((hint, granularity, layout))
+        graph = relay.Function(graph.params,
+                                relay.expr.Tuple([graph.body]+additional_outputs))
+        target = 'llvm -mcpu=core-avx2'
+        #target = 'cuda'
+        with relay.build_config(opt_level=0):
+            graph, lib, params = relay.build(graph, target)
+            ctx = tvm.nd.context(target)
+
+        config = list()
+        print("calibrating...")
+        t1 = time.time()
+        top1, outputs = _evaluate(tr_data, tr_batch_fn, graph, lib, params, ctx, free_vars)
+        for i, output in enumerate(outputs):
+            config.append(_mse_chooser(output, granularity, metadata[i][-1]))
+    with qconfig(skip_k_conv=0,
+                 passthrough_bound=int(1e9),
+                 nbit_input=8,
+                 nbit_weight=8,
+                 global_scale=8.0,
+                 dtype_input='int8',
+                 dtype_weight='int8',
+                 dtype_activation='int32',
+                 store_lowbit_output=True,
+                 debug_enabled_ops=None,
+                 granularity=granularity):
+        #graph, params = graph_callback()
+        #graph = optimize(graph, params)
+        #layout_map = tag_layout(graph)
+        #graph = annotate(graph, layout_map)
+        graph = annotated
+        graph = ir_pass.infer_type(graph)
+        graph, profile_data = calibrate(graph, profile_mode=False, scales=config)
+        graph = realize(graph)
+    t2 = time.time()
+    print("calibrated in approx", t2-t1, "s")
+    with relay.build_config(opt_level=3):
+        graph = optimize(graph, params)
+    return graph
