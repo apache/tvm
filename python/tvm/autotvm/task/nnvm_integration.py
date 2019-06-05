@@ -66,8 +66,8 @@ def extract_from_graph(graph, shape, dtype, target, symbols, params, target_host
 
     env = TaskExtractEnv.get()
 
-    #NOTE: To add more symbols, you only need to change the following lists
-    #nnvm symbol -> topi compute
+    # NOTE: To add more symbols, you only need to change the following lists
+    # nnvm symbol -> topi compute
     SYMBOL2TOPI = {
         nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw,
                           topi.nn.group_conv2d_nchw],
@@ -81,14 +81,14 @@ def extract_from_graph(graph, shape, dtype, target, symbols, params, target_host
             topi_funcs.extend(SYMBOL2TOPI[sym_name])
         else:
             warnings.warn("Symbol %s is not tunable, ignored" % sym_name)
-    env.reset(topi_funcs)
 
+    # run compiler to collect all TOPI calls during compilation
+    env.reset(topi_funcs)
     with env:
         # disable logger temporarily
         old_state = logger.disabled
         logger.disabled = True
 
-        # run compiler to collect all TOPI calls during compilation
         nnvm.compiler.engine.clear_cache()
         nnvm.compiler.build(graph, target=target, shape=shape, dtype=dtype,
                             target_host=target_host, params=params)
@@ -99,12 +99,14 @@ def extract_from_graph(graph, shape, dtype, target, symbols, params, target_host
     tasks = []
     for task_name, args in env.get_tasks():
         try:
+            print(task_name)
+            print(args)
             tsk = create(task_name, args,
                          target=target, target_host=target_host,
                          template_key='direct')
             tasks.append(tsk)
         except topi.InvalidShapeError:
-            print("[Warning] Invalid Shape during AutoTVM Task Creation")
+            print("[Warning] Invalid shape during AutoTVM task creation")
 
     return tasks
 
@@ -157,15 +159,16 @@ def extract_from_multiple_graph(graphs, shapes, dtypes, target, symbols, params,
             topi_funcs.extend(SYMBOL2TOPI[sym_name])
         else:
             warnings.warn("Symbol %s is not tunable, ignored" % sym_name)
-    env.reset(topi_funcs)
 
+    # run compiler to collect all TOPI calls during compilation
+    env.reset(topi_funcs)
     with env:
         # disable logger temporarily
         old_state = logger.disabled
         logger.disabled = True
 
-        nnvm.compiler.engine.clear_cache()
         for graph, shape, dtype in zip(graphs, shapes, dtypes):
+            nnvm.compiler.engine.clear_cache()
             nnvm.compiler.build(graph, target=target, shape=shape, dtype=dtype)
 
         logger.disabled = old_state
@@ -179,7 +182,7 @@ def extract_from_multiple_graph(graphs, shapes, dtypes, target, symbols, params,
                          template_key='direct')
             tasks.append(tsk)
         except topi.InvalidShapeError:
-            print("[Warning] Invalid Shape during AutoTVM Task Creation")
+            print("[Warning] Invalid shape during AutoTVM task creation")
 
     return tasks
 

@@ -57,10 +57,11 @@ def extract_from_program(func, params, ops, target, target_host=None):
     task: Array of autotvm.task.Task
         collected tasks
     """
-    env = TaskExtractEnv.get()
     import tvm.relay.op
     from tvm import relay
     import topi
+
+    env = TaskExtractEnv.get()
 
     # NOTE: To add more ops, you only need to change the following lists
     # relay op -> topi compute
@@ -81,30 +82,32 @@ def extract_from_program(func, params, ops, target, target_host=None):
 
     # run compiler to collect all TOPI calls during compilation
     env.reset(topi_funcs)
+    with env:
+        # disable logger temporarily
+        old_state = logger.disabled
+        logger.disabled = True
 
-    # disable logger temporarily
-    old_state = logger.disabled
-    logger.disabled = True
+        relay.backend.compile_engine.get().clear()
+        # wrap build call in thread to avoid multiprocessing problems
+        build_thread = threading.Thread(target=relay.build, args=(func,
+                                                                  target,
+                                                                  target_host,
+                                                                  params))
+        build_thread.start()
+        build_thread.join()
 
-    # use a "tracing" target to do a fake compile for collecting topi calls
-    tracing_target = _target.create("llvm -device=tracing")
-    relay.backend.compile_engine.get().clear()
-    # wrap build call in thread to avoid multiprocessing problems
-    build_thread = threading.Thread(target=relay.build, args=(func,
-                                                              tracing_target,
-                                                              target_host,
-                                                              params))
-    build_thread.start()
-    build_thread.join()
-    logger.disabled = old_state
+        logger.disabled = old_state
 
     # create tasks for target
     tasks = []
     for task_name, args in env.get_tasks():
-        tasks.append(create(task_name, args,
-                            target=target, target_host=target_host,
-                            template_key='direct'))
-
+        try:
+            tsk = create(task_name, args,
+                         target=target, target_host=target_host,
+                         template_key='direct')
+            tasks.append(tsk)
+        except topi.InvalidShapeError:
+            print("[Warning] Invalid shape during AutoTVM task creation")
     return tasks
 
 
@@ -155,30 +158,32 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
 
     # run compiler to collect all TOPI calls during compilation
     env.reset(topi_funcs)
+    with env:
+        # disable logger temporarily
+        old_state = logger.disabled
+        logger.disabled = True
 
-    # disable logger temporarily
-    old_state = logger.disabled
-    logger.disabled = True
+        for func, param in zip(funcs, params):
+            relay.backend.compile_engine.get().clear()
+            # wrap build call in thread to avoid multiprocessing problems
+            build_thread = threading.Thread(target=relay.build, args=(func,
+                                                                      target,
+                                                                      target_host,
+                                                                      params))
+            build_thread.start()
+            build_thread.join()
 
-    # use a "tracing" target to do a fake compile for collecting topi calls
-    tracing_target = _target.create("llvm -device=tracing")
-
-    for func, param in zip(funcs, params):
-        # wrap build call in thread to avoid multiprocessing problems
-        build_thread = threading.Thread(target=relay.build, args=(func,
-                                                                  tracing_target,
-                                                                  target_host,
-                                                                  params))
-        build_thread.start()
-        build_thread.join()
-
-    logger.disabled = old_state
+        logger.disabled = old_state
 
     # create tasks for target
     tasks = []
     for task_name, args in env.get_tasks():
-        tasks.append(create(task_name, args,
-                            target=target, target_host=target_host,
-                            template_key='direct'))
+        try:
+            tsk = create(task_name, args,
+                         target=target, target_host=target_host,
+                         template_key='direct')
+            tasks.append(tsk)
+        except topi.InvalidShapeError:
+            print("[Warning] Invalid shape during AutoTVM task creation")
 
     return tasks
