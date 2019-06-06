@@ -30,7 +30,7 @@ def driver(hw_lib, sw_lib):
         Name of hardware shared library
 
      sw_lib : str
-        Name of hardware shared library
+        Name of software shared library
     """
     _cur_path = osp.dirname(osp.abspath(osp.expanduser(__file__)))
     _root_path = osp.join(_cur_path, "..", "..")
