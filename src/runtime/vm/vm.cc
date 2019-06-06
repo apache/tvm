@@ -460,8 +460,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocDatatype: {
-      os << "alloc_data $" << instr.dst << " tag(" << instr.constructor_tag << ") ["
-         << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields) << "]";
+      os << "alloc_data $" << instr.dst << " tag(" << instr.constructor_tag << ") [$"
+         << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields, ",$") << "]";
       break;
     }
     case Opcode::AllocClosure: {
