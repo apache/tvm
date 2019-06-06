@@ -877,10 +877,6 @@ def autoquantize(graph, params, tr_data, tr_batch_fn, granularity='layer'):
                  store_lowbit_output=True,
                  debug_enabled_ops=None,
                  granularity=granularity):
-        #graph, params = graph_callback()
-        #graph = optimize(graph, params)
-        #layout_map = tag_layout(graph)
-        #graph = annotate(graph, layout_map)
         graph = annotated
         graph = ir_pass.infer_type(graph)
         graph, profile_data = calibrate(graph, profile_mode=False, scales=config)
