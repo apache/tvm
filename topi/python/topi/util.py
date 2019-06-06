@@ -151,11 +151,7 @@ def get_const_tuple(in_tuple):
     out_tuple : tuple of int
         The output.
     """
-    out_tuple = ()
-    for elem in in_tuple:
-        value = get_const_int(elem)
-        out_tuple = out_tuple + (value, )
-    return out_tuple
+    return tuple(get_const_int(elem) for elem in in_tuple)
 
 
 def get_float_tuple(in_tuple):
@@ -171,11 +167,7 @@ def get_float_tuple(in_tuple):
     out_tuple : tuple of float
         The output.
     """
-    out_tuple = ()
-    for elem in in_tuple:
-        value = get_const_float(elem)
-        out_tuple = out_tuple + (value, )
-    return out_tuple
+    return tuple(get_const_float(elem) for elem in in_tuple)
 
 
 def simplify(expr):
