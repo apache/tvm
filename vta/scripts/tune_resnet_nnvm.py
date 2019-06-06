@@ -167,6 +167,20 @@ if __name__ == '__main__':
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
 
+    # Download model
+    sym, params = download_model()
+
+    # Register VTA tuning tasks
+    register_vta_tuning_tasks()
+
+    # Extract tasks
+    print("Extracting tasks...")
+    target = tvm.target.vta()
+    target_host = env.target_host
+    tasks = extract_tasks(sym, params, target, target_host)
+
+    # Perform Autotuning
+    print("Tuning...")
     tuning_opt = {
         'log_filename': 'resnet-18.log',
 
@@ -180,41 +194,33 @@ if __name__ == '__main__':
                     number=4, repeat=3, timeout=60,
                     check_correctness=True))
     }
-
-    # download model
-    sym, params = download_model()
-
-    # register VTA tuning tasks
-    register_vta_tuning_tasks()
-
-    # extract tasks
-    print("Extract tasks...")
-    target = tvm.target.vta()
-    target_host = env.target_host
-    tasks = extract_tasks(sym, params, target, target_host)
-
-    print("Tuning...")
     tune_tasks(tasks, **tuning_opt)
 
     # compile kernels with history best records
     with autotvm.tophub.context(target, extra_files=[tuning_opt['log_filename']]):
-        print("Compile...")
+
+        # ResNet parameters
+        input_shape = (1, 3, 224, 224)
+        dtype = 'float32'\
+
+        # Compile network
+        print("Compiling network with best tuning parameters...")
         graph, lib, params = generate_graph(sym, params, target, target_host)
         input_shape = (1, 3, 224, 224)
         dtype = 'float32'
 
-        # export library
+        # Export library
         tmp = util.tempdir()
         filename = "net.tar"
         lib.export_library(tmp.relpath(filename))
 
-        # upload module to device
+        # Upload module to device
         print("Upload...")
         remote = autotvm.measure.request_remote(env.TARGET, tracket_host, tracket_port, timeout=10000)
         remote.upload(tmp.relpath(filename))
         rlib = remote.load_module(filename)
 
-        # upload parameters to device
+        # Upload parameters to device
         ctx = remote.context(str(target), 0)
         rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
         data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
@@ -222,7 +228,7 @@ if __name__ == '__main__':
         module.set_input('data', data_tvm)
         module.set_input(**rparams)
 
-        # evaluate
+        # Evaluate
         print("Evaluate inference time cost...")
         ftimer = module.module.time_evaluator("run", ctx, number=3, repeat=3)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
