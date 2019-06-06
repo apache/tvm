@@ -119,7 +119,7 @@ def compute_conv2d(attrs, inputs, out_type, target):
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
-            dilation, layout, out_dtype=out_dtype)
+            dilation, layout, out_dtype)
     elif layout == "NCHW" and \
             get_const_int(inputs[1].shape[0]) == groups and \
             get_const_int(inputs[1].shape[1]) == 1:

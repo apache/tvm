@@ -1,21 +1,21 @@
-import argparse
-import os
-import time
-import numpy as np
+"""Perform inference on VTA using Relay."""
 
-import tvm
-from tvm import rpc, autotvm
-from tvm.autotvm.measure.measure_methods import request_remote
-from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
-from tvm.contrib import graph_runtime, util
-from tvm.contrib.download import download
+import argparse, os
+from mxnet.gluon.model_zoo import vision
+import numpy as np
+from PIL import Image
 
 import topi
-import nnvm.compiler
+import tvm
+from tvm import rpc, autotvm, relay
+from tvm.autotvm.measure.measure_methods import request_remote
+from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
+from tvm.contrib import graph_runtime, util, download
+from tvm.contrib.debugger import debug_runtime
 import vta
-import vta.testing
-
-env = vta.get_env()
+from vta.testing import simulator
+from vta.top import graph_pack
+from tvm.autotvm.task import extract_from_program
 
 def register_vta_tuning_tasks():
     from tvm.autotvm.task.topi_integration import TaskExtractEnv, deserialize_args
@@ -49,69 +49,6 @@ def register_vta_tuning_tasks():
         else:
             s = tvm.create_schedule([res.op])
         return s, [A, W, res]
-
-
-
-def generate_graph(sym, params, target, target_host):
-    # Populate the shape and data type dictionary
-    shape_dict = {"data": (1, 3, 224, 224)}
-    dtype_dict = {"data": 'float32'}
-    shape_dict.update({k: v.shape for k, v in params.items()})
-    dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
-
-    # Apply NNVM graph optimization passes
-    sym = vta.graph.clean_cast(sym)
-    sym = vta.graph.clean_conv_fuse(sym)
-    assert env.BLOCK_IN == env.BLOCK_OUT
-    sym = vta.graph.pack(sym, shape_dict, env.BATCH, env.BLOCK_OUT)
-
-    # Compile NNVM graph
-    with nnvm.compiler.build_config(opt_level=3):
-        with vta.build_config():
-            graph, lib, params = nnvm.compiler.build(
-                sym, target, shape_dict, dtype_dict,
-                params=params, target_host=target_host)
-
-    return graph, lib, params
-
-
-def extract_tasks(sym, params, target, target_host):
-    # Populate the shape and data type dictionary
-    shape_dict = {"data": (1, 3, 224, 224)}
-    dtype_dict = {"data": 'float32'}
-    shape_dict.update({k: v.shape for k, v in params.items()})
-    dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
-
-    # Apply NNVM graph optimization passes
-    sym = vta.graph.clean_cast(sym)
-    sym = vta.graph.clean_conv_fuse(sym)
-    assert env.BLOCK_IN == env.BLOCK_OUT
-    sym = vta.graph.pack(sym, shape_dict, env.BATCH, env.BLOCK_OUT)
-
-    with vta.build_config():
-        tasks = autotvm.task.extract_from_graph(graph=sym, shape=shape_dict, dtype=dtype_dict, target=target,
-                                                params=params, symbols=(nnvm.sym.conv2d,), target_host=target_host)
-    return tasks
-
-
-def download_model():
-    url = "https://github.com/uwsaml/web-data/raw/master/vta/models/"
-    categ_fn = 'synset.txt'
-    graph_fn = 'resnet18_qt8.json'
-    params_fn = 'resnet18_qt8.params'
-    data_dir = '_data'
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
-
-    for file in [categ_fn, graph_fn, params_fn]:
-        if not os.path.isfile(file):
-            download(os.path.join(url, file), os.path.join(data_dir, file))
-
-    sym = nnvm.graph.load_json(open(os.path.join(data_dir, graph_fn)).read())
-    params = nnvm.compiler.load_param_dict(open(os.path.join(data_dir, params_fn), 'rb').read())
-
-    return sym, params
-
 
 def tune_tasks(tasks,
                measure_option,
@@ -158,7 +95,24 @@ def tune_tasks(tasks,
     autotvm.record.pick_best(tmp_log_file, log_filename)
     os.remove(tmp_log_file)
 
-if __name__ == '__main__':
+
+def extract_tasks(opt, env, target):
+    """Compile network and extract tasks.
+
+    Parameters
+    ----------
+    opt: a dictionary of parameters obtained from argparse
+    env: the VTA environment
+    target: the TVM target
+
+
+    Returns
+    -------
+    task: Array of autotvm.task.Task collected tasks
+    """
+    
+    # Make sure that TVM was compiled with RPC=1
+    assert tvm.module.enabled("rpc")
 
     # Get tracker info from env
     tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
@@ -167,6 +121,85 @@ if __name__ == '__main__':
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
 
+    # Register VTA tuning tasks
+    register_vta_tuning_tasks()
+
+    # Create a TVM target and execution context
+    target_host = env.target_host
+
+    # Get tophub schedules
+    with autotvm.tophub.context(target):
+
+        # Populate the shape and data type dictionary
+        dtype_dict = {"data": 'float32'}
+        shape_dict = {"data": (env.BATCH, 3, 224, 224)}
+
+        # Get off the shelf gluon model, and convert to relay
+        gluon_model = vision.get_model(opt.model, pretrained=True)
+        relay_prog, params = relay.frontend.from_mxnet(gluon_model, shape_dict)
+
+        # Update shape and type dictionary
+        shape_dict.update({k: v.shape for k, v in params.items()})
+        dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
+
+        # Perform quantization in Relay
+        with relay.quantize.qconfig(global_scale=8.0, skip_k_conv=1):
+            relay_prog = relay.quantize.quantize(relay_prog, params=params)
+
+        # Perform graph packing and constant folding for VTA target
+        if target.device_name == "vta":
+            assert env.BLOCK_IN == env.BLOCK_OUT
+            relay_prog = graph_pack(
+                relay_prog,
+                env.BATCH,
+                env.BLOCK_OUT,
+                env.WGT_WIDTH,
+                start_name=opt.start_name,
+                stop_name=opt.stop_name)
+            relay_prog = relay.ir_pass.fold_constant(relay_prog)
+
+        # Perform task extraction on Relay program
+        tasks = extract_from_program(func=relay_prog,
+                                        params=params,
+                                        ops=(tvm.relay.op.nn.conv2d,),
+                                        target=target,
+                                        target_host=target_host)
+
+        return tasks
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='Train a model for image classification.')
+    parser.add_argument('--model', type=str, required=False, default='resnet18_v1',
+                        help='Input model name.')
+    parser.add_argument('--start-name', type=str, default='nn.max_pool2d',
+                        help='The name of the node where packing starts')
+    parser.add_argument('--stop-name', type=str, default='nn.global_avg_pool2d',
+                        help='The name of the node where packing stops')
+    parser.add_argument('--debug-profile', action='store_true',
+                        help='Show layer-wise time cost profiling results')
+    parser.add_argument('--device', default="vta",
+                        help='Select device target, either "vta" or "vtacpu"')
+    parser.add_argument('--measurements', type=int, default=1,
+                        help='Number of measurements')
+
+    opt = parser.parse_args()
+
+    # Read in VTA environment
+    env = vta.get_env()
+
+    # Target
+    target = tvm.target.vta()
+
+    # Get tracker info from env
+    tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
+    tracket_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    if not tracket_host or not tracket_port:
+        print("Set your AutoTVM tracker node host and port variables to run the autotuner")
+        exit()
+
+    # Set tuner options
     tuning_opt = {
         'log_filename': 'resnet-18.log',
 
@@ -177,55 +210,10 @@ if __name__ == '__main__':
         'measure_option':  autotvm.measure_option(
                 builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
                 runner=autotvm.RPCRunner(env.TARGET, tracket_host, tracket_port,
-                    number=4, repeat=3, timeout=60,
+                    number=4, min_repeat_ms=150, repeat=3, timeout=60,
                     check_correctness=True))
     }
 
-    # download model
-    sym, params = download_model()
+    tasks = extract_tasks(opt, env, target)
 
-    # register VTA tuning tasks
-    register_vta_tuning_tasks()
-
-    # extract tasks
-    print("Extract tasks...")
-    target = tvm.target.vta()
-    target_host = env.target_host
-    tasks = extract_tasks(sym, params, target, target_host)
-
-    print("Tuning...")
     tune_tasks(tasks, **tuning_opt)
-
-    # compile kernels with history best records
-    with autotvm.tophub.context(target, extra_files=[tuning_opt['log_filename']]):
-        print("Compile...")
-        graph, lib, params = generate_graph(sym, params, target, target_host)
-        input_shape = (1, 3, 224, 224)
-        dtype = 'float32'
-
-        # export library
-        tmp = util.tempdir()
-        filename = "net.tar"
-        lib.export_library(tmp.relpath(filename))
-
-        # upload module to device
-        print("Upload...")
-        remote = autotvm.measure.request_remote(env.TARGET, tracket_host, tracket_port, timeout=10000)
-        remote.upload(tmp.relpath(filename))
-        rlib = remote.load_module(filename)
-
-        # upload parameters to device
-        ctx = remote.context(str(target), 0)
-        rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
-        data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
-        module = graph_runtime.create(graph, rlib, ctx)
-        module.set_input('data', data_tvm)
-        module.set_input(**rparams)
-
-        # evaluate
-        print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=3, repeat=3)
-        prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
-        print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
-              (np.mean(prof_res), np.std(prof_res)))
-
