@@ -33,6 +33,7 @@ build
 _static
 _build
 .*~
+\#..*\#
 
 # Specific files
 package-list
