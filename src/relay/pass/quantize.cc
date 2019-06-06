@@ -93,16 +93,14 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   if (channel_dim == std::string::npos)
     channel_dim = param->layout.find("I");
 
-  // TODO: blocked layouts
+  // TODO(eqy): blocked layouts
   CHECK(param->layout.find_first_not_of("NCOIHW") == std::string::npos) << "Unsupported Layout in Simulated Quantize";
 
   int channels = 1;
   if (data->shape.size() >= 4)  {
     channels = data->shape[channel_dim].as<IntImm>()->value;
   } else if (param->op_hint.find("broadcastable") != std::string::npos && data->shape.size() == 3) {
-    // TODO : robust broadcast handling, blocked layout support
-   // CHECK(data->shape.size() == param->layout.size() || data->shape.size() ==
-   //     param->layout.size() - 1) << "Unhandled broadcastable data shape";
+    // TODO(eqy): robust broadcast handling, blocked layout support
     size_t d = 0;
     for (; d < data->shape.size(); d++) {
       if (data->shape[d].as<IntImm>()->value != 1) {
@@ -309,7 +307,7 @@ inline bool _ConstantEq(Expr s1, Expr s2) {
   Array<IndexExpr> s2_tensor_shape = s2_tensor->tensor_type()->shape;
   CHECK(s1_tensor_shape.size() == s2_tensor_shape.size());
   // non-vector constants not suported
-  CHECK(s1_tensor_shape.size() == 1);
+  CHECK_EQ(s1_tensor_shape.size(), 1);
   if (s1_tensor_shape[0].as<IntImm>()->value != s2_tensor_shape[0].as<IntImm>()->value) {
     size_t dim;
     float val;
@@ -349,7 +347,7 @@ inline Expr _FloatLambda(Expr data, float (*func)(float)) {
     CHECK(data_tensor);
     Array<IndexExpr> data_shape = data_tensor->tensor_type()->shape;
     std::vector<int64_t> new_data_shape;
-    CHECK(data_shape.size() == 1);
+    CHECK_EQ(data_shape.size(), 1);
 
     size_t dim = data_shape[0].as<IntImm>()->value;
     new_data_shape.push_back(dim);
@@ -551,7 +549,7 @@ Expr QuantizeRealize(const Call& ref_call,
       CHECK(round_bias.as<ConstantNode>() != nullptr);
       round_bias = FoldConstantOpt(round_bias);
       round_bias = Cast(round_bias, n->dtype);
-      // TODO: why can we not use cfg->dtype_activation?
+      // TODO(eqy): why can we not use cfg->dtype_activation?
       data = Add(data, round_bias);
     }
     int pos = _FindChannelPos(ref_call->args[0], layout);
@@ -653,7 +651,7 @@ Expr Conv2dRealize(const Call& ref_call,
    * changing the srided_slice rewrite to something other than identity to avoid
    * this issue.*/
   if (data_dim == weight_dim) {
-    // TODO: special handling for only layer wise scale (when both scales are size 1), we can skip this
+    // TODO)eqy): special handling for only layer wise scale (when both scales are size 1), we can skip this
     // calculation and only do the old style:
     auto* data_scale_tensor = input_scale.as<ConstantNode>();
     auto* weight_scale_tensor = weight_scale.as<ConstantNode>();
@@ -1052,7 +1050,7 @@ Expr ConcatenateRealize(const Call& ref_call,
     DataType dtype;
     Expr dom_scale;
     // CHECK that it is is a per-channel concatenate
-    // TODO: consider adding granularity as a field instead of relying on
+    // TODO(eqy): consider adding granularity as a field instead of relying on
     // brittle heuristic
     if (arr[0].as<QRealizeIntExprNode>()->dom_scale.as<ConstantNode>()->tensor_type()->shape[0].as<IntImm>()->value > 1) {
       Array<Expr> ret_args = ConcatenateDTypeScale(ref_arr, arr, &dtype, &dom_scale, arr[0].as<QRealizeIntExprNode>()->data_layout);
@@ -1084,7 +1082,7 @@ Expr IdentityRealize(const Call& ref_call,
   CHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
     int scale_dim = n->dom_scale.as<ConstantNode>()->tensor_type()->shape[0].as<IntImm>()->value;
-    // TODO use more reliable check for per-layer scale
+    // TODO(eqy):use more reliable check for per-layer scale
     if (ref_call->op == Op::Get("strided_slice") && scale_dim > 1) {
       std::vector<size_t> idx;
       _GetStridedIdx(ref_call, idx);
