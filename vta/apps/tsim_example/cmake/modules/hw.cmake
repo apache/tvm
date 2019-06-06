@@ -87,7 +87,7 @@ else()
     if (TSIM_TARGET STREQUAL "chisel" OR TSIM_TARGET STREQUAL "verilog")
 
       # Check if tracing can be enabled
-      if (NOT TSIM_USE_TRACE STREQUAL "OFF")
+      if (NOT TSIM_USE_TRACE STREQUAL "off")
         message(STATUS "[TSIM_HW] Verilog enable tracing")
       else()
         message(STATUS "[TSIM_HW] Verilator disable tracing")
@@ -101,7 +101,7 @@ else()
       list(APPEND VERILATOR_OPT --top-module ${TSIM_TOP_NAME} -Mdir ${VERILATOR_BUILD_DIR})
       list(APPEND VERILATOR_OPT --cc ${VERILATOR_RTL_SRC})
 
-      if (NOT TSIM_USE_TRACE STREQUAL "OFF")
+      if (NOT TSIM_USE_TRACE STREQUAL "off")
         list(APPEND VERILATOR_OPT --trace)
       endif()
 
@@ -116,7 +116,7 @@ else()
       set(VERILATOR_INC_DIR /usr/local/share/verilator/include)
       set(VERILATOR_LIB_SRC ${VERILATOR_INC_DIR}/verilated.cpp ${VERILATOR_INC_DIR}/verilated_dpi.cpp)
 
-      if (NOT TSIM_USE_TRACE STREQUAL "OFF")
+      if (NOT TSIM_USE_TRACE STREQUAL "off")
         list(APPEND VERILATOR_LIB_SRC ${VERILATOR_INC_DIR}/verilated_vcd_c.cpp)
       endif()
 
@@ -125,7 +125,7 @@ else()
       add_library(hw SHARED ${VERILATOR_LIB_SRC} ${VERILATOR_GEN_SRC} ${VERILATOR_SRC})
 
       set(VERILATOR_DEF VL_USER_FINISH VL_TSIM_NAME=V${TSIM_TOP_NAME} VL_PRINTF=printf VM_COVERAGE=0 VM_SC=0)
-      if (NOT TSIM_USE_TRACE STREQUAL "OFF")
+      if (NOT TSIM_USE_TRACE STREQUAL "off")
         list(APPEND VERILATOR_DEF VM_TRACE=1 TSIM_TRACE_FILE=${TSIM_BUILD_DIR}/${TSIM_TRACE_NAME}.vcd)
       else()
         list(APPEND VERILATOR_DEF VM_TRACE=0)
