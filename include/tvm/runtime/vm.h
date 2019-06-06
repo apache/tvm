@@ -56,13 +56,14 @@ enum class Opcode {
   InvokeClosure = 3U,
   InvokePacked = 4U,
   AllocTensor = 5U,
-  AllocDatatype = 6U,
-  AllocClosure = 7U,
-  GetField = 8U,
-  If = 9U,
-  Select = 10U,
-  LoadConst = 11U,
-  Goto = 12U
+  AllocTensorReg = 6U,
+  AllocDatatype = 7U,
+  AllocClosure = 8U,
+  GetField = 9U,
+  If = 10U,
+  Select = 11U,
+  LoadConst = 12U,
+  Goto = 13U
 };
 
 /*! \brief A single virtual machine instruction.
@@ -83,11 +84,17 @@ struct Instruction {
 
   union {
     struct /* AllocTensor Operands */ {
+      uint32_t ndim;
+      int64_t* shape;
+      /*! \brief The datatype of tensor to be allocated. */
+      DLDataType dtype;
+    } alloc_tensor;
+    struct /* AllocTensorReg Operands */ {
       /*! \brief The register to read the shape out of. */
       RegName shape_register;
       /*! \brief The datatype of tensor to be allocated. */
       DLDataType dtype;
-    };
+    } alloc_tensor_reg;
     struct /* InvokeClosure Operands */ {
       /*! \brief The register containing the closure. */
       RegName closure;
@@ -198,7 +205,14 @@ struct Instruction {
    *  \param dst The destination register.
    *  \return The allocate tensor instruction.
    */
-  static Instruction AllocTensor(RegName shape_register, DLDataType dtype, RegName dst);
+  static Instruction AllocTensor(std::vector<int64_t> shape, DLDataType dtype, RegName dst);
+  /*! \brief Construct an allocate tensor instruction.
+   *  \param shape_register The register containing the shape.
+   *  \param dtype The dtype of the tensor.
+   *  \param dst The destination register.
+   *  \return The allocate tensor instruction.
+   */
+  static Instruction AllocTensorReg(RegName shape_register, DLDataType dtype, RegName dst);
   /*! \brief Construct an allocate datatype instruction.
    *  \param tag The datatype tag.
    *  \param num_fields The number of fields for the datatype.
