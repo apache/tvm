@@ -282,6 +282,7 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
 def test_roi_align():
     verify_roi_align(1, 16, 32, 64, 7, 1.0, -1)
     verify_roi_align(4, 16, 32, 64, 7, 0.5, 2)
+    verify_roi_align(1, 32, 32, 80, 8, 0.0625, 2)
 
 
 def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_scale):
