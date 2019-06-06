@@ -50,14 +50,19 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     shape = []
     for i in range(0, len(data.shape)):
         shape.append(topi.util.get_const_int(data.shape[i]))
+    channels = 0
 
     if 'broadcastable' in attrs.op_hint and len(data.shape) < len(attrs.layout):
-        assert len(data.shape) == len(attrs.layout) - 1, "Unsupported broadcast"
-        for d in range(0, len(data.shape)):
-            if shape[d] != 1:
-                channel_dim = d
-                channels = shape[d]
-            break
+        #assert len(data.shape) == len(attrs.layout) - 1, "Unsupported broadcast"
+        if len(data.shape) == len(attrs.layout) - 1:
+            for d in range(0, len(data.shape)):
+                if shape[d] != 1:
+                    channel_dim = d
+                    channels = shape[d]
+                break
+        else:
+            channel_dim = 0
+            channels = 1
 
     if 'dense' in attrs.op_hint:
         channel_dim = 1
@@ -77,7 +82,8 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
         # tensor (does this impact fusion with other ops?)
             
         # TODO blocked layouts
-        channels = shape[channel_dim]
+        if channels == 0:
+            channels = shape[channel_dim]
         scale_chunk_shape = [1]*len(shape)
         scale_chunk_shape[channel_dim] = channels
         scale_chunk = topi.reshape(scale, scale_chunk_shape)
@@ -425,7 +431,6 @@ def pool2d_rewrite(ref_call, new_args, ctx):
     if x_kind is None:
         return None
 
-    assert _get_layout(ref_call) is None
     if x_kind == QAnnotateKind.ACTIVATION:
         expr = attach_simulated_quantize(expr, QAnnotateKind.INPUT,
                                          _get_layout(ref_call))

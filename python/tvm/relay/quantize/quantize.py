@@ -466,7 +466,17 @@ def _mse_chooser(act, granularity, layout, op_hint=None):
     assert len(act.shape) <= 4, "Unsupported layout"
     # TODO block layouts
     assert layout.upper() == layout, "Blocked layouts not supported"
-    if granularity == 'channel':
+
+    if granularity == 'layer' or (op_hint is None and len(act.shape) < len(layout)):
+        mses = list()
+        for config_opt in _WEIGHT_SCALE_OPTS:
+            q = _simulate_quantize(act, config_opt)
+            mse = ((act - q)**2).mean()
+            mses.append(mse)
+        t2 = time.time()
+        scale = _WEIGHT_SCALE_OPTS[np.argmin(mses)]
+        return np.array([scale], dtype='float32')
+    else:
         if len(act.shape) >= len(layout):
             if 'O' in layout and 'I' in layout:
                 channel_dim = layout.index('I')
@@ -474,14 +484,19 @@ def _mse_chooser(act, granularity, layout, op_hint=None):
                 channel_dim = layout.index('C')
             channels = act.shape[channel_dim]
         elif op_hint is not None and 'dense' in op_hint:
-            channel_dim = 1
+            channel_dim = 0
             channels = 1 
         else:
             assert 'broadcastable' in op_hint, "trying to broadcast non-broadcastable op"
-            for i in range(0, len(act.shape)):
-                if act.shape[i] != 1:
-                    channel_dim = i
-                    channels = act.shape[i]
+            if len(act.shape) == len(layout) - 1:
+                for i in range(0, len(act.shape)):
+                    if act.shape[i] != 1:
+                        channel_dim = i
+                        channels = act.shape[i]
+            else:
+                channel_dim = 0
+                channels = 1
+
         scales = np.array([0.0]*channels, dtype='float32')
         for i in range(0, channels):
             mses = list()
@@ -500,15 +515,6 @@ def _mse_chooser(act, granularity, layout, op_hint=None):
         scales[scales < 0] = mode
         t2 = time.time()
         return scales
-    else:
-        mses = list()
-        for config_opt in _WEIGHT_SCALE_OPTS:
-            q = _simulate_quantize(act, config_opt)
-            mse = ((act - q)**2).mean()
-            mses.append(mse)
-        t2 = time.time()
-        scale = _WEIGHT_SCALE_OPTS[np.argmin(mses)]
-        return np.array([scale], dtype='float32')
 
 
 def calibrate(graph, dataset=None, profile_mode=False, scales=None):
@@ -857,7 +863,7 @@ def autoquantize(graph, params, tr_data, tr_batch_fn, granularity='layer'):
         config = list()
         print("calibrating...")
         t1 = time.time()
-        top1, outputs = _evaluate(tr_data, tr_batch_fn, graph, lib, params, ctx, free_vars)
+        top1, outputs = _evaluate(tr_data, tr_batch_fn, graph, lib, params, ctx, free_vars, early_stopping=32)
         for i, output in enumerate(outputs):
             config.append(_mse_chooser(output, granularity, metadata[i][-1]))
     with qconfig(skip_k_conv=0,

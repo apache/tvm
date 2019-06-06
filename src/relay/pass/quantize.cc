@@ -99,10 +99,10 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   int channels = 1;
   if (data->shape.size() >= 4)  {
     channels = data->shape[channel_dim].as<IntImm>()->value;
-  } else if (param->op_hint.find("broadcastable") != std::string::npos) {
+  } else if (param->op_hint.find("broadcastable") != std::string::npos && data->shape.size() == 3) {
     // TODO : robust broadcast handling, blocked layout support
-    CHECK(data->shape.size() == param->layout.size() || data->shape.size() ==
-        param->layout.size() - 1) << "Unhandled broadcastable data shape";
+   // CHECK(data->shape.size() == param->layout.size() || data->shape.size() ==
+   //     param->layout.size() - 1) << "Unhandled broadcastable data shape";
     size_t d = 0;
     for (; d < data->shape.size(); d++) {
       if (data->shape[d].as<IntImm>()->value != 1) {
@@ -115,6 +115,8 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
       << "Unhandled broadcastable data shape"
       << data->shape;
     }
+  } else {
+    channels = 1;
   }
 
   if (param->granularity == "channel") {
@@ -169,7 +171,8 @@ Expr QAnnotateExprNode::Realize() const {
     const PackedFunc* layout_f = runtime::Registry::Get("relay.quantize._get_layout");
     std::string layout = (*layout_f) (this->expr);
     const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
-    return (*f)(this->expr, static_cast<int>(kQInput), layout);
+    return (*f)(this->expr, static_cast<int>(kQInput), layout, (std::string)
+this->expr.as<CallNode>()->op.as<OpNode>()->name);
   } else {
     return expr;
   }
@@ -200,7 +203,8 @@ TVM_REGISTER_API("relay._quantize.annotate")
         const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
         const PackedFunc* layout_f = runtime::Registry::Get("relay.quantize._get_layout");
         std::string layout = (*layout_f) (n->expr);
-        Expr ret = (*f)(n->expr, static_cast<int>(kQInput), layout);
+        std::string name = n->expr.as<CallNode>()->op.as<OpNode>()->name;
+        Expr ret = (*f)(n->expr, static_cast<int>(kQInput), layout, name);
         return static_cast<Expr>(QAnnotateExprNode::make(ret, kQInput));
       }
       return e;
@@ -255,7 +259,7 @@ Expr _ReshapeChannelScale(Expr dom_scale, Expr arr, size_t pos) {
   for (size_t i = 0; i < data_shape.size(); i++) {
     int dim = data_shape[i].as<IntImm>()->value;
     if (i == pos) {
-      CHECK(dim == channels);
+      CHECK(dim == channels || dim == 1);
       broadcast_shape.push_back(channels);
    } else {
       broadcast_shape.push_back(1);
@@ -485,7 +489,7 @@ Expr QuantizeRealize(const Call& ref_call,
     CHECK(idom_scale_tensor);
     Array<IndexExpr> idom_scale_shape = idom_scale_tensor->tensor_type()->shape;
     CHECK(dom_scale_shape.size() == 1); // remove support for floating point scalar case
-
+/* TODO(eqy)
     if (dom_scale_shape.size() >= 1) {
       CHECK(dom_scale_shape.size() == 1);
       CHECK(idom_scale_shape.size() == 1);
@@ -518,47 +522,46 @@ Expr QuantizeRealize(const Call& ref_call,
         // TODO: why can we not use cfg->dtype_activation?
         data = Add(data, round_bias);
       }
+ */   
+    CHECK(dom_scale_shape.size() == 1);
+    CHECK(idom_scale_shape.size() == 1);
+    size_t dom_scale_channels = dom_scale_shape[0].as<IntImm>()->value;
+    size_t idom_scale_channels = idom_scale_shape[0].as<IntImm>()->value;
+    CHECK(dom_scale_channels == idom_scale_channels || dom_scale_channels == 1
+          || idom_scale_channels == 1);
+    Expr factor = Divide(dom_scale, n->dom_scale);
+    factor = FoldConstantOpt(factor);
+    auto* factor_tensor = factor.as<ConstantNode>();
+    CHECK(factor_tensor != nullptr);
+    Expr shift_factor = _FloatLambda(factor, &std::log2f);
+    auto* shift_factor_tensor = shift_factor.as<ConstantNode>();
+    CHECK(shift_factor_tensor != nullptr);
+    size_t dim = shift_factor_tensor->data->shape[0];
+    for (size_t i = 0; i < dim; i++) {
+      float val = static_cast<float*>(shift_factor_tensor->data->data)[i];
+      CHECK(static_cast<int>(val) == val);
+    }
+    if (cfg->round_for_shift) {
+      Expr round_bias = _FloatLambda(shift_factor, _RoundBias);
+      round_bias = FoldConstantOpt(round_bias);
       int pos = _FindChannelPos(ref_call->args[0], layout);
       CHECK(pos >= 0);
-      shift_factor = _ReshapeChannelScale(shift_factor, data, pos);
-      shift_factor = Cast(shift_factor, n->dtype);
-      data = RightShift(data, shift_factor);
-      data = Clip(data, clip_min_imm, clip_max_imm);
-      Expr res = QRealizeIntExprNode::make(data, dom_scale, n->dtype, layout);
-      return res;
-     } else {
-      LOG(INFO) << "(old code should not be called)";
-      CHECK(0);
-      float idom_scale_imm = GetScalarFromConstant<float>(n->dom_scale);
-      float odom_scale_imm = GetScalarFromConstant<float>(dom_scale);
-      if (idom_scale_imm == odom_scale_imm) {
-        // same domain scale, only clip
-        data = Clip(data, clip_min_imm, clip_max_imm);
-        return QRealizeIntExprNode::make(data, dom_scale, n->dtype, "");
-      }
-      float shift_nbit = std::log2(odom_scale_imm / idom_scale_imm);
-      CHECK_GT(shift_nbit, 0);
-      if (static_cast<int>(shift_nbit) == shift_nbit) {
-        // use right shift
-        if (cfg->round_for_shift) {
-          float round_bias = std::pow(2.0, shift_nbit - 1);
-          data = Add(data, MakeConstantScalar(cfg->dtype_activation, static_cast<int>(round_bias)));
-        }
-        data = RightShift(data, MakeConstantScalar(cfg->dtype_activation,
-                                                   static_cast<int>(shift_nbit)));
-        data = Clip(data, clip_min_imm, clip_max_imm);
-        LOG(INFO) << "done.";
-        return QRealizeIntExprNode::make(data, dom_scale, n->dtype, "");
-      } else {
-        CHECK(0);
-        // float computation
-        data = Cast(data, Float(32));
-        Expr scaled_data = Multiply(data, Divide(n->dom_scale, dom_scale));
-        Expr round_data = Clip(Round(scaled_data), clip_min_imm, clip_max_imm);
-        LOG(INFO) << "done.";
-        return QRealizeIntExprNode::make(round_data, dom_scale, Float(32), "");
-      }
+      round_bias = _ReshapeChannelScale(round_bias, ref_call->args[0], pos);
+      round_bias = FoldConstantOpt(round_bias);
+      CHECK(round_bias.as<ConstantNode>() != nullptr);
+      round_bias = FoldConstantOpt(round_bias);
+      round_bias = Cast(round_bias, n->dtype);
+      // TODO: why can we not use cfg->dtype_activation?
+      data = Add(data, round_bias);
     }
+    int pos = _FindChannelPos(ref_call->args[0], layout);
+    CHECK(pos >= 0);
+    shift_factor = _ReshapeChannelScale(shift_factor, data, pos);
+    shift_factor = Cast(shift_factor, n->dtype);
+    data = RightShift(data, shift_factor);
+    data = Clip(data, clip_min_imm, clip_max_imm);
+    Expr res = QRealizeIntExprNode::make(data, dom_scale, n->dtype, layout);
+    return res;
   }
 
   // quantize from real
@@ -669,8 +672,7 @@ Expr Conv2dRealize(const Call& ref_call,
     }
     dom_scale = Multiply(Ones({1}, Float(32)), MakeConstantScalar(Float(32), max_output_scale));
     dom_scale = FoldConstantOpt(dom_scale);
-    LOG(INFO) << max_output_scale;
-    LOG(INFO) << dom_scale;
+
     CHECK(dom_scale.as<ConstantNode>());
     CHECK(dom_scale.as<ConstantNode>()->tensor_type()->shape.size() == 1);
   } else {
@@ -798,7 +800,6 @@ Expr ChooseDomScale(const std::vector<const QRealizeIntExprNode*>& nptrs,
   dtype.code = kDLFloat;
   dtype.bits = 32;
   dtype.lanes = 1;
-  LOG(INFO) << "NPTRS: " << nptrs.size();
   if (nptrs.size() == 2) {
     // x = a * s1, y = b * s2
     // x + y = (a * s1 / s2 + b) * s2, if s1 > s2
@@ -1087,7 +1088,7 @@ Expr IdentityRealize(const Call& ref_call,
     if (ref_call->op == Op::Get("strided_slice") && scale_dim > 1) {
       std::vector<size_t> idx;
       _GetStridedIdx(ref_call, idx);
-      Expr sliced_scale = MakeStridedSlice(n->dom_scale, {idx[0]}, {idx[1]}, {1});
+      Expr sliced_scale = MakeStridedSlice(n->dom_scale, {(int) idx[0]}, {(int) idx[1]}, {1});
       sliced_scale = FoldConstantOpt(sliced_scale);
       Expr ret = ForwardOp(ref_call, {n->data});
       return QRealizeIntExprNode::make(ret, sliced_scale, n->dtype, n->data_layout);
