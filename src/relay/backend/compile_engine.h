@@ -27,8 +27,9 @@
 #define TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 
 #include <tvm/lowered_func.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 #include <string>
 #include <functional>
 

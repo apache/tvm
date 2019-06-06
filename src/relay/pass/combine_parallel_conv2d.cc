@@ -33,7 +33,7 @@
  * convolution branches, such as Inception block.
  */
 
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
@@ -354,9 +354,6 @@ class ParallelConv2DCombiner {
 Expr CombineParallelConv2D(const Expr& expr, uint64_t min_num_branches) {
   return ParallelConv2DCombiner(min_num_branches).Combine(expr);
 }
-
-TVM_REGISTER_API("relay._ir_pass.CombineParallelConv2D")
-.set_body_typed(CombineParallelConv2D);
 
 namespace transform {
 

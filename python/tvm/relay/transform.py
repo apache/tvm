@@ -277,6 +277,40 @@ def FoldScaleAxis():
     return _transform.FoldScaleAxis()
 
 
+def BackwardFoldScaleAxis():
+    """Backward fold axis scaling into weights of conv2d/dense.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass to backward fold expressions.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis
+    before using forward_fold_scale_axis.
+    As backward folding targets common conv-bn pattern.
+    """
+    return _transform.BackwardFoldScaleAxis()
+
+
+def ForwardFoldScaleAxis():
+    """Fold the scaling of axis into weights of conv2d/dense.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass to forward fold expressions.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis
+    before using forward_fold_scale_axis.
+    As backward folding targets common conv-bn pattern.
+    """
+    return _transform.ForwardFoldScaleAxis()
+
+
 def SimplifyInference():
     """Simplify the data-flow graph for inference phase. An simplified expression
     which is semantically equal to the input expression will be returned.
@@ -406,7 +440,7 @@ def ToANormalForm():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: Union[tvm.relay.Pass, tvm.relay.Expr]
         The registered pass that transforms an expression into A Normal Form.
     """
     return _transform.ToANormalForm()
@@ -454,12 +488,28 @@ def EliminateCommonSubexpr(fskip=None):
 def PartialEvaluate():
     """Evaluate the static fragment of the code.
 
+    Note
+    ----
+    This transformation could be either `Module -> Module` or `Expr -> Expr`.
+    It will directly transform the input expression to a new one if the target
+    expression is provided. Otherwise, it will rely on the pass manager to
+    carry out transformation.
+
+    Parameters
+    ----------
+    expr : Optional[tvm.relay.Expr]
+        The input expression.
+
+    mod : Optional[tvm.relay.Module]
+        The global module.
+
     Returns
     -------
     ret: tvm.relay.Pass
         The registered pass that performs partial evaluation on an expression.
     """
     return _transform.PartialEvaluate()
+
 
 def CanonicalizeCast():
     """
@@ -473,28 +523,35 @@ def CanonicalizeCast():
     return _transform.CanonicalizeCast()
 
 
-def OptimizeOnExpr(expr, passes):
-    """Perform optimization passes on an expressioin.
+def gradient(expr, mod=None, mode='higher_order'):
+    """
+    Transform the input function,
+    returning a function that calculate the original result,
+    paired with gradient of the input.
 
     Parameters
     ----------
-    expr: tvm.relay.Expr
-        The expression for optimization.
+    expr : tvm.relay.Expr
+        The input expression, which is a Function or a GlobalVar.
 
-    passes: Union[Pass, List[Pass]]
-        The list of optimizations to be applied.
+    mod : Optional[tvm.relay.Module]
+
+    mode : Optional[String]
+        The mode of the automatic differentiation algorithm.
+        'first_order' only works on first order code, but will not produce
+        reference nor closure.
+        'higher_order' works on all code using reference and closure.
 
     Returns
     -------
-    ret: tvm.relay.Expr
-        The optimized expression.
+    expr : tvm.relay.Expr
+      The transformed expression.
     """
-    if isinstance(passes, Pass):
-        passes = [passes]
-    if not isinstance(passes, (list, tuple)):
-        raise TypeError("passes must be a pass or a list of pass objects.")
-
-    return _transform.OptimizeOnExpr(expr, passes)
+    if mode == 'first_order':
+        return _transform.first_order_gradient(expr, mod)
+    if mode == 'higher_order':
+        return _transform.gradient(expr, mod)
+    raise Exception('unknown mode')
 
 
 def _wrap_class_module_pass(pass_cls, pass_info):

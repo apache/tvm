@@ -81,7 +81,7 @@ def get_net(batch_size, random_len=100, oshape=(3, 64, 64), ngf=128, code=None, 
         dc32, ishape=(ngf, 32, 32), oshape=oshape[-3:], kshape=(4, 4), name="g5_deconv")
     tanh = relay.tanh(dc64)
 
-    args = relay.ir_pass.free_vars(tanh)
+    args = relay.analysis.free_vars(tanh)
     return relay.Function(args, tanh)
 
 

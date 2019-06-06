@@ -21,6 +21,7 @@ import threading
 import topi
 
 from tvm import relay, autotvm
+from tvm.relay import transform
 from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant, Tuple
 from tvm.relay.ty import TupleType, TensorType
 from tvm.autotvm.task import TaskExtractEnv
@@ -80,6 +81,14 @@ def expr2graph(expr, target_ops, node_dict, node_list):
                 task_pos += 1
 
 
+def _infer_type(node):
+    """A method to infer the type of a relay expression."""
+    mod = relay.Module.from_expr(node)
+    mod = transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(node, relay.Function) else entry.body
+
+
 def _expr2graph_impl(expr, target_ops, node_dict, node_list):
     """Implementation to convert relay expr to graph data structure
     """
@@ -99,7 +108,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                     node_entry["inputs"] += node_list[in_node_idx]["inputs"]
                 else:
                     node_entry["inputs"].append([in_node_idx, 0, 0])
-            infer_out = relay.ir_pass.infer_type(node)
+            infer_out = _infer_type(node)
             out_type = infer_out._checked_type_
             if isinstance(out_type, TensorType):
                 node_entry["types"].append(out_type)
@@ -168,7 +177,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
         node_dict[node] = node_index
         node_list.append(node_entry)
 
-    relay.ir_pass.post_order_visit(expr, _traverse_expr)
+    relay.analysis.post_order_visit(expr, _traverse_expr)
 
 
 def get_direct_ancestor(node_list, visited_dict, target_ops, node_idx, input_names):

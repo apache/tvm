@@ -21,7 +21,8 @@
 #include <tvm/tvm.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
 
 TEST(Relay, SelfReference) {
   using namespace tvm;
@@ -32,10 +33,9 @@ TEST(Relay, SelfReference) {
   auto y = relay::VarNode::make("y", tensor_type);
   auto call = relay::CallNode::make(f, Array<relay::Expr>{ y });
   auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
-  auto empty_module =
-    relay::ModuleNode::make(Map<relay::GlobalVar, relay::Function>{},
-                            Map<relay::GlobalTypeVar, relay::TypeData>{});
-  auto type_fx = relay::InferType(fx, empty_module);
+  auto mod = relay::ModuleNode::FromExpr(fx);
+  mod = relay::transform::InferType()(mod);
+  auto type_fx = mod->Lookup(mod->entry_func);
 
   auto expected = relay::FuncTypeNode::make(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
   CHECK(AlphaEqual(type_fx->checked_type(), expected));

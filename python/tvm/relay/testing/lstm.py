@@ -154,7 +154,7 @@ def get_net(iterations, num_hidden, batch_size=1, dtype="float32"):
 
     builder.ret(out)
     body = builder.get()
-    args = relay.ir_pass.free_vars(body)
+    args = relay.analysis.free_vars(body)
     return relay.Function(args, body, input_type)
 
 

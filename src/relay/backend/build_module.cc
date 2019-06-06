@@ -21,6 +21,7 @@
  * \file relay/backend/build_module.cc
  * \brief Code generation for TVM's graph runtime.
  */
+#include <tvm/relay/analysis.h>
 #include <tvm/build_module.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/relay/expr.h>

@@ -266,7 +266,7 @@ def get_net(batch_size,
     fc1 = relay.nn.dense(flatten, relay.var("fc1_weight"), units=num_classes)
     fc1 = relay.nn.bias_add(fc1, relay.var("fc2_bias"), axis=-1)
     inception_v3 = relay.nn.softmax(data=fc1)
-    args = relay.ir_pass.free_vars(inception_v3)
+    args = relay.analysis.free_vars(inception_v3)
     return relay.Function(args, inception_v3)
 
 def get_workload(batch_size=1, num_classes=1000,

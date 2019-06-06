@@ -19,7 +19,10 @@ from tvm import relay
 
 def check_type_err(expr, msg):
     try:
-        expr = relay.ir_pass.infer_type(expr)
+        mod = relay.Module.from_expr(expr)
+        mod = relay.transform.InferType()(mod)
+        entry = mod[mod.entry_func]
+        expr = entry if isinstance(expr, relay.Function) else entry.body
         assert False
     except tvm.TVMError as err:
         assert msg in str(err)

@@ -26,8 +26,10 @@ def test_compile_engine():
         x = relay.var("x", shape=shape)
         y = relay.add(x, x)
         z = relay.add(y, x)
-        f = relay.ir_pass.infer_type(relay.Function([x], z))
-        return f
+        f = relay.Function([x], z)
+        mod = relay.Module.from_expr(f)
+        mod = relay.transform.InferType()(mod)
+        return mod[mod.entry_func]
     z1 = engine.lower(get_func((10,)), "llvm")
     z2 = engine.lower(get_func((10,)), "llvm")
     z3 = engine.lower(get_func(()), "llvm")
@@ -55,7 +57,7 @@ def test_compile_placeholder_bypass():
     y = relay.var("y", shape=(2, 3))
     z = relay.var("z", shape=(2, 3))
     result = relay.Tuple([x, relay.op.concatenate([y, z], axis=0)])
-    func = relay.Function(relay.ir_pass.free_vars(result), result)
+    func = relay.Function(relay.analysis.free_vars(result), result)
     with relay.build_config(opt_level=0):
        graph, lib, params = relay.build(relay.Module.from_expr(func), 'llvm')
 

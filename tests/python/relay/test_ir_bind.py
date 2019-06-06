@@ -28,11 +28,11 @@ def test_bind_params():
     fexpected =relay.Function(
         [y],
         relay.add(relay.const(1, "float32"),  y))
-    assert relay.ir_pass.alpha_equal(fbinded, fexpected)
+    assert relay.analysis.alpha_equal(fbinded, fexpected)
 
     zbinded = relay.bind(z, {y: x})
     zexpected = relay.add(x, x)
-    assert relay.ir_pass.alpha_equal(zbinded, zexpected)
+    assert relay.analysis.alpha_equal(zbinded, zexpected)
 
 
 if __name__ == "__main__":

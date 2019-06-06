@@ -227,7 +227,7 @@ def test_tuple_passing():
     gv = relay.GlobalVar('fn')
     mod[gv] = fn
     mod.entry_func = gv
-    mod[gv] = relay.ir_pass.infer_type(mod[gv], mod=mod)
+    mod = relay.transform.InferType()(mod)
 
     ctx = tvm.cpu()
     target = tvm.target.create('llvm')

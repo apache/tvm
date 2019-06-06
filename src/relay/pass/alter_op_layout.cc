@@ -24,7 +24,8 @@
           other expressions. This pass can be used for computing convolution in
           custom layouts or other general weight pre-transformation.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/transform.h>
@@ -347,9 +348,6 @@ Expr AlterOpLayout(const Expr& expr) {
 
   return ForwardRewrite(expr, AlterOpLayoutRewrite, fcontext);
 }
-
-TVM_REGISTER_API("relay._ir_pass.AlterOpLayout")
-.set_body_typed(AlterOpLayout);
 
 }  // namespace alter_op_layout
 

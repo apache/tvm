@@ -103,7 +103,6 @@ def compile_network(env, target, model, start_pack, stop_pack):
             env.WGT_WIDTH,
             start_name=start_pack,
             stop_name=stop_pack)
-        relay_prog = relay.ir_pass.fold_constant(relay_prog)
 
     return relay_prog, params
 

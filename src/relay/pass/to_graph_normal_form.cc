@@ -24,6 +24,7 @@
  *
  * \brief Turn A normal form into graph normal form.
  */
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include "let_list.h"

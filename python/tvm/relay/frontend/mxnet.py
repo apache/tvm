@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 
 import json
 import tvm
-from .. import ir_pass
+from .. import analysis, transform
 from .. import expr as _expr
 from .. import op as _op
 from .. import module as _module
@@ -40,6 +40,13 @@ _activation_map = {
     "tanh"   : _op.tanh,
     "relu"   : _op.nn.relu
 }
+
+def _infer_type(node):
+    """A method to infer the type of an intermediate node in the relay graph."""
+    mod = _module.Module.from_expr(node)
+    mod = transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(node, _expr.Function) else entry.body
 
 def _mx_fully_connected(inputs, attrs):
     import mxnet as mx
@@ -89,7 +96,8 @@ def _mx_activations(inputs, attrs):
 
 def _mx_compare(new_op, wrapper):
     def impl(inputs, attrs):
-        dtype = ir_pass.infer_type(inputs[0]).checked_type.dtype
+        expr = _infer_type(inputs[0])
+        dtype = expr.checked_type.dtype
         return wrapper(new_op)(inputs, attrs).astype(dtype)
     return impl
 
@@ -258,7 +266,8 @@ def _mx_slice_like(inputs, attrs):
 
 def _mx_slice_axis(inputs, attrs):
     assert len(inputs) == 1
-    shape = ir_pass.infer_type(inputs[0]).checked_type.shape
+    expr = _infer_type(inputs[0])
+    shape = expr.checked_type.shape
     axis = attrs.get_int("axis")
     ax_beg = attrs.get_int("begin")
     ax_end = attrs.get_str("end")
@@ -302,7 +311,8 @@ def _mx_crop_like(inputs, attrs):
     if offset == (0, 0):
         new_attrs["axes"] = (2, 3)
         return _op.slice_like(*inputs, **new_attrs)
-    like_shape = ir_pass.infer_type(inputs[1]).checked_type.shape
+    expr = _infer_type(inputs[1])
+    like_shape = expr.checked_type.shape
     new_attrs['begin'] = [0, 0, offset[0], offset[1]]
     new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
                         offset[1]+like_shape[3]]
@@ -532,7 +542,8 @@ def _mx_resize(inputs, attrs):
     scale_width = attrs.get_float("scale_width", None)
     height = attrs.get_int("height", 1)
     width = attrs.get_int("width", 1)
-    shape = ir_pass.infer_type(inputs[0]).checked_type.shape
+    expr = _infer_type(inputs[0])
+    shape = expr.checked_type.shape
     if scale_height is not None:
         height = (scale_height * shape[2]).astype("int32")
     if scale_width is not None:
@@ -639,7 +650,8 @@ def _mx_broadcast_axis(inputs, attrs):
     assert len(axis) == len(size)
     if len(axis) == 0:
         return inputs[0]
-    src_shape = ir_pass.infer_type(inputs[0])._checked_type_.shape
+    expr = _infer_type(inputs[0])
+    src_shape = expr.checked_type.shape
     tgt_shape = []
     for i, dim in enumerate(src_shape):
         if i not in axis:
@@ -734,7 +746,8 @@ def _mx_rnn_layer(inputs, attrs):
         return out, [out]
 
     def _gru_cell(data, states, i2h_weight, h2h_weight, i2h_bias, h2h_bias):
-        dtype = ir_pass.infer_type(data).checked_type.dtype
+        expr = _infer_type(data)
+        dtype = expr.checked_type.dtype
         i2h = _op.nn.bias_add(_op.nn.dense(data, i2h_weight), i2h_bias, axis=-1)
         h2h = _op.nn.bias_add(_op.nn.dense(states[0], h2h_weight), h2h_bias, axis=-1)
         i2h_r, i2h_z, i2h = _op.split(i2h, indices_or_sections=3, axis=1)
@@ -776,7 +789,8 @@ def _mx_rnn_layer(inputs, attrs):
     seq_data = inputs[0]
     concat_weight = inputs[1]
     init_states = inputs[2:]
-    data_shape = ir_pass.infer_type(seq_data).checked_type.shape
+    expr = _infer_type(seq_data)
+    data_shape = expr.checked_type.shape
     seq_len = int(data_shape[0])
     assert len(concat_weight) == num_layers * 4 * direct
 
@@ -1099,7 +1113,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod=None):
 
     outputs = [node_map[e[0]][e[1]] for e in jgraph["heads"]]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _expr.Function(ir_pass.free_vars(outputs), outputs)
+    func = _expr.Function(analysis.free_vars(outputs), outputs)
     return func
 
 

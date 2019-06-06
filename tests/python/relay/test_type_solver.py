@@ -26,7 +26,7 @@ def make_rel(name, args, num_inputs=None, attrs=None):
     return relay.ty.TypeRelation(func, args, num_inputs, attrs)
 
 def make_solver():
-    solver = relay._ir_pass._test_type_solver()
+    solver = relay._analysis._test_type_solver()
     solver.Solve = solver("Solve")
     solver.Unify = solver("Unify")
     solver.Resolve = solver("Resolve")

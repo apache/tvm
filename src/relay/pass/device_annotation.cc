@@ -34,7 +34,6 @@
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass.h>
 #include <tvm/relay/transform.h>
 
 #include <memory>
@@ -559,13 +558,13 @@ Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
   return AnnotatationVisitor::GetAnnotations(expr);
 }
 
-TVM_REGISTER_API("relay._ir_pass.CollectDeviceInfo")
+TVM_REGISTER_API("relay._analysis.CollectDeviceInfo")
 .set_body_typed(CollectDeviceInfo);
 
-TVM_REGISTER_API("relay._ir_pass.RewriteDeviceAnnotation")
+TVM_REGISTER_API("relay._analysis.RewriteDeviceAnnotation")
 .set_body_typed(RewriteAnnotatedOps);
 
-TVM_REGISTER_API("relay._ir_pass.CollectDeviceAnnotationOps")
+TVM_REGISTER_API("relay._analysis.CollectDeviceAnnotationOps")
 .set_body_typed(CollectDeviceAnnotationOps);
 
 namespace transform {

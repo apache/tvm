@@ -18,7 +18,7 @@ import nnvm
 from nnvm import testing
 from nnvm import to_relay
 import tvm
-from tvm.relay import ir_pass
+from tvm.relay import transform
 from tvm.relay import create_executor
 from tvm.contrib import graph_runtime
 import numpy as np
@@ -41,10 +41,11 @@ def check_model(sym, shapes, dtypes, params):
     nnvm_rts.run(**inputs)
     nnvm_out = nnvm_rts.get_output(0)
     relay_model, params = to_relay.to_relay(net, shapes, dtypes, params)
-    relay_model = ir_pass.infer_type(relay_model)
-    relay_rts = create_executor(kind='graph', ctx=tvm.cpu(0), target='llvm')
+    mod = tvm.relay.Module.from_expr(relay_model)
+    mod = transform.InferType()(mod)
+    relay_rts = create_executor(kind='graph', mod=mod, ctx=tvm.cpu(0), target='llvm')
     inputs.update(params)
-    relay_out = relay_rts.evaluate(relay_model)(*list(inputs.values()))
+    relay_out = relay_rts.evaluate()(*list(inputs.values()))
     np.testing.assert_allclose(nnvm_out.asnumpy(), relay_out.asnumpy())
 
 # def test_mlp():

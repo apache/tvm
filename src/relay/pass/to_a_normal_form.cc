@@ -24,7 +24,7 @@
  *
  * \brief Turn implicit sharing into observable sharing.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>

@@ -15,7 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 from tvm import relay
-import numpy as np
+from tvm.relay import transform
+
+
+def run_combine_parallel(expr, min_num_branches=3):
+    mod = relay.Module.from_expr(expr)
+    mod = transform.CombineParallelConv2D(min_num_branches)(mod)
+    return mod[mod.entry_func]
+
+def run_opt_pass(expr, opt_pass):
+    assert isinstance(opt_pass, transform.Pass)
+    mod = relay.Module.from_expr(expr)
+    mod = opt_pass(mod)
+    return mod[mod.entry_func]
 
 
 def test_combine_parallel_conv2d():
@@ -54,12 +66,11 @@ def test_combine_parallel_conv2d():
         w4 = relay.var("w4", shape=(channels4, in_c, 1, 1))
 
         y_before = before(x, w1, w2, w3, w4)
-        y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
-        y = relay.ir_pass.infer_type(y)
+        y = run_opt_pass(y_before,
+                         transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4)
-        y_expected = relay.ir_pass.infer_type(y_expected)
-        assert relay.ir_pass.alpha_equal(y, y_expected)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        assert relay.analysis.alpha_equal(y, y_expected)
 
     check((1, 4, 16, 16), 4, 4, 4, 4)
     check((1, 4, 16, 16), 4, 8, 4, 7)
@@ -101,12 +112,11 @@ def test_combine_parallel_conv2d_scale_relu():
         scale2 = relay.var("scale2", shape=(channels2, 1, 1))
         bias = relay.var("bias", shape=(channels2, 1, 1))
         y_before = before(x, w1, w2, scale1, scale2, bias)
-        y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
-        y = relay.ir_pass.infer_type(y)
+        y = run_opt_pass(y_before,
+                         transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, scale1, scale2, bias, channels1, channels2)
-        y_expected = relay.ir_pass.infer_type(y_expected)
-        assert relay.ir_pass.alpha_equal(y, y_expected)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        assert relay.analysis.alpha_equal(y, y_expected)
 
     check((1, 4, 16, 16), 4, 8)
 
@@ -141,12 +151,11 @@ def test_combine_parallel_conv2d_scale():
         scale1 = relay.var("scale1", shape=(1,))
         scale2 = relay.var("scale2", shape=(1,))
         y_before = before(x, w1, w2, scale1, scale2)
-        y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
-        y = relay.ir_pass.infer_type(y)
+        y = run_opt_pass(y_before,
+                         transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, scale1, scale2, channels1, channels2)
-        y_expected = relay.ir_pass.infer_type(y_expected)
-        assert relay.ir_pass.alpha_equal(y, y_expected)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        assert relay.analysis.alpha_equal(y, y_expected)
 
     check((1, 4, 16, 16), 4, 8)
 
@@ -178,12 +187,11 @@ def test_combine_parallel_conv2d_multiple_blocks():
         out_c = in_c // 2
         w = relay.var("w", shape=(out_c, in_c, 1, 1))
         y_before = before(x, w, repeat)
-        y = relay.ir_pass.infer_type(y_before)
-        y = relay.ir_pass.combine_parallel_conv2d(y, min_num_branches=2)
-        y = relay.ir_pass.infer_type(y)
+        y = run_opt_pass(y_before,
+                         transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w, out_c, repeat)
-        y_expected = relay.ir_pass.infer_type(y_expected)
-        assert relay.ir_pass.alpha_equal(y, y_expected)
+        y_expected = run_opt_pass(y_expected, transform.InferType())
+        assert relay.analysis.alpha_equal(y, y_expected)
 
     check((1, 4, 16, 16), 4)
 

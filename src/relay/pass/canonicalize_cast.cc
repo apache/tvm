@@ -22,7 +22,7 @@
  * \file canonicalize_cast.cc
  * \brief Canonicalize cast expressions to make operator fusion more efficient.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>

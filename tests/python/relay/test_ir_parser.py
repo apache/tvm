@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import alpha_equal
+from tvm.relay.analysis import alpha_equal
 from nose.tools import nottest, raises
 from numpy import isclose
 from typing import Union

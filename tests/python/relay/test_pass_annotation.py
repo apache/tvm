@@ -22,6 +22,16 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.expr_functor import ExprMutator
+from tvm.relay import transform
+
+
+def run_opt_pass(expr, passes):
+    passes = passes if isinstance(passes, list) else [passes]
+    mod = relay.Module.from_expr(expr)
+    seq = transform.Sequential(passes)
+    with transform.PassContext(opt_level=3):
+        mod = seq(mod)
+    return mod[mod.entry_func]
 
 
 def test_redundant_annotation():
@@ -39,9 +49,8 @@ def test_redundant_annotation():
         sub2 = relay.subtract(_add2, z)
 
         func = relay.Function([x, y, z], relay.Tuple([sub1, sub2]))
-        func = relay.ir_pass.infer_type(func)
-        func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                   ctx1.device_type)
+        func = run_opt_pass(func,
+                            transform.RewriteAnnotatedOps(ctx1.device_type))
         return func
 
     def expected():
@@ -53,9 +62,9 @@ def test_redundant_annotation():
         func = relay.Function([x, y, z], relay.Tuple([sub1, sub2]))
         return func
 
-    annotated_func = relay.ir_pass.infer_type(annotated())
-    expected_func = relay.ir_pass.infer_type(expected())
-    assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
+    annotated_func = annotated()
+    expected_func = run_opt_pass(expected(), transform.InferType())
+    assert relay.analysis.alpha_equal(annotated_func, expected_func)
 
 
 def test_annotate_expr():
@@ -70,9 +79,8 @@ def test_annotate_expr():
         _add = relay.annotation.on_device(add, ctx1)
         sub = relay.subtract(_add, z)
         _sub = relay.annotation.on_device(sub, ctx2)
-        expr = relay.ir_pass.infer_type(_sub)
-        expr = relay.ir_pass.rewrite_annotated_ops(expr,
-                                                   ctx1.device_type)
+        expr = run_opt_pass(_sub,
+                            transform.RewriteAnnotatedOps(ctx1.device_type))
         return expr
 
     def expected():
@@ -81,9 +89,9 @@ def test_annotate_expr():
         sub = relay.subtract(copy_add_sub, z)
         return sub
 
-    annotated_expr = relay.ir_pass.infer_type(annotated())
-    expected_expr = relay.ir_pass.infer_type(expected())
-    assert relay.ir_pass.graph_equal(annotated_expr, expected_expr)
+    annotated_expr = annotated()
+    expected_expr = run_opt_pass(expected(), transform.InferType())
+    assert relay.analysis.graph_equal(annotated_expr, expected_expr)
 
 
 def test_annotate_all():
@@ -100,9 +108,8 @@ def test_annotate_all():
         _sub = relay.annotation.on_device(sub, ctx2)
 
         func = relay.Function([x, y, z], _sub)
-        func = relay.ir_pass.infer_type(func)
-        func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                   ctx1.device_type)
+        func = run_opt_pass(func,
+                            transform.RewriteAnnotatedOps(ctx1.device_type))
         return func
 
     def expected():
@@ -111,9 +118,9 @@ def test_annotate_all():
         func = relay.Function([x, y, z], sub)
         return func
 
-    annotated_func = relay.ir_pass.infer_type(annotated())
-    expected_func = relay.ir_pass.infer_type(expected())
-    assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
+    annotated_func = annotated()
+    expected_func = run_opt_pass(expected(), transform.InferType())
+    assert relay.analysis.graph_equal(annotated_func, expected_func)
 
 
 def test_annotate_none():
@@ -127,9 +134,8 @@ def test_annotate_none():
         add = relay.add(x, y)
         sub = relay.subtract(add, z)
         func = relay.Function([x, y, z], sub)
-        func = relay.ir_pass.infer_type(func)
-        func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                   ctx1.device_type)
+        func = run_opt_pass(func,
+                            transform.RewriteAnnotatedOps(ctx1.device_type))
         return func
 
     def expected():
@@ -138,15 +144,15 @@ def test_annotate_none():
         func = relay.Function([x, y, z], sub)
         return func
 
-    annotated_func = relay.ir_pass.infer_type(annotated())
-    expected_func = relay.ir_pass.infer_type(expected())
-    assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
+    annotated_func = annotated()
+    expected_func = run_opt_pass(expected(), transform.InferType())
+    assert relay.analysis.graph_equal(annotated_func, expected_func)
 
 
 def check_annotated_graph(annotated_func, expected_func):
-    annotated_func = relay.ir_pass.infer_type(annotated_func)
-    expected_func = relay.ir_pass.infer_type(expected_func)
-    assert relay.ir_pass.alpha_equal(annotated_func, expected_func)
+    annotated_func = run_opt_pass(annotated_func, transform.InferType())
+    expected_func = run_opt_pass(expected_func, transform.InferType())
+    assert relay.analysis.alpha_equal(annotated_func, expected_func)
 
 
 def test_conv_network():
@@ -189,9 +195,8 @@ def test_conv_network():
             padding=(1, 1))
 
         func = relay.Function([data1, data2, weight], conv2d_3)
-        func = relay.ir_pass.infer_type(func)
-        func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                   tvm.context(3).device_type)
+        func = run_opt_pass(
+            func, transform.RewriteAnnotatedOps(tvm.context(3).device_type))
         return func
 
 
@@ -221,9 +226,8 @@ def test_conv_network():
         _conv2d_3 = relay.annotation.on_device(conv2d_3, dev2)
 
         func = relay.Function([data1, data2, weight], _conv2d_3)
-        func = relay.ir_pass.infer_type(func)
-        func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                   tvm.context(3).device_type)
+        func = run_opt_pass(
+            func, transform.RewriteAnnotatedOps(tvm.context(3).device_type))
         return func
 
     class ScheduleConv2d(ExprMutator):
@@ -241,7 +245,8 @@ def test_conv_network():
     def annotate_with_visitor(func):
         sched = ScheduleConv2d(dev2)
         func = sched.visit(func)
-        func = relay.ir_pass.rewrite_annotated_ops(func, dev1.device_type)
+        func = run_opt_pass(
+            func, transform.RewriteAnnotatedOps(dev1.device_type))
         return func
 
     def expected():
@@ -273,10 +278,8 @@ def test_conv_network():
 
     def check_storage_and_device_types():
         func = annotated()
-        func = relay.ir_pass.rewrite_annotated_ops(func, 3)
-        func = relay.ir_pass.infer_type(func)
-        func = relay.ir_pass.fuse_ops(func, opt_level=2)
-        func = relay.ir_pass.infer_type(func)
+        func = run_opt_pass(func, [transform.RewriteAnnotatedOps(3),
+                                   transform.FuseOps(2)])
         smap = relay.backend._backend.GraphPlanMemory(func)
         storage_ids = []
         device_types = []
@@ -377,9 +380,8 @@ def run_fusible_network(dev, tgt):
             _exp = relay.annotation.on_device(exp, dev_ctx)
 
             func = relay.Function([x, y], _exp)
-            func = relay.ir_pass.infer_type(func)
-            func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                       cpu_ctx.device_type)
+            func = run_opt_pass(
+                func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
             return func
 
         def expected():
@@ -424,9 +426,8 @@ def run_fusible_network(dev, tgt):
             _exp = relay.annotation.on_device(exp, dev_ctx)
 
             func = relay.Function([x, y], _exp)
-            func = relay.ir_pass.infer_type(func)
-            func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                       cpu_ctx.device_type)
+            func = run_opt_pass(
+                func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
             return func
 
         annotated_func = annotated()
@@ -449,9 +450,8 @@ def run_fusible_network(dev, tgt):
             _exp = relay.annotation.on_device(exp, cpu_ctx)
 
             func = relay.Function([x, y], _exp)
-            func = relay.ir_pass.infer_type(func)
-            func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                       dev_ctx.device_type)
+            func = run_opt_pass(
+                func, transform.RewriteAnnotatedOps(dev_ctx.device_type))
             return func
 
         def expected():
@@ -495,7 +495,7 @@ def run_unpropagatable_graph(dev, tgt):
                 \      /
                 subtract
     """
-    
+
     a = relay.var("a", shape=(10, 10))
     b = relay.var("b", shape=(10, 10))
     c = relay.var("c", shape=(10, 10))
@@ -507,13 +507,13 @@ def run_unpropagatable_graph(dev, tgt):
     tmp_add = a_data + b_data
     tmp_mul = np.multiply(c_data, d_data)
     ref_res = np.subtract(tmp_add, tmp_mul)
-    
+
     fallback_device = tvm.context("cpu")
     target = {"cpu": "llvm", dev: tgt}
     cpu_ctx = fallback_device
     dev_ctx = tvm.context(dev)
-    
-    def annotated():    
+
+    def annotated():
         add = relay.add(a, b)
         _add = relay.annotation.on_device(add, dev_ctx)
         mul = relay.multiply(c, d)
@@ -521,19 +521,18 @@ def run_unpropagatable_graph(dev, tgt):
         sub = relay.subtract(_add, _mul)
         _sub = relay.annotation.on_device(sub, dev_ctx)
         func = relay.Function([a, b, c, d], _sub)
-        func = relay.ir_pass.infer_type(func)
-        func = relay.ir_pass.rewrite_annotated_ops(func,
-                                                   dev_ctx.device_type)
+        func = run_opt_pass(
+            func, transform.RewriteAnnotatedOps(dev_ctx.device_type))
         return func
-        
-    def expected():    
+
+    def expected():
         add = relay.add(a, b)
         mul = relay.multiply(c, d)
         copy_mul_sub = relay.device_copy(mul, cpu_ctx, dev_ctx)
         sub = relay.subtract(add, copy_mul_sub)
         func = relay.Function([a, b, c, d], sub)
         return func
-    
+
     annotated_func = annotated()
     expected_func = expected()
     expected_index = [2, 2, 2, 1, 1, 1, 2, 2]
@@ -553,7 +552,7 @@ def run_unpropagatable_graph(dev, tgt):
         mod.run()
         res = mod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
-        
+
 
 def test_check_run():
     for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
@@ -580,7 +579,7 @@ def test_tuple_get_item():
         elem0 = relay.device_copy(split[0], gpu_ctx, cpu_ctx)
         elem1 = relay.device_copy(split[1], gpu_ctx, cpu_ctx)
         sub = elem0 - elem1
-        func = relay.Function(relay.ir_pass.free_vars(sub), sub)
+        func = relay.Function(relay.analysis.free_vars(sub), sub)
         return func
 
     def annotated():
@@ -590,13 +589,14 @@ def test_tuple_get_item():
         split = relay.annotation.on_device(split, gpu_ctx)
         split = relay.TupleWrapper(split, 3)
         sub = split[0] - split[1]
-        func = relay.Function(relay.ir_pass.free_vars(sub), sub)
-        func = relay.ir_pass.rewrite_annotated_ops(func, cpu_ctx.device_type)
+        func = relay.Function(relay.analysis.free_vars(sub), sub)
+        func = run_opt_pass(
+            func, transform.RewriteAnnotatedOps(cpu_ctx.device_type))
         return func
 
-    annotated_func = relay.ir_pass.infer_type(annotated())
-    expected_func = relay.ir_pass.infer_type(expected())
-    assert relay.ir_pass.graph_equal(annotated_func, expected_func)
+    annotated_func = annotated()
+    expected_func = run_opt_pass(expected(), transform.InferType())
+    assert relay.analysis.graph_equal(annotated_func, expected_func)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,8 @@ import numpy as np
 
 import tvm
 from topi.util import get_const_tuple
-from .. import ir_pass
+from .. import analysis
+from .. import transform as _transform
 from .. import expr as _expr
 from .. import op as _op
 from ..expr_functor import ExprMutator
@@ -38,9 +39,9 @@ __all__ = ['from_tensorflow']
 def _infer_value(input_val, params):
     from tvm.contrib import graph_runtime
     # Check that all free variables have associated parameters.
-    assert all(var.name_hint in params.keys() for var in ir_pass.free_vars(
+    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
         input_val)), "All inputs to infer must be available in params."
-    func = _expr.Function(ir_pass.free_vars(input_val), input_val)
+    func = _expr.Function(analysis.free_vars(input_val), input_val)
     with tvm.relay.build_config(opt_level=0):
         graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
     ctx = tvm.context("llvm", 0)
@@ -235,9 +236,16 @@ def _infer_out_shapes(inputs, params):
     """A method to get the output shape of intermediate nodes in the relay graph."""
     return [_infer_shape(inputs, params)]
 
+def _infer_type(node):
+    """A method to infer the type of an intermediate node in the relay graph."""
+    mod = _module.Module.from_expr(node)
+    mod = _transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(node, _expr.Function) else entry.body
+
 def _infer_shape(node, params=None):
     """A method to get the output shape of an intermediate node in the relay graph."""
-    out_type = ir_pass.infer_type(node)
+    out_type = _infer_type(node)
     return get_const_tuple(out_type.checked_type.shape)
 
 def _get_param(params, input_node):
@@ -1841,7 +1849,8 @@ class Loop:
         bind_map = {}
         for i, var in enumerate(self.loop_vars):
             if not isinstance(var, _expr.Var):
-                var_type = ir_pass.infer_type(var).checked_type
+                var_chk = _infer_type(var)
+                var_type = var_chk.checked_type
             else:
                 var_type = var.type_annotation
 
@@ -2112,7 +2121,7 @@ class GraphProto(object):
                 out.append(out_rnn)
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
-        func = _expr.Function(ir_pass.free_vars(out), out)
+        func = _expr.Function(analysis.free_vars(out), out)
         self._mod[self._mod.entry_func] = func
         return self._mod, self._params
 
@@ -2329,7 +2338,8 @@ class GraphProto(object):
             else:
                 if node_name_prefix not in self._branches:
                     self._branches[node_name_prefix] = Branch()
-                self._branches[node_name_prefix].cond = ir_pass.infer_type(op[0])
+                chk_op = _infer_type(op[0])
+                self._branches[node_name_prefix].cond = chk_op
         elif node.op == "NextIteration":
             op = self._nodes[node.input[0]]
             assert len(op) == 1

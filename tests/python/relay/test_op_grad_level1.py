@@ -14,15 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
 import numpy as np
+import tvm
 from tvm import relay
-from tvm.relay.ir_pass import gradient, infer_type
+from tvm.relay.transform import gradient
 from tvm.relay.testing import ctx_list
+
+
+def run_infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = relay.transform.InferType()(mod)
+    return mod[mod.entry_func]
+
 
 def sigmoid(x):
     one = np.ones_like(x)
     return one / (one + np.exp(-x))
+
 
 def relu(x):
     x_copy = np.copy(x)
@@ -41,7 +49,7 @@ def test_unary_op():
             data = np.random.rand(*shape).astype(dtype)
             ref_grad = ref(data)
             fwd_func = relay.Function([x], y)
-            bwd_func = infer_type(gradient(fwd_func))
+            bwd_func = run_infer_type(gradient(fwd_func))
 
             for target, ctx in ctx_list():
                 intrp = relay.create_executor(ctx=ctx, target=target)
@@ -73,7 +81,7 @@ def test_binary_op():
         y_data = np.random.rand(*s).astype(t.dtype)
         ref_grad0, ref_grad1 = ref(x_data, y_data)
         fwd_func = relay.Function([x, y], z)
-        bwd_func = infer_type(gradient(fwd_func))
+        bwd_func = run_infer_type(gradient(fwd_func))
 
         for target, ctx in ctx_list():
             intrp = relay.create_executor(ctx=ctx, target=target)

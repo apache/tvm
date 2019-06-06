@@ -56,7 +56,7 @@ bn_mvar = relay.var("bn_var")
 simple_net = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3,3), channels=out_channels, padding=(1, 1))
 simple_net = relay.nn.batch_norm(simple_net, bn_gamma, bn_beta, bn_mmean, bn_mvar)[0]
 simple_net = relay.nn.relu(simple_net)
-simple_net = relay.Function(relay.ir_pass.free_vars(simple_net), simple_net)
+simple_net = relay.Function(relay.analysis.free_vars(simple_net), simple_net)
 
 data_shape = (batch_size, 3, 224, 224)
 net, params = testing.create_workload(simple_net)
