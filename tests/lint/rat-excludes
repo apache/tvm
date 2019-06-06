@@ -46,3 +46,4 @@ rat-excludes
 __init__.py
 pylintrc
 config.cmake
+Cargo.lock
