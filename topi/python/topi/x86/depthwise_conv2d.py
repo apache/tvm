@@ -22,11 +22,12 @@ from tvm.autotvm.task import get_config
 from tvm.autotvm.task.space import SplitEntity
 from tvm.autotvm.task.topi_integration import deserialize_args
 from .. import generic, tag
+from ..generic import schedule_depthwise_conv2d_nchw
 from ..nn.pad import pad
 from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
-from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, _get_workload, \
-    depthwise_conv2d_infer_layout
+from ..nn.depthwise_conv2d import depthwise_conv2d_nchw, depthwise_conv2d_NCHWc, \
+    _get_workload, depthwise_conv2d_infer_layout
 
 from .util import get_fp32_len
 
@@ -68,6 +69,12 @@ def _fallback_schedule(cfg, wkl):
     cfg["tile_ic"] = SplitEntity([wkl.in_filter // ic_bn, ic_bn])
     cfg["tile_oc"] = SplitEntity([wkl.out_filter // oc_bn, oc_bn])
     cfg["tile_ow"] = SplitEntity([out_width // reg_n, reg_n])
+
+
+autotvm.register_topi_compute(depthwise_conv2d_nchw, 'cpu', 'direct',
+                              depthwise_conv2d_nchw.fdefault)
+autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, 'cpu', 'direct',
+                               schedule_depthwise_conv2d_nchw.fdefault)
 
 
 @autotvm.register_topi_compute(depthwise_conv2d_NCHWc, 'cpu', 'direct')
