@@ -26,7 +26,7 @@ from tvm.autotvm.task.topi_integration import deserialize_args
 from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
-from ..util import get_const_tuple
+from ..util import get_const_tuple, get_shape
 from ..nn.conv2d import conv2d, conv2d_NCHWc, \
     conv2d_alter_layout, conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
@@ -415,11 +415,14 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
 
     dtype = data.dtype
     out_dtype = dtype if out_dtype in ("same", "") else out_dtype
-    is_depthwise = groups == in_channel and groups == out_channel
+
+    kshape = get_shape(kernel.shape, attrs["kernel_layout"], "OIHW")
+    is_depthwise = groups == kshape[0] and kshape[1] == 1
 
     # only optimize for NCHW
-    if layout != 'NCHW':
+    if layout != 'NCHW' or attrs["kernel_layout"] != "OIHW":
         return None
+
     if groups != 1 and not is_depthwise:
         return None
 
