@@ -25,6 +25,7 @@
 .*\.log
 
 # Generated modules
+.*\.egg-info
 .*gen_modules/*
 .*doxygen
 core.cpp
@@ -32,6 +33,7 @@ build
 _static
 _build
 .*~
+\#..*\#
 
 # Specific files
 package-list
@@ -44,3 +46,4 @@ rat-excludes
 __init__.py
 pylintrc
 config.cmake
+Cargo.lock
