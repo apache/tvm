@@ -482,8 +482,9 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::InvokeClosure: {
-      os << "invoke_closure $" << instr.dst << " VMFunc[" << instr.closure << "] "
-         << instr.closure_args_num << "()";
+      os << "invoke_closure $" << instr.dst << " VMFunc[" << instr.closure << "] ($"
+         << StrJoin<RegName>(instr.closure_args, 0, instr.closure_args_num, ",$")
+         << ")";
       break;
     }
     case Opcode::LoadConst: {
