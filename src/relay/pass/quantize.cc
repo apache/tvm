@@ -64,8 +64,7 @@ struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
     TVM_ATTR_FIELD(rounding).set_default("round")
         .describe("rounding mode. Can be 'floor', 'ceil', 'round'");
     TVM_ATTR_FIELD(passthrough).set_default(false)
-        .describe("whether to passthrough full precision value (useful for\
-                   data-aware calibration)");
+        .describe("whether to passthrough full precision value (for data-aware calibration)");
     TVM_ATTR_FIELD(granularity).set_default("layer")
         .describe("scale granularity. Can be 'global', 'layer', 'channel'");
     TVM_ATTR_FIELD(layout).set_default("unknown")
@@ -94,7 +93,8 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
     channel_dim = param->layout.find("I");
 
   // TODO(eqy): blocked layouts
-  CHECK(param->layout.find_first_not_of("NCOIHW") == std::string::npos) << "Unsupported Layout in Simulated Quantize";
+  CHECK(param->layout.find_first_not_of("NCOIHW") == std::string::npos)\
+     << "Unsupported Layout in Simulated Quantize";
 
   int channels = 1;
   if (data->shape.size() >= 4)  {
@@ -108,7 +108,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
         break;
       }
     }
-    for (d = d + 1;d < data->shape.size(); d++) {
+    for (d = d + 1; d < data->shape.size(); d++) {
       CHECK_EQ(data->shape[d].as<IntImm>()->value, 1)
       << "Unhandled broadcastable data shape"
       << data->shape;
@@ -118,7 +118,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   }
 
   if (param->granularity == "channel") {
-    reporter->Assign(types[1], TensorTypeNode::make({channels,}, Float(32)));    // dom_scale
+    reporter->Assign(types[1], TensorTypeNode::make({channels}, Float(32)));    // dom_scale
   } else {
     reporter->Assign(types[1], TensorTypeNode::make({1}, Float(32)));    // dom_scale
   }
@@ -244,7 +244,7 @@ Expr _ReshapeChannelScale(Expr dom_scale, Expr arr, size_t pos) {
   Array<IndexExpr> dom_scale_shape = dom_scale_tensor->tensor_type()->shape;
   Array<Integer> broadcast_shape;
 
-  CHECK(dom_scale_shape.size() <= 1);
+  CHECK_LE(dom_scale_shape.size(), 1);
   if (dom_scale_shape[0].as<IntImm>()->value == 1) {
     // leverage implicit broadcasting
     return dom_scale;
@@ -259,7 +259,7 @@ Expr _ReshapeChannelScale(Expr dom_scale, Expr arr, size_t pos) {
     if (i == pos) {
       CHECK(dim == channels || dim == 1);
       broadcast_shape.push_back(channels);
-   } else {
+    } else {
       broadcast_shape.push_back(1);
     }
   }
@@ -271,7 +271,7 @@ inline bool _IsTensor(Expr dom_scale) {
   CHECK(dom_scale_tensor);
   Array<IndexExpr> dom_scale_shape = dom_scale_tensor->tensor_type()->shape;
   if (dom_scale_shape.size() >= 1) {
-    CHECK(dom_scale_shape.size() == 1);
+    CHECK_EQ(dom_scale_shape.size(), 1);
     return true;
   }
   return false;
@@ -286,7 +286,7 @@ int _FindChannelPos(Expr arr, const std::string &layout) {
   } else {
     data_shape = arr->checked_type().as<TensorTypeNode>()->shape;
   }
-  // TODO: robust handling of this case
+  // TODO(eqy): robust handling of this case
   if (data_shape.size() < layout.size()) {
     return 0;
   }
@@ -380,13 +380,14 @@ Expr QRealizeIntExprNode::Realize() const {
   // dequantize
   data = Cast(data, Float(32));
   int pos = _FindChannelPos(data, this->data_layout);
-  CHECK(pos >= 0);
+  CHECK_GE(pos, 0);
   Expr broadcastable_dom_scale = _ReshapeChannelScale(this->dom_scale, data, pos);
   data = Multiply(data, broadcastable_dom_scale);
   return data;
 }
 
-QRealizeIntExpr QRealizeIntExprNode::make(Expr data, Expr dom_scale, DataType dtype, std::string data_layout) {
+QRealizeIntExpr QRealizeIntExprNode::make(Expr data, Expr dom_scale,
+                                          DataType dtype, std::string data_layout) {
   NodePtr<QRealizeIntExprNode> n = make_node<QRealizeIntExprNode>();
   n->data = std::move(data);
   n->dom_scale = std::move(dom_scale);
@@ -447,7 +448,7 @@ inline Expr MulAndDiv(Expr data, Expr s1, Expr s2, Expr ref_data, const std::str
       static_cast<int>(cur_shift_factor);
   }
   int pos = _FindChannelPos(ref_data, layout);
-  CHECK(pos >= 0);
+  CHECK_GE(pos, 0);
   Expr broadcastable_shift = _ReshapeChannelScale(ConstantNode::make(shift_array), ref_data, pos);
   return LeftShift(data, broadcastable_shift);
 }
@@ -486,7 +487,6 @@ Expr QuantizeRealize(const Call& ref_call,
     auto* idom_scale_tensor = n->dom_scale.as<ConstantNode>();
     CHECK(idom_scale_tensor);
     Array<IndexExpr> idom_scale_shape = idom_scale_tensor->tensor_type()->shape;
-    CHECK(dom_scale_shape.size() == 1); // remove support for floating point scalar case
 /* TODO(eqy)
     if (dom_scale_shape.size() >= 1) {
       CHECK(dom_scale_shape.size() == 1);
@@ -521,8 +521,10 @@ Expr QuantizeRealize(const Call& ref_call,
         data = Add(data, round_bias);
       }
  */   
-    CHECK(dom_scale_shape.size() == 1);
-    CHECK(idom_scale_shape.size() == 1);
+    CHECK_EQ(dom_scale_shape.size(), 1);  // remove support for floating point scalar case
+    
+    CHECK_EQ(dom_scale_shape.size(), 1);
+    CHECK_EQ(idom_scale_shape.size(), 1);
     size_t dom_scale_channels = dom_scale_shape[0].as<IntImm>()->value;
     size_t idom_scale_channels = idom_scale_shape[0].as<IntImm>()->value;
     CHECK(dom_scale_channels == idom_scale_channels || dom_scale_channels == 1
@@ -543,7 +545,7 @@ Expr QuantizeRealize(const Call& ref_call,
       Expr round_bias = _FloatLambda(shift_factor, _RoundBias);
       round_bias = FoldConstantOpt(round_bias);
       int pos = _FindChannelPos(ref_call->args[0], layout);
-      CHECK(pos >= 0);
+      CHECK_GE(pos, 0);
       round_bias = _ReshapeChannelScale(round_bias, ref_call->args[0], pos);
       round_bias = FoldConstantOpt(round_bias);
       CHECK(round_bias.as<ConstantNode>() != nullptr);
@@ -553,7 +555,7 @@ Expr QuantizeRealize(const Call& ref_call,
       data = Add(data, round_bias);
     }
     int pos = _FindChannelPos(ref_call->args[0], layout);
-    CHECK(pos >= 0);
+    CHECK_GE(pos, 0);
     shift_factor = _ReshapeChannelScale(shift_factor, data, pos);
     shift_factor = Cast(shift_factor, n->dtype);
     data = RightShift(data, shift_factor);
