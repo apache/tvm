@@ -1787,7 +1787,7 @@ class GraphProto(object):
         self._branches = {}
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        """Construct relay nodes from tensorflow  graph definition - GraphDef.
+        """Construct relay nodes from tensorflow graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to Relay.
         Some of the assumptions listed below.
@@ -1812,6 +1812,9 @@ class GraphProto(object):
 
         shape : Dictionary of input dimensions (Optional)
             Graph level input shape dictionary.
+
+        outputs : List of output tensor names (Optional)
+            if not specified then the last node is assumed as graph output.
 
         Returns
         -------
@@ -2276,13 +2279,22 @@ class GraphProto(object):
 
 
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
-    """  Load tensorflow graph which is a python tensorflow graph object into relay.
+    """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
 
     Parameters
     ----------
     graph : GraphDef object
         Tensorflow GraphDef
+
+    layout : target layout to be used (Optional)
+        NCHW only supported now to enable NHWC models on GPU.
+
+    shape : Dictionary of input dimensions (Optional)
+        Graph level input shape dictionary.
+
+    outputs : List of output tensor names (Optional)
+        if not specified then the last node is assumed as graph output.
 
     Returns
     -------
