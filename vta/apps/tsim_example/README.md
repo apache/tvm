@@ -69,7 +69,7 @@ how to run both of them:
     * Run `make` to build and run add-by-one example
 
 * Some pointers
-    * Add-by-one `tvm` test `<tvm-root>/vta/apps/tsim_example/tests/python/add_by_one.py`
+    * Add-by-one test `<tvm-root>/vta/apps/tsim_example/tests/python/add_by_one.py`
     * Add-by-one accelerator in Verilog `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
     * Add-by-one accelerator in Chisel3 `<tvm-root>/vta/apps/tsim_example/hardware/chisel`
     * Software driver that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
