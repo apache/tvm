@@ -83,7 +83,7 @@ struct Error : public dmlc::Error {
  *
  * The final mode represents the old mode, if we report an error that has no span or
  * expression, we will default to throwing an exception with a textual representation
- * of the error and no indication of where it occured in the original program.
+ * of the error and no indication of where it occurred in the original program.
  *
  * The latter mode is not ideal, and the goal of the new error reporting machinery is
  * to avoid ever reporting errors in this style.

@@ -286,7 +286,7 @@ class ExprTable(object):
 
 
 class AttrCvt(object):
-    """Common attribute conveter. An AttrConverter instance is a callable:
+    """Common attribute converter. An AttrConverter instance is a callable:
     ```
     attr_converter = AttrConverter(op_name, transforms={'a':'b', 'c':('d', 1)})
     new_op_name, new_attr = attr_converter(attrs)
@@ -300,12 +300,12 @@ class AttrCvt(object):
         `op_name = func(attr)`
     transforms : dict of `new_name, or (new_name, default_value, transform function)`
         If only a new_name is provided, it's like renaming the attribute name.
-        If default_value if provded, then the attribute is considered as optional.
+        If default_value if provided, then the attribute is considered as optional.
         If transform function is provided, the original attribute value is handled
         by transform function.
     excludes : list
         A list of excluded attributes that should `NOT` appear.
-        Raise NotImplementedError if occured.
+        Raise NotImplementedError if occurred.
     disables : list
         A list of attributes that is disabled in relay. Log warnings.
     ignores : list

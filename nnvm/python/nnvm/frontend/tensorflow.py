@@ -1177,7 +1177,7 @@ class GraphProto(object):
             -> All Const nodes are params.
             -> Last node is assumed as graph output.
             -> _output_shapes : Graph should be frozen with add_shapes=True.
-                                Or user can pass input shape dictionaly optionally.
+                                Or user can pass input shape dictionary optionally.
             -> DecodeJpeg, ResizeBilinear: These are dummy operators.
                                            Hence user should handle preprocessing outside.
             -> CheckNumerics: No implementation as of now for this.
