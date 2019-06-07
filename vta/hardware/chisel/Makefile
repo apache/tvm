@@ -15,6 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# Change this variable if Verilator is installed on a different location
+VERILATOR_INC_DIR ?= /usr/local/share/verilator/include
+
+ifeq (, $(shell which verilator))
+ $(error "No Verilator in $(PATH), consider doing apt-get install verilator")
+endif
+
+ifeq (, $(wildcard $(VERILATOR_INC_DIR)/*))
+ $(error "Verilator include directory is not set properly")
+endif
+
 CONFIG = DefaultF1Config
 TOP = VTA
 TOP_TEST = Test
@@ -25,7 +36,6 @@ VTA_LIBNAME = libvta_hw
 config_test = $(TOP_TEST)$(CONFIG)
 vta_dir = $(abspath ../../)
 tvm_dir = $(abspath ../../../)
-verilator_inc_dir = /usr/local/share/verilator/include
 verilator_build_dir = $(vta_dir)/$(BUILD_NAME)/verilator
 chisel_build_dir = $(vta_dir)/$(BUILD_NAME)/chisel
 
@@ -50,14 +60,14 @@ cxx_flags += -DVM_SC=0
 cxx_flags += -Wno-sign-compare
 cxx_flags += -include V$(TOP_TEST).h
 cxx_flags += -I$(verilator_build_dir)
-cxx_flags += -I$(verilator_inc_dir)
-cxx_flags += -I$(verilator_inc_dir)/vltstd
+cxx_flags += -I$(VERILATOR_INC_DIR)
+cxx_flags += -I$(VERILATOR_INC_DIR)/vltstd
 cxx_flags += -I$(vta_dir)/include
 cxx_flags += -I$(tvm_dir)/include
 cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
 
-cxx_files = $(verilator_inc_dir)/verilated.cpp
-cxx_files += $(verilator_inc_dir)/verilated_dpi.cpp
+cxx_files = $(VERILATOR_INC_DIR)/verilated.cpp
+cxx_files += $(VERILATOR_INC_DIR)/verilated_dpi.cpp
 cxx_files += $(wildcard $(verilator_build_dir)/*.cpp)
 cxx_files += $(vta_dir)/hardware/dpi/tsim_device.cc
 
@@ -65,7 +75,7 @@ ifneq ($(USE_TRACE), 0)
   verilator_opt += --trace
   cxx_flags += -DVM_TRACE=1
   cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
-  cxx_files += $(verilator_inc_dir)/verilated_vcd_c.cpp
+  cxx_files += $(VERILATOR_INC_DIR)/verilated_vcd_c.cpp
 else
   cxx_flags += -DVM_TRACE=0
 endif
