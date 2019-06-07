@@ -60,17 +60,18 @@ how to run both of them:
 
 * Verilog add-by-one
     * Go to `<tvm-root>/vta/apps/tsim_example`
-    * Run `make`
+    * Run `make` to build and run add-by-one example
 
 * Chisel3 add-by-one
     * Open `<tvm-root>/vta/apps/tsim_example/python/tsim/config.json`
     * Change `TARGET` from `verilog` to `chisel`
     * Go to `tvm/vta/apps/tsim_example`
-    * Run `make`
+    * Run `make` to build and run add-by-one example
 
 * Some pointers
-    * Build cmake script for software library`<tvm-root>/vta/apps/tsim_example/cmake/modules/sw.cmake`
-    * Build cmake script for hardware library`<tvm-root>/vta/apps/tsim_example/cmake/modules/hw.cmake`
-    * Software driver that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
+    * Add-by-one `tvm` test `<tvm-root>/vta/apps/tsim_example/tests/python/add_by_one.py`
     * Add-by-one accelerator in Verilog `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
     * Add-by-one accelerator in Chisel3 `<tvm-root>/vta/apps/tsim_example/hardware/chisel`
+    * Software driver that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
+    * Build cmake script for software library`<tvm-root>/vta/apps/tsim_example/cmake/modules/sw.cmake`
+    * Build cmake script for hardware library`<tvm-root>/vta/apps/tsim_example/cmake/modules/hw.cmake`
