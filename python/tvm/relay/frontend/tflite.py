@@ -66,6 +66,7 @@ class OperatorConverter(object):
             'ADD': self.convert_add,
             'MUL': self.convert_mul,
             'FULLY_CONNECTED': self.convert_fully_connected,
+            'PAD': self.convert_pad,
         }
 
     def check_unsupported_ops(self):
@@ -594,6 +595,31 @@ class OperatorConverter(object):
         if fused_activation_fn != ActivationFunctionType.NONE:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
 
+        return out
+
+    def convert_pad(self, op):
+        """Convert TFLite PAD"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        # TFLite only support CONSTANT mode and does not support constant_values parameter.
+        # tensor
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # paddings
+        pad_list = self.get_tensor_value(input_tensors[1])
+        # convert list of lists to tuple of tuples
+        paddings = tuple(tuple(l) for l in pad_list)
+
+        # Use default pad_value 0 because TFLite does not support constant_values parameter
+        out = _op.nn.pad(in_expr, paddings)
         return out
 
     def get_expr(self, input_tensor_idx):
