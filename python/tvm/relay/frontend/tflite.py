@@ -67,6 +67,7 @@ class OperatorConverter(object):
             'MUL': self.convert_mul,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'PAD': self.convert_pad,
+            'LOGISTIC': self.convert_logistic,
         }
 
     def check_unsupported_ops(self):
@@ -216,6 +217,23 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
         out = _op.reshape(in_expr, newshape=tuple(target_shape))
 
+        return out
+
+    def convert_logistic(self, op):
+        """Convert TFLite LOGISTIC"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        out = _op.sigmoid(in_expr)
         return out
 
     def convert_softmax(self, op):
