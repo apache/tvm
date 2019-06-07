@@ -500,7 +500,8 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     # we keep them for debug convenience when dumping autotvm workload
     HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) \
+        else (dilation, dilation)
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
