@@ -1,6 +1,6 @@
 """Perform inference on VTA using Relay."""
 
-import argparse, os
+import argparse, os, time
 from mxnet.gluon.model_zoo import vision
 import numpy as np
 from PIL import Image
@@ -163,15 +163,39 @@ if __name__ == '__main__':
     # Read in VTA environment
     env = vta.get_env()
 
-    # VTA target
-    target = tvm.target.vta()
-
-    # Get tracker info from env
-    tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
-    tracket_port = int(os.environ.get("TVM_TRACKER_PORT", None))
-    if not tracket_host or not tracket_port:
+    # Get remote from fleet node
+    tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
+    tracker_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    if not tracker_host or not tracker_port:
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
+
+    # Get remote
+    if env.TARGET != "sim":
+
+        # Measure build start time
+        reconfig_start = time.time()
+
+        # Get remote from fleet node
+        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, tracker_port, timeout=10000)
+
+        # Reconfigure the JIT runtime and FPGA.
+        # You can program the FPGA with your own custom bitstream
+        # by passing the path to the bitstream file instead of None.
+        vta.reconfig_runtime(remote)
+        vta.program_fpga(remote, bitstream=None)
+
+        # Report on reconfiguration time
+        reconfig_time = time.time() - reconfig_start
+        print("Reconfigured FPGA and RPC runtime in {0:.2f}s!".format(reconfig_time))
+
+    # In simulation mode, host the RPC server locally.
+    else:
+        remote = rpc.LocalSession()
+
+    # VTA target and execution context
+    target = tvm.target.vta()
+    ctx = remote.ext_dev(0) if opt.device == "vta" else remote.cpu(0)
     
     # Compile Relay program
     print("Initial compile...")
@@ -197,22 +221,18 @@ if __name__ == '__main__':
         'early_stopping': None,
         'measure_option': autotvm.measure_option(
                 builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
-                runner=autotvm.RPCRunner(env.TARGET, tracket_host, tracket_port,
+                runner=autotvm.RPCRunner(env.TARGET, tracker_host, tracker_port,
                     number=4, min_repeat_ms=150, repeat=opt.measurements, timeout=60,
                     check_correctness=True))
     }
     tune_tasks(tasks, **tuning_opt)
 
     # Compile kernels with history best records
-    with autotvm.tophub.context(target, extra_files=[opt.log_filename]):
-
-        # ResNet parameters
-        input_shape = (1, 3, 224, 224)
-        dtype = 'float32'
+    with autotvm.tophub.context(target, extra_files=[opt.log_filename]): 
 
         # Compile network
         print("Compiling network with best tuning parameters...")
-        relay_prog, params = compile_network(opt, env, target)
+        # relay_prog, params = compile_network(opt, env, target)
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             if target.device_name != "vta":
                 graph, lib, params = relay.build(
@@ -225,27 +245,30 @@ if __name__ == '__main__':
                         params=params, target_host=env.target_host)
 
         # Export library
-        tmp = util.tempdir()
-        filename = "net.tar"
-        lib.export_library(tmp.relpath(filename))
+        temp = util.tempdir()
+        lib.save(temp.relpath("graphlib.o"))
+        remote.upload(temp.relpath("graphlib.o"))
+        lib = remote.load_module("graphlib.o")
 
-        # Upload module to device
-        print("Upload...")
-        remote = autotvm.measure.request_remote(env.TARGET, tracket_host, tracket_port, timeout=10000)
-        remote.upload(tmp.relpath(filename))
-        rlib = remote.load_module(filename)
+        # If detailed runtime info is needed build with debug runtime
+        if opt.debug_profile:
+            m = debug_runtime.create(graph, lib, ctx)
+        else:
+            m = graph_runtime.create(graph, lib, ctx)
 
-        # Upload parameters to device
-        ctx = remote.context(str(target), 0)
-        rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
-        data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
-        module = graph_runtime.create(graph, rlib, ctx)
-        module.set_input('data', data_tvm)
-        module.set_input(**rparams)
+        # Set the network parameters and synthetic input
+        image = tvm.nd.array(
+            (np.random.uniform(size=(1, 3, 224, 224))).astype('float32'))
+        m.set_input(**params)
+        m.set_input('data', image)
 
-        # Evaluate
-        print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=4, repeat=opt.measurements)
-        prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
+        # Perform inference
+        timer = m.module.time_evaluator("run", ctx, number=4, repeat=opt.measurements)
+        tcost = timer()
+        prof_res = np.array(tcost.results) * 1000  # convert to millisecond
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res), np.std(prof_res)))
+
+        # Display profile information
+        if opt.debug_profile:
+            m.run()

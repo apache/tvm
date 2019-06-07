@@ -1,6 +1,6 @@
 """Perform inference on VTA using Relay."""
 
-import argparse, json, requests, time
+import argparse, json, os, requests, time
 from io import BytesIO
 from mxnet.gluon.model_zoo import vision
 import numpy as np
@@ -50,6 +50,13 @@ def classification_demo(opt):
     image = image[np.newaxis, :]
     image = np.repeat(image, env.BATCH, axis=0)
 
+    # For tuning, make sure tracker variables are set
+    tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
+    tracker_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    if not tracker_host or not tracker_port:
+        print("Set your AutoTVM tracker node host and port variables to run the autotuner")
+        exit()
+
     # We configure both the bitstream and the runtime system on the Pynq
     # to match the VTA configuration specified by the vta_config.json file.
     if env.TARGET != "sim":
@@ -58,12 +65,7 @@ def classification_demo(opt):
         reconfig_start = time.time()
 
         # Get remote from fleet node
-        tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
-        tracket_port = int(os.environ.get("TVM_TRACKER_PORT", None))
-        if not tracket_host or not tracket_port:
-            print("Set your AutoTVM tracker node host and port variables to run the autotuner")
-            exit()
-        remote = autotvm.measure.request_remote(env.TARGET, tracket_host, tracket_port, timeout=10000)
+        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, tracker_port, timeout=10000)
 
         # Reconfigure the JIT runtime and FPGA.
         # You can program the FPGA with your own custom bitstream
@@ -84,7 +86,7 @@ def classification_demo(opt):
     ctx = remote.ext_dev(0) if opt.device == "vta" else remote.cpu(0)
 
     # Get tophub schedules
-    with autotvm.tophub.context(target):
+    with autotvm.tophub.context(target, extra_files=["resnet-18.log"]):
 
         # Measure build start time
         build_start = time.time()

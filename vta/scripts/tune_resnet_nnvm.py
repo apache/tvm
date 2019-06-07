@@ -161,9 +161,9 @@ def tune_tasks(tasks,
 if __name__ == '__main__':
 
     # Get tracker info from env
-    tracket_host = os.environ.get("TVM_TRACKER_HOST", None)
-    tracket_port = int(os.environ.get("TVM_TRACKER_PORT", None))
-    if not tracket_host or not tracket_port:
+    tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
+    tracker_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    if not tracker_host or not tracker_port:
         print("Set your AutoTVM tracker node host and port variables to run the autotuner")
         exit()
 
@@ -190,7 +190,7 @@ if __name__ == '__main__':
 
         'measure_option':  autotvm.measure_option(
                 builder=autotvm.LocalBuilder(build_func=vta.vta_autotvm_build_func),
-                runner=autotvm.RPCRunner(env.TARGET, tracket_host, tracket_port,
+                runner=autotvm.RPCRunner(env.TARGET, tracker_host, tracker_port,
                     number=4, repeat=3, timeout=60,
                     check_correctness=True))
     }
@@ -216,7 +216,7 @@ if __name__ == '__main__':
 
         # Upload module to device
         print("Upload...")
-        remote = autotvm.measure.request_remote(env.TARGET, tracket_host, tracket_port, timeout=10000)
+        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, tracker_port, timeout=10000)
         remote.upload(tmp.relpath(filename))
         rlib = remote.load_module(filename)
 
