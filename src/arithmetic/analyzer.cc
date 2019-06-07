@@ -78,7 +78,6 @@ bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
     return ptr->value > lower_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
-  LOG(INFO) << bd;
   if (bd->min_value >= lower_bound) return true;
   return false;
 }

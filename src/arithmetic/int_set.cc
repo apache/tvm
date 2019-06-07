@@ -55,7 +55,7 @@ IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   Expr max_value = min(a->max_value, b->max_value);
   Expr min_value = max(a->min_value, b->min_value);
   if ((max_value.type().is_int() || max_value.type().is_uint()) &&
-      (min_value.type().is_int() || max_value.type().is_uint()) &&
+      (min_value.type().is_int() || min_value.type().is_uint()) &&
       analyzer->CanProveGreaterEqual(min_value - max_value, 1)) {
     return IntervalSet::Empty();
   } else {
@@ -162,7 +162,6 @@ inline IntervalSet Combine<ir::Mul>(Analyzer* analyzer,
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;
   if (a->IsSinglePoint()) {
-    // assert !b->IsSinglePoint();
     std::swap(a, b);
   }
   if (b->IsSinglePoint()) {
