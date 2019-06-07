@@ -60,13 +60,13 @@ how to run both of them:
 
 * Verilog add-by-one
     * Go to `<tvm-root>/vta/apps/tsim_example`
-    * Run `make` to build and run add-by-one example
+    * Run `make` to build and run add-by-one test
 
 * Chisel3 add-by-one
     * Open `<tvm-root>/vta/apps/tsim_example/python/tsim/config.json`
     * Change `TARGET` from `verilog` to `chisel`
     * Go to `tvm/vta/apps/tsim_example`
-    * Run `make` to build and run add-by-one example
+    * Run `make` to build and run add-by-one test
 
 * Some pointers
     * Add-by-one test `<tvm-root>/vta/apps/tsim_example/tests/python/add_by_one.py`
