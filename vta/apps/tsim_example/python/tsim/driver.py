@@ -21,14 +21,27 @@ import json
 import os.path as osp
 from sys import platform
 
-def driver(hw, sw):
+def driver(hw_lib, sw_lib):
+    """Init hardware and software shared library for add-by-one accelerator
+
+     Parameters
+     ------------
+     hw_lib : str
+        Name of hardware shared library
+
+     sw_lib : str
+        Name of software shared library
+    """
     _cur_path = osp.dirname(osp.abspath(osp.expanduser(__file__)))
     _root_path = osp.join(_cur_path, "..", "..")
     _cfg_file = osp.join(_root_path, "config", "config.json")
     _cfg = json.load(open(_cfg_file))
-    _ext = ".dylib" if platform == "darwin" else ".so"
-    _hw_lib = osp.join(_root_path, _cfg['BUILD_NAME'], hw + _ext)
-    _sw_lib = osp.join(_root_path, _cfg['BUILD_NAME'], sw + _ext)
+    if not hw_lib.endswith(("dylib", "so")):
+        hw_lib += ".dylib" if platform == "darwin" else ".so"
+    if not sw_lib.endswith(("dylib", "so")):
+        sw_lib += ".dylib" if platform == "darwin" else ".so"
+    _hw_lib = osp.join(_root_path, _cfg['BUILD_NAME'], hw_lib)
+    _sw_lib = osp.join(_root_path, _cfg['BUILD_NAME'], sw_lib)
 
     def load_dll(dll):
         try:
