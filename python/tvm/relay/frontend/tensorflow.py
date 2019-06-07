@@ -77,12 +77,12 @@ class AttrCvt(object):
         `op_name = func(attr)`
     transforms : dict of `new_name, or (new_name, default_value, transform function)`
         If only a new_name is provided, it's like renaming the attribute name.
-        If default_value if provded, then the attribute is considered as optional.
+        If default_value if provided, then the attribute is considered as optional.
         If transform function is provided, the original attribute value is handled
         by transform function.
     excludes : list
         A list of excluded attributes that should `NOT` appear.
-        Raise NotImplementedError if occured.
+        Raise NotImplementedError if occurred.
     disables : list
         A list of attributes that is disabled in relay. Log warnings.
     ignores : list
@@ -1567,7 +1567,7 @@ def _in_while_loop(control_flow_node_map, op_name):
     Parameters
     ----------
     control_flow_node_map : Dict[str, Set[str]]
-        A dictionay contains the unqiue control flow execution frame name to
+        A dictionay contains the unique control flow execution frame name to
         a set of primitive operators mapping.
 
     op_name : str
@@ -1619,7 +1619,7 @@ class Branch:
                 return tf.add(4, 23)
             r = tf.cond(tf.less(i, j), f1, f2)
 
-    This condition statement should be coverted into Relay in the following
+    This condition statement should be converted into Relay in the following
     form:
 
     .. code-block:: python
@@ -1727,7 +1727,7 @@ class Loop:
         self._loop = None
 
     def _while_loop(self):
-        """An internal API to create a Relay recurisve call for a matched TF
+        """An internal API to create a Relay recursive call for a matched TF
         `while_loop` construct.
         """
         wl = tvm.relay.var('while_loop')
@@ -1796,7 +1796,7 @@ class GraphProto(object):
             -> All Const nodes are params.
             -> Last node is assumed as graph output.
             -> _output_shapes : Graph should be frozen with add_shapes=True.
-                                Or user can pass input shape dictionaly optionally.
+                                Or user can pass input shape dictionary optionally.
             -> DecodeJpeg, ResizeBilinear: These are dummy operators.
                                            Hence user should handle preprocessing outside.
             -> CheckNumerics: No implementation as of now for this.
