@@ -60,7 +60,7 @@ def hybrid_rearrange_out(data):
 
 
 @hybrid.script
-def hybrid_get_valid_counts(data, score_threshold):
+def hybrid_get_valid_counts(data, score_threshold, id_index, score_index):
     """Hybrid routine to get valid count of bounding boxes
     given a score threshold. Also moves valid boxes to the
     top of input data.
@@ -68,10 +68,17 @@ def hybrid_get_valid_counts(data, score_threshold):
     Parameters
     ----------
     data : tvm.Tensor or numpy NDArray
-        Input data. 3-D tensor with shape [batch_size, num_anchors, 6].
+        Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
+        or [batch_size, num_anchors, 5].
 
     score_threshold : tvm.const
         Lower limit of score for valid bounding boxes.
+
+    id_index : tvm.const
+        index of the class categories, -1 to disable.
+
+    score_index: tvm.const
+        Index of the scores/confidence of boxes.
 
     Returns
     -------
@@ -92,8 +99,9 @@ def hybrid_get_valid_counts(data, score_threshold):
     for i in parallel(batch_size):
         valid_count[i] = 0
         for j in range(num_anchors):
-            score = data[i, j, 1]
-            if score > score_threshold:
+            score = data[i, j, score_index]
+            if score > score_threshold and \
+                    (id_index < 0 or data[i, j, id_index] >= 0):
                 for k in range(box_data_length):
                     out_tensor[i, valid_count[i], k] = data[i, j, k]
                 valid_count[i] += 1
@@ -103,17 +111,24 @@ def hybrid_get_valid_counts(data, score_threshold):
     return valid_count, out_tensor
 
 @tvm.target.generic_func
-def get_valid_counts(data, score_threshold=0):
+def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
 
     Parameters
     ----------
     data : tvm.Tensor
-        Input data. 3-D tensor with shape [batch_size, num_anchors, 6].
+        Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
+        or [batch_size, num_anchors, 5].
 
     score_threshold : optional, float
         Lower limit of score for valid bounding boxes.
+
+    id_index : optional, int
+        index of the class categories, -1 to disable.
+
+    score_index: optional, int
+        Index of the scores/confidence of boxes.
 
     Returns
     -------
@@ -123,8 +138,11 @@ def get_valid_counts(data, score_threshold=0):
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
     """
-    score_threshold_const = tvm.const(score_threshold, "float")
-    return hybrid_get_valid_counts(data, score_threshold_const)
+    score_threshold_const = tvm.const(score_threshold, "float32")
+    id_index_const = tvm.const(id_index, "int32")
+    score_index_const = tvm.const(score_index, "int32")
+    return hybrid_get_valid_counts(data, score_threshold_const,
+                                   id_index_const, score_index_const)
 
 
 @hybrid.script
@@ -205,36 +223,34 @@ def hybrid_nms(data, sorted_index, valid_count,
             box_start_idx = coord_start
             batch_idx = i
             for j in range(valid_count[i]):
-                if output[i, j, score_index] > 0 and (id_index < 0 or output[i, j, id_index] >= 0):
-                    box_a_idx = j
-                    for k in parallel(valid_count[i]):
-                        check_iou = 0
-                        if k > j and output[i, k, score_index] > 0 \
-                                and (id_index < 0 or output[i, k, id_index] >= 0):
-                            if force_suppress:
-                                check_iou = 1
-                            elif id_index < 0 or output[i, j, id_index] == output[i, k, id_index]:
-                                check_iou = 1
-                        if check_iou > 0:
-                            a_l = output[batch_idx, box_a_idx, box_start_idx]
-                            a_t = output[batch_idx, box_a_idx, box_start_idx + 1]
-                            a_r = output[batch_idx, box_a_idx, box_start_idx + 2]
-                            a_b = output[batch_idx, box_a_idx, box_start_idx + 3]
-                            box_b_idx = k
-                            b_t = output[batch_idx, box_b_idx, box_start_idx + 1]
-                            b_b = output[batch_idx, box_b_idx, box_start_idx + 3]
-                            b_l = output[batch_idx, box_b_idx, box_start_idx]
-                            b_r = output[batch_idx, box_b_idx, box_start_idx + 2]
-                            w = max(0.0, min(a_r, b_r) - max(a_l, b_l))
-                            h = max(0.0, min(a_b, b_b) - max(a_t, b_t))
-                            area = h * w
-                            u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
-                            iou = 0.0 if u <= 0.0 else area / u
-                            if iou >= iou_threshold:
-                                output[i, k, score_index] = -1.0
-                                if id_index >= 0:
-                                    output[i, k, id_index] = -1.0
-                                box_indices[i, k] = -1
+                box_a_idx = j
+                for k in parallel(valid_count[i]):
+                    check_iou = 0
+                    if k > j:
+                        if force_suppress:
+                            check_iou = 1
+                        elif id_index < 0 or output[i, j, id_index] == output[i, k, id_index]:
+                            check_iou = 1
+                    if check_iou > 0:
+                        a_l = output[batch_idx, box_a_idx, box_start_idx]
+                        a_t = output[batch_idx, box_a_idx, box_start_idx + 1]
+                        a_r = output[batch_idx, box_a_idx, box_start_idx + 2]
+                        a_b = output[batch_idx, box_a_idx, box_start_idx + 3]
+                        box_b_idx = k
+                        b_t = output[batch_idx, box_b_idx, box_start_idx + 1]
+                        b_b = output[batch_idx, box_b_idx, box_start_idx + 3]
+                        b_l = output[batch_idx, box_b_idx, box_start_idx]
+                        b_r = output[batch_idx, box_b_idx, box_start_idx + 2]
+                        w = max(0.0, min(a_r, b_r) - max(a_l, b_l))
+                        h = max(0.0, min(a_b, b_b) - max(a_t, b_t))
+                        area = h * w
+                        u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
+                        iou = 0.0 if u <= 0.0 else area / u
+                        if iou >= iou_threshold:
+                            output[i, k, score_index] = -1.0
+                            if id_index >= 0:
+                                output[i, k, id_index] = -1.0
+                            box_indices[i, k] = -1
         else:
             for j in parallel(valid_count[i]):
                 for k in range(box_data_length):

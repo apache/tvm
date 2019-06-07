@@ -79,10 +79,16 @@ struct MultiBoxTransformLocAttrs
 /*! \brief Attributes used in get_valid_counts operator */
 struct GetValidCountsAttrs : public tvm::AttrsNode<GetValidCountsAttrs> {
   double score_threshold;
+  int id_index;
+  int score_index;
 
   TVM_DECLARE_ATTRS(GetValidCountsAttrs, "relay.attrs.GetValidCountsAttrs") {
     TVM_ATTR_FIELD(score_threshold).set_default(0.0)
       .describe("Lower limit of score for valid bounding boxes.");
+    TVM_ATTR_FIELD(id_index).set_default(0)
+      .describe("Axis index of id.");
+    TVM_ATTR_FIELD(score_index).set_default(1)
+      .describe("Index of the scores/confidence of boxes.");
   }
 };
 

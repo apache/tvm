@@ -27,18 +27,18 @@ from topi.util import get_const_tuple
 from topi.vision import ssd, non_max_suppression, get_valid_counts
 
 
-def verify_get_valid_counts(dshape, score_threshold):
+def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
     dtype = "float32"
     batch_size, num_anchor, elem_length = dshape
-    np_data = np.random.uniform(size=dshape).astype(dtype)
+    np_data = np.random.uniform(low=-2, high=2, size=dshape).astype(dtype)
     np_out1 = np.zeros(shape=(batch_size,))
     np_out2 = np.zeros(shape=dshape).astype(dtype)
     for i in range(batch_size):
         np_out1[i] = 0
         inter_idx = 0
         for j in range(num_anchor):
-            score = np_data[i, j, 1]
-            if score > score_threshold:
+            score = np_data[i, j, score_index]
+            if score > score_threshold and (id_index < 0 or np_data[i, j, id_index] >= 0):
                 for k in range(elem_length):
                     np_out2[i, inter_idx, k] = np_data[i, j, k]
                 np_out1[i] += 1
@@ -55,8 +55,8 @@ def verify_get_valid_counts(dshape, score_threshold):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             data = tvm.placeholder(dshape, name="data", dtype=dtype)
-            outs = get_valid_counts(data, score_threshold)
-            s = topi.generic.schedule_multibox_prior(outs)
+            outs = get_valid_counts(data, score_threshold, id_index, score_index)
+            s = topi.generic.schedule_get_valid_counts(outs)
 
         tvm_input_data = tvm.nd.array(np_data, ctx)
         tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), ctx)
@@ -67,14 +67,17 @@ def verify_get_valid_counts(dshape, score_threshold):
         tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
 
     for device in ['llvm', 'cuda', 'opencl']:
+        # Disable gpu test for now
+        if device != "llvm":
+            continue
         check_device(device)
 
 
 def test_get_valid_counts():
-    verify_get_valid_counts((1, 2500, 6), 0)
-    verify_get_valid_counts((1, 2500, 6), -1)
-    verify_get_valid_counts((3, 1000, 6), 0.55)
-    verify_get_valid_counts((16, 500, 6), 0.95)
+    verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
+    verify_get_valid_counts((1, 2500, 5), -1, -1, 0)
+    verify_get_valid_counts((3, 1000, 6), 0.55, 1, 0)
+    verify_get_valid_counts((16, 500, 5), 0.95, -1, 1)
 
 
 def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_result, iou_threshold,
