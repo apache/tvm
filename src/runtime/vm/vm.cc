@@ -430,7 +430,7 @@ std::string StrJoin(T* items, int offset, int cnt, std::string delim=",") {
 void InstructionPrint(std::ostream& os, const Instruction& instr) {
   switch (instr.op) {
     case Opcode::Move: {
-      os << "move $" << instr.from << " $" << instr.dst;
+      os << "move $" << instr.dst << " $" << instr.from;
       break;
     }
     case Opcode::Ret: {
