@@ -55,7 +55,7 @@ sudo apt install verilator sbt
 ## How to run VTA TSIM examples
 
 There are two sample VTA accelerators (add-by-one) designed in Chisel3 and Verilog to show how *TSIM* works.
-The default `TARGET` language for these two implementation is Verilog. The following instructions show
+The default `TARGET` language for these two implementations is Verilog. The following instructions show
 how to run both of them:
 
 * Verilog add-by-one
