@@ -108,7 +108,7 @@ bx, tx = s[C].split(C.op.axis[0], factor=64)
 
 ######################################################################
 # Finally we bind the iteration axis bx and tx to threads in the GPU
-# compute grid. These are GPU specific constructs that allows us
+# compute grid. These are GPU specific constructs that allow us
 # to generate code that runs on GPU.
 #
 if tgt == "cuda" or tgt.startswith('opencl'):
