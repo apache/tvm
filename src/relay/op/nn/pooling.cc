@@ -70,7 +70,8 @@ bool Pool2DRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
 
-  CHECK(data != nullptr);
+  if (data == nullptr) return false;
+
   const auto dshape = data->shape;
   CHECK_GE(dshape.size(), 2U)
       << "Pool2D only support input >= 2-D: input must have height and width";
