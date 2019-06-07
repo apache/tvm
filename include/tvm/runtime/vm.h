@@ -84,7 +84,9 @@ struct Instruction {
 
   union {
     struct /* AllocTensor Operands */ {
+      /*! \brief The number of dimensions. */
       uint32_t ndim;
+      /*! \brief The shape of tensor. */
       int64_t* shape;
       /*! \brief The datatype of tensor to be allocated. */
       DLDataType dtype;
@@ -199,14 +201,14 @@ struct Instruction {
    */
   static Instruction InvokePacked(Index packed_index, Index arity, Index output_size,
                                   const std::vector<RegName>& args);
-  /*! \brief Construct an allocate tensor instruction.
-   *  \param shape_register The register containing the shape.
+  /*! \brief Construct an allocate tensor instruction with constant shape.
+   *  \param shape The shape of the tensor.
    *  \param dtype The dtype of the tensor.
    *  \param dst The destination register.
    *  \return The allocate tensor instruction.
    */
   static Instruction AllocTensor(std::vector<int64_t> shape, DLDataType dtype, RegName dst);
-  /*! \brief Construct an allocate tensor instruction.
+  /*! \brief Construct an allocate tensor instruction with register.
    *  \param shape_register The register containing the shape.
    *  \param dtype The dtype of the tensor.
    *  \param dst The destination register.
