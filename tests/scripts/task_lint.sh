@@ -31,7 +31,7 @@ echo "Check file types..."
 python3 tests/lint/check_file_type.py
 
 echo "Check ASF license header..."
-java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . |grep "== File" > /tmp/$$.apache-rat.txt || true
+java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . | (grep "== File" > /tmp/$$.apache-rat.txt || true)
 if grep --quiet -E "File" /tmp/$$.apache-rat.txt; then
     echo "Need to add ASF header to the following files."
     echo "----------------File List----------------"
