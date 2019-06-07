@@ -415,7 +415,7 @@ void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
 }
 
 template<typename T>
-std::string StrJoin(T* items, int offset, int cnt, std::string delim=",") {
+std::string StrJoin(T* items, int offset, int cnt, std::string delim = ",") {
   if (cnt == 0) {
     return "";
   }
