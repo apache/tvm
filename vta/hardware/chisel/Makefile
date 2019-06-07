@@ -16,7 +16,7 @@
 # under the License.
 
 # Change this variable if Verilator is installed on a different location
-export VERILATOR_INC_DIR ?= /usr/local/share/verilator/include
+VERILATOR_INC_DIR ?= /usr/local/share/verilator/include
 
 ifeq (, $(shell which verilator))
  $(error "No Verilator in $(PATH), consider doing apt-get install verilator")
