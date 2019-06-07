@@ -272,7 +272,7 @@ Instruction Instruction::AllocTensor(std::vector<int64_t> shape, DLDataType dtyp
   instr.dst = dst;
   instr.alloc_tensor.ndim = shape.size();
   instr.alloc_tensor.shape = new int64_t[shape.size()];
-  for (auto i = 0; i < shape.size(); ++i) {
+  for (size_t i = 0; i < shape.size(); ++i) {
     instr.alloc_tensor.shape[i] = shape[i];
   }
   instr.alloc_tensor.dtype = dtype;
@@ -576,17 +576,34 @@ Object VirtualMachine::Invoke(const std::string& name, const std::vector<Object>
 
 void InvokePacked(const PackedFunc& func, Index arg_count, Index output_size,
                   const std::vector<Object>& args) {
-  std::vector<TVMValue> values(arg_count);
-  std::vector<int> codes(arg_count);
-  runtime::TVMArgsSetter setter(values.data(), codes.data());
-
+  size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
-    NDArray data = ToNDArray(args[i]);
-    setter(i, data);
+    if (args[i].ptr_->tag == ObjectTag::kDatatype) {
+      arity += args[i].AsDatatype()->fields.size();
+    } else {
+      ++arity;
+    }
+  }
+
+  std::vector<TVMValue> values(arity);
+  std::vector<int> codes(arity);
+  runtime::TVMArgsSetter setter(values.data(), codes.data());
+  int idx = 0;
+  for (Index i = 0; i < arg_count; i++) {
+    if (args[i].ptr_->tag == ObjectTag::kDatatype) {
+      auto dt_cell = args[i].AsDatatype();
+      for (auto obj : dt_cell->fields) {
+        NDArray data = ToNDArray(obj);
+        setter(idx++, data);
+      }
+    } else {
+      NDArray data = ToNDArray(args[i]);
+      setter(idx++, data);
+    }
   }
 
   TVMRetValue rv;
-  func.CallPacked(TVMArgs(values.data(), codes.data(), arg_count), &rv);
+  func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 }
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) { this->ctxs = ctxs; }
