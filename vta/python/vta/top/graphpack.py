@@ -265,13 +265,11 @@ def graph_pack(expr,
     """
     assert isinstance(expr, relay.Function)
     expr = get_subgraph(expr, start_name, stop_name)
-    print("Before", expr.astext(show_meta_data=False))
     expr = relay.ir_pass.infer_type(expr)
     packer = ExprPack(
         bfactor, cfactor,
         weight_bits)
     expr = packer.visit(expr)
-    print("After", expr.astext(show_meta_data=False))
     assert not packer.start_pack
     return relay.ir_pass.infer_type(expr)
 
