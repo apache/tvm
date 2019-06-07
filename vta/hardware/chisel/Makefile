@@ -84,7 +84,7 @@ default: lib
 
 lib: $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
 $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so: $(verilator_build_dir)/V$(TOP_TEST).cpp
-	test -d $(VERILATOR_INC_DIR) && g++ $(cxx_flags) $(cxx_files) -o $@
+	g++ $(cxx_flags) $(cxx_files) -o $@
 
 verilator: $(verilator_build_dir)/V$(TOP_TEST).cpp
 $(verilator_build_dir)/V$(TOP_TEST).cpp: $(chisel_build_dir)/$(TOP_TEST).$(CONFIG).v
