@@ -67,7 +67,7 @@ def conv2d(data,
         The weight expressions.
 
     strides : tuple of int, optional
-        The strides of convoltution.
+        The strides of convolution.
 
     padding : tuple of int, optional
         The padding of convolution on both sides of inputs before convolution.
@@ -129,7 +129,7 @@ def conv2d_transpose(data,
         The weight expressions.
 
     strides : Tuple[int], optional
-        The strides of convoltution.
+        The strides of convolution.
 
     padding : Tuple[int], optional
         The padding of convolution on both sides of inputs.
@@ -842,7 +842,7 @@ def contrib_conv2d_winograd_without_weight_transform(data,
         The Tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
 
     strides : tuple of int, optional
-        The strides of convoltution.
+        The strides of convolution.
 
     padding : tuple of int, optional
         The padding of convolution on both sides of inputs before convolution.
@@ -908,7 +908,7 @@ def contrib_conv2d_winograd_nnpack_without_weight_transform(data,
         The weight expressions.
 
     strides : tuple of int, optional
-        The strides of convoltution.
+        The strides of convolution.
 
     padding : tuple of int, optional
         The padding of convolution on both sides of inputs before convolution.
@@ -975,7 +975,7 @@ def contrib_conv2d_nchwc(data,
         The kernel expressions.
 
     strides : tuple of int, optional
-        The strides of convoltution.
+        The strides of convolution.
 
     padding : tuple of int, optional
         The padding of convolution on both sides of inputs before convolution.
@@ -1040,7 +1040,7 @@ def contrib_depthwise_conv2d_nchwc(data,
         The kernel expressions.
 
     strides : tuple of int, optional
-        The strides of convoltution.
+        The strides of convolution.
 
     padding : tuple of int, optional
         The padding of convolution on both sides of inputs before convolution.
@@ -1156,7 +1156,7 @@ def deformable_conv2d(data,
         The weight expressions.
 
     strides : tuple of int, optional
-        The strides of convoltution.
+        The strides of convolution.
 
     padding : tuple of int, optional
         The padding of convolution on both sides of inputs before convolution.

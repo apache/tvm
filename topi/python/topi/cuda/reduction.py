@@ -37,7 +37,7 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         num_thread = 32
         target = tvm.target.current_target()
         if target and target.target_name == "opencl":
-            # without it, CL_INVALID_WORK_GROUP_SIZE occured when running test_topi_reduce.py
+            # without it, CL_INVALID_WORK_GROUP_SIZE occurred when running test_topi_reduce.py
             # don't know why
             num_thread = 16
         block_x = tvm.thread_axis("blockIdx.x")
