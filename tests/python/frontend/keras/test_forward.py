@@ -21,7 +21,7 @@ from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 import keras
 
-# prevent keras from using up all gpu memory
+# prevent Keras from using up all gpu memory
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 config = tf.ConfigProto()
