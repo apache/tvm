@@ -467,7 +467,7 @@ class IntSetAnalyzer {
  *
  * NOTE for sub-analyzer developers:
  * If the analyzer uses memoization, we need to clear the internal
- * cache when information about a Var has been overrideen.
+ * cache when information about a Var has been overridden.
  */
 class Analyzer {
  public:
