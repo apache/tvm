@@ -441,7 +441,7 @@ class IntSet : public NodeRef {
 class IntSetAnalyzer {
  public:
   /*!
-   * \brief Find an symbolic integer set that contains all possible values of
+   * \brief Find a symbolic integer set that contains all possible values of
    *        expr given the domain of each variables.
    *
    * \param expr The expression of interest.
