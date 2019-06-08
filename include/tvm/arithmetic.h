@@ -511,7 +511,7 @@ class Analyzer {
    *
    * \param expr The expression.
    * \param lower_bound The lower bound.
-   * \return Whether we can proof it.
+   * \return Whether we can prove it.
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
