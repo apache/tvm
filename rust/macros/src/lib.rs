@@ -17,20 +17,24 @@
  * under the License.
  */
 
-#![feature(bind_by_move_pattern_guards)]
+#![feature(bind_by_move_pattern_guards, proc_macro_span)]
 
 extern crate proc_macro;
 
-use std::{fs::File, io::Read, path::Path};
+use std::{fs::File, io::Read};
 
 use proc_quote::quote;
 
 #[proc_macro]
 pub fn import_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = syn::parse_macro_input!(input as syn::LitStr).value();
+    let obj_file_path = syn::parse_macro_input!(input as syn::LitStr);
 
-    let path = Path::new(&input).canonicalize().unwrap();
-    let mut fd = File::open(path).unwrap();
+    let mut path = obj_file_path.span().unwrap().source_file().path();
+    path.pop(); // remove the filename
+    path.push(obj_file_path.value());
+
+    let mut fd = File::open(&path)
+        .unwrap_or_else(|_| panic!("Unable to find TVM object file at `{}`", path.display()));
     let mut buffer = Vec::new();
     fd.read_to_end(&mut buffer).unwrap();
 

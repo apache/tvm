@@ -21,7 +21,6 @@ members = [
 	"macros",
 	"runtime",
 	"runtime/tests/test_tvm_basic",
-	"runtime/tests/test_tvm_static",
 	"runtime/tests/test_tvm_dso",
 	"runtime/tests/test_nnvm",
 	"frontend",
