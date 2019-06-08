@@ -504,7 +504,7 @@ class Analyzer {
    */
   void Bind(const VarExpr& var, const Range& range);
   /*!
-   * \brief Whether can we proof expr >= val.
+   * \brief Whether can we prove expr >= val.
 
    *  Non-negative proof is very useful in integer analysis
    *  to lower divisions and mods given difference in trunc and ceil mode.
