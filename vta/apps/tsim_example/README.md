@@ -49,22 +49,29 @@ sudo apt install verilator sbt
 ## Setup in TVM
 
 1. Install `verilator` and `sbt` as described above
-2. Build tvm
+2. Change `TARGET` to `tsim` in `<tvm-root>/tvm/vta/config/vta_config.json`
+3. Build [tvm](https://docs.tvm.ai/install/from_source.html#build-the-shared-library)
 
 ## How to run VTA TSIM examples
 
 There are two sample VTA accelerators (add-by-one) designed in Chisel3 and Verilog to show how *TSIM* works.
-These examples are located at `<tvm-root>/vta/apps/tsim_example`.
+The default `TARGET` language for these two implementations is Verilog. The following instructions show
+how to run both of them:
 
-* Instructions
+* Verilog add-by-one
+    * Go to `<tvm-root>/vta/apps/tsim_example`
+    * Run `make` to build and run add-by-one test
+
+* Chisel3 add-by-one
     * Open `<tvm-root>/vta/apps/tsim_example/python/tsim/config.json`
-    * Change `TARGET` from `verilog` to `chisel`, depending on what language backend you would like to test
+    * Change `TARGET` from `verilog` to `chisel`
     * Go to `tvm/vta/apps/tsim_example`
-    * Run `make`
+    * Run `make` to build and run add-by-one test
 
 * Some pointers
-    * Build cmake script for software library`<tvm-root>/vta/apps/tsim_example/cmake/modules/sw.cmake`
-    * Build cmake script for hardware library`<tvm-root>/vta/apps/tsim_example/cmake/modules/hw.cmake`
-    * Software driver that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
+    * Add-by-one test `<tvm-root>/vta/apps/tsim_example/tests/python/add_by_one.py`
     * Add-by-one accelerator in Verilog `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
     * Add-by-one accelerator in Chisel3 `<tvm-root>/vta/apps/tsim_example/hardware/chisel`
+    * Software driver that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
+    * Build cmake script for software library`<tvm-root>/vta/apps/tsim_example/cmake/modules/sw.cmake`
+    * Build cmake script for hardware library`<tvm-root>/vta/apps/tsim_example/cmake/modules/hw.cmake`
