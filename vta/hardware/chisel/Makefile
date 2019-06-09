@@ -15,15 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Change this variable if Verilator is installed on a different location
-VERILATOR_INC_DIR ?= /usr/local/share/verilator/include
-
 ifeq (, $(shell which verilator))
  $(error "No Verilator in $(PATH), consider doing apt-get install verilator")
 endif
 
-ifeq (, $(wildcard $(VERILATOR_INC_DIR)/*))
- $(error "Verilator include directory is not set properly")
+# Change VERILATOR_INC_DIR if Verilator is installed on a different location
+ifeq (, $(VERILATOR_INC_DIR))
+  ifeq (, $(wildcard /usr/local/share/verilator/include/*))
+    ifeq (, $(wildcard /usr/share/verilator/include/*))
+      $(error "Verilator include directory is not set properly")
+    else
+      VERILATOR_INC_DIR := /usr/share/verilator/include
+    endif
+  else
+      VERILATOR_INC_DIR := /usr/local/share/verilator/include
+  endif
 endif
 
 CONFIG = DefaultF1Config
