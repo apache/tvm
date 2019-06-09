@@ -224,33 +224,34 @@ def hybrid_nms(data, sorted_index, valid_count,
             batch_idx = i
             for j in range(valid_count[i]):
                 box_a_idx = j
-                for k in parallel(valid_count[i]):
-                    check_iou = 0
-                    if k > j:
-                        if force_suppress:
-                            check_iou = 1
-                        elif id_index < 0 or output[i, j, id_index] == output[i, k, id_index]:
-                            check_iou = 1
-                    if check_iou > 0:
-                        a_l = output[batch_idx, box_a_idx, box_start_idx]
-                        a_t = output[batch_idx, box_a_idx, box_start_idx + 1]
-                        a_r = output[batch_idx, box_a_idx, box_start_idx + 2]
-                        a_b = output[batch_idx, box_a_idx, box_start_idx + 3]
-                        box_b_idx = k
-                        b_t = output[batch_idx, box_b_idx, box_start_idx + 1]
-                        b_b = output[batch_idx, box_b_idx, box_start_idx + 3]
-                        b_l = output[batch_idx, box_b_idx, box_start_idx]
-                        b_r = output[batch_idx, box_b_idx, box_start_idx + 2]
-                        w = max(0.0, min(a_r, b_r) - max(a_l, b_l))
-                        h = max(0.0, min(a_b, b_b) - max(a_t, b_t))
-                        area = h * w
-                        u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
-                        iou = 0.0 if u <= 0.0 else area / u
-                        if iou >= iou_threshold:
-                            output[i, k, score_index] = -1.0
-                            if id_index >= 0:
-                                output[i, k, id_index] = -1.0
-                            box_indices[i, k] = -1
+                if id_index < 0 or output[i, j, id_index] >= 0:
+                    for k in parallel(valid_count[i]):
+                        check_iou = 0
+                        if k > j and (id_index < 0 or output[i, k, id_index] >= 0):
+                            if force_suppress:
+                                check_iou = 1
+                            elif id_index < 0 or output[i, j, id_index] == output[i, k, id_index]:
+                                check_iou = 1
+                        if check_iou > 0:
+                            a_l = output[batch_idx, box_a_idx, box_start_idx]
+                            a_t = output[batch_idx, box_a_idx, box_start_idx + 1]
+                            a_r = output[batch_idx, box_a_idx, box_start_idx + 2]
+                            a_b = output[batch_idx, box_a_idx, box_start_idx + 3]
+                            box_b_idx = k
+                            b_t = output[batch_idx, box_b_idx, box_start_idx + 1]
+                            b_b = output[batch_idx, box_b_idx, box_start_idx + 3]
+                            b_l = output[batch_idx, box_b_idx, box_start_idx]
+                            b_r = output[batch_idx, box_b_idx, box_start_idx + 2]
+                            w = max(0.0, min(a_r, b_r) - max(a_l, b_l))
+                            h = max(0.0, min(a_b, b_b) - max(a_t, b_t))
+                            area = h * w
+                            u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - area
+                            iou = 0.0 if u <= 0.0 else area / u
+                            if iou >= iou_threshold:
+                                output[i, k, score_index] = -1.0
+                                if id_index >= 0:
+                                    output[i, k, id_index] = -1.0
+                                box_indices[i, k] = -1
         else:
             for j in parallel(valid_count[i]):
                 for k in range(box_data_length):
