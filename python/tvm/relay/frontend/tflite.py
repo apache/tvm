@@ -64,6 +64,7 @@ class OperatorConverter(object):
             'MAX_POOL_2D': self.convert_max_pool2d,
             'CONCATENATION': self.convert_concatenation,
             'ADD': self.convert_add,
+            'MUL': self.convert_mul,
             'FULLY_CONNECTED': self.convert_fully_connected,
         }
 
@@ -267,8 +268,8 @@ class OperatorConverter(object):
             out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
-    def convert_add(self, op):
-        """Convert TFLite add"""
+    def _convert_elemwise(self, relay_op, op):
+        """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.Operator import Operator
         except ImportError:
@@ -283,18 +284,25 @@ class OperatorConverter(object):
 
         rhs_tensor = input_tensors[1]
         if self.has_expr(rhs_tensor.tensor_idx):
-            # In most cases, we can assume that TOCO fuses ADD operators
+            # In most cases, we can assume that TOCO fuses elemwise operators
             # with constants - it means both will be tensors.
             rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
         else:
-            # However, in some corner cases, the ADD operator is not fused,
+            # However, in some corner cases, the elemwise operator is not fused,
             # we can receive as constant.
             rhs_type_str = self.get_tensor_type_str(rhs_tensor.tensor.Type())
             rhs_expr = self.exp_tab.new_const(self.get_tensor_value(rhs_tensor),
                                               dtype=rhs_type_str)
-
-        out = _op.add(lhs_expr, rhs_expr)
+        out = relay_op(lhs_expr, rhs_expr)
         return out
+
+    def convert_add(self, op):
+        """Convert TFLite ADD"""
+        return self._convert_elemwise(_op.add, op)
+
+    def convert_mul(self, op):
+        """Convert TFLite MUL"""
+        return self._convert_elemwise(_op.multiply, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""

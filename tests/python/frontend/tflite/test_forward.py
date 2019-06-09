@@ -24,7 +24,6 @@ from __future__ import print_function
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.contrib import util
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import ops
@@ -143,8 +142,6 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
             tvm_output = run_tvm_graph(tflite_model_buffer, in_data, in_node, target=device)
             for i in range(len(tflite_output)):
                 tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
-
-        sess.close()
 
 
 #######################################################################
@@ -311,10 +308,10 @@ def test_forward_concatenation():
 
 
 #######################################################################
-# Add
+# Element-wise
 # ---
 
-def _test_add(data):
+def _test_elemwise(math_op, data):
     """ One iteration of add """
 
     assert len(data) == 2
@@ -329,8 +326,17 @@ def _test_add(data):
     # Test with tensor and constant
     with tf.Graph().as_default():
         in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')]
-        out = math_ops.add(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
+        out = math_op(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
         compare_tflite_with_tvm([data[0]], ['in:0'], in_data, [out])
+
+
+#######################################################################
+# Add
+# ---
+
+def _test_add(data):
+    """ One iteration of add """
+    return _test_elemwise(math_ops.add, data)
 
 
 def test_forward_add():
@@ -340,6 +346,25 @@ def test_forward_add():
     _test_add([np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)),
                np.arange(6.0, dtype=np.float32).reshape((2, 1, 3))])
     _test_add([np.arange(3.0, dtype=np.float32).reshape((1, 3)),
+               np.arange(3.0, dtype=np.float32).reshape((1, 3))])
+
+
+#######################################################################
+# Mul
+# ---
+
+def _test_mul(data):
+    """ One iteration of mul """
+    return _test_elemwise(math_ops.multiply, data)
+
+
+def test_forward_mul():
+    """ Mul """
+    _test_mul([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+               np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3))])
+    _test_mul([np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)),
+               np.arange(6.0, dtype=np.float32).reshape((2, 1, 3))])
+    _test_mul([np.arange(3.0, dtype=np.float32).reshape((1, 3)),
                np.arange(3.0, dtype=np.float32).reshape((1, 3))])
 
 
@@ -514,6 +539,7 @@ if __name__ == '__main__':
 
     # Math
     test_forward_add()
+    test_forward_mul()
 
     # End to End
     test_forward_mobilenet_v1()
