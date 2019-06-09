@@ -223,11 +223,12 @@ def hybrid_nms(data, sorted_index, valid_count,
             box_start_idx = coord_start
             batch_idx = i
             for j in range(valid_count[i]):
-                box_a_idx = j
-                if id_index < 0 or output[i, j, id_index] >= 0:
+                if output[i, j, score_index] > 0 and (id_index < 0 or output[i, j, id_index] >= 0):
+                    box_a_idx = j
                     for k in parallel(valid_count[i]):
                         check_iou = 0
-                        if k > j and (id_index < 0 or output[i, k, id_index] >= 0):
+                        if k > j and output[i, k, score_index] > 0 \
+                                and (id_index < 0 or output[i, k, id_index] >= 0):
                             if force_suppress:
                                 check_iou = 1
                             elif id_index < 0 or output[i, j, id_index] == output[i, k, id_index]:
