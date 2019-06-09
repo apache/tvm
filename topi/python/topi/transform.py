@@ -265,6 +265,7 @@ def take(a, indices, axis=None, mode="clip"):
         Specifies how out-of-bound indices will behave.
         clip - clip to the range (default)
         wrap - wrap around the indices
+        fast - no clip or wrap around (user must make sure indices are in-bound)
 
     Returns
     -------

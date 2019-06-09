@@ -269,7 +269,8 @@ def test_take():
 
         func = relay.Function([x, indices], z)
         x_data = np.random.uniform(low=-1, high=1, size=src_shape).astype(src_dtype)
-        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=mode)
+        np_mode = "raise" if mode == "fast" else mode
+        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=np_mode)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
@@ -291,6 +292,9 @@ def test_take():
     verify_take((3,4), [-1, 2], axis=0, mode="wrap")
     verify_take((3,4), [-1, 2], axis=1)
     verify_take((3,4), [-1, 2], axis=1, mode="wrap")
+    verify_take((3,3,3), [[11,25]], mode="fast")
+    verify_take((3,4), [0, 2], axis=0, mode="fast")
+    verify_take((3,4), [0, 2], axis=1, mode="fast")
 
 
 def test_split_infer_type():
