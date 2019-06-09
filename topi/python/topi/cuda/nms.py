@@ -313,7 +313,7 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
 
 
 @get_valid_counts.register(["cuda", "gpu"])
-def get_valid_counts_gpu(data, score_threshold=0):
+def get_valid_counts_gpu(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
 
@@ -324,6 +324,12 @@ def get_valid_counts_gpu(data, score_threshold=0):
 
     score_threshold : optional, float
         Lower limit of score for valid bounding boxes.
+
+    id_index : optional, int
+        index of the class categories, -1 to disable.
+
+    score_index: optional, int
+        Index of the scores/confidence of boxes.
 
     Returns
     -------

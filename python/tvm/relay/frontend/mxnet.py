@@ -569,7 +569,8 @@ def _mx_box_nms(inputs, attrs):
         raise tvm.error.OpAttributeInvalid(
             'Value of attribute "out_format" must equal "corner" for operator box_nms.')
 
-    ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
+    ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh,
+                                      id_index=id_index, score_index=score_index)
     nms_out = _op.vision.non_max_suppression(ret[1],
                                              ret[0],
                                              iou_threshold=iou_thresh,
