@@ -152,28 +152,28 @@ def test_multibox_prior():
 
 
 def test_get_valid_counts():
-    def verify_get_valid_counts(dshape, score_threshold):
+    def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         dtype = "float32"
         batch_size, num_anchor, elem_length = dshape
-        np_data = np.random.uniform(size=dshape).astype(dtype)
+        np_data = np.random.uniform(low=-2, high=2, size=dshape).astype(dtype)
         np_out1 = np.zeros(shape=(batch_size,))
         np_out2 = np.zeros(shape=dshape).astype(dtype)
         for i in range(batch_size):
             np_out1[i] = 0
             inter_idx = 0
             for j in range(num_anchor):
-                score = np_data[i, j, 1]
-                if score >= score_threshold:
+                score = np_data[i, j, score_index]
+                if score > score_threshold and (id_index < 0 or np_data[i, j, id_index] >= 0):
                     for k in range(elem_length):
                         np_out2[i, inter_idx, k] = np_data[i, j, k]
                     np_out1[i] += 1
                     inter_idx += 1
                 if j >= np_out1[i]:
                     for k in range(elem_length):
-                        np_out2[i, j, k] = -1
+                        np_out2[i, j, k] = -1.0
 
         x = relay.var("x", relay.ty.TensorType(dshape, dtype))
-        z = relay.vision.get_valid_counts(x, score_threshold)
+        z = relay.vision.get_valid_counts(x, score_threshold, id_index, score_index)
         assert "score_threshold" in z.astext()
         func = relay.Function([x], z.astuple())
         func = relay.ir_pass.infer_type(func)
@@ -185,10 +185,10 @@ def test_get_valid_counts():
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
             tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3, atol=1e-04)
 
-    verify_get_valid_counts((1, 2500, 6), 0)
-    verify_get_valid_counts((1, 2500, 6), -1)
-    verify_get_valid_counts((3, 1000, 6), 0.55)
-    verify_get_valid_counts((16, 500, 6), 0.95)
+    verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
+    verify_get_valid_counts((1, 2500, 5), -1, -1, 0)
+    verify_get_valid_counts((3, 1000, 6), 0.55, 1, 0)
+    verify_get_valid_counts((16, 500, 5), 0.95, -1, 0)
 
 
 def test_non_max_suppression():

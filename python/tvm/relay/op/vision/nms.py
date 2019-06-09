@@ -20,7 +20,9 @@ from . import _make
 from ...expr import TupleWrapper
 
 def get_valid_counts(data,
-                     score_threshold):
+                     score_threshold,
+                     id_index=0,
+                     score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
 
@@ -32,6 +34,12 @@ def get_valid_counts(data,
     score_threshold : optional, float
         Lower limit of score for valid bounding boxes.
 
+    id_index : optional, int
+        index of the class categories, -1 to disable.
+
+    score_index: optional, int
+        Index of the scores/confidence of boxes.
+
     Returns
     -------
     valid_count : relay.Expr
@@ -40,7 +48,8 @@ def get_valid_counts(data,
     out_tensor : relay.Expr
         Rearranged data tensor.
     """
-    return TupleWrapper(_make.get_valid_counts(data, score_threshold), 2)
+    return TupleWrapper(_make.get_valid_counts(data, score_threshold,
+                                               id_index, score_index), 2)
 
 
 def non_max_suppression(data,

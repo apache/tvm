@@ -50,9 +50,13 @@ bool GetValidCountRel(const Array<Type>& types,
 }
 
 Expr MakeGetValidCounts(Expr data,
-                        double score_threshold) {
+                        double score_threshold,
+                        int id_index,
+                        int score_index) {
   auto attrs = make_node<GetValidCountsAttrs>();
   attrs->score_threshold = score_threshold;
+  attrs->id_index = id_index;
+  attrs->score_index = score_index;
   static const Op& op = Op::Get("vision.get_valid_counts");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
