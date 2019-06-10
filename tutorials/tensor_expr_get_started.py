@@ -19,7 +19,7 @@ Get Started with Tensor Expression
 ==================================
 **Author**: `Tianqi Chen <https://tqchen.github.io>`_
 
-This is an introduction tutorial to Tensor expression language in TVM.
+This is an introductory tutorial to the Tensor expression language in TVM.
 TVM uses a domain specific tensor expression for efficient kernel construction.
 
 In this tutorial, we will demonstrate the basic workflow to use
@@ -48,15 +48,16 @@ tgt="cuda"
 # ------------------------
 # As a first step, we need to describe our computation.
 # TVM adopts tensor semantics, with each intermediate result
-# represented as multi-dimensional array. The user need to describe
-# the computation rule that generate the tensors.
+# represented as a multi-dimensional array. The user needs to describe
+# the computation rule that generates the tensors.
 #
 # We first define a symbolic variable n to represent the shape.
 # We then define two placeholder Tensors, A and B, with given shape (n,)
 #
-# We then describe the result tensor C, with a compute operation.
-# The compute function takes the shape of the tensor, as well as a lambda function
-# that describes the computation rule for each position of the tensor.
+# We then describe the result tensor C, with a compute operation.  The
+# compute function takes the shape of the tensor, as well as a lambda
+# function that describes the computation rule for each position of
+# the tensor.
 #
 # No computation happens during this phase, as we are only declaring how
 # the computation should be done.
@@ -70,9 +71,10 @@ print(type(C))
 ######################################################################
 # Schedule the Computation
 # ------------------------
-# While the above lines describes the computation rule, we can compute
-# C in many ways since the axis of C can be computed in data parallel manner.
-# TVM asks user to provide a description of computation called schedule.
+# While the above lines describe the computation rule, we can compute
+# C in many ways since the axis of C can be computed in a data
+# parallel manner.  TVM asks the user to provide a description of the
+# computation called a schedule.
 #
 # A schedule is a set of transformation of computation that transforms
 # the loop of computations in the program.
@@ -120,33 +122,33 @@ if tgt == "cuda" or tgt.startswith('opencl'):
 # -----------
 # After we have finished specifying the schedule, we can compile it
 # into a TVM function. By default TVM compiles into a type-erased
-# function that can be directly called from python side.
+# function that can be directly called from the python side.
 #
 # In the following line, we use tvm.build to create a function.
 # The build function takes the schedule, the desired signature of the
-# function(including the inputs and outputs) as well as target language
+# function (including the inputs and outputs) as well as target language
 # we want to compile to.
 #
-# The result of compilation fadd is a GPU device function(if GPU is involved)
-# that can as well as a host wrapper that calls into the GPU function.
-# fadd is the generated host wrapper function, it contains reference
-# to the generated device function internally.
+# The result of compilation fadd is a GPU device function (if GPU is
+# involved) as well as a host wrapper that calls into the GPU
+# function.  fadd is the generated host wrapper function, it contains
+# a reference to the generated device function internally.
 #
 fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 
 ######################################################################
 # Run the Function
 # ----------------
-# The compiled function TVM function is designed to be a concise C API
-# that can be invoked from any languages.
+# The compiled TVM function is exposes a concise C API
+# that can be invoked from any language.
 #
-# We provide an minimum array API in python to aid quick testing and prototyping.
-# The array API is based on `DLPack <https://github.com/dmlc/dlpack>`_ standard.
+# We provide a minimal array API in python to aid quick testing and prototyping.
+# The array API is based on the `DLPack <https://github.com/dmlc/dlpack>`_ standard.
 #
 # - We first create a GPU context.
-# - Then tvm.nd.array copies the data to GPU.
+# - Then tvm.nd.array copies the data to the GPU.
 # - fadd runs the actual computation.
-# - asnumpy() copies the GPU array back to CPU and we can use this to verify correctness
+# - asnumpy() copies the GPU array back to the CPU and we can use this to verify correctness
 #
 ctx = tvm.context(tgt, 0)
 
@@ -176,14 +178,14 @@ else:
 ######################################################################
 # .. note:: Code Specialization
 #
-#   As you may noticed, during the declaration, A, B and C both
-#   takes the same shape argument n. TVM will take advantage of this
-#   to pass only single shape argument to the kernel, as you will find in
+#   As you may have noticed, the declarations of A, B and C all
+#   take the same shape argument, n. TVM will take advantage of this
+#   to pass only a single shape argument to the kernel, as you will find in
 #   the printed device code. This is one form of specialization.
 #
 #   On the host side, TVM will automatically generate check code
 #   that checks the constraints in the parameters. So if you pass
-#   arrays with different shapes into the fadd, an error will be raised.
+#   arrays with different shapes into fadd, an error will be raised.
 #
 #   We can do more specializations. For example, we can write
 #   :code:`n = tvm.convert(1024)` instead of :code:`n = tvm.var("n")`,
@@ -195,13 +197,13 @@ else:
 # Save Compiled Module
 # --------------------
 # Besides runtime compilation, we can save the compiled modules into
-# file and load them back later. This is called ahead of time compilation.
+# a file and load them back later. This is called ahead of time compilation.
 #
-# The following code first does the following step:
+# The following code first performs the following steps:
 #
 # - It saves the compiled host module into an object file.
 # - Then it saves the device module into a ptx file.
-# - cc.create_shared calls a env compiler(gcc) to create a shared library
+# - cc.create_shared calls a compiler (gcc) to create a shared library
 #
 from tvm.contrib import cc
 from tvm.contrib import util
@@ -218,9 +220,9 @@ print(temp.listdir())
 ######################################################################
 # .. note:: Module Storage Format
 #
-#   The CPU(host) module is directly saved as a shared library(so).
-#   There can be multiple customized format on the device code.
-#   In our example, device code is stored in ptx, as well as a meta
+#   The CPU (host) module is directly saved as a shared library (.so).
+#   There can be multiple customized formats of the device code.
+#   In our example, the device code is stored in ptx, as well as a meta
 #   data json file. They can be loaded and linked separately via import.
 #
 
@@ -228,8 +230,8 @@ print(temp.listdir())
 # Load Compiled Module
 # --------------------
 # We can load the compiled module from the file system and run the code.
-# The following code load the host and device module separately and
-# re-link them together. We can verify that the newly loaded function works.
+# The following code loads the host and device module separately and
+# re-links them together. We can verify that the newly loaded function works.
 #
 fadd1 = tvm.module.load(temp.relpath("myadd.so"))
 if tgt == "cuda":
@@ -261,11 +263,11 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # .. note:: Runtime API and Thread-Safety
 #
 #   The compiled modules of TVM do not depend on the TVM compiler.
-#   Instead, it only depends on a minimum runtime library.
-#   TVM runtime library wraps the device drivers and provides
-#   thread-safe and device agnostic call into the compiled functions.
+#   Instead, they only depend on a minimum runtime library.
+#   The TVM runtime library wraps the device drivers and provides
+#   thread-safe and device agnostic calls into the compiled functions.
 #
-#   This means you can call the compiled TVM function from any thread,
+#   This means that you can call the compiled TVM functions from any thread,
 #   on any GPUs.
 #
 
@@ -275,7 +277,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # TVM provides code generation features into multiple backends,
 # we can also generate OpenCL code or LLVM code that runs on CPU backends.
 #
-# The following codeblocks generate opencl code, creates array on opencl
+# The following code blocks generate OpenCL code, creates array on an OpenCL
 # device, and verifies the correctness of the code.
 #
 if tgt.startswith('opencl'):
@@ -296,12 +298,12 @@ if tgt.startswith('opencl'):
 # This tutorial provides a walk through of TVM workflow using
 # a vector add example. The general workflow is
 #
-# - Describe your computation via series of operations.
+# - Describe your computation via a series of operations.
 # - Describe how we want to compute use schedule primitives.
 # - Compile to the target function we want.
 # - Optionally, save the function to be loaded later.
 #
-# You are more than welcomed to checkout other examples and
-# tutorials to learn more about the supported operations, schedule primitives
+# You are more than welcome to checkout other examples and
+# tutorials to learn more about the supported operations, scheduling primitives
 # and other features in TVM.
 #
