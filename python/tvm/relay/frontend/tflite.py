@@ -156,7 +156,7 @@ class OperatorConverter(object):
         if tensor_wrapper.tensor.Type() == TensorType.INT32:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int32).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
-        raise NotImplementedError("Not support tensor type {}"
+        raise NotImplementedError("Tensor type {} is currently not supported"
                                   .format(str(tensor_wrapper.tensor.Type())))
 
     def get_tensor_type_str(self, tensor_type):
@@ -172,7 +172,8 @@ class OperatorConverter(object):
             return "float32"
         if tensor_type == TensorType.INT32:
             return "int32"
-        raise NotImplementedError("Not support tensor type {}".format(str(tensor_type)))
+        raise NotImplementedError("Tensor type {} is currently not supported"
+                                  .format(str(tensor_type)))
 
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
@@ -450,8 +451,8 @@ class OperatorConverter(object):
             conv_options = DepthwiseConv2DOptions()
             conv_options.Init(op_options.Bytes, op_options.Pos)
             depth_multiplier = conv_options.DepthMultiplier()
-            assert depth_multiplier == 1, "TF frontend have transformed it be 1 " \
-                                          "no matter original value be set by 0.25, 0.5 or any else"
+            assert depth_multiplier == 1, "TF frontend transforms it to be 1 regardless of what " \
+                                          "original value is set to 0.25, 0.5 or anything else"
         else:
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported for frontend TFLite.'.format(conv_type))
