@@ -394,6 +394,35 @@ def test_forward_squeeze():
     _test_squeeze(np.arange(6).reshape((1, 2, 1, 3)), [0, 2])
     _test_squeeze(np.arange(6).reshape((2, 1, 3, 1)), [1, 3])
 
+
+#######################################################################
+# Pad
+# ---
+
+def _test_pad(data):
+    """ One iteration of PAD """
+
+    assert len(data) == 2
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')]
+        out = array_ops.pad(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
+        compare_tflite_with_tvm([data[0]], ['in:0'], in_data, [out])
+
+
+def test_forward_pad():
+    """ Pad """
+    _test_pad([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 1, 3)),
+               np.array([[1, 1], [2, 2], [1, 1], [2, 2]], dtype=np.int32)])
+    _test_pad([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)),
+               np.array([[2, 2], [1, 1], [1, 1]], dtype=np.int32)])
+    _test_pad([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)])
+    _test_pad([np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)])
+
+
 #######################################################################
 # Softmax
 # -------
@@ -528,6 +557,7 @@ def test_forward_inception_v4_net():
 if __name__ == '__main__':
     # Transforms
     test_forward_concatenation()
+    test_forward_pad()
     test_forward_reshape()
     test_forward_squeeze()
 
