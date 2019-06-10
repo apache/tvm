@@ -500,8 +500,8 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     # we keep them for debug convenience when dumping autotvm workload
     HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
-    assert (dh, dw) == (1, 1), "Does not support dilation"
+    dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) \
+        else (dilation, dilation)
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
@@ -514,6 +514,9 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     num_filter = oc_chunk * oc_bn
     groups = ic_chunk // ic_chunk_group
 
+    dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
+    dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
+
     if cfg.is_fallback:
         _get_default_config(cfg, tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
                             tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
@@ -521,8 +524,8 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
                             strides, padding, out_dtype)
 
     # output shape
-    out_height = (ih + 2 * HPAD - kernel_height) // HSTR + 1
-    out_width = (iw + 2 * WPAD - kernel_width) // WSTR + 1
+    out_height = (ih + 2 * HPAD - dilated_kernel_h) // HSTR + 1
+    out_width = (iw + 2 * WPAD - dilated_kernel_w) // WSTR + 1
     oshape = (n, oc_chunk, out_height, out_width, oc_bn)
 
     # DOPAD
@@ -548,8 +551,9 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
         ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
         ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
         return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                           tvm.sum(data_pad[n, ic_outer, oh*HSTR+kh, ow*WSTR+kw,
-                                            ic_f_inner * n_elems +  ic_s_inner]
+                           tvm.sum(data_pad[n, ic_outer, oh*HSTR+kh*dilation_h,
+                                            ow*WSTR+kw*dilation_w,
+                                            ic_f_inner * n_elems + ic_s_inner]
                                    .astype(out_dtype) *
                                    kernel[oc_chunk, ic_outer, kh, kw, ic_f_inner,
                                           oc_block, ic_s_inner].astype(out_dtype),
@@ -575,7 +579,8 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
 
     # else: fp implementation
     return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
+                       tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh*dilation_h,
+                                        ow*WSTR+kw*dilation_w,
                                         ic%ic_bn].astype(out_dtype) *
                                kernel[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn, oc_block],
                                axis=[ic, kh, kw]),
