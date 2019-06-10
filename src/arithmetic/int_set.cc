@@ -165,7 +165,7 @@ inline IntervalSet Combine<ir::Mul>(Analyzer* analyzer,
     std::swap(a, b);
   }
   if (b->IsSinglePoint()) {
-    if (is_zero(b->min_value)) return IntervalSet::SinglePoint(b->min_value);
+    if (is_zero(b->min_value)) return b;
     if (is_one(b->min_value)) return a;
     if (analyzer->CanProveGreaterEqual(b->min_value, 0)) {
       Expr min_value = a->HasLowerBound() ? a->min_value * b->min_value : neg_inf();
@@ -237,7 +237,10 @@ inline IntervalSet Combine<ir::Mod>(Analyzer* analyzer,
     if (is_zero(divisor)) {
       LOG(FATAL) << "Modular by zero in CombineInterval Mod";
     }
-    if (analyzer->CanProveGreaterEqual(divisor, 0)) {
+    // NOTE: need special bound check for truc div
+    if (a->HasLowerBound() &&
+        analyzer->CanProveGreaterEqual(divisor, 0) &&
+        analyzer->CanProveGreaterEqual(a->min_value, 0)) {
       return IntervalSet(make_zero(divisor.type()), divisor - 1);
     } else {
       Expr bound = abs(divisor) - 1;
@@ -253,7 +256,7 @@ inline IntervalSet Combine<ir::Max>(Analyzer* analzyer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
-    return IntervalSet::SinglePoint(a->min_value % b->min_value);
+    return IntervalSet::SinglePoint(max(a->min_value,  b->min_value));
   }
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;
@@ -266,7 +269,7 @@ inline IntervalSet Combine<ir::Min>(Analyzer* analzyer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
-    return IntervalSet::SinglePoint(a->min_value % b->min_value);
+    return IntervalSet::SinglePoint(min(a->min_value, b->min_value));
   }
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;

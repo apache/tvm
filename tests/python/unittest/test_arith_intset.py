@@ -74,6 +74,7 @@ def test_mod():
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
     ck.verify(x % y, {x : tvm.arith.IntervalSet(0, 10)}, (0, y - 1))
     ck.verify(x % 10, {x : tvm.arith.IntervalSet(1, 10)}, (0, 9))
+    ck.verify(x % 10, {x : tvm.arith.IntervalSet(-10, 10)}, (-9, 9))
 
 
 def test_max_min():
@@ -81,6 +82,8 @@ def test_max_min():
     x, y = tvm.var("x"), tvm.var("y")
     ck.verify(tvm.max(x, x + 1), {x : tvm.arith.IntervalSet(0, 10)}, (1, 11))
     ck.verify(tvm.min(x - 1, x + 1), {x : tvm.arith.IntervalSet(0, 10)}, (-1, 9))
+    ck.verify(tvm.min(x, y), {}, (tvm.min(x, y), tvm.min(x, y)))
+    ck.verify(tvm.max(x, y), {}, (tvm.max(x, y), tvm.max(x, y)))
 
 
 def test_select():

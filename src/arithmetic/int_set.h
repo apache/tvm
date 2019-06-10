@@ -36,7 +36,7 @@ namespace arith {
  * \brief Symbolic interval set.
  *
  * \note We intentionally keep the internal of IntSet private,
-         as we anticipate that
+         as we might change it later.
  */
 class IntervalSetNode : public IntSetNode {
  public:
