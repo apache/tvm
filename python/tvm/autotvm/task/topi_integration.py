@@ -284,7 +284,7 @@ class TaskExtractEnv:
         return TaskExtractEnv.current
 
 
-def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
+def register_topi_compute(topi_compute, target_keys, template_keys, func=None, override=False):
     """Register a tunable template for a topi compute function.
 
     After the registration, this topi compute will become a configuration dispatcher. It uses
@@ -333,7 +333,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
 
             config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_compute]
 
-            @config_dispatcher.register(template_keys)
+            @config_dispatcher.register(template_keys, override=override)
             def template_call(cfg, *args, **kwargs):
                 """call the topi func and attach workload to compute node"""
                 assert not kwargs, "Do not support kwargs in template function call"
@@ -372,7 +372,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
     return _decorator
 
 
-def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None):
+def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None, override=False):
     """Register a tunable template for a topi schedule function.
 
     After the registration. This topi schedule will become a configuration dispatcher. It dispatches
@@ -438,7 +438,7 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
 
             config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_schedule]
 
-            @config_dispatcher.register(template_keys)
+            @config_dispatcher.register(template_keys, override=override)
             def template_call(cfg, outs, *args, **kwargs):
                 """call the schedule func"""
                 if f == topi_schedule.fdefault:
