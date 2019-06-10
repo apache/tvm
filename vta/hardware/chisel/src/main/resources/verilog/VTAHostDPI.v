@@ -112,7 +112,6 @@ module VTAHostDPI #
 
   always_ff @(posedge clock) begin
     if (__exit == 'd1) begin
-      $display("[TSIM] Verilog $finish called at cycle:%016d", cycles);
       $finish;
     end
   end

@@ -20,7 +20,7 @@ import numpy as np
 
 from tsim.driver import driver
 
-def test_tsim():
+def test_accel():
     rmax = 64
     n = np.random.randint(1, rmax)
     c = np.random.randint(0, rmax)
@@ -29,10 +29,10 @@ def test_tsim():
     b = tvm.nd.array(np.zeros(n).astype("uint64"), ctx)
     f = driver("libhw", "libsw")
     cycles = f(a, b, c)
-    emsg = "[FAIL] n:{} cycles:{}".format(n, cycles)
-    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + c, err_msg=emsg)
-    print("[PASS] n:{} cycles:{}".format(n, cycles))
+    msg = "cycles:{0:4} n:{1:2} c:{2:2}".format(cycles, n, c)
+    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + c, err_msg = "[FAIL] " + msg)
+    print("[PASS] " + msg)
 
 if __name__ == "__main__":
     for i in range(10):
-        test_tsim()
+        test_accel()

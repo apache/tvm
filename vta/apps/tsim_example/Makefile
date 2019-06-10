@@ -30,7 +30,7 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 run:
-	python3 tests/python/add_by_one.py
+	python3 tests/python/accel.py
 
 clean:
 	-rm -rf $(BUILD_DIR)
