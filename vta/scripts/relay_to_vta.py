@@ -82,11 +82,11 @@ def classification_demo(opt):
         remote = rpc.LocalSession()
 
     # Create a TVM target and execution context
-    target = tvm.target.create("llvm -device={}".format(opt.device))
+    target = env.target if opt.device == "vta" else env.target_vta_cpu
     ctx = remote.ext_dev(0) if opt.device == "vta" else remote.cpu(0)
 
     # Get tophub schedules
-    with autotvm.tophub.context(target, extra_files=["resnet-18.log"]):
+    with autotvm.tophub.context(target):
 
         # Measure build start time
         build_start = time.time()
@@ -182,7 +182,7 @@ def classification_demo(opt):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Train a model for image classification.')
-    parser.add_argument('--model', type=str, required=False, default='resnet18_v1',
+    parser.add_argument('--model', type=str, default='resnet18_v1', choices=['resnet18_v1'],
                         help='Input model name.')
     parser.add_argument('--start-name', type=str, default='nn.max_pool2d',
                         help='The name of the node where packing starts')
@@ -190,8 +190,8 @@ if __name__ == '__main__':
                         help='The name of the node where packing stops')
     parser.add_argument('--debug-profile', action='store_true',
                         help='Show layer-wise time cost profiling results')
-    parser.add_argument('--device', default="vta",
-                        help='Select device target, either "vta" or "vtacpu"')
+    parser.add_argument('--device', default='vta',  choices=['vta', 'arm_cpu'],
+                        help='Select device target')
     parser.add_argument('--measurements', type=int, default=1,
                         help='Number of measurements')
 
