@@ -41,7 +41,7 @@ if grep --quiet -E "File" /tmp/$$.apache-rat.txt; then
     echo "- Create file_list.txt in your text editor"
     echo "- Copy paste the above content in file-list into file_list.txt"
     echo "- python3 tests/lint/add_asf_header.py file_list.txt"
-    exit -1
+    exit 1
 fi
 
 echo "Check codestyle of c++ code..."
@@ -59,5 +59,5 @@ echo "---------Error Log----------"
 cat /tmp/$$.logclean.txt
 echo "----------------------------"
 if grep --quiet -E "warning|error" < /tmp/$$.logclean.txt; then
-    exit -1
+    exit 1
 fi
