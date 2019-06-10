@@ -773,11 +773,11 @@ def _mx_rnn_layer(inputs, attrs):
             node = state
             attrs = StrAttrsDict(node.get("attrs", {}))
             op_name = node["op"]
+            # by default, RNN layer uses zeros to initialize states
             assert op_name == "_zeros"
             shape = attrs.get_int_tuple("shape")
             dtype = attrs.get_str("dtype", "float32")
             init_layout = attrs.get_str("__layout__")
-            print(shape)
             new_shape = list(shape)
             for i, dim in enumerate(shape):
                 if dim == 0:
