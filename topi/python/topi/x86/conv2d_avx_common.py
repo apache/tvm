@@ -143,10 +143,10 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
     C, O = conv_out, last
     CC = s.cache_write(C, 'global')
 
-    _, oc_chunk, oh, ow, oc_block = s[C].op.axis
+    batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
     ow_chunk, ow_block = s[C].split(ow, factor=reg_n)
     s[C].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-    parallel_axis = s[C].fuse(oc_chunk, oh)
+    parallel_axis = s[C].fuse(batch, oc_chunk, oh)
     s[C].vectorize(oc_block)
     if C == O:
         s[C].parallel(parallel_axis)
@@ -171,7 +171,7 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
         batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
         ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
         s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-        parallel_axis = s[O].fuse(oc_chunk, oh)
+        parallel_axis = s[O].fuse(batch, oc_chunk, oh)
         s[C].compute_at(s[O], parallel_axis)
         s[O].vectorize(oc_block)
         s[O].parallel(parallel_axis)
@@ -214,10 +214,10 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     C, O = conv_out, last
     CC = s.cache_write(C, 'global')
 
-    _, oc_chunk, oh, ow, oc_block = s[C].op.axis
+    batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
     ow_chunk, ow_block = s[C].split(ow, factor=reg_n)
     s[C].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-    parallel_axis = s[C].fuse(oc_chunk, oh)
+    parallel_axis = s[C].fuse(batch, oc_chunk, oh)
     s[C].vectorize(oc_block)
     if C == O:
         s[C].parallel(parallel_axis)
@@ -251,7 +251,7 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
         batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
         ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
         s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-        parallel_axis = s[O].fuse(oc_chunk, oh)
+        parallel_axis = s[O].fuse(batch, oc_chunk, oh)
         s[C].compute_at(s[O], parallel_axis)
         s[O].vectorize(oc_block)
         s[O].parallel(parallel_axis)
