@@ -20,7 +20,7 @@ from tvm.autotvm.task import extract_from_program
 def parse_arguments():
 
     parser = argparse.ArgumentParser(description='Train a model for image classification.')
-    parser.add_argument('--model', type=str, required=False, default='resnet18_v1',
+    parser.add_argument('--model', type=str, default='resnet18_v1', choices=['resnet18_v1'],
                         help='Input model name.')
     parser.add_argument('--start-name', type=str, default='nn.max_pool2d',
                         help='The name of the node where packing starts')
@@ -28,8 +28,8 @@ def parse_arguments():
                         help='The name of the node where packing stops')
     parser.add_argument('--debug-profile', action='store_true',
                         help='Show layer-wise time cost profiling results')
-    parser.add_argument('--device', default="vta",
-                        help='Select device target, either "vta" or "vtacpu"')
+    parser.add_argument('--device', default='vta',  choices=['vta', 'arm_cpu'],
+                        help='Select device target')
     parser.add_argument('--measurements', type=int, default=1,
                         help='Number of measurements during AutoTVM search')
     parser.add_argument('--tuner', type=str, default="random",
@@ -71,6 +71,23 @@ def register_vta_tuning_tasks():
             s = topi.generic.schedule_conv2d_nchw([res])
         else:
             s = tvm.create_schedule([res.op])
+        return s, [A, W, res]
+
+
+    @autotvm.task.register("topi_nn_dense", override=True)
+    def _topi_nn_dense(*args, **kwargs):
+        assert not kwargs, "Do not support kwargs in template function call"
+        args = deserialize_args(args)
+        A, W = args[:2]
+
+        with tvm.target.vta():
+            res = topi.nn.dense(*args, **kwargs)
+
+        if tvm.target.current_target().device_name == 'vta':
+            s = topi.generic.schedule_conv2d_nchw([res])
+        else:
+            s = tvm.create_schedule([res.op])
+
         return s, [A, W, res]
 
 
@@ -194,7 +211,7 @@ if __name__ == '__main__':
         remote = rpc.LocalSession()
 
     # VTA target and execution context
-    target = tvm.target.vta()
+    target = env.target if opt.device == "vta" else env.target_vta_cpu
     ctx = remote.ext_dev(0) if opt.device == "vta" else remote.cpu(0)
     
     # Compile Relay program
@@ -208,7 +225,8 @@ if __name__ == '__main__':
     print("Extracting tasks...")
     tasks = extract_from_program(func=relay_prog,
                                  params=params,
-                                 ops=(tvm.relay.op.nn.conv2d,),
+                                 ops=(tvm.relay.op.nn.conv2d,
+                                      tvm.relay.op.nn.dense),
                                  target=target,
                                  target_host=env.target_host)
 
