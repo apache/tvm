@@ -769,8 +769,8 @@ def _mx_rnn_layer(inputs, attrs):
     assert len(concat_weight) == num_layers * 4
     output_states = True
     for idx, state in enumerate(init_states[:]):
-        if isinstance(state, tuple) and isinstance(state[1], dict):
-            nid, node = state
+        if isinstance(state, dict):
+            node = state
             attrs = StrAttrsDict(node.get("attrs", {}))
             op_name = node["op"]
             assert op_name == "_zeros"
@@ -1034,7 +1034,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
             res = _convert_map[op_name](children, attrs)
             if res is None:
                 # defer conversion, used in RNN state initialization
-                res = [(nid, node)]
+                res = [node]
             elif isinstance(res, (_expr.TupleWrapper, tuple, list)):
                 pass
             elif isinstance(res, _expr.Expr):
