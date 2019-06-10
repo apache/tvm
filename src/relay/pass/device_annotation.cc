@@ -68,6 +68,7 @@ class ValidateAnnotation : private ExprVisitor {
 
  private:
   void VisitExpr_(const CallNode* call_node) final {
+    ExprVisitor::VisitExpr_(call_node);
     if (IsOnDeviceNode(call_node)) {
       int device_type = GetDeviceId(call_node);
       if (annotation_map_.count(call_node)) {
@@ -86,7 +87,14 @@ class ValidateAnnotation : private ExprVisitor {
         annotation_map_.insert({node, GetDeviceId(call_node)});
       }
     }
-    ExprVisitor::VisitExpr_(call_node);
+  }
+
+  void VisitExpr_(const TupleGetItemNode* get_elem) final {
+    ExprVisitor::VisitExpr_(get_elem);
+    const auto* tn = get_elem->tuple.operator->();
+    if (annotation_map_.count(tn)) {
+      annotation_map_.insert({get_elem, annotation_map_.at(tn)});
+    }
   }
 
   /*
@@ -253,7 +261,9 @@ class RewriteAnnotation : public ExprMutator {
         if (src->is_type<CallNode>() || src->is_type<FunctionNode>()) {
           return annotation_map_.at(dst) != fallback_device_;
         } else {
-          return false;
+          // There shouldn't be any copy nodes between var/constant and another
+          // expression.
+          return !(src->is_type<VarNode>() || src->is_type<ConstantNode>());
         }
       } else {
         return false;
