@@ -49,9 +49,11 @@ def driver(hw_lib, sw_lib):
         except OSError:
             return []
 
-    def run(a, b):
+    def run(a, b, c):
         load_dll(_sw_lib)
         f = tvm.get_global_func("tvm.vta.driver")
         m = tvm.module.load(_hw_lib, "vta-tsim")
-        f(m, a, b)
+        return f(m, a, b, c)
+        #cycles = f(m, a, b, c)
+        #print("cycles: ", cycles)
     return run

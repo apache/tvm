@@ -20,20 +20,19 @@ import numpy as np
 
 from tsim.driver import driver
 
-def test_tsim(i):
-    rmin = 1 # min vector size of 1
+def test_tsim():
     rmax = 64
-    n = np.random.randint(rmin, rmax)
+    n = np.random.randint(1, rmax)
+    c = np.random.randint(0, rmax)
     ctx = tvm.cpu(0)
     a = tvm.nd.array(np.random.randint(rmax, size=n).astype("uint64"), ctx)
     b = tvm.nd.array(np.zeros(n).astype("uint64"), ctx)
     f = driver("libhw", "libsw")
-    f(a, b)
-    emsg = "[FAIL] test number:{} n:{}".format(i, n)
-    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1, err_msg=emsg)
-    print("[PASS] test number:{} n:{}".format(i, n))
+    cycles = f(a, b, c)
+    emsg = "[FAIL] n:{} cycles:{}".format(n, cycles)
+    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + c, err_msg=emsg)
+    print("[PASS] n:{} cycles:{}".format(n, cycles))
 
 if __name__ == "__main__":
-    times = 10
-    for i in range(times):
-        test_tsim(i)
+    for i in range(10):
+        test_tsim()

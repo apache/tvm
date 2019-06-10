@@ -25,11 +25,13 @@
   *  Register description    | addr
   * -------------------------|-----
   *  Control status register | 0x00
-  *  Length value register   | 0x04
-  *  Input pointer lsb       | 0x08
-  *  Input pointer msb       | 0x0c
-  *  Output pointer lsb      | 0x10
-  *  Output pointer msb      | 0x14
+  *  Cycle counter           | 0x04
+  *  Constant value          | 0x08
+  *  Vector length           | 0x0c
+  *  Input pointer lsb       | 0x10
+  *  Input pointer msb       | 0x14
+  *  Output pointer lsb      | 0x18
+  *  Output pointer msb      | 0x1c
   * -------------------------------
 
   * ------------------------------
@@ -58,10 +60,17 @@ module RegFile #
 
   output                        launch,
   input                         finish,
+
+  input                         event_counter_valid,
+  input    [HOST_DATA_BITS-1:0] event_counter_value,
+
+  output   [HOST_DATA_BITS-1:0] constant,
   output   [HOST_DATA_BITS-1:0] length,
   output    [MEM_ADDR_BITS-1:0] inp_baddr,
   output    [MEM_ADDR_BITS-1:0] out_baddr
 );
+
+  localparam NUM_REG = 8;
 
   typedef enum logic {IDLE, READ} state_t;
   state_t state_n, state_r;
@@ -80,7 +89,7 @@ module RegFile #
       IDLE: begin
         if (host_req_valid & ~host_req_opcode) begin
           state_n = READ;
-	end
+        end
       end
 
       READ: begin
@@ -91,28 +100,49 @@ module RegFile #
 
   assign host_req_deq = (state_r == IDLE) ? host_req_valid : 1'b0;
 
-  logic [HOST_DATA_BITS-1:0] rf [5:0];
+  logic [HOST_DATA_BITS-1:0] rf [NUM_REG-1:0];
 
   genvar i;
-  for (i = 0; i < 6; i++) begin
+  for (i = 0; i < NUM_REG; i++) begin
+
     logic wen = (state_r == IDLE)? host_req_valid & host_req_opcode & i*4 == host_req_addr : 1'b0;
+
     if (i == 0) begin
+
       always_ff @(posedge clock) begin
         if (reset) begin
-	end else if (finish) begin
-	  rf[i] <= 'd2;
-	end else if (wen) begin
-	  rf[i] <= host_req_value;
-	end
+          rf[i] <= 'd0;
+        end else if (finish) begin
+          rf[i] <= 'd2;
+        end else if (wen) begin
+          rf[i] <= host_req_value;
+        end
       end
+
+    end else if (i == 1) begin
+
+      always_ff @(posedge clock) begin
+        if (reset) begin
+          rf[i] <= 'd0;
+        end else if (event_counter_valid) begin
+          rf[i] <= event_counter_value;
+        end else if (wen) begin
+          rf[i] <= host_req_value;
+        end
+      end
+
     end else begin
+
       always_ff @(posedge clock) begin
         if (reset) begin
-	end else if (wen) begin
-	  rf[i] <= host_req_value;
-	end
+          rf[i] <= 'd0;
+        end else if (wen) begin
+          rf[i] <= host_req_value;
+        end
       end
+
     end
+
   end
 
   logic [HOST_DATA_BITS-1:0] rdata;
@@ -132,6 +162,10 @@ module RegFile #
         rdata <= rf[4];
       end else if (host_req_addr == 'h14) begin
         rdata <= rf[5];
+      end else if (host_req_addr == 'h18) begin
+        rdata <= rf[6];
+      end else if (host_req_addr == 'h1c) begin
+        rdata <= rf[7];
       end else begin
         rdata <= 'd0;
       end
@@ -142,8 +176,9 @@ module RegFile #
   assign host_resp_bits = rdata;
 
   assign launch = rf[0][0];
-  assign length = rf[1];
-  assign inp_baddr = {rf[3], rf[2]};
-  assign out_baddr = {rf[5], rf[4]};
+  assign constant = rf[2];
+  assign length = rf[3];
+  assign inp_baddr = {rf[5], rf[4]};
+  assign out_baddr = {rf[7], rf[6]};
 
 endmodule
