@@ -1,6 +1,8 @@
 # subdirectories
-3rdparty/*
-.github/*
+3rdparty
+.github
+jvm
+tutorials
 
 # Binary or data files
 .*\.css
@@ -28,7 +30,7 @@
 
 # Generated modules
 .*\.egg-info
-.*gen_modules/*
+.*gen_modules
 .*doxygen
 core.cpp
 build
@@ -36,6 +38,7 @@ _static
 _build
 .*~
 \#..*\#
+\.#.*
 
 # Relay parser
 RelayLexer.py
