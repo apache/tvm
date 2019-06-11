@@ -23,6 +23,7 @@ import tvm
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
+from .. import module as _module
 from ... import nd as _nd
 
 from .common import StrAttrsDict
@@ -992,7 +993,7 @@ _convert_map = {
 _convert_map.update({k : _rename(k) for k in _identity_list})
 
 
-def _from_mxnet_impl(symbol, shape_dict, dtype_info):
+def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod):
     """Convert mxnet symbol to compatible relay Function.
 
     Reconstruct a relay Function by traversing the mxnet symbol.
@@ -1108,6 +1109,7 @@ def from_mxnet(symbol,
     except ImportError as e:
         raise ImportError("{}. MXNet is required to parse symbols.".format(e))
 
+    mod = _module.Module()
     if isinstance(symbol, mx.sym.Symbol):
         params = {}
         arg_params = arg_params if arg_params else {}
@@ -1117,7 +1119,7 @@ def from_mxnet(symbol,
         for k, v in aux_params.items():
             params[k] = _nd.array(v.asnumpy())
         shape, dtype = _update_shape_dtype(shape, dtype, params)
-        sym = _from_mxnet_impl(symbol, shape, dtype)
+        func = _from_mxnet_impl(symbol, shape, dtype, mod)
     elif isinstance(symbol, mx.gluon.HybridBlock):
         if arg_params is not None or aux_params is not None:
             raise ValueError("arg_params and aux_params ae not used when importing HybridBlock")
@@ -1129,10 +1131,11 @@ def from_mxnet(symbol,
         if isinstance(sym, (list, tuple)):
             sym = mx.sym.Group(sym)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
-        sym = _from_mxnet_impl(sym, shape, dtype)
+        func = _from_mxnet_impl(sym, shape, dtype, mod)
     elif isinstance(symbol, mx.gluon.Block):
         raise NotImplementedError("Only Hybrid Blocks are supported now.")
     else:
         msg = "mxnet.Symbol or gluon.HybridBlock expected, got {}".format(type(symbol))
         raise ValueError(msg)
-    return sym, params
+    mod[mod.entry_func] = func
+    return mod, params
