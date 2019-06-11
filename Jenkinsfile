@@ -308,6 +308,7 @@ stage('Integration Test') {
   }
 }
 
+/*
 stage('Build packages') {
   parallel 'conda CPU': {
     node('CPU') {
@@ -320,9 +321,10 @@ stage('Build packages') {
       sh "${docker_run} tvmai/conda-cuda100 ./conda/build_cuda.sh
     }
   }
-  # Here we could upload the packages to anaconda for releases
-  # and/or the master branch
+  // Here we could upload the packages to anaconda for releases
+  // and/or the master branch
 }
+*/
 
 stage('Deploy') {
     node('doc') {
