@@ -1,6 +1,8 @@
 # subdirectories
 3rdparty
 .github
+jvm
+tutorials
 
 # Binary or data files
 .*\.css
