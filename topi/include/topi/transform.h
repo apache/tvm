@@ -641,6 +641,13 @@ inline Tensor take(const Tensor& a,
           auto idx = tvm::min(tvm::max(0, indices(out_index)), a_size - 1);
           return a(UnravelIndex(idx, a_shape));
         }, name, tag);
+  } else if (mode == "fast") {
+    LOG(WARNING) << "Fast mode segfaults when there are out-of-bounds indices. "
+                    "Make sure input indices are in bound";
+    return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          return a(UnravelIndex(indices(out_index), a_shape));
+        }, name, tag);
   } else {  // mode == "wrap"
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
@@ -701,6 +708,25 @@ inline Tensor take(const Tensor& a,
           auto idx = tvm::min(tvm::max(0, indices(indices_position)),
                               axis_dim - 1);
           real_indices.push_back(idx);
+          for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
+            real_indices.push_back(out_index[j]);
+          }
+          return a(real_indices);
+        }, name, tag);
+  } else if (mode == "fast") {
+    LOG(WARNING) << "Fast mode segfaults when there are out-of-bounds indices. "
+                    "Make sure input indices are in bound";
+    return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          Array<Expr> indices_position;
+          for (size_t j = axis; j < static_cast<size_t>(axis+indices_len); ++j) {
+            indices_position.push_back(out_index[j]);
+          }
+          Array<Expr> real_indices;
+          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
+            real_indices.push_back(out_index[j]);
+          }
+          real_indices.push_back(indices(indices_position));
           for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
             real_indices.push_back(out_index[j]);
           }
