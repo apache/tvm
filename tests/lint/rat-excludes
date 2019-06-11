@@ -23,6 +23,8 @@
 .*\.csv
 .*\.mk
 .*\.log
+.*\.interp
+.*\.tokens
 
 # Generated modules
 .*\.egg-info
@@ -35,10 +37,16 @@ _build
 .*~
 \#..*\#
 
+# Relay parser
+RelayLexer.py
+RelayParser.py
+RelayVisitor.py
+
 # Specific files
 package-list
 MANIFEST
 .gitignore
+.gitattributes
 .gitmodules
 .clang-format
 .bash_history

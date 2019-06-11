@@ -41,6 +41,8 @@ ALLOW_EXTENSION = {
     "pxi",
     "pyd",
     "pyx",
+    # relay text format
+    "rly",
     # configurations
     "mk",
     "in",
@@ -66,11 +68,15 @@ ALLOW_EXTENSION = {
     "sbt",
     "properties",
     "v",
+    # generated parser
+    "interp",
+    "tokens"
     }
 
 # List of file names allowed
 ALLOW_FILE_NAME = {
     ".gitignore",
+    ".gitattributes",
     "README",
     "Makefile",
     "Doxyfile",
@@ -155,7 +161,7 @@ def main():
         report += "\nFound %d files that are now allowed\n" % len(error_list)
         report += ("We do not check in binary files into the repo.\n"
                    "If necessary, please discuss with committers and"
-                   "modify tests/scripts/check_file_type.py to enable the file you need.\n")
+                   "modify tests/lint/check_file_type.py to enable the file you need.\n")
         sys.stderr.write(report)
         sys.stderr.flush()
         sys.exit(-1)
