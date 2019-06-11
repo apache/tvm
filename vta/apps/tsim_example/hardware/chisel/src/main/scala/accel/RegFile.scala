@@ -80,27 +80,30 @@ class RegFile extends Module {
   val reg = Seq.fill(nTotal)(RegInit(0.U.asTypeOf(chiselTypeOf(io.host.req.value))))
   val addr = Seq.tabulate(nTotal)(_ * 4)
   val reg_map = (addr zip reg)  map { case (a, r) => a.U -> r }
+  val eo = nCtrl
+  val vo = eo + nECnt
+  val po = vo + nVals
 
-  (reg zip addr).foreach { case(r, a) =>
-    if (a == 0) { // control status register
-      when (io.finish) {
-        r := "b_10".U
-      } .elsewhen (state === sIdle && io.host.req.valid &&
-            io.host.req.opcode && a.U === io.host.req.addr) {
-        r := io.host.req.value
-      }
-    } else if (a == 4) {
-      when (io.ecnt(0).valid) {
-        r := io.ecnt(0).bits
-      } .elsewhen (state === sIdle && io.host.req.valid &&
-            io.host.req.opcode && a.U === io.host.req.addr) {
-        r := io.host.req.value
-      }
-    } else {
-      when (state === sIdle && io.host.req.valid &&
-            io.host.req.opcode && a.U === io.host.req.addr) {
-        r := io.host.req.value
-      }
+  when (io.finish) {
+    reg(0) := "b_10".U
+  } .elsewhen (state === sIdle && io.host.req.valid &&
+        io.host.req.opcode && addr(0).U === io.host.req.addr) {
+    reg(0) := io.host.req.value
+  }
+
+  for (i <- 0 until nECnt) {
+    when (io.ecnt(i).valid) {
+      reg(eo + i) := io.ecnt(i).bits
+    } .elsewhen (state === sIdle && io.host.req.valid &&
+          io.host.req.opcode && addr(eo + i).U === io.host.req.addr) {
+      reg(eo + i) := io.host.req.value
+    }
+  }
+
+  for (i <- 0 until (nVals + (2*nPtrs))) {
+    when (state === sIdle && io.host.req.valid &&
+          io.host.req.opcode && addr(vo + i).U === io.host.req.addr) {
+      reg(vo + i) := io.host.req.value
     }
   }
 
@@ -114,12 +117,10 @@ class RegFile extends Module {
 
   io.launch := reg(0)(0)
 
-  val vo = nCtrl + nECnt
   for (i <- 0 until nVals) {
     io.vals(i) := reg(vo + i)
   }
 
-  val po = nCtrl + nECnt + nVals
   for (i <- 0 until nPtrs) {
     io.ptrs(i) := Cat(reg(po + 2*i + 1), reg(po + 2*i))
   }
