@@ -35,28 +35,24 @@ import vta.dpi._
   * 6. Check if counter (cnt) is equal to length to assert finish,
   *    otherwise go to step 2.
   */
-class Compute extends Module {
-  val nCtrl = 1
-  val nECnt = 1
-  val nVals = 2
-  val nPtrs = 2
+class Compute(implicit config: AccelConfig) extends Module {
   val io = IO(new Bundle {
     val launch = Input(Bool())
     val finish = Output(Bool())
-    val ecnt = Vec(nECnt, ValidIO(UInt(32.W)))
-    val vals = Input(Vec(nVals, UInt(32.W)))
-    val ptrs = Input(Vec(nPtrs, UInt(64.W)))
+    val ecnt = Vec(config.nECnt, ValidIO(UInt(config.regBits.W)))
+    val vals = Input(Vec(config.nVals, UInt(config.regBits.W)))
+    val ptrs = Input(Vec(config.nPtrs, UInt(config.ptrBits.W)))
     val mem = new VTAMemDPIMaster
   })
   val sIdle :: sReadReq :: sReadData :: sWriteReq :: sWriteData :: Nil = Enum(5)
   val state = RegInit(sIdle)
   val const = io.vals(0)
   val length = io.vals(1)
-  val cycles = RegInit(0.U(32.W))
+  val cycles = RegInit(0.U(config.regBits.W))
   val reg = Reg(chiselTypeOf(io.mem.rd.bits))
-  val cnt = Reg(UInt(32.W))
-  val raddr = Reg(UInt(64.W))
-  val waddr = Reg(UInt(64.W))
+  val cnt = Reg(UInt(config.regBits.W))
+  val raddr = Reg(UInt(config.ptrBits.W))
+  val waddr = Reg(UInt(config.ptrBits.W))
 
   switch (state) {
     is (sIdle) {

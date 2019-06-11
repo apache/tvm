@@ -47,18 +47,13 @@ import vta.dpi._
   *  Finish                  | 1
   * ------------------------------
   */
-class RegFile extends Module {
-  val nCtrl = 1
-  val nECnt = 1
-  val nVals = 2
-  val nPtrs = 2
-  val nTotal = nCtrl + nECnt + nVals + (2*nPtrs)
+class RegFile(implicit config: AccelConfig) extends Module {
   val io = IO(new Bundle {
     val launch = Output(Bool())
     val finish = Input(Bool())
-    val ecnt = Vec(nECnt, Flipped(ValidIO(UInt(32.W))))
-    val vals = Output(Vec(nVals, UInt(32.W)))
-    val ptrs = Output(Vec(nPtrs, UInt(64.W)))
+    val ecnt = Vec(config.nECnt, Flipped(ValidIO(UInt(config.regBits.W))))
+    val vals = Output(Vec(config.nVals, UInt(config.regBits.W)))
+    val ptrs = Output(Vec(config.nPtrs, UInt(config.regBits.W)))
     val host = new VTAHostDPIClient
   })
   val sIdle :: sRead :: Nil = Enum(2)
@@ -77,12 +72,13 @@ class RegFile extends Module {
 
   io.host.req.deq := state === sIdle & io.host.req.valid
 
+  val nTotal = config.nCtrl + config.nECnt + config.nVals + (2*config.nPtrs)
   val reg = Seq.fill(nTotal)(RegInit(0.U.asTypeOf(chiselTypeOf(io.host.req.value))))
   val addr = Seq.tabulate(nTotal)(_ * 4)
   val reg_map = (addr zip reg)  map { case (a, r) => a.U -> r }
-  val eo = nCtrl
-  val vo = eo + nECnt
-  val po = vo + nVals
+  val eo = config.nCtrl
+  val vo = eo + config.nECnt
+  val po = vo + config.nVals
 
   when (io.finish) {
     reg(0) := "b_10".U
@@ -91,7 +87,7 @@ class RegFile extends Module {
     reg(0) := io.host.req.value
   }
 
-  for (i <- 0 until nECnt) {
+  for (i <- 0 until config.nECnt) {
     when (io.ecnt(i).valid) {
       reg(eo + i) := io.ecnt(i).bits
     } .elsewhen (state === sIdle && io.host.req.valid &&
@@ -100,7 +96,7 @@ class RegFile extends Module {
     }
   }
 
-  for (i <- 0 until (nVals + (2*nPtrs))) {
+  for (i <- 0 until (config.nVals + (2*config.nPtrs))) {
     when (state === sIdle && io.host.req.valid &&
           io.host.req.opcode && addr(vo + i).U === io.host.req.addr) {
       reg(vo + i) := io.host.req.value
@@ -117,11 +113,11 @@ class RegFile extends Module {
 
   io.launch := reg(0)(0)
 
-  for (i <- 0 until nVals) {
+  for (i <- 0 until config.nVals) {
     io.vals(i) := reg(vo + i)
   }
 
-  for (i <- 0 until nPtrs) {
+  for (i <- 0 until config.nPtrs) {
     io.ptrs(i) := Cat(reg(po + 2*i + 1), reg(po + 2*i))
   }
 }

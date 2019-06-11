@@ -35,11 +35,21 @@ import vta.dpi._
   * |_________|      |_________|
   *
   */
+case class AccelConfig() {
+  val nCtrl = 1
+  val nECnt = 1
+  val nVals = 2
+  val nPtrs = 2
+  val regBits = 32
+  val ptrBits = 2*regBits
+}
+
 class Accel extends Module {
   val io = IO(new Bundle {
     val host = new VTAHostDPIClient
     val mem = new VTAMemDPIMaster
   })
+  implicit val config = AccelConfig()
   val rf = Module(new RegFile)
   val ce = Module(new Compute)
   rf.io.host <> io.host
