@@ -280,7 +280,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void VisitExpr_(const GlobalVarNode* gvar) {
     // TODO(wweic): Support Load GlobalVar into a register
-    LOG(WARNING) << "Loading GlobalVar into register is not yet supported";
+    LOG(FATAL) << "Loading GlobalVar into register is not yet supported";
   }
 
   void VisitExpr_(const IfNode* if_node) {

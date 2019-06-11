@@ -450,7 +450,7 @@ class Interpreter :
                     "fusing and lowering";
     }
     if (auto con = call->op.as<ConstructorNode>()) {
-      return ConstructorValueNode::make(con->tag, args);
+      return ConstructorValueNode::make(con->tag, args, GetRef<Constructor>(con));
     }
     // Now we just evaluate and expect to find a closure.
     Value fn_val = Eval(call->op);
