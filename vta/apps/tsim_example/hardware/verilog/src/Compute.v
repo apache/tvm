@@ -52,6 +52,11 @@ module Compute #
 
   input                         launch,
   output                        finish,
+
+  output                        event_counter_valid,
+  output   [HOST_DATA_BITS-1:0] event_counter_value,
+
+  input    [HOST_DATA_BITS-1:0] constant,
   input    [HOST_DATA_BITS-1:0] length,
   input     [MEM_ADDR_BITS-1:0] inp_baddr,
   input     [MEM_ADDR_BITS-1:0] out_baddr
@@ -84,7 +89,7 @@ module Compute #
       IDLE: begin
         if (launch) begin
           state_n = READ_REQ;
-	end
+        end
       end
 
       READ_REQ: begin
@@ -94,9 +99,9 @@ module Compute #
       READ_DATA: begin
         if (mem_rd_valid) begin
           state_n = WRITE_REQ;
-	end else begin
+        end else begin
           state_n = READ_DATA;
-	end
+        end
       end
 
       WRITE_REQ: begin
@@ -106,15 +111,31 @@ module Compute #
       WRITE_DATA: begin
         if (cnt == (length - 1'b1)) begin
           state_n = IDLE;
-	end else begin
+        end else begin
           state_n = READ_REQ;
-	end
+        end
       end
 
       default: begin
       end
     endcase
   end
+
+  logic last;
+  assign last = (state_r == WRITE_DATA) & (cnt == (length - 1'b1));
+
+  // cycle counter
+  logic [HOST_DATA_BITS-1:0] cycle_counter;
+  always_ff @(posedge clock) begin
+    if (reset | state_r == IDLE) begin
+      cycle_counter <= '0;
+    end else begin
+      cycle_counter <= cycle_counter + 1'b1;
+    end
+  end
+
+  assign event_counter_valid = last;
+  assign event_counter_value = cycle_counter;
 
   // calculate next address
   always_ff @(posedge clock) begin
@@ -136,7 +157,7 @@ module Compute #
   // read
   always_ff @(posedge clock) begin
     if ((state_r == READ_DATA) & mem_rd_valid) begin
-      data <= mem_rd_bits + 1'b1;
+      data <= mem_rd_bits + {32'd0, constant};
     end
   end
   assign mem_rd_ready = state_r == READ_DATA;
@@ -155,5 +176,5 @@ module Compute #
   end
 
   // done when read/write are equal to length
-  assign finish = (state_r == WRITE_DATA) & (cnt == (length - 1'b1));
+  assign finish = last;
 endmodule

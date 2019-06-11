@@ -15,10 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-file(GLOB TSIM_SW_SRC src/driver.cc)
-add_library(sw SHARED ${TSIM_SW_SRC})
-target_include_directories(sw PRIVATE ${VTA_DIR}/include)
+import tvm
+import numpy as np
 
-if(APPLE)
-  set_target_properties(sw PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-endif(APPLE)
+from accel.driver import driver
+
+def test_accel():
+    rmax = 64
+    n = np.random.randint(1, rmax)
+    c = np.random.randint(0, rmax)
+    ctx = tvm.cpu(0)
+    a = tvm.nd.array(np.random.randint(rmax, size=n).astype("uint64"), ctx)
+    b = tvm.nd.array(np.zeros(n).astype("uint64"), ctx)
+    f = driver("verilog")
+    cycles = f(a, b, c)
+    msg = "cycles:{0:4} n:{1:2} c:{2:2}".format(cycles, n, c)
+    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + c, err_msg = "[FAIL] " + msg)
+    print("[PASS] " + msg)
+
+if __name__ == "__main__":
+    for i in range(10):
+        test_accel()

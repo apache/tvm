@@ -35,18 +35,28 @@ import vta.dpi._
   * |_________|      |_________|
   *
   */
+case class AccelConfig() {
+  val nCtrl = 1
+  val nECnt = 1
+  val nVals = 2
+  val nPtrs = 2
+  val regBits = 32
+  val ptrBits = 2*regBits
+}
+
 class Accel extends Module {
   val io = IO(new Bundle {
     val host = new VTAHostDPIClient
     val mem = new VTAMemDPIMaster
   })
+  implicit val config = AccelConfig()
   val rf = Module(new RegFile)
   val ce = Module(new Compute)
   rf.io.host <> io.host
   io.mem <> ce.io.mem
   ce.io.launch := rf.io.launch
   rf.io.finish := ce.io.finish
-  ce.io.length := rf.io.length
-  ce.io.inp_baddr := rf.io.inp_baddr
-  ce.io.out_baddr := rf.io.out_baddr
+  rf.io.ecnt <> ce.io.ecnt
+  ce.io.vals <> rf.io.vals
+  ce.io.ptrs <> rf.io.ptrs
 }

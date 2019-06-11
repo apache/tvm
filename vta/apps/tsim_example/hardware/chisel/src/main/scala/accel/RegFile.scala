@@ -31,11 +31,13 @@ import vta.dpi._
   *  Register description    | addr
   * -------------------------|-----
   *  Control status register | 0x00
-  *  Length value register   | 0x04
-  *  Input pointer lsb       | 0x08
-  *  Input pointer msb       | 0x0c
-  *  Output pointer lsb      | 0x10
-  *  Output pointer msb      | 0x14
+  *  Cycle counter           | 0x04
+  *  Constant value          | 0x08
+  *  Vector length           | 0x0c
+  *  Input pointer lsb       | 0x10
+  *  Input pointer msb       | 0x14
+  *  Output pointer lsb      | 0x18
+  *  Output pointer msb      | 0x1c
   * -------------------------------
 
   * ------------------------------
@@ -45,13 +47,13 @@ import vta.dpi._
   *  Finish                  | 1
   * ------------------------------
   */
-class RegFile extends Module {
+class RegFile(implicit config: AccelConfig) extends Module {
   val io = IO(new Bundle {
     val launch = Output(Bool())
     val finish = Input(Bool())
-    val length = Output(UInt(32.W))
-    val inp_baddr = Output(UInt(64.W))
-    val out_baddr = Output(UInt(64.W))
+    val ecnt = Vec(config.nECnt, Flipped(ValidIO(UInt(config.regBits.W))))
+    val vals = Output(Vec(config.nVals, UInt(config.regBits.W)))
+    val ptrs = Output(Vec(config.nPtrs, UInt(config.regBits.W)))
     val host = new VTAHostDPIClient
   })
   val sIdle :: sRead :: Nil = Enum(2)
@@ -70,23 +72,34 @@ class RegFile extends Module {
 
   io.host.req.deq := state === sIdle & io.host.req.valid
 
-  val reg = Seq.fill(6)(RegInit(0.U.asTypeOf(chiselTypeOf(io.host.req.value))))
-  val addr = Seq.tabulate(6)(_ * 4)
+  val nTotal = config.nCtrl + config.nECnt + config.nVals + (2*config.nPtrs)
+  val reg = Seq.fill(nTotal)(RegInit(0.U.asTypeOf(chiselTypeOf(io.host.req.value))))
+  val addr = Seq.tabulate(nTotal)(_ * 4)
   val reg_map = (addr zip reg)  map { case (a, r) => a.U -> r }
+  val eo = config.nCtrl
+  val vo = eo + config.nECnt
+  val po = vo + config.nVals
 
-  (reg zip addr).foreach { case(r, a) =>
-    if (a == 0) { // control status register
-      when (io.finish) {
-        r := "b_10".U
-      } .elsewhen (state === sIdle && io.host.req.valid &&
-            io.host.req.opcode && a.U === io.host.req.addr) {
-        r := io.host.req.value
-      }
-    } else {
-      when (state === sIdle && io.host.req.valid &&
-            io.host.req.opcode && a.U === io.host.req.addr) {
-        r := io.host.req.value
-      }
+  when (io.finish) {
+    reg(0) := "b_10".U
+  } .elsewhen (state === sIdle && io.host.req.valid &&
+        io.host.req.opcode && addr(0).U === io.host.req.addr) {
+    reg(0) := io.host.req.value
+  }
+
+  for (i <- 0 until config.nECnt) {
+    when (io.ecnt(i).valid) {
+      reg(eo + i) := io.ecnt(i).bits
+    } .elsewhen (state === sIdle && io.host.req.valid &&
+          io.host.req.opcode && addr(eo + i).U === io.host.req.addr) {
+      reg(eo + i) := io.host.req.value
+    }
+  }
+
+  for (i <- 0 until (config.nVals + (2*config.nPtrs))) {
+    when (state === sIdle && io.host.req.valid &&
+          io.host.req.opcode && addr(vo + i).U === io.host.req.addr) {
+      reg(vo + i) := io.host.req.value
     }
   }
 
@@ -99,7 +112,12 @@ class RegFile extends Module {
   io.host.resp.bits := rdata
 
   io.launch := reg(0)(0)
-  io.length := reg(1)
-  io.inp_baddr := Cat(reg(3), reg(2))
-  io.out_baddr := Cat(reg(5), reg(4))
+
+  for (i <- 0 until config.nVals) {
+    io.vals(i) := reg(vo + i)
+  }
+
+  for (i <- 0 until config.nPtrs) {
+    io.ptrs(i) := Cat(reg(po + 2*i + 1), reg(po + 2*i))
+  }
 }
