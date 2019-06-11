@@ -216,6 +216,9 @@ void Yield() {
 }
 
 int MaxConcurrency() {
+#ifdef TVM_NUM_THREADS
+  return std::max(TVM_NUM_THREADS, 1);
+#else
   int max_concurrency = 1;
   const char *val = getenv("TVM_NUM_THREADS");
   if (val == nullptr) {
@@ -230,6 +233,7 @@ int MaxConcurrency() {
 #endif
   }
   return std::max(max_concurrency, 1);
+#endif
 }
 
 
