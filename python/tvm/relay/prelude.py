@@ -15,12 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
-"""Adds certain standard global functions and ADT definitions to the module."""
+"""A prelude containing useful global functions and ADT definitions."""
+import os
 from .ty import GlobalTypeVar, TypeVar, FuncType, TupleType, scalar_type
 from .expr import Var, Function, GlobalVar, Let, If, Tuple, TupleGetItem, const
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
+from .parser import fromtext
+
+__PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
 
 class Prelude:
     """Contains standard definitions."""
@@ -451,35 +455,6 @@ class Prelude:
                                        Match(t, [rose_case]), scalar_type('int32'), [a])
 
 
-    def define_id(self):
-        """Defines a function that return its argument.
-
-        Signature: fn<a>(x : a) -> a
-        """
-        self.id = GlobalVar("id")
-        a = TypeVar("a")
-        x = Var("x", a)
-        self.mod[self.id] = Function([x], x, a, [a])
-
-
-    def define_compose(self):
-        """Defines a function that composes two function.
-
-        Signature: fn<a, b, c>(f : fn(b) -> c, g : fn(a) -> b) -> fn(a) -> c
-        """
-        self.compose = GlobalVar("compose")
-        a = TypeVar("a")
-        b = TypeVar("b")
-        c = TypeVar("c")
-        f = Var("f", FuncType([b], c))
-        g = Var("g", FuncType([a], b))
-        x = Var("x")
-        self.mod[self.compose] = Function([f, g],
-                                          Function([x], f(g(x))),
-                                          FuncType([a], c),
-                                          [a, b, c])
-
-
     def define_iterate(self):
         """Defines a function that take a number n and a function f;
         returns a closure that takes an argument and applies f
@@ -500,9 +475,23 @@ class Prelude:
                                           FuncType([a], a),
                                           [a])
 
+    def load_prelude(self):
+        """
+        Parses the portions of the Prelude written in Relay's text format and adds
+        them to the module.
+        """
+        prelude_file = os.path.join(__PRELUDE_PATH__, "prelude.rly")
+        with open(prelude_file) as prelude:
+            prelude = fromtext(prelude.read())
+            self.mod.update(prelude)
+            self.id = self.mod["id"]
+            self.compose = self.mod["compose"]
+
 
     def __init__(self, mod):
         self.mod = mod
+        self.load_prelude()
+
         self.define_list_adt()
         self.define_list_hd()
         self.define_list_tl()
@@ -530,6 +519,4 @@ class Prelude:
         self.define_tree_map()
         self.define_tree_size()
 
-        self.define_id()
-        self.define_compose()
         self.define_iterate()
