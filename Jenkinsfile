@@ -308,6 +308,19 @@ stage('Integration Test') {
   }
 }
 
+stage('Build packages') {
+  parallel 'conda CPU': {
+    node('CPU') {
+      sh "${docker_run} tvmai/conda-cpu ./conda/build_cpu.sh
+    }
+  },
+  'conda cuda': {
+    node('CPU') {
+      sh "${docker_run} tvmai/conda-cuda90 ./conda/build_cuda.sh
+    }
+  }
+}
+
 stage('Deploy') {
     node('doc') {
       ws('workspace/tvm/deploy-docs') {
