@@ -202,7 +202,8 @@ class PassInfoNode : public RelayNode {
     v->Visit("required", &required);
   }
 
-  TVM_DLL static PassInfo make(int opt_level, std::string name,
+  TVM_DLL static PassInfo make(int opt_level,
+                               std::string name,
                                tvm::Array<tvm::Expr> required);
 
   static constexpr const char* _type_key = "relay.PassInfo";
@@ -467,7 +468,7 @@ TVM_DLL Pass SimplifyInference();
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
- * \return The pass. 
+ * \return The pass.
  */
 TVM_DLL Pass InferType();
 
