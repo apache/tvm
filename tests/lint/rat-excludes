@@ -38,6 +38,7 @@ _static
 _build
 .*~
 \#..*\#
+\.#.*
 
 # Relay parser
 RelayLexer.py
