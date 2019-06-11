@@ -1,7 +1,0 @@
-{
-  "TARGET" : "chisel",
-  "TOP_NAME" : "TestAccel",
-  "BUILD_NAME" : "build",
-  "USE_TRACE" : "off",
-  "TRACE_NAME" : "trace"
-}
