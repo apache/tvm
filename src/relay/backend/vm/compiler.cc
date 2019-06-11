@@ -27,7 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/logging.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
 #include <unordered_map>
@@ -38,15 +38,22 @@
 
 namespace tvm {
 namespace relay {
+
+namespace transform {
+
+Pass LambdaLift();
+Pass InlinePrimitives();
+
+}  // namespace transform
+
 namespace vm {
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::vm;
+using namespace relay::transform;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
-Module LambdaLift(const Module& module);
-Module InlinePrimitives(const Module& module);
 
 template <typename T, typename U>
 using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;
@@ -560,10 +567,13 @@ VMFunction CompileFunc(VMCompilerContext* context, const GlobalVar& var, const F
 }
 
 Module OptimizeModule(const Module& mod) {
-  ToANormalForm(mod->entry_func, mod);
-  InlinePrimitives(mod);
-  LambdaLift(mod);
-  return InlinePrimitives(mod);
+  transform::Sequential seq({transform::ToANormalForm(),
+                             transform::InlinePrimitives(),
+                             transform::LambdaLift(),
+                             transform::InlinePrimitives()});
+  auto pass_ctx = transform::PassContext::Create();
+  tvm::With<relay::transform::PassContext> ctx(pass_ctx);
+  return seq(mod);
 }
 
 void PopulateGlobalMap(GlobalMap* global_map, const Module& mod) {
