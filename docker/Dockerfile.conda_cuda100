@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM nvidia/cuda:10.0-devel-centos6
+FROM nvidia/cuda:10.0-devel-ubuntu16.04
+
+RUN apt-get update && apt-get install -y bzip2 curl sudo && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v7.3.1/cudnn-10.0-linux-x64-v7.3.1.20.tgz -O && \
     tar --no-same-owner -xzf cudnn-10.0-linux-x64-v7.3.1.20.tgz -C /usr/local && \
@@ -32,6 +34,7 @@ RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-lat
 
 ENV PATH /opt/conda/bin:$PATH
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
+ENV CONDA_BLD_PATH /tmp
 
 WORKDIR /workspace
 RUN chmod -R a+w /workspace

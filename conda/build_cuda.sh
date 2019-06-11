@@ -1,1 +1,4 @@
-conda build --output-folder /workspace/conda/pkg --variants "{cuda: True, cuda_version: $CUDA_VERSION}" /workspace/conda/tvm-libs
+#!/bin/sh
+set -e
+
+conda build --output-folder=conda/pkg --variants "{cuda: True, cuda_version: ${CUDA_VERSION%.*}}" conda/tvm-libs

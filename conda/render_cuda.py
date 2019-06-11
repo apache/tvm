@@ -47,7 +47,7 @@ def render_dockerfile(version):
                                  cudnn_short_version=CUDNN_VERSION,
                                  cudnn_version=CUDNN_FULL_VERSION)
     fname = os.path.join(condadir,
-                         'Dockerfile.conda_cuda' + version.replace('.', ''))
+                         '../docker/Dockerfile.conda_cuda' + version.replace('.', ''))
     with open(fname, 'w') as f:
         f.write(txt)
     return fname

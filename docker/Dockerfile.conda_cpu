@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM centos:6
+FROM ubuntu:16.04
+
+RUN apt-get update && apt-get install -y bzip2 curl sudo && rm -rf /var/lib/apt/lists/*
 
 RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh  && \
      chmod +x ~/miniconda.sh && \
@@ -25,6 +27,7 @@ RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-lat
      /opt/conda/bin/conda clean -ya
 
 ENV PATH /opt/conda/bin:$PATH
+ENV CONDA_BLD_PATH /tmp
 
 WORKDIR /workspace
 RUN chmod -R a+w /workspace
