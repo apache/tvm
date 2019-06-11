@@ -309,20 +309,24 @@ Module FunctionPassNode::operator()(const Module& mod,
                                     const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   CHECK(mod.defined());
-  DLOG(INFO) << "Executing module pass : "
+  DLOG(INFO) << "Executing function pass : "
              << pass_info->name
              << " with opt level: "
              << pass_info->opt_level;
   Module updated_mod = mod;
-  Module new_mod = ModuleNode::make({}, mod->type_definitions);
   // Execute the pass function and return a new module.
+  std::vector<std::pair<GlobalVar, Function> > updates;
   for (const auto& it : mod->functions) {
     auto updated_func = SkipFunction(it.second)
                             ? it.second
                             : pass_func(it.second, updated_mod, pass_ctx);
-    new_mod->Add(it.first, updated_func);
+    updates.push_back({it.first, updated_func});
   }
-  return new_mod;
+
+  for (const auto& pair : updates) {
+    updated_mod->Add(pair.first, pair.second, true);
+  }
+  return updated_mod;
 }
 
 // TODO(zhiics) Create an enum attribute for FunctionNode
@@ -539,7 +543,8 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                                tvm::IRPrinter* p) {
   p->stream << "Pass context information: " << "\n";
   p->stream << "\topt_level: " << node->opt_level << "\n";
-  p->stream << "\tfallback device: " << runtime::DeviceName(node->opt_level)
+  p->stream << "\tfallback device: "
+            << runtime::DeviceName(node->fallback_device)
             << "\n";
 
   p->stream << "\trequired passes: [" << node->opt_level;
