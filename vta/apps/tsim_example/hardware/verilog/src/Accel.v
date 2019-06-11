@@ -62,6 +62,11 @@ module Accel #
 
   logic                      launch;
   logic                      finish;
+
+  logic                      event_counter_valid;
+  logic [HOST_DATA_BITS-1:0] event_counter_value;
+
+  logic [HOST_DATA_BITS-1:0] constant;
   logic [HOST_DATA_BITS-1:0] length;
   logic  [MEM_ADDR_BITS-1:0] inp_baddr;
   logic  [MEM_ADDR_BITS-1:0] out_baddr;
@@ -74,22 +79,27 @@ module Accel #
   )
   rf
   (
-    .clock           (clock),
-    .reset           (reset),
+    .clock               (clock),
+    .reset               (reset),
 
-    .host_req_valid  (host_req_valid),
-    .host_req_opcode (host_req_opcode),
-    .host_req_addr   (host_req_addr),
-    .host_req_value  (host_req_value),
-    .host_req_deq    (host_req_deq),
-    .host_resp_valid (host_resp_valid),
-    .host_resp_bits  (host_resp_bits),
+    .host_req_valid      (host_req_valid),
+    .host_req_opcode     (host_req_opcode),
+    .host_req_addr       (host_req_addr),
+    .host_req_value      (host_req_value),
+    .host_req_deq        (host_req_deq),
+    .host_resp_valid     (host_resp_valid),
+    .host_resp_bits      (host_resp_bits),
 
-    .launch          (launch),
-    .finish          (finish),
-    .length          (length),
-    .inp_baddr       (inp_baddr),
-    .out_baddr       (out_baddr)
+    .launch              (launch),
+    .finish              (finish),
+
+    .event_counter_valid (event_counter_valid),
+    .event_counter_value (event_counter_value),
+
+    .constant            (constant),
+    .length              (length),
+    .inp_baddr           (inp_baddr),
+    .out_baddr           (out_baddr)
   );
 
   Compute #
@@ -101,24 +111,29 @@ module Accel #
   )
   comp
   (
-    .clock           (clock),
-    .reset           (reset),
+    .clock               (clock),
+    .reset               (reset),
 
-    .mem_req_valid   (mem_req_valid),
-    .mem_req_opcode  (mem_req_opcode),
-    .mem_req_len     (mem_req_len),
-    .mem_req_addr    (mem_req_addr),
-    .mem_wr_valid    (mem_wr_valid),
-    .mem_wr_bits     (mem_wr_bits),
-    .mem_rd_valid    (mem_rd_valid),
-    .mem_rd_bits     (mem_rd_bits),
-    .mem_rd_ready    (mem_rd_ready),
+    .mem_req_valid       (mem_req_valid),
+    .mem_req_opcode      (mem_req_opcode),
+    .mem_req_len         (mem_req_len),
+    .mem_req_addr        (mem_req_addr),
+    .mem_wr_valid        (mem_wr_valid),
+    .mem_wr_bits         (mem_wr_bits),
+    .mem_rd_valid        (mem_rd_valid),
+    .mem_rd_bits         (mem_rd_bits),
+    .mem_rd_ready        (mem_rd_ready),
 
-    .launch          (launch),
-    .finish          (finish),
-    .length          (length),
-    .inp_baddr       (inp_baddr),
-    .out_baddr       (out_baddr)
+    .launch              (launch),
+    .finish              (finish),
+
+    .event_counter_valid (event_counter_valid),
+    .event_counter_value (event_counter_value),
+
+    .constant            (constant),
+    .length              (length),
+    .inp_baddr           (inp_baddr),
+    .out_baddr           (out_baddr)
   );
 
 endmodule

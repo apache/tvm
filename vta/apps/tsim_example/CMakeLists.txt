@@ -34,6 +34,10 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
   set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
 endif()
 
-# Module rules
-include(cmake/modules/hw.cmake)
-include(cmake/modules/sw.cmake)
+file(GLOB TSIM_SW_SRC src/driver.cc)
+add_library(sw SHARED ${TSIM_SW_SRC})
+target_include_directories(sw PRIVATE ${VTA_DIR}/include)
+
+if(APPLE)
+  set_target_properties(sw PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+endif(APPLE)

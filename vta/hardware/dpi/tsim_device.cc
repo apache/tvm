@@ -75,7 +75,6 @@ void VTADPIInit(VTAContextHandle handle,
 // VL_USER_FINISH needs to be defined when compiling Verilator code
 void vl_finish(const char* filename, int linenum, const char* hier) {
   Verilated::gotFinish(true);
-  VL_PRINTF("[TSIM] exiting simulation\n");
 }
 
 int VTADPISim(uint64_t max_cycles) {

@@ -17,31 +17,25 @@
 
 import tvm
 import ctypes
-import json
 import os.path as osp
 from sys import platform
 
-def driver(hw_lib, sw_lib):
-    """Init hardware and software shared library for add-by-one accelerator
+def driver(hw_backend):
+    """Init hardware and software shared library for accelerator
 
      Parameters
      ------------
-     hw_lib : str
-        Name of hardware shared library
+     hw_backend : str
+        Hardware backend can be verilog or chisel
 
-     sw_lib : str
-        Name of software shared library
     """
+    _ext = ".dylib" if platform == "darwin" else ".so"
+    _hw_libname = "libhw" + _ext
+    _sw_libname = "libsw" + _ext
     _cur_path = osp.dirname(osp.abspath(osp.expanduser(__file__)))
-    _root_path = osp.join(_cur_path, "..", "..")
-    _cfg_file = osp.join(_root_path, "config", "config.json")
-    _cfg = json.load(open(_cfg_file))
-    if not hw_lib.endswith(("dylib", "so")):
-        hw_lib += ".dylib" if platform == "darwin" else ".so"
-    if not sw_lib.endswith(("dylib", "so")):
-        sw_lib += ".dylib" if platform == "darwin" else ".so"
-    _hw_lib = osp.join(_root_path, _cfg['BUILD_NAME'], hw_lib)
-    _sw_lib = osp.join(_root_path, _cfg['BUILD_NAME'], sw_lib)
+    if hw_backend in ("verilog", "chisel"):
+        _hw_lib = osp.join(_cur_path, "..", "..", "hardware", hw_backend, "build", _hw_libname)
+    _sw_lib = osp.join(_cur_path, "..", "..", "build", _sw_libname)
 
     def load_dll(dll):
         try:
@@ -49,9 +43,9 @@ def driver(hw_lib, sw_lib):
         except OSError:
             return []
 
-    def run(a, b):
+    def run(a, b, c):
         load_dll(_sw_lib)
         f = tvm.get_global_func("tvm.vta.driver")
         m = tvm.module.load(_hw_lib, "vta-tsim")
-        f(m, a, b)
+        return f(m, a, b, c)
     return run
