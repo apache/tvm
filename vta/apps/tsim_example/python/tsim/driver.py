@@ -22,7 +22,7 @@ import os.path as osp
 from sys import platform
 
 def driver(hw_lib, sw_lib):
-    """Init hardware and software shared library for add-by-one accelerator
+    """Init hardware and software shared library for accelerator
 
      Parameters
      ------------
@@ -54,6 +54,4 @@ def driver(hw_lib, sw_lib):
         f = tvm.get_global_func("tvm.vta.driver")
         m = tvm.module.load(_hw_lib, "vta-tsim")
         return f(m, a, b, c)
-        #cycles = f(m, a, b, c)
-        #print("cycles: ", cycles)
     return run
