@@ -20,24 +20,45 @@ The Relay Virtual Vachine.
 
 Implements a Python interface to compiling and executing on the Relay VM.
 """
+import numpy as np
+
 import tvm
 from tvm._ffi.function import Object
-import numpy as np
-from .. import ir_pass
+from .. import transform
 from ..backend.interpreter import Executor
-from ..expr import GlobalVar, Function, Expr
+from ..expr import GlobalVar, Expr
 from . import _vm
 
 Object = Object
 
-def optimize(expr, mod=None):
-    # TODO: We need to move this optimization code into the optimizer/pass manager
-    ck_expr = ir_pass.infer_type(expr, mod=mod)
-    simplified_expr = ir_pass.simplify_inference(ck_expr)
-    simplified_expr = ir_pass.infer_type(simplified_expr, mod=mod)
-    fused_expr = ir_pass.fuse_ops(simplified_expr, mod=mod)
-    ck_fused = ir_pass.infer_type(fused_expr, mod=mod)
-    return ck_fused
+def optimize(mod):
+    """Perform several optimizations on a module before executing it in the
+    Relay virtual machine.
+
+    Parameters
+    ----------
+    mod : tvm.relay.Module
+        The module to optimize.
+
+    Returns
+    -------
+    ret : tvm.relay.Module
+        The optimized module.
+    """
+    main_func = mod[mod.entry_func]
+
+    opt_passes = []
+    if not main_func.params and isinstance(main_func.body, GlobalVar):
+        opt_passes.append(transform.EtaExpand())
+
+    opt_passes = opt_passes + [
+        transform.SimplifyInference(),
+        transform.FuseOps(),
+        transform.InferType()
+    ]
+
+    seq = transform.Sequential(opt_passes)
+    return seq(mod)
 
 def _convert(arg, cargs):
     if isinstance(arg, np.ndarray):
@@ -76,15 +97,8 @@ def _eval_vm(mod, ctx, *args):
     args: List[tvm.NDArray, np.ndarray]
         The arguments to evaluate.
     """
-    main_func = mod[mod.entry_func]
 
-    if not main_func.params and isinstance(main_func.body, GlobalVar):
-        main_func = ir_pass.eta_expand(main_func.body, mod)
-
-    assert isinstance(main_func, Function)
-    main_func = optimize(mod[mod.entry_func], mod)
-    mod[mod.entry_func] = main_func
-
+    mod = optimize(mod)
     args = list(args)
     assert isinstance(args, list)
     cargs = convert(args)

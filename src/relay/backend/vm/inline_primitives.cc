@@ -26,7 +26,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/logging.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
 #include <vector>
@@ -37,6 +37,21 @@ namespace tvm {
 namespace relay {
 namespace vm {
 
+// TODO(@jroesch): write verifier
+
+/* This pass will eliminate primitives which have been lifted by the ANF
+ * transform inlining them directly into call sites.
+ *
+ * This makes VM related code generation easier as the call target is always
+ * a primitive function.
+ *
+ * let prim = fn(...) { ... };
+ * prim(...)
+ *
+ * will become:
+ *
+ * (fn(...) { ... })(...)
+ */
 struct PrimitiveInliner : ExprMutator {
   Module module_;
   std::unordered_map<Var, Expr, NodeHash, NodeEqual> var_map;
@@ -92,55 +107,46 @@ struct PrimitiveInliner : ExprMutator {
     }
   }
 
-  Function Inline(const Function& func) {
-    DLOG(INFO) << "Before inlining primitives: " << std::endl
-                    << "func= " << AsText(func, false) << std::endl;
+  Module Inline() {
+    auto gvar_funcs = module_->functions;
+    for (auto pair : gvar_funcs) {
+      auto global = pair.first;
+      auto func = pair.second;
+      DLOG(INFO) << "Before inlining primitives: " << global
+                 << std::endl << AsText(func, false);
 
-    auto inlined = FunctionNode::make(func->params, VisitExpr(func->body), func->ret_type,
-                                      func->type_params, func->attrs);
+      func = FunctionNode::make(func->params,
+                                VisitExpr(func->body),
+                                func->ret_type,
+                                func->type_params,
+                                func->attrs);
+      module_->Add(global, func, true);
 
-    inlined = Downcast<Function>(DeadCodeElimination(inlined));
-
-    DLOG(INFO) << "After inlining primitives" << std::endl
-                    << "after_func= " << AsText(inlined, false) << std::endl;
-    return inlined;
+      DLOG(INFO) << "After inlining primitives: " << global
+                 << std::endl << AsText(func, false);
+    }
+    return module_;
   }
 };
 
-// TODO(@jroesch): write verifier
+}  // namespace vm
 
-/* This pass will eliminate primitives which have been lifted by the ANF
- * transform inlining them directly into call sites.
- *
- * This makes VM related code generation easier as the call target is always
- * a primitive function.
- *
- * let prim = fn(...) { ... };
- * prim(...)
- *
- * will become:
- *
- * (fn(...) { ... })(...)
- */
-Module InlinePrimitives(const Module& module) {
-  PrimitiveInliner inliner(module);
+namespace transform {
 
-  tvm::Map<GlobalVar, Function> updates;
-
-  // There is an ordering bug here.
-  for (auto pair : module->functions) {
-    auto global = pair.first;
-    auto func = pair.second;
-    updates.Set(global, inliner.Inline(func));
-  }
-
-  for (auto pair : updates) {
-    module->Add(pair.first, pair.second, true);
-  }
-
-  return module;
+Pass InlinePrimitives() {
+  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
+    [=](Module m, PassContext pc) {
+      return relay::vm::PrimitiveInliner(m).Inline();
+  };
+  auto inline_pass = CreateModulePass(pass_func, 1, "Inline", {});
+  // Eliminate dead code for each function after inlining.
+  return Sequential({inline_pass, DeadCodeElimination()}, "InlinePrimitives");
 }
 
-}  // namespace vm
+TVM_REGISTER_API("relay._transform.InlinePrimitives")
+.set_body_typed(InlinePrimitives);
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm

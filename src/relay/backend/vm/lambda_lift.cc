@@ -27,6 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/logging.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
 #include <vector>
@@ -54,9 +55,14 @@ Function MarkClosure(const Function& func) {
   return FunctionSetAttr(func, kIsClosure, tvm::Integer(1));
 }
 
+/* The goal of this class is to lift out any nested functions into top-level
+ * functions.
+ *
+ * We will lift a function out into a global which takes the set of the free
+ * vars and then return the new created function.
+ */
 struct LambdaLifter : ExprMutator {
   Module module_;
-  std::vector<std::pair<GlobalVar, Function>> lifted_;
   explicit LambdaLifter(const Module& module) : module_(module) {}
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
@@ -71,8 +77,7 @@ struct LambdaLifter : ExprMutator {
     auto free_type_vars = FreeTypeVars(func, module_);
     auto body = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
 
-    // When performing this optimization there are two
-    // cases.
+    // When performing this optimization there are two cases.
     //
     // The first case in which we have no free variables
     // we can just lift the function into the global
@@ -80,7 +85,7 @@ struct LambdaLifter : ExprMutator {
     //
     //
     // The second case requires that we generate a special
-    // function with makes a distinction between allocating
+    // function which makes a distinction between allocating
     // a closure, and then the code for the closure.
     //
     // We represent a closure allocation by lifting the
@@ -92,7 +97,7 @@ struct LambdaLifter : ExprMutator {
     // function marked as a closure is used to emit allocation
     // code for the closure's environment.
     //
-    // The "inner" function is should be used to generate the
+    // The "inner" function should be used to generate the
     // code for the closure.
     Function lifted_func;
     if (free_vars.size() == 0) {
@@ -107,16 +112,16 @@ struct LambdaLifter : ExprMutator {
     CHECK(lifted_func.defined());
 
     auto name = GenerateName(lifted_func);
-    auto global = this->module_->GetGlobalVar(name);
+    auto global = module_->GetGlobalVar(name);
 
-    lifted_.push_back({global, lifted_func});
+    // Add the lifted function to the module.
+    module_->Add(global, lifted_func);
 
     if (free_vars.size() == 0) {
       return std::move(global);
     } else {
-      // If we need to allocate a closure
-      // we pass the variables in its environment
-      // here.
+      // If we need to allocate a closure,
+      // we pass the variables in its environment here.
       Array<Expr> fvs;
       for (auto fv : free_vars) {
         fvs.push_back(fv);
@@ -125,42 +130,39 @@ struct LambdaLifter : ExprMutator {
     }
   }
 
-  Function Lift(const Function& func) {
-    DLOG(INFO) << "Lifting: " << AsText(func, false) << std::endl;
-    return FunctionNode::make(func->params, VisitExpr(func->body), func->ret_type,
-                              func->type_params, func->attrs);
+  Module Lift() {
+    // There is an ordering bug here.
+    auto glob_funcs = module_->functions;
+    for (auto pair : glob_funcs) {
+      auto func = pair.second;
+      DLOG(INFO) << "Lifting " << AsText(func, false);
+      func = FunctionNode::make(func->params,
+                                VisitExpr(func->body),
+                                func->ret_type,
+                                func->type_params,
+                                func->attrs);
+      module_->Add(pair.first, func, true);
+    }
+    return module_;
   }
 };
 
-/* The goal of this pass is to lift out any nested functions into top-level
- * functions.
- *
- * We will lift the functions out into globals which take the set of the free vars
- * and then return a function whcih has b
- */
-Module LambdaLift(const Module& module) {
-  LambdaLifter lifter(module);
+}  // namespace vm
 
-  tvm::Map<GlobalVar, Function> updates;
+namespace transform {
 
-  // There is an ordering bug here.
-  for (auto pair : module->functions) {
-    auto global = pair.first;
-    auto func = pair.second;
-    updates.Set(global, lifter.Lift(func));
-  }
-
-  for (auto i = lifter.lifted_.begin(); i != lifter.lifted_.end(); i++) {
-    module->Add(i->first, i->second);
-  }
-
-  for (auto pair : updates) {
-    module->Add(pair.first, pair.second, true);
-  }
-
-  return module;
+Pass LambdaLift() {
+  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
+    [=](Module m, PassContext pc) {
+    return relay::vm::LambdaLifter(m).Lift();
+  };
+  return CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-}  // namespace vm
+TVM_REGISTER_API("relay._transform.LambdaLift")
+.set_body_typed(LambdaLift);
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm
