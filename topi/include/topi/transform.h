@@ -1233,13 +1233,11 @@ inline Tensor shape(const Tensor& src,
  */
 inline Tensor size(const Tensor& src,
                    const Type& dtype,
-                   const std::string name = "size",
+                   const std::string& name = "size",
                    const std::string& tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
-  Array<Expr> out_size;
-  out_size.push_back(1);
+  Array<Expr> out_size = {1};
   return compute(out_size, [&](const Array<Var>& indices) {
-    auto idx = indices[0];
     Expr ret = 1;
     for (int i = 0; i < ndim; ++i) {
       ret *= src->shape[i];

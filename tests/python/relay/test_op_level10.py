@@ -218,7 +218,7 @@ def test_shape_of():
 def test_size():
     def verify_size(shape):
         x = relay.var("x", shape=shape)
-        func = relay.Function([x], relay.op.contrib.tensor_size(x))
+        func = relay.Function([x], relay.op.contrib.num_elements(x))
         func = relay.ir_pass.infer_type(func)
 
         x_data = np.random.uniform(size=shape).astype("float32")
