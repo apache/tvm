@@ -259,6 +259,12 @@ def test_function_pass():
     test_pass_run()
 
 
+def test_pass_info():
+    info = relay.transform.PassInfo(opt_level=1, name="xyz")
+    assert info.opt_level == 1
+    assert info.name == "xyz"
+
+
 def test_sequential_pass():
     shape = (10, )
     dtype = 'float32'
@@ -449,3 +455,4 @@ if __name__ == "__main__":
     test_function_pass()
     test_sequential_pass()
     test_sequential_with_scoping()
+    test_pass_info()

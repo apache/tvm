@@ -465,8 +465,8 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
-TVM_REGISTER_API("relay._transform.CreateModulePass")
-.set_body_typed(CreateModulePass);
+TVM_REGISTER_API("relay._transform.MakeModulePass")
+.set_body_typed(ModulePassNode::make);
 
 TVM_REGISTER_API("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -485,8 +485,8 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
-TVM_REGISTER_API("relay._transform.CreateFunctionPass")
-.set_body_typed(CreateFunctionPass);
+TVM_REGISTER_API("relay._transform.MakeFunctionPass")
+.set_body_typed(FunctionPassNode::make);
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FunctionPassNode>([](const FunctionPassNode* node,
