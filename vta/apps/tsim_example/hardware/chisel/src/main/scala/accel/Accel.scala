@@ -46,7 +46,7 @@ class Accel extends Module {
   io.mem <> ce.io.mem
   ce.io.launch := rf.io.launch
   rf.io.finish := ce.io.finish
-  ce.io.length := rf.io.length
-  ce.io.inp_baddr := rf.io.inp_baddr
-  ce.io.out_baddr := rf.io.out_baddr
+  rf.io.ecnt <> ce.io.ecnt
+  ce.io.vals <> rf.io.vals
+  ce.io.ptrs <> rf.io.ptrs
 }
