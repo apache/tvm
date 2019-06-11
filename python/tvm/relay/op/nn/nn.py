@@ -1203,3 +1203,38 @@ def deformable_conv2d(data,
     return _make.deformable_conv2d(data, offset, weight, strides, padding, dilation,
                                    deformable_groups, groups, channels, kernel_size, data_layout,
                                    kernel_layout, out_layout, out_dtype)
+
+def bitpack(data,
+            bits=1,
+            pack_axis=1,
+            bit_axis=2,
+            pack_type="uint32",
+            name="BitPack"):
+    r"""Tensor packing for bitserial operations.
+
+    Parameters
+    ----------
+    data : tvm.relay.expr
+        The incoming tensor to be packed.
+
+    bits : int
+        Number of bits that should be packed.
+
+    pack_axis : int
+        Axis that should be decomposed and packed.
+
+    bit_axis : int
+        New axis containing bitplane.
+
+    pack_type : str
+        Datatype to pack bits into.
+
+    name : str, optional
+        Name of the operation.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The packed tensor.
+    """
+    return _make.bitpack(data, bits, pack_axis, bit_axis, pack_type, name)

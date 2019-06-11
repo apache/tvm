@@ -513,3 +513,24 @@ def schedule_deformable_conv2d(attrs, outs, target):
 
 
 reg.register_pattern("nn.deformable_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_compute("nn.bitpack")
+def compute_bitpack(attrs, inputs, out_dtype, target):
+    """Compute definition for bitpack"""
+    bits = attrs.bits
+    pack_axis = attrs.pack_axis
+    bit_axis = attrs.bit_axis
+    pack_type = attrs.pack_type
+    name = attrs.name
+    with target:
+        out = topi.nn.bitpack(inputs[0], bits, pack_axis, bit_axis, pack_type,
+                              name)
+    return [out]
+
+@reg.register_schedule("nn.bitpack")
+def schedule_bitpack(attrs, outs, target):
+    with target:
+        return topi.generic.schedule_bitpack(outs)
+
+reg.register_pattern("nn.bitpack", OpPattern.INJECTIVE)
