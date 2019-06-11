@@ -70,4 +70,4 @@ how to run both of them:
     * Verilog accelerator backend `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
     * Chisel3 accelerator backend `<tvm-root>/vta/apps/tsim_example/hardware/chisel`
     * Software C++ driver (backend) that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
-    * Software Python driver (frontend) that handles the accelerator `<tvm-root>/vta/apps/tsim_example/python/tsim`
+    * Software Python driver (frontend) that handles the accelerator `<tvm-root>/vta/apps/tsim_example/python/accel`
