@@ -18,7 +18,7 @@
 import tvm
 import numpy as np
 
-from tsim.driver import driver
+from accel.driver import driver
 
 def test_accel():
     rmax = 64
