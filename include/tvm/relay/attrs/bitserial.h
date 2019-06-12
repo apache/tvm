@@ -73,6 +73,36 @@ struct BinaryConv2DAttrs : public tvm::AttrsNode<BinaryConv2DAttrs> {
   }
 };
 
+/*~ \brief Attributes for bitserial dense operator */
+struct BinaryDenseAttrs : public tvm::AttrsNode<BinaryDenseAttrs> {
+  IndexExpr units;
+  int data_bits;
+  int weight_bits;
+  DataType pack_dtype;
+  DataType out_dtype;
+  bool unipolar;
+
+  TVM_DECLARE_ATTRS(BinaryDenseAttrs, "relay.attrs.BinaryDenseAttrs") {
+    TVM_ATTR_FIELD(units)
+      .describe("Number of hidden units of the dense transformation.");
+    TVM_ATTR_FIELD(data_bits)
+      .set_default(1)
+      .describe("Number of bits to pack for incoming tensor.");
+    TVM_ATTR_FIELD(weight_bits)
+      .set_default(1)
+      .describe("Number of bits to pack for weight tensor.");
+    TVM_ATTR_FIELD(pack_dtype)
+      .set_default(NullValue<DataType>())
+      .describe("Datatype to pack bits into before computation.");
+    TVM_ATTR_FIELD(out_dtype)
+      .set_default(NullValue<DataType>())
+      .describe("Output data type.");
+    TVM_ATTR_FIELD(unipolar)
+      .set_default(true)
+      .describe("Whether to use unipolar or bipolar quantization for inputs.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_BITSERIAL_H_

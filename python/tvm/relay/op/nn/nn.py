@@ -1298,3 +1298,53 @@ def bitserial_conv2d(data,
     return _make.bitserial_conv2d(data, weight, strides, padding, channels,
                                   kernel_size, activation_bits, weight_bits,
                                   data_layout, pack_dtype, out_dtype, unipolar)
+
+
+def bitserial_dense(data,
+                    weight,
+                    units=None,
+                    data_bits=1,
+                    weight_bits=1,
+                    pack_dtype='uint32',
+                    out_dtype='int16',
+                    unipolar=True):
+    """Bitserial Dense operator.
+    Applies a linear transformation
+
+    .. math::
+
+    `Y = X * W`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    units : int, optional
+        Number of hidden units of the dense transformation.
+
+    data_bits : int
+        Number of bits incoming tensor should be packed with.
+
+    weight_bits : int
+        Number of bits weight tensor should be packed with.
+
+    pack_dtype : str, optional
+        Datatype to pack individual bits into before computation.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision dense.
+
+    unipolar : bool, optional
+        Whether to use unipolar or bipolar quantization for inputs.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.bitserial_dense(data, weight, units, data_bits, weight_bits,
+                                 pack_dtype, out_dtype, unipolar)

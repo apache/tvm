@@ -578,3 +578,35 @@ def schedule_bitserial_conv2d(attrs, outs, target):
 
 
 reg.register_pattern("nn.bitserial_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# bitserial_dense
+@reg.register_compute("nn.bitserial_dense")
+def compute_bitserial_dense(attrs, inputs, out_type, target):
+    """Compute definition of bitserial_dense"""
+    data_bits = attrs.data_bits
+    weight_bits = attrs.weight_bits
+    pack_dtype = attrs.pack_dtype
+    out_dtype = attrs.out_dtype
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+    unipolar = attrs.unipolar
+    return [
+        topi.nn.bitserial_dense(
+            inputs[0],
+            inputs[1],
+            data_bits,
+            weight_bits,
+            pack_dtype,
+            out_dtype,
+            unipolar)
+    ]
+
+
+@reg.register_schedule("nn.bitserial_dense")
+def schedule_bitserial_dense(attrs, outputs, target):
+    """Schedule definition of bitserial_dense"""
+    with target:
+        return topi.generic.schedule_bitserial_dense(outputs)
+
+
+reg.register_pattern("nn.bitserial_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)

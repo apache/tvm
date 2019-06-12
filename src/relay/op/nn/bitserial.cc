@@ -164,5 +164,77 @@ on some platforms.
 .set_support_level(2)
 .add_type_rel("BinaryConv2D", BinaryConv2DRel);
 
+
+// relay.nn.bitserial_dense
+TVM_REGISTER_NODE_TYPE(BinaryDenseAttrs);
+
+bool BinaryDenseRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  const BinaryDenseAttrs* param = attrs.as<BinaryDenseAttrs>();
+  CHECK(param != nullptr);
+
+  CHECK(static_cast<int>(data->shape.size()) != 0);
+  CHECK(param->units.defined());
+
+  Array<tvm::Expr> oshape = data->shape;
+  oshape.Set((oshape.size() - 1), param->units);
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  
+  // Assign output type.
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  return true;
+}
+
+
+// Positional relay function to create bitserial dense operator used by frontend FFI.
+Expr MakeBinaryDense(Expr data,
+                     Expr weight,
+                     IndexExpr units,
+                     int data_bits,
+                     int weight_bits,
+                     DataType pack_dtype,
+                     DataType out_dtype,
+                     bool unipolar) {
+  auto attrs = make_node<BinaryDenseAttrs>();
+  attrs->units = units;
+  attrs->data_bits = data_bits;
+  attrs->weight_bits = weight_bits;
+  attrs->pack_dtype = pack_dtype;
+  attrs->out_dtype = out_dtype;
+  attrs->unipolar = unipolar;
+  static const Op& op = Op::Get("nn.bitserial_dense");
+  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.bitserial_dense")
+.set_body_typed(MakeBinaryDense);
+
+
+RELAY_REGISTER_OP("nn.bitserial_dense")
+.describe(R"code(Applies a quantized linear transformation: :math:`Y = XW^T`.
+
+- **data**: `(x1, x2, ..., xn, input_dim)`
+- **weight**: `(units, input_dim)`
+- **out**: `(x1, x2, ..., xn, units)`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.BinaryDenseAttrs")
+.set_num_inputs(2)
+.add_argument("data", "2D Tensor", "Input data.")
+.add_argument("weight", "2D Tensor", "Weight matrix.")
+.set_support_level(1)
+.add_type_rel("BinaryDense", BinaryDenseRel);
+
 }  // namespace relay
 }  // namespace tvm
