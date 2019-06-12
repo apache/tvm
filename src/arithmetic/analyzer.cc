@@ -75,7 +75,7 @@ void ConstraintContext::ExitWithScope() {
 
 bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
   if (const auto* ptr = expr.as<ir::IntImm>()) {
-    return ptr->value > lower_bound;
+    return ptr->value >= lower_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
   if (bd->min_value >= lower_bound) return true;

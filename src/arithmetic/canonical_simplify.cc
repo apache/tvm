@@ -762,7 +762,10 @@ Mutate_(const Mod* op, const Expr& self) {
           if (TryCompare(temp, cval) == kLT) {
             return temp;
           } else {
-            return SplitModConst(ToSplitExpr(temp), cval);
+            // contonue to use logic below.
+            a = extra;
+            psum = a.as<SumExprNode>();
+            CHECK(psum != nullptr);
           }
         }
       }

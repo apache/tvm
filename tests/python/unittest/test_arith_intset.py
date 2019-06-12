@@ -100,3 +100,5 @@ if __name__ == "__main__":
     test_mul_div()
     test_max_min()
     test_select()
+    test_mod()
+
