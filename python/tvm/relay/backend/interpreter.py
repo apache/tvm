@@ -298,7 +298,6 @@ class Interpreter(Executor):
             if expr is None:
                 pass
             elif isinstance(expr, GlobalVar):
-                assert self.mod is not None
                 self.mod[self.mod.entry_func] = self.mod[expr]
             else:
                 assert isinstance(expr, Function)

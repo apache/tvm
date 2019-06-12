@@ -993,7 +993,8 @@ _convert_map = {
 _convert_map.update({k : _rename(k) for k in _identity_list})
 
 
-def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod):
+def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod=None):
+    #pylint: disable=unused-argument
     """Convert mxnet symbol to compatible relay Function.
 
     Reconstruct a relay Function by traversing the mxnet symbol.
@@ -1009,6 +1010,10 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod):
 
     dtype_info : dict or str.
         Known parameter dtypes
+
+    mod : tvm.relay.Module
+        The module that contains global information. It will be used for
+        converting ops that need global information, e.g. control-flow ops.
 
     Returns:
     -------
@@ -1098,8 +1103,8 @@ def from_mxnet(symbol,
 
     Returns
     -------
-    sym : tvm.relay.Function
-        Compatible relay Function
+    mod : tvm.relay.Module
+        The relay module for compilation
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by nnvm
