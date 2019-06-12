@@ -26,6 +26,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
+#include <tvm/relay/attrs/qnn.h>
 
 #include "../../pass/alter_op_layout.h"
 
@@ -35,6 +36,7 @@ namespace relay {
 // relay.nn.conv2d
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
+template <typename AttrType>
 bool Conv2DRel(const Array<Type>& types,
                int num_inputs,
                const Attrs& attrs,
@@ -46,7 +48,7 @@ bool Conv2DRel(const Array<Type>& types,
   static const Layout kNCHW("NCHW");
   static const Layout kOIHW("OIHW");
 
-  const Conv2DAttrs* param = attrs.as<Conv2DAttrs>();
+  const auto param = attrs.as<AttrType>();
   CHECK(param != nullptr);
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
@@ -191,7 +193,7 @@ with the layer input to produce a tensor of outputs.
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(2)
-.add_type_rel("Conv2D", Conv2DRel)
+.add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", Conv2DInferCorrectLayout<Conv2DAttrs>);
 
 
@@ -701,7 +703,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
-.add_type_rel("Conv2D", Conv2DRel)
+.add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
         Conv2DInferCorrectLayout<Conv2DAttrs>);
 
@@ -751,7 +753,7 @@ RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
-.add_type_rel("Conv2D", Conv2DRel)
+.add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
         Conv2DInferCorrectLayout<Conv2DAttrs>);
 
@@ -895,6 +897,66 @@ Expr MakeDeformableConv2D(Expr data,
 
 TVM_REGISTER_API("relay.op.nn._make.deformable_conv2d")
 .set_body_typed(MakeDeformableConv2D);
+
+// relay.op.qnn.conv2d
+TVM_REGISTER_NODE_TYPE(QConv2DAttrs);
+
+// Positional relay function to create quantized conv2d operator
+// used by frontend FFI.
+Expr MakeQConv2D(Expr quantized_data,
+                 Expr quantized_weight,
+                 int32_t input_zero_point,
+                 int32_t kernel_zero_point,
+                 Array<IndexExpr> strides,
+                 Array<IndexExpr> padding,
+                 Array<IndexExpr> dilation,
+                 int groups,
+                 IndexExpr channels,
+                 Array<IndexExpr> kernel_size,
+                 std::string data_layout,
+                 std::string kernel_layout,
+                 std::string out_layout,
+                 DataType out_dtype) {
+  auto attrs = make_node<QConv2DAttrs>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->out_dtype = std::move(out_dtype);
+  attrs->input_zero_point = std::move(input_zero_point);
+  attrs->kernel_zero_point = std::move(kernel_zero_point);
+  static const Op& op = Op::Get("qnn.conv2d");
+  return CallNode::make(op, {quantized_data, quantized_weight}, Attrs(attrs), {});
+}
+
+RELAY_REGISTER_OP("qnn.conv2d")
+.describe(R"code(2D quantized convolution layer.
+
+This operator creates a quantized convolution kernel that is convolved
+with the quantized input to produce a tensor of quantized outputs. The
+operator is further lowered to existing set of Relay operators.
+
+- **quantized_data**: This depends on the `layout` parameter. Input is 4D array of shape
+            (batch_size, in_channels, height, width) if `layout` is `NCHW`.
+- **quantized_weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
+- **quantized_out**:  This depends on the `layout` parameter. Output is 4D array of shape
+            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.QConv2DAttrs")
+.set_num_inputs(2)
+.add_argument("quantized_data", "Tensor", "The quantized input quantized_data tensor.")
+.add_argument("quantized_weight", "Tensor", "The quantized quantized_weight tensor.")
+.set_support_level(10)
+.add_type_rel("QConv2D", Conv2DRel<QConv2DAttrs>);
+
+TVM_REGISTER_API("relay.op.qnn._make.conv2d")
+.set_body_typed(MakeQConv2D);
 
 
 }  // namespace relay
