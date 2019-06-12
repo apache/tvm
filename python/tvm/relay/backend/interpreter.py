@@ -199,7 +199,7 @@ class Executor(object):
 
         Parameters
         ----------
-        expr: relay.Expr
+        expr: Optional[relay.Expr]
             The Relay expression to execute.
 
         Returns
@@ -239,7 +239,7 @@ class Executor(object):
         if isinstance(expr, Function):
             assert not ir_pass.free_vars(expr)
 
-        if isinstance(expr, (Function, GlobalVar, module.Module)):
+        if isinstance(expr, (Function, GlobalVar)):
             return self._make_executor(expr)
 
         # normal expression evaluated by running a function.
@@ -282,25 +282,26 @@ class Interpreter(Executor):
         return seq(self.mod)
 
     def _make_executor(self, expr=None):
-        expr = expr if expr else self.mod
+        if expr is None or isinstance(expr, GlobalVar):
+            assert self.mod is not None
         def _interp_wrapper(*args, **kwargs):
-            assert expr, "either expr or self.mod should be not null."
-
-            cur_expr = expr
-            if isinstance(expr, module.Module):
-                cur_expr = expr[expr.entry_func]
-            args = self._convert_args(cur_expr, args, kwargs)
+            if expr is None:
+                args = self._convert_args(self.mod[self.mod.entry_func], args, kwargs)
+            else:
+                args = self._convert_args(expr, args, kwargs)
 
             relay_args = []
             for arg in args:
                 relay_args.append(_arg_to_ast(arg))
 
             # Set the entry function for the module.
-            if isinstance(expr, GlobalVar):
+            if expr is None:
+                pass
+            elif isinstance(expr, GlobalVar):
+                assert self.mod is not None
                 self.mod[self.mod.entry_func] = self.mod[expr]
-            elif isinstance(expr, module.Module):
-                self.mod = expr
             else:
+                assert isinstance(expr, Function)
                 func = Function([], Call(expr, relay_args))
                 relay_args = []
                 if self.mod:

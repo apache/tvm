@@ -59,14 +59,14 @@ def verify_mxnet_frontend_impl(mx_symbol,
     def get_tvm_output(symbol, x, args, auxs, target, ctx, dtype='float32'):
         shape_dict = {"data": x.shape}
         if gluon_impl:
-            relay_mod, params = relay.frontend.from_mxnet(symbol, shape_dict)
+            mod, params = relay.frontend.from_mxnet(symbol, shape_dict)
         else:
-            relay_mod, params = relay.frontend.from_mxnet(symbol,
-                                                          shape_dict,
-                                                          arg_params=args,
-                                                          aux_params=auxs)
+            mod, params = relay.frontend.from_mxnet(symbol,
+                                                    shape_dict,
+                                                    arg_params=args,
+                                                    aux_params=auxs)
         with relay.build_config(opt_level=3):
-            graph, lib, params = relay.build(relay_mod, target, params=params)
+            graph, lib, params = relay.build(mod[mod.entry_func], target, params=params)
         m = graph_runtime.create(graph, lib, ctx)
         # set inputs
         m.set_input("data", tvm.nd.array(x.astype(dtype)))
