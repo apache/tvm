@@ -93,6 +93,15 @@ def _mx_compare(new_op, wrapper):
     return impl
 
 
+def _mx_zeros(inputs, attrs):
+    assert len(inputs) == 0
+    shape = attrs.get_int_tuple("shape")
+    dtype = attrs.get_str("dtype", "float32")
+    if 0 in shape:
+        return None
+    return _op.zeros(shape=shape, dtype=dtype)
+
+
 def _mx_conv2d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
@@ -754,9 +763,30 @@ def _mx_rnn_layer(inputs, attrs):
 
     seq_data = inputs[0]
     concat_weight = inputs[1]
-    concat_states = inputs[2:]
-    seq_len = int(ir_pass.infer_type(seq_data).checked_type.shape[0])
+    init_states = inputs[2:]
+
+    data_shape = ir_pass.infer_type(seq_data).checked_type.shape
+    seq_len = int(data_shape[0])
     assert len(concat_weight) == num_layers * 4
+    output_states = True
+    for idx, state in enumerate(init_states[:]):
+        if isinstance(state, dict):
+            node = state
+            attrs = StrAttrsDict(node.get("attrs", {}))
+            op_name = node["op"]
+            # by default, RNN layer uses zeros to initialize states
+            assert op_name == "_zeros"
+            shape = attrs.get_int_tuple("shape")
+            dtype = attrs.get_str("dtype", "float32")
+            init_layout = attrs.get_str("__layout__")
+            new_shape = list(shape)
+            for i, dim in enumerate(shape):
+                if dim == 0:
+                    axis = layout.find(init_layout[i])
+                    assert axis >= 0
+                    new_shape[i] = int(data_shape[axis])
+            init_states[idx] = _op.zeros(new_shape, dtype)
+            output_states = False
 
     weights = []
     bias = []
@@ -768,7 +798,7 @@ def _mx_rnn_layer(inputs, attrs):
         for j in range(2):
             w.append(concat_weight[i*2 + j].args[0])
             b.append(concat_weight[num_layers*2 + i*2 + j].args[0])
-        for state in concat_states:
+        for state in init_states:
             s.append(_op.take(state, _expr.const(i, "int32"), axis=0))
         weights.append(w)
         bias.append(b)
@@ -789,8 +819,9 @@ def _mx_rnn_layer(inputs, attrs):
         seq_output.append(out)
 
     outputs = [_op.stack(seq_output, axis=0)]
-    for i in range(num_states):
-        outputs.append(_op.stack([s[i] for s in states], axis=0))
+    if output_states:
+        for i in range(num_states):
+            outputs.append(_op.stack([s[i] for s in states], axis=0))
     return outputs
 
 
@@ -881,7 +912,6 @@ _convert_map = {
     "argmin"        : _arg_reduce(_op.argmin),
     # init ops
     "_ones"         : _init_op(_op.ones),
-    "_zeros"        : _init_op(_op.zeros),
     # softmax
     "softmax"       : _softmax_op(_op.nn.softmax),
     "log_softmax"   : _softmax_op(_op.nn.log_softmax),
@@ -895,6 +925,7 @@ _convert_map = {
     "UpSampling"    : _upsampling,
     "add_n"         : _elemwise_sum,
     # MXNet specific implementations
+    "_zeros"        : _mx_zeros,
     "FullyConnected": _mx_fully_connected,
     "Activation"    : _mx_activations,
     "Convolution"   : _mx_conv2d,
@@ -1002,7 +1033,10 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]
         elif op_name in _convert_map:
             res = _convert_map[op_name](children, attrs)
-            if isinstance(res, (_expr.TupleWrapper, tuple, list)):
+            if res is None:
+                # defer conversion, used in RNN state initialization
+                res = [node]
+            elif isinstance(res, (_expr.TupleWrapper, tuple, list)):
                 pass
             elif isinstance(res, _expr.Expr):
                 res = [res]
