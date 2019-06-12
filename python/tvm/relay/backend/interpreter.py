@@ -118,6 +118,8 @@ def _arg_to_ast(arg):
         return Constant(arg.data.copyto(nd.cpu(0)))
     elif isinstance(arg, TupleValue):
         return Tuple([_arg_to_ast(field) for field in arg.fields])
+    elif isinstance(arg, tuple):
+        return Tuple([_arg_to_ast(field) for field in arg])
     elif isinstance(arg, RefValue):
         return RefCreate(_arg_to_ast(arg.value))
     elif isinstance(arg, ConstructorValue):

@@ -217,6 +217,24 @@ def test_function_taking_adt_ref_tuple():
         tvm.testing.assert_allclose(res_tuple.fields[i].asnumpy(),
                                     tuple_value.fields[i].asnumpy())
 
+def test_tuple_passing():
+    x = relay.var('x', type_annotation=relay.ty.TupleType([
+        relay.ty.TensorType((), 'int64'),
+        relay.ty.TensorType((), 'int64')]))
+
+    fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
+    mod = relay.Module({})
+    gv = relay.GlobalVar('fn')
+    mod[gv] = fn
+    mod.entry_func = gv
+    mod[gv] = relay.ir_pass.infer_type(mod[gv], mod=mod)
+
+    ctx = tvm.cpu()
+    target = tvm.target.create('llvm')
+    exec = relay.create_executor(mod=mod, ctx=ctx, target=target)
+    f = exec.evaluate(gv)
+    out = f((10, 10))
+    tvm.testing.assert_allclose(out, 10)
 
 if __name__ == "__main__":
     test_id()
@@ -232,3 +250,4 @@ if __name__ == "__main__":
     test_tuple_value()
     test_tuple_getitem()
     test_function_taking_adt_ref_tuple()
+    test_tuple_passing()
