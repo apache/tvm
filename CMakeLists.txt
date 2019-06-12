@@ -44,7 +44,6 @@ tvm_option(DMLC_PATH "Path to DMLC" "3rdparty/dmlc-core/include")
 tvm_option(RANG_PATH "Path to RANG" "3rdparty/rang/include")
 tvm_option(RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 
-
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL_PATH "MKL root path when use MKL blas" none)
@@ -58,12 +57,12 @@ tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 
 # include directories
-include_directories(CMAKE_INCLUDE_PATH)
+include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
-include_directories(DLPACK_PATH)
-include_directories(DMLC_PATH)
-include_directories(RANG_PATH)
-include_directories(RT_PATH)
+include_directories(${DLPACK_PATH})
+include_directories(${DMLC_PATH})
+include_directories(${RANG_PATH})
+include_directories(${RT_PATH})
 
 # initial variables
 set(TVM_LINKER_LIBS "")
