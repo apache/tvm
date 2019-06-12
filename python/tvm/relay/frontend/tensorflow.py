@@ -815,12 +815,6 @@ def _gather_nd():
                                 'Taxis', '_class'])(inputs, attr)
     return _impl
 
-def _infer_out_shapes(inputs, params):
-    """A method to get the output shape of an intermediate node in the relay graph."""
-    out_type = ir_pass.infer_type(inputs)
-    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-    return out_shapes
-
 def _stridedSlice():
     def _impl(inputs, attr, params):
         """Strided Slice.
