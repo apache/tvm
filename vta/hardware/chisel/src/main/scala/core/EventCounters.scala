@@ -32,7 +32,11 @@ import vta.shell._
   * launch and finish signals.
   *
   * The event counter value is passed to the VCR module via the ecnt port, so
-  * they can be accessed by the host.
+  * they can be accessed by the host. The number of event counters (nECnt) is
+  * defined in the Shell VCR module as a parameter, see VCRParams.
+  *
+  * If one would like to add an event counter, then the value of nECnt must be
+  * changed in VCRParams together with the corresponding counting logic here.
   */
 class EventCounters(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val vp = p(ShellKey).vcrParams
