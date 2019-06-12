@@ -180,7 +180,7 @@ with autotvm.tophub.context(target):
 # We run classification on an image sample from ImageNet
 
 # Download ImageNet categories
-categ_url = "https://github.com/uwsaml/web-data/raw/master/vta/models/synset.txt"
+categ_url = "https://github.com/uwsaml/web-data/raw/master/vta/models/"
 categ_fn = "synset.txt"
 download.download(join(categ_url, categ_fn), categ_fn)
 synset = eval(open(categ_fn).read())
