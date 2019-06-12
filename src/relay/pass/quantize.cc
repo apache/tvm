@@ -675,6 +675,14 @@ Expr Conv2dRealize(const Call& ref_call,
 
     CHECK(dom_scale.as<ConstantNode>());
     CHECK(dom_scale.as<ConstantNode>()->tensor_type()->shape.size() == 1);
+  } else if (data_dim == weight_dim * attrs->groups && weight_dim != 1) {
+    Array<Expr> weight_scale_tuple;
+    for (int i = 0; i < attrs->groups; i++) {
+        weight_scale_tuple.push_back(weight_scale);
+    }
+    dom_scale = Multiply(input_scale, MakeConcatenate(TupleNode::make(weight_scale_tuple), 0));
+    dom_scale = FoldConstant(dom_scale);
+    CHECK(dom_scale.as<ConstantNode>());
   } else {
     // depthwise
     CHECK(weight_dim == 1);

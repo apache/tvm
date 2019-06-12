@@ -413,33 +413,58 @@ def match_scales(graph, const_params, mode='max'):
                     assert weight_scale.shape[0] == 1
                 else:
                     assert weight_scale.shape[0] == data_scale.shape[0] or\
-                    weight_scale.shape[0] == 1 # depthwise, no need to unify scales
+                    expr.attrs.groups != 1 # grouped
                     if weight_scale.shape[0] != 1:
-                        product = data_scale.asnumpy() * weight_scale.asnumpy()
-                        if mode == 'max':
-                            unified_scale = max(product)
-                        else:
-                            unified_scale = np.median(product)
-                        # (d * s_d) * (w * s_w) = (o * s_d * s_w)
-                        # (d * s_d) * (w * s_w') = (o * s_u)
-                        # s_w' = s_u/s_d
-                        gaps = unified_scale/product
-                        data_scale_transform = np.empty(gaps.shape, dtype='float32')
-                        weight_scale_transform = np.empty(gaps.shape, dtype='float32')
-                        for i in range(0, gaps.shape[0]):
-                            shift_width = np.log2(gaps[i])
-                            if shift_width == 0:
-                                weight_scale_transform[i] = 1.0
+                        if weight_scale.shape[0] == data_scale.shape[0]:
+                            product = data_scale.asnumpy() * weight_scale.asnumpy()
+                            if mode == 'max':
+                                unified_scale = max(product)
                             else:
-                                # magic heuristic, change data scales more
-                                # aggressively than weight scales for
-                                # compensation
-                                weight_scale_transform[i] = 2**(shift_width//2)
-                        data_scale_transform = gaps/weight_scale_transform
-                        new_data_scale = data_scale.asnumpy()*data_scale_transform
-                        new_weight_scale = weight_scale.asnumpy()*weight_scale_transform
-                        const_params[weight_scale_var] = _expr.const(new_weight_scale)
-                        const_params[data_scale_var] = _expr.const(new_data_scale)
+                                unified_scale = np.median(product)
+                            # (d * s_d) * (w * s_w) = (o * s_d * s_w)
+                            # (d * s_d) * (w * s_w') = (o * s_u)
+                            # s_w' = s_u/s_d
+                            gaps = unified_scale/product
+                            data_scale_transform = np.empty(gaps.shape, dtype='float32')
+                            weight_scale_transform = np.empty(gaps.shape, dtype='float32')
+                            for i in range(0, gaps.shape[0]):
+                                shift_width = np.log2(gaps[i])
+                                if shift_width == 0:
+                                    weight_scale_transform[i] = 1.0
+                                else:
+                                    # magic heuristic, change data scales more
+                                    # aggressively than weight scales for
+                                    # compensation
+                                    weight_scale_transform[i] = 2**(shift_width//2)
+                            data_scale_transform = gaps/weight_scale_transform
+                            new_data_scale = data_scale.asnumpy()*data_scale_transform
+                            new_weight_scale = weight_scale.asnumpy()*weight_scale_transform
+                            const_params[weight_scale_var] = _expr.const(new_weight_scale)
+                            const_params[data_scale_var] = _expr.const(new_data_scale)
+                        # grouped convolution
+                        else:
+                            # match each group's accumulation scales
+                            chunk_size = data_scale.shape[0]//expr.attrs.groups
+                            assert chunk_size == weight_scale.shape[0]
+                            data_scale_np = np.array(data_scale.asnumpy(), copy=True)   
+                            weight_scale_np = np.array(weight_scale.asnumpy(), copy=True)
+                            for group in range(0, expr.attrs.groups):
+                                # this part is likely inefficient but easy to reason about
+                                chunk = data_scale_np[group*chunk_size:group*chunk_size+chunk_size]
+                                chunk_prod = chunk * weight_scale_np
+                                unified_scale = max(chunk_prod)
+                                gaps = unified_scale/chunk_prod
+                                data_scale_transform = np.empty(gaps.shape, dtype='float32')
+                                for i in range(0, gaps.shape[0]):
+                                    shift_width = np.log2(gaps[i])
+                                    if shift_width == 0:
+                                        data_scale_transform[i] = 1.0
+                                    else:
+                                        data_scale_transform[i] = 2**(shift_width)  
+                                data_scale_np[group*chunk_size:group*chunk_size+chunk_size] =\
+                                     data_scale_np[group*chunk_size:group*chunk_size+chunk_size] * data_scale_transform
+                            assert data_scale_np.shape == data_scale.asnumpy().shape
+                            const_params[data_scale_var] = _expr.const(data_scale_np)
 
     _ir_pass.post_order_visit(graph, visit_func)
     return const_params
@@ -863,7 +888,7 @@ def autoquantize(graph, params, tr_data, tr_batch_fn, granularity='layer'):
         config = list()
         print("calibrating...")
         t1 = time.time()
-        top1, outputs = _evaluate(tr_data, tr_batch_fn, graph, lib, params, ctx, free_vars, early_stopping=32)
+        top1, outputs = _evaluate(tr_data, tr_batch_fn, graph, lib, params, ctx, free_vars, early_stopping=64)
         for i, output in enumerate(outputs):
             config.append(_mse_chooser(output, granularity, metadata[i][-1]))
     with qconfig(skip_k_conv=0,
