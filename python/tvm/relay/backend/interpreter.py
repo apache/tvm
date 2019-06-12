@@ -309,6 +309,6 @@ class Interpreter(Executor):
                     self.mod = module.Module.from_expr(func)
 
             mod = self.optimize()
-            opt_expr = Call(mod[mod.entry_func], relay_args)
+            opt_expr = Call(mod[self.mod.entry_func.name_hint], relay_args)
             return self._intrp(opt_expr)
         return _interp_wrapper
