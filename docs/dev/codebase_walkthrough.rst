@@ -33,9 +33,9 @@ At the root of the TVM repository, we have following subdirectories that togethe
 - ``topi`` - Compute definitions and backend schedules for standard neural network operators.
 - ``nnvm`` - C++ code and Python frontend for graph optimization and compilation. After the introduction of Relay, it remains in the codebase for backward compatibility.
 
-Using standard Deep Learning terminologies, ``src/relay`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructures implemented in the rest of ``src``. ``python`` provides python bindings for the C++ API and driver code that users can use to execute compilation. Operators corresponding to each node are registered in ``src/relay/op``. Implementations for operators are in ``topi``, and they are coded in either C++ or Python.
+Using standard Deep Learning terminology, ``src/relay`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructure implemented in the rest of ``src``. ``python`` provides python bindings for the C++ API and driver code that users can use to execute compilation. Operators corresponding to each node are registered in ``src/relay/op``. Implementations of operators are in ``topi``, and they are coded in either C++ or Python.
 
-Relay is the new IR for deep networks that is intended to replace NNVM. If you have used NNVM, Relay provides equivalent or better functionalities. In fact, Relay goes beyond a traditional way of thinking deep networks in terms of computational graphs. But for the purpose of this document, we can think of Relay as a traditional computational graph framework. You can read more about Relay `here <https://docs.tvm.ai/dev/relay_intro.html>`_.
+Relay is the new IR for deep networks that is intended to replace NNVM. If you have used NNVM, Relay provides equivalent or better functionality. In fact, Relay goes beyond a traditional way of thinking deep networks in terms of computational graphs. But for the purpose of this document, we can think of Relay as a traditional computational graph framework. You can read more about Relay `here <https://docs.tvm.ai/dev/relay_intro.html>`_.
 
 When a user invokes graph compilation by ``relay.build(...)`` (or ``nnvm.compiler.build(...)`` for the older API), the following sequence of actions happens for each node in the graph:
 
@@ -43,7 +43,7 @@ When a user invokes graph compilation by ``relay.build(...)`` (or ``nnvm.compile
 - Generate a compute expression and a schedule for the operator
 - Compile the operator into object code
 
-One of the interesting aspects of TVM codebase is that interoperability between C++ and Python is not unidirectional. Typically, all code that does heavy lifting is implemented in C++, and Python bindings are provided for the user interface. This is also true in TVM, but in TVM codebase, C++ code can also call into functions defined in a Python module. For example, the convolution operator is implemented in Python, and its implementation is invoked from C++ code in Relay.
+One of the interesting aspects of the TVM codebase is that interoperability between C++ and Python is not unidirectional. Typically, all code that performs heavy lifting is implemented in C++, and Python bindings are provided for the user interface. This is also true in TVM, but in the TVM codebase, C++ code can also call into functions defined in a Python module. For example, the convolution operator is implemented in Python, and its implementation is invoked from C++ code in Relay.
 
 *******************************************
 Vector Add Example
