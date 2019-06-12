@@ -534,3 +534,13 @@ def schedule_bitpack(attrs, outs, target):
         return topi.generic.schedule_bitpack(outs)
 
 reg.register_pattern("nn.bitpack", OpPattern.INJECTIVE)
+
+@reg.register_compute("nn.bitserial_conv2d")
+    """Compute definition for bitserial conv2d."""
+    # Need to look at data layout to find proper function.
+    return None
+
+@reg.register_schedule("nn.bitserial_conv2d")
+    """Schedule definition for bitserial conv2d."""
+    # Need to look at data layout to find proper schedule.
+    return None

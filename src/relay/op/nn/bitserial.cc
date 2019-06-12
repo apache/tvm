@@ -1,3 +1,4 @@
+#include <tvm/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/bitserial.h>
 
@@ -77,6 +78,90 @@ efficient implementation of bitserial operations.
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(2)
 .add_type_rel("BitPack", BitPackRel);
+
+
+bool BinaryConv2DRel(const Array<Type>& types,
+                     int num_inputs,
+                     const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  if (weight == nullptr) return false;
+
+  const BinaryConv2DAttrs* param = attrs.as<BinaryConv2DAttrs>();
+  CHECK(param != nullptr);
+
+  static const Layout kNCHW("NCHW");
+
+  const Layout in_layout(param->data_layout);
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
+  Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape); 
+  CHECK(param->channels.defined());
+  Array<IndexExpr> oshape({dshape_nchw[0], param->channels, 0, 0});
+  oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2 - param->kernel_size[0]) / param->strides[0] + 1);
+  oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2 - param->kernel_size[1]) / param->strides[1] + 1);
+  DataType out_dtype = param->out_dtype;
+  oshape = trans_in_layout.BackwardShape(oshape);
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  return true;
+}
+
+// Positional relay function to create binaryconv2d operator
+// used by frontend FFI.
+Expr MakeBinaryConv2D(Expr data,
+                      Expr weight,
+                      Array<IndexExpr> strides,
+                      Array<IndexExpr> padding,
+                      IndexExpr channels,
+                      Array<IndexExpr> kernel_size,
+                      int activation_bits,
+                      int weight_bits,
+                      std::string data_layout,
+                      DataType pack_dtype,
+                      DataType out_dtype,
+                      bool unipolar) {
+  auto attrs = make_node<BinaryConv2DAttrs>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->activation_bits = activation_bits;
+  attrs->weight_bits = weight_bits;
+  attrs->data_layout = std::move(data_layout);
+  attrs->pack_dtype = std::move(pack_dtype);
+  attrs->out_dtype = std::move(out_dtype);
+  attrs->unipolar = unipolar;
+  static const Op& op = Op::Get("nn.bitserial_conv2d");
+  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.bitserial_conv2d")
+.set_body_typed(MakeBinaryConv2D);
+
+RELAY_REGISTER_OP("nn.bitserial_conv2d")
+.describe(R"code(2D convolution using packed binary computation.
+
+This layer creates a convolution kernel that is convolved with the
+layer input using bitserial computation. This enables faster processing
+on some platforms.
+
+- **data**:   4D input tensor that can be either `NCHW` or `NHWC` layout.
+
+- **weight**: Weight tensor that can either be prepacked (5D) or unpacked (4D).
+              When data is NCHW, weight is expected to be OIHW or OIHWi.
+              When data is NHWC weight is expected to be HWIO or HWIOi.
+
+- **out**:    Output with same layout as input.            
+)code" TVM_ADD_FILELINE)          
+.set_attrs_type_key("relay.attrs.BinaryConv2DAttrs")
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(2)
+.add_type_rel("BinaryConv2D", BinaryConv2DRel);
 
 }  // namespace relay
 }  // namespace tvm

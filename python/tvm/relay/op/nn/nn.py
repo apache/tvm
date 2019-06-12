@@ -1238,3 +1238,63 @@ def bitpack(data,
         The packed tensor.
     """
     return _make.bitpack(data, bits, pack_axis, bit_axis, pack_type, name)
+
+
+def bitserial_conv2d(data,
+                     weight,
+                     strides=(1, 1),
+                     padding=(0, 0),
+                     channels=None,
+                     kernel_size=(3, 3),
+                     activation_bits=1,
+                     weight_bits=1,
+                     data_layout='NCHW',
+                     pack_dtype='uint32',
+                     out_dtype='int16',
+                     unipolar=True):
+    r"""Tensor packing for bitserial operations.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    activation_bits : int
+        Number of bits to pack for activations.
+
+    weight_bits : int
+        Number of bits to pack for weights.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    pack_dtype: str, optional
+        Datatype to pack bits into.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    return _make.bitserial_conv2d(data, weight, strides, padding, channels,
+                                  kernel_size, activation_bits, weight_bits,
+                                  data_layout, pack_dtype, out_dtype, unipolar)
