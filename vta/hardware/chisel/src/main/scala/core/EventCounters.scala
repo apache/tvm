@@ -24,6 +24,15 @@ import chisel3.util._
 import vta.util.config._
 import vta.shell._
 
+/** EventCounters.
+  *
+  * This unit contains all the event counting logic. For example, launch and
+  * finish can be used to count all the clock cycles spent by VTA on a run until
+  * it executes the FINISH instruction.
+  *
+  * The ecnt port is used to bulk (<>) connect to the VCR, so these values can be
+  * accessed by the host.
+  */
 class EventCounters(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val vp = p(ShellKey).vcrParams
   val io = IO(new Bundle{
