@@ -536,7 +536,7 @@ def test_forward_bilinear_resize():
     verify_mxnet_frontend_impl(mx_sym, (1, 2, 3, 4), (1, 2, 5, 10))
 
 def test_forward_rnn_layer():
-    def verify(mode, input_size, seq_len, hidden_size, num_layers, batch=1):
+    def verify(mode, input_size, seq_len, hidden_size, num_layers, init_states=True):
         if mode == "rnn":
             layer = gluon.rnn.RNN(hidden_size, num_layers)
         elif mode == "gru":
@@ -545,23 +545,31 @@ def test_forward_rnn_layer():
             layer = gluon.rnn.LSTM(hidden_size, num_layers)
         num_states = 2 if mode == "lstm" else 1
         layer.initialize()
+        layer.hybridize()
 
         dtype = "float32"
+        batch = 1
         data_np = np.random.uniform(size=(seq_len, batch, input_size)).astype(dtype)
-        states_np = []
-        states_mx = []
-        shape_dict = {'data0': data_np.shape}
-        inputs = {'data0': data_np}
-        for i in range(num_states):
-            s = np.random.uniform(size=(num_layers, batch, hidden_size)).astype(dtype)
-            states_np.append(s)
-            states_mx.append(mx.nd.array(s))
-            shape_dict['data%s' % (i+1)] = s.shape
-            inputs['data%s' % (i+1)] = s
+        data_mx = mx.nd.array(data_np)
 
-        layer.hybridize()
-        mx_out, mx_states = layer(mx.nd.array(data_np), states_mx)
-        mx_res = [mx_out] + mx_states
+        if init_states:
+            shape_dict = {'data0': data_np.shape}
+            inputs = {'data0': data_np}
+            states_np = []
+            states_mx = []
+            for i in range(num_states):
+                s = np.random.uniform(size=(num_layers, batch, hidden_size)).astype(dtype)
+                states_np.append(s)
+                states_mx.append(mx.nd.array(s))
+                shape_dict['data%s' % (i+1)] = s.shape
+                inputs['data%s' % (i+1)] = s
+            mx_out, mx_states = layer(data_mx, states_mx)
+            mx_res = [mx_out] + mx_states
+        else:
+            shape_dict = {'data': data_np.shape}
+            inputs = {'data': data_np}
+            mx_res = layer(data_mx)
+
         mx_sym = layer._cached_graph[1]
         mx_params = {}
         for name, param in layer.collect_params().items():
@@ -574,14 +582,20 @@ def test_forward_rnn_layer():
             for kind in ["graph"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(new_sym)(**inputs, **params)
-                assert len(op_res) == len(mx_res)
-                for i, val in enumerate(op_res):
-                    tvm.testing.assert_allclose(val.asnumpy(), mx_res[i].asnumpy(), rtol=1e-3)
+                if init_states:
+                    assert len(op_res) == len(mx_res)
+                    for i, val in enumerate(op_res):
+                        tvm.testing.assert_allclose(
+                            val.asnumpy(), mx_res[i].asnumpy(), rtol=1e-3)
+                else:
+                    tvm.testing.assert_allclose(
+                        op_res.asnumpy(), mx_res.asnumpy(), rtol=1e-3)
 
     for mode in ["rnn", "gru", "lstm"]:
         verify(mode, 64, 10, 64, 1)
         verify(mode, 64, 10, 64, 2)
         verify(mode, 64, 10, 32, 2)
+        verify(mode, 64, 10, 64, 2, init_states=False)
 
 def test_forward_Crop():
     def verify(xshape, yshape, offset=None):
