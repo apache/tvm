@@ -23,8 +23,6 @@ import chisel3._
 import chisel3.util._
 import vta.util.config._
 import vta.util.genericbundle._
-import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.LinkedHashMap
 import vta.interface.axi._
 
 /** VCR parameters.
