@@ -124,7 +124,9 @@ x = np.array(image)
 #   params: params converted from tensorflow params (tensor protobuf).
 shape_dict = {'DecodeJpeg/contents': x.shape}
 dtype_dict = {'DecodeJpeg/contents': 'uint8'}
-sym, params = relay.frontend.from_tensorflow(graph_def, layout=layout, shape=shape_dict)
+mod, params = relay.frontend.from_tensorflow(graph_def,
+                                             layout=layout,
+                                             shape=shape_dict)
 
 print("Tensorflow protobuf imported to relay frontend.")
 ######################################################################
@@ -138,7 +140,10 @@ print("Tensorflow protobuf imported to relay frontend.")
 #   lib: target library which can be deployed on target with TVM runtime.
 
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(sym, target=target, target_host=target_host, params=params)
+    graph, lib, params = relay.build(mod[mod.entry_func],
+                                     target=target,
+                                     target_host=target_host,
+                                     params=params)
 
 ######################################################################
 # Execute the portable graph on TVM

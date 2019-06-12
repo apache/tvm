@@ -24,6 +24,7 @@ import tvm
 from ... import nd as _nd
 from .. import ir_pass
 from .. import expr as _expr
+from .. import module as _module
 from .. import op as _op
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels, get_name
@@ -999,8 +1000,9 @@ class GraphProto(object):
 
         Returns
         -------
-        sym : tvm.relay.expr.Function
-            The returned relay function
+        mod : tvm.relay.Module
+            The returned relay module
+
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
@@ -1090,7 +1092,7 @@ class GraphProto(object):
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
         func = _expr.Function(ir_pass.free_vars(outputs), outputs)
-        return func, self._params
+        return _module.Module.from_expr(func), self._params
 
     def _parse_value_proto(self, value_proto):
         """Parse ValueProto or raw str."""
@@ -1219,8 +1221,8 @@ def from_onnx(model,
 
     Returns
     -------
-    sym : tvm.relay.expr.Function
-        Compatible relay function
+    mod : tvm.relay.Module
+        The relay module for compilation
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by relay
@@ -1243,5 +1245,5 @@ def from_onnx(model,
         opset = model.opset_import[0].version if model.opset_import else 1
     except AttributeError:
         opset = 1
-    sym, params = g.from_onnx(graph, opset)
-    return sym, params
+    mod, params = g.from_onnx(graph, opset)
+    return mod, params

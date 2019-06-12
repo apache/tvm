@@ -82,7 +82,7 @@ batch_size = 1
 data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape_dict = {'data': data.shape}
 print("Converting darknet to relay functions...")
-sym, params = relay.frontend.from_darknet(net, dtype=dtype, shape=data.shape)
+mod, params = relay.frontend.from_darknet(net, dtype=dtype, shape=data.shape)
 
 ######################################################################
 # Import the graph to Relay
@@ -95,7 +95,10 @@ data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {'data': data.shape}
 print("Compiling the model...")
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(sym, target=target, target_host=target_host, params=params)
+    graph, lib, params = relay.build(mod[mod.entry_func],
+                                     target=target,
+                                     target_host=target_host,
+                                     params=params)
 
 [neth, netw] = shape['data'][2:] # Current image shape is 608x608
 ######################################################################
