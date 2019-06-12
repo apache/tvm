@@ -28,6 +28,17 @@ namespace tsim {
 using vta::dpi::DPIModuleNode;
 using tvm::runtime::Module;
 
+class Profiler {
+ public:
+  /*! \brief cycle counter */
+  uint64_t cycle_count{0};
+
+  static Profiler* Global() {
+    static Profiler inst;
+    return &inst;
+  }
+};
+
 class DPILoader {
  public:
   void Init(Module module) {
@@ -50,6 +61,7 @@ class Device {
  public:
   Device() {
     dpi_ = DPILoader::Global();
+    prof_ = Profiler::Global();
   }
 
   int Run(vta_phy_addr_t insn_phy_addr,
@@ -89,19 +101,21 @@ class Device {
               uint32_t wait_cycles) {
     // launch simulation thread
     dev_->Launch(wait_cycles);
-    dev_->WriteReg(0x10, insn_count);
-    dev_->WriteReg(0x14, insn_phy_addr);
-    dev_->WriteReg(0x18, insn_phy_addr >> 32);
+    // set counter to zero
+    dev_->WriteReg(0x04, 0);
+    dev_->WriteReg(0x08, insn_count);
+    dev_->WriteReg(0x0c, insn_phy_addr);
+    dev_->WriteReg(0x10, insn_phy_addr >> 32);
+    dev_->WriteReg(0x14, 0);
+    dev_->WriteReg(0x18, uop_phy_addr >> 32);
     dev_->WriteReg(0x1c, 0);
-    dev_->WriteReg(0x20, uop_phy_addr >> 32);
+    dev_->WriteReg(0x20, inp_phy_addr >> 32);
     dev_->WriteReg(0x24, 0);
-    dev_->WriteReg(0x28, inp_phy_addr >> 32);
+    dev_->WriteReg(0x28, wgt_phy_addr >> 32);
     dev_->WriteReg(0x2c, 0);
-    dev_->WriteReg(0x30, wgt_phy_addr >> 32);
+    dev_->WriteReg(0x30, acc_phy_addr >> 32);
     dev_->WriteReg(0x34, 0);
-    dev_->WriteReg(0x38, acc_phy_addr >> 32);
-    dev_->WriteReg(0x3c, 0);
-    dev_->WriteReg(0x40, out_phy_addr >> 32);
+    dev_->WriteReg(0x38, out_phy_addr >> 32);
     // start
     dev_->WriteReg(0x00, 0x1);
   }
@@ -113,9 +127,14 @@ class Device {
       val &= 0x2;
       if (val == 0x2) break;  // finish
     }
+    prof_->cycle_count = dev_->ReadReg(0x04);
   }
 
+  // Profiler
+  Profiler* prof_;
+  // DPI loader
   DPILoader* dpi_;
+  // DPI Module
   DPIModuleNode* dev_;
 };
 
@@ -126,6 +145,11 @@ TVM_REGISTER_GLOBAL("tvm.vta.tsim.init")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
     DPILoader::Global()->Init(m);
+  });
+
+TVM_REGISTER_GLOBAL("tvm.vta.tsim.cycles")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = static_cast<int>(Profiler::Global()->cycle_count);
   });
 
 }  // namespace tsim
