@@ -29,7 +29,7 @@ class EventCounters(debug: Boolean = false)(implicit p: Parameters) extends Modu
   val io = IO(new Bundle{
     val launch = Input(Bool())
     val finish = Input(Bool())
-    val ecnt = Vec(vp.nVals, ValidIO(UInt(vp.regBits.W)))
+    val ecnt = Vec(vp.nECnt, ValidIO(UInt(vp.regBits.W)))
   })
   val cycle_cnt = RegInit(0.U(vp.regBits.W))
   when (io.launch && !io.finish) {

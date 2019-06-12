@@ -54,7 +54,7 @@ class VCRMaster(implicit p: Parameters) extends VCRBase {
   val mp = p(ShellKey).memParams
   val launch = Output(Bool())
   val finish = Input(Bool())
-  val ecnt = Vec(vp.nVals, Flipped(ValidIO(UInt(vp.regBits.W))))
+  val ecnt = Vec(vp.nECnt, Flipped(ValidIO(UInt(vp.regBits.W))))
   val vals = Output(Vec(vp.nVals, UInt(vp.regBits.W)))
   val ptrs = Output(Vec(vp.nPtrs, UInt(mp.addrBits.W)))
 }
@@ -69,7 +69,7 @@ class VCRClient(implicit p: Parameters) extends VCRBase {
   val mp = p(ShellKey).memParams
   val launch = Input(Bool())
   val finish = Output(Bool())
-  val ecnt = Vec(vp.nVals, ValidIO(UInt(vp.regBits.W)))
+  val ecnt = Vec(vp.nECnt, ValidIO(UInt(vp.regBits.W)))
   val vals = Input(Vec(vp.nVals, UInt(vp.regBits.W)))
   val ptrs = Input(Vec(vp.nPtrs, UInt(mp.addrBits.W)))
 }
