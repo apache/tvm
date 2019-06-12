@@ -87,6 +87,8 @@ def extract_from_program(func, params, ops, target, target_host=None):
         tvm.relay.op.nn.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
         tvm.relay.op.nn.dense: [topi.nn.dense],
         tvm.relay.op.nn.deformable_conv2d: [topi.nn.deformable_conv2d_nchw],
+        tvm.relay.op.nn.bitserial_conv2d: [topi.nn.bitserial_conv2d_nchw],
+        tvm.relay.op.nn.bitserial_dense: [topi.nn.bitserial_dense],
     }
 
     topi_funcs = []
@@ -95,7 +97,6 @@ def extract_from_program(func, params, ops, target, target_host=None):
             topi_funcs.extend(OP2TOPI[op_name])
         else:
             warnings.warn("Op %s is not tunable, ignored" % op_name)
-
     # run compiler to collect all TOPI calls during compilation
     env.reset(topi_funcs)
     with env:
