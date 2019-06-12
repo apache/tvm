@@ -75,12 +75,12 @@ def tsim_init(hw_lib):
     f(m)
 
 def tsim_cycles():
-    """Clear profiler statistics
+    """Get tsim clock cycles
 
     Returns
     -------
-    stats : dict
-        Current profiler statistics
+    stats : int
+        tsim clock cycles
     """
     return tvm.get_global_func("tvm.vta.tsim.cycles")()
 
