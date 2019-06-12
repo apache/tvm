@@ -26,12 +26,13 @@ import vta.shell._
 
 /** EventCounters.
   *
-  * This unit contains all the event counting logic. For example, launch and
-  * finish can be used to count all the clock cycles spent by VTA on a run until
-  * it executes the FINISH instruction.
+  * This unit contains all the event counting logic. One common event tracked in
+  * hardware is the number of clock cycles taken to achieve certain task. We
+  * can count the total number of clock cycles spent in a VTA run by checking
+  * launch and finish signals.
   *
-  * The ecnt port is used to bulk (<>) connect to the VCR, so these values can be
-  * accessed by the host.
+  * The event counter value is passed to the VCR module via the ecnt port, so
+  * they can be accessed by the host.
   */
 class EventCounters(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val vp = p(ShellKey).vcrParams
