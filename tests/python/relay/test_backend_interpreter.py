@@ -233,8 +233,15 @@ def test_tuple_passing():
     target = tvm.target.create('llvm')
     exec = relay.create_executor(mod=mod, ctx=ctx, target=target)
     f = exec.evaluate(gv)
-    out = f((10, 10))
-    tvm.testing.assert_allclose(out, 10)
+    # First use a Python tuple.
+    out = f((10, 8))
+    tvm.testing.assert_allclose(out.asnumpy(), np.array(10))
+    # Second use a tuple value.
+    value_tuple = TupleValue(
+        TensorValue(np.array(11)),
+        TensorValue(np.array(12)))
+    out = f(value_tuple)
+    tvm.testing.assert_allclose(out.asnumpy(), np.array(11))
 
 if __name__ == "__main__":
     test_id()
