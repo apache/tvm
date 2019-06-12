@@ -535,12 +535,46 @@ def schedule_bitpack(attrs, outs, target):
 
 reg.register_pattern("nn.bitpack", OpPattern.INJECTIVE)
 
+
 @reg.register_compute("nn.bitserial_conv2d")
+def compute_bitserial_conv2d(attrs, inputs, out_dtype, target):
     """Compute definition for bitserial conv2d."""
-    # Need to look at data layout to find proper function.
-    return None
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    activation_bits = attrs.activation_bits
+    weight_bits = attrs.weight_bits
+    layout = attrs.data_layout
+    pack_dtype = attrs.pack_dtype
+    out_dtype = attrs.out_dtype
+    unipolar = attrs.unipolar
+    if layout == 'NCHW':
+        with target:
+            out = topi.nn.bitserial_conv2d_nchw(
+                inputs[0], inputs[1], strides, padding, activation_bits,
+                weight_bits, pack_dtype, out_dtype, unipolar)
+    elif layout == 'NHWC':
+        with target:
+            out = topi.nn.bitserial_conv2d_nhwc(
+                inputs[0], inputs[1], strides, padding, activation_bits,
+                weight_bits, pack_dtype, out_dtype, unipolar)
+    else:
+        raise ValueError("Data layout not supported.")
+
+    return [out]
+
 
 @reg.register_schedule("nn.bitserial_conv2d")
+def schedule_bitserial_conv2d(attrs, outs, target):
     """Schedule definition for bitserial conv2d."""
-    # Need to look at data layout to find proper schedule.
-    return None
+    layout = attrs.data_layout
+    if layout == 'NCHW':
+        with target:
+            return topi.generic.schedule_bitserial_conv2d_nchw(outs)
+    elif layout == 'NHWC':
+        with target:
+            return topi.generic.schedule_bitserial_conv2d_nhwc(outs)
+    else:
+        raise ValueError("Data layout not supported.")
+
+
+reg.register_pattern("nn.bitserial_conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)

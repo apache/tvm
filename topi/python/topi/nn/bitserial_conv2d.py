@@ -222,12 +222,10 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     # Check if kernel is already bitpacked
     if len(kernel.shape) == 4:
         kernel_q = bitpack(kernel, weight_bits, pack_axis=1, bit_axis=0, pack_type=pack_dtype)
-        KB, CO, _, KH, KW = get_const_tuple(kernel_q.shape)
     else:
-        kernel_vec = kernel
-        OCO, _, KH, KW, KB, VC = get_const_tuple(kernel_vec.shape)
-        CO = OCO * VC
+        kernel_q = kernel
 
+    KB, CO, _, KH, KW = get_const_tuple(kernel_q.shape)
     IB, N, CI, H, W = get_const_tuple(data_q.shape)
     KB, CO, _, KH, KW = get_const_tuple(kernel_q.shape)
 
@@ -286,9 +284,8 @@ def spatial_pack_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bits,
     data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw, b: \
         data_pad[b][n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw], name='data_vec')
 
-    if len(kernel.shape) == 4:
-        kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, b, vc: \
-            kernel_q[b][co*VC+vc][ci][dh][dw], name='kernel_vec')
+    kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, b, vc: \
+        kernel_q[b][co*VC+vc][ci][dh][dw], name='kernel_vec')
 
     ci = tvm.reduce_axis((0, CI), name='ci')
     dh = tvm.reduce_axis((0, KH), name='dh')

@@ -21,7 +21,7 @@ import tvm
 from topi.transform import concatenate
 from ..util import get_const_int
 
-def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
+def bitpack(data, bits, pack_axis, bit_axis, pack_type='uint32', name="QuantizeInput"):
     """Packs data into format necessary for bitserial computation
     pack_axis : int
        index of the axis to pack in data
@@ -88,4 +88,4 @@ def binary_op_multiplier(pack_dtype):
     pack_dtype: string
         pack type for the operator (must be a uint)"""
     return int(pack_dtype[4:])
-    
+

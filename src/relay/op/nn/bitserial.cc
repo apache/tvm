@@ -99,6 +99,7 @@ bool BinaryConv2DRel(const Array<Type>& types,
   const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
   Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape); 
   CHECK(param->channels.defined());
+  CHECK(param->kernel_size.defined());
   Array<IndexExpr> oshape({dshape_nchw[0], param->channels, 0, 0});
   oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2 - param->kernel_size[0]) / param->strides[0] + 1);
   oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2 - param->kernel_size[1]) / param->strides[1] + 1);
