@@ -185,9 +185,7 @@ def test_tuple_second():
     result = veval(f, (i_data, j_data))
     tvm.testing.assert_allclose(result.asnumpy(), j_data)
 
-@nottest
 def test_list_constructor():
-    # TODO(wweic): implement pattern match to support this test
     def to_list(o):
         if isinstance(o, tvm.relay.backend.interpreter.TensorValue):
             return [o.data.asnumpy().tolist()]
@@ -204,6 +202,11 @@ def test_list_constructor():
     cons = p.cons
     l = p.l
 
+    # remove all functions to not have pattern match to pass vm compilation
+    # TODO(wweic): remove the hack and implement pattern match
+    for v, _ in mod.functions.items():
+        mod[v] = relay.const(0)
+
     one2 = cons(relay.const(1), nil())
     one3 = cons(relay.const(2), one2)
     one4 = cons(relay.const(3), one3)
@@ -213,7 +216,6 @@ def test_list_constructor():
 
     result = veval(mod)()
     obj = to_list(result)
-    import pdb; pdb.set_trace()
     tvm.testing.assert_allclose(obj, np.array([3,2,1]))
 
 def test_let_tensor():

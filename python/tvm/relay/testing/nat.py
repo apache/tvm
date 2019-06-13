@@ -151,16 +151,16 @@ def add_nat_definitions(prelude):
 # helper functions for working with nats
 
 
-def count(n):
+def count(prelude, n):
     """Takes a ConstructorValue corresponding to a nat ADT
     and converts it into a Python integer. This is an example of
     using an ADT value in Python.
     """
     assert isinstance(n, ConstructorValue)
-    if n.constructor.name_hint == 'z':
+    if n.tag == prelude.z.tag:
         return 0
-    assert n.constructor.name_hint == 's'
-    return 1 + count(n.fields[0])
+    assert n.tag == prelude.s.tag
+    return 1 + count(prelude, n.fields[0])
 
 
 def make_nat_value(prelude, n):
@@ -168,8 +168,8 @@ def make_nat_value(prelude, n):
     constructs a ConstructorValue representing that value as a nat.
     """
     if n == 0:
-        return ConstructorValue(prelude.z, [], [])
-    return ConstructorValue(prelude.s, [make_nat_value(prelude, n - 1)], [])
+        return ConstructorValue(prelude.z.tag, [], None, [])
+    return ConstructorValue(prelude.s.tag, [make_nat_value(prelude, n - 1)], None, [])
 
 
 def make_nat_expr(prelude, n):
