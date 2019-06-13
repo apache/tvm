@@ -309,13 +309,14 @@ struct VMFunction {
   /*! \brief The function's name. */
   std::string name;
   /*! \brief The number of function parameters. */
-  Index params;
+  size_t num_params;
+  std::vector<std::string> param_names;
   /*! \brief The instructions representing the function. */
   std::vector<Instruction> instructions;
   /*! \brief The size of the frame for this function */
   Index register_file_size;
 
-  VMFunction(const std::string& name, Index params,
+  VMFunction(const std::string& name, std::vector<std::string> params,
              const std::vector<Instruction>& instructions,
              Index register_file_size)
       : name(name),

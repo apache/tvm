@@ -687,7 +687,11 @@ void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
 
 VMFunction CompileFunc(VMCompilerContext* context, const GlobalVar& var, const Function& func) {
   DLOG(INFO) << "CompileFunc: " << var << std::endl << AsText(func, false);
-  size_t params = func->params.size();
+  std::vector<std::string> params;
+  for (auto param : func->params) {
+    params.push_back(param->name_hint());
+  }
+  //size_t params = func->params.size();
   VMCompiler compiler(context);
   compiler.Compile(func);
   // return the last evaluated expression
