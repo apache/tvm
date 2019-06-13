@@ -340,7 +340,7 @@ def _test_add(data):
 
 #######################################################################
 # Subtract
-# ---
+# --------
 
 def _test_sub(data):
     """ One iteration of subtract """
@@ -354,28 +354,28 @@ def _test_mul(data):
 
 #######################################################################
 # Divide
-# ---
+# ------
 
 def _test_div(data):
     """ One iteration of divide """
     return _test_elemwise(math_ops.divide, data)
 #######################################################################
 # Power
-# ---
+# -----
 
 def _test_pow(data):
     """ One iteration of power """
     return _test_elemwise(math_ops.pow, data)
 #######################################################################
 # Maximum
-# ---
+# -------
 
 def _test_maximum(data):
     """ One iteration of maximum """
     return _test_elemwise(math_ops.maximum, data)
 #######################################################################
 # Minimum
-# ---
+# -------
 
 def _test_minimum(data):
     """ One iteration of minimum """
