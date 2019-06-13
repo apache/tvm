@@ -23,8 +23,6 @@ import chisel3._
 import chisel3.util._
 import vta.util.config._
 import vta.util.genericbundle._
-import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.LinkedHashMap
 import vta.interface.axi._
 
 /** VCR parameters.
@@ -33,14 +31,11 @@ import vta.interface.axi._
   */
 case class VCRParams()
 {
-  val nValsReg: Int = 1
-  val nPtrsReg: Int = 6
-  val regBits: Int = 32
-  val nCtrlReg: Int = 4
-  val ctrlBaseAddr: Int = 0
-
-  require (nValsReg > 0)
-  require (nPtrsReg > 0)
+  val nCtrl = 1
+  val nECnt = 1
+  val nVals = 1
+  val nPtrs = 6
+  val regBits = 32
 }
 
 /** VCRBase. Parametrize base class. */
@@ -57,9 +52,9 @@ class VCRMaster(implicit p: Parameters) extends VCRBase {
   val mp = p(ShellKey).memParams
   val launch = Output(Bool())
   val finish = Input(Bool())
-  val irq = Output(Bool())
-  val ptrs = Output(Vec(vp.nPtrsReg, UInt(mp.addrBits.W)))
-  val vals = Output(Vec(vp.nValsReg, UInt(vp.regBits.W)))
+  val ecnt = Vec(vp.nECnt, Flipped(ValidIO(UInt(vp.regBits.W))))
+  val vals = Output(Vec(vp.nVals, UInt(vp.regBits.W)))
+  val ptrs = Output(Vec(vp.nPtrs, UInt(mp.addrBits.W)))
 }
 
 /** VCRClient.
@@ -72,9 +67,9 @@ class VCRClient(implicit p: Parameters) extends VCRBase {
   val mp = p(ShellKey).memParams
   val launch = Input(Bool())
   val finish = Output(Bool())
-  val irq = Input(Bool())
-  val ptrs = Input(Vec(vp.nPtrsReg, UInt(mp.addrBits.W)))
-  val vals = Input(Vec(vp.nValsReg, UInt(vp.regBits.W)))
+  val ecnt = Vec(vp.nECnt, ValidIO(UInt(vp.regBits.W)))
+  val vals = Input(Vec(vp.nVals, UInt(vp.regBits.W)))
+  val ptrs = Input(Vec(vp.nPtrs, UInt(mp.addrBits.W)))
 }
 
 /** VTA Control Registers (VCR).
@@ -97,10 +92,23 @@ class VCR(implicit p: Parameters) extends Module {
   // Write control (AW, W, B)
   val waddr = RegInit("h_ffff".U(hp.addrBits.W)) // init with invalid address
   val wdata = io.host.w.bits.data
-  val wstrb = io.host.w.bits.strb
-  val wmask = Cat(Fill(8, wstrb(3)), Fill(8, wstrb(2)), Fill(8, wstrb(1)), Fill(8, wstrb(0)))
   val sWriteAddress :: sWriteData :: sWriteResponse :: Nil = Enum(3)
   val wstate = RegInit(sWriteAddress)
+
+  // read control (AR, R)
+  val sReadAddress :: sReadData :: Nil = Enum(2)
+  val rstate = RegInit(sReadAddress)
+  val rdata = RegInit(0.U(vp.regBits.W))
+
+  // registers
+  val nTotal = vp.nCtrl + vp.nECnt + vp.nVals + (2*vp.nPtrs)
+  val reg = Seq.fill(nTotal)(RegInit(0.U(vp.regBits.W)))
+  val addr = Seq.tabulate(nTotal)(_ * 4)
+  val reg_map = (addr zip reg)  map { case (a, r) => a.U -> r }
+  val eo = vp.nCtrl
+  val vo = eo + vp.nECnt
+  val po = vo + vp.nVals
+
   switch (wstate) {
     is (sWriteAddress) {
       when (io.host.aw.valid) {
@@ -124,11 +132,8 @@ class VCR(implicit p: Parameters) extends Module {
   io.host.aw.ready := wstate === sWriteAddress
   io.host.w.ready := wstate === sWriteData
   io.host.b.valid := wstate === sWriteResponse
-  io.host.b.bits.resp := "h_0".U
+  io.host.b.bits.resp := 0.U
 
-  // read control (AR, R)
-  val sReadAddress :: sReadData :: Nil = Enum(2)
-  val rstate = RegInit(sReadAddress)
 
   switch (rstate) {
     is (sReadAddress) {
@@ -145,98 +150,40 @@ class VCR(implicit p: Parameters) extends Module {
 
   io.host.ar.ready := rstate === sReadAddress
   io.host.r.valid := rstate === sReadData
+  io.host.r.bits.data := rdata
+  io.host.r.bits.resp := 0.U
 
-  val nPtrsReg = vp.nPtrsReg
-  val nValsReg = vp.nValsReg
-  val regBits = vp.regBits
-  val ptrsBits = mp.addrBits
-  val nCtrlReg = vp.nCtrlReg
-  val rStride = regBits/8
-  val pStride = ptrsBits/8
-  val ctrlBaseAddr = vp.ctrlBaseAddr
-  val valsBaseAddr = ctrlBaseAddr + nCtrlReg*rStride
-  val ptrsBaseAddr = valsBaseAddr + nValsReg*rStride
-
-  val ctrlAddr = Seq.tabulate(nCtrlReg)(i => i*rStride + ctrlBaseAddr)
-  val valsAddr = Seq.tabulate(nValsReg)(i => i*rStride + valsBaseAddr)
-
-  val ptrsAddr = new ListBuffer[Int]()
-  for (i <- 0 until nPtrsReg) {
-    ptrsAddr += i*pStride + ptrsBaseAddr
-    if (ptrsBits == 64) {
-      ptrsAddr += i*pStride + rStride + ptrsBaseAddr
-    }
-  }
-
-  // AP register
-  val c0 = RegInit(VecInit(Seq.fill(regBits)(false.B)))
-
-  // ap start
-  when (io.host.w.fire() && waddr === ctrlAddr(0).asUInt && wstrb(0) && wdata(0)) {
-    c0(0) := true.B
-  } .elsewhen (io.vcr.finish) {
-    c0(0) := false.B
-  }
-
-  // ap done = finish
   when (io.vcr.finish) {
-    c0(1) := true.B
-  } .elsewhen (io.host.ar.fire() && io.host.ar.bits.addr === ctrlAddr(0).asUInt) {
-    c0(1) := false.B
+    reg(0) := "b_10".U
+  } .elsewhen (io.host.w.fire() && addr(0).U === waddr) {
+    reg(0) := wdata
   }
 
-  val c1 = 0.U
-  val c2 = 0.U
-  val c3 = 0.U
-
-  val ctrlRegList = List(c0, c1, c2, c3)
-
-  io.vcr.launch := c0(0)
-
-  // interrupts not supported atm
-  io.vcr.irq := false.B
-
-  // Write pointer and value registers
-  val pvAddr = valsAddr ++ ptrsAddr
-  val pvNumReg =  if (ptrsBits == 64) nValsReg + nPtrsReg*2 else nValsReg + nPtrsReg
-  val pvReg = RegInit(VecInit(Seq.fill(pvNumReg)(0.U(regBits.W))))
-  val pvRegList = new ListBuffer[UInt]()
-
-  for (i <- 0 until pvNumReg) {
-    when (io.host.w.fire() && (waddr === pvAddr(i).U)) {
-      pvReg(i) := (wdata & wmask) | (pvReg(i) & ~wmask)
-    }
-    pvRegList += pvReg(i)
-  }
-
-  for (i <- 0 until nValsReg) {
-    io.vcr.vals(i) := pvReg(i)
-  }
-
-  for (i <- 0 until nPtrsReg) {
-    if (ptrsBits == 64) {
-      io.vcr.ptrs(i) := Cat(pvReg(nValsReg + i*2 + 1), pvReg(nValsReg + i*2))
-    } else {
-      io.vcr.ptrs(i) := pvReg(nValsReg + i)
+  for (i <- 0 until vp.nECnt) {
+    when (io.vcr.ecnt(i).valid) {
+      reg(eo + i) := io.vcr.ecnt(i).bits
+    } .elsewhen (io.host.w.fire() && addr(eo + i).U === waddr) {
+      reg(eo + i) := wdata
     }
   }
 
-  // Read pointer and value registers
-  val mapAddr = ctrlAddr ++ valsAddr ++ ptrsAddr
-  val mapRegList = ctrlRegList ++ pvRegList
-
-  val rdata = RegInit(0.U(regBits.W))
-  val rmap = LinkedHashMap[Int,UInt]()
-
-  val totalReg = mapRegList.length
-  for (i <- 0 until totalReg) { rmap += mapAddr(i) -> mapRegList(i).asUInt }
-
-  val decodeAddr = rmap map { case (k, _) => k -> (io.host.ar.bits.addr === k.asUInt) }
+  for (i <- 0 until (vp.nVals + (2*vp.nPtrs))) {
+    when (io.host.w.fire() && addr(vo + i).U === waddr) {
+      reg(vo + i) := wdata
+    }
+  }
 
   when (io.host.ar.fire()) {
-    rdata := Mux1H(for ((k, v) <- rmap) yield decodeAddr(k) -> v)
+    rdata := MuxLookup(io.host.ar.bits.addr, 0.U, reg_map)
   }
 
-  io.host.r.bits.resp := 0.U
-  io.host.r.bits.data := rdata
+  io.vcr.launch := reg(0)(0)
+
+  for (i <- 0 until vp.nVals) {
+    io.vcr.vals(i) := reg(vo + i)
+  }
+
+  for (i <- 0 until vp.nPtrs) {
+    io.vcr.ptrs(i) := Cat(reg(po + 2*i + 1), reg(po + 2*i))
+  }
 }

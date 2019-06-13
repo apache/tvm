@@ -64,6 +64,7 @@ class Core(implicit p: Parameters) extends Module {
   val load = Module(new Load)
   val compute = Module(new Compute)
   val store = Module(new Store)
+  val ecounters = Module(new EventCounters)
 
   // Read(rd) and write(wr) from/to memory (i.e. DRAM)
   io.vme.rd(0) <> fetch.io.vme_rd
@@ -102,6 +103,11 @@ class Core(implicit p: Parameters) extends Module {
   store.io.inst <> fetch.io.inst.st
   store.io.out_baddr := io.vcr.ptrs(5)
   store.io.out <> compute.io.out
+
+  // Event counters
+  ecounters.io.launch := io.vcr.launch
+  ecounters.io.finish := compute.io.finish
+  io.vcr.ecnt <> ecounters.io.ecnt
 
   // Finish instruction is executed and asserts the VCR finish flag
   val finish = RegNext(compute.io.finish)
