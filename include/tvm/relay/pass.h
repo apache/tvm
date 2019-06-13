@@ -123,6 +123,24 @@ TVM_DLL bool AlphaEqual(const Expr& e1, const Expr& e2);
 TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
 
 /*!
+ * \brief Compare two patterns for structural equivalence.
+ *
+ * This comparison operator respects scoping and compares
+ * patterns without regard to variable choice.
+ *
+ * For example: `A(x, _, y)` is equal to `A(z, _, a)`.
+ *
+ * See https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
+ * for more details.
+ *
+ * \param t1 The left hand pattern.
+ * \param t2 The right hand pattern.
+ *
+ * \return true if equal, otherwise false
+ */
+TVM_DLL bool AlphaEqual(const Pattern& t1, const Pattern& t2);
+
+/*!
  * \brief Add abstraction over a function
  *
  * For example: `square` is transformed to
@@ -400,8 +418,19 @@ TVM_DLL Expr ToANormalForm(const Expr& e, const Module& mod);
 TVM_DLL Expr ToGraphNormalForm(const Expr& e);
 
 /*!
- * \brief Aggressive constant propagation/constant folding/inlining.
+ * \brief Finds cases that the given match expression does not catch, if any.
  *
+ * \param match the match expression to test
+ *
+ * \param mod The module used for accessing global type var definitions, can be None.
+ *
+ * \return Returns a list of cases (as patterns) that are not handled by the match
+ * expression.
+ */
+TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
+
+/*!
+ * \brief Aggressive constant propagation/constant folding/inlining.
  * It will do as much computation in compile time as possible.
  * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
  * As a side effect, code size will explode.

@@ -652,3 +652,21 @@ def partial_evaluate(expr):
       The output expression.
     """
     return _ir_pass.partial_evaluate(expr)
+
+def unmatched_cases(match, mod=None):
+    """
+    Finds cases that the match expression does not catch, if any.
+
+    Parameters
+    ----------
+    match : tvm.relay.Match
+        The match expression
+    mod : Optional[tvm.relay.Module]
+        The module (defaults to an empty module)
+
+    Returns
+    -------
+    missing_patterns : [tvm.relay.Pattern]
+      Patterns that the match expression does not catch.
+    """
+    return _ir_pass.unmatched_cases(match, mod)
