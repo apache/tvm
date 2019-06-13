@@ -55,7 +55,7 @@ def assert_tuple_value(candidate, fields):
 # and number of fields
 def assert_constructor_value(candidate, constructor, fields):
     assert isinstance(candidate, ConstructorValue)
-    assert candidate.constructor == constructor
+    assert candidate.tag == constructor.tag
     assert len(candidate.fields) == fields
 
 

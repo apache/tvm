@@ -21,13 +21,12 @@ import re
 
 import tvm
 from tvm import relay
-from tvm.relay.adt import Constructor, Pattern
+from tvm.relay.adt import Pattern
 from tvm.relay.backend import compile_engine
 from tvm.relay.expr import Expr, Function, GlobalVar, Var
 from tvm.relay.expr_functor import ExprFunctor
 
 OUTPUT_VAR_NAME = '_py_out'
-MODULE_NAME = '_mod'
 
 # corresponds to:
 #     import numpy
@@ -306,31 +305,6 @@ class PythonConverter(ExprFunctor):
         return wrap_def, self.create_call(wrap_name, py_args)
 
 
-    def create_constructor(self, ctor: Constructor):
-        '''Given an ADT constructor, creates a Python AST node that
-        obtains a reference to the same constructor'''
-        type_data = self.mod[ctor.belong_to]
-        ctor_index = -1
-        for i in range(len(type_data.constructors)):
-            if type_data.constructors[i] == ctor:
-                ctor_index = i
-                break
-        assert ctor_index >= 0
-
-        # reference to type var: mod.get_global_type_var({var name})
-        # reference to constructor object: mod[{type_var}].constructors[{index}]
-        type_name = ctor.belong_to.var.name
-        type_var_ref = self.create_call('{}.get_global_type_var'.format(MODULE_NAME),
-                                        [Str(type_name)])
-        type_data_ref = ast.Subscript(Name(MODULE_NAME, Load()),
-                                      ast.Index(type_var_ref),
-                                      Load())
-        constructors_list_ref = ast.Attribute(type_data_ref, 'constructors', Load())
-        return ast.Subscript(constructors_list_ref,
-                             ast.Index(Num(ctor_index)),
-                             Load())
-
-
     def create_match_check(self, pattern: Pattern, data):
         '''Given an ADT match pattern and a (Python) expression pointing to
         an ADT value, this generates a Python expression that checks if the
@@ -343,9 +317,10 @@ class PythonConverter(ExprFunctor):
         # constructor patterns check whether the constructors match
         # and also the matches of any nested patterns
 
-        # equiv: (arg.constructor == patern_constructor)
-        conds = [ast.Compare(ast.Attribute(data, 'constructor', Load()),
-                             [ast.Eq()], [self.create_constructor(pattern.constructor)])]
+        # equiv: (arg.tag == patern_constructor.tag)
+        conds = [ast.Compare(ast.Attribute(data, 'tag', Load()),
+                             [ast.Eq()],
+                             [ast.Num(pattern.constructor.tag)])]
 
         # now check for any nested patterns
         for i in range(len(pattern.patterns)):
@@ -515,8 +490,9 @@ class PythonConverter(ExprFunctor):
         if isinstance(func, relay.Constructor):
             # produce a constructor value
             return (self.create_call('ConstructorValue',
-                                     [self.create_constructor(func),
-                                      ast.List(fields, Load())]),
+                                     [ast.Num(func.tag),
+                                      ast.List(fields, Load()),
+                                      NameConstant(None)]),
                     field_defs)
 
         # lowered operator: generate a call to a function that gets the PackedFunc
@@ -612,7 +588,6 @@ def run_as_python(expr: Expr, mod=None, target=tvm.target.create('llvm')):
     py_ast = to_python(expr, mod, target)
     code = compile(py_ast, '<string>', 'exec')
     var_map = {
-        MODULE_NAME : mod,
         OUTPUT_VAR_NAME : None
     }
     #pylint: disable=exec-used
