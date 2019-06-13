@@ -26,5 +26,5 @@ touch /tmp/.conda/pkgs/urls.txt
 touch /tmp/.conda/environments.txt
 
 
-conda build --output-folder=conda/pkg conda/tvm-libs
+conda build --output-folder=conda/pkg -c numba conda/tvm-libs
 conda build --output-folder=conda/pkg -m conda/conda_build_config.yaml conda/tvm
