@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -188,7 +188,15 @@ Expr operator%(Expr a, Expr b) {
   return ir::Mod::make(a, b);
 }
 
+
 Expr min(Expr a, Expr b) {
+  // inf-aware simplificaiton
+  using arith::is_pos_inf;
+  using arith::is_neg_inf;
+  if (is_pos_inf(a)) return b;
+  if (is_neg_inf(a)) return a;
+  if (is_pos_inf(b)) return a;
+  if (is_neg_inf(b)) return b;
   BinaryOpMatchTypes(a, b);
   Expr ret = arith::TryConstFold<ir::Min>(a, b);
   if (ret.defined()) return ret;
@@ -196,6 +204,13 @@ Expr min(Expr a, Expr b) {
 }
 
 Expr max(Expr a, Expr b) {
+  // inf-aware simplificaiton
+  using arith::is_pos_inf;
+  using arith::is_neg_inf;
+  if (is_pos_inf(a)) return a;
+  if (is_neg_inf(a)) return b;
+  if (is_pos_inf(b)) return b;
+  if (is_neg_inf(b)) return a;
   BinaryOpMatchTypes(a, b);
   Expr ret = arith::TryConstFold<ir::Max>(a, b);
   if (ret.defined()) return ret;

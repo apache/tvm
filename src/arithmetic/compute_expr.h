@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,8 +27,8 @@
 #define TVM_ARITHMETIC_COMPUTE_EXPR_H_
 
 #include <tvm/ir.h>
-#include <arithmetic/Interval.h>
 #include <limits>
+#include <algorithm>
 
 namespace tvm {
 namespace arith {
@@ -105,12 +105,12 @@ inline Expr ComputeExpr<ir::Mod>(Expr a, Expr b) {
 
 template<>
 inline Expr ComputeExpr<ir::Max>(Expr a, Expr b) {
-  return HalideIR::Internal::Interval::make_max(a, b);
+  return max(a, b);
 }
 
 template<>
 inline Expr ComputeExpr<ir::Min>(Expr a, Expr b) {
-  return HalideIR::Internal::Interval::make_min(a, b);
+  return min(a, b);
 }
 
 template<typename Op>
