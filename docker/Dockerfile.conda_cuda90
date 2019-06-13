@@ -35,7 +35,8 @@ RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-lat
      /opt/conda/bin/conda install conda-build conda-verify && \
      /opt/conda/bin/conda clean -ya
 
-RUN /opt/conda/bin/conda install --download-only cmake make llvmdev=7.0.0 zlib
+RUN /opt/conda/bin/conda install --download-only cmake make zlib
+RUN /opt/conda/bin/conda install --download-only -c numba llvmdev=8.0.0
 
 ENV PATH /opt/conda/bin:$PATH
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64

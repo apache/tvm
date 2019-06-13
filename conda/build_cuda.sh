@@ -26,4 +26,4 @@ touch /tmp/.conda/pkgs/urls.txt
 touch /tmp/.conda/environments.txt
 
 
-conda build --output-folder=conda/pkg --variants "{cuda: True, cuda_version: ${CUDA_VERSION%.*}}" conda/tvm-libs
+conda build --output-folder=conda/pkg --variants "{cuda: True, cuda_version: ${CUDA_VERSION%.*}}" -c numba conda/tvm-libs

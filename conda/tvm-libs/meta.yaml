@@ -36,7 +36,7 @@ requirements:
     - cmake
     - make
   host:
-    - llvmdev ==7.0.0
+    - llvmdev ==8.0.0
     - zlib  # [linux]
   run:
     - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
