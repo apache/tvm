@@ -34,6 +34,7 @@
 #include "op_util.h"
 #include "../schedule/message_passing.h"
 #include "../arithmetic/compute_expr.h"
+#include "../arithmetic/int_set.h"
 
 namespace tvm {
 
@@ -220,7 +221,29 @@ void ComputeOpNode::PropBoundToInputs(
       if (t->op.defined() && out_dom_map->count(t)) {
         TensorDom& dom = out_dom_map->at(t);
         for (size_t i = 0; i < t.ndim(); ++i) {
-          dom.data[i].push_back(EvalSet(call->args[i], dom_map));
+          // We assume that the value of the argument cannot be out of bounds (otherwise it is
+          // undefined behaviour), so we can intersect the estimated set of the argument with the
+          // range expected by the tensor. However, intersection may result in overly complex
+          // expressions, so we perform a more relaxed form of intersection.
+          IntSet arg_intset = EvalSet(call->args[i], dom_map);
+          const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
+          if (arg_interval) {
+            Expr shape_i_min_value = make_zero(t->shape[i].type());
+            Expr shape_i_max_value = t->shape[i] - 1;
+            Expr min_value = arg_interval->min_value;
+            Expr max_value = arg_interval->max_value;
+            // Prefer the shape bounds only when we can prove they are tighter.
+            arith::Analyzer an;
+            if (arith::is_neg_inf(min_value) || an.CanProve(shape_i_min_value >= min_value)) {
+              min_value = shape_i_min_value;
+            }
+            if (arith::is_pos_inf(max_value) || an.CanProve(shape_i_max_value <= max_value)) {
+              max_value = shape_i_max_value;
+            }
+            dom.data[i].push_back(IntSet::interval(min_value, max_value));
+          } else {
+            dom.data[i].push_back(arg_intset);
+          }
         }
       }
     }
