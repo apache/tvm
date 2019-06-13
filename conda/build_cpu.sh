@@ -17,7 +17,14 @@
 # under the License.
 
 set -e
-conda build --output-folder=conda/pkg -m conda/conda_build_config.yaml conda/tvm-libs
+
+# This is a fix for a weird bug in conda that makes it think
+# it can't write in /tmp
+HOME=/tmp
+mkdir -p /tmp/.conda/pkgs
+touch /tmp/.conda/pkgs/urls.txt
+touch /tmp/.conda/environments.txt
+
+
+conda build --output-folder=conda/pkg conda/tvm-libs
 conda build --output-folder=conda/pkg -m conda/conda_build_config.yaml conda/tvm
-conda build --output-folder=conda/pkg -m conda/conda_build_config.yaml conda/topi
-conda build --output-folder=conda/pkg -m conda/conda_build_config.yaml conda/nnvm

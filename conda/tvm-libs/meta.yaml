@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.6.dev" %}
+{% set version = "0.6.dev1" %}
 
 package:
   name: tvm-libs
@@ -25,7 +25,7 @@ source:
   path: ../..
 
 build:
-  number: 2
+  number: 0
   string: cuda{{ cuda_version }}_{{ PKG_BUILDNUM }}  # [cuda]
 
 requirements:
