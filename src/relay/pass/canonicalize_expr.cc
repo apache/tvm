@@ -35,6 +35,32 @@ namespace relay {
 // This pass finds upcast that is referred by multiple elemwise/broadcast operators, and creates a
 // copy of it in each branch such that after fusion the previous function have output with fewer
 // bits.
+//
+// Consider the following example:
+// \code
+// def @main(x: int8) {
+//   %1 = cast(%x, f32)
+//   %2 = exp(%1)
+//   %3 = log(%1)
+//   (%3, 4)
+// }
+// \endcode
+//
+// We would like to prevent sharing of the cast expression such that operator fusion can produce
+// more efficient result as below.
+// \code
+// def @main(x: int8) {
+//   %1 = fn (%p1: i8) {
+//     exp(cast(%p1, f32)
+//   }
+//   %3 = %1(%x)
+//   %2 = fn (%p1: i8) {
+//     log(cast(%p1, f32)
+//   }
+//   %4 = %2(%x)
+//   (%3, 4)
+// }
+// \endcode
 class ExprCanonicalizer : public ExprMutator {
  public:
   Expr VisitExpr_(const CallNode* call) {
