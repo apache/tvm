@@ -63,24 +63,21 @@ Object EvaluateModule(const Module& module, const std::vector<TVMContext> ctxs,
   return res;
 }
 
-Value VMToValue(const relay::Module& module, const relay::Type& type, Object obj) {
-  CHECK(module.defined() && type.defined());
+Value VMToValue(const relay::Module& module, Object obj) {
+  CHECK(module.defined());
   switch (obj->tag) {
     case ObjectTag::kTensor: {
-      CHECK(type.as<TensorTypeNode>()) << "VM internal error: return value must be a tensor";
       return TensorValueNode::make(ToNDArray(obj));
     }
     case ObjectTag::kDatatype: {
-      // const auto* tuple_type
-      // const auto& data_type = obj.AsDatatype();
+      const auto& data_type = obj.AsDatatype();
 
-      // tvm::Array<Value> fields;
-      // for (size_t i = 0; i < data_type->fields.size(); ++i) {
-      //   fields.push_back(VMToValue(tag_index_map, data_type->fields[i]));
-      // }
+      tvm::Array<Value> fields;
+      for (size_t i = 0; i < data_type->fields.size(); ++i) {
+        fields.push_back(VMToValue(module, data_type->fields[i]));
+      }
 
-      // return ConstructorValueNode::make(tag_index_map.at(data_type->tag), fields);
-      LOG(FATAL) << "fix me";
+      return ConstructorValueNode::make(data_type->tag, fields);
     }
     default:
       LOG(FATAL) << "unsupported return value of type: " << obj->tag;
@@ -141,8 +138,6 @@ TVM_REGISTER_API("relay._vm._evaluate_vm").set_body([](TVMArgs args, TVMRetValue
     LOG(FATAL) << "expected function or module";
   }
 
-  auto return_type = module->Lookup(module->entry_func)->ret_type;
-
   std::vector<Object> vm_args;
   for (auto i = 3; i < args.size(); i++) {
     Object obj = args[i];
@@ -151,7 +146,7 @@ TVM_REGISTER_API("relay._vm._evaluate_vm").set_body([](TVMArgs args, TVMRetValue
 
   auto result = EvaluateModule(module, {ctx}, vm_args);
   DLOG(INFO) << "Evaluate VM returning: result=" << result->tag;
-  *ret = VMToValue(module, return_type, result);
+  *ret = VMToValue(module, result);
 });
 
 }  // namespace vm

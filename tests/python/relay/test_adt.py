@@ -21,11 +21,14 @@ from tvm.relay.ir_pass import infer_type
 from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
 from tvm.relay import testing, create_executor
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, count, make_nat_value, make_nat_expr
+from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
 
 mod = relay.Module()
 p = Prelude(mod)
 add_nat_definitions(p)
+
+def count(e):
+    return count_(p, e)
 
 ctx = tvm.context("llvm", 0)
 intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
@@ -91,18 +94,18 @@ def to_list(l):
     val = l
     ret = []
     while True:
-        if val.constructor.name_hint == 'cons':
+        if val.tag == p.cons.tag:
             ret.append(val.fields[0])
             val = val.fields[1]
         else:
-            assert val.constructor.name_hint == 'nil'
+            assert val.tag == p.nil.tag
             break
     return ret
 
 def tree_to_dict(t):
     assert isinstance(t, ConstructorValue)
     ret = {}
-    assert t.constructor.name_hint == 'rose'
+    assert t.tag == p.rose.tag
     ret['member'] = t.fields[0]
     ret['children'] = []
     for subtree in to_list(t.fields[1]):

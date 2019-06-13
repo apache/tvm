@@ -80,6 +80,8 @@ struct VMCompilerContext {
   ConstTensorShapeMap const_tensor_shape_map;
   // List of lowered functions
   std::vector<LoweredFunc> lowered_funcs;
+  // The functions that have been lowered.
+  std::unordered_map<LoweredFunc, size_t, NodeHash, NodeEqual> seen_funcs;
 };
 
 // Compute the constant pool, i.e a mapping from Constant node to constant index.
@@ -184,9 +186,6 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   size_t registers_num;
   CompileEngine engine;
 
-  /*! \brief The functions that have been lowered. */
-  std::unordered_map<LoweredFunc, size_t, NodeHash, NodeEqual> seen_funcs;
-
   /*! \brief Global shared meta data */
   VMCompilerContext* context;
 
@@ -260,7 +259,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void VisitExpr_(const MatchNode* match_node) {
     auto match = GetRef<Match>(match_node);
-    LOG(FATAL) << "translation of match nodes to the VM is"
+    LOG(FATAL) << "translation of match nodes to the VM is "
                << "currently unsupported" << std::endl;
   }
 
@@ -280,7 +279,8 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const GlobalVarNode* gvar) {
-    LOG(FATAL) << "Global variables should only appear in the call position";
+    // TODO(wweic): Support Load GlobalVar into a register
+    LOG(FATAL) << "Loading GlobalVar into register is not yet supported";
   }
 
   void VisitExpr_(const IfNode* if_node) {
@@ -405,12 +405,12 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     // TODO(jroesch): support lowered funcs for multiple targets
     CHECK_EQ(cfunc->funcs.size(), 1);
     auto op_index = -1;
-    if (seen_funcs.find(cfunc->funcs[0]) == seen_funcs.end()) {
+    if (this->context->seen_funcs.find(cfunc->funcs[0]) == this->context->seen_funcs.end()) {
       op_index = this->context->lowered_funcs.size();
       this->context->lowered_funcs.push_back(cfunc->funcs[0]);
-      seen_funcs[cfunc->funcs[0]] = op_index;
+      this->context->seen_funcs[cfunc->funcs[0]] = op_index;
     } else {
-      op_index = seen_funcs[cfunc->funcs[0]];
+      op_index = this->context->seen_funcs[cfunc->funcs[0]];
     }
 
     Emit(Instruction::InvokePacked(op_index, arity, return_val_count, unpacked_arg_regs));
@@ -429,7 +429,6 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     std::vector<Index> args_registers;
 
     for (auto arg : call_node->args) {
-      CHECK(arg.as<VarNode>()) << "found: " << AsText(arg, false) << std::endl << arg;
       this->VisitExpr(arg);
       args_registers.push_back(last_register);
     }
@@ -449,35 +448,19 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
       auto func = this->context->module->Lookup(global);
       if (IsClosure(func)) {
         auto arity = func->params.size();
-        std::vector<Index> free_var_registers;
-        for (size_t i = 0; i < arity; ++i) {
-          free_var_registers.push_back(var_register_map.at(func->params[i]));
-        }
-        Emit(Instruction::AllocClosure(it->second, arity, free_var_registers, NewRegister()));
+        Emit(Instruction::AllocClosure(it->second, arity, args_registers, NewRegister()));
       } else {
         Emit(Instruction::Invoke(it->second, args_registers, NewRegister()));
       }
     } else if (auto constructor_node = op.as<ConstructorNode>()) {
       auto constructor = GetRef<Constructor>(constructor_node);
-      auto tag = GetConstructorTag(constructor);
-      Emit(Instruction::AllocDatatype(tag, call_node->args.size(), args_registers, NewRegister()));
+      Emit(Instruction::AllocDatatype(constructor->tag, call_node->args.size(), args_registers,
+                                      NewRegister()));
     } else if (auto var_node = op.as<VarNode>()) {
       VisitExpr(GetRef<Var>(var_node));
       Emit(Instruction::InvokeClosure(last_register, args_registers, NewRegister()));
     } else {
       LOG(FATAL) << "unsupported case in vm compiler: " << op;
-    }
-  }
-
-  size_t GetConstructorTag(tvm::relay::Constructor constructor) {
-    auto it = this->context->tag_map.find(constructor);
-    if (it != this->context->tag_map.end()) {
-      return it->second;
-    } else {
-      auto tag = this->context->tag_map.size();
-      this->context->tag_map[constructor] = tag;
-      this->context->tag_index_map[tag] = constructor;
-      return tag;
     }
   }
 
@@ -549,7 +532,7 @@ void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
 }
 
 VMFunction CompileFunc(VMCompilerContext* context, const GlobalVar& var, const Function& func) {
-  DLOG(INFO) << "CompileFunc: " << std::endl << AsText(func, false) << std::endl;
+  DLOG(INFO) << "CompileFunc: " << var << std::endl << AsText(func, false) << std::endl;
   size_t params = func->params.size();
   VMCompiler compiler(context);
   compiler.Compile(func);
