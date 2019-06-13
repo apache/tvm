@@ -52,6 +52,7 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
     CHECK(!n->global_type_var_map_.count(kv.first->var->name_hint))
       << "Duplicate global type definition name " << kv.first->var->name_hint;
     n->global_type_var_map_.Set(kv.first->var->name_hint, kv.first);
+    n->RegisterConstructors(kv.first, kv.second);
   }
 
   return Module(n);
@@ -110,15 +111,21 @@ void ModuleNode::Add(const GlobalVar& var,
   AddUnchecked(var, checked_func);
 }
 
+void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {
+  for (size_t i = 0; i < type->constructors.size(); ++i) {
+    type->constructors[i]->tag = static_cast<int64_t>(dmlc::HashCombine(std::hash<std::string>()(var->var->name_hint),
+                                                                         std::hash<size_t>()(i)));
+    constructor_tag_map_[type->constructors[i]->tag] = type->constructors[i];
+  }
+}
+
 void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type) {
   this->type_definitions.Set(var, type);
   // set global type var map
   CHECK(!global_type_var_map_.count(var->var->name_hint))
     << "Duplicate global type definition name " << var->var->name_hint;
   global_type_var_map_.Set(var->var->name_hint, var);
-  for (size_t i = 0; i < type->constructors.size(); ++i) {
-    type->constructors[i]->tag = i;
-  }
+  RegisterConstructors(var, type);
 
   // need to kind check at the end because the check can look up
   // a definition potentially
@@ -159,6 +166,13 @@ TypeData ModuleNode::LookupDef(const GlobalTypeVar& var) {
 TypeData ModuleNode::LookupDef(const std::string& name) {
   GlobalTypeVar id = this->GetGlobalTypeVar(name);
   return this->LookupDef(id);
+}
+
+Constructor ModuleNode::LookupTag(const size_t tag) {
+  auto it = constructor_tag_map_.find(tag);
+  CHECK(it != constructor_tag_map_.end())
+    << "There is no constructor with the tag " << tag;
+  return (*it).second;
 }
 
 void ModuleNode::Update(const Module& mod) {
@@ -217,6 +231,11 @@ TVM_REGISTER_API("relay._module.Module_LookupDef")
 TVM_REGISTER_API("relay._module.Module_LookupDef_str")
 .set_body_typed<TypeData(Module, std::string)>([](Module mod, std::string var) {
     return mod->LookupDef(var);
+  });
+
+TVM_REGISTER_API("relay._module.Module_LookupTag")
+.set_body_typed<Constructor(Module, size_t)>([](Module mod, size_t tag) {
+    return mod->LookupTag(tag);
   });
 
 TVM_REGISTER_API("relay._module.Module_FromExpr")

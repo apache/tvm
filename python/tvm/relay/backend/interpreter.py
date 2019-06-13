@@ -112,26 +112,6 @@ class RefValue(Value):
         self.__init_handle_by_constructor__(
             _make.RefValue, value)
 
-
-def _arg_to_ast(arg):
-    if isinstance(arg, TensorValue):
-        return Constant(arg.data.copyto(nd.cpu(0)))
-    elif isinstance(arg, TupleValue):
-        return Tuple([_arg_to_ast(field) for field in arg.fields])
-    elif isinstance(arg, tuple):
-        return Tuple([_arg_to_ast(field) for field in arg])
-    elif isinstance(arg, RefValue):
-        return RefCreate(_arg_to_ast(arg.value))
-    elif isinstance(arg, ConstructorValue):
-        return Call(arg.constructor, [_arg_to_ast(field) for field in arg.fields])
-    elif isinstance(arg, np.ndarray):
-        return Constant(nd.array(arg))
-    elif isinstance(arg, Constant):
-        return arg
-    else:
-        return const(arg)
-
-
 class Executor(object):
     """An abstract interface for executing Relay programs."""
 
@@ -228,7 +208,7 @@ class Executor(object):
         if binds:
             scope_builder = ScopeBuilder()
             for key, value in binds.items():
-                scope_builder.let(key, _arg_to_ast(value))
+                scope_builder.let(key, self._arg_to_ast(value))
             scope_builder.ret(expr)
             expr = scope_builder.get()
 
@@ -264,6 +244,26 @@ class Interpreter(Executor):
         self.target = target
         self._intrp = _backend.CreateInterpreter(mod, ctx, target)
 
+    def _arg_to_ast(self, arg):
+        if isinstance(arg, TensorValue):
+            return Constant(arg.data.copyto(nd.cpu(0)))
+        elif isinstance(arg, TupleValue):
+            return Tuple([self._arg_to_ast(field) for field in arg.fields])
+        elif isinstance(arg, tuple):
+            return Tuple([self._arg_to_ast(field) for field in arg])
+        elif isinstance(arg, RefValue):
+            return RefCreate(self._arg_to_ast(arg.value))
+        elif isinstance(arg, ConstructorValue):
+            return Call(self.mod.get_constructor(arg.tag),
+                        [self._arg_to_ast(field) for field in arg.fields])
+        elif isinstance(arg, np.ndarray):
+            return Constant(nd.array(arg))
+        elif isinstance(arg, Constant):
+            return arg
+        else:
+            return const(arg)
+
+
     def optimize(self, expr):
         """Optimize an expr.
 
@@ -294,7 +294,7 @@ class Interpreter(Executor):
 
             relay_args = []
             for arg in args:
-                relay_args.append(_arg_to_ast(arg))
+                relay_args.append(self._arg_to_ast(arg))
 
             if isinstance(expr, GlobalVar):
                 func = self.mod[expr]
