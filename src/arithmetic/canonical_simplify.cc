@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file canonical_simplify.cc
  * \brief Canonical form based simplification.
  */
@@ -763,7 +762,10 @@ Mutate_(const Mod* op, const Expr& self) {
           if (TryCompare(temp, cval) == kLT) {
             return temp;
           } else {
-            return SplitModConst(ToSplitExpr(temp), cval);
+            // contonue to use logic below.
+            a = extra;
+            psum = a.as<SumExprNode>();
+            CHECK(psum != nullptr);
           }
         }
       }
