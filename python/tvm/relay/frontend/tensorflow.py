@@ -1108,6 +1108,7 @@ def _topk():
         return AttrCvt(op_name='topk',
                        ignores=['sorted'],
                        extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})(inputs, attr)
+    return _impl
 
 def _floordiv():
     def _impl(inputs, attr, params):
