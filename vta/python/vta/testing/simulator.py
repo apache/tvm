@@ -74,5 +74,14 @@ def tsim_init(hw_lib):
     m = tvm.module.load(lib, "vta-tsim")
     f(m)
 
+def tsim_cycles():
+    """Get tsim clock cycles
+
+    Returns
+    -------
+    stats : int
+        tsim clock cycles
+    """
+    return tvm.get_global_func("tvm.vta.tsim.cycles")()
 
 LIBS = _load_lib()

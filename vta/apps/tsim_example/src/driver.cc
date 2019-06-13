@@ -54,23 +54,20 @@ class Device {
  private:
   void Launch(uint32_t c, uint32_t length, void* inp, void* out) {
     dpi_->Launch(wait_cycles_);
-    // set counter to zero
-    dpi_->WriteReg(0x04, 0);
     dpi_->WriteReg(0x08, c);
     dpi_->WriteReg(0x0c, length);
     dpi_->WriteReg(0x10, get_half_addr(inp, false));
     dpi_->WriteReg(0x14, get_half_addr(inp, true));
     dpi_->WriteReg(0x18, get_half_addr(out, false));
     dpi_->WriteReg(0x1c, get_half_addr(out, true));
-    // launch
-    dpi_->WriteReg(0x00, 0x1);
+    dpi_->WriteReg(0x00, 0x1); // launch
   }
 
   uint32_t WaitForCompletion() {
     uint32_t i, val;
     for (i = 0; i < wait_cycles_; i++) {
       val = dpi_->ReadReg(0x00);
-      if (val == 2) break;  // finish
+      if (val == 2) break; // finish
     }
     val = dpi_->ReadReg(0x04);
     return val;

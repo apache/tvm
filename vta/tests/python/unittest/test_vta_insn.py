@@ -73,7 +73,11 @@ def test_save_load_out():
             simulator.tsim_init("libvta_hw")
 
         f(x_nd, y_nd)
+
         np.testing.assert_equal(y_np, y_nd.asnumpy())
+
+        if env.TARGET == "tsim":
+            print("Load/store test took {} clock cycles".format(simulator.tsim_cycles()))
 
     vta.testing.run(_run)
 
@@ -135,7 +139,11 @@ def test_padded_load():
             simulator.tsim_init("libvta_hw")
 
         f(x_nd, y_nd)
+
         np.testing.assert_equal(y_np, y_nd.asnumpy())
+
+        if env.TARGET == "tsim":
+            print("Padded load test took {} clock cycles".format(simulator.tsim_cycles()))
 
     vta.testing.run(_run)
 
@@ -180,7 +188,7 @@ def test_gemm():
         if not remote:
             return
 
-        def verify(s):
+        def verify(s, name=None):
             mod = vta.build(s, [x, w, y], "ext_dev", env.target_host)
             temp = util.tempdir()
             mod.save(temp.relpath("gemm.o"))
@@ -217,6 +225,9 @@ def test_gemm():
 
             np.testing.assert_equal(y_np, y_nd.asnumpy())
 
+            if env.TARGET == "tsim":
+                print("GEMM schedule:{} test took {} clock cycles".format(name, simulator.tsim_cycles()))
+
         def test_schedule1():
             # default schedule with no smt
             s = tvm.create_schedule(y.op)
@@ -245,7 +256,7 @@ def test_gemm():
                 s[y_gem].op.axis[3],
                 ki)
             s[y_gem].tensorize(s[y_gem].op.axis[2], env.gemm)
-            verify(s)
+            verify(s, name="default")
 
         def test_smt():
             # test smt schedule
@@ -279,7 +290,7 @@ def test_gemm():
             s[w_buf].compute_at(s[y_gem], ko)
             s[w_buf].pragma(s[w_buf].op.axis[0], env.dma_copy)
             s[y].pragma(abo2, env.dma_copy)
-            verify(s)
+            verify(s, name="smt")
 
         test_schedule1()
         test_smt()
@@ -288,7 +299,7 @@ def test_gemm():
 
 def test_alu():
     def _run(env, remote):
-        def check_alu(tvm_op, np_op=None, use_imm=False):
+        def check_alu(tvm_op, np_op=None, use_imm=False, test_name=None):
             """Test ALU"""
             m = 8
             n = 8
@@ -371,14 +382,18 @@ def test_alu():
             else:
                 b_nd = tvm.nd.array(b_np, ctx)
                 f(a_nd, b_nd, res_nd)
+
             np.testing.assert_equal(res_np, res_nd.asnumpy())
 
-        check_alu(lambda x, y: x << y, np.left_shift, use_imm=True)
-        check_alu(tvm.max, np.maximum, use_imm=True)
-        check_alu(tvm.max, np.maximum)
-        check_alu(lambda x, y: x + y, use_imm=True)
-        check_alu(lambda x, y: x + y)
-        check_alu(lambda x, y: x >> y, np.right_shift, use_imm=True)
+            if env.TARGET == "tsim":
+                print("ALU {} imm:{} test took {} clock cycles".format(test_name, use_imm, simulator.tsim_cycles()))
+
+        check_alu(lambda x, y: x << y, np.left_shift, use_imm=True, test_name="SHL")
+        check_alu(tvm.max, np.maximum, use_imm=True, test_name="MAX")
+        check_alu(tvm.max, np.maximum, test_name="MAX")
+        check_alu(lambda x, y: x + y, use_imm=True, test_name="ADD")
+        check_alu(lambda x, y: x + y, test_name="ADD")
+        check_alu(lambda x, y: x >> y, np.right_shift, use_imm=True, test_name="SHR")
 
     vta.testing.run(_run)
 
@@ -440,7 +455,11 @@ def test_relu():
             simulator.tsim_init("libvta_hw")
 
         f(a_nd, res_nd)
+
         np.testing.assert_equal(res_np, res_nd.asnumpy())
+
+        if env.TARGET == "tsim":
+            print("Relu test took {} clock cycles".format(simulator.tsim_cycles()))
 
     vta.testing.run(_run)
 
@@ -503,7 +522,11 @@ def test_shift_and_scale():
             simulator.tsim_init("libvta_hw")
 
         f(a_nd, res_nd)
+
         np.testing.assert_equal(res_np, res_nd.asnumpy())
+
+        if env.TARGET == "tsim":
+            print("Shift/scale test took {} clock cycles".format(simulator.tsim_cycles()))
 
     vta.testing.run(_run)
 
@@ -521,17 +544,10 @@ def test_runtime_array():
 
 
 if __name__ == "__main__":
-    print("Array test")
     test_runtime_array()
-    print("Load/store test")
     test_save_load_out()
-    print("Padded load test")
     test_padded_load()
-    print("GEMM test")
     test_gemm()
-    print("ALU test")
     test_alu()
-    print("Relu test")
     test_relu()
-    print("Shift and scale")
     test_shift_and_scale()
