@@ -43,6 +43,8 @@ namespace tvm {
 namespace relay {
 namespace quantize {
 
+using namespace relay::transform;
+
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
   int kind;
@@ -130,23 +132,6 @@ TVM_REGISTER_API("relay._quantize.make_annotate_expr")
     *ret = QAnnotateExprNode::make(args[0],
       static_cast<QAnnotateKind>(args[1].operator int()));
   });
-
-
-TVM_REGISTER_API("relay._quantize.annotate")
-.set_body_typed<Expr(Expr)>([] (const Expr& expr) {
-  std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
-      if (e->derived_from<TempExprNode>()) {
-        const auto* n = e.as<QAnnotateExprNode>();
-        CHECK(n);
-        const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
-        Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
-        return static_cast<Expr>(QAnnotateExprNode::make(ret, kQInput));
-      }
-      return e;
-    };
-  return ForwardRewrite(expr, "FQAnnotateRewrite", nullptr, fmulti_ref);
-});
-
 
 // =============
 // realize pass
@@ -536,14 +521,6 @@ Expr AvgPoolRealize(const Call& ref_call,
 RELAY_REGISTER_OP("nn.avg_pool2d")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", AvgPoolRealize);
 
-
-TVM_REGISTER_API("relay._quantize.realize")
-.set_body_typed<Expr(Expr)>([](const Expr& e) {
-  Expr ret = ForwardRewrite(e, "FQRealizeRewrite", nullptr, nullptr);
-  return ret;
-});
-
-
 // =============
 // qconfig
 
@@ -612,6 +589,42 @@ TVM_REGISTER_API("relay._quantize._EnterQConfigScope")
 
 TVM_REGISTER_API("relay._quantize._ExitQConfigScope")
 .set_body_typed(QConfig::ExitQConfigScope);
+
+Pass QuantizeAnnotate() {
+  std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
+    if (e->derived_from<TempExprNode>()) {
+      const auto* n = e.as<QAnnotateExprNode>();
+      CHECK(n);
+      const PackedFunc* f =
+          runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
+      Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
+      return static_cast<Expr>(QAnnotateExprNode::make(ret, kQInput));
+    }
+    return e;
+  };
+
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          ForwardRewrite(f, "FQAnnotateRewrite", fmulti_ref));
+  };
+  return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
+}
+
+TVM_REGISTER_API("relay._quantize.QuantizeAnnotate")
+.set_body_typed(QuantizeAnnotate);
+
+Pass QuantizeRealizePass() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          ForwardRewrite(f, "FQRealizeRewrite", nullptr, nullptr));
+  };
+  return CreateFunctionPass(pass_func, 1, "QuantizeRealize", {});
+}
+
+TVM_REGISTER_API("relay._quantize.QuantizeRealize")
+.set_body_typed(QuantizeRealizePass);
 
 }  // namespace quantize
 }  // namespace relay
