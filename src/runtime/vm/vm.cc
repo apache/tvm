@@ -438,7 +438,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::InvokePacked: {
-      os << "invoke_packed PackedFunc[" << instr.packed_index << "] (in: $"
+      os << "invoke_packed PackedFunc[" << instr.packed_index << "](in: $"
          << StrJoin<RegName>(instr.packed_args, 0, instr.arity - instr.output_size, ",$")
          << ", out: $"
          << StrJoin<RegName>(instr.packed_args, instr.arity - instr.output_size,
@@ -466,7 +466,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     }
     case Opcode::AllocClosure: {
       os << "alloc_closure $" << instr.dst << " VMFunc[" << instr.clo_index
-         << "] ($" << StrJoin<RegName>(instr.free_vars, 0, instr.num_freevar, ",$")
+         << "]($" << StrJoin<RegName>(instr.free_vars, 0, instr.num_freevar, ",$")
          << ")";
       break;
     }
@@ -476,13 +476,13 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::Invoke: {
-      os << "invoke $" << instr.dst << " VMFunc[" << instr.func_index << "] ($"
+      os << "invoke $" << instr.dst << " VMFunc[" << instr.func_index << "]($"
          << StrJoin<RegName>(instr.invoke_args_registers, 0, instr.num_args, ",$")
          << ")";
       break;
     }
     case Opcode::InvokeClosure: {
-      os << "invoke_closure $" << instr.dst << " VMFunc[" << instr.closure << "] ($"
+      os << "invoke_closure $" << instr.dst << " $" << instr.closure << "($"
          << StrJoin<RegName>(instr.closure_args, 0, instr.closure_args_num, ",$")
          << ")";
       break;
