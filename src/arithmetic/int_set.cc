@@ -237,10 +237,11 @@ inline IntervalSet Combine<ir::Mod>(Analyzer* analyzer,
     if (is_zero(divisor)) {
       LOG(FATAL) << "Modular by zero in CombineInterval Mod";
     }
-    // NOTE: need special bound check for truc div
-    if (a->HasLowerBound() &&
-        analyzer->CanProveGreaterEqual(divisor, 0) &&
-        analyzer->CanProveGreaterEqual(a->min_value, 0)) {
+    // We need to add more bound constraints throughout the code.
+    // The logic below assumes a is non-negative, which usually
+    // is the case of our application.
+    // TODO(tqchen): add bound constraints for a.
+    if (analyzer->CanProveGreaterEqual(divisor, 0)) {
       return IntervalSet(make_zero(divisor.type()), divisor - 1);
     } else {
       Expr bound = abs(divisor) - 1;
