@@ -700,6 +700,18 @@ Pass QuantizeRealizePass() {
 TVM_REGISTER_API("relay._quantize.QuantizeRealize")
 .set_body_typed(QuantizeRealizePass);
 
+Pass QuantizeRewriteForVTAPass() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(
+          ForwardRewrite(f, "FQVtaRewrite", nullptr, nullptr));
+  };
+  return CreateFunctionPass(pass_func, 1, "QuantizeRewriteForVTA", {});
+}
+
+TVM_REGISTER_API("relay._quantize.QuantizeRewriteForVTA")
+.set_body_typed(QuantizeRewriteForVTAPass);
+
 // =============
 // Insert stop_fusion for vta.
 
@@ -715,17 +727,10 @@ QVtaExpr QVtaExprNode::make(Expr expr) {
   return QVtaExpr(rnode);
 }
 
-TVM_REGISTER_API("relay._quantize.rewrite_for_vta")
-.set_body_typed<Expr(Expr)>([] (const Expr& expr) {
-  return ForwardRewrite(expr, "FQVtaRewrite", nullptr, nullptr);
-});
-
-
 TVM_REGISTER_API("relay._quantize.make_vta_expr")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = QVtaExprNode::make(args[0]);
   });
-
 
 TVM_REGISTER_API("relay._quantize.make_stop_fusion")
 .set_body_typed<Expr(Expr)>([] (const Expr& expr) {
@@ -738,8 +743,6 @@ TVM_REGISTER_API("relay._quantize.temp_expr_realize")
   CHECK(n);
   return n->Realize();
 });
-
-
 
 
 }  // namespace quantize
