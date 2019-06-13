@@ -113,8 +113,9 @@ void ModuleNode::Add(const GlobalVar& var,
 
 void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {
   for (size_t i = 0; i < type->constructors.size(); ++i) {
-    type->constructors[i]->tag = static_cast<int64_t>(dmlc::HashCombine(std::hash<std::string>()(var->var->name_hint),
-                                                                         std::hash<size_t>()(i)));
+    size_t hash = dmlc::HashCombine(std::hash<std::string>()(var->var->name_hint),
+                                    std::hash<size_t>()(i));
+    type->constructors[i]->tag = static_cast<int64_t>(hash);
     constructor_tag_map_[type->constructors[i]->tag] = type->constructors[i];
   }
 }

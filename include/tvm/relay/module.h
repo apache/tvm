@@ -32,6 +32,7 @@
 #include <tvm/relay/type.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {
