@@ -64,7 +64,12 @@ class OperatorConverter(object):
             'MAX_POOL_2D': self.convert_max_pool2d,
             'CONCATENATION': self.convert_concatenation,
             'ADD': self.convert_add,
+            'SUB': self.convert_sub,
             'MUL': self.convert_mul,
+            'DIV': self.convert_div,
+            'POW': self.convert_pow,
+            'MAXIMUM': self.convert_maximum,
+            'MINIMUM': self.convert_minimum,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'PAD': self.convert_pad,
             'LOGISTIC': self.convert_logistic,
@@ -320,9 +325,26 @@ class OperatorConverter(object):
         """Convert TFLite ADD"""
         return self._convert_elemwise(_op.add, op)
 
+    def convert_sub(self, op):
+        """Convert TFLite SUB"""
+        return self._convert_elemwise(_op.subtract, op)
+
     def convert_mul(self, op):
         """Convert TFLite MUL"""
         return self._convert_elemwise(_op.multiply, op)
+
+    def convert_div(self, op):
+        """Convert TFLite DIV"""
+        return self._convert_elemwise(_op.divide, op)
+
+    def convert_pow(self, op):
+        return self._convert_elemwise(_op.power, op)
+
+    def convert_maximum(self, op):
+        return self._convert_elemwise(_op.maximum, op)
+
+    def convert_minimum(self, op):
+        return self._convert_elemwise(_op.minimum, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
