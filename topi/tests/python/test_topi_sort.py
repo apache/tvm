@@ -96,12 +96,12 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
         check_device(device)
 
 def test_topk():
+    np.random.seed(0)
     for k in [0, 1, 5]:
         for axis in [0, -1, 1]:
             for ret_type in ["both", "values", "indices"]:
-                for dtype in ["int64", "float32"]:
-                    verify_topk(k, axis, ret_type, True, dtype)
-                    verify_topk(k, axis, ret_type, False, dtype)
+                verify_topk(k, axis, ret_type, True, "int64")
+                verify_topk(k, axis, ret_type, False, "float32")
 
 
 if __name__ == "__main__":
