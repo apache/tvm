@@ -16,168 +16,87 @@
 # under the License.
 import tvm
 
+
+class IntSetChecker:
+    def __init__(self):
+        self.analyzer = tvm.arith.Analyzer()
+
+    def verify(self, data, dmap, expected):
+        res = self.analyzer.int_set(data, dmap)
+        def err_msg():
+            return "\ndata={}\ndmap={}\nres={}\nexpected={}".format(data, dmap, res, expected)
+        def equal(x, y):
+            res = self.analyzer.canonical_simplify(x - y)
+            return tvm.ir_pass.Equal(res, 0)
+        assert equal(res.min_value, expected[0]), err_msg()
+        assert equal(res.max_value, expected[1]), err_msg()
+
 def test_basic():
-    s = tvm.arith.intset_interval(2, 3)
-    assert s.min().value == 2
-    assert s.max().value == 3
+    s = tvm.arith.IntervalSet(2, 3)
+    assert s.min_value.value == 2
+    assert s.max_value.value == 3
+
 
 def test_vector():
     base = 10
     stride = 3
     lanes = 2
     s = tvm.arith.intset_vector(tvm.make.Ramp(base, stride, lanes))
-    assert s.min().value == base
-    assert s.max().value == base + stride * lanes - 1
-
-def test_deduce():
-    a = tvm.var('a')
-    b = tvm.var('b')
-    c = tvm.var('c')
-    d = tvm.var('d')
-
-    b_s = tvm.arith.intset_interval(2, 3)
-    c_s = tvm.arith.intset_interval(10, 15)
-    d_s = tvm.arith.intset_interval(-3, -1)
-    zero = tvm.const(0, "int32")
-
-    e0 = (-b)*a+c-d
-    res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((d - c) /(b*-1))
-    assert str(tvm.ir_pass.Simplify(res0.max())) == str(ans0)
-
-    # expression containing variable a is on rhs
-    res0 = tvm.arith.DeduceBound(a, zero <= e0, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(tvm.ir_pass.Simplify(res0.max())) == str(ans0)
-
-    e0 = d*a+c-d
-    res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((0-c)/d + 1)
-    assert str(tvm.ir_pass.Simplify(res0.max())) == str(ans0)
-
-    # expression containing variable a is on rhs
-    res0 = tvm.arith.DeduceBound(a, zero <= e0, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(tvm.ir_pass.Simplify(res0.max())) == str(ans0)
-
-    e1 = (a*4+b < c)
-    res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    ans1 = (((c - b) + -1)/4)
-    assert str(tvm.ir_pass.Simplify(res1.max())) == str(ans1)
-
-    # expression containing variable a is on rhs
-    e1 = (c > a*4+b)
-    res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(tvm.ir_pass.Simplify(res1.max())) == str(ans1)
-
-    e2 = (tvm.max(5, a * 4) < 0)
-    res2 = tvm.arith.DeduceBound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(res2.max()) == "neg_inf"
-    assert str(res2.min()) == "pos_inf"
-
-    # expression containing variable a is on rhs
-    e2 = (zero < tvm.max(5, a * 4))
-    res2 = tvm.arith.DeduceBound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(res2.max()) == "neg_inf"
-    assert str(res2.min()) == "pos_inf"
+    assert s.min_value.value == base
+    assert s.max_value.value == base + stride * lanes - 1
 
 
-    e3 = (-b)+a*c-d
-    res3 = tvm.arith.DeduceBound(a, e3>=0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
-    ans3 = 2/c+1
-    assert str(tvm.ir_pass.Simplify(res3.min())) == str(ans3)
+def test_add_sub():
+    ck = IntSetChecker()
+    x, y = tvm.var("x"), tvm.var("y")
+    ck.verify(x + y, {x : tvm.arith.IntervalSet(0, 10)}, (y, 10 + y))
+    ck.verify(x + y,
+              {x : tvm.arith.IntervalSet(0, 10), y : tvm.arith.IntervalSet(1, 11)},
+              (1, 21))
+    ck.verify(x - y,
+              {x : tvm.arith.IntervalSet(0, 10), y : tvm.arith.IntervalSet(1, 11)},
+              (-11, 9))
 
-    res3 = tvm.arith.DeduceBound(a, zero <= e3, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
-    assert str(tvm.ir_pass.Simplify(res3.min())) == str(ans3)
+def test_mul_div():
+    ck = IntSetChecker()
+    x, y = tvm.var("x"), tvm.var("y")
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
+    ck.verify(x * y, {x : tvm.arith.IntervalSet(0, 10)}, (0, 10 * y))
+    ck.verify(x * 2, {x : tvm.arith.IntervalSet(1, 10)}, (2, 20))
+    ck.verify(x * -2, {x : tvm.arith.IntervalSet(1, 10)}, (-20, -2))
+    ck.verify(x / y, {x : tvm.arith.IntervalSet(0, 10)}, (0, 10 / y))
+    ck.verify(x / 2, {x : tvm.arith.IntervalSet(1, 10)}, (0, 5))
 
-def test_check():
-    a = tvm.var('a')
-    b = tvm.var('b')
-    c = tvm.var('c')
-    d = tvm.var('d')
 
-    b_s = tvm.arith.intset_interval(2, 3)
-    c_s = tvm.arith.intset_interval(5, 7)
-    d_s = tvm.arith.intset_interval(-3, -1)
+def test_mod():
+    ck = IntSetChecker()
+    x, y = tvm.var("x"), tvm.var("y")
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
+    ck.verify(x % y, {x : tvm.arith.IntervalSet(0, 10)}, (0, y - 1))
+    ck.verify(x % 10, {x : tvm.arith.IntervalSet(1, 10)}, (0, 9))
 
-    # no compare operator
-    res1 = tvm.arith.DeduceBound(a, a+b, {b: b_s}, {})
-    assert res1.is_nothing()
+def test_max_min():
+    ck = IntSetChecker()
+    x, y = tvm.var("x"), tvm.var("y")
+    ck.verify(tvm.max(x, x + 1), {x : tvm.arith.IntervalSet(0, 10)}, (1, 11))
+    ck.verify(tvm.min(x - 1, x + 1), {x : tvm.arith.IntervalSet(0, 10)}, (-1, 9))
+    ck.verify(tvm.min(x, y), {}, (tvm.min(x, y), tvm.min(x, y)))
+    ck.verify(tvm.max(x, y), {}, (tvm.max(x, y), tvm.max(x, y)))
 
-    # multiple compare operators
-    res2 = tvm.arith.DeduceBound(a, (a+b>3).astype(c.dtype)>c , {b: b_s, c: c_s}, {})
-    assert res2.is_nothing()
 
-    # multiple target variable
-    res2 = tvm.arith.DeduceBound(a, a*2-a>b, {b: b_s}, {})
-    assert res2.is_nothing()
+def test_select():
+    ck = IntSetChecker()
+    x, y = tvm.var("x"), tvm.var("y")
+    ck.verify(tvm.expr.Select(x > 0, x - 1, x + 1),
+              {x : tvm.arith.IntervalSet(0, 10)}, (-1, 11))
 
-def test_deduce_basic():
-    def test_basic(a1, a2, coff):
-        a = tvm.var('a')
-        b = tvm.var('b')
-        b_s = tvm.arith.intset_interval(a1, a2)
-        e0 = b + a*coff + 3
-
-        res1 = tvm.arith.DeduceBound(a, e0<17, {b: b_s}, {b: b_s})
-        [x, y] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
-        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) < 17)).value == 1
-
-        # expression containing variable a is on rhs
-        res1 = tvm.arith.DeduceBound(a, tvm.const(17, "int32") < e0, {b: b_s}, {b: b_s})
-        [x, y] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
-        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) > 17)).value == 1
-
-        # expression containing variable a is on rhs
-        res1 = tvm.arith.DeduceBound(a, tvm.const(17, "int32")>= e0, {b: b_s}, {b: b_s})
-        [x, y] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
-        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) <= 17)).value == 1
-
-        res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
-        [x, y] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
-        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) >= 17)).value == 1
-
-    test_basic(0, 4, 4)
-    test_basic(1, 5, 4)
-    test_basic(2, 6, 4)
-    test_basic(0, 4, -4)
-    test_basic(1, 5, -4)
-    test_basic(2, 6, -4)
-
-def test_deduce_complex():
-    def test_complex(a1, a2, coff):
-        a = tvm.var('a')
-        b = tvm.var('b')
-        b_s = tvm.arith.intset_interval(a1, a2)
-        e0 = (b*3 + a* coff) * 4
-
-        res1 = tvm.arith.DeduceBound(a, e0<63, {b: b_s}, {b: b_s})
-        [t, x] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
-        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) < 63)).value == 1
-
-        # expression containing variable a is on rhs
-        res1 = tvm.arith.DeduceBound(a, tvm.const(63, "int32")>= e0, {b: b_s}, {b: b_s})
-        [t, x] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
-        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) <= 63)).value == 1
-
-        res1 = tvm.arith.DeduceBound(a, e0>63, {b: b_s}, {b: b_s})
-        [t, x] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
-        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) > 63)).value == 1
-
-        # expression containing variable a is on rhs
-        res1 = tvm.arith.DeduceBound(a, tvm.const(63, "int32") <= e0, {b: b_s}, {b: b_s})
-        [t, x] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
-        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) >= 63)).value == 1
-
-    test_complex(0, 4, 4)
-    test_complex(0, 4, -4)
-    test_complex(2, 6, 4)
-    test_complex(0, 4, -4)
-    test_complex(1, 5, -4)
-    test_complex(2, 6, -4)
 
 if __name__ == "__main__":
     test_basic()
     test_vector()
-    test_deduce()
-    test_check()
-    test_deduce_basic()
-    test_deduce_complex()
+    test_add_sub()
+    test_mul_div()
+    test_max_min()
+    test_select()
+    test_mod()
+

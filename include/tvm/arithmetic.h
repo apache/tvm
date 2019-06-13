@@ -328,71 +328,14 @@ class ConstraintContext {
   std::function<void()> exit_;
 };
 
-/*!
- * \brief Analyzer that contains bunch of sub-analyzers.
- *
- * Each sub-analyzer can make use of another sub-analyzer
- * by weak reference of this.
- *
- * NOTE for sub-analyzer developers:
- * If the analyzer uses memoization, we need to clear the internal
- * cache when information about a Var has been overrideen.
- */
-class Analyzer {
- public:
-  /*! \brief sub-analyzer: const integer bound */
-  ConstIntBoundAnalyzer const_int_bound;
-  /*! \brief sub-analyzer: modular set */
-  ModularSetAnalyzer modular_set;
-  /*! \brief sub-analyzer rewrite simplify */
-  RewriteSimplifier rewrite_simplify;
-  /*! \brief sub-analyzer canonical simplify */
-  CanonicalSimplifier canonical_simplify;
-  /*! \brief constructor */
-  Analyzer();
-  /*!
-   * \brief Notify all the sub-analyzers that var
-   *        is created and binded to expr.
-   *
-   *  Each var can only be binded once.
-   *
-   * \param var The variable.
-   * \param expr The expression we bind to.
-   */
-  void Bind(const VarExpr& var, const Expr& expr);
-  /*!
-   * \brief Notify all the sub-analyzers that var
-   *        is created and binded to a range.
-   *
-   *  Each var can only be binded once.
-   *
-   * \param var The variable.
-   * \param range The range we bind to.
-   */
-  void Bind(const VarExpr& var, const Range& range);
-  /*!
-   * \brief Whether can we proof expr >= val.
-
-   *  Non-negative proof is very useful in integer analysis
-   *  to lower divisions and mods given difference in trunc and ceil mode.
-   *
-   * \param expr The expression.
-   * \param lower_bound The lower bound.
-   * \return Whether we can proof it.
-   *
-   * \note Analyzer will call into sub-analyzers to get the result.
-   */
-  bool CanProveGreaterEqual(const Expr& expr, int64_t lower_bound);
-};
-
 //-----------------------------------------------
-// Integer set abstraction API.
+// Integer set data structure.
 //
 // This is a API build on top of the base
 // integer analysis API to provide set analysis.
 //------------------------------------------------
 /*!
- * \brief Sign of an expression or set.
+ * \brief Sign type of an integer expression.
  */
 enum SignType {
   kPositive,
@@ -401,8 +344,13 @@ enum SignType {
   kUnknown
 };
 
-// internal node container of int set.
-struct IntSetNode;
+/*!
+ * \brief Base class of all IntSet containers.
+ */
+struct IntSetNode : public Node {
+  static constexpr const char* _type_key = "IntSet";
+  TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Node);
+};
 
 /*!
  * \brief Integer set class, represent a set of integers in one dimension.
@@ -424,11 +372,6 @@ class IntSet : public NodeRef {
    * \return The covering range.
    */
   Range cover_range(Range max_range) const;
-  /*!
-   * \brief find an interval that covers the set.
-   * \return The covering interval set.
-   */
-  IntSet cover_interval() const;
   /*! \return Lower bound of the set */
   Expr min() const;
   /*! \return upper bound of the set */
@@ -493,33 +436,91 @@ class IntSet : public NodeRef {
 };
 
 /*!
- * \brief Base class of all IntSet containers.
+ * \brief Integer set analyzer.
  */
-struct IntSetNode : public Node {
-  static constexpr const char* _type_key = "IntSet";
-  TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Node);
+class IntSetAnalyzer {
+ public:
+  /*!
+   * \brief Find a symbolic integer set that contains all possible values of
+   *        expr given the domain of each variables.
+   *
+   * \param expr The expression of interest.
+   * \param dom_map The domain map to indicate which variable to relax.
+   * \return the result of the analysis.
+   */
+  IntSet operator()(const Expr& expr, const Map<Var, IntSet>& dom_map);
+
+ private:
+  friend class Analyzer;
+  explicit IntSetAnalyzer(Analyzer* parent);
+  ~IntSetAnalyzer();
+  class Impl;
+  /*! \brief Internal impl */
+  Impl* impl_;
 };
 
 /*!
- * \brief Detect if e can be rewritten as e = sum_{i=0}^{n-1} var[i] * coeff[i] + coeff[n]
- *  Where coeff[i] and base are invariant of var[j] for all i and j.
+ * \brief Analyzer that contains bunch of sub-analyzers.
  *
- * \param e The expression to be detected.
- * \param vars List of variables to be used in detection.
- * \return [coeff[i]] if it is possible, empty array if it is not.
- */
-Array<Expr> DetectLinearEquation(const Expr& e, const Array<Var>& vars);
-
-/*!
- * \brief Detect if expression corresponds to clip bound of the vars
+ * Each sub-analyzer can make use of another sub-analyzer
+ * by weak reference of this.
  *
- * \param e The expression to be detected.
- * \param vars List of variables to be used in detection.
- * \return concat([min_value[i], max_value[i]]), None is returned if there is no min or max value
- *          return empty if the e does not match the pattern.
+ * NOTE for sub-analyzer developers:
+ * If the analyzer uses memoization, we need to clear the internal
+ * cache when information about a Var has been overridden.
  */
-Array<Expr> DetectClipBound(const Expr& e, const Array<Var>& vars);
+class Analyzer {
+ public:
+  /*! \brief sub-analyzer: const integer bound */
+  ConstIntBoundAnalyzer const_int_bound;
+  /*! \brief sub-analyzer: modular set */
+  ModularSetAnalyzer modular_set;
+  /*! \brief sub-analyzer rewrite simplify */
+  RewriteSimplifier rewrite_simplify;
+  /*! \brief sub-analyzer canonical simplify */
+  CanonicalSimplifier canonical_simplify;
+  /*! \brief sub-analyzer: int set */
+  IntSetAnalyzer int_set;
+  /*! \brief constructor */
+  Analyzer();
+  /*!
+   * \brief Notify all the sub-analyzers that var
+   *        is created and binded to expr.
+   *
+   *  Each var can only be binded once.
+   *
+   * \param var The variable.
+   * \param expr The expression we bind to.
+   */
+  void Bind(const VarExpr& var, const Expr& expr);
+  /*!
+   * \brief Notify all the sub-analyzers that var
+   *        is created and binded to a range.
+   *
+   *  Each var can only be binded once.
+   *
+   * \param var The variable.
+   * \param range The range we bind to.
+   */
+  void Bind(const VarExpr& var, const Range& range);
+  /*!
+   * \brief Whether can we prove expr >= val.
 
+   *  Non-negative proof is very useful in integer analysis
+   *  to lower divisions and mods given difference in trunc and ceil mode.
+   *
+   * \param expr The expression.
+   * \param lower_bound The lower bound.
+   * \return Whether we can prove it.
+   *
+   * \note Analyzer will call into sub-analyzers to get the result.
+   */
+  bool CanProveGreaterEqual(const Expr& expr, int64_t lower_bound);
+};
+
+//-----------------------------------------------
+// Integer set legacy API.
+//------------------------------------------------
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
  *  e given the domain of each iteration variables.
@@ -637,6 +638,29 @@ IntSet DeduceBound(Expr v, Expr cond,
  * \return The domain that covers all the calls or provides within the given statement.
  */
 Domain DomainTouched(Stmt body, const Tensor &tensor, bool consider_calls, bool consider_provides);
+
+// Expression pattern detector.
+/*!
+ * \brief Detect if e can be rewritten as e = sum_{i=0}^{n-1} var[i] * coeff[i] + coeff[n]
+ *  Where coeff[i] and base are invariant of var[j] for all i and j.
+ *
+ * \param e The expression to be detected.
+ * \param vars List of variables to be used in detection.
+ * \return [coeff[i]] if it is possible, empty array if it is not.
+ */
+Array<Expr> DetectLinearEquation(const Expr& e,
+                                 const Array<Var>& vars);
+
+/*!
+ * \brief Detect if expression corresponds to clip bound of the vars
+ *
+ * \param e The expression to be detected.
+ * \param vars List of variables to be used in detection.
+ * \return concat([min_value[i], max_value[i]]), None is returned if there is no min or max value
+ *          return empty if the e does not match the pattern.
+ */
+Array<Expr> DetectClipBound(const Expr& e,
+                            const Array<Var>& vars);
 
 // implementation
 inline const IntSetNode* IntSet::operator->() const {

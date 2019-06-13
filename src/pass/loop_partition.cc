@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -28,7 +28,7 @@
 #include <tvm/arithmetic.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "../arithmetic/int_set_internal.h"
+#include "../arithmetic/int_set.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -366,7 +366,7 @@ class LoopPartitioner : public IRMutator {
 
   std::pair<IntSet, std::unordered_set<const Node*>>
   GetIntervalAndCondset(const Partition &partitions,
-                        const arith::Interval &for_interval,
+                        const arith::IntervalSet &for_interval,
                         bool cond_value);
 
   inline Stmt MakeFor(const Node* op, Expr extent, Stmt body);
@@ -374,6 +374,7 @@ class LoopPartitioner : public IRMutator {
   /* Candidate IRs that may be partitioned potentially */
   std::unordered_map<const Variable*, IntSet> hint_map_;
   std::unordered_map<const Variable*, IntSet> relax_map_;
+  arith::Analyzer analyzer_;
   CandidateSelector selector;
 };
 
@@ -381,16 +382,17 @@ class LoopPartitioner : public IRMutator {
 // given in the second component provably have value given by cond_value
 std::pair<IntSet, std::unordered_set<const Node*>>
 LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
-                                       const arith::Interval &for_interval,
+                                       const arith::IntervalSet &for_interval,
                                        bool cond_value) {
   Array<IntSet> sets;
   std::unordered_set<const Node*> cond_set;
 
   for (const auto &kv : partitions) {
     if (kv.first.second == cond_value) {
-      arith::Interval interval = kv.second.as<arith::IntervalSet>()->i;
-      arith::Interval intersection = arith::Interval::make_intersection(interval, for_interval);
-      if (!intersection.is_empty()) {
+      arith::IntervalSet interval = Downcast<arith::IntervalSet>(kv.second);
+      arith::IntervalSet intersection = arith::Intersect(
+          &analyzer_, interval, for_interval);
+      if (!intersection->IsEmpty()) {
         sets.push_back(kv.second);
         cond_set.insert(kv.first.first);
       }
@@ -463,11 +465,12 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
                                    Expr max,
                                    Stmt body,
                                    bool partition_thread_scope) {
+  using namespace arith;
   PartitionFinder finder(var, hint_map_, relax_map_);
   finder.Visit(body);
   if (finder.partitions.empty()) return Stmt();
 
-  arith::Interval for_interval(min, max);
+  arith::IntervalSet for_interval(min, max);
   bool cond_value;
   IntSet middle_interval;
   std::unordered_set<const Node*> cond_set;
@@ -478,7 +481,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     // if such interval doesn't exist, find an interval in which all
     // conditions on var are false
     std::tie(middle_interval, cond_set) =
-            GetIntervalAndCondset(finder.partitions, for_interval, false);
+        GetIntervalAndCondset(finder.partitions, for_interval, false);
     if (middle_interval.is_nothing())
       // we couldn't find an interval in which the condintions are provably true or false
       // Therefore, we can't partition the loop based on those conds
@@ -488,7 +491,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     cond_value = true;
   }
 
-  arith::Interval middle_interval_i = middle_interval.as<arith::IntervalSet>()->i;
+  IntervalSet middle_interval_i = Downcast<IntervalSet>(middle_interval);
   // middle_interval is the subrange of the loop variable range for which a
   // set of conditions are true (or false resp.)
   // The part of the loop variable range that is before (after resp.) that
@@ -499,7 +502,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   Expr body_begin;
   Stmt pre_stmt;
   bool pre_stmt_recurse = true;
-  if (middle_interval_i.has_lower_bound()) {
+  if (middle_interval_i->HasLowerBound()) {
     body_begin = ir::Simplify(middle_interval.min());
     if (!can_prove(body_begin == min)) {
       Expr cond = (body_begin - min >= 0);
@@ -524,7 +527,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   Expr post_doubt_begin;
   Stmt post_stmt;
   bool post_stmt_recurse = true;
-  if (middle_interval_i.has_upper_bound()) {
+  if (middle_interval_i->HasUpperBound()) {
     post_doubt_begin = ir::Simplify(middle_interval.max() + 1);
     if (!can_prove(middle_interval.max() == max)) {
       // require the extent to be non-negative
