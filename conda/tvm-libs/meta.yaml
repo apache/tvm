@@ -26,7 +26,7 @@ source:
 
 build:
   number: 0
-  string: cuda{{ cuda_version }}_{{ PKG_BUILDNUM }}  # [cuda]
+  string: cuda{{ cuda_version | replace('.', '') }}h{{ PKG_HASH }}_{{ PKG_BUILDNUM }}  # [cuda]
 
 requirements:
   build:

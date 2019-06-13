@@ -18,7 +18,7 @@
 FROM nvidia/cuda:{{ cuda_version }}-devel-ubuntu16.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-            bzip2 curl \
+            bzip2 curl sudo binutils \
             libcudnn7={{ cudnn_version }}-1+cuda{{ cuda_version }} \
             libcudnn7-dev={{ cudnn_version }}-1+cuda{{ cuda_version }} && \
     rm -rf /var/lib/apt/lists/*
@@ -27,8 +27,11 @@ RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-lat
      chmod +x ~/miniconda.sh && \
      ~/miniconda.sh -b -p /opt/conda && \
      rm ~/miniconda.sh && \
+     /opt/conda/bin/conda upgrade --all && \
      /opt/conda/bin/conda install conda-build conda-verify && \
      /opt/conda/bin/conda clean -ya
+
+RUN /opt/conda/bin/conda install --download-only cmake make llvmdev=7.0.0 zlib
 
 ENV PATH /opt/conda/bin:$PATH
 ENV LD_LIBRARY_PATH /usr/local/nvidia/lib:/usr/local/nvidia/lib64
@@ -36,5 +39,3 @@ ENV CONDA_BLD_PATH /tmp
 
 WORKDIR /workspace
 RUN chmod -R a+w /workspace
-
-CMD conda build --output-folder /workspace/conda/pkg --variants '{cuda: True, cuda_version: {{ cuda_version }}}' /workspace/conda/tvm-libs

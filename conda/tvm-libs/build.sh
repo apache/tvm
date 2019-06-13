@@ -18,12 +18,6 @@
 
 set -e
 
-if [ "$cuda" == "True" ]; then
-    CUDA_OPT="-DUSE_CUDA=ON -DUSE_CUBLAS=ON -DUSE_CUDNN=ON"
-else
-    CUDA_OPT=""
-fi
-
 if [ "$target_platform" == "osx-64" ]; then
     # macOS 64 bits
     METAL_OPT=""  # Conda can only target 10.9 for now
@@ -37,6 +31,13 @@ else
 	# Windows (or 32 bits, which we don't support)
 	TOOLCHAIN_OPT=""
     fi
+fi
+
+if [ "$cuda" == "True" ]; then
+    CUDA_OPT="-DUSE_CUDA=ON -DUSE_CUBLAS=ON -DUSE_CUDNN=ON"
+    TOOLCHAIN_OPT=""
+else
+    CUDA_OPT=""
 fi
 
 rm -rf build || true
