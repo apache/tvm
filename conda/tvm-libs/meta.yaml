@@ -30,9 +30,9 @@ build:
 
 requirements:
   build:
-    # The OS X build will require some manual setup or it will break
-    # See https://docs.conda.io/projects/conda-build/en/latest/source/resources/compiler-tools.html#macos-sdk
-    - {{ compiler('cxx') }}
+    # The anaconda compilers for OS X are old an annoying
+    # so we rely on the platform ones for now
+    - {{ compiler('cxx') }}  # [linux]
     - cmake
     - make
   host:
