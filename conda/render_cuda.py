@@ -29,8 +29,8 @@ CUDA_VERSIONS = ['10.0', '9.0']
 # and from conda.
 
 # These two must be in sync
-CUDNN_FULL_VERSION = '7.3.1.20'
-CUDNN_VERSION = '7.3.1'
+CUDNN_FULL_VERSION = '7.6.0.64'
+CUDNN_VERSION = '7.6.0'
 
 
 condadir = os.path.dirname(sys.argv[0])

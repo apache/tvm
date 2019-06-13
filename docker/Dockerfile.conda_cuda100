@@ -17,13 +17,11 @@
 
 FROM nvidia/cuda:10.0-devel-ubuntu16.04
 
-RUN apt-get update && apt-get install -y bzip2 curl sudo && rm -rf /var/lib/apt/lists/*
-
-RUN curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v7.3.1/cudnn-10.0-linux-x64-v7.3.1.20.tgz -O && \
-    tar --no-same-owner -xzf cudnn-10.0-linux-x64-v7.3.1.20.tgz -C /usr/local && \
-    rm cudnn-10.0-linux-x64-v7.3.1.20.tgz && \
-    ldconfig
-
+RUN apt-get update && apt-get install -y --no-install-recommends \
+            bzip2 curl \
+            libcudnn7=7.6.0.64-1+cuda10.0 \
+            libcudnn7-dev=7.6.0.64-1+cuda10.0 && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN curl -o ~/miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh  && \
      chmod +x ~/miniconda.sh && \
