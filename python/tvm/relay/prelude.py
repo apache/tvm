@@ -39,7 +39,6 @@ class Prelude:
         self.cons = Constructor("cons", [a, self.l(a)], self.l)
         self.mod[self.l] = TypeData(self.l, [a], [self.nil, self.cons])
 
-
     def define_list_hd(self):
         """Defines a function to get the head of a list. Assume the list has at least one
         element.
@@ -53,7 +52,6 @@ class Prelude:
         z = Var("z")
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), y)
         self.mod[self.hd] = Function([x], Match(x, [cons_case]), a, [a])
-
 
     def define_list_tl(self):
         """Defines a function to get the tail of a list.
