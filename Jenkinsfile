@@ -185,6 +185,7 @@ stage('Build') {
            echo set\\(USE_ANTLR ON\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
+           echo set\\(HIDE_PRIVATE_SYMBOLS ON\\) >> config.cmake
            """
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_lib)
