@@ -40,8 +40,9 @@ def _declaration_dense(cfg,
     """Dense function declaration."""
 
     # Make sure that the dense operator is packed
-    assert len(data.shape) == 4
-    assert len(weight.shape) == 4
+    if len(data.shape) != 4 or len(weight.shape) != 4:
+        raise topi.InvalidShapeError()
+
     # Derive output shape
     oshape = (data.shape[0], weight.shape[0], data.shape[2], weight.shape[2])
 
