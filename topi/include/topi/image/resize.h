@@ -384,7 +384,7 @@ inline Tensor resize_bilinear(const Tensor& input,
 * \param shape Output shape to resize to.
 * \param layout input layout
 * \param align_corners To preserve centers of 4 corner pixels
-* \param mode Angorithm to use (NEAREST_NEIGHBOR / BILINEAR)
+* \param mode Algorithm to use (NEAREST_NEIGHBOR / BILINEAR)
 * \param name Name of the operation
 * \param tag The tag to mark the operation
 *
