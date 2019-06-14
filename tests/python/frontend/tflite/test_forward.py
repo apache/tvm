@@ -599,6 +599,24 @@ def test_forward_inception_v4_net():
                                 rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# SSD Mobilenet
+# -------------
+
+def test_forward_ssd_mobilenet_v1():
+    """Test the SSD Mobilenet V1 TF Lite model."""
+    # SSD MobilenetV1
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/object_detection/ssd_mobilenet_v1_coco_2018_01_28_nopp.tgz",
+        "ssd_mobilenet_v1_coco_2018_01_28_nopp.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 300, 300, 3)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -623,3 +641,4 @@ if __name__ == '__main__':
     test_forward_mobilenet_v2()
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
+    test_forward_ssd_mobilenet_v1()
