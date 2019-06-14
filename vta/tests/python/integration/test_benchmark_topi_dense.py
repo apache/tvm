@@ -72,7 +72,7 @@ def run_gemm(env, remote, target,
     # Define base computation schedule
     with target:
         res = topi.nn.dense(
-            data, kernel, None, env.acc_dtype)
+            data, kernel, out_dtype=env.acc_dtype)
         res = topi.right_shift(res, 8)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
