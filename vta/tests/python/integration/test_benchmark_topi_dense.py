@@ -126,7 +126,7 @@ def run_gemm(env, remote, target,
     data_arr = tvm.nd.array(data_np, ctx)
     kernel_arr = tvm.nd.array(kernel_np, ctx)
     res_arr = tvm.nd.array(res_np, ctx)
-    time_f = f.time_evaluator("conv2d", ctx, number=samples)
+    time_f = f.time_evaluator("dense", ctx, number=samples)
 
     # In vta sim mode, collect simulator runtime statistics
     stats = {}
@@ -163,7 +163,7 @@ def run_gemm(env, remote, target,
         device = "CPU"
     elif "vta" in target.keys:
         device = "VTA"
-    print("%s CONV2D TEST %s: Time cost = %g sec/op, %g GOPS" % (device, status, cost.mean, gops))
+    print("%s DENSE TEST %s: Time cost = %g sec/op, %g GOPS" % (device, status, cost.mean, gops))
 
     return correct, cost, stats
 
@@ -182,4 +182,4 @@ def test_gemm(device="vta", batch=128, in_feat=128, out_feat=128):
     vta.testing.run(_run)
 
 if __name__ == "__main__":
-    test_gemm("vta", 1, 16, 16)
+    test_gemm("vta", 16, 512, 1008)

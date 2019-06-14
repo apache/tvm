@@ -57,7 +57,7 @@ def _declaration_dense(cfg,
             data[b_o, k_o, b_i, k_i].astype(out_dtype) *
             weight[c_o, k_o, c_i, k_i].astype(out_dtype),
             axis=[k_o, k_i]),
-        name="res", tag="packed_dense")
+        name="res", tag="dense")
 
     cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
                  data.shape[1] * data.shape[3])
@@ -88,7 +88,7 @@ def _schedule_dense(cfg, outs):
                 else:
                     _traverse(tensor.op)
         else:
-            assert op.tag == "packed_dense"
+            assert op.tag == "dense"
             dense_res.append(op)
 
     _traverse(output.op)
@@ -100,17 +100,17 @@ def _schedule_dense(cfg, outs):
     b, co, _, _ = s[dense_stage].op.axis
     ci, _ = s[dense_stage].op.reduce_axis
     cfg.define_split('tile_b', b, num_outputs=2)
-    cfg.define_split('tile_co', co, num_outputs=2)
     cfg.define_split('tile_ci', ci, num_outputs=2)
+    cfg.define_split('tile_co', co, num_outputs=2)
     cfg.define_knob('oc_nthread', [1, 2])
     ###### space definition end ######
 
-    data, kernel = dense_stage.op.input_tensors
+    data, weight = dense_stage.op.input_tensors
 
     env = get_env()
 
     cdata = s.cache_read(data, env.inp_scope, [dense_stage])
-    ckernel = s.cache_read(kernel, env.wgt_scope, [dense_stage])
+    cweight = s.cache_read(weight, env.wgt_scope, [dense_stage])
     s[dense_stage].set_scope(env.acc_scope)
 
     # cache read input
@@ -127,12 +127,12 @@ def _schedule_dense(cfg, outs):
     for op in const_ops:
         s[op].compute_inline()
 
-    # tile
-    x_bo, x_co, x_bi, x_ci = s[output].op.axis
-    x_bo0, x_bo1 = cfg['tile_b'].apply(s, output, x_bo)
-    x_co0, x_co1 = cfg['tile_co'].apply(s, output, x_co)
-    s[output].reorder(x_bo0, x_co0, x_bo1, x_co1, x_bi, x_ci)
-    store_pt = x_co0
+    # apply tiling for SRAM reuse
+    x_b, x_c, _, _ = s[output].op.axis
+    x_bo, x_bi = cfg['tile_b'].apply(s, output, x_b)
+    x_co, x_ci = cfg['tile_co'].apply(s, output, x_c)
+    s[output].reorder(x_bo, x_co, x_bi, x_ci)
+    store_pt = x_co
 
     # set all compute scopes
     s[dense_stage].compute_at(s[output], store_pt)
@@ -145,22 +145,22 @@ def _schedule_dense(cfg, outs):
 
     # virtual threading along output channel axes
     if cfg['oc_nthread'].val > 1:
-        _, v_t = s[output].split(x_co0, factor=cfg['oc_nthread'].val)
+        _, v_t = s[output].split(x_co, factor=cfg['oc_nthread'].val)
         s[output].reorder(v_t, x_bo)
         s[output].bind(v_t, tvm.thread_axis("cthread"))
 
-    x_bo, x_co, x_bi, x_ci = s[dense_stage].op.axis
-    k_o, k_i = s[dense_stage].op.reduce_axis
-    s[dense_stage].reorder(x_bo, k_o, x_co, x_bi, x_ci, k_i)
+    x_bo, x_co, x_bi, _ = s[dense_stage].op.axis
+    k_o, _ = s[dense_stage].op.reduce_axis
+    s[dense_stage].reorder(x_bo, k_o, x_co)
 
     k_o, _ = cfg['tile_ci'].apply(s, dense_stage, k_o)
     s[cdata].compute_at(s[dense_stage], k_o)
-    s[ckernel].compute_at(s[dense_stage], k_o)
+    s[cweight].compute_at(s[dense_stage], k_o)
 
     # Use VTA instructions
     s[cdata].pragma(s[cdata].op.axis[0], env.dma_copy)
-    s[ckernel].pragma(s[ckernel].op.axis[0], env.dma_copy)
+    s[cweight].pragma(s[cweight].op.axis[0], env.dma_copy)
     s[dense_stage].tensorize(x_bi, env.gemm)
-    s[output].pragma(x_co1, env.dma_copy)
+    s[output].pragma(x_ci, env.dma_copy)
 
     return s
