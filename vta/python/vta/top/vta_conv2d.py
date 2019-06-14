@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Namespace for supporting packed_conv2d + ewise variant of nnvm."""
+"""Conv2D operator declaration and schedule registration for VTA."""
 
 import numpy as np
 import tvm
@@ -32,14 +32,14 @@ def is_packed_layout(layout):
     return False
 
 @autotvm.register_topi_compute(topi.nn.conv2d, 'vta', 'direct')
-def packed_conv2d(cfg,
-                  data,
-                  kernel,
-                  strides,
-                  padding,
-                  dilation,
-                  layout,
-                  out_dtype):
+def _declaration_conv2d(cfg,
+                        data,
+                        kernel,
+                        strides,
+                        padding,
+                        dilation,
+                        layout,
+                        out_dtype):
     """ Packed conv2d function."""
     if not is_packed_layout(layout):
         raise topi.InvalidShapeError()
@@ -68,14 +68,14 @@ def packed_conv2d(cfg,
             pad_data[b_o, k_o, i*hstride+d_i, j*wstride+d_j, b_i, k_i].astype(out_dtype) *
             kernel[c_o, k_o, d_i, d_j, c_i, k_i].astype(out_dtype),
             axis=[k_o, d_i, d_j, k_i]),
-        name="res", tag="packed_conv2d")
+        name="res", tag="conv2d")
 
     cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
                  kshape[2] * kshape[3] * ishape[1] * ishape[-1])
     return res
 
 @autotvm.register_topi_schedule(topi.generic.schedule_conv2d_nchw, 'vta', 'direct')
-def schedule_packed_conv2d(cfg, outs):
+def _schedule_conv2d(cfg, outs):
     assert len(outs) == 1
     output = outs[0]
     const_ops = []
@@ -97,7 +97,7 @@ def schedule_packed_conv2d(cfg, outs):
                 else:
                     _traverse(tensor.op)
         else:
-            assert op.tag == "packed_conv2d"
+            assert op.tag == "conv2d"
             conv2d_res.append(op)
 
     _traverse(output.op)
@@ -106,8 +106,8 @@ def schedule_packed_conv2d(cfg, outs):
     s = tvm.create_schedule(output.op)
 
     ##### space definition begin #####
-    b, co, h, w, bi, ci = s[conv2d_stage].op.axis
-    ci, kh, kw, bci = s[conv2d_stage].op.reduce_axis
+    b, co, h, w, _, _ = s[conv2d_stage].op.axis
+    ci, _, _, _ = s[conv2d_stage].op.reduce_axis
     cfg.define_split('tile_b', b, num_outputs=2)
     cfg.define_split('tile_h', h, num_outputs=2)
     cfg.define_split('tile_w', w, num_outputs=2)
@@ -192,4 +192,5 @@ def schedule_packed_conv2d(cfg, outs):
     s[ckernel].pragma(s[ckernel].op.axis[0], env.dma_copy)
     s[conv2d_stage].tensorize(x_bi, env.gemm)
     s[output].pragma(x_co1, env.dma_copy)
+
     return s

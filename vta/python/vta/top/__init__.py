@@ -7,3 +7,4 @@ from .nnvm_graphpack import nnvm_graph_pack
 from . import nnvm_op
 from . import op
 from . import vta_conv2d
+from . import vta_dense

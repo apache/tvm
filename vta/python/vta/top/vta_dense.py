@@ -44,13 +44,12 @@ def _declaration_dense(cfg,
     assert len(weight.shape) == 4
     # Derive output shape
     oshape = (data.shape[0], weight.shape[0], data.shape[2], weight.shape[2])
-    
+
     # Reduction axes (input channel)
-    assert(data.shape[1] == weight.shape[1])
-    assert(data.shape[3] == weight.shape[3])
+    assert(int(data.shape[1]) == int(weight.shape[1]))
+    assert(int(data.shape[3]) == int(weight.shape[3]))
     k_o = tvm.reduce_axis((0, data.shape[1]), name='k_o')
     k_i = tvm.reduce_axis((0, data.shape[3]), name='k_i')
-
     res = tvm.compute(
         oshape,
         lambda b_o, c_o, b_i, c_i: tvm.sum(
@@ -58,7 +57,7 @@ def _declaration_dense(cfg,
             weight[c_o, k_o, c_i, k_i].astype(out_dtype),
             axis=[k_o, k_i]),
         name="res", tag="packed_dense")
-    
+
     cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
                  data.shape[1] * data.shape[3])
     return res
@@ -88,7 +87,7 @@ def _schedule_dense(cfg, outs):
                 else:
                     _traverse(tensor.op)
         else:
-            assert op.tag == "dense"
+            assert op.tag == "packed_dense"
             dense_res.append(op)
 
     _traverse(output.op)
@@ -103,7 +102,6 @@ def _schedule_dense(cfg, outs):
     cfg.define_split('tile_co', co, num_outputs=2)
     cfg.define_split('tile_ci', ci, num_outputs=2)
     cfg.define_knob('oc_nthread', [1, 2])
-    cfg.define_knob('h_nthread', [1, 2])
     ###### space definition end ######
 
     data, kernel = dense_stage.op.input_tensors
@@ -150,12 +148,6 @@ def _schedule_dense(cfg, outs):
         s[output].reorder(v_t, x_bo)
         s[output].bind(v_t, tvm.thread_axis("cthread"))
 
-    # virtual threading along spatial rows
-    if cfg['h_nthread'].val > 1:
-        _, v_t = s[output].split(x_i0, factor=cfg['h_nthread'].val)
-        s[output].reorder(v_t, x_bo)
-        s[output].bind(v_t, tvm.thread_axis("cthread"))
-
     x_bo, x_co, x_bi, x_ci = s[dense_stage].op.axis
     k_o, k_i = s[dense_stage].op.reduce_axis
     s[dense_stage].reorder(x_bo, k_o, x_co, x_bi, x_ci, k_i)
@@ -169,3 +161,5 @@ def _schedule_dense(cfg, outs):
     s[ckernel].pragma(s[ckernel].op.axis[0], env.dma_copy)
     s[dense_stage].tensorize(x_bi, env.gemm)
     s[output].pragma(x_co1, env.dma_copy)
+
+    return s

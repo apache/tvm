@@ -31,6 +31,7 @@ def compute_clip(attrs, inputs, output_type, target):
             x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
     return [x]
 
+
 @reg.register_compute("nn.conv2d", level=15)
 def compute_conv2d(attrs, inputs, output_type, target):
     """ Compute definition of conv2d """
@@ -41,13 +42,13 @@ def compute_conv2d(attrs, inputs, output_type, target):
     layout = attrs.data_layout
     out_dtype = attrs.out_dtype
 
-    assert dilation == (1, 1), "not support dilate now"
+    assert dilation == (1, 1), "support for dilation limited to (1, 1)"
     if is_packed_layout(layout):
         if groups == 1:
             assert groups == 1
             env = get_env()
             assert env.LOG_INP_WIDTH == 3, "only support 8bit inp for now"
-            assert env.LOG_OUT_WIDTH == 3, "only support 8bit inp for now"
+            assert env.LOG_WGT_WIDTH == 3, "only support 8bit wgt for now"
             inputs = list(inputs)
             assert inputs[1].dtype == "int8"
             return [topi.nn.conv2d(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)]
@@ -56,6 +57,7 @@ def compute_conv2d(attrs, inputs, output_type, target):
 
     with tvm.target.arm_cpu(tvm.target.current_target().model):
         return _nn.compute_conv2d(attrs, inputs, output_type, target)
+
 
 @reg.register_schedule("nn.conv2d", level=15)
 def schedule_conv2d(attrs, outs, target):
@@ -77,3 +79,18 @@ def schedule_conv2d(attrs, outs, target):
 
     with tvm.target.arm_cpu(tvm.target.current_target().model):
         return _nn.schedule_conv2d(attrs, outs, tvm.target.current_target())
+
+
+@reg.register_compute("nn.dense", level=15)
+def compute_dense(attrs, inputs, out_type, target):
+    """Compute definition of dense"""
+    out_dtype = attrs.out_dtype
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+    return [topi.nn.dense(inputs[0], inputs[1], None, out_dtype)]
+
+
+@reg.register_schedule("nn.dense", level=15)
+def schedule_dense(attrs, outputs, target):
+    """Schedule definition of dense"""
+    with target:
+        return topi.generic.schedule_dense(outputs)
