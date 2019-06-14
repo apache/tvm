@@ -1076,7 +1076,8 @@ def test_LogSoftmax():
 def check_torch_conversion(model, input_size):
     dummy_input = torch.randn(*input_size)
     file_name = '{}.onnx'.format(model.__name__)
-    torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=True)
+    # Set verbose=True for more output
+    torch.onnx.export(model(), dummy_input, file_name, export_params=True, verbose=False)
     onnx_model = onnx.load(file_name)
     shapes = { '0' : input_size }
     expr, params = relay.frontend.from_onnx(onnx_model, shape=shapes)
@@ -1093,9 +1094,12 @@ def test_resnet():
 # def test_vgg16():
 #     check_torch_conversion(torchvision.models.vgg16, (1,3,224,224))
 
-def test_squeezenet():
-    check_torch_conversion(torchvision.models.squeezenet1_0, (1,3,224,224))
+# TODO(@jroesch): Update Torch + ONNX to support this import.
+# def test_squeezenet():
+#     # Torch's ONNX export does not support the max pooling used by Squezenet
+#     check_torch_conversion(torchvision.models.squeezenet1_0, (1,3,224,224))
 
+# TODO(@jroesch): Update Torch + ONNX to support this import.
 def test_densenet():
     check_torch_conversion(torchvision.models.densenet161, (1,3,224,224))
 
@@ -1150,10 +1154,6 @@ if __name__ == '__main__':
     test_Scale()
     test_LogSoftmax()
     test_resnet()
-    # test_alexnet()
-    # test_vgg16()
-    test_squeezenet()
     test_densenet()
     test_inception()
     test_googlenet()
-    # test_shufflenetv2()
