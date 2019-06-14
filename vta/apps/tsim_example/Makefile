@@ -20,12 +20,11 @@ export PYTHONPATH:=$(PWD)/python:$(PYTHONPATH)
 BUILD_NAME = build
 build_dir = $(abspath .)/$(BUILD_NAME)
 
-default: verilog driver run_verilog
+default: verilog driver
+	python3 tests/python/verilog_accel.py
 
-run_chisel: chisel driver 
+run_chisel: chisel driver
 	python3 tests/python/chisel_accel.py
-	
-.PHONY: cmake
 
 driver: | $(build_dir)
 	cd $(build_dir) && cmake .. && make
@@ -38,9 +37,6 @@ verilog:
 
 chisel:
 	make -C hardware/chisel
-
-run_verilog:
-	python3 tests/python/verilog_accel.py
 
 clean:
 	-rm -rf $(build_dir)

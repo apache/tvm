@@ -86,10 +86,17 @@ else
   cxx_flags += -DVM_TRACE=0
 endif
 
+# The following is to be consistent with cmake
+ifeq ($(shell uname), Darwin)
+  lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).dylib
+else
+  lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
+endif
+
 default: lib
 
-lib: $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
-$(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so: $(verilator_build_dir)/V$(TOP_TEST).cpp
+lib: $(lib_path)
+$(lib_path): $(verilator_build_dir)/V$(TOP_TEST).cpp
 	g++ $(cxx_flags) $(cxx_files) -o $@
 
 verilator: $(verilator_build_dir)/V$(TOP_TEST).cpp

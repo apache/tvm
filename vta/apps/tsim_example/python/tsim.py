@@ -34,8 +34,8 @@ def driver(hw_backend):
     _sw_libname = "libsw" + _ext
     _cur_path = osp.dirname(osp.abspath(osp.expanduser(__file__)))
     if hw_backend in ("verilog", "chisel"):
-        _hw_lib = osp.join(_cur_path, "..", "..", "hardware", hw_backend, "build", _hw_libname)
-    _sw_lib = osp.join(_cur_path, "..", "..", "build", _sw_libname)
+        _hw_lib = osp.join(_cur_path, "..", "hardware", hw_backend, "build", _hw_libname)
+    _sw_lib = osp.join(_cur_path, "..", "build", _sw_libname)
 
     def load_dll(dll):
         try:

@@ -53,7 +53,7 @@ class RegFile(implicit config: AccelConfig) extends Module {
     val finish = Input(Bool())
     val ecnt = Vec(config.nECnt, Flipped(ValidIO(UInt(config.regBits.W))))
     val vals = Output(Vec(config.nVals, UInt(config.regBits.W)))
-    val ptrs = Output(Vec(config.nPtrs, UInt(config.regBits.W)))
+    val ptrs = Output(Vec(config.nPtrs, UInt(config.ptrBits.W)))
     val host = new VTAHostDPIClient
   })
   val sIdle :: sRead :: Nil = Enum(2)
