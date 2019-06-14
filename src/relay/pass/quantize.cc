@@ -762,18 +762,9 @@ Expr MulRealize(const Call& ref_call,
     const auto* rhs = new_args[1].as<QRealizeIntExprNode>();
     Expr ldata = lhs->data;
     Expr rdata = rhs->data;
-
     DataType dtype = cfg->dtype_activation;
-    if (lhs->dtype == Float(32)) {
-      ldata = Cast(ldata, dtype);
-    } else {
-      CHECK_EQ(lhs->dtype, dtype);
-    }
-    if (rhs->dtype == Float(32)) {
-      rdata = Cast(rdata, dtype);
-    } else {
-      CHECK_EQ(rhs->dtype, dtype);
-    }
+    ldata = Cast(ldata, dtype);
+    rdata = Cast(rdata, dtype);
 
     Expr ret = ForwardOp(ref_call, {ldata, rdata});
    /*
