@@ -80,12 +80,12 @@ def test_topk():
                     tvm.testing.assert_allclose(op_res.asnumpy(), np_values)
                 else:
                     tvm.testing.assert_allclose(op_res.asnumpy(), np_indices)
+    np.random.seed(0)
     for k in [0, 1, 5]:
         for axis in [0, -1, 1]:
             for ret_type in ["both", "values", "indices"]:
-                for dtype in ["int64", "float32"]:
-                    verify_topk(k, axis, ret_type, False, dtype)
-                    verify_topk(k, axis, ret_type, True, dtype)
+                verify_topk(k, axis, ret_type, True, "int64")
+                verify_topk(k, axis, ret_type, False, "float32")
 
 
 if __name__ == "__main__":
