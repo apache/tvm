@@ -82,9 +82,12 @@ def register_vta_tuning_tasks():
 
         with tvm.target.vta():
             res = topi.nn.dense(*args, **kwargs)
+            res = topi.right_shift(res, 8)
+            res = my_clip(res, 0, 127)
+            res = topi.cast(res, "int8")
 
         if tvm.target.current_target().device_name == 'vta':
-            s = topi.generic.schedule_conv2d_nchw([res])
+            s = topi.generic.schedule_dense([res])
         else:
             s = tvm.create_schedule([res.op])
 
