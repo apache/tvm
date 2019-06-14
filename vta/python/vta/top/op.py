@@ -75,7 +75,7 @@ def schedule_conv2d(attrs, outs, target):
         elif str(target).startswith("llvm"):
             return tvm.create_schedule([x.op for x in outs])
         else:
-            raise RuntimeError("not support target %s" % target)
+            raise RuntimeError("Target %s is not supported" % target)
 
     with tvm.target.arm_cpu(tvm.target.current_target().model):
         return _nn.schedule_conv2d(attrs, outs, tvm.target.current_target())
@@ -86,11 +86,26 @@ def compute_dense(attrs, inputs, out_type, target):
     """Compute definition of dense"""
     out_dtype = attrs.out_dtype
     out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
-    return [topi.nn.dense(inputs[0], inputs[1], None, out_dtype)]
+
+    if inputs[0].shape == 4: # this implies the layout is packed
+        return [topi.nn.dense(inputs[0], inputs[1], None, out_dtype)]
+
+    with tvm.target.arm_cpu(tvm.target.current_target().model):
+        return _nn.compute_dense(attrs, inputs, out_type, target)
 
 
 @reg.register_schedule("nn.dense", level=15)
-def schedule_dense(attrs, outputs, target):
+def schedule_dense(attrs, outs, target):
     """Schedule definition of dense"""
-    with target:
-        return topi.generic.schedule_dense(outputs)
+
+    if outs[0].shape == 4: # this implies the layout is packed
+        target = tvm.target.create(target)
+        if target.device_name == "vta":
+            return topi.generic.schedule_dense(outs)
+        elif str(target).startswith("llvm"):
+            return tvm.create_schedule([x.op for x in outs])
+        else:
+            raise RuntimeError("Target %s is not supported" % target)
+
+    with tvm.target.arm_cpu(tvm.target.current_target().model):
+        return _nn.schedule_dense(attrs, outs, tvm.target.current_target())
