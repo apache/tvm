@@ -83,10 +83,17 @@ else
   cxx_flags += -DVM_TRACE=0
 endif
 
+# The following is to be consistent with cmake
+ifeq ($(shell uname), Darwin)
+  lib_path = $(build_dir)/$(LIBNAME).dylib
+else
+  lib_path = $(build_dir)/$(LIBNAME).so
+endif
+
 default: lib
 
-lib: $(build_dir)/$(LIBNAME).so
-$(build_dir)/$(LIBNAME).so: $(build_dir)/V$(TOP).cpp
+lib: $(lib_path)
+$(lib_path): $(build_dir)/V$(TOP).cpp
 	g++ $(cxx_flags) $(cxx_files) -o $@
 
 verilator: $(build_dir)/V$(TOP).cpp
