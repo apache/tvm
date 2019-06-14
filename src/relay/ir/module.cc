@@ -169,7 +169,7 @@ TypeData ModuleNode::LookupDef(const std::string& name) {
   return this->LookupDef(id);
 }
 
-Constructor ModuleNode::LookupTag(const size_t tag) {
+Constructor ModuleNode::LookupTag(const int64_t tag) {
   auto it = constructor_tag_map_.find(tag);
   CHECK(it != constructor_tag_map_.end())
     << "There is no constructor with the tag " << tag;
@@ -235,7 +235,7 @@ TVM_REGISTER_API("relay._module.Module_LookupDef_str")
   });
 
 TVM_REGISTER_API("relay._module.Module_LookupTag")
-.set_body_typed<Constructor(Module, size_t)>([](Module mod, size_t tag) {
+.set_body_typed<Constructor(Module, int64_t)>([](Module mod, int64_t tag) {
     return mod->LookupTag(tag);
   });
 

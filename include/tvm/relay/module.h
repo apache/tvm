@@ -166,7 +166,7 @@ class ModuleNode : public RelayNode {
    * \param tag The tag for the constructor.
    * \return The constructor object.
    */
-  TVM_DLL Constructor LookupTag(const size_t tag);
+  TVM_DLL Constructor LookupTag(const int64_t tag);
 
   /*!
    * \brief Update the functions inside this environment by
