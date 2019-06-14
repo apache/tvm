@@ -480,7 +480,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
 
 
 def size(array, dtype="int32"):
-    """Get the size of input array
+    """Get the number of elements of input array
 
     Parameters
     ----------

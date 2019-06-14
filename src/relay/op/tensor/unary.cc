@@ -314,7 +314,7 @@ TVM_REGISTER_API("relay.op.contrib._make.size")
 });
 
 RELAY_REGISTER_OP("contrib.ndarray_size")
-.describe(R"code(Returns a tensor representing the size of a tensor.
+.describe(R"code(Returns a tensor representing the number of elements of input tensor.
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)

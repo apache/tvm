@@ -287,11 +287,11 @@ struct SequenceMaskAttrs : public tvm::AttrsNode<SequenceMaskAttrs> {
   }
 };  // struct SequenceMaskAttrs.
 
-/*! \brief Attributes for Size operator */
-struct NumElementsAttrs : public tvm::AttrsNode<NumElementsAttrs> {
+/*! \brief Attributes for ndarray_size operator */
+struct SizeAttrs : public tvm::AttrsNode<SizeAttrs> {
   DataType dtype;
 
-  TVM_DECLARE_ATTRS(NumElementsAttrs, "relay.attrs.NumElementsAttrs") {
+  TVM_DECLARE_ATTRS(SizeAttrs, "relay.attrs.SizeAttrs") {
     TVM_ATTR_FIELD(dtype)
         .describe("Target data type")
         .set_default(NullValue<DataType>());

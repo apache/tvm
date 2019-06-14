@@ -215,8 +215,8 @@ def test_shape_of():
             tvm.testing.assert_allclose(op_res.asnumpy(),
                                         np.array(shape).astype('int32'))
 
-def test_size():
-    def verify_size(shape):
+def test_ndarray_size():
+    def verify_ndarray_size(shape):
         x = relay.var("x", shape=shape)
         func = relay.Function([x], relay.op.contrib.num_elements(x))
         func = relay.ir_pass.infer_type(func)
@@ -229,8 +229,8 @@ def test_size():
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(),
                                             ref_res)
-    verify_size((2, 3, 5))
-    verify_size((2, 3, 5, 7))
+    verify_ndarray_size((2, 3, 5))
+    verify_ndarray_size((2, 3, 5, 7))
 
 def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
     def start_index(index, odim, idim):
@@ -305,5 +305,5 @@ if __name__ == "__main__":
     test_batch_matmul()
     test_shape_of()
     test_sequence_mask()
-    test_size()
+    test_ndarray_size()
 
