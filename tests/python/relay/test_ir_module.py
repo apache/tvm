@@ -40,4 +40,5 @@ def test_constructor_tag_round_trip():
     for i in range(len(ctors1)):
         tag = ctors1[i].tag
         ctor = mod2.get_constructor(tag)
+        assert ctor == ctors2[i]
         assert ctor.name_hint == ctors1[i].name_hint
