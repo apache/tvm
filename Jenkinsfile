@@ -183,6 +183,7 @@ stage('Build') {
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
+           echo set\\(HIDE_PRIVATE_SYMBOLS ON\\) >> config.cmake
            """
         make(ci_cpu, 'build', '-j4')
         pack_lib('cpu', tvm_lib)
