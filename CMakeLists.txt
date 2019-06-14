@@ -222,6 +222,7 @@ add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 if(USE_RELAY_DEBUG)
   message(STATUS "Building Relay in debug mode...")
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "USE_RELAY_DEBUG")
+else()
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
