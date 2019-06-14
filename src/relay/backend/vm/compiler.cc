@@ -103,60 +103,11 @@ struct ConstantPool : ExprVisitor {
     }
   }
 
-  void AddConstantTensorShape(TensorType expr, NDArray value) {
-    auto it = this->const_tensor_shape_map.find(expr);
-    if (it == this->const_tensor_shape_map.end()) {
-      this->const_tensor_shape_map.insert({expr, std::make_pair(index++, value)});
-    }
-  }
-
   void VisitExpr_(const ConstantNode* const_node) {
     auto konst = GetRef<Constant>(const_node);
     auto it = this->const_map.find(konst);
     if (it == this->const_map.end()) {
       this->const_map.insert({konst, index++});
-    }
-  }
-
-  NDArray GetTensorConstant(const TensorTypeNode* ttype) {
-    std::vector<int64_t> shapes;
-    for (auto sh : ttype->shape) {
-      shapes.push_back(Downcast<tvm::Integer>(sh)->value);
-    }
-    int64_t s = shapes.size();
-    DLContext cpu_ctx;
-    cpu_ctx.device_type = kDLCPU;
-    cpu_ctx.device_id = 0;
-    auto shape_tensor = NDArray::Empty({s}, Type2TVMType(Int(64)), cpu_ctx);
-    int64_t* dims = static_cast<int64_t*>(shape_tensor->data);
-    for (size_t i = 0; i < shapes.size(); ++i) {
-      dims[i] = shapes[i];
-    }
-    return shape_tensor;
-  }
-
-  void VisitExpr_(const CallNode* call_node) {
-    for (auto arg : call_node->args) {
-      this->VisitExpr(arg);
-    }
-
-    Expr op = call_node->op;
-    auto func_node = op.as<FunctionNode>();
-    if (func_node) {
-      auto ret_type = call_node->checked_type();
-      if (const TensorTypeNode* ttype = ret_type.as<TensorTypeNode>()) {
-        auto shape = GetTensorConstant(ttype);
-        auto tensor_type = GetRef<TensorType>(ttype);
-        AddConstantTensorShape(tensor_type, shape);
-      } else if (const TupleTypeNode* ttype = ret_type.as<TupleTypeNode>()) {
-        for (size_t i = 0; i < ttype->fields.size(); ++i) {
-          auto f = ttype->fields[i];
-          auto f_type = f.as<TensorTypeNode>();
-          auto shape = GetTensorConstant(f_type);
-          auto tensor_type = GetRef<TensorType>(f_type);
-          AddConstantTensorShape(tensor_type, shape);
-        }
-      }
     }
   }
 };
@@ -206,6 +157,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
     switch (instr.op) {
       case Opcode::AllocDatatype:
       case Opcode::AllocTensor:
+      case Opcode::AllocTensorReg:
       case Opcode::GetField:
       case Opcode::LoadConst:
       case Opcode::Select:
@@ -259,14 +211,14 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void VisitExpr_(const MatchNode* match_node) {
     auto match = GetRef<Match>(match_node);
-    LOG(FATAL) << "translation of match nodes to the VM is "
-               << "currently unsupported" << std::endl;
+    LOG(FATAL) << "translation of match nodes to the VM is"
+               << "currently unsupported";
   }
 
   void VisitExpr_(const LetNode* let_node) {
-    DLOG(INFO) << let_node->value << std::endl;
+    DLOG(INFO) << let_node->value;
     this->VisitExpr(let_node->value);
-    DLOG(INFO) << this->last_register << std::endl;
+    DLOG(INFO) << this->last_register;
     var_register_map.insert({let_node->var, this->last_register});
     this->VisitExpr(let_node->body);
   }
@@ -327,18 +279,13 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   Instruction AllocTensorFromType(const TensorTypeNode* ttype) {
-    DataType dtype = ttype->dtype;
-    TVMType dltype = Type2TVMType(dtype);
-
+    TVMType dltype = Type2TVMType(ttype->dtype);
     auto tensor_type = GetRef<TensorType>(ttype);
-    auto it = this->context->const_tensor_shape_map.find(tensor_type);
-    if (it == this->context->const_tensor_shape_map.end()) {
-      DLOG(INFO) << "Can not find constant shape for " << tensor_type;
-    } else {
-      Emit(Instruction::LoadConst(it->second.first, NewRegister()));
+    std::vector<int64_t> shape;
+    for (auto dim : tensor_type->shape) {
+      shape.push_back(Downcast<tvm::Integer>(dim)->value);
     }
-
-    return Instruction::AllocTensor(last_register, dltype, NewRegister());
+    return Instruction::AllocTensor(shape, dltype, NewRegister());
   }
 
   void EmitInvokePrimitive(const Function& func,
@@ -532,7 +479,7 @@ void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
 }
 
 VMFunction CompileFunc(VMCompilerContext* context, const GlobalVar& var, const Function& func) {
-  DLOG(INFO) << "CompileFunc: " << var << std::endl << AsText(func, false) << std::endl;
+  DLOG(INFO) << "CompileFunc: " << var << std::endl << AsText(func, false);
   size_t params = func->params.size();
   VMCompiler compiler(context);
   compiler.Compile(func);

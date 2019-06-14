@@ -67,8 +67,14 @@ Instruction::Instruction(const Instruction& instr) {
       this->result = instr.result;
       return;
     case Opcode::AllocTensor:
-      this->shape_register = instr.shape_register;
-      this->dtype = instr.dtype;
+      this->alloc_tensor.ndim = instr.alloc_tensor.ndim;
+      this->alloc_tensor.shape = Duplicate<int64_t>(instr.alloc_tensor.shape,
+                                                    instr.alloc_tensor.ndim);
+      this->alloc_tensor.dtype = instr.alloc_tensor.dtype;
+      return;
+    case Opcode::AllocTensorReg:
+      this->alloc_tensor_reg.shape_register = instr.alloc_tensor_reg.shape_register;
+      this->alloc_tensor_reg.dtype = instr.alloc_tensor_reg.dtype;
       return;
     case Opcode::AllocDatatype:
       this->constructor_tag = instr.constructor_tag;
@@ -142,8 +148,14 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->result = instr.result;
       return *this;
     case Opcode::AllocTensor:
-      this->shape_register = instr.shape_register;
-      this->dtype = instr.dtype;
+      this->alloc_tensor.ndim = instr.alloc_tensor.ndim;
+      this->alloc_tensor.shape = Duplicate<int64_t>(instr.alloc_tensor.shape,
+                                                    instr.alloc_tensor.ndim);
+      this->alloc_tensor.dtype = instr.alloc_tensor.dtype;
+      return *this;
+    case Opcode::AllocTensorReg:
+      this->alloc_tensor_reg.shape_register = instr.alloc_tensor_reg.shape_register;
+      this->alloc_tensor_reg.dtype = instr.alloc_tensor_reg.dtype;
       return *this;
     case Opcode::AllocDatatype:
       this->constructor_tag = instr.constructor_tag;
@@ -203,11 +215,14 @@ Instruction::~Instruction() {
     case Opcode::Move:
     case Opcode::Select:
     case Opcode::Ret:
-    case Opcode::AllocTensor:
+    case Opcode::AllocTensorReg:
     case Opcode::If:
     case Opcode::LoadConst:
     case Opcode::GetField:
     case Opcode::Goto:
+      return;
+    case Opcode::AllocTensor:
+      delete this->alloc_tensor.shape;
       return;
     case Opcode::AllocDatatype:
       delete this->datatype_fields;
@@ -226,8 +241,7 @@ Instruction::~Instruction() {
       return;
     default:
       std::ostringstream out;
-      LOG(FATAL) << "Invalid instruction " << static_cast<int>(this->op)
-                 << "\n";
+      LOG(FATAL) << "Invalid instruction " << static_cast<int>(this->op);
   }
 }
 
@@ -252,12 +266,25 @@ Instruction Instruction::InvokePacked(Index packed_index, Index arity, Index out
   return instr;
 }
 
-Instruction Instruction::AllocTensor(RegName shape_register, DLDataType dtype, Index dst) {
+Instruction Instruction::AllocTensor(std::vector<int64_t> shape, DLDataType dtype, Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocTensor;
   instr.dst = dst;
-  instr.shape_register = shape_register;
-  instr.dtype = dtype;
+  instr.alloc_tensor.ndim = shape.size();
+  instr.alloc_tensor.shape = new int64_t[shape.size()];
+  for (size_t i = 0; i < shape.size(); ++i) {
+    instr.alloc_tensor.shape[i] = shape[i];
+  }
+  instr.alloc_tensor.dtype = dtype;
+  return instr;
+}
+
+Instruction Instruction::AllocTensorReg(RegName shape_register, DLDataType dtype, Index dst) {
+  Instruction instr;
+  instr.op = Opcode::AllocTensorReg;
+  instr.dst = dst;
+  instr.alloc_tensor_reg.shape_register = shape_register;
+  instr.alloc_tensor_reg.dtype = dtype;
   return instr;
 }
 
@@ -381,85 +408,92 @@ void DLDatatypePrint(std::ostream& os, const DLDataType& dtype) {
       break;
   }
 
-  os << dtype.bits;
-  if (dtype.lanes != 0) {
-    os << "[" << dtype.lanes << "]";
+  os << int(dtype.bits);
+  if (dtype.lanes != 1) {
+    os << "x" << dtype.lanes;
   }
+}
+
+template<typename T>
+std::string StrJoin(T* items, int offset, int cnt, std::string delim = ",") {
+  if (cnt == 0) {
+    return "";
+  }
+  std::ostringstream oss;
+  oss << items[offset];
+  for (int i = 1; i < cnt; ++i) {
+    oss << delim << items[offset + i];
+  }
+  return oss.str();
 }
 
 void InstructionPrint(std::ostream& os, const Instruction& instr) {
   switch (instr.op) {
     case Opcode::Move: {
-      os << "move " << instr.from << " " << instr.dst;
+      os << "move $" << instr.dst << " $" << instr.from;
       break;
     }
     case Opcode::Ret: {
-      os << "ret " << instr.result;
+      os << "ret $" << instr.result;
       break;
     }
     case Opcode::InvokePacked: {
-      os << "invoke_packed ";
-      os << instr.packed_index;
-      os << " " << instr.arity;
-      os << "(";
-      for (Index i = 0; i < instr.arity; ++i) {
-        os << instr.packed_args[i] << ",";
-      }
-      os << ")";
-      os << " " << instr.output_size;
+      os << "invoke_packed PackedFunc[" << instr.packed_index << "](in: $"
+         << StrJoin<RegName>(instr.packed_args, 0, instr.arity - instr.output_size, ",$")
+         << ", out: $"
+         << StrJoin<RegName>(instr.packed_args, instr.arity - instr.output_size,
+                 instr.output_size, ",$")
+         << ")";
       break;
     }
     case Opcode::AllocTensor: {
-      os << "alloc_tensor ";
-      os << instr.dst << " ";
-      os << instr.shape_register << " ";
-      DLDatatypePrint(os, instr.dtype);
+      os << "alloc_tensor $" << instr.dst << " ["
+         << StrJoin<int64_t>(instr.alloc_tensor.shape, 0, instr.alloc_tensor.ndim)
+         << "] ";
+      DLDatatypePrint(os, instr.alloc_tensor.dtype);
+      break;
+    }
+    case Opcode::AllocTensorReg: {
+      os << "alloc_tensor_reg $" << instr.dst << " $"
+         << instr.alloc_tensor_reg.shape_register << " ";
+      DLDatatypePrint(os, instr.alloc_tensor_reg.dtype);
       break;
     }
     case Opcode::AllocDatatype: {
-      os << "alloc_data ";
-      os << instr.dst << " ";
-      os << instr.constructor_tag << " ";
-      os << instr.num_fields;
+      os << "alloc_data $" << instr.dst << " tag(" << instr.constructor_tag << ") [$"
+         << StrJoin<RegName>(instr.datatype_fields, 0, instr.num_fields, ",$") << "]";
       break;
     }
     case Opcode::AllocClosure: {
-      os << "alloc_closure ";
-      os << instr.dst << " ";
-      os << instr.clo_index << " ";
-      os << instr.num_freevar << "(";
-      for (Index i = 0; i < instr.num_freevar; ++i) {
-        os << instr.free_vars[i] << ",";
-      }
-      os << ")";
+      os << "alloc_closure $" << instr.dst << " VMFunc[" << instr.clo_index
+         << "]($" << StrJoin<RegName>(instr.free_vars, 0, instr.num_freevar, ",$")
+         << ")";
       break;
     }
     case Opcode::If: {
-      os << "if "
-         << "$" << instr.if_cond << " " << instr.true_offset << " " << instr.false_offset;
+      os << "if " << "$" << instr.if_cond << " " << instr.true_offset << " "
+         << instr.false_offset;
       break;
     }
     case Opcode::Invoke: {
-      os << "invoke "
-         << "$" << instr.dst << " " << instr.func_index << " " << instr.num_args << "(";
-      for (Index i = 0; i < instr.num_args; ++i) {
-        os << instr.invoke_args_registers[i] << ",";
-      }
-      os << ")";
+      os << "invoke $" << instr.dst << " VMFunc[" << instr.func_index << "]($"
+         << StrJoin<RegName>(instr.invoke_args_registers, 0, instr.num_args, ",$")
+         << ")";
       break;
     }
     case Opcode::InvokeClosure: {
-      os << "invoke_closure "
-         << "$" << instr.dst << " " << instr.closure << " " << instr.closure_args_num << "()";
+      os << "invoke_closure $" << instr.dst << " $" << instr.closure << "($"
+         << StrJoin<RegName>(instr.closure_args, 0, instr.closure_args_num, ",$")
+         << ")";
       break;
     }
     case Opcode::LoadConst: {
-      os << "load_const "
-         << "$" << instr.dst << " " << instr.const_index;
+      os << "load_const $" << instr.dst << " Const[" << instr.const_index << "]";
       break;
     }
     case Opcode::GetField: {
-      os << "get_field " << instr.dst << " " << instr.object << " " << instr.field_index;
+      os << "get_field $" << instr.dst << " $" << instr.object << "["
+         << instr.field_index << "]";
       break;
     }
     case Opcode::Goto: {
@@ -467,8 +501,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::Select: {
-      os << "select " << instr.dst << " " << instr.select_cond << " " << instr.select_op1 << " "
-         << instr.select_op2;
+      os << "select $" << instr.dst << " $" << instr.select_cond << " $"
+         << instr.select_op1 << " $" << instr.select_op2;
       break;
     }
     default:
@@ -513,48 +547,64 @@ Index VirtualMachine::PopFrame() {
 }
 
 void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Object>& args) {
-  DLOG(INFO) << "===================\nInvoking global " << func.name << " " << args.size()
-                  << std::endl;
+  DLOG(INFO) << "Invoking global " << func.name << " " << args.size();
 
   PushFrame(func.params, this->pc + 1, func);
   for (size_t i = 0; i < args.size(); ++i) {
     WriteRegister(i, args[i]);
   }
-  DLOG(INFO) << "func.params= " << func.params << std::endl;
+  DLOG(INFO) << "func.params= " << func.params;
 
   code = func.instructions.data();
   pc = 0;
 }
 
 Object VirtualMachine::Invoke(const VMFunction& func, const std::vector<Object>& args) {
-  DLOG(INFO) << "Executing Function: " << std::endl << func << std::endl;
+  DLOG(INFO) << "Executing Function: " << std::endl << func;
 
   InvokeGlobal(func, args);
   Run();
   auto alloc = MemoryManager::Global()->GetAllocator(ctxs[0]);
-  DLOG(INFO) << "Memory used: " << alloc->UsedMemory() << " B\n";
+  DLOG(INFO) << "Memory used: " << alloc->UsedMemory() << " B";
   return return_register;
 }
 
 Object VirtualMachine::Invoke(const std::string& name, const std::vector<Object>& args) {
   auto func_index = this->global_map_[name];
-  DLOG(INFO) << "Invoke Global " << name << " at index " << func_index << std::endl;
+  DLOG(INFO) << "Invoke Global " << name << " at index " << func_index;
   return Invoke(this->functions[func_index], args);
 }
 
 void InvokePacked(const PackedFunc& func, Index arg_count, Index output_size,
                   const std::vector<Object>& args) {
-  std::vector<TVMValue> values(arg_count);
-  std::vector<int> codes(arg_count);
-  runtime::TVMArgsSetter setter(values.data(), codes.data());
-
+  size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
-    NDArray data = ToNDArray(args[i]);
-    setter(i, data);
+    if (args[i].ptr_->tag == ObjectTag::kDatatype) {
+      arity += args[i].AsDatatype()->fields.size();
+    } else {
+      ++arity;
+    }
+  }
+
+  std::vector<TVMValue> values(arity);
+  std::vector<int> codes(arity);
+  runtime::TVMArgsSetter setter(values.data(), codes.data());
+  int idx = 0;
+  for (Index i = 0; i < arg_count; i++) {
+    if (args[i].ptr_->tag == ObjectTag::kDatatype) {
+      auto dt_cell = args[i].AsDatatype();
+      for (auto obj : dt_cell->fields) {
+        NDArray data = ToNDArray(obj);
+        setter(idx++, data);
+      }
+    } else {
+      NDArray data = ToNDArray(args[i]);
+      setter(idx++, data);
+    }
   }
 
   TVMRetValue rv;
-  func.CallPacked(TVMArgs(values.data(), codes.data(), arg_count), &rv);
+  func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 }
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) { this->ctxs = ctxs; }
@@ -574,7 +624,7 @@ void VirtualMachine::Run() {
   while (true) {
   main_loop:
     auto const& instr = this->code[this->pc];
-    DLOG(INFO) << "\nExecuting(" << pc << "): ";
+    DLOG(INFO) << "Executing(" << pc << "): ";
 #if USE_RELAY_DEBUG
     InstructionPrint(std::cout, instr);
 #endif  // USE_RELAY_DEBUG
@@ -669,11 +719,23 @@ void VirtualMachine::Run() {
         goto main_loop;
       }
       case Opcode::AllocTensor: {
+        auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
+        for (uint i = 0; i < instr.alloc_tensor.ndim; ++i) {
+          shape[i] = instr.alloc_tensor.shape[i];
+        }
+        auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
+        auto data = allocator->Empty(shape, instr.alloc_tensor.dtype, ctxs[0]);
+        auto obj = Object::Tensor(data);
+        WriteRegister(instr.dst, obj);
+        pc++;
+        goto main_loop;
+      }
+      case Opcode::AllocTensorReg: {
         DLContext cpu_ctx;
         cpu_ctx.device_type = kDLCPU;
         cpu_ctx.device_id = 0;
 
-        auto shape_tensor_obj = ReadRegister(instr.shape_register);
+        auto shape_tensor_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
         NDArray shape_tensor = ToNDArray(shape_tensor_obj).CopyTo(cpu_ctx);
 
         int64_t* dims = static_cast<int64_t*>(shape_tensor->data);
@@ -681,7 +743,7 @@ void VirtualMachine::Run() {
         auto shape = std::vector<int64_t>(shape_tensor->shape[0]);
         shape.assign(dims, dims + num_dims);
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
-        auto data = allocator->Empty(shape, instr.dtype, ctxs[0]);
+        auto data = allocator->Empty(shape, instr.alloc_tensor_reg.dtype, ctxs[0]);
         auto obj = Object::Tensor(data);
         WriteRegister(instr.dst, obj);
         pc++;
