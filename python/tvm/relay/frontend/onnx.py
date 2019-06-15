@@ -412,6 +412,10 @@ class Reshape(OnnxOpConverter):
             logging.warning("Constant evaluating Reshape's shape argument, may reduce performance")
             shape_params = ir_pass.free_vars(shape)
             func = _expr.Function(shape_params, shape)
+            func = ir_pass.infer_type(func)
+            func = ir_pass.fold_constant(func)
+            shape_params = ir_pass.free_vars(func.body)
+            func = _expr.Function(shape_params, func.body)
             with tvm.relay.build_config(opt_level=0):
                 ex = tvm.relay.create_executor("debug")
                 inputs = []
