@@ -54,7 +54,7 @@ def test_canonicalize_cast():
         bias2 = relay.var("bias2", shape=(16, 1, 1), dtype="int32")
         y = before(data, conv_weight, bias1, bias2)
         mod = _module.Module.from_expr(y)
-        seq = _transform.Sequential([_transform.InferType(), _transform.CanonicalizeExpr(),
+        seq = _transform.Sequential([_transform.InferType(), _transform.CanonicalizeCast(),
                                      _transform.InferType()])
         with _transform.PassContext(opt_level=3):
             mod = seq(mod)
