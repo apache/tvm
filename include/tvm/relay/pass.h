@@ -296,13 +296,15 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
  * For example, this pass should turn `let a = 1 in 2` into `2`,
  * as the value of the expression does not depend on a.
  *
- * As another example, `let a = 1 in a` will be optimized into 1.
+ * As another example, `let a = 1 in a` will be optimized into 1,
+ * if the flag is turned on.
  *
  * \param e the expression to optimize.
+ * \param inline_once whether or not to inline binding used one.
  *
  * \return the optimized expression.
  */
-TVM_DLL Expr DeadCodeElimination(const Expr& e);
+TVM_DLL Expr DeadCodeElimination(const Expr& e, bool inline_once = false);
 
 /*!
  * \brief Fold constant expressions.
@@ -435,11 +437,12 @@ TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
  * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
  * As a side effect, code size will explode.
  *
- * \param e the expression,
+ * \param e the expression
+ * \param mod the module
  *
  * \return the optimized expression.
  */
-TVM_DLL Expr PartialEval(const Expr& e);
+TVM_DLL Expr PartialEval(const Expr& e, const Module& mod);
 
 /*!
  * \brief Bind the free variables to a Relay expression.
