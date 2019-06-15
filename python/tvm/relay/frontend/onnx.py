@@ -1154,7 +1154,7 @@ class GraphProto(object):
                           attrs,
                           opset):
         """Convert ONNX operator into a Relay operator.
-        The converter must specify conversions explicity for incompatible name, and
+        The converter must specify conversions explicitly for incompatible name, and
         apply handlers to operator attributes.
 
         Parameters
