@@ -129,7 +129,7 @@ def well_formed(expr):
 
     Parameters
     ----------
-    expr: tvm.relay.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -175,7 +175,7 @@ def free_vars(expr):
 
     Parameters
     ----------
-    expr: tvm.relay.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -197,7 +197,7 @@ def bound_vars(expr):
 
     Parameters
     ----------
-    expr: tvm.relay.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -213,7 +213,7 @@ def all_vars(expr):
 
     Parameters
     ----------
-    expr: tvm.relay.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -229,9 +229,10 @@ def free_type_vars(expr, mod=None):
 
     Parameters
     ----------
-    expr: Union[tvm.relay.Expr,tvm.relay.Type]
+    expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
-    mod: tvm.relay.Module, optional
+
+    mod : Optional[tvm.relay.Module]
         The global module
 
     Returns
@@ -248,9 +249,10 @@ def bound_type_vars(expr, mod=None):
 
     Parameters
     ----------
-    expr: Union[tvm.relay.Expr,tvm.relay.Type]
+    expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
-    mod: tvm.relay.Module, optional
+
+    mod : Optional[tvm.relay.Module]
         The global module
 
     Returns
@@ -267,9 +269,9 @@ def all_type_vars(expr, mod=None):
 
     Parameters
     ----------
-    expr: Union[tvm.relay.Expr,tvm.relay.Type]
+    expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
-    mod: tvm.relay.Module, optional
+    mod : Optional[tvm.relay.Module]
         The global module
 
     Returns
@@ -286,12 +288,12 @@ def simplify_inference(expr):
 
     Parameters
     ----------
-    e: tvm.relay.Expr
+    expr : tvm.relay.Expr
         The input Expression
 
     Returns
     -------
-    result: tvm.relay.Expr
+    result : tvm.relay.Expr
         An expression which is semantically equal to the input expression,
         but with some simplification
     """
@@ -304,32 +306,34 @@ def canonicalize_ops(expr):
 
     Parameters
     ----------
-    e: tvm.relay.Expr
+    expr : tvm.relay.Expr
         The input Expression
 
     Returns
     -------
-    result: tvm.relay.Expr
+    result : tvm.relay.Expr
         An expression without bias_add
     """
     return _ir_pass.canonicalize_ops(expr)
 
 
-def dead_code_elimination(expr):
+def dead_code_elimination(expr, inline_once=False):
     """ Remove expressions which does not effect the program result (dead code).
 
     Parameters
     ----------
-    e: tvm.relay.Expr
+    expr : tvm.relay.Expr
         The input Expression
 
+    inline_once : Optional[Bool]
+        Whether to inline binding that occur only once.
     Returns
     -------
-    result: tvm.relay.Expr
+    result : tvm.relay.Expr
         An expression which is semantically equal to the input expression,
         but with dead code removed.
     """
-    return _ir_pass.dead_code_elimination(expr)
+    return _ir_pass.dead_code_elimination(expr, inline_once)
 
 
 def alpha_equal(lhs, rhs):
@@ -337,15 +341,15 @@ def alpha_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs: tvm.relay.Expr
+    lhs : tvm.relay.Expr
         One of the input Expression.
 
-    rhs: tvm.relay.Expr
+    rhs : tvm.relay.Expr
         One of the input Expression.
 
     Returns
     -------
-    result: bool
+    result : bool
         True iff lhs is alpha equal to rhs.
     """
     return bool(_make._alpha_equal(lhs, rhs))
@@ -359,15 +363,15 @@ def graph_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs: tvm.relay.Expr
+    lhs : tvm.relay.Expr
       One of the input Expression.
 
-    rhs: tvm.relay.Expr
+    rhs : tvm.relay.Expr
       One of the input Expression.
 
     Returns
     -------
-    result: bool
+    result : bool
       True iff lhs is data-flow equivalent to rhs.
     """
     return bool(_make._graph_equal(lhs, rhs))
@@ -378,12 +382,12 @@ def structural_hash(value):
 
     Parameters
     ----------
-    expr: tvm.relay.Expr or tvm.relay.Type
+    expr : Union[tvm.relay.Expr, tvm.relay.Type]
       The expression to hash.
 
     Returns
     -------
-    result: int
+    result : int
       The hash value
     """
     if isinstance(value, Expr):
@@ -544,12 +548,12 @@ def to_a_normal_form(expr, mod=None):
     expr : tvm.relay.Expr
         The input expression.
 
-    mod: Optional[tvm.relay.Module]
+    mod : Optional[tvm.relay.Module]
         The global module.
 
     Returns
     -------
-    expr: tvm.relay.Expr
+    result : tvm.relay.Expr
       The output expression.
     """
     return _ir_pass.to_a_normal_form(expr, mod)
@@ -563,7 +567,7 @@ def to_graph_normal_form(expr):
         The input expression
     Returns
     -------
-    expr : tvm.relay.Expr
+    result : tvm.relay.Expr
       The output expression
     """
     return _ir_pass.to_graph_normal_form(expr)
@@ -612,7 +616,7 @@ def get_total_mac_number(expr):
 
     Returns
     -------
-    ret : int64
+    result : int64
       The number of MACs (multiply-accumulate) of a model
     """
     return _ir_pass.GetTotalMacNumber(expr)
@@ -627,17 +631,17 @@ def eliminate_common_subexpr(expr, fskip=None):
     expr : tvm.relay.Expr
         The input expression.
 
-    fskip: function
+    fskip : function
         The callback function that decides whether an expression should be skipped.
 
     Returns
     -------
-    expr : tvm.relay.Expr
+    result : tvm.relay.Expr
       The output expression.
     """
     return _ir_pass.eliminate_common_subexpr(expr, fskip)
 
-def partial_evaluate(expr):
+def partial_evaluate(expr, mod=None):
     """
     Evaluate the static fragment of the code.
 
@@ -646,12 +650,15 @@ def partial_evaluate(expr):
     expr : tvm.relay.Expr
         The input expression.
 
+    mod : Optional[tvm.relay.Module]
+        The global module
+
     Returns
     -------
-    expr : tvm.relay.Expr
+    result : tvm.relay.Expr
       The output expression.
     """
-    return _ir_pass.partial_evaluate(expr)
+    return _ir_pass.partial_evaluate(expr, mod)
 
 def unmatched_cases(match, mod=None):
     """

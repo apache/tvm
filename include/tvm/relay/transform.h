@@ -356,9 +356,11 @@ TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
  *
  * As another example, `let a = 1 in a` will be optimized into 1.
  *
+ * \param inline_once whether or not to inline binding used one.
+ *
  * \return the pass.
  */
-TVM_DLL Pass DeadCodeElimination();
+TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
 
 /*!
  * \brief Fold constant expressions.
