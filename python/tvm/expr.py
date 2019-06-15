@@ -222,7 +222,7 @@ class NotEqualOp(NodeGeneric, ExprOp):
 
 class Expr(ExprOp, NodeBase):
     """Base class of all tvm Expressions"""
-    # In Python3, We have to explicity tell interpreter to retain __hash__ if we overide __eq__
+    # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
     # https://docs.python.org/3.1/reference/datamodel.html#object.__hash__
     __hash__ = NodeBase.__hash__
 
