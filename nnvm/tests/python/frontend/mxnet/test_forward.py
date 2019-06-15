@@ -137,7 +137,7 @@ def test_forward_fc_flatten():
 
 def test_forward_clip():
     data = mx.sym.var('data')
-    data = mx.sym.concat(data, -data, dim=1)  # negative part explicity
+    data = mx.sym.concat(data, -data, dim=1)  # negative part explicitly
     mx_sym = mx.sym.clip(data, a_min=0, a_max=1)
     verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 6, 100, 100))
 

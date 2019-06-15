@@ -963,7 +963,7 @@ class GraphProto(object):
                           identity_list=None,
                           convert_map=None):
         """Convert from onnx operator to nnvm operator.
-        The converter must specify conversions explicity for incompatible name, and
+        The converter must specify conversions explicitly for incompatible name, and
         apply handlers to operator attributes.
 
         Parameters
