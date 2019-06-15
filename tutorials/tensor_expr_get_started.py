@@ -157,7 +157,7 @@ a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
 b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
 c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
 fadd(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 ######################################################################
 # Inspect the Generated Code
@@ -243,7 +243,7 @@ if tgt.startswith('opencl'):
     fadd1.import_module(fadd1_dev)
 
 fadd1(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 ######################################################################
 # Pack Everything into One Library
@@ -257,7 +257,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 fadd.export_library(temp.relpath("myadd_pack.so"))
 fadd2 = tvm.module.load(temp.relpath("myadd_pack.so"))
 fadd2(a, b, c)
-tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 ######################################################################
 # .. note:: Runtime API and Thread-Safety
@@ -290,7 +290,7 @@ if tgt.startswith('opencl'):
     b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
     c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
     fadd_cl(a, b, c)
-    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+    np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 ######################################################################
 # Summary
