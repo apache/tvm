@@ -1099,15 +1099,15 @@ def test_resnet():
 #     # Torch's ONNX export does not support the max pooling used by Squezenet
 #     check_torch_conversion(torchvision.models.squeezenet1_0, (1,3,224,224))
 
-# TODO(@jroesch): Update Torch + ONNX to support this import.
 def test_densenet():
     check_torch_conversion(torchvision.models.densenet161, (1,3,224,224))
 
 def test_inception():
     check_torch_conversion(torchvision.models.inception_v3, (1,3,224,224))
 
-def test_googlenet():
-    check_torch_conversion(torchvision.models.googlenet, (1,3,224,224))
+# TODO(@jroesch): Update Torch + ONNX to support this import.
+# def test_googlenet():
+#     check_torch_conversion(torchvision.models.googlenet, (1,3,224,224))
 
 # TODO(@jroesch): Update Torch + ONNX to support this import.
 # def test_shufflenetv2():
@@ -1155,5 +1155,4 @@ if __name__ == '__main__':
     test_LogSoftmax()
     test_resnet()
     test_inception()
-    test_googlenet()
     test_densenet()
