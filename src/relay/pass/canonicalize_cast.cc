@@ -19,8 +19,8 @@
 
 /*!
  * Copyright (c) 2019 by Contributors
- * \file canonicalize_expr.cc
- * \brief Canonicalize an expression to make operator fusion more efficient.
+ * \file canonicalize_cast.cc
+ * \brief Canonicalize cast expressions to make operator fusion more efficient.
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
@@ -61,7 +61,7 @@ namespace relay {
 //   (%3, 4)
 // }
 // \endcode
-class ExprCanonicalizer : public ExprMutator {
+class CastCanonicalizer : public ExprMutator {
  public:
   Expr VisitExpr_(const CallNode* call) {
     static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
@@ -120,26 +120,23 @@ class ExprCanonicalizer : public ExprMutator {
   }
 };
 
-Expr CanonicalizeExpr(const Expr& e) {
-  return ExprCanonicalizer().Mutate(e);
+Expr CanonicalizeCast(const Expr& e) {
+  return CastCanonicalizer().Mutate(e);
 }
-
-TVM_REGISTER_API("relay._ir_pass.canonicalize_expr")
-.set_body_typed(CanonicalizeExpr);
 
 namespace transform {
 
-Pass CanonicalizeExpr() {
+Pass CanonicalizeCast() {
   runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
     [=](Function f, Module m, PassContext pc) {
     return Downcast<Function>(CanonicalizeExpr(f));
   };
-  return CreateFunctionPass(pass_func, 3, "CanonicalizeExpr",
+  return CreateFunctionPass(pass_func, 3, "CanonicalizeCast",
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.CanonicalizeExpr")
-.set_body_typed(CanonicalizeExpr);
+TVM_REGISTER_API("relay._transform.CanonicalizeCast")
+.set_body_typed(CanonicalizeCast);
 
 }  // namespace transform
 
