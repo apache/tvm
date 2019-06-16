@@ -148,7 +148,7 @@ def _update_shape_dtype(shape, dtype, params):
     shape.update({k : v.shape for k, v in params.items()})
     if isinstance(dtype, str):
         for k, v in params.items():
-            if v.dtype != dtype:
+            if v.dtype != dtype and v.shape:
                 raise ValueError(
                     "%s: dtype not expected %s vs %s" % (k, dtype, v.dtype))
     else:
