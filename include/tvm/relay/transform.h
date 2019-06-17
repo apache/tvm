@@ -534,6 +534,13 @@ TVM_DLL Pass CanonicalizeOps();
  */
 TVM_DLL Pass AlterOpLayout();
 
+/*!
+ * \brief Canonicalize cast expressions to make operator fusion more efficient.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CanonicalizeCast();
+
 }  // namespace transform
 }  // namespace relay
 }  // namespace tvm
