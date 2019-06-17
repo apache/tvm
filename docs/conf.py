@@ -165,6 +165,8 @@ html_theme_options = {
 
 html_logo = "_static/img/tvm-logo-small.png"
 
+html_favicon = "_static/img/tvm-logo-square.png"
+
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = project + 'doc'
