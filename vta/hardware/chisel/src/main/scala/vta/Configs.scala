@@ -45,10 +45,10 @@ object DefaultF1Config extends App {
   chisel3.Driver.execute(args, () => new XilinxShell)
 }
 
-object TestDefaultPynqConfig extends App {           
-  implicit val p: Parameters = new DefaultPynqConfig 
-  chisel3.Driver.execute(args, () => new Test)       
-}                                                    
+object TestDefaultPynqConfig extends App {
+  implicit val p: Parameters = new DefaultPynqConfig
+  chisel3.Driver.execute(args, () => new Test)
+}
 
 object TestDefaultF1Config extends App {
   implicit val p: Parameters = new DefaultF1Config
