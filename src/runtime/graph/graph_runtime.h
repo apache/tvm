@@ -147,10 +147,19 @@ class GraphRuntime : public ModuleNode {
    * \param param_blob A binary blob of parameter.
    */
   void LoadParams(const std::string& param_blob);
- /*!
-  * \brief Get total number of nodes.
-  * \return Total number of nodes.
-  */
+
+  /*!
+   * \brief Share parameters from pre-existing GraphRuntime instance.
+   * \param other A GraphRuntime instance, previously with |LoadParams| called with the
+   * identical input |param_blob|.
+   * \param strm The input stream.
+   */
+  void ShareParams(const GraphRuntime& other, dmlc::Stream* strm);
+
+  /*!
+   * \brief Get total number of nodes.
+   * \return Total number of nodes.
+   */
   uint32_t GetNumOfNodes() const {
     return static_cast<uint32_t>(nodes_.size());
   }
