@@ -445,6 +445,16 @@ def PartialEvaluate():
     """
     return _transform.PartialEvaluate()
 
+def CanonicalizeCast():
+    """
+    Canonicalize cast expressions to make operator fusion more efficient.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that canonicalizes cast expression.
+    """
+    return _transform.CanonicalizeCast()
 
 def _wrap_class_module_pass(pass_cls, pass_info):
     """Wrap a python class as function pass"""
