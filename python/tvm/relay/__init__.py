@@ -101,6 +101,7 @@ const = expr.const
 bind = expr.bind
 module_pass = transform.module_pass
 function_pass = transform.function_pass
+alpha_equal = ir_pass.alpha_equal
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor
