@@ -76,9 +76,9 @@ x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 block = model_zoo.get_model(model_name, pretrained=True)
 
 def build(target):
-    net, params = relay.frontend.from_mxnet(block, {"data": dshape})
+    mod, params = relay.frontend.from_mxnet(block, {"data": dshape})
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(net, target, params=params)
+        graph, lib, params = relay.build(mod[mod.entry_func], target, params=params)
     return graph, lib, params
 
 ######################################################################

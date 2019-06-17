@@ -42,9 +42,11 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         shape_dict = {input_names: input_data.shape}
         dtype_dict = {input_names: input_data.dtype}
 
-    sym, params = relay.frontend.from_onnx(graph_def, shape_dict)
+    mod, params = relay.frontend.from_onnx(graph_def, shape_dict)
     with relay.build_config(opt_level=1):
-        graph, lib, params = relay.build(sym, target, params=params)
+        graph, lib, params = relay.build(mod[mod.entry_func],
+                                         target,
+                                         params=params)
 
     ctx = tvm.cpu(0)
     from tvm.contrib import graph_runtime

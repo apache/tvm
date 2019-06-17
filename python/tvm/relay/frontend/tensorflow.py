@@ -31,6 +31,7 @@ from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
 from ..expr_functor import ExprMutator
+from .. import module as _module
 
 __all__ = ['from_tensorflow']
 
@@ -1823,6 +1824,7 @@ class GraphProto(object):
         self._input_shapes = {}
         self._loops = {}
         self._branches = {}
+        self._mod = _module.Module({})
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -1856,8 +1858,9 @@ class GraphProto(object):
 
         Returns
         -------
-        sym : relay.op
-            The returned relay operator
+        mod : tvm.relay.Module
+            The module that optimizations will be performed on.
+
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
@@ -2046,8 +2049,8 @@ class GraphProto(object):
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(ir_pass.free_vars(out), out)
-
-        return func, self._params
+        self._mod[self._mod.entry_func] = func
+        return self._mod, self._params
 
     def _parse_import_prerequisites(self, graph):
         """ Calculate the named preconditions from TensorFlow `graph`.
@@ -2336,12 +2339,12 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
 
     Returns
     -------
-    sym : relay.op
-        Compatible relay operator
+    mod : tvm.relay.Module
+        The module that optimizations will be performed on.
 
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
     g = GraphProto()
-    sym, params = g.from_tensorflow(graph, layout, shape, outputs)
-    return sym, params
+    mod, params = g.from_tensorflow(graph, layout, shape, outputs)
+    return mod, params

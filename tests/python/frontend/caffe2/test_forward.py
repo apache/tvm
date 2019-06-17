@@ -40,9 +40,10 @@ def get_tvm_output(model,
     input_names = model.predict_net.op[0].input[0]
     shape_dict = {input_names: input_data.shape}
     dtype_dict = {input_names: input_data.dtype}
-    func, params = relay.frontend.from_caffe2(model.init_net, model.predict_net, shape_dict, dtype_dict)
+    mod, params = relay.frontend.from_caffe2(
+        model.init_net, model.predict_net, shape_dict, dtype_dict)
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(func, target, params=params)
+        graph, lib, params = relay.build(mod[mod.entry_func], target, params=params)
 
     m = graph_runtime.create(graph, lib, ctx)
 

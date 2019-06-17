@@ -22,6 +22,7 @@ import numpy as np
 import tvm
 from .. import ir_pass
 from .. import expr as _expr
+from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable, new_var
@@ -679,8 +680,8 @@ def from_keras(model, shape=None):
 
     Returns
     -------
-    func : tvm.relay.Function
-        Compatible relay Function.
+    mod : tvm.relay.Module
+        The relay module for compilation.
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by Relay.
@@ -744,4 +745,4 @@ def from_keras(model, shape=None):
     outexpr = outexpr[0] if len(outexpr) == 1 else _expr.Tuple(outexpr)
     func = _expr.Function(ir_pass.free_vars(outexpr), outexpr)
     params = {k:_nd.array(np.array(v, dtype=np.float32)) for k, v in etab.params.items()}
-    return func, params
+    return _module.Module.from_expr(func), params
