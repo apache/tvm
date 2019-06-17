@@ -83,13 +83,13 @@ dtype_dict = {input_name: data.dtype}
 
 # parse Caffe2 model and convert into Relay computation graph
 from tvm import relay
-func, params = relay.frontend.from_caffe2(resnet50.init_net, resnet50.predict_net, shape_dict, dtype_dict)
+mod, params = relay.frontend.from_caffe2(resnet50.init_net, resnet50.predict_net, shape_dict, dtype_dict)
 
 # compile the model
 # target x86 CPU
 target = 'llvm'
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(func, target, params=params)
+    graph, lib, params = relay.build(mod[mod.entry_func], target, params=params)
 
 ######################################################################
 # Execute on TVM

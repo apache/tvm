@@ -68,10 +68,12 @@ target = 'cuda'
 shape_dict = {'image': x.shape}
 
 # Parse CoreML model and convert into Relay computation graph
-func, params = relay.frontend.from_coreml(mlmodel, shape_dict)
+mod, params = relay.frontend.from_coreml(mlmodel, shape_dict)
 
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(func, target, params=params)
+    graph, lib, params = relay.build(mod[mod.entry_func],
+                                     target,
+                                     params=params)
 
 ######################################################################
 # Execute on TVM

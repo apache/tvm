@@ -140,8 +140,9 @@ with open(synset_path) as f:
 
 # We support MXNet static graph(symbol) and HybridBlock in mxnet.gluon
 shape_dict = {'data': x.shape}
-func, params = relay.frontend.from_mxnet(block, shape_dict)
+mod, params = relay.frontend.from_mxnet(block, shape_dict)
 # we want a probability so add a softmax operator
+func = mod[mod.entry_func]
 func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
 
 ######################################################################

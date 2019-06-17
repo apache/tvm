@@ -52,10 +52,12 @@ def _read_memory_buffer(shape, data, dtype='float32'):
 def _get_tvm_output(net, data, build_dtype='float32', states=None):
     '''Compute TVM output'''
     dtype = 'float32'
-    sym, params = relay.frontend.from_darknet(net, data.shape, dtype)
+    mod, params = relay.frontend.from_darknet(net, data.shape, dtype)
     target = 'llvm'
     shape_dict = {'data': data.shape}
-    graph, library, params = relay.build(sym, target, params=params)
+    graph, library, params = relay.build(mod[mod.entry_func],
+                                         target,
+                                         params=params)
 
     # Execute on TVM
     ctx = tvm.cpu(0)

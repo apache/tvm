@@ -60,13 +60,12 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
 
     shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
 
-    sym, params = relay.frontend.from_tensorflow(graph_def,
+    mod, params = relay.frontend.from_tensorflow(graph_def,
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
-
     with relay.build_config(opt_level=opt_level):
-        graph, lib, params = relay.build(sym, target, target_host, params)
+        graph, lib, params = relay.build(mod[mod.entry_func], target, target_host, params)
 
     ctx = tvm.context(target, 0)
     from tvm.contrib import graph_runtime
@@ -1442,14 +1441,16 @@ def test_forward_ptb():
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':(num_layers, batch_size, num_hidden),
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':(num_layers, batch_size, num_hidden)}
 
-        sym, params = relay.frontend.from_tensorflow(graph_def, shape=shape_dict)
+        mod, params = relay.frontend.from_tensorflow(graph_def, shape=shape_dict)
 
         dtype_dict = {'Model/Placeholder': 'int32',
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':'float32',
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':'float32'}
         target = 'llvm'
         with relay.build_config(opt_level=0):
-            graph, lib, params = relay.build(sym, target, params=params)
+            graph, lib, params = relay.build(mod[mod.entry_func],
+                                             target,
+                                             params=params)
         from tvm.contrib import graph_runtime
         ctx = tvm.cpu(0)
         return params, graph_runtime.create(graph, lib, ctx)

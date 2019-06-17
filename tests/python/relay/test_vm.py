@@ -35,9 +35,9 @@ def veval(f, *args, ctx=tvm.cpu()):
         mod = f
         ex = relay.create_executor('vm', mod=mod, ctx=ctx)
         if len(args) == 0:
-            return ex.evaluate(mod[mod.entry_func])
+            return ex.evaluate()
         else:
-            return ex.evaluate(mod[mod.entry_func])(*args)
+            return ex.evaluate()(*args)
 
 def test_split():
     x = relay.var('x', shape=(12,))

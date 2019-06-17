@@ -130,9 +130,11 @@ class VMExecutor(Executor):
         self.ctx = ctx
         self.target = target
 
-    def _make_executor(self, expr):
-        assert isinstance(expr, Expr)
-        self.mod[self.mod.entry_func] = expr
+    def _make_executor(self, expr=None):
+        expr = expr if expr else self.mod
+        assert expr, "either expr or self.mod should be not null."
+        if isinstance(expr, Expr):
+            self.mod[self.mod.entry_func] = expr
         main = self.mod[self.mod.entry_func]
 
         def _vm_wrapper(*args, **kwargs):
