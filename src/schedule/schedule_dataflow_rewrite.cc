@@ -766,10 +766,10 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   std::vector<Expr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
     body.emplace_back(Reduce::make(reduce->combiner,
-				   new_source,
-				   n->reduce_axis,
-				   new_pred[0],
-				   idx));
+                                   new_source,
+                                   n->reduce_axis,
+                                   new_pred[0],
+                                   idx));
   }
   n->body = Array<Expr>(body);
   // refresh relations, keep the un-touched relations.
