@@ -298,6 +298,12 @@ class OperatorConverter(object):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.Operator import Operator
+            from tflite.AddOptions import AddOptions
+            from tflite.SubOptions import SubOptions
+            from tflite.MulOptions import MulOptions
+            from tflite.DivOptions import DivOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -320,6 +326,26 @@ class OperatorConverter(object):
             rhs_expr = self.exp_tab.new_const(self.get_tensor_value(rhs_tensor),
                                               dtype=rhs_type_str)
         out = relay_op(lhs_expr, rhs_expr)
+
+        # Options (fused_activation_function)
+        options = None
+        if op.BuiltinOptionsType() == BuiltinOptions.AddOptions:
+            options = AddOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.SubOptions:
+            options = SubOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.MulOptions:
+            options = MulOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.DivOptions:
+            options = DivOptions()
+
+        if options is not None:
+            op_options = op.BuiltinOptions()
+            options.Init(op_options.Bytes, op_options.Pos)
+            fused_activation_fn = options.FusedActivationFunction()
+            # if we have activation fn
+            if fused_activation_fn != ActivationFunctionType.NONE:
+                out = self.convert_fused_activation_function(out, fused_activation_fn)
+
         return out
 
     def convert_add(self, op):
