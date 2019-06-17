@@ -20,7 +20,7 @@ set -e
 
 if [ "$target_platform" == "osx-64" ]; then
     # macOS 64 bits
-    METAL_OPT=""  # Conda can only target 10.9 for now
+    METAL_OPT="-DUSE_METAL=ON"
     TOOLCHAIN_OPT="-DCMAKE_OSX_DEPLOYMENT_TARGET=10.11"
 else
     METAL_OPT=""
