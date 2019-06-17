@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -756,13 +756,20 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   VarReplacer replacer(vsub);
   Array<Expr> new_source = ir::UpdateArray(reduce->source,
     [&replacer] (const Expr& e) { return replacer.Mutate(e); });
+
+  Array<Expr> orig_pred;
+  orig_pred.push_back(predicate);
+
+  Array<Expr> new_pred = ir::UpdateArray(orig_pred,
+    [&replacer] (const Expr& e) { return replacer.Mutate(e); });
+
   std::vector<Expr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
     body.emplace_back(Reduce::make(reduce->combiner,
-                                   new_source,
-                                   n->reduce_axis,
-                                   predicate,
-                                   idx));
+				   new_source,
+				   n->reduce_axis,
+				   new_pred[0],
+				   idx));
   }
   n->body = Array<Expr>(body);
   // refresh relations, keep the un-touched relations.
