@@ -43,24 +43,27 @@ def _declaration_dense(cfg,
     if len(data.shape) != 4 or len(weight.shape) != 4:
         raise topi.InvalidShapeError()
 
-    # Derive output shape
+    # Derive shapes
+    ishape = topi.util.get_const_tuple(data.shape)
+    wshape = topi.util.get_const_tuple(weight.shape)
     oshape = (data.shape[0], weight.shape[0], data.shape[2], weight.shape[2])
 
     # Reduction axes (input channel)
-    assert(int(data.shape[1]) == int(weight.shape[1]))
-    assert(int(data.shape[3]) == int(weight.shape[3]))
-    k_o = tvm.reduce_axis((0, data.shape[1]), name='k_o')
-    k_i = tvm.reduce_axis((0, data.shape[3]), name='k_i')
+    assert(ishape[1] == wshape[1])
+    assert(ishape[3] == wshape[3])
+    k_o = tvm.reduce_axis((0, ishape[1]), name='k_o')
+    k_i = tvm.reduce_axis((0, ishape[3]), name='k_i')
     res = tvm.compute(
         oshape,
         lambda b_o, c_o, b_i, c_i: tvm.sum(
             data[b_o, k_o, b_i, k_i].astype(out_dtype) *
             weight[c_o, k_o, c_i, k_i].astype(out_dtype),
             axis=[k_o, k_i]),
-        name="res", tag="dense")
+        name="res", tag="dense_pack")
 
     cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
-                 data.shape[1] * data.shape[3])
+                 ishape[1] * ishape[3])
+
     return res
 
 @autotvm.register_topi_schedule(topi.generic.schedule_dense, 'vta', 'direct')
@@ -88,7 +91,7 @@ def _schedule_dense(cfg, outs):
                 else:
                     _traverse(tensor.op)
         else:
-            assert op.tag == "dense"
+            assert op.tag == "dense_pack"
             dense_res.append(op)
 
     _traverse(output.op)

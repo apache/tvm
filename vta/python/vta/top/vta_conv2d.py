@@ -68,10 +68,11 @@ def _declaration_conv2d(cfg,
             pad_data[b_o, k_o, i*hstride+d_i, j*wstride+d_j, b_i, k_i].astype(out_dtype) *
             kernel[c_o, k_o, d_i, d_j, c_i, k_i].astype(out_dtype),
             axis=[k_o, d_i, d_j, k_i]),
-        name="res", tag="conv2d")
+        name="res", tag="conv2d_dense")
 
     cfg.add_flop(2 * np.prod(topi.util.get_const_tuple(oshape)) *
                  kshape[2] * kshape[3] * ishape[1] * ishape[-1])
+
     return res
 
 @autotvm.register_topi_schedule(topi.generic.schedule_conv2d_nchw, 'vta', 'direct')
@@ -97,7 +98,7 @@ def _schedule_conv2d(cfg, outs):
                 else:
                     _traverse(tensor.op)
         else:
-            assert op.tag == "conv2d"
+            assert op.tag == "conv2d_dense"
             conv2d_res.append(op)
 
     _traverse(output.op)
