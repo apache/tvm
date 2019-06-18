@@ -40,22 +40,22 @@ using tvm::runtime::Object;
 using tvm::runtime::ObjectTag;
 using tvm::runtime::vm::VirtualMachine;
 
-VirtualMachine FromModule(const Module& module, const std::vector<TVMContext>& ctxs) {
+VirtualMachine* FromModule(const Module& module, const std::vector<TVMContext>& ctxs) {
   auto vm = CompileModule(module);
-  vm.Init(ctxs);
+  vm->Init(ctxs);
   return vm;
 }
 
 Object EvaluateModule(const Module& module, const std::vector<TVMContext> ctxs,
                       const std::vector<Object>& vm_args) {
-  VirtualMachine vm = FromModule(module, ctxs);
+  VirtualMachine* vm = FromModule(module, ctxs);
   // TODO(zhiics): This measurement is for temporary usage. Remove it later. We
   // need to introduce a better profiling method.
 #if ENABLE_PROFILING
   DLOG(INFO) << "Entry function is main." << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
 #endif  // ENABLE_PROFILING
-  Object res = vm.Invoke("main", vm_args);
+  Object res = vm->Invoke(module->entry_func->name_hint, vm_args);
 #if ENABLE_PROFILING
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();

@@ -45,7 +45,6 @@ using namespace tvm::relay::transform;
 struct BuildOutput {
   std::string graph_json;
   runtime::Module mod;
-  runtime::vm::VirtualMachine vm;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
 };
 
@@ -128,11 +127,6 @@ class RelayBuildModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         CHECK_EQ(args.num_args, 3);
         this->Build(args[0], args[1], args[2]);
-      });
-    } else if (name == "build_vm") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          CHECK_EQ(args.num_args, 3);
-          this->BuildVM(args[0], args[1], args[2]);
       });
     } else if (name == "list_params") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -231,14 +225,6 @@ class RelayBuildModule : public runtime::ModuleNode {
     targets_ = targets;
     target_host_ = target_host;
     BuildRelay(func, params_);
-  }
-
-  void BuildVM(relay::Module relay_module,
-               const TargetsMap& targets,
-               const tvm::Target& target_host) {
-    targets_ = targets;
-    target_host_ = target_host;
-    BuildRelayVM(relay_module, params_);
   }
 
  protected:
@@ -466,12 +452,6 @@ class RelayBuildModule : public runtime::ModuleNode {
         target_host_,
         BuildConfig::Current());
     }
-  }
-
-  void BuildRelayVM(
-      const Module& relay_module,
-      const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
-    auto vm = vm::CompileModule(relay_module);
   }
 
  protected:

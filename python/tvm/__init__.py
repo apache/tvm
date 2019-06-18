@@ -43,6 +43,7 @@ from . import datatype
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, opengl, ext_dev
+from . import object
 
 from ._ffi.runtime_ctypes import TypeCode, TVMType
 from ._ffi.ndarray import TVMContext

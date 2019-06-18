@@ -22,22 +22,23 @@ import numpy as np
 from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
+#from tvm.relay.vm import BuildModule
 
 def veval(f, *args, ctx=tvm.cpu()):
     if isinstance(f, relay.Expr):
-        ex = relay.create_executor('vm', mod=relay.Module(), ctx=ctx)
-        if len(args) == 0:
-            return ex.evaluate(f)
-        else:
-            return ex.evaluate(f)(*args)
+        mod = relay.Module()
+        mod[mod.entry_func] = f
+        build_mod = relay.vm.BuildModule()
+        vm = build_mod.compile(mod)
+        vm.init(tvm.cpu())
+        return vm.run(*args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
-        ex = relay.create_executor('vm', mod=mod, ctx=ctx)
-        if len(args) == 0:
-            return ex.evaluate()
-        else:
-            return ex.evaluate()(*args)
+        build_mod = relay.vm.BuildModule()
+        vm = build_mod.compile(mod)
+        vm.init(tvm.cpu())
+        return vm.run(*args)
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.relay.backend.interpreter.TensorValue):
@@ -51,12 +52,13 @@ def vmobj_to_list(o):
 def test_split():
     x = relay.var('x', shape=(12,))
     y = relay.split(x, 3, axis=0).astuple()
-    z = relay.concatenate([relay.TupleGetItem(y, 0)], axis=0)
-    f = relay.Function([x], z)
+    f = relay.Function([x], y)
 
     x_data = np.random.rand(12,).astype('float32')
     res = veval(f, x_data)
-    tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
+    ref_res = np.split(x_data, 3, axis=0)
+    for i in range(3):
+        tvm.testing.assert_allclose(res[i].asnumpy(), ref_res[i])
 
 def test_split_no_fuse():
     x = relay.var('x', shape=(12,))
@@ -68,11 +70,10 @@ def test_split_no_fuse():
     res = veval(f, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
 
-
 def test_id():
-    x = relay.var('x', shape=(10, 10))
+    x = relay.var('x', shape=(10, 10), dtype='float32')
     f = relay.Function([x], x)
-    x_data = np.random.rand(10, 10).astype('float64')
+    x_data = np.random.rand(10, 10).astype('float32')
     res = veval(f, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), x_data)
 
@@ -194,6 +195,7 @@ def test_tuple_second():
     result = veval(f, (i_data, j_data))
     tvm.testing.assert_allclose(result.asnumpy(), j_data)
 
+@nottest
 def test_list_constructor():
     mod = relay.Module()
     p = Prelude(mod)

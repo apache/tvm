@@ -42,7 +42,7 @@ class TypeCode(object):
     STR = 11
     BYTES = 12
     NDARRAY_CONTAINER = 13
-    OBJECT = 14
+    OBJECT_CELL = 14
     EXT_BEGIN = 15
 
 

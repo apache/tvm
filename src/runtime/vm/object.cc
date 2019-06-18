@@ -25,6 +25,9 @@
 
 #include <tvm/logging.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include "../runtime_base.h"
 #include <iostream>
 
 namespace tvm {
@@ -87,5 +90,44 @@ NDArray ToNDArray(const Object& obj) {
   return tensor->data;
 }
 
+TVM_REGISTER_GLOBAL("object.GetTensorData")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  Object obj = args[0];
+  auto cell = obj.AsTensor();
+  *rv = cell->data;
+});
+
+TVM_REGISTER_GLOBAL("object.GetDatatypeTag")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  Object obj = args[0];
+  auto cell = obj.AsDatatype();
+  *rv = static_cast<int>(cell->tag);
+});
+
+TVM_REGISTER_GLOBAL("object.GetDatatypeNumberOfFields")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  Object obj = args[0];
+  auto cell = obj.AsDatatype();
+  *rv = static_cast<int>(cell->fields.size());
+});
+
+
+TVM_REGISTER_GLOBAL("object.GetDatatypeFields")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  Object obj = args[0];
+  int idx = args[1];
+  auto cell = obj.AsDatatype();
+  CHECK_LT(idx, cell->fields.size());
+  *rv = cell->fields[idx];
+});
+
 }  // namespace runtime
 }  // namespace tvm
+
+using namespace tvm::runtime;
+
+int TVMGetObjectTag(TVMObjectHandle handle, int* tag) {
+  API_BEGIN();
+  *tag = static_cast<int>(static_cast<ObjectCell*>(handle)->tag);
+  API_END();
+}

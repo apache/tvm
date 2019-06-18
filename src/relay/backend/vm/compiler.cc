@@ -63,6 +63,7 @@ using TagNameMap = std::unordered_map<size_t, tvm::relay::Constructor>;
 using GlobalMap = NodeMap<GlobalVar, Index>;
 using ConstMap = NodeMap<Constant, Index>;
 using ConstTensorShapeMap = NodeMap<TensorType, std::pair<Index, NDArray>>;
+using TargetsMap = Map<tvm::Integer, tvm::Target>;
 
 struct VMCompilerContext {
   // The module context for the compilation
@@ -667,10 +668,149 @@ void CompileMatch(Match match, VMCompiler* compiler) {
     CompileTreeNode(decision_tree, compiler);
 }
 
-void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
-                           std::vector<PackedFunc>* packed_funcs) {
-  runtime::Module mod;
-  if (lowered_funcs.size() > 0) {
+//void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
+//                           std::vector<PackedFunc>* packed_funcs) {
+//  runtime::Module mod;
+//  if (lowered_funcs.size() > 0) {
+//    // TODO(@jroesch): we need to read target from build config
+//    Target target = Target::Create("llvm");
+//    if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
+//      mod = (*f)(tvm::Array<LoweredFunc>(lowered_funcs.begin(), lowered_funcs.end()), target);
+
+class VMBuildModule : public runtime::ModuleNode {
+ public:
+  PackedFunc GetFunction(const std::string& name,
+                         const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+    if (name == "compile") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        this->Compile(args[0], args[1], args[2]);
+      });
+    } else if (name == "get_vm") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = runtime::Module(vm_);
+      });
+    } else {
+      LOG(FATAL) << "Unknown packed function: " << name;
+      return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
+    }
+  }
+
+  const char* type_key() const final {
+    return "VMBuildModule";
+  }
+
+  std::shared_ptr<VirtualMachine> GetVirtualMachine() const {
+    return vm_;
+  }
+
+  void Compile(const Module& mod_ref,
+               const TargetsMap& targets,
+               const tvm::Target& target_host) {
+    targets_ = targets;
+    target_host_ = target_host;
+    vm_ = std::make_shared<VirtualMachine>();
+
+    // Run some optimizations first, this code should
+    // be moved to pass manager.
+    context_.module = OptimizeModule(mod_ref);
+
+    // Populate the global map.
+    //
+    // This maps global variables to a global index
+    // in the VMFunction table.
+    PopulateGlobalMap();
+
+    // Next we populate constant map.
+    auto constant_analysis_result = LayoutConstantPool(context_.module);
+    context_.const_map = std::get<0>(constant_analysis_result);
+    context_.const_tensor_shape_map = std::get<1>(constant_analysis_result);
+
+    // Next we get ready by allocating space for
+    // the global state.
+    vm_->functions.resize(context_.module->functions.size());
+    vm_->constants.resize(context_.const_map.size() + context_.const_tensor_shape_map.size());
+
+    for (auto pair : context_.const_map) {
+      vm_->constants[pair.second] = Object::Tensor(pair.first->data);
+    }
+
+    for (auto pair : context_.const_tensor_shape_map) {
+      vm_->constants[pair.second.first] = Object::Tensor(pair.second.second);
+    }
+
+    for (auto named_func : context_.module->functions) {
+      auto gvar = named_func.first;
+      auto func = named_func.second;
+      auto vm_func = CompileFunc(&context_, gvar, func);
+
+      size_t func_index = context_.global_map.at(gvar);
+      CHECK(func_index < vm_->functions.size());
+      vm_->functions[func_index] = vm_func;
+    }
+
+#ifdef USE_RELAY_DEBUG
+    for (auto vm_func : vm.functions) {
+    std::cout << "Function: " << vm_func.name << std::endl
+              << vm_func << "-------------" << std::endl;
+  }
+#endif  // USE_RELAY_DEBUG
+
+    PopulatePackedFuncMap();
+
+    for (auto gv : context_.global_map) {
+      vm_->global_map.insert({gv.first->name_hint, gv.second});
+    }
+  }
+
+ protected:
+  Module OptimizeModule(const Module& mod) {
+    // TODO(@icemelon9): check number of targets and build config, add more optimization pass
+    transform::Sequential seq({transform::ToANormalForm(),
+                               transform::InlinePrimitives(),
+                               transform::LambdaLift(),
+                               transform::InlinePrimitives(),
+                               transform::FuseOps()});
+    auto pass_ctx = transform::PassContext::Create();
+    tvm::With<relay::transform::PassContext> ctx(pass_ctx);
+    return seq(mod);
+  }
+
+  void PopulateGlobalMap() {
+    // First we populate global map.
+    size_t global_index = 0;
+    for (auto named_func : context_.module->functions) {
+      auto gvar = named_func.first;
+      context_.global_map.insert({gvar, global_index++});
+    }
+  }
+
+  VMFunction CompileFunc(VMCompilerContext* context, const GlobalVar& var, const Function& func) {
+    DLOG(INFO) << "CompileFunc: " << var << std::endl << AsText(func, false);
+    std::vector<std::string> params;
+    for (auto param : func->params) {
+      params.push_back(param->name_hint());
+    }
+    //size_t params = func->params.size();
+    VMCompiler compiler(context);
+    compiler.Compile(func);
+    // return the last evaluated expression
+    compiler.instructions.push_back(Instruction::Ret(compiler.last_register));
+
+    // Would like to refactor this so we only check if closure once.
+    if (IsClosure(func)) {
+      for (auto param : Downcast<Function>(func->body)->params) {
+        params.push_back(param->name_hint());
+      }
+    }
+    return VMFunction(var->name_hint, params, compiler.instructions, compiler.registers_num);
+  }
+
+  void PopulatePackedFuncMap() {
+    auto const& lowered_funcs = context_.lowered_funcs;
+    if (context_.lowered_funcs.size() == 0) {
+      return;
+    }
+    runtime::Module mod;
     // TODO(@jroesch): we need to read target from build config
     Target target = Target::Create("llvm");
     if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
@@ -680,113 +820,33 @@ void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
     }
     CHECK(mod.operator->());
     for (auto lfunc : lowered_funcs) {
-      packed_funcs->push_back(mod.GetFunction(lfunc->name));
+      vm_->packed_funcs.push_back(mod.GetFunction(lfunc->name));
     }
   }
+
+ protected:
+  TargetsMap targets_;
+  tvm::Target target_host_;
+  VMCompilerContext context_;
+  std::shared_ptr<VirtualMachine> vm_;
+};
+
+VirtualMachine* CompileModule(const Module& mod) {
+  VMBuildModule build_mod;
+  Target target = Target::Create("llvm");
+  build_mod.Compile(mod, {}, target);
+  return build_mod.GetVirtualMachine().get();
 }
 
-VMFunction CompileFunc(VMCompilerContext* context, const GlobalVar& var, const Function& func) {
-  DLOG(INFO) << "CompileFunc: " << var << std::endl << AsText(func, false);
-  std::vector<std::string> params;
-  for (auto param : func->params) {
-    params.push_back(param->name_hint());
-  }
-  //size_t params = func->params.size();
-  VMCompiler compiler(context);
-  compiler.Compile(func);
-  // return the last evaluated expression
-  compiler.instructions.push_back(Instruction::Ret(compiler.last_register));
-
-  // Would like to refactor this so we only check if closure once.
-  if (IsClosure(func)) {
-    auto inner_params = Downcast<Function>(func->body)->params.size();
-    return VMFunction(var->name_hint, params + inner_params, compiler.instructions,
-                      compiler.registers_num);
-  } else {
-    return VMFunction(var->name_hint, params, compiler.instructions, compiler.registers_num);
-  }
+runtime::Module VMBuildCreate() {
+  std::shared_ptr<VMBuildModule> exec = std::make_shared<VMBuildModule>();
+  return runtime::Module(exec);
 }
 
-Module OptimizeModule(const Module& mod) {
-  transform::Sequential seq({transform::ToANormalForm(),
-                             transform::InlinePrimitives(),
-                             transform::LambdaLift(),
-                             transform::InlinePrimitives()});
-  auto pass_ctx = transform::PassContext::Create();
-  tvm::With<relay::transform::PassContext> ctx(pass_ctx);
-  return seq(mod);
-}
-
-void PopulateGlobalMap(GlobalMap* global_map, const Module& mod) {
-  // First we populate global map.
-  size_t global_index = 0;
-  for (auto named_func : mod->functions) {
-    auto gvar = named_func.first;
-    global_map->insert({gvar, global_index++});
-  }
-}
-
-VirtualMachine CompileModule(const Module& mod_ref) {
-  Module mod = mod_ref;
-
-  // Run some optimizations first, this code should
-  // be moved to pass manager.
-  mod = OptimizeModule(mod);
-
-  VirtualMachine vm;
-
-  VMCompilerContext context;
-  context.module = mod;
-
-  // Populate the global map.
-  //
-  // This maps global variables to a global index
-  // in the VMFunction table.
-  PopulateGlobalMap(&context.global_map, mod);
-
-  // Next we populate constant map.
-  auto constant_analysis_result = LayoutConstantPool(mod);
-  context.const_map = std::get<0>(constant_analysis_result);
-  context.const_tensor_shape_map = std::get<1>(constant_analysis_result);
-
-  // Next we get ready by allocating space for
-  // the global state.
-  vm.functions.resize(mod->functions.size());
-  vm.constants.resize(context.const_map.size() + context.const_tensor_shape_map.size());
-
-  for (auto pair : context.const_map) {
-    vm.constants[pair.second] = Object::Tensor(pair.first->data);
-  }
-
-  for (auto pair : context.const_tensor_shape_map) {
-    vm.constants[pair.second.first] = Object::Tensor(pair.second.second);
-  }
-
-  for (auto named_func : mod->functions) {
-    auto gvar = named_func.first;
-    auto func = named_func.second;
-    auto vm_func = CompileFunc(&context, gvar, func);
-
-    size_t func_index = context.global_map.at(gvar);
-    CHECK(func_index < vm.functions.size());
-    vm.functions[func_index] = vm_func;
-  }
-
-#ifdef USE_RELAY_DEBUG
-  for (auto vm_func : vm.functions) {
-    std::cout << "Function: " << vm_func.name << std::endl
-              << vm_func << "-------------" << std::endl;
-  }
-#endif  // USE_RELAY_DEBUG
-
-  PopulatePackedFuncMap(context.lowered_funcs, &vm.packed_funcs);
-
-  for (auto gv : context.global_map) {
-    vm.global_map_.insert({gv.first->name_hint, gv.second});
-  }
-
-  return vm;
-}
+TVM_REGISTER_GLOBAL("relay._vm._BuildModule")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = VMBuildCreate();
+});
 
 }  // namespace vm
 }  // namespace relay

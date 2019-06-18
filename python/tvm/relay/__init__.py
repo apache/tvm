@@ -33,6 +33,7 @@ from . import parser
 from . import debug
 from . import param_dict
 from . import feature
+from .backend import vm
 
 # Root operators
 from .op import Op

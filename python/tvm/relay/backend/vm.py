@@ -23,13 +23,43 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
-from tvm._ffi.function import Object
+from ...object import TensorObject
 from .. import transform
 from ..backend.interpreter import Executor
 from ..expr import GlobalVar, Expr
 from . import _vm
 
-Object = Object
+
+class VirtualMachine(object):
+    def __init__(self, mod):
+        self.mod = mod
+        self._init = self.mod["init"]
+        self._invoke = self.mod["invoke"]
+
+    def init(self, ctx):
+        args = [ctx.device_type, ctx.device_id]
+        #print(ctx.device_id, ctx.device_type)
+        self._init(*args)
+
+    def invoke(self, func_name, *args):
+        cargs = convert(args)
+        return self._invoke(func_name, *cargs)
+
+    def run(self, *args):
+        return self.invoke("main", *args)
+
+
+class BuildModule(object):
+    def __init__(self):
+        self.mod = _vm._BuildModule()
+        self._compile = self.mod["compile"]
+        self._get_vm = self.mod["get_vm"]
+
+    def compile(self, mod, target=None, target_host=None):
+        self._compile(mod, target, target_host)
+        vm = VirtualMachine(self._get_vm())
+        return vm
+
 
 def optimize(mod):
     """Perform several optimizations on a module before executing it in the
@@ -139,6 +169,7 @@ class VMExecutor(Executor):
 
         def _vm_wrapper(*args, **kwargs):
             args = self._convert_args(main, args, kwargs)
+            print(type(args[0]))
             return _eval_vm(self.mod, self.ctx, *args)
 
         return _vm_wrapper

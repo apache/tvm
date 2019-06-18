@@ -309,8 +309,8 @@ struct VMFunction {
   /*! \brief The function's name. */
   std::string name;
   /*! \brief The number of function parameters. */
-  size_t num_params;
-  std::vector<std::string> param_names;
+  //size_t num_params;
+  std::vector<std::string> params;
   /*! \brief The instructions representing the function. */
   std::vector<Instruction> instructions;
   /*! \brief The size of the frame for this function */
@@ -371,7 +371,15 @@ struct VMFrame {
  * multiple threads, or serialized them to disk or over the
  * wire.
  */
-struct VirtualMachine {
+class VirtualMachine : public runtime::ModuleNode {
+ public:
+  PackedFunc GetFunction(const std::string& name,
+                         const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+
+  const char* type_key() const final {
+    return "VirtualMachine";
+  }
+
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs;
   /*! \brief The virtual machine's function table. */
@@ -443,7 +451,7 @@ struct VirtualMachine {
 
   /*! \brief A map from globals (as strings) to their index in the function map.
    */
-  std::unordered_map<std::string, Index> global_map_;
+  std::unordered_map<std::string, Index> global_map;
 
  private:
   /*! \brief Invoke a global setting up the VM state to execute.
