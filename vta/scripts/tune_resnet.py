@@ -73,7 +73,6 @@ def register_vta_tuning_tasks():
             s = tvm.create_schedule([res.op])
         return s, [A, W, res]
 
-
     @autotvm.task.register("topi_nn_dense", override=True)
     def _topi_nn_dense(*args, **kwargs):
         assert not kwargs, "Do not support kwargs in template function call"
@@ -228,8 +227,7 @@ if __name__ == '__main__':
     print("Extracting tasks...")
     tasks = extract_from_program(func=relay_prog,
                                  params=params,
-                                 ops=(tvm.relay.op.nn.conv2d,
-                                      tvm.relay.op.nn.dense),
+                                 ops=(tvm.relay.op.nn.conv2d,),
                                  target=target,
                                  target_host=env.target_host)
 
