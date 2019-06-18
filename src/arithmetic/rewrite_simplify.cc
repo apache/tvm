@@ -813,7 +813,9 @@ Mutate_(const Min* op, const Expr& self) {
 
     // canonicalization
     TVM_TRY_RECURSIVE_REWRITE(min(min(x, c1), y), min(min(x, y), c1));
-    TVM_TRY_RECURSIVE_REWRITE(min(c1 - x, c2), c1 - max(x, c2 - c1));
+    TVM_TRY_RECURSIVE_REWRITE_IF(
+        min(c1 - x, c2), c1 - max(x, c1 - c2),
+        c2.Eval()->value != 0);
   }
 
   // condition rules.
@@ -961,7 +963,8 @@ Mutate_(const Max* op, const Expr& self) {
 
     // canonicalization
     TVM_TRY_RECURSIVE_REWRITE(max(max(x, c1), y), max(max(x, y), c1));
-    TVM_TRY_RECURSIVE_REWRITE(max(c1 - x, c2), c1 - min(x, c2 - c1));
+    TVM_TRY_RECURSIVE_REWRITE_IF(
+        max(c1 - x, c2), c1 - min(x, c1 - c2), c2.Eval()->value != 0);
   }
 
   // condition rules.
