@@ -220,7 +220,7 @@ class StorageFlattener : public IRMutator {
           Var(key.GetName(), Handle()),
           op->type, shape, strides, Expr(),
           key.GetName(), skey.to_string(),
-          align, 0);
+          align, 0, "");
 
       buf_map_[key] = e;
       Stmt body = this->Mutate(op->body);

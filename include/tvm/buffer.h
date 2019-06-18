@@ -129,6 +129,11 @@ class BufferNode : public Node {
    *  elem_offset is guaranteed to be multiple of offset_factor.
    */
   int offset_factor;
+  /*!
+   * \brief buffer type, {"", "broadcast"},
+   *  during runtime broadcast buffer will set stride = 1 for corresponding dimension == 1
+   */
+  std::string buffer_type;
   /*! \brief constructor */
   BufferNode() {}
 
@@ -142,6 +147,7 @@ class BufferNode : public Node {
     v->Visit("scope", &scope);
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
+    v->Visit("buffer_type", &buffer_type);
   }
 
   /*! \return preferred index type for this buffer node */
@@ -159,7 +165,8 @@ class BufferNode : public Node {
                              std::string name,
                              std::string scope,
                              int data_alignment,
-                             int offset_factor);
+                             int offset_factor,
+                             std::string buffer_type);
 
   static constexpr const char* _type_key = "Buffer";
   TVM_DECLARE_NODE_TYPE_INFO(BufferNode, Node);
