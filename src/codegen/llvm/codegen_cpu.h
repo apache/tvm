@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -139,6 +139,13 @@ class CodeGenCPU : public CodeGenLLVM {
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.
   std::vector<std::pair<std::string, llvm::Value*> > export_system_symbols_;
+
+  // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
+  // generates |int32|, and |int8*|.
+  static llvm::DIType* getDebugType(IRBuilder* builder, llvm::DIBuilder* di_builder,
+                                    llvm::Type* ty);
+  // Adds the DWARF debug information for |function| to |dbg_info_|.
+  void AddDebugInformation(llvm::Function* function);
 };
 
 }  // namespace codegen
