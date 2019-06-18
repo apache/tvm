@@ -102,7 +102,7 @@ def compile_network(opt, env, target):
 
     # Get off the shelf gluon model, and convert to relay
     gluon_model = vision.get_model(opt.model, pretrained=True)
-    relay_prog, params = relay.frontend.from_mxnet(gluon_model, shape_dict)
+    mod, params = relay.frontend.from_mxnet(gluon_model, shape_dict)
 
     # Update shape and type dictionary
     shape_dict.update({k: v.shape for k, v in params.items()})
@@ -110,7 +110,7 @@ def compile_network(opt, env, target):
 
     # Perform quantization in Relay
     with relay.quantize.qconfig(global_scale=8.0, skip_k_conv=1):
-        relay_prog = relay.quantize.quantize(relay_prog, params=params)
+        relay_prog = relay.quantize.quantize(mod[mod.entry_func], params=params)
 
     # Perform graph packing and constant folding for VTA target
     if target.device_name == "vta":
