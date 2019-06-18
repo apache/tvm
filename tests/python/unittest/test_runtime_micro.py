@@ -28,9 +28,63 @@ from tvm.relay.testing import resnet
 # Use the host emulated micro device, because it's simpler and faster to test.
 DEVICE_TYPE = "host"
 BINUTIL_PREFIX = ""
-HOST_SESSION = micro.Session(DEVICE_TYPE, BINUTIL_PREFIX)
+
+def create_micro_mod(c_mod, binutil_prefix):
+    """Produces a micro module from a given module.
+
+    Parameters
+    ----------
+    c_mod : tvm.module.Module
+        module with "c" as its target backend
+
+    binutil_prefix : str
+        binutil prefix to be used (see `tvm.micro.Session` docs)
+
+    Return
+    ------
+    micro_mod : tvm.module.Module
+        micro module for the target device
+    """
+    temp_dir = util.tempdir()
+    # Save module source to temp file.
+    lib_src_path = temp_dir.relpath("dev_lib.c")
+    mod_src = c_mod.get_source()
+    with open(lib_src_path, "w") as f:
+        f.write(mod_src)
+    # Compile to object file.
+    lib_obj_path = micro.create_micro_lib(lib_src_path, binutil_prefix)
+    micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
+    return micro_mod
+
+
+def relay_micro_build(func, binutil_prefix, params=None):
+    """Create a graph runtime module with a micro device context from a Relay function.
+
+    Parameters
+    ----------
+    func : relay.Function
+        function to compile
+
+    params : dict
+        input parameters that do not change during inference
+
+    Return
+    ------
+    mod : tvm.module.Module
+        graph runtime module for the target device
+    """
+    with tvm.build_config(disable_vectorize=True):
+        graph, c_mod, params = relay.build(func, target="c", params=params)
+
+    micro_mod = create_micro_mod(c_mod, BINUTIL_PREFIX)
+    ctx = tvm.micro_dev(0)
+    mod = graph_runtime.create(graph, micro_mod, ctx)
+    mod.set_input(**params)
+    return mod
+
 
 # TODO(weberlo): Add example program to test scalar double/int TVMValue serialization.
+# TODO(weberlo): Add test for loading multiple modules.
 
 def test_add():
     """Test a program which performs addition."""
@@ -47,8 +101,8 @@ def test_add():
     func_name = "fadd"
     c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
 
-    with HOST_SESSION as sess:
-        micro_mod = sess.create_micro_mod(c_mod)
+    with micro.Session(DEVICE_TYPE, BINUTIL_PREFIX) as sess:
+        micro_mod = create_micro_mod(c_mod, BINUTIL_PREFIX)
         micro_func = micro_mod[func_name]
         ctx = tvm.micro_dev(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
@@ -76,8 +130,8 @@ def test_workspace_add():
     func_name = "fadd_two_workspace"
     c_mod = tvm.build(s, [A, C], target="c", name=func_name)
 
-    with HOST_SESSION as sess:
-        micro_mod = sess.create_micro_mod(c_mod)
+    with micro.Session(DEVICE_TYPE, BINUTIL_PREFIX) as sess:
+        micro_mod = create_micro_mod(c_mod, BINUTIL_PREFIX)
         micro_func = micro_mod[func_name]
         ctx = tvm.micro_dev(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
@@ -99,10 +153,9 @@ def test_graph_runtime():
     z = relay.add(xx, relay.const(1.0))
     func = relay.Function([x], z)
 
-    with HOST_SESSION as sess:
-        mod, params = sess.micro_build(func)
+    with micro.Session(DEVICE_TYPE, BINUTIL_PREFIX) as sess:
+        mod = relay_micro_build(func, BINUTIL_PREFIX)
 
-        mod.set_input(**params)
         x_in = np.random.uniform(size=shape[0]).astype(dtype)
         mod.run(x=x_in)
         result = mod.get_output(0).asnumpy()
@@ -121,10 +174,9 @@ def test_resnet_random():
                                        resnet_func.body.args[0],
                                        resnet_func.ret_type)
 
-    with HOST_SESSION as sess:
+    with micro.Session(DEVICE_TYPE, BINUTIL_PREFIX) as sess:
         # TODO(weberlo): Use `resnet_func` once we have libc support.
-        mod, params = sess.micro_build(resnet_func_no_sm, params=params)
-        mod.set_input(**params)
+        mod = relay_micro_build(resnet_func_no_sm, BINUTIL_PREFIX, params=params)
         # Generate random input.
         data = np.random.uniform(size=mod.get_input(0).shape)
         mod.run(data=data)
@@ -172,10 +224,8 @@ def test_resnet_pretrained():
     func, params = relay.frontend.from_mxnet(block,
                                              shape={"data": image.shape})
 
-    with HOST_SESSION as sess:
-        mod, params = sess.micro_build(func, params=params)
-        # Set model weights.
-        mod.set_input(**params)
+    with micro.Session(DEVICE_TYPE, BINUTIL_PREFIX) as sess:
+        mod = relay_micro_build(func, BINUTIL_PREFIX, params=params)
         # Execute with `image` as the input.
         mod.run(data=image)
         # Get outputs.
