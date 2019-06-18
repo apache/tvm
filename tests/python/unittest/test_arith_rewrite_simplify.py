@@ -392,6 +392,7 @@ def test_min_index_simplify():
     ck.verify(tvm.min(x / 10, y / 10), tvm.min(x, y) / 10)
     ck.verify(tvm.min(x / (-10), y / (-10)), tvm.max(x, y) / (-10))
     ck.verify(tvm.min(x * 3, 9), tvm.min(x, 3) * 3)
+    ck.verify(tvm.min(3 - x, 0), 3 - tvm.max(x,  3))
 
 
 def test_max_index_simplify():
@@ -448,6 +449,8 @@ def test_max_index_simplify():
     ck.verify(tvm.max(x / 10, y / 10), tvm.max(x, y) / 10)
     ck.verify(tvm.max(x / (-10), y / (-10)), tvm.min(x, y) / (-10))
     ck.verify(tvm.max(x * 3, 9), tvm.max(x, 3) * 3)
+
+    ck.verify(tvm.max(3 - x, 0), 3 - tvm.min(x,  3))
 
 
 def test_cmp_simplify():
