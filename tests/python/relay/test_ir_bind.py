@@ -30,7 +30,7 @@ def test_bind_params():
         relay.add(relay.const(1, "float32"),  y))
     assert relay.analysis.alpha_equal(fbinded, fexpected)
 
-    zbinded = relay.bind(z, {y: relay.const(0, "float32")})
+    zbinded = relay.bind(z, {y: x})
     zexpected = relay.add(x, x)
     assert relay.analysis.alpha_equal(zbinded, zexpected)
 
