@@ -290,6 +290,37 @@ def test_forward_reshape():
 
 
 #######################################################################
+# Resize
+# ------
+
+def _test_resize(tf_resize_op, data, align_corners):
+    """ One iteration of Resize """
+
+    assert len(data) == 2
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        images_tensor = array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')
+        size = ops.convert_to_tensor(data[1], dtype=data[1].dtype)
+        out_tensor = tf_resize_op(images=images_tensor, size=size, align_corners=align_corners)
+        compare_tflite_with_tvm([data[0]], ['in:0'], [images_tensor], [out_tensor])
+
+
+def test_all_resize():
+    """ Resize """
+    data = [np.random.rand(1, 16, 16, 3).astype("float32"), np.array([8, 8], dtype=np.int32)]
+    ### RESIZE_BILINEAR
+    _test_resize(tf.image.resize_bilinear, data, align_corners=False)
+    _test_resize(tf.image.resize_bilinear, data, align_corners=True)
+    ### RESIZE_NEAREST_NEIGHBOR (was added in v1.13)
+    # According to topi resize.h
+    # Align corners not supported for nearest neighbour
+    from tflite.BuiltinOperator import BuiltinOperator
+    if 'RESIZE_NEAREST_NEIGHBOR' in dir(BuiltinOperator()):
+        _test_resize(tf.image.resize_nearest_neighbor, data, align_corners=False)
+
+
+#######################################################################
 # Concatenation
 # -------------
 
@@ -651,6 +682,7 @@ if __name__ == '__main__':
     test_forward_concatenation()
     test_forward_pad()
     test_forward_reshape()
+    test_all_resize()
     test_forward_squeeze()
 
     # NN

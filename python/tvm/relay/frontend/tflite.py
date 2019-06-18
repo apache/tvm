@@ -60,6 +60,8 @@ class OperatorConverter(object):
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'RESHAPE': self.convert_reshape,
+            'RESIZE_BILINEAR': self.convert_resize_bilinear,
+            'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'SOFTMAX': self.convert_softmax,
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
@@ -224,6 +226,58 @@ class OperatorConverter(object):
         out = _op.reshape(in_expr, newshape=tuple(target_shape))
 
         return out
+
+    def _convert_resize(self, method, op):
+        """Generic method to Convert TFLite RESIZE operators"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.ResizeBilinearOptions import ResizeBilinearOptions
+            # ResizeNearestNeighborOptions was added in tflite v1.13
+            tflite_ver = 1120
+            if 'ResizeNearestNeighborOptions' in dir(BuiltinOptions):
+                from tflite.ResizeNearestNeighborOptions import ResizeNearestNeighborOptions
+                tflite_ver = 1130
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        # images, 4-D Tensor with shape NHWC.
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # size - 1-D int32 Tensor of 2 elements: new_height, new_width
+        target_size = tuple(self.get_tensor_value(input_tensors[1]))
+
+        # Options - align_corners (bool)
+        resize_options = None
+        align_corners = False
+        if method == "BILINEAR":
+            assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
+            resize_options = ResizeBilinearOptions()
+        elif tflite_ver >= 1130:
+            assert op.BuiltinOptionsType() == BuiltinOptions.ResizeNearestNeighborOptions
+            resize_options = ResizeNearestNeighborOptions()
+
+        if resize_options is not None:
+            op_options = op.BuiltinOptions()
+            resize_options.Init(op_options.Bytes, op_options.Pos)
+            align_corners = resize_options.AlignCorners()
+
+        # Use layout NHWC
+        out = _op.image.resize(in_expr, target_size, "NHWC", method, align_corners)
+        return out
+
+    def convert_resize_bilinear(self, op):
+        """Convert TFLite RESIZE_BILINEAR"""
+        return self._convert_resize("BILINEAR", op)
+
+    def convert_resize_nearest_neighbor(self, op):
+        """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
+        return self._convert_resize("NEAREST_NEIGHBOR", op)
 
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""
