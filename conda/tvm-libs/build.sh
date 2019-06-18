@@ -17,6 +17,7 @@
 # under the License.
 
 set -e
+set -u
 
 if [ "$target_platform" == "osx-64" ]; then
     # macOS 64 bits

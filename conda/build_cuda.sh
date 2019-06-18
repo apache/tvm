@@ -17,6 +17,7 @@
 # under the License.
 
 set -e
+set -u
 
 # This is a fix for a weird bug in conda that makes it think
 # it can't write in /tmp

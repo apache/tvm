@@ -17,6 +17,7 @@
 # under the License.
 
 set -e
+set -u
 
 cd python
 $PYTHON setup.py install --single-version-externally-managed --record=/tmp/record.txt
