@@ -72,6 +72,8 @@ class MicroModuleNode final : public ModuleNode {
    * \param args type-erased arguments passed to the function
    */
   void RunFunction(const std::string& func_name, DevBaseOffset func_offset, const TVMArgs& args) {
+    if (!session_->valid()) return;
+
     session_->PushToExecQueue(func_offset, args);
   }
 
@@ -106,23 +108,28 @@ class MicroModuleNode final : public ModuleNode {
 class MicroWrappedFunc {
  public:
   MicroWrappedFunc(MicroModuleNode* m,
+                   std::shared_ptr<MicroSession> session,
                    const std::string& func_name,
                    DevBaseOffset func_offset) {
     m_ = m;
+    session_ = session;
     func_name_ = func_name;
     func_offset_ = func_offset;
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
+    if (!session_->valid()) return;
     m_->RunFunction(func_name_, func_offset_, args);
   }
 
  private:
-  // internal module
+  /*! \brief internal module */
   MicroModuleNode* m_;
-  // name of the function
+  /*! \brief reference to the session for this function (to keep the session alive) */
+  std::shared_ptr<MicroSession> session_;
+  /*! \brief name of the function */
   std::string func_name_;
-  // address of the function to be called
+  /*! \brief offset of the function to be called */
   DevBaseOffset func_offset_;
 };
 
@@ -130,7 +137,7 @@ PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   DevBaseOffset func_offset = symbol_map()[name];
-  MicroWrappedFunc f(this, name, func_offset);
+  MicroWrappedFunc f(this, this->session_, name, func_offset);
   return PackFuncVoidAddr(f, std::vector<TVMType>());
 }
 

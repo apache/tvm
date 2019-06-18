@@ -36,9 +36,7 @@ namespace runtime {
 class MicroDeviceAPI final : public DeviceAPI {
  public:
   /*! \brief constructor */
-  MicroDeviceAPI()
-    : session_(MicroSession::Global()) {
-  }
+  MicroDeviceAPI() { }
 
   void SetDevice(TVMContext ctx) final {}
 
@@ -52,12 +50,30 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        TVMType type_hint) final {
-    return session_->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
+    auto session_ = MicroSession::Global();
+    // If there is an allocation for a reference to an invalid session, then
+    // something has gone very wrong. All allocations should be contained within
+    // the `with` block for the corresponding `MicroSession`.
+    CHECK(session_->valid()) << "data space alloc on invalid session";
+
+    void* data = session_->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
+    DeviceSpace* dev_space = new DeviceSpace();
+    dev_space->data = data;
+    dev_space->session = session_;
+    return static_cast<void*>(dev_space);
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
+    auto session_ = MicroSession::Global();
+    // It is possible (and usually the case) to have dangling references to a
+    // session after the session has ended (due to Python scoping). In this
+    // case, freeing is a no-op.
+    if (!session_->valid()) return;
+
+    DeviceSpace* dev_space = static_cast<DeviceSpace*>(ptr);
     session_->FreeInSection(SectionKind::kHeap,
-                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(ptr)));
+                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
+    delete dev_space;
   }
 
   void CopyDataFromTo(const void* from,
@@ -69,30 +85,33 @@ class MicroDeviceAPI final : public DeviceAPI {
                       TVMContext ctx_to,
                       TVMType type_hint,
                       TVMStreamHandle stream) final {
-    constexpr int micro_devtype = kDLMicroDev;
+    auto session_ = MicroSession::Global();
+    if (!session_->valid()) return;
+
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
-    DevBaseOffset from_base_offset =
-        DevBaseOffset(reinterpret_cast<std::uintptr_t>(const_cast<void*>(from)) + from_offset);
-    DevBaseOffset to_base_offset =
-        DevBaseOffset(reinterpret_cast<std::uintptr_t>(const_cast<void*>(to)) + to_offset);
     const std::shared_ptr<LowLevelDevice>& lld = session_->low_level_device();
 
-    if (type_from_to == std::make_tuple(micro_devtype, micro_devtype)) {
+    if (type_from_to == std::make_tuple(kDLMicroDev, kDLMicroDev)) {
       // Copying from the device to the device.
       CHECK(ctx_from.device_id == ctx_to.device_id)
         << "can only copy between the same micro device";
-      std::vector<uint8_t> buffer(size);
-      lld->Read(from_base_offset, reinterpret_cast<void*>(buffer.data()), size);
-      lld->Write(to_base_offset, reinterpret_cast<void*>(buffer.data()), size);
-    } else if (type_from_to == std::make_tuple(micro_devtype, kDLCPU)) {
-      // Reading from the device.
-      const std::shared_ptr<LowLevelDevice>& from_lld = session_->low_level_device();
-      lld->Read(from_base_offset, to_base_offset.cast_to<void*>(), size);
-    } else if (type_from_to == std::make_tuple(kDLCPU, micro_devtype)) {
-      // Writing to the device.
-      const std::shared_ptr<LowLevelDevice>& to_lld = session_->low_level_device();
-      lld->Write(to_base_offset, from_base_offset.cast_to<void*>(), size);
 
+      DevBaseOffset from_dev_offset = GetDevLoc(from, from_offset);
+      DevBaseOffset to_dev_offset = GetDevLoc(to, to_offset);
+
+      std::vector<uint8_t> buffer(size);
+      lld->Read(from_dev_offset, static_cast<void*>(buffer.data()), size);
+      lld->Write(to_dev_offset, static_cast<void*>(buffer.data()), size);
+    } else if (type_from_to == std::make_tuple(kDLMicroDev, kDLCPU)) {
+      // Reading from the device.
+      DevBaseOffset from_dev_offset = GetDevLoc(from, from_offset);
+      void* to_host_ptr = GetHostLoc(to, to_offset);
+      lld->Read(from_dev_offset, to_host_ptr, size);
+    } else if (type_from_to == std::make_tuple(kDLCPU, kDLMicroDev)) {
+      // Writing to the device.
+      void* from_host_ptr = GetHostLoc(from, from_offset);
+      DevBaseOffset to_dev_offset = GetDevLoc(to, to_offset);
+      lld->Write(to_dev_offset, from_host_ptr, size);
     } else {
       LOG(FATAL) << "Expect copy from/to micro_dev or between micro_dev\n";
     }
@@ -102,12 +121,24 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
-    return session_->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
+    auto session_ = MicroSession::Global();
+    CHECK(session_->valid()) << "workspace alloc on invalid session";
+
+    void* data = session_->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
+    DeviceSpace* dev_space = new DeviceSpace();
+    dev_space->data = data;
+    dev_space->session = session_;
+    return static_cast<void*>(dev_space);
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
+    auto session_ = MicroSession::Global();
+    if (!session_->valid()) return;
+
+    DeviceSpace* dev_space = static_cast<DeviceSpace*>(data);
     session_->FreeInSection(SectionKind::kWorkspace,
-                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(data)));
+                            DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
+    delete dev_space;
   }
 
   /*!
@@ -121,8 +152,18 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
  private:
-  /*! \brief pointer to global session */
-  std::shared_ptr<MicroSession> session_;
+  DevBaseOffset GetDevLoc(const void* ptr, size_t offset) {
+    auto session_ = MicroSession::Global();
+    DeviceSpace* dev_space = static_cast<DeviceSpace*>(const_cast<void*>(ptr));
+    CHECK(dev_space->session == session_) << "session mismatch";
+    DevBaseOffset dev_offset =
+        DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data) + offset);
+    return dev_offset;
+  }
+
+  void* GetHostLoc(const void* ptr, size_t offset) {
+    return reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(ptr) + offset);
+  }
 };
 
 // register device that can be obtained from Python frontend

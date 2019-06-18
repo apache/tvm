@@ -127,8 +127,12 @@ class MicroSession {
    * \brief get MicroSession global singleton
    * \return pointer to the micro session global singleton
    */
-  static std::shared_ptr<MicroSession>& Global() {
-    static std::shared_ptr<MicroSession> inst = std::make_shared<MicroSession>();
+  static std::shared_ptr<MicroSession>& Global(bool make_new = false) {
+    static std::shared_ptr<MicroSession> inst = nullptr;
+    if (make_new) {
+      inst = std::make_shared<MicroSession>();
+    }
+    CHECK(inst != nullptr) << "null global session";
     return inst;
   }
 
@@ -185,12 +189,18 @@ class MicroSession {
    * \note assumes low-level device has been initialized
    */
   const std::shared_ptr<LowLevelDevice> low_level_device() const {
+    if (!valid()) return nullptr;
+
     CHECK(low_level_device_ != nullptr) << "attempt to get uninitialized low-level device";
     return low_level_device_;
   }
 
   SymbolMap& init_symbol_map() {
     return init_stub_info_.symbol_map;
+  }
+
+  bool valid() const {
+    return valid_;
   }
 
  private:
@@ -218,6 +228,8 @@ class MicroSession {
   DevBaseOffset utvm_main_symbol_addr_;
   /*! \brief offset of the init stub exit breakpoint */
   DevBaseOffset utvm_done_symbol_addr_;
+  /*! \brief whether the session is able to be interacted with */
+  bool valid_;
 
   /*!
    * \brief sets up and loads init stub into the low-level device memory
@@ -252,6 +264,18 @@ class MicroSession {
    */
   void CheckDeviceError();
 };
+
+/*!
+ * \brief a device memory region associated with the session that allocated it
+ *
+ * We use this to store a reference to the session in each allocated object and
+ * only deallocate the session once there are no more references to it.
+ */
+struct DeviceSpace {
+  void* data;
+  std::shared_ptr<MicroSession> session;
+};
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_MICRO_MICRO_SESSION_H_
