@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,7 +25,7 @@ apt-get install -y curl
 
 # The node install script fetched and executed here will update the
 # apt source list, hence the second apt-get update is necessary.
-curl -s -S -L https://deb.nodesource.com/setup_6.x | bash -
+curl -s -S -L https://deb.nodesource.com/setup_8.x | bash -
 apt-get update
 apt-get install -y nodejs
 
