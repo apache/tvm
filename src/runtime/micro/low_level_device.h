@@ -40,16 +40,6 @@ class LowLevelDevice {
   virtual ~LowLevelDevice() {}
 
   /*!
-   * \brief writes num_bytes from buffer to device memory at base_addr + offset
-   * \param offset on-device memory offset pointer to be written to
-   * \param buffer on-host buffer to be written
-   * \param num_bytes number of bytes to be written
-   */
-  virtual void Write(DevBaseOffset offset,
-                     void* buffer,
-                     size_t num_bytes) = 0;
-
-  /*!
    * \brief reads num_bytes from device memory at base_addr + offset into buffer
    * \param offset on-device memory offset pointer to be read from
    * \param buffer on-host buffer to be read into
@@ -58,6 +48,16 @@ class LowLevelDevice {
   virtual void Read(DevBaseOffset offset,
                     void* buffer,
                     size_t num_bytes) = 0;
+
+  /*!
+   * \brief writes num_bytes from buffer to device memory at base_addr + offset
+   * \param offset on-device memory offset pointer to be written to
+   * \param buffer on-host buffer to be written
+   * \param num_bytes number of bytes to be written
+   */
+  virtual void Write(DevBaseOffset offset,
+                     void* buffer,
+                     size_t num_bytes) = 0;
 
   /*!
    * \brief starts execution of device at offset

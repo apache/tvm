@@ -46,13 +46,13 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
    */
   ~OpenOCDLowLevelDevice();
 
-  void Write(DevBaseOffset offset,
-             void* buf,
-             size_t num_bytes) final;
-
   void Read(DevBaseOffset offset,
             void* buf,
             size_t num_bytes) final;
+
+  void Write(DevBaseOffset offset,
+             void* buf,
+             size_t num_bytes) final;
 
   void Execute(DevBaseOffset func_addr, DevBaseOffset breakpoint) final;
 

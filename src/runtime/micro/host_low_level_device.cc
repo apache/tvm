@@ -58,18 +58,18 @@ class HostLowLevelDevice final : public LowLevelDevice {
     munmap(base_addr_.cast_to<void*>(), size_);
   }
 
-  void Write(DevBaseOffset offset,
-             void* buf,
-             size_t num_bytes) final {
-    void* addr = (offset + base_addr_).cast_to<void*>();
-    std::memcpy(addr, buf, num_bytes);
-  }
-
   void Read(DevBaseOffset offset,
             void* buf,
             size_t num_bytes) final {
     void* addr = (offset + base_addr_).cast_to<void*>();
     std::memcpy(buf, addr, num_bytes);
+  }
+
+  void Write(DevBaseOffset offset,
+             void* buf,
+             size_t num_bytes) final {
+    void* addr = (offset + base_addr_).cast_to<void*>();
+    std::memcpy(addr, buf, num_bytes);
   }
 
   void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) final {
