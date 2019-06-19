@@ -80,9 +80,9 @@ Target CreateTarget(const std::string& target_name,
     }
   }
 
-  // if (t->device_name.length() > 0) {
-  //   t->keys_array.push_back(ir::StringImm::make(t->device_name));
-  // }
+  if (t->device_name.length() > 0) {
+    t->keys_array.push_back(ir::StringImm::make(t->device_name));
+  }
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
   if (target_name == "c" || target_name == "llvm") {

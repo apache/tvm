@@ -141,8 +141,8 @@ def qconfig(**kwargs):
         that indicate which conv2d layers to leave untouched.
 
     skip_dense_layers: list
-        Specifies which dense layers to avoid. Provide a list of indices
-        that indicate which conv2d layers to leave untouched.
+        Different way of specifying which dense layers to avoid.
+        Provide a list of indices that indicate which conv2d layers to leave untouched.
 
     round_for_shift: boolean
         Whether to add bias for rounding during shift.
