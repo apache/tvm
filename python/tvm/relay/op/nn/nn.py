@@ -689,6 +689,32 @@ def pad(data,
     return _make.pad(data, pad_width, pad_value)
 
 
+def mirror_pad(data,
+               pad_width,
+               mode="SYMMETRIC"):
+    r"""MirrorPadding
+
+    This operator takes in a tensor and pads each axis by the specified
+    widths using mirroring of the border pixels.
+
+    Parameters
+    ----------
+    data: tvm.relay.Expr
+        The input data to the operator
+    pad_width: tuple of <tuple of <int>>, required
+        Number of values padded to the edges of each axis, in the format
+        of ((before_1, after_1), ..., (before_N, after_N))
+    mode: string, optional, default='SYMMETRIC'
+        What type of mirroring to use, must be SYMMETRIC or REFLECT.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.mirror_pad(data, pad_width, mode)
+
+
 def lrn(data, size=5, axis=1, bias=2, alpha=.00001, beta=0.75):
     """This operator takes data as input and does local response normalization.
 
