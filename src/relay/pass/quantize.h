@@ -150,6 +150,8 @@ class QConfigNode : public Node {
   DataType dtype_activation = Int(32);
   double global_scale = 8.0;
   Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
+  int skip_k_dense = 0;
+  Array<Expr> skip_dense_layers = Array<Expr>(NodePtr<Node>(nullptr));
   bool round_for_shift = true;
   bool store_lowbit_output = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
@@ -163,6 +165,8 @@ class QConfigNode : public Node {
     v->Visit("dtype_activation", &dtype_activation);
     v->Visit("global_scale", &global_scale);
     v->Visit("skip_conv_layers", &skip_conv_layers);
+    v->Visit("skip_k_dense", &skip_k_dense);
+    v->Visit("skip_dense_layers", &skip_dense_layers);
     v->Visit("round_for_shift", &round_for_shift);
     v->Visit("store_lowbit_output", &store_lowbit_output);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);

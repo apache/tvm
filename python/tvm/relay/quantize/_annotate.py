@@ -171,9 +171,6 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
-    # print('conv2d lhs kind: {0}'.format(lhs_kind))
-    # print('conv2d lhs: \n{0}'.format(lhs_expr))
-    # print('\n\n\n')
     if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
 
@@ -181,6 +178,7 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
 
     expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
@@ -199,6 +197,8 @@ def dense_rewrite(ref_call, new_args, ctx):
     dense will be quantized to weight field. Output would be in activation field."""
     if check_to_skip():
         return None
+
+    _set_dense_counter(cnt + 1)
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -243,8 +243,6 @@ def add_rewrite(ref_call, new_args, ctx):
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
-    # print('add lhs kind: {0}'.format(lhs_kind))
-    # print('add rhs kind: {0}'.format(rhs_kind))
 
     if lhs_kind is None and rhs_kind is None:
         return None
@@ -254,7 +252,6 @@ def add_rewrite(ref_call, new_args, ctx):
         assert rhs_kind == QAnnotateKind.INPUT
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-        # print('execute add with INPUT')
         return QAnnotateExpr(expr, QAnnotateKind.INPUT)
 
     if lhs_kind is not None and rhs_kind is None:
@@ -272,12 +269,10 @@ def add_rewrite(ref_call, new_args, ctx):
     if lhs_kind is not None and rhs_kind is not None:
         if lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.INPUT:
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-            # print('execute add with INPUT')
             return QAnnotateExpr(expr, QAnnotateKind.INPUT)
         if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
             # quantize rhs to INPUT field if both lhs and rhs are ACTIVATION
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
-
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
             return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
@@ -376,6 +371,7 @@ def register_vta_rewrite(op_name, frewrite=None, level=10):
         return _op.op._Register(op_name, "FQVtaRewrite", func, level)
     return _register(frewrite) if frewrite is not None else _register
 
+
 @register_relay_node
 class QVtaExpr(_expr.TempExpr):
     def __init__(self, expr):
@@ -391,8 +387,6 @@ def vta_expr_check(expr):
         return True, expr.expr
     return False, expr
 
-# def _stop_fusion(expr):
-#     return _quantize.make_stop_fusion(expr)
 
 @register_vta_rewrite("nn.conv2d")
 def conv2d_vta_rewrite(ref_call, new_args, ctx):
@@ -402,7 +396,6 @@ def conv2d_vta_rewrite(ref_call, new_args, ctx):
         return None
     _set_conv_counter(cnt + 1)
 
-
     data_cond, data = vta_expr_check(new_args[0])
     kernel_cond, kernel = vta_expr_check(new_args[1])
 
@@ -411,6 +404,7 @@ def conv2d_vta_rewrite(ref_call, new_args, ctx):
         data = new_args[0].realize()
     ret = _forward_op(ref_call, [data, kernel])
     return QVtaExpr(ret)
+
 
 def identity_vta_rewrite(ref_call, new_args, ctx):
     cond, expr = vta_expr_check(new_args[0])
@@ -422,10 +416,6 @@ def identity_vta_rewrite(ref_call, new_args, ctx):
 register_vta_rewrite("nn.relu", identity_vta_rewrite)
 register_vta_rewrite("nn.max_pool2d", identity_vta_rewrite)
 
-
-# @register_vta_rewrite("nn.max_pool2d")
-# def pool_vta_rewrite(ref_call, new_args, ctx):
-#     pass
 
 @register_vta_rewrite("add")
 def add_vta_rewrite(ref_call, new_args, ctx):

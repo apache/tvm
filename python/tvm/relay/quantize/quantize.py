@@ -140,6 +140,10 @@ def qconfig(**kwargs):
         Specifying which layers to be skipped. Provide a list of indices
         that indicate which conv2d layers to leave untouched.
 
+    skip_dense_layers: list
+        Specifies which dense layers to avoid. Provide a list of indices
+        that indicate which conv2d layers to leave untouched.
+
     round_for_shift: boolean
         Whether to add bias for rounding during shift.
 
@@ -191,6 +195,20 @@ def annotate_context():
     if AnnotateContext.Current is None:
         AnnotateContext.Current = AnnotateContext()
     return AnnotateContext.Current
+
+
+DENSE_COUNTER = 0
+
+
+def _dense_counter():
+    """Get the global counter for dense."""
+    return DENSE_COUNTER
+
+
+def _set_dense_counter(n):
+    """Set the value of the global dense counter."""
+    global DENSE_COUNTER
+    DENSE_COUNTER = n
 
 
 def calibrate(graph, mod=None, ctx=None):
