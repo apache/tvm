@@ -16,8 +16,8 @@ from vta.testing import simulator
 from vta.top import graph_pack
 
 
-def classification_demo(opt):
-    """Image classification demo.
+def classification_test(opt):
+    """ResNet-18 classification test.
 
     Parameters
     ----------
@@ -167,7 +167,18 @@ def classification_demo(opt):
         tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
         top_categories = np.argsort(tvm_output.asnumpy()[0])
 
-        # Report top-5 classification results
+        # This just checks that one of the 5 top categories
+        # is one variety of cat; this is by no means an accurate
+        # assessment of how quantization affects classification
+        # accuracy but is meant to catch changes to the quantization
+        # pass that would break basic correctness
+        cat_detected = False
+        for k in top_categories[-5:]:
+            if "cat" in synset[k]:
+                cat_detected = True
+        assert(cat_detected)
+
+        # Report latency and top-5 classification results
         std = np.std(tcost.results) * 1000 / env.BATCH
         mean = tcost.mean * 1000 / env.BATCH
         print("%s Prediction" % opt.model)
@@ -197,4 +208,4 @@ if __name__ == '__main__':
 
     opt = parser.parse_args()
 
-    classification_demo(opt)
+    classification_test(opt)
