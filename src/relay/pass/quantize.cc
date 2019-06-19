@@ -111,14 +111,13 @@ TVM_REGISTER_API("relay._quantize.simulated_quantize")
 
 Expr QAnnotateExprNode::Realize() const {
   const auto& cfg = QConfig::Current();
-  return expr;
-  // if (cfg->store_lowbit_output) {
-  //   // store low bit output back for VTA
-  //   const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
-  //   return (*f)(this->expr, static_cast<int>(kQInput));
-  // } else {
-  //   return expr;
-  // }
+  if (cfg->store_lowbit_output) {
+    // store low bit output back for VTA
+    const PackedFunc* f = runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
+    return (*f)(this->expr, static_cast<int>(kQInput));
+  } else {
+    return expr;
+  }
 }
 
 QAnnotateExpr QAnnotateExprNode::make(Expr expr, QAnnotateKind kind) {
