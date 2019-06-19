@@ -210,7 +210,7 @@ class TaskExtractEnv:
             assert not kwargs, "Do not support kwargs in template function call"
             args = deserialize_args(args)
             if len(args) > 2:
-                data, weight, bias = args[:2]
+                data, weight, bias = args[:3]
             else:
                 data, weight = args
                 bias = None
