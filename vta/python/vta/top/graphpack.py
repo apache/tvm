@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=unused-argument
 """A Relay implementation of graph packing."""
 
 from tvm import relay
@@ -54,8 +54,8 @@ def _pack_weight(data, dshape, cfactor):
     assert int(dshape[1]) % cfactor == 0
     data = op.reshape(data,
                       newshape=(int(dshape[0]) // cfactor, cfactor,
-                             int(dshape[1]) // cfactor, cfactor,
-                             int(dshape[2]), int(dshape[3])))
+                                int(dshape[1]) // cfactor, cfactor,
+                                int(dshape[2]), int(dshape[3])))
     data = op.transpose(
         data, axes=(0, 2, 4, 5, 1, 3))
     return data
@@ -92,8 +92,8 @@ def _pack_bias(data, dshape, dtype, bfactor, cfactor):
 
     # broadcast batch dimension to bfactor
     data = op.broadcast_to(
-            data,
-            shape=(dshape[0] // cfactor, dshape[1], dshape[2], bfactor, cfactor))
+        data,
+        shape=(dshape[0] // cfactor, dshape[1], dshape[2], bfactor, cfactor))
     return data
 
 
@@ -103,6 +103,8 @@ def _get_shape(node):
     return _to_shape(node.checked_type.shape)
 
 class ExprPack(ExprMutator):
+    """Visitor to perform graph packing on an AST.
+    """
     def __init__(self, bfactor, cfactor, weight_bits):
         self.bfactor = bfactor
         self.cfactor = cfactor
@@ -196,13 +198,22 @@ class ExprPack(ExprMutator):
                 pass
             elif call.op == self.add and len(input_types[1].shape) == 3:
                 data, bias = args
-                bias = _pack_bias(bias, _to_shape(input_types[1].shape), input_types[1].dtype, self.bfactor, self.cfactor)
+                bias = _pack_bias(bias,
+                                  _to_shape(input_types[1].shape),
+                                  input_types[1].dtype,
+                                  self.bfactor,
+                                  self.cfactor)
                 return relay.Call(self.add, [data, bias])
             elif self.start_pack and call.op == self.bias_add:
                 data, bias = args
-                bias = _pack_bias(bias, _to_shape(input_types[1].shape), input_types[1].dtype, self.bfactor, self.cfactor)
+                bias = _pack_bias(bias,
+                                  _to_shape(input_types[1].shape),
+                                  input_types[1].dtype,
+                                  self.bfactor,
+                                  self.cfactor)
                 return relay.Call(self.add, [data, bias])
-            elif self.start_pack and call.op == op.op.get('cast') and input_types[0].dtype == 'int32':
+            elif self.start_pack and call.op == op.op.get('cast') and \
+                    input_types[0].dtype == 'int32':
                 cast = relay.Call(op.op.get('cast'), [args[0]], call.attrs)
                 return relay.Call(op.op.get('copy'), [cast])
 
@@ -214,15 +225,18 @@ class ExprPack(ExprMutator):
 class BT(Exception):
     pass
 def get_subgraph(expr, start_name, stop_name):
-    "we assume stop_name only appear once for simplicity."
-    "this constraint will be lifted in the future."
-    "bitpack_start and bitpack_end is both inclusive"
+    """ We assume stop_name only appears once for simplicity.
+        This constraint will be lifted in the future.
+        bitpack_start and bitpack_end are both inclusive
+    """
     bitpack_start = op.op.get('bitpack_start')
     bitpack_end = op.op.get('bitpack_end')
     anf = relay.ir_pass.to_a_normal_form(expr)
     def recursion(anf, start_found, stop_found):
         if isinstance(anf, relay.expr.Function):
-            return relay.expr.Function(anf.params, recursion(anf.body, start_found, stop_found), anf.ret_type, anf.type_params, anf.attrs)
+            return relay.expr.Function(anf.params,
+                                       recursion(anf.body, start_found, stop_found),
+                                       anf.ret_type, anf.type_params, anf.attrs)
         elif isinstance(anf, relay.expr.Let):
             value = anf.value
             if isinstance(value, relay.expr.Call):
@@ -239,7 +253,8 @@ def get_subgraph(expr, start_name, stop_name):
                 assert not stop_found
                 stop_found = True
                 value = relay.expr.Call(bitpack_end, [value])
-                return relay.expr.Let(anf.var, value, anf.body) # todo: check anf.body has no more stop_name beside that one
+                # todo: check anf.body has no more stop_name beside that one
+                return relay.expr.Let(anf.var, value, anf.body)
         else:
             assert start_found
             assert stop_found
@@ -289,4 +304,3 @@ def graph_pack(expr,
     expr = packer.visit(expr)
     assert not packer.start_pack
     return relay.ir_pass.infer_type(expr)
-

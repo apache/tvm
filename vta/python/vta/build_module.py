@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """VTA specific buildin for runtime."""
 from __future__ import absolute_import as _abs
 
@@ -129,8 +130,6 @@ def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
     from tvm.autotvm.measure.measure_methods import BuildResult, InstantiationError
 
     tic = time.time()
-    # simulator stats
-    stats = {}
     try:
         filename = os.path.join(tmp_dir, "tmp_func_%0x.tar" % getrandbits(64))
         target, task, config = measure_input
@@ -143,7 +142,7 @@ def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
             func = build(s, args, target_host=task.target_host)
             sim = build(s, args)
 
-        arg_info =  tuple((get_const_tuple(x.shape), x.dtype) for x in args)
+        arg_info = tuple((get_const_tuple(x.shape), x.dtype) for x in args)
         func.export_library(filename)
 
         # When targeting VTA test the schedule on simulator first
@@ -164,16 +163,15 @@ def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
             f = remote.load_module(os.path.split(sim_path)[1])
             ctx = remote.context(str(measure_input.target), 0)
             args = [tvm.nd.empty(x[0], dtype=x[1], ctx=ctx) for x in arg_info]
-            simulator.clear_stats()
+            # Skip execution just to verify correctness
             simulator.debug_mode(simulator.DEBUG_SKIP_EXEC)
             f(*args)
-            stats = simulator.stats()
 
         # check by local simulator
         ctx = tvm.context(str(target))
         args = [tvm.nd.empty(x[0], dtype=x[1], ctx=ctx) for x in arg_info]
         sim(*args)
 
-    except Exception as e:  # pylint: disable=broad-except
-        return BuildResult(None, None, e, time.time() - tic)
+    except Exception as ex: # pylint: disable=broad-except
+        return BuildResult(None, None, ex, time.time() - tic)
     return BuildResult(filename, arg_info, None, time.time() - tic)

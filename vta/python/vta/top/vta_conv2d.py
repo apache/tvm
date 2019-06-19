@@ -88,7 +88,7 @@ def _schedule_conv2d(cfg, outs):
     def _traverse(op):
         if topi.tag.is_broadcast(op.tag):
             if not op.same_as(output.op):
-                if len(op.axis) == 0:
+                if not op.axis:
                     const_ops.append(op)
                 else:
                     ewise_ops.append(op)
@@ -107,13 +107,13 @@ def _schedule_conv2d(cfg, outs):
     s = tvm.create_schedule(output.op)
 
     ##### space definition begin #####
-    b, co, h, w, _, _ = s[conv2d_stage].op.axis
-    ci, _, _, _ = s[conv2d_stage].op.reduce_axis
+    b, c_o, x_i, x_j, _, _ = s[conv2d_stage].op.axis
+    c_i, _, _, _ = s[conv2d_stage].op.reduce_axis
     cfg.define_split('tile_b', b, num_outputs=2)
-    cfg.define_split('tile_h', h, num_outputs=2)
-    cfg.define_split('tile_w', w, num_outputs=2)
-    cfg.define_split('tile_ci', ci, num_outputs=2)
-    cfg.define_split('tile_co', co, num_outputs=2)
+    cfg.define_split('tile_h', x_i, num_outputs=2)
+    cfg.define_split('tile_w', x_j, num_outputs=2)
+    cfg.define_split('tile_ci', c_i, num_outputs=2)
+    cfg.define_split('tile_co', c_o, num_outputs=2)
     cfg.define_knob('oc_nthread', [1, 2])
     cfg.define_knob('h_nthread', [1, 2])
     ###### space definition end ######

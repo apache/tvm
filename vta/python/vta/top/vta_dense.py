@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """Dense operator declaration and schedule registration for VTA."""
 
 import numpy as np
@@ -49,8 +50,8 @@ def _declaration_dense(cfg,
     oshape = (data.shape[0], weight.shape[0], data.shape[2], weight.shape[2])
 
     # Reduction axes (input channel)
-    assert(ishape[1] == wshape[1])
-    assert(ishape[3] == wshape[3])
+    assert ishape[1] == wshape[1]
+    assert ishape[3] == wshape[3]
     k_o = tvm.reduce_axis((0, ishape[1]), name='k_o')
     k_i = tvm.reduce_axis((0, ishape[3]), name='k_i')
     res = tvm.compute(
@@ -69,7 +70,7 @@ def _declaration_dense(cfg,
 @autotvm.register_topi_schedule(topi.generic.schedule_dense, 'vta', 'direct')
 def _schedule_dense(cfg, outs):
     """Packed dense schedule."""
-    
+
     assert len(outs) == 1
     output = outs[0]
     const_ops = []
@@ -81,7 +82,7 @@ def _schedule_dense(cfg, outs):
     def _traverse(op):
         if topi.tag.is_broadcast(op.tag):
             if not op.same_as(output.op):
-                if len(op.axis) == 0:
+                if not op.axis:
                     const_ops.append(op)
                 else:
                     ewise_ops.append(op)
@@ -100,11 +101,11 @@ def _schedule_dense(cfg, outs):
     s = tvm.create_schedule(output.op)
 
     ##### space definition begin #####
-    b, co, _, _ = s[dense_stage].op.axis
-    ci, _ = s[dense_stage].op.reduce_axis
+    b, c_o, _, _ = s[dense_stage].op.axis
+    c_i, _ = s[dense_stage].op.reduce_axis
     cfg.define_split('tile_b', b, num_outputs=2)
-    cfg.define_split('tile_ci', ci, num_outputs=2)
-    cfg.define_split('tile_co', co, num_outputs=2)
+    cfg.define_split('tile_ci', c_i, num_outputs=2)
+    cfg.define_split('tile_co', c_o, num_outputs=2)
     cfg.define_knob('oc_nthread', [1, 2])
     ###### space definition end ######
 

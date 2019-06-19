@@ -14,11 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=unused-argument, ungrouped-imports
 """Namespace for supporting packed_conv2d + ewise variant of nnvm."""
 from __future__ import absolute_import as _abs
-
-import logging
 
 import tvm
 import topi
@@ -68,9 +66,20 @@ def compute_conv2d(attrs, inputs, output_type, target):
             assert env.LOG_WGT_WIDTH == 3, "only support 8bit wgt for now"
             inputs = list(inputs)
             assert inputs[1].dtype == "int8"
-            return [topi.nn.conv2d(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)]
-        else:
-            return [topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups, out_dtype)]
+            return [topi.nn.conv2d(inputs[0],
+                                   inputs[1],
+                                   strides,
+                                   padding,
+                                   dilation,
+                                   layout,
+                                   out_dtype)]
+        return [topi.nn.group_conv2d_nchw(inputs[0],
+                                          inputs[1],
+                                          strides,
+                                          padding,
+                                          dilation,
+                                          groups,
+                                          out_dtype)]
 
     with tvm.target.arm_cpu(tvm.target.current_target().model):
         return _nn.compute_conv2d(attrs, inputs, output_type, target)
@@ -87,12 +96,10 @@ def schedule_conv2d(attrs, outs, target):
         if target.device_name == "vta":
             if groups == 1:
                 return topi.generic.schedule_conv2d_nchw(outs)
-            else:
-                return topi.generic.schedule_group_conv2d_nchw(outs)
+            return topi.generic.schedule_group_conv2d_nchw(outs)
         elif str(target).startswith("llvm"):
             return tvm.create_schedule([x.op for x in outs])
-        else:
-            raise RuntimeError("Target %s is not supported" % target)
+        raise RuntimeError("Target %s is not supported" % target)
 
     with tvm.target.arm_cpu(tvm.target.current_target().model):
         return _nn.schedule_conv2d(attrs, outs, tvm.target.current_target())

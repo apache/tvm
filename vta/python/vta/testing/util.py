@@ -60,7 +60,10 @@ def run(run_func):
         pynq_port = int(os.environ.get("VTA_PYNQ_RPC_PORT", None))
         # Run device from fleet node if env variables are defined
         if tracket_host and tracket_port:
-            remote = autotvm.measure.request_remote(env.TARGET, tracket_host, tracket_port, timeout=10000)
+            remote = autotvm.measure.request_remote(env.TARGET,
+                                                    tracket_host,
+                                                    tracket_port,
+                                                    timeout=10000)
             run_func(env, remote)
         else:
             # Next, run on PYNQ if env variables are defined

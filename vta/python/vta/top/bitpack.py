@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=ungrouped-imports
 
 """Bit packing operators"""
 from __future__ import absolute_import as _abs
@@ -76,7 +77,7 @@ def bitpack(data, bits, pack_type="int8", name="bitpack"):
 
 
 @register_compute("bitpack", level=15)
-def compute_bitpack(attrs, inputs, output_type, target):
+def compute_bitpack(attrs, inputs):
     lanes = attrs.lanes
     dtype = inputs[0].dtype
     assert dtype == "int8"

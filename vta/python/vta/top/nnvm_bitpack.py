@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=unused-argument
 """Bit packing operators"""
 from __future__ import absolute_import as _abs
 
@@ -22,7 +22,6 @@ import tvm
 from topi import util
 
 from nnvm.top import registry as reg, OpPattern
-from nnvm.top import nn as _nn
 from nnvm.top.tensor import _fschedule_broadcast
 
 def bitpack(data, bits, pack_type="int8", name="bitpack"):
