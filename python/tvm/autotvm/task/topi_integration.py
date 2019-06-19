@@ -209,7 +209,11 @@ class TaskExtractEnv:
         def _topi_nn_dense(*args, **kwargs):
             assert not kwargs, "Do not support kwargs in template function call"
             args = deserialize_args(args)
-            data, weight, bias, _ = args
+            if len(args) > 2:
+                data, weight, bias = args[:2]
+            else:
+                data, weight = args
+                bias = None
             C = topi.nn.dense(*args, **kwargs)
             s = topi.generic.schedule_dense([C])
             if bias is not None:

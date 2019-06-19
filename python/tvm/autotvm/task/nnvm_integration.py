@@ -30,7 +30,7 @@ from .topi_integration import TaskExtractEnv
 logger = logging.getLogger('autotvm')
 
 
-def extract_from_graph(graph, shape, dtype, target, symbols, params, target_host=None):
+def extract_from_graph(graph, shape, dtype, target, symbols, params=None, target_host=None):
     """ Extract tuning tasks from a nnvm graph.
 
     This function collects tuning tasks by building the graph

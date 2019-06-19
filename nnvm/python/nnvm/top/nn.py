@@ -78,7 +78,7 @@ reg.register_pattern("log_softmax", OpPattern.OPAQUE)
 def compute_dense(attrs, inputs, _):
     """Compute definition of dense"""
     if attrs.get_bool("use_bias"):
-        return topi.nn.dense(inputs[0], inputs[1], bias=inputs[2])
+        return topi.nn.dense(inputs[0], inputs[1], inputs[2])
     return topi.nn.dense(inputs[0], inputs[1])
 
 @reg.register_schedule("dense")
