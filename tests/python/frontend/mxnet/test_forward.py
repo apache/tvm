@@ -594,13 +594,13 @@ def test_forward_rnn_layer():
                         op_res.asnumpy(), mx_res.asnumpy(), rtol=1e-3)
 
     for mode in ["rnn", "gru", "lstm"]:
-        verify(mode, 10, 64, 64, 1)
+        verify(mode, 1, 64, 64, 1)
         verify(mode, 10, 64, 64, 2)
         verify(mode, 10, 64, 32, 2)
-        verify(mode, 10, 64, 32, 2, batch=3)
-        verify(mode, 10, 64, 64, 2, init_states=False)
+        verify(mode, 10, 64, 32, 2, batch=2)
+        verify(mode, 10, 64, 64, 3, init_states=False)
         verify(mode, 10, 32, 64, 1, bidirectional=True)
-        verify(mode, 10, 64, 64, 2, batch=3, bidirectional=True, init_states=False)
+        verify(mode, 10, 64, 64, 3, batch=2, bidirectional=True, init_states=False)
 
 def test_forward_Crop():
     def verify(xshape, yshape, offset=None):
