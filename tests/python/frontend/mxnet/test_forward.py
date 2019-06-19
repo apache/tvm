@@ -536,7 +536,7 @@ def test_forward_bilinear_resize():
     verify_mxnet_frontend_impl(mx_sym, (1, 2, 3, 4), (1, 2, 5, 10))
 
 def test_forward_rnn_layer():
-    def verify(mode, input_size, seq_len, hidden_size, num_layers,
+    def verify(mode, seq_len, input_size, hidden_size, num_layers,
                batch=1, init_states=True, bidirectional=False):
         if mode == "rnn":
             layer = gluon.rnn.RNN(hidden_size, num_layers, bidirectional=bidirectional)
@@ -594,13 +594,13 @@ def test_forward_rnn_layer():
                         op_res.asnumpy(), mx_res.asnumpy(), rtol=1e-3)
 
     for mode in ["rnn", "gru", "lstm"]:
-        verify(mode, 64, 10, 64, 1)
-        verify(mode, 64, 10, 64, 2)
-        verify(mode, 64, 10, 32, 2)
-        verify(mode, 64, 10, 32, 2, batch=3)
-        verify(mode, 64, 10, 64, 2, init_states=False)
-        verify(mode, 64, 10, 64, 1, bidirectional=True)
-        verify(mode, 64, 10, 64, 2, batch=3, bidirectional=True, init_states=False)
+        verify(mode, 10, 64, 64, 1)
+        verify(mode, 10, 64, 64, 2)
+        verify(mode, 10, 64, 32, 2)
+        verify(mode, 10, 64, 32, 2, batch=3)
+        verify(mode, 10, 64, 64, 2, init_states=False)
+        verify(mode, 10, 32, 64, 1, bidirectional=True)
+        verify(mode, 10, 64, 64, 2, batch=3, bidirectional=True, init_states=False)
 
 def test_forward_Crop():
     def verify(xshape, yshape, offset=None):
