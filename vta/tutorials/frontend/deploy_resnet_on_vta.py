@@ -15,20 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-ResNet Inference Example
-========================
+Deploy Pretrained ResNet Model from MxNet on VTA
+================================================
 **Author**: `Thierry Moreau <https://homes.cs.washington.edu/~moreau/>`_
 
 This tutorial provides an end-to-end demo, on how to run ResNet-18 inference
 onto the VTA accelerator design to perform ImageNet classification tasks.
-
+It showcases Relay as a front end compiler that can perform quantization (VTA
+only supports int8/32 inference) as well as graph packing (in order to enable
+tensorization in the core) to massage the compute graph for the hardware target.
 """
 
-
 ######################################################################
-# Import Libraries
-# ----------------
-# We start by importing libraries to run this example.
+# Install dependencies
+# --------------------
+# To use the autotvm package in tvm, we need to install some extra dependencies.
+# (change "3" to "2" if you use python2):
+#
+# .. code-block:: bash
+#
+#   pip3 install --user mxnet requests pillow
+#
+# Now return to the python code. Import packages.
 
 from __future__ import absolute_import, print_function
 
@@ -56,7 +64,7 @@ assert tvm.module.enabled("rpc")
 
 ######################################################################
 # Define the platform and model targets
-# ----------------
+# -------------------------------------
 # Execute on CPU vs. VTA, and define the model.
 
 # Load VTA parameters from the vta/config/vta_config.json file
@@ -68,6 +76,9 @@ device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
 
 # Name of Gluon model to compile
+# The ``start_pack`` and ``stop_pack`` labels indicate where
+# to start and end the graph packing relay pass: in other words
+# where to start and finish offloading to VTA.
 model = "resnet18_v1"
 start_pack="nn.max_pool2d"
 stop_pack="nn.global_avg_pool2d"
@@ -80,9 +91,14 @@ stop_pack="nn.global_avg_pool2d"
 
 if env.TARGET != "sim":
 
-    # Get remote from fleet node if environment variable is set
+    # Get remote from tracker node if environment variable is set.
+    # To set up the tracker, you'll need to follow the "Auto-tuning
+    # a convolutional network for VTA" tutorial.
     tracker_host = os.environ.get("TVM_TRACKER_HOST", None)
     tracker_port = int(os.environ.get("TVM_TRACKER_PORT", None))
+    # Otherwise if you have a device you want to program directly from
+    # the host, make sure you've set the variables below to the IP of
+    # your board.
     device_host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
     device_port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
     if not tracker_host or not tracker_port:
@@ -107,9 +123,19 @@ else:
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
 ######################################################################
-# Build the inference runtime
-# ------------------------
-# Build ResNet from Gluon with Relay.
+# Build the inference graph runtime
+# ---------------------------------
+# Grab ResNet-18 model from Gluon model zoo and compile with Relay.
+# The compilation steps are:
+#    1) Front end translation from MxNet into Relay module.
+#    2) Apply 8-bit quantization: here we skip the first conv layer,
+#       and dense layer which will both be executed in fp32 on the CPU.
+#    3) Perform graph packing to alter the data layout for tensorization.
+#    4) Perform constant folding to reduce number of operators (e.g. eliminate
+#       batch norm multiply).
+#    5) Perform relay build to object file.
+#    6) Load the object file onto remote (FPGA device).
+#    7) Generate graph runtime, `m`.
 
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
@@ -174,8 +200,10 @@ with autotvm.tophub.context(target):
 
 ######################################################################
 # Perform ResNet-18 inference
-# ------------------------
+# ---------------------------
 # We run classification on an image sample from ImageNet
+# We just need to download the categories files, `synset.txt`
+# and an input test image.
 
 # Download ImageNet categories
 categ_url = "https://github.com/uwsaml/web-data/raw/master/vta/models/"
@@ -201,7 +229,8 @@ image = np.repeat(image, env.BATCH, axis=0)
 m.set_input(**params)
 m.set_input('data', image)
 
-# Perform inference
+# Perform inference: we run the module 4 times,
+# and repeat 3 times to get error bounds
 timer = m.module.time_evaluator("run", ctx, number=4, repeat=3)
 tcost = timer()
 
@@ -219,3 +248,14 @@ print("                     #3:", synset[top_categories[-3]])
 print("                     #4:", synset[top_categories[-4]])
 print("                     #5:", synset[top_categories[-5]])
 print("Performed inference in %.2fms/sample (std = %.2f)" % (mean, std))
+
+# This just checks that one of the 5 top categories
+# is one variety of cat; this is by no means an accurate
+# assessment of how quantization affects classification
+# accuracy but is meant to catch changes to the
+# quantization pass that would accuracy in the CI.
+cat_detected = False
+for k in top_categories[-5:]:
+    if "cat" in synset[k]:
+        cat_detected = True
+assert(cat_detected)
