@@ -108,7 +108,7 @@ def classification_demo(opt):
         dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
 
         # Perform quantization in Relay
-        with relay.quantize.qconfig(global_scale=8.0, skip_k_conv=1):
+        with relay.quantize.qconfig(global_scale=8.0, skip_k_conv=1, skip_k_dense=1):
             relay_prog = relay.quantize.quantize(mod[mod.entry_func], params=params)
 
         # Perform graph packing and constant folding for VTA target
