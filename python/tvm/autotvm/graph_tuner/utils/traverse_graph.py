@@ -72,9 +72,9 @@ def expr2graph(expr, target_ops, node_dict, node_list):
             if node_entry["op"] in target_ops:
                 task_name, args = env.task_collection[task_pos]
                 task = autotvm.task.create(task_name, args,
-                                        target="llvm",
-                                        target_host=None,
-                                        template_key='direct')
+                                           target="llvm",
+                                           target_host=None,
+                                           template_key='direct')
                 node_entry["workloads"] = [task.workload]
                 node_entry["topi_op"] = [task_name]
                 task_pos += 1
