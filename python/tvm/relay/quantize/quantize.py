@@ -156,6 +156,9 @@ def qconfig(**kwargs):
         is None, which means will try to call all operartors' annotate rewrite
         function.
 
+    target_vta: boolean
+        Whether we are performing quantization for VTA.
+
     Returns
     -------
     config: QConfig
@@ -355,6 +358,8 @@ def quantize(graph, params=None, dataset=None):
     if params:
         graph = _bind_params(graph, params)
 
+    cfg = current_qconfig()
+
     mod = _module.Module.from_expr(graph)
     # Perform "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
     # "CanonicalizeOps" optimization before quantization.
@@ -366,15 +371,20 @@ def quantize(graph, params=None, dataset=None):
 
     calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
                                               name="QuantizeCalibrate")
-    quantize_seq = _transform.Sequential([annotate(),
-                                          calibrate_pass,
-                                          realize(),
-                                          _transform.FoldConstant()])
-    with annotate_context():
-        with _transform.PassContext(opt_level=3,
-                                    required_pass=["QuantizeAnnotate",
-                                                   "QuantizeCalibrate",
-                                                   "QuantizeRealize"]):
-            mod = optimize(mod)
-            mod = quantize_seq(mod)
+    # Quantize pass list
+    quant_passes = [annotate(),
+                    calibrate_pass,
+                    realize(),
+                    _transform.FoldConstant()]
+    # Add rewrite_for_vta() pass if target is VTA
+    if cfg.target_vta:
+        quant_passes = [rewrite_for_vta()] + quant_passes
+    quantize_seq = _transform.Sequential(quant_passes)
+    with _transform.PassContext(opt_level=3,
+                                required_pass=["QuantizeAnnotate",
+                                               "QuantizeCalibrate",
+                                               "QuantizeRealize"]):
+        mod = optimize(mod)
+        mod = quantize_seq(mod)
+
     return mod[mod.entry_func.name_hint]
