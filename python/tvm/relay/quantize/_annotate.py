@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument
+#pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
 from __future__ import absolute_import
 import warnings
@@ -329,8 +329,10 @@ def pool2d_rewrite(ref_call, new_args, ctx):
 
 register_annotate_function("nn.max_pool2d", pool2d_rewrite)
 
+
 @register_annotate_function("force_cast")
 def force_cast_rewrite(ref_call, new_args, ctx):
+    """Rewrite function to force cast"""
     if _conv_counter() <= current_qconfig().skip_k_conv:
         return None
     expr, x_kind = _get_expr_kind(new_args[0])
@@ -390,6 +392,7 @@ def vta_expr_check(expr):
 
 @register_vta_rewrite("nn.conv2d")
 def conv2d_vta_rewrite(ref_call, new_args, ctx):
+    """Rewrite function for conv2d for VTA target"""
     cnt = _conv_counter()
     if cnt < current_qconfig().skip_k_conv:
         _set_conv_counter(cnt + 1)
@@ -410,8 +413,7 @@ def identity_vta_rewrite(ref_call, new_args, ctx):
     cond, expr = vta_expr_check(new_args[0])
     if cond:
         return QVtaExpr(_forward_op(ref_call, [expr]))
-    else:
-        return None
+    return None
 
 register_vta_rewrite("nn.relu", identity_vta_rewrite)
 register_vta_rewrite("nn.max_pool2d", identity_vta_rewrite)
@@ -419,6 +421,7 @@ register_vta_rewrite("nn.max_pool2d", identity_vta_rewrite)
 
 @register_vta_rewrite("add")
 def add_vta_rewrite(ref_call, new_args, ctx):
+    """Rewrite function for ewise add for VTA target"""
     lhs_cond, lhs = vta_expr_check(new_args[0])
     rhs_cond, rhs = vta_expr_check(new_args[1])
     if lhs_cond and rhs_cond:
@@ -427,5 +430,4 @@ def add_vta_rewrite(ref_call, new_args, ctx):
         return _forward_op(ref_call, [lhs, rhs])
     elif lhs_cond and not rhs_cond:
         return QVtaExpr(_forward_op(ref_call, [lhs, rhs]))
-    else:
-        return None
+    return None

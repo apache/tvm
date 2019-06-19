@@ -27,10 +27,7 @@ tuple.
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
 
-import warnings
-import sys
-
-from ... import _api_internal, tensor, placeholder, create_schedule
+from ... import _api_internal, tensor, placeholder
 
 from .task import args_to_workload, dispatcher, register
 from ..util import get_const_tuple
@@ -148,8 +145,8 @@ class TaskExtractEnv:
 
                     return compute_func(*args, **kwargs)
 
-                self.func_to_reflection[topi_compute](_tracing_wrapper)
-                self.modified_funcs.append(topi_compute)
+                self.func_to_reflection[compute_func](_tracing_wrapper)
+                self.modified_funcs.append(compute_func)
 
             _local_scope(topi_compute)
 

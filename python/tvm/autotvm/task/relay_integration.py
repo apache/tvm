@@ -25,19 +25,17 @@ import warnings
 import logging
 
 
-from ... import target as _target
-
 from .task import create
 from .topi_integration import TaskExtractEnv
 
 logger = logging.getLogger('autotvm')
 
 
-def my_build(func,
-            target,
-            target_host,
-            params):
-    """ VTA compatible relay build.
+def _build(func,
+           target,
+           target_host,
+           params):
+    """ Helper to build VTA properly.
     """
 
     from tvm import relay
@@ -48,8 +46,8 @@ def my_build(func,
                 import vta
                 with vta.build_config():
                     return relay.build(func, target, target_host, params)
-            else:
-                return relay.build(func, target, target_host, params)
+    # default case
+    return relay.build(func, target, target_host, params)
 
 def extract_from_program(func, params, ops, target, target_host=None):
     """ Extract tuning tasks from a relay program.
@@ -107,7 +105,7 @@ def extract_from_program(func, params, ops, target, target_host=None):
 
         relay.backend.compile_engine.get().clear()
         # wrap build call in thread to avoid multiprocessing problems
-        build_thread = threading.Thread(target=my_build,
+        build_thread = threading.Thread(target=_build,
                                         args=(func,
                                               target,
                                               target_host,
@@ -187,9 +185,9 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
             # wrap build call in thread to avoid multiprocessing problems
             build_thread = threading.Thread(target=my_build,
                                             args=(func,
-                                                target,
-                                                target_host,
-                                                params))
+                                                  target,
+                                                  target_host,
+                                                  params))
             build_thread.start()
             build_thread.join()
 

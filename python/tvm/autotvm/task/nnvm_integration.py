@@ -24,11 +24,8 @@ import warnings
 import logging
 
 
-from ... import target as _target
-
 from .task import create
 from .topi_integration import TaskExtractEnv
-from .dispatcher import ApplyHistoryBest
 
 logger = logging.getLogger('autotvm')
 
@@ -203,4 +200,3 @@ def extract_from_multiple_graph(graphs, shapes, dtypes, target, symbols, params,
             print("[Warning] Invalid shape during AutoTVM task creation")
 
     return tasks
-

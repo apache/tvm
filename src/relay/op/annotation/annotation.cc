@@ -89,7 +89,7 @@ Expr ForceCast(Expr data) {
 }
 
 RELAY_REGISTER_OP("force_cast")
-.describe(R"code(Annotate an expression to prevent it being fused with previous expressions.)code"
+.describe(R"code(Annotate an expression to force a cast.)code"
 TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input data.")
