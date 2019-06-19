@@ -114,6 +114,8 @@ class TVM_DLL IRVisitor {
   virtual void Visit_(const Mul* op);
   virtual void Visit_(const Div* op);
   virtual void Visit_(const Mod* op);
+  virtual void Visit_(const FloorDiv* op);
+  virtual void Visit_(const FloorMod* op);
   virtual void Visit_(const Min* op);
   virtual void Visit_(const Max* op);
   virtual void Visit_(const EQ* op);

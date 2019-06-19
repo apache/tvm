@@ -151,6 +151,12 @@ class Vectorizer : public IRMutator {
   Expr Mutate_(const Mod* op, const Expr &e) final {
     return BinaryVec(op, e);
   }
+  Expr Mutate_(const FloorDiv* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
+  Expr Mutate_(const FloorMod* op, const Expr &e) final {
+    return BinaryVec(op, e);
+  }
   Expr Mutate_(const Min* op, const Expr &e) final {
     return BinaryVec(op, e);
   }
