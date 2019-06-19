@@ -19,6 +19,7 @@
 Decorator and utilities for the integration with TOPI and NNVM
 
 """
+import threading
 import warnings
 import logging
 
@@ -90,8 +91,16 @@ def extract_from_graph(graph, shape, dtype, target, symbols, params, target_host
         logger.disabled = True
 
         nnvm.compiler.engine.clear_cache()
-        nnvm.compiler.build(graph, target=target, shape=shape, dtype=dtype,
-                            target_host=target_host, params=params)
+        # wrap build call in thread to avoid multiprocessing problems
+        build_thread = threading.Thread(target=nnvm.compiler.build,
+                                        args=(graph,
+                                              target,
+                                              shape,
+                                              dtype,
+                                              params,
+                                              target_host))
+        build_thread.start()
+        build_thread.join()
 
         logger.disabled = old_state
 
@@ -169,7 +178,16 @@ def extract_from_multiple_graph(graphs, shapes, dtypes, target, symbols, params,
 
         for graph, shape, dtype in zip(graphs, shapes, dtypes):
             nnvm.compiler.engine.clear_cache()
-            nnvm.compiler.build(graph, target=target, shape=shape, dtype=dtype)
+            # wrap build call in thread to avoid multiprocessing problems
+            build_thread = threading.Thread(target=nnvm.compiler.build,
+                                            args=(graph,
+                                                  target,
+                                                  shape,
+                                                  dtype,
+                                                  params,
+                                                  target_host))
+            build_thread.start()
+            build_thread.join()
 
         logger.disabled = old_state
 

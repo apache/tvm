@@ -224,18 +224,7 @@ class RPCRunner(Runner):
                               for x in arg_bufs]
             func = build(s, arg_bufs, "llvm")
             tvm_buf = [nd.array(x) for x in self.ref_input]
-
-            def _run_func():
-                """Run tvm function in a thread.
-                Because there is some issues with python multiprocessing and the thread pool in tvm
-                """
-                func(*tvm_buf)
-
-            thread = threading.Thread(target=_run_func)
-            thread.start()
-            thread.join()
-            del thread
-
+            func(*tvm_buf)
             self.ref_output = [x.asnumpy() for x in tvm_buf]
 
     def get_build_kwargs(self):
