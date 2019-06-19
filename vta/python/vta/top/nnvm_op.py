@@ -92,9 +92,10 @@ def compute_conv2d(attrs, inputs, out):
             assert env.LOG_OUT_WIDTH == 3, "only support 8bit inp for now"
             inputs = list(inputs)
             assert inputs[1].dtype == "int8"
-            return topi.nn.conv2d(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)
-        else:
-            return topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups, out_dtype)
+            return topi.nn.conv2d(inputs[0], inputs[1], strides,
+                                  padding, dilation, layout, out_dtype)
+        return topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides,
+                                         padding, dilation, groups, out_dtype)
 
     with tvm.target.arm_cpu(tvm.target.current_target().model):
         return _nn.compute_conv2d(attrs, inputs, out)
@@ -110,8 +111,7 @@ def schedule_conv2d(attrs, outs, target):
         if target.device_name == "vta":
             if groups == 1:
                 return topi.generic.schedule_conv2d_nchw(outs)
-            else:
-                return topi.generic.schedule_group_conv2d_nchw(outs)
+            return topi.generic.schedule_group_conv2d_nchw(outs)
         elif str(target).startswith("llvm"):
             return tvm.create_schedule([x.op for x in outs])
         else:

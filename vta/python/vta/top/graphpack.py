@@ -70,8 +70,8 @@ def _pack_weight_conv2d_transpose(data, dshape, cfactor):
     assert dshape[1] % cfactor == 0
     data = op.reshape(data,
                       newshape=(dshape[0] // cfactor, cfactor,
-                             dshape[1] // cfactor, cfactor,
-                             dshape[2], dshape[3]))
+                                dshape[1] // cfactor, cfactor,
+                                dshape[2], dshape[3]))
     data = op.transpose(
         data, axes=(2, 0, 4, 5, 3, 1))
     return data
@@ -227,15 +227,17 @@ class BT(Exception):
 def get_subgraph(expr, start_name, stop_name):
     """ We assume stop_name only appears once for simplicity.
         This constraint will be lifted in the future.
-        bitpack_start and bitpack_end are both inclusive
+        bitpack_start and bitpack_end are both inclusive.
     """
     bitpack_start = op.op.get('bitpack_start')
     bitpack_end = op.op.get('bitpack_end')
     anf = relay.ir_pass.to_a_normal_form(expr)
-    def recursion(anf, start_found, stop_found):
+    def _recursion(anf, start_found, stop_found):
+        """ Helper to obtain the subgraph.
+        """
         if isinstance(anf, relay.expr.Function):
             return relay.expr.Function(anf.params,
-                                       recursion(anf.body, start_found, stop_found),
+                                       _recursion(anf.body, start_found, stop_found),
                                        anf.ret_type, anf.type_params, anf.attrs)
         elif isinstance(anf, relay.expr.Let):
             value = anf.value
@@ -247,7 +249,7 @@ def get_subgraph(expr, start_name, stop_name):
                     elif value.op.name == stop_name:
                         raise BT()
             try:
-                return relay.expr.Let(anf.var, value, recursion(anf.body, start_found, stop_found))
+                return relay.expr.Let(anf.var, value, _recursion(anf.body, start_found, stop_found))
             except BT:
                 assert start_found
                 assert not stop_found
@@ -259,7 +261,7 @@ def get_subgraph(expr, start_name, stop_name):
             assert start_found
             assert stop_found
             return anf
-    annotated = recursion(anf, False, False)
+    annotated = _recursion(anf, False, False)
     return relay.ir_pass.infer_type(relay.ir_pass.to_graph_normal_form(annotated))
 
 def graph_pack(expr,

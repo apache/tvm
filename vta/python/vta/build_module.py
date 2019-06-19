@@ -172,6 +172,6 @@ def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
         args = [tvm.nd.empty(x[0], dtype=x[1], ctx=ctx) for x in arg_info]
         sim(*args)
 
-    except Exception as ex: # pylint: disable=broad-except
-        return BuildResult(None, None, ex, time.time() - tic)
+    except Exception as exc: # pylint: disable=broad-except
+        return BuildResult(None, None, exc, time.time() - tic)
     return BuildResult(filename, arg_info, None, time.time() - tic)
