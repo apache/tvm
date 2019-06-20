@@ -271,7 +271,6 @@ if __name__ == '__main__':
 
         # Compile network
         print("Compiling network with best tuning parameters...")
-        # relay_prog, params = compile_network(opt, env, target)
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             if target.device_name != "vta":
                 graph, lib, params = relay.build(

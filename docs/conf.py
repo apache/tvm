@@ -217,7 +217,8 @@ subsection_order = ExplicitOrder(
      '../tutorials/topi',
      '../tutorials/deployment',
      '../vta/tutorials/frontend',
-     '../vta/tutorials/optimize'])
+     '../vta/tutorials/optimize',
+     '../vta/tutorials/autotvm'])
 
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""
