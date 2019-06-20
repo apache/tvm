@@ -761,7 +761,8 @@ class VMBuildModule : public runtime::ModuleNode {
  protected:
   Module OptimizeModule(const Module& mod) {
     // TODO(@icemelon9): check number of targets and build config, add more optimization pass
-    transform::Sequential seq({transform::ToANormalForm(),
+    transform::Sequential seq({transform::SimplifyInference(),
+                               transform::ToANormalForm(),
                                transform::InlinePrimitives(),
                                transform::LambdaLift(),
                                transform::InlinePrimitives(),

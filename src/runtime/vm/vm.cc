@@ -568,7 +568,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     });
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      CHECK(args.size() % 2 == 0);
+      CHECK_EQ(args.size() % 2, 0);
       std::vector<TVMContext> contexts;
       for (int i = 0; i < args.size() / 2; ++i) {
         TVMContext ctx;

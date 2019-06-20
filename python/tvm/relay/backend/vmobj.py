@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Runtime Object API."""
+from __future__ import absolute_import as _abs
+import numpy as _np
 
-from ._ffi.function import _init_api
-from ._ffi.object import ObjectBase, ObjectTag, register_object
-
-_init_api("tvm.object", __name__)
+from tvm._ffi.object import ObjectBase, ObjectTag, register_object
+from tvm import ndarray as _nd
+from . import _vmobj
 
 @register_object
 class TensorObject(ObjectBase):
@@ -40,11 +41,11 @@ class TensorObject(ObjectBase):
             A tensor object.
         """
         super(TensorObject, self).__init__(handle)
-        self.data = GetTensorData(self)
+        self.data = _vmobj.GetTensorData(self)
 
     def asnumpy(self):
         """Convert data to numpy array
-n
+
         Returns
         -------
         np_arr : numpy.ndarray
@@ -72,13 +73,77 @@ class DatatypeObject(ObjectBase):
             A tensor object.
         """
         super(DatatypeObject, self).__init__(handle)
-        self.tag = GetDatatypeTag(self)
-        self.num_fields = GetDatatypeNumberOfFields(self)
+        self.tag = _vmobj.GetDatatypeTag(self)
+        self.num_fields = _vmobj.GetDatatypeNumberOfFields(self)
 
     def __getitem__(self, idx):
         idx = idx + self.num_fields if idx < 0 else idx
         assert 0 <= idx < self.num_fields
-        return GetDatatypeFields(self, idx)
+        return _vmobj.GetDatatypeFields(self, idx)
 
     def __len__(self):
         return self.num_fields
+
+
+def tensor_object(arr, ctx=_nd.cpu(0)):
+    """Create a tensor object from source arr.
+
+    Parameters
+    ----------
+    arr : numpy.ndarray or tvm.nd.NDArray
+        The source array.
+
+    ctx :  TVMContext, optional
+        The device context to create the array
+
+    Returns
+    -------
+    ret : TensorObject
+        The created object.
+    """
+    if isinstance(arr, _np.ndarray):
+        tensor = _vmobj.Tensor(_nd.array(arr, ctx))
+    elif isinstance(arr, _nd.NDArray):
+        tensor = _vmobj.Tensor(arr)
+    else:
+        raise RuntimeError("Unsupported type for tensor object.")
+    return tensor
+
+
+def tuple_object(fields):
+    """Create a datatype object from source tuple.
+
+    Parameters
+    ----------
+    fields : list[Object] or tuple[Object]
+        The source tuple.
+
+    Returns
+    -------
+    ret : DatatypeObject
+        The created object.
+    """
+    for f in fields:
+        assert isinstance(f, ObjectBase)
+    return _vmobj.Tuple(*fields)
+
+
+def datatype_object(tag, fields):
+    """Create a datatype object from tag and source fields.
+
+    Parameters
+    ----------
+    tag : int
+        The tag of datatype.
+
+    fields : list[Object] or tuple[Object]
+        The source tuple.
+
+    Returns
+    -------
+    ret : DatatypeObject
+        The created object.
+    """
+    for f in fields:
+        assert isinstance(f, ObjectBase)
+    return _vmobj.Datatype(tag, *fields)
