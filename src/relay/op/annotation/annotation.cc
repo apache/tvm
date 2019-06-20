@@ -62,7 +62,7 @@ Expr StopFusion(Expr data) {
   return CallNode::make(op, {data}, Attrs{}, {});
 }
 
-TVM_REGISTER_API("relay.op.annotation._make.annotation.")
+TVM_REGISTER_API("relay.op.annotation._make.stop_fusion")
 .set_body_typed<Expr(Expr)>([](Expr data) {
     return StopFusion(data);
 });
