@@ -409,7 +409,8 @@ def _conv(opname):
 
         if opname == 'depthwise':
             if depth_mult > 1:
-                raise tvm.error.OpNotImplemented('depth_mult > 1 of operator DepthwiseConv2dNative is not supported.')
+                raise tvm.error.OpNotImplemented('depth_mult > 1 of operator DepthwiseConv2dNative'
+                                                 ' is not supported.')
             attr['groups'] = attr['channels']
 
         # Fix padding

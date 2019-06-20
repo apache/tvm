@@ -288,7 +288,6 @@ def test_forward_convolution():
 #######################################################################
 # BiasAdd
 # -----------
-
 def _test_biasadd(tensor_in_sizes, data_format):
     """ One iteration of biasadd with given shapes and attributes """
 
