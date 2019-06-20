@@ -750,11 +750,11 @@ void VirtualMachine::Run() {
         auto object = ReadRegister(instr.closure);
         const auto& closure = object.AsClosure();
         std::vector<Object> args;
-        for (Index i = 0; i < instr.closure_args_num; ++i) {
-          args.push_back(ReadRegister(instr.closure_args[i]));
-        }
         for (auto free_var : closure->free_vars) {
           args.push_back(free_var);
+        }
+        for (Index i = 0; i < instr.closure_args_num; ++i) {
+          args.push_back(ReadRegister(instr.closure_args[i]));
         }
         InvokeGlobal(this->functions[closure->func_index], args);
         frames.back().caller_return_register = instr.dst;

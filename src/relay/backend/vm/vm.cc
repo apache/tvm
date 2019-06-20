@@ -34,7 +34,7 @@ namespace tvm {
 namespace relay {
 namespace vm {
 
-runtime::vm::VirtualMachine CompileModule(const Module& mod);
+runtime::vm::VirtualMachine* CompileModule(const Module& mod);
 
 using tvm::runtime::Object;
 using tvm::runtime::ObjectTag;
@@ -55,7 +55,7 @@ Object EvaluateModule(const Module& module, const std::vector<TVMContext> ctxs,
   DLOG(INFO) << "Entry function is main." << std::endl;
   auto start = std::chrono::high_resolution_clock::now();
 #endif  // ENABLE_PROFILING
-  Object res = vm->Invoke(module->entry_func->name_hint, vm_args);
+  Object res = vm->Invoke("main", vm_args);
 #if ENABLE_PROFILING
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();

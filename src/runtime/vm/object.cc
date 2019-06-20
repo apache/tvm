@@ -27,8 +27,8 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include "../runtime_base.h"
 #include <iostream>
+#include "../runtime_base.h"
 
 namespace tvm {
 namespace runtime {

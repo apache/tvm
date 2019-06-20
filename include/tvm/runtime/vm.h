@@ -308,8 +308,7 @@ struct Instruction {
 struct VMFunction {
   /*! \brief The function's name. */
   std::string name;
-  /*! \brief The number of function parameters. */
-  //size_t num_params;
+  /*! \brief The function parameter names. */
   std::vector<std::string> params;
   /*! \brief The instructions representing the function. */
   std::vector<Instruction> instructions;

@@ -529,6 +529,10 @@ def CanonicalizeCast():
     return _transform.CanonicalizeCast()
 
 
+def LambdaLift():
+    return _transform.LambdaLift()
+
+
 def PrintIR():
     """
     Print the IR for a module to help debugging.

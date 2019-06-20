@@ -41,7 +41,7 @@ class PooledAllocator final : public Allocator {
   static constexpr size_t kDefaultPageSize = 4096;
 
   explicit PooledAllocator(TVMContext ctx, size_t page_size = kDefaultPageSize)
-      : Allocator(), page_size_(page_size), used_memory_(0) {}
+      : Allocator(), page_size_(page_size), used_memory_(0), ctx_(ctx) {}
 
   ~PooledAllocator() { ReleaseAll(); }
 

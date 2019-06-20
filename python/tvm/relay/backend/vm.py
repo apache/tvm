@@ -23,42 +23,122 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
-from ...object import TensorObject
 from .. import transform
-from ..backend.interpreter import Executor
 from ..expr import GlobalVar, Expr
 from . import _vm
+from .interpreter import Executor
+
+
+def _update_target(target):
+    target = target if target else tvm.target.current_target()
+    if target is None:
+        raise ValueError("Target is not set in env or passed as argument.")
+
+    tgts = {}
+    if isinstance(target, (str, tvm.target.Target)):
+        dev_type = tvm.expr.IntImm("int32", tvm.nd.context(str(target)).device_type)
+        tgts[dev_type] = tvm.target.create(target)
+    elif isinstance(target, dict):
+        for dev, tgt in target.items():
+            dev_type = tvm.expr.IntImm("int32", tvm.nd.context(dev).device_type)
+            tgts[dev_type] = tvm.target.create(tgt)
+    else:
+        raise TypeError("target is expected to be str or " +
+                        "tvm.target.Target, but received " +
+                        "{}".format(type(target)))
+    return tgts
 
 
 class VirtualMachine(object):
+    """Relay VM runtime."""
     def __init__(self, mod):
         self.mod = mod
         self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
 
     def init(self, ctx):
+        """Initialize the context in the VM.
+
+        Parameters
+        ----------
+        ctx : :py:class:`TVMContext`
+            The runtime context to run the code on.
+        """
         args = [ctx.device_type, ctx.device_id]
-        #print(ctx.device_id, ctx.device_type)
         self._init(*args)
 
     def invoke(self, func_name, *args):
+        """Invoke a function.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function.
+
+        args : list[NDArray] or list[np.ndarray]
+            The arguments to the function.
+
+        Returns
+        -------
+        result : Object
+            The output.
+        """
         cargs = convert(args)
         return self._invoke(func_name, *cargs)
 
     def run(self, *args):
+        """Run the main function.
+
+        Parameters
+        ----------
+        args : list[NDArray] or list[np.ndarray]
+            The arguments to the function.
+
+        Returns
+        -------
+        result : Object
+            The output.
+        """
         return self.invoke("main", *args)
 
 
+
 class BuildModule(object):
+    """Build Relay module to run on VM runtime."""
     def __init__(self):
         self.mod = _vm._BuildModule()
         self._compile = self.mod["compile"]
         self._get_vm = self.mod["get_vm"]
 
     def compile(self, mod, target=None, target_host=None):
+        """
+        Parameters
+        ----------
+        mod : relay.Module
+            The Relay module to build.
+
+        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
+        device/context name) to str/tvm.target.Target, optional
+            For heterogeneous compilation, it is a dictionary indicating context
+            to target mapping. For homogeneous compilation, it is a build target.
+
+        target_host : str or :any:`tvm.target.Target`, optional
+            Host compilation target, if target is device.
+            When TVM compiles device specific program such as CUDA,
+            we also need host(CPU) side code to interact with the driver
+            to setup the dimensions and parameters correctly.
+            target_host is used to specify the host side codegen target.
+            By default, llvm is used if it is enabled,
+            otherwise a stackvm intepreter is used.
+
+        Returns
+        -------
+        vm : VirtualMachine
+            The VM runtime.
+        """
+        target = _update_target(target)
         self._compile(mod, target, target_host)
-        vm = VirtualMachine(self._get_vm())
-        return vm
+        return VirtualMachine(self._get_vm())
 
 
 def optimize(mod):

@@ -24,19 +24,19 @@ from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 #from tvm.relay.vm import BuildModule
 
-def veval(f, *args, ctx=tvm.cpu()):
+def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod[mod.entry_func] = f
         build_mod = relay.vm.BuildModule()
-        vm = build_mod.compile(mod)
+        vm = build_mod.compile(mod, target)
         vm.init(tvm.cpu())
         return vm.run(*args)
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
         build_mod = relay.vm.BuildModule()
-        vm = build_mod.compile(mod)
+        vm = build_mod.compile(mod, target)
         vm.init(tvm.cpu())
         return vm.run(*args)
 
