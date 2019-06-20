@@ -370,12 +370,12 @@ def concatenate_rewrite(ref_call, new_args, ctx):
 # register for vta stop fusion
 def register_vta_rewrite(op_name, frewrite=None, level=10):
     def _register(func):
-        return _op.op._Register(op_name, "FQVtaRewrite", func, level)
+        return _op.op._Register(op_name, "FQVTARewrite", func, level)
     return _register(frewrite) if frewrite is not None else _register
 
 
 @register_relay_node
-class QVtaExpr(_expr.TempExpr):
+class QVTAExpr(_expr.TempExpr):
     def __init__(self, expr):
         self.__init_handle_by_constructor__(
             _quantize.make_vta_expr, expr)
@@ -385,7 +385,7 @@ class QVtaExpr(_expr.TempExpr):
 
 
 def vta_expr_check(expr):
-    if isinstance(expr, QVtaExpr):
+    if isinstance(expr, QVTAExpr):
         return True, expr.expr
     return False, expr
 
@@ -406,13 +406,13 @@ def conv2d_vta_rewrite(ref_call, new_args, ctx):
     if data_cond:
         data = new_args[0].realize()
     ret = _forward_op(ref_call, [data, kernel])
-    return QVtaExpr(ret)
+    return QVTAExpr(ret)
 
 
 def identity_vta_rewrite(ref_call, new_args, ctx):
     cond, expr = vta_expr_check(new_args[0])
     if cond:
-        return QVtaExpr(_forward_op(ref_call, [expr]))
+        return QVTAExpr(_forward_op(ref_call, [expr]))
     return None
 
 register_vta_rewrite("nn.relu", identity_vta_rewrite)
@@ -429,5 +429,5 @@ def add_vta_rewrite(ref_call, new_args, ctx):
         rhs = new_args[1].realize()
         return _forward_op(ref_call, [lhs, rhs])
     elif lhs_cond and not rhs_cond:
-        return QVtaExpr(_forward_op(ref_call, [lhs, rhs]))
+        return QVTAExpr(_forward_op(ref_call, [lhs, rhs]))
     return None

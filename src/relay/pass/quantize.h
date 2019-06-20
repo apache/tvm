@@ -72,11 +72,11 @@ class QAnnotateExprNode : public TempExprNode {
 RELAY_DEFINE_NODE_REF(QAnnotateExpr, QAnnotateExprNode, TempExpr);
 
 
-class QVtaExpr;
+class QVTAExpr;
 /*!
  * \brief TempExprNode used during annotate forward rewrite.
  */
-class QVtaExprNode : public TempExprNode {
+class QVTAExprNode : public TempExprNode {
  public:
   /*! \brief The original expression */
   Expr expr;
@@ -85,15 +85,15 @@ class QVtaExprNode : public TempExprNode {
     v->Visit("expr", &expr);
   }
 
-  TVM_DLL static QVtaExpr make(Expr expr);
+  TVM_DLL static QVTAExpr make(Expr expr);
 
   Expr Realize() const final;
 
-  static constexpr const char* _type_key = "relay.QVtaExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QVtaExprNode, TempExprNode);
+  static constexpr const char* _type_key = "relay.QVTAExpr";
+  TVM_DECLARE_NODE_TYPE_INFO(QVTAExprNode, TempExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(QVtaExpr, QVtaExprNode, TempExpr);
+RELAY_DEFINE_NODE_REF(QVTAExpr, QVTAExprNode, TempExpr);
 
 
 /*! \brief TempExpr used during realize forward rewrite. */
