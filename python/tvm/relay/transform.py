@@ -406,6 +406,15 @@ def ToANormalForm():
     """
     return _transform.ToANormalForm()
 
+def EtaExpand():
+    """Add abstraction over a function
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that eta expands an expression.
+    """
+    return _transform.EtaExpand()
 
 def ToGraphNormalForm():
     """Turn A Normal Form expression into Graph Normal Form expression
