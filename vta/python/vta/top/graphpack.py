@@ -111,8 +111,8 @@ class ExprPack(ExprMutator):
         self.weight_bits = weight_bits
         self.start_pack = False
         # Cache Operator the algorithm matches against.
-        self.bitpack_start = op.op.get('bitpack_start')
-        self.bitpack_end = op.op.get('bitpack_end')
+        self.bitpack_start = op.op.get('annotation.bitpack_start')
+        self.bitpack_end = op.op.get('annotation.bitpack_end')
         self.conv2d = op.op.get("nn.conv2d")
         self.conv2d_transpose = op.op.get("nn.conv2d_transpose")
         self.add = op.op.get("add")
@@ -229,8 +229,8 @@ def get_subgraph(expr, start_name, stop_name):
         This constraint will be lifted in the future.
         bitpack_start and bitpack_end are both inclusive.
     """
-    bitpack_start = op.op.get('bitpack_start')
-    bitpack_end = op.op.get('bitpack_end')
+    bitpack_start = op.op.get('annotation.bitpack_start')
+    bitpack_end = op.op.get('annotation.bitpack_end')
     anf = relay.ir_pass.to_a_normal_form(expr)
     def _recursion(anf, start_found, stop_found):
         """ Helper to obtain the subgraph.

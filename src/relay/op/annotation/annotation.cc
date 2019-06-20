@@ -58,16 +58,16 @@ RELAY_REGISTER_OP("on_device")
                                ElemwiseArbitraryLayout);
 
 Expr StopFusion(Expr data) {
-  static const Op& op = Op::Get("stop_fusion");
+  static const Op& op = Op::Get("annotation.stop_fusion");
   return CallNode::make(op, {data}, Attrs{}, {});
 }
 
-TVM_REGISTER_API("relay.op.annotation._make.stop_fusion")
+TVM_REGISTER_API("relay.op.annotation._make.annotation.")
 .set_body_typed<Expr(Expr)>([](Expr data) {
     return StopFusion(data);
 });
 
-RELAY_REGISTER_OP("stop_fusion")
+RELAY_REGISTER_OP("annotation.stop_fusion")
 .describe(R"code(Annotate an expression to prevent it being fused with previous expressions.)code"
 TVM_ADD_FILELINE)
 .set_num_inputs(1)
@@ -84,11 +84,11 @@ TVM_ADD_FILELINE)
                        });
 
 Expr ForceCast(Expr data) {
-  static const Op& op = Op::Get("force_cast");
+  static const Op& op = Op::Get("annotation.force_cast");
   return CallNode::make(op, {data}, Attrs{}, {});
 }
 
-RELAY_REGISTER_OP("force_cast")
+RELAY_REGISTER_OP("annotation.force_cast")
 .describe(R"code(Annotate an expression to force a cast.)code"
 TVM_ADD_FILELINE)
 .set_num_inputs(1)
@@ -105,7 +105,7 @@ TVM_ADD_FILELINE)
                        });
 
 
-RELAY_REGISTER_OP("bitpack_start")
+RELAY_REGISTER_OP("annotation.bitpack_start")
 .describe(R"code(
 Mark the start of bitpacking.
 )code" TVM_ADD_FILELINE)
@@ -122,7 +122,7 @@ Mark the start of bitpacking.
                          return {topi::identity(inputs[0])};
                        });
 
-RELAY_REGISTER_OP("bitpack_end")
+RELAY_REGISTER_OP("annotation.bitpack_end")
 .describe(R"code(
 Mark the end of bitpacking.
 )code" TVM_ADD_FILELINE)

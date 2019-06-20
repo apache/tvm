@@ -309,7 +309,7 @@ register_annotate_function("clip", identity_rewrite)
 register_annotate_function("nn.relu", identity_rewrite)
 register_annotate_function("strided_slice", identity_rewrite)
 register_annotate_function("nn.avg_pool2d", identity_rewrite)
-register_annotate_function("stop_fusion", identity_rewrite)
+register_annotate_function("annotation.stop_fusion", identity_rewrite)
 
 
 def pool2d_rewrite(ref_call, new_args, ctx):
@@ -330,7 +330,7 @@ def pool2d_rewrite(ref_call, new_args, ctx):
 register_annotate_function("nn.max_pool2d", pool2d_rewrite)
 
 
-@register_annotate_function("force_cast")
+@register_annotate_function("annotation.force_cast")
 def force_cast_rewrite(ref_call, new_args, ctx):
     """Rewrite function to force cast"""
     if _conv_counter() <= current_qconfig().skip_k_conv:

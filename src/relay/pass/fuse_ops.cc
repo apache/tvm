@@ -821,7 +821,7 @@ class FuseMutator : private ExprMutator {
 
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
-    static const Op& stop_fusion = Op::Get("stop_fusion");
+    static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
     if (call->op.as<OpNode>()) {
       // If it is a primitive op call
       // then we must have a group assignment for it already.

@@ -530,7 +530,7 @@ RELAY_REGISTER_OP("nn.relu")
 RELAY_REGISTER_OP("strided_slice")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
 
-RELAY_REGISTER_OP("stop_fusion")
+RELAY_REGISTER_OP("annotation.stop_fusion")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", IdentityRealize);
 
 /* \brief for unary operators which requantize its input to dtype_nbit */
@@ -585,7 +585,7 @@ Expr ForceCastRealize(const Call& ref_call,
   return Expr(nullptr);
 }
 
-RELAY_REGISTER_OP("force_cast")
+RELAY_REGISTER_OP("annotation.force_cast")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", ForceCastRealize);
 
 TVM_REGISTER_API("relay._quantize.realize")
