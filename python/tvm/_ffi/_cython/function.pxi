@@ -158,7 +158,7 @@ cdef inline int make_arg(object arg,
     elif isinstance(arg, _CLASS_MODULE):
         value[0].v_handle = c_handle(arg.handle)
         tcode[0] = kModuleHandle
-    elif isinstance(arg, ObjectBase):
+    elif isinstance(arg, _CLASS_OBJECT):
         value[0].v_handle = c_handle(arg.handle)
         tcode[0] = kObjectCell
     elif isinstance(arg, FunctionBase):
@@ -313,6 +313,7 @@ cdef class FunctionBase:
 
 _CLASS_FUNCTION = None
 _CLASS_MODULE = None
+_CLASS_OBJECT = None
 
 def _set_class_module(module_class):
     """Initialize the module."""
@@ -322,3 +323,7 @@ def _set_class_module(module_class):
 def _set_class_function(func_class):
     global _CLASS_FUNCTION
     _CLASS_FUNCTION = func_class
+
+def _set_class_object(obj_class):
+    global _CLASS_OBJECT
+    _CLASS_OBJECT = obj_class

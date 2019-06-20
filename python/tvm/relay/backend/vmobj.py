@@ -18,12 +18,12 @@
 from __future__ import absolute_import as _abs
 import numpy as _np
 
-from tvm._ffi.object import ObjectBase, ObjectTag, register_object
+from tvm._ffi.vmobj import Object, ObjectTag, register_object
 from tvm import ndarray as _nd
 from . import _vmobj
 
 @register_object
-class TensorObject(ObjectBase):
+class TensorObject(Object):
     """Tensor object."""
     tag = ObjectTag.TENSOR
 
@@ -55,7 +55,7 @@ class TensorObject(ObjectBase):
 
 
 @register_object
-class DatatypeObject(ObjectBase):
+class DatatypeObject(Object):
     """Datatype object."""
     tag = ObjectTag.DATATYPE
 
@@ -124,7 +124,7 @@ def tuple_object(fields):
         The created object.
     """
     for f in fields:
-        assert isinstance(f, ObjectBase)
+        assert isinstance(f, Object)
     return _vmobj.Tuple(*fields)
 
 
@@ -145,5 +145,5 @@ def datatype_object(tag, fields):
         The created object.
     """
     for f in fields:
-        assert isinstance(f, ObjectBase)
+        assert isinstance(f, Object)
     return _vmobj.Datatype(tag, *fields)

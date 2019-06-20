@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable
+# pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name
 """
 The Relay Virtual Vachine.
 
@@ -25,8 +25,6 @@ import numpy as np
 import tvm
 from . import _vm
 from . import vmobj as _obj
-from .. import transform
-from ..expr import GlobalVar, Expr
 from .interpreter import Executor
 
 
@@ -188,19 +186,12 @@ class VMExecutor(Executor):
         self.vm = build_mod.compile(mod, target)
         self.vm.init(ctx)
 
-<<<<<<< HEAD
     def _make_executor(self, expr=None):
-        expr = expr if expr else self.mod
-        assert expr, "either expr or self.mod should be not null."
-        if isinstance(expr, Expr):
-            self.mod["main"] = expr
+        assert expr is None
         main = self.mod["main"]
 
-=======
-    def _make_executor(self):
-        main = self.mod[self.mod.entry_func]
->>>>>>> update
         def _vm_wrapper(*args, **kwargs):
             args = self._convert_args(main, args, kwargs)
             return self.vm.run(*args)
+
         return _vm_wrapper

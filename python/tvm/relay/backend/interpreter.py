@@ -243,7 +243,7 @@ class Executor(object):
             assert not analysis.free_vars(expr)
 
         if isinstance(expr, (Function, GlobalVar)):
-                return self._make_executor(expr)
+            return self._make_executor(expr)
 
         # normal expression evaluated by running a function.
         func = Function([], expr)

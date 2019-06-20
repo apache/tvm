@@ -28,15 +28,19 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     if sys.version_info >= (3, 0):
-        from ._cy3.core import ObjectBase, _register_object
+        from ._cy3.core import _set_class_object
+        from ._cy3.core import ObjectBase as _ObjectBase
+        from ._cy3.core import _register_object
     else:
-        from ._cy2.core import ObjectBase, _register_object
+        from ._cy2.core import _set_class_object
+        from ._cy2.core import ObjectBase as _ObjectBase
+        from ._cy2.core import _register_object
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
-    from ._ctypes.object import ObjectBase, _register_object
+    from ._ctypes.function import _set_class_object
+    from ._ctypes.vmobj import ObjectBase as _ObjectBase
+    from ._ctypes.vmobj import _register_object
 
-
-#from ._ctypes.object import ObjectBase, _register_object
 
 class ObjectTag(object):
     """Type code used in API calls"""
@@ -44,6 +48,14 @@ class ObjectTag(object):
     CLOSURE = 1
     DATATYPE = 2
 
+
+class Object(_ObjectBase):
+    """The VM Object used in Relay virtual machine."""
+
+
 def register_object(cls):
     _register_object(cls.tag, cls)
     return cls
+
+
+_set_class_object(Object)

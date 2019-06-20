@@ -39,6 +39,7 @@ def _return_object(x):
     tag = ctypes.c_int()
     check_call(_LIB.TVMGetObjectTag(handle, ctypes.byref(tag)))
     cls = OBJECT_TYPE.get(tag.value, ObjectBase)
+    print('here')
     obj = cls(handle)
     return obj
 
