@@ -757,18 +757,14 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   Array<Expr> new_source = ir::UpdateArray(reduce->source,
     [&replacer] (const Expr& e) { return replacer.Mutate(e); });
 
-  Array<Expr> orig_pred;
-  orig_pred.push_back(predicate);
-
-  Array<Expr> new_pred = ir::UpdateArray(orig_pred,
-    [&replacer] (const Expr& e) { return replacer.Mutate(e); });
+  Expr new_pred = replacer.Mutate(predicate);
 
   std::vector<Expr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
     body.emplace_back(Reduce::make(reduce->combiner,
                                    new_source,
                                    n->reduce_axis,
-                                   new_pred[0],
+                                   new_pred,
                                    idx));
   }
   n->body = Array<Expr>(body);
