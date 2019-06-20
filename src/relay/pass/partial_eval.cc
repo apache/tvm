@@ -101,6 +101,7 @@
 
 namespace tvm {
 namespace relay {
+namespace partial_eval {
 
 using namespace runtime;
 
@@ -1087,12 +1088,14 @@ Expr PostProcess(const Expr& e) {
   return StripWithFuncId(DeDup(Remap(e)));
 }
 
+}  // namespace partial_eval
+
 Expr PartialEval(const Expr& e, const Module& m) {
   return TransformF([&](const Expr& e) {
       return LetList::With([&](LetList* ll) {
-          PartialEvaluator pe(FreeVars(e), m);
+          relay::partial_eval::PartialEvaluator pe(FreeVars(e), m);
           pe.InitializeFuncId(e);
-          return PostProcess(pe.VisitExpr(e, ll)->dynamic);
+          return relay::partial_eval::PostProcess(pe.VisitExpr(e, ll)->dynamic);
         });
     }, e);
 }
