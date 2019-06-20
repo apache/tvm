@@ -71,9 +71,9 @@ def test_split_no_fuse():
     tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
 
 def test_id():
-    x = relay.var('x', shape=(10, 10), dtype='float32')
+    x = relay.var('x', shape=(10, 10), dtype='float64')
     f = relay.Function([x], x)
-    x_data = np.random.rand(10, 10).astype('float32')
+    x_data = np.random.rand(10, 10).astype('float64')
     res = veval(f, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), x_data)
 
