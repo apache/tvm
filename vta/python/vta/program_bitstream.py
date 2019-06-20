@@ -16,7 +16,6 @@
 # under the License.
 """VTA specific bitstream program library."""
 import os
-import sys
 import argparse
 
 def main():
@@ -28,11 +27,8 @@ def main():
                         help="bitstream path")
     args = parser.parse_args()
 
-    if len(sys.argv) < 3:
-        parser.print_help()
-        return
-    if args.target != 'pynq':
-        return
+    if (args.target != 'pynq' and args.target != 'sim'):
+        raise RuntimeError("Unknown target {}".format(args.target))
 
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
@@ -44,21 +40,18 @@ def main():
     if not ok_path_list:
         raise RuntimeError("Cannot find bitstream file in %s" % str(path_list))
 
-    vta_bitstream_program(args.target, args.bitstream)
+    bitstream_program(args.target, args.bitstream)
 
-def vta_pynq_bitstream_program(bitstream_path):
-    sys.path.append("/home/xilinx/")
+def pynq_bitstream_program(bitstream_path):
     from pynq import Bitstream
     bitstream = Bitstream(bitstream_path)
     bitstream.download()
 
-def vta_bitstream_program(target, bitstream):
+def bitstream_program(target, bitstream):
     if target == 'pynq':
-        vta_pynq_bitstream_program(bitstream)
-    else:
-        raise RuntimeError("{} is not support target \
-                            for bitstream program"
-                           .format(target))
+        pynq_bitstream_program(bitstream)
+    elif target != 'sim':
+        raise RuntimeError("Unknown target {}".format(target))
 
 if __name__ == "__main__":
     main()

@@ -34,7 +34,7 @@ LDFLAGS += `${VTA_CONFIG} --ldflags`
 VTA_TARGET := $(shell ${VTA_CONFIG} --target)
 
 # Include bitstream
-VTA_PROGRAM = python3 ../../../python/vta/vtaprogram.py
+VTA_PROGRAM = python3 ../../../python/vta/program_bitstream.py
 VTA_BIT = "vta.bit"
 
 # Define flags
@@ -50,6 +50,6 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@ $(LIBS)
 
 vtainstall:
-	sudo ${VTA_PROGRAM} ${VTA_TARGET} ${VTA_BIT}
+	${VTA_PROGRAM} ${VTA_TARGET} ${VTA_BIT}
 clean:
 	rm -rf *.o $(EXECUTABLE)
