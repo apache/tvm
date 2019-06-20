@@ -97,7 +97,8 @@ def get_network(name, batch_size):
         # an example for mxnet model
         from mxnet.gluon.model_zoo.vision import get_model
         block = get_model('resnet18_v1', pretrained=True)
-        net, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
+        mod, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
+        net = mod[mod.entry_func]
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
     else:
         raise ValueError("Unsupported network: " + name)
