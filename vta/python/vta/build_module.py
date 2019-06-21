@@ -119,7 +119,7 @@ def build(*args, **kwargs):
             return tvm.build(*args, **kwargs)
     return tvm.build(*args, **kwargs)
 
-
+# TODO(tmoreau89) unify the build with the rest of the build modules
 def vta_autotvm_build_func(measure_input, tmp_dir, **kwargs):
     """Custom build func for VTA. Used for autotvm"""
 

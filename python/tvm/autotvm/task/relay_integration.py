@@ -31,6 +31,7 @@ from .topi_integration import TaskExtractEnv
 logger = logging.getLogger('autotvm')
 
 
+# TODO(moreau89) find a more elegant way to build for VTAs
 def _build(func,
            target,
            target_host,

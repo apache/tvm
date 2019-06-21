@@ -107,7 +107,7 @@ class TaskExtractEnv:
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
         }
 
-        # support reflection for tracing
+        # function reflection for tracing
         self.func_to_reflection = {
             topi.nn.conv2d:                 lambda x: setattr(topi.nn, 'conv2d', x),
             topi.nn.conv2d_NCHWc:           lambda x: setattr(topi.nn, 'conv2d_NCHWc', x),

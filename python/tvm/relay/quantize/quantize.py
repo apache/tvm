@@ -124,7 +124,9 @@ def current_qconfig():
     """Get the current quantization configuration."""
     return _quantize._GetCurrentQConfig()
 
-
+# TODO(tmoreau89, ZihengJiang) the skip parameters are
+# hacky - we should explore a more future-proof way to
+# skip operators based on pattern matching
 def qconfig(**kwargs):
     """Configure the quantization behavior by setting config variables.
 
@@ -200,18 +202,18 @@ def annotate_context():
     return AnnotateContext.Current
 
 
-DENSE_COUNTER = 0
+_DENSE_COUNTER = 0
 
 
-def _dense_counter():
+def _dense_counter_():
     """Get the global counter for dense."""
-    return DENSE_COUNTER
+    return _DENSE_COUNTER
 
 
 def _set_dense_counter(n):
     """Set the value of the global dense counter."""
-    global DENSE_COUNTER
-    DENSE_COUNTER = n
+    global _DENSE_COUNTER
+    _DENSE_COUNTER = n
 
 
 def calibrate(graph, mod=None, ctx=None):
