@@ -254,6 +254,29 @@ def test_change_dtype_mobilenet():
         ex = relay.create_executor('graph', mod=module)
         result = ex.evaluate()(input, **params)
 
+def test_model(get_workload, input_shape, src_dtype, dst_dtype):
+    expr, params = get_workload()
+
+    ex = relay.create_executor("graph")
+
+    # Convert the input into the correct format.
+    input = tvm.nd.array(np.random.rand(*input_shape).astype(src_dtype))
+
+    correct = ex.evaluate(expr)(input, **params)
+
+    # Simplifying inference is essential right now, as batch norms (which get
+    # removed) are broken with custom datatypes.
+    expr = relay.ir_pass.simplify_inference(expr)
+    expr, params = change_dtype(src_dtype, dst_dtype, expr, params, ex)
+
+    input = convert_ndarray(dst_dtype, input, ex)
+
+    # Vectorization is not implemented with custom datatypes.
+    with tvm.build_config(disable_vectorize=True):
+        result = ex.evaluate(expr)(input, **params)
+
+    tvm.testing.assert_allclose(
+        convert_ndarray(src_dtype, result, ex).asnumpy(), correct.asnumpy(), rtol=0.5, atol=0.5)
 
 
 def test_conv2d():
