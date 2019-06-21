@@ -414,6 +414,7 @@ def test_conv2d():
 
 if __name__ == "__main__":
     setup()
+    # test_conv2d()
     test_ops('float32', 'custom[bfloat]16')
     # test_change_dtype_inception_v3()
     # test_change_dtype_simple()
