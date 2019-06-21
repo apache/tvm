@@ -811,13 +811,6 @@ class VMBuildModule : public runtime::ModuleNode {
   std::shared_ptr<VirtualMachine> vm_;
 };
 
-VirtualMachine* CompileModule(const Module& mod) {
-  VMBuildModule build_mod;
-  Target target = Target::Create("llvm");
-  build_mod.Compile(mod, {}, target);
-  return build_mod.GetVirtualMachine().get();
-}
-
 runtime::Module VMBuildCreate() {
   std::shared_ptr<VMBuildModule> exec = std::make_shared<VMBuildModule>();
   return runtime::Module(exec);
