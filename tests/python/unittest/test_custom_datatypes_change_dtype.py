@@ -82,7 +82,7 @@ def setup():
 
 
 def convert_ndarray(dst_dtype, array, executor):
-    x = relay.var('x', shape=array.shape, dtype=array.dtype)
+    x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
     cast = relay.Function([x], x.astype(dst_dtype))
     return executor.evaluate(cast)(array)
 
