@@ -1,0 +1,34 @@
+<session jtag_chain="" jtag_device="" sof_file="DE10_NANO_SoC_GHRD.sof">
+  <display_tree gui_logging_enabled="0">
+  </display_tree>
+  <instance enabled="true" entity_name="sld_signaltap" is_auto_node="yes" is_expanded="true" name="auto_signaltap_0" source_file="sld_signaltap.vhd">
+    <node_ip_info instance_id="0" mfg_id="110" node_id="0" version="6"/>
+    <position_info>
+      <single attribute="active tab" value="1"/>
+      <single attribute="data horizontal scroll position" value="0"/>
+      <single attribute="data vertical scroll position" value="70"/>
+      <single attribute="setup horizontal scroll position" value="0"/>
+      <single attribute="setup vertical scroll position" value="0"/>
+      <single attribute="zoom level denominator" value="8"/>
+      <single attribute="zoom level numerator" value="1"/>
+      <single attribute="zoom offset denominator" value="1"/>
+      <single attribute="zoom offset numerator" value="1047552"/>
+    </position_info>
+  </instance>
+  <mnemonics/>
+  <static_plugin_mnemonics/>
+  <global_info>
+    <single attribute="active instance" value="0"/>
+    <single attribute="config widget visible" value="1"/>
+    <single attribute="data log widget visible" value="0"/>
+    <single attribute="hierarchy widget height" value="2"/>
+    <single attribute="hierarchy widget visible" value="0"/>
+    <single attribute="hierarchy widget width" value="418"/>
+    <single attribute="instance widget visible" value="1"/>
+    <single attribute="jtag widget visible" value="1"/>
+    <single attribute="lock mode" value="0"/>
+    <multi attribute="column width" size="23" value="34,34,463,74,68,78,95,96,98,98,88,88,110,101,101,101,101,101,101,101,101,107,232"/>
+    <multi attribute="frame size" size="2" value="1920,1175"/>
+    <multi attribute="jtag widget size" size="2" value="355,147"/>
+  </global_info>
+</session>

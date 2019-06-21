@@ -49,3 +49,16 @@ class F1Config extends Config((site, here, up) => {
     vcrParams = VCRParams(),
     vmeParams = VMEParams())
 })
+
+/** De10Config. Shell configuration for De10 */
+class De10Config extends Config((site, here, up) => {
+  case ShellKey => ShellParams(
+    hostParams = AXIParams(
+      addrBits = 16,
+      dataBits = 32),
+    memParams = AXIParams(
+      addrBits = 32,
+      dataBits = 64),
+    vcrParams = VCRParams(),
+    vmeParams = VMEParams())
+})
