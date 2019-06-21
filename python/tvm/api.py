@@ -33,6 +33,7 @@ from . import expr as _expr
 from . import tensor as _tensor
 from . import schedule as _schedule
 from . import container as _container
+from . import sparse as _sparse
 from . import tag as _tag
 
 int8 = "int8"
@@ -233,7 +234,7 @@ def all(*args):
     return ret
 
 
-def placeholder(shape, dtype=None, name="placeholder"):
+def placeholder(shape, dtype=None, sformat=None, name="placeholder"):
     """Construct an empty tensor object.
 
     Parameters
@@ -254,11 +255,12 @@ def placeholder(shape, dtype=None, name="placeholder"):
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     dtype = float32 if dtype is None else dtype
+    sformat = decl_dense(len(shape)) if sformat is None else sformat
     return _api_internal._Placeholder(
-        shape, dtype, name)
+        shape, dtype, sformat, name)
 
 
-def compute(shape, fcompute, name="compute", tag="", attrs=None):
+def compute(shape, fcompute, name="compute", tag="", attrs=None, sformat=None):
     """Construct a new tensor by computing over the shape domain.
 
     The compute rule is result[axis] = fcompute(axis)
@@ -321,6 +323,15 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
                                                  body.tensors,
                                                  body.regions,
                                                  body.scalar_inputs)
+
+    elif sformat is not None:
+        # sparse compute
+        if not isinstance(body, (list, tuple)):
+            body = [body]
+        body = convert(body)
+        op_node = _api_internal._SparseComputeOp(
+            name, tag, sformat, attrs, dim_var, body)
+
     else:
         if not isinstance(body, (list, tuple)):
             body = [body]
@@ -654,6 +665,9 @@ def layout(layout_str):
         The created layout
     """
     return _api_internal._Layout(layout_str)
+
+def sformat(stypes):
+    return _api_internal._SparseFormat(stypes)
 
 def bijective_layout(src_layout, dst_layout):
     """Create a bijective layout mapping.

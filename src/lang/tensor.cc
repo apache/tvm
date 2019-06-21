@@ -47,12 +47,18 @@ Expr Tensor::operator()(Array<Expr> indices) const {
   return n;
 }
 
+SparseFormat OperationNode::output_sformat(size_t i) const {
+  CHECK_EQ(i, 0);
+  return DeclDenseFormat(this->output_shape(i).size());
+}
+
 Tensor Operation::output(size_t i) const {
   auto node = make_node<TensorNode>();
   node->op = *this;
   node->value_index = i;
   node->dtype = (*this)->output_dtype(i);
   node->shape = (*this)->output_shape(i);
+  node->sformat = (*this)->output_sformat(i);
   return Tensor(node);
 }
 
@@ -65,12 +71,14 @@ Tensor TensorNode::make(Array<Expr> shape,
   n->dtype = dtype;
   n->op = op;
   n->value_index = value_index;
+  n->sformat = DeclDenseFormat(n->shape.size());
   return Tensor(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<TensorNode>([](const TensorNode *t, IRPrinter *p) {
     p->stream << "Tensor(shape=" << t->shape
+              << ", sformat=" << t->sformat
               << ", op.name=" << t->op->name << ')';
   });
 

@@ -30,6 +30,7 @@
 #include "expr.h"
 #include "expr_operator.h"
 #include "tensor.h"
+#include "sparse.h"
 #include "schedule.h"
 #include "arithmetic.h"
 #include "buffer.h"
@@ -86,6 +87,7 @@ class OperationNode : public ir::FunctionBaseNode {
    * \brief List all the input Tensors.
    * \return List of input tensors.
    */
+  virtual SparseFormat output_sformat(size_t i) const;
   virtual Array<Tensor> InputTensors() const = 0;
   /*!
    * \brief Replace the input of the operation by pattern specified by rmap.
@@ -161,11 +163,14 @@ class PlaceholderOpNode : public OperationNode {
   Array<Expr> shape;
   /*! \brief The data type of the input. */
   Type dtype;
+
+  SparseFormat sformat;
   // override behavior.
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
   Type output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
+  SparseFormat output_sformat(size_t i) const override;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -197,7 +202,8 @@ class PlaceholderOpNode : public OperationNode {
   }
   static Operation make(std::string name,
                         Array<Expr> shape,
-                        Type dtype);
+                        Type dtype,
+                        SparseFormat sformat);
 
   static constexpr const char* _type_key = "PlaceholderOp";
   TVM_DECLARE_NODE_TYPE_INFO(PlaceholderOpNode, OperationNode);
@@ -335,6 +341,53 @@ class TensorComputeOpNode : public BaseComputeOpNode {
 
   static constexpr const char* _type_key = "TensorComputeOp";
   TVM_DECLARE_NODE_TYPE_INFO(TensorComputeOpNode, BaseComputeOpNode);
+};
+
+
+class SparseComputeOpNode : public BaseComputeOpNode {
+ public:
+  /*! \brief the compute expression */
+  SparseFormat sformat;
+  /*! \brief the compute expression */
+  Array<Expr> body;
+  /*! \brief constructor */
+  SparseComputeOpNode() {}
+  // override functions
+  int num_outputs() const final;
+  Type output_dtype(size_t i) const final;
+  SparseFormat output_sformat(size_t i) const override;
+  Array<Tensor> InputTensors() const final;
+  Operation ReplaceInputs(
+      const Operation& self,
+      const std::unordered_map<Tensor, Tensor>& rmap) const final;
+  void PropBoundToInputs(
+      const Operation& self,
+      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
+  Stmt BuildProvide(
+      const Stage& stage,
+      const std::unordered_map<IterVar, Range>& dom_map,
+      bool debug_keep_trivial_loop) const final;
+  size_t num_schedulable_dims() const final;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("name", &name);
+    v->Visit("tag", &tag);
+    v->Visit("sformat", &sformat);
+    v->Visit("attrs", &attrs);
+    v->Visit("axis", &axis);
+    v->Visit("reduce_axis", &reduce_axis);
+    v->Visit("body", &body);
+  }
+  static Operation make(std::string name,
+                        std::string tag,
+                        SparseFormat sformat,
+                        Map<std::string, NodeRef> attrs,
+                        Array<IterVar> axis,
+                        Array<Expr> body);
+
+  static constexpr const char* _type_key = "SparseComputeOp";
+  TVM_DECLARE_NODE_TYPE_INFO(SparseComputeOpNode, BaseComputeOpNode);
 };
 
 /*!

@@ -34,6 +34,7 @@
 #include "expr.h"
 #include "expr_operator.h"
 #include "arithmetic.h"
+#include "sparse.h"
 
 namespace tvm {
 
@@ -164,6 +165,8 @@ class TensorNode : public Node {
   Array<Expr> shape;
   /*! \brief data type in the content of the tensor */
   Type dtype;
+
+  SparseFormat sformat;
   /*! \brief the source operation, can be None */
   Operation op;
   /*! \brief the output index from source operation */
@@ -184,6 +187,14 @@ class TensorNode : public Node {
 
   static constexpr const char* _type_key = "Tensor";
   TVM_DECLARE_NODE_TYPE_INFO(TensorNode, Node);
+
+  // inline const char* type_key() const override {
+  //   return TensorNode::_type_key;
+  // }
+  // inline const uint32_t type_index() const {
+  //   static uint32_t tidx = TypeKey2Index(TensorNode::_type_key);
+  //   return tidx;
+  // }
 };
 
 
