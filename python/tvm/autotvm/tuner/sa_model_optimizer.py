@@ -128,7 +128,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
                              time.time() - tic)
 
         heap_items.sort(key=lambda item: -item[0])
-        heap_items = [x in heap_items if x >= 0]
+        heap_items = [x for x in heap_items if x >= 0]
         logger.debug("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\telapsed: %.2f",
                      k, k_last_modify, heap_items[-1][0], heap_items[0][0], time.time() - tic)
         logger.debug("SA Maximums: %s", heap_items)
