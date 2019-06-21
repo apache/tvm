@@ -205,7 +205,7 @@ def annotate_context():
 _DENSE_COUNTER = 0
 
 
-def _dense_counter_():
+def _dense_counter():
     """Get the global counter for dense."""
     return _DENSE_COUNTER
 
