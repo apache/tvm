@@ -88,6 +88,7 @@ def convert_ndarray(dst_dtype, array, executor):
 
 
 def change_dtype(src, dst, expr, params, executor):
+    expr = relay.ir_pass.infer_type(expr)
     cdtype = relay.frontend.ChangeDatatype(src, dst)
     expr = cdtype.visit(expr)
     expr = relay.ir_pass.infer_type(expr)
