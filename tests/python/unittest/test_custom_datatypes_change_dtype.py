@@ -17,6 +17,7 @@
 """Utilities for changing datatypes of models."""
 
 import tvm
+import topi.testing
 import numpy as np
 from tvm import relay
 from tvm.relay.testing.inception_v3 import get_workload as get_inception
