@@ -64,7 +64,7 @@ how to run both of them:
     * Run `make`
 
 * Test Chisel3 backend
-    * Open `<tvm-root>/vta/apps/tsim_example`
+    * Go to `<tvm-root>/vta/apps/tsim_example`
     * Run `make run_chisel`
 
 * Some pointers
