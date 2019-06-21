@@ -87,6 +87,95 @@ def setup():
         intrinsic_name="exp")
 
 
+def test_ops(src_dtype, dst_dtype):
+    def check_unary_op(opfunc, ref, src_dtype, dst_dtype):
+        if ref is not None:
+            t1 = relay.TensorType((5, 10, 5))
+            x = relay.var("x", t1)
+            z = opfunc(x)
+            x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
+            ref_res = ref(x_data)
+            module = tvm.IRModule.from_expr(relay.Function([x], z))
+
+            module, _ = change_dtype(src_dtype, dst_dtype, module, [])
+
+            for target, ctx in [("llvm", tvm.cpu(0))]:
+                # use graph by execuor default for testing, as we need
+                # create function explicitly to avoid constant-folding.
+                intrp = relay.create_executor("graph", ctx=ctx, target=target, mod=module)
+                x_converted = convert_ndarray(dst_dtype, x_data)
+                with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+                    op_res = intrp.evaluate()(x_converted)
+                op_res_converted = convert_ndarray(src_dtype, op_res)
+                # TODO(gus) increased the tolerance an unreasonable amount
+                np.testing.assert_allclose(
+                    op_res_converted.asnumpy(), ref_res, rtol=0.1, atol=0.1)
+
+    def check_binary_op(opfunc, ref, src_dtype, dst_dtype):
+        if ref is not None:
+            t1 = relay.TensorType((5, 10, 5), src_dtype)
+            t2 = relay.TensorType((5, ), src_dtype)
+            x = relay.var("x", t1)
+            y = relay.var("y", t2)
+            z = opfunc(x, y)
+            x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
+            y_data = np.random.rand(5).astype(t2.dtype)
+            ref_res = ref(x_data, y_data)
+            module = tvm.IRModule.from_expr(relay.Function([x, y], z))
+
+            module, _ = change_dtype(src_dtype, dst_dtype, module, [])
+
+            for target, ctx in [("llvm", tvm.cpu(0))]:
+                # use graph by execuor default for testing, as we need
+                # create function explicitly to avoid constant-folding.
+                intrp = relay.create_executor("graph", ctx=ctx, target=target, mod=module)
+                x_converted = convert_ndarray(dst_dtype, x_data)
+                y_converted = convert_ndarray(dst_dtype, y_data)
+                with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
+                    op_res = intrp.evaluate()(x_converted, y_converted)
+                op_res_converted = convert_ndarray(src_dtype, op_res)
+                np.testing.assert_allclose(
+                    op_res_converted.asnumpy(), ref_res, rtol=0.01, atol=0.01)
+
+    def my_func(x, y):
+        a = relay.add(x, y)
+        return relay.nn.relu(a)
+
+    def my_func_np(x, y):
+        a = x + y
+        return np.maximum(0, a)
+
+    def sigmoid(x):
+        one = np.ones_like(x)
+        return one / (one + np.exp(-x))
+
+    def relu(x):
+        x_copy = np.copy(x)
+        np.maximum(x_copy, 0, x_copy)
+        return x_copy
+
+    def rsqrt(x):
+        one = np.ones_like(x)
+        return one / np.sqrt(x)
+
+    check_binary_op(relay.add, np.add, src_dtype, dst_dtype)
+    check_binary_op(relay.subtract, np.subtract, src_dtype, dst_dtype)
+    check_binary_op(relay.divide, np.divide, src_dtype, dst_dtype)
+    check_binary_op(relay.multiply, np.multiply, src_dtype, dst_dtype)
+    check_unary_op(relay.sqrt, np.sqrt, src_dtype, dst_dtype)
+    check_unary_op(relay.negative, np.negative, src_dtype, dst_dtype)
+    #check_binary_op(my_func, my_func_np, src_dtype, dst_dtype)
+    check_unary_op(relay.nn.relu, relu, src_dtype, dst_dtype)
+    for opfunc, ref in [#(tvm.relay.log, np.log),
+                        (tvm.relay.exp, np.exp),
+                        (tvm.relay.sqrt, np.sqrt),
+                        (tvm.relay.rsqrt, rsqrt),
+                        #(tvm.relay.sigmoid, sigmoid),
+                        #(tvm.relay.tanh, np.tanh),
+                        (relay.nn.relu, relu)]:
+        check_unary_op(opfunc, ref, src_dtype, dst_dtype)
+
+
 def test_change_dtype_simple():
     shape = (3, 1)
     t = relay.TensorType(shape, 'float32')
@@ -171,3 +260,4 @@ if __name__ == "__main__":
     test_change_dtype_simple()
     test_change_dtype_mobilenet()
     test_change_dtype_resnet()
+    test_ops('float32', 'custom[bfloat]16')
