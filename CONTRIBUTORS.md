@@ -83,6 +83,7 @@ We do encourage everyone to work anything they are interested in.
 - [Kazutaka Morita](https://github.com/kazum): @kazum
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
+- [Josh Pollock](https://github.com/joshpoll): @joshpoll
 - [Jared Roesch](https://github.com/jroesch): @jroesch
 - [Siva](https://github.com/srkreddy1238): @srkreddy1238
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel
