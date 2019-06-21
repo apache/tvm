@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -52,18 +52,26 @@ Array<Expr> PlaceholderOpNode::output_shape(size_t i) const {
   return shape;
 }
 
+SparseFormat PlaceholderOpNode::output_sformat(size_t i) const {
+  CHECK_EQ(i, 0U);
+  return sformat;
+}
+
 Operation PlaceholderOpNode::make(std::string name,
                                   Array<Expr> shape,
-                                  Type dtype) {
+                                  Type dtype,
+                                  SparseFormat sformat) {
   auto n = make_node<PlaceholderOpNode>();
   n->name = name;
   n->shape = shape;
   n->dtype = dtype;
+  n->sformat = sformat;
   return Operation(n);
 }
 
 Tensor placeholder(Array<Expr> shape, Type dtype, std::string name) {
-  return PlaceholderOpNode::make(name, shape, dtype).output(0);
+  SparseFormat sformat = DeclDenseFormat(shape.size());
+  return PlaceholderOpNode::make(name, shape, dtype, sformat).output(0);
 }
 
 Array<Tensor> PlaceholderOpNode::InputTensors() const {

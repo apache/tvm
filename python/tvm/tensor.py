@@ -182,8 +182,15 @@ class ComputeOp(BaseComputeOp):
 
 
 @register_node
+class SparseComputeOp(BaseComputeOp):
+    """Scalar operation."""
+    pass
+
+
+@register_node
 class TensorComputeOp(BaseComputeOp):
     """Tensor operation."""
+    pass
 
 
 @register_node

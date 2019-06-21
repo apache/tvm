@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -31,6 +31,7 @@
 #include <tvm/api_registry.h>
 #include <tvm/build_module.h>
 #include <tvm/data_layout.h>
+#include <tvm/sparse.h>
 
 
 namespace tvm {
@@ -266,6 +267,9 @@ TVM_REGISTER_API("_TensorIntrin")
 TVM_REGISTER_API("_TensorIntrinCall")
 .set_body_typed(TensorIntrinCallNode::make);
 
+TVM_REGISTER_API("_SparseFormat")
+.set_body_typed(SparseFormatNode::make);
+
 TVM_REGISTER_API("_TensorEqual")
 .set_body_method(&Tensor::operator==);
 
@@ -275,14 +279,18 @@ TVM_REGISTER_API("_TensorHash")
   });
 
 TVM_REGISTER_API("_Placeholder")
-.set_body_typed<Tensor(Array<Expr>, Type, std::string)>([](
-  Array<Expr> shape, Type dtype, std::string name
+.set_body_typed<Tensor(Array<Expr>, Type, SparseFormat, std::string)>([](
+  Array<Expr> shape, Type dtype, SparseFormat sformat, std::string name
 ) {
-  return placeholder(shape, dtype, name);
+  return PlaceholderOpNode::make(name, shape, dtype, sformat).output(0);
+  // return placeholder(shape, dtype, sformat, name);
 });
 
 TVM_REGISTER_API("_ComputeOp")
 .set_body_typed(ComputeOpNode::make);
+
+TVM_REGISTER_API("_SparseComputeOp")
+.set_body_typed(SparseComputeOpNode::make);
 
 TVM_REGISTER_API("_ScanOp")
 .set_body_typed(ScanOpNode::make);
