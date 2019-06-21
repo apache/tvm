@@ -49,7 +49,9 @@ sudo apt install verilator sbt
 ## Setup in TVM
 
 1. Install `verilator` and `sbt` as described above
-2. Build [tvm](https://docs.tvm.ai/install/from_source.html#build-the-shared-library)
+2. Get tvm `git clone https://github.com/dmlc/tvm.git`
+3. Change VTA target in `tvm/vta/config/vta_config.json` from `sim` to `tsim`
+4. Build [tvm](https://docs.tvm.ai/install/from_source.html#build-the-shared-library)
 
 ## How to run VTA TSIM examples
 
@@ -62,7 +64,7 @@ how to run both of them:
     * Run `make`
 
 * Test Chisel3 backend
-    * Open `<tvm-root>/vta/apps/tsim_example`
+    * Go to `<tvm-root>/vta/apps/tsim_example`
     * Run `make run_chisel`
 
 * Some pointers
