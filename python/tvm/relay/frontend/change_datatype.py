@@ -48,7 +48,8 @@ class ChangeDatatype(ExprMutator):
         return self.visit(func)
 
     def visit_constant(self, const):
-        raise "need to rewrite embedded constants"
+        if const.data.dtype == self.src:
+            return const.astype(self.dst)
 
     def visit_function(self, func):
         new_params = []
