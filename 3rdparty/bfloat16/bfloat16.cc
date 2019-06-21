@@ -171,3 +171,140 @@ TVM_DLL uint16_t BFloat16Exp_wrapper(uint16_t a) {
   return out;
 }
 }
+
+// -- not bfloat
+
+void FloatToNotBFloat16(const float* src, uint32_t* dst, size_t size) {
+  const uint32_t* p = reinterpret_cast<const uint32_t*>(src);
+  uint32_t* q = reinterpret_cast<uint32_t*>(dst);
+  for (; size != 0; p++, q++, size--) {
+    *q = *p;
+  }
+}
+
+void NotBFloat16ToFloat(const uint32_t* src, float* dst, size_t size) {
+  const uint32_t* p = reinterpret_cast<const uint32_t*>(src);
+  uint32_t* q = reinterpret_cast<uint32_t*>(dst);
+  for (; size != 0; p++, q++, size--) {
+    *q = *p;
+  }
+}
+
+void NotBFloat16Add(const uint32_t* a, const uint32_t* b, uint32_t* dst, size_t size) {
+  float a_f, b_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  NotBFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f + b_f;
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+void NotBFloat16Sub(const uint32_t* a, const uint32_t* b, uint32_t* dst, size_t size) {
+  float a_f, b_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  NotBFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f - b_f;
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+void NotBFloat16Mul(const uint32_t* a, const uint32_t* b, uint32_t* dst, size_t size) {
+  float a_f, b_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  NotBFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f * b_f;
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+void NotBFloat16Div(const uint32_t* a, const uint32_t* b, uint32_t* dst, size_t size) {
+  float a_f, b_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  NotBFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f / b_f;
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+void NotBFloat16Max(const uint32_t* a, const uint32_t* b, uint32_t* dst, size_t size) {
+  float a_f, b_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  NotBFloat16ToFloat(b, &b_f, 1);
+  float out_f = a_f > b_f ? a_f : b_f;
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+// TODO(gus) I just realized that `size` is unused in most of these cases
+void NotBFloat16Sqrt(const uint32_t* a, uint32_t* dst, size_t size) {
+  float a_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  float out_f = sqrt(a_f);
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+// TODO(gus) I just realized that `size` is unused in most of these cases
+void NotBFloat16Exp(const uint32_t* a, uint32_t* dst, size_t size) {
+  float a_f;
+  NotBFloat16ToFloat(a, &a_f, 1);
+  float out_f = exp(a_f);
+  FloatToNotBFloat16(&out_f, dst, 1);
+}
+
+extern "C" {
+TVM_DLL uint32_t FloatToNotBFloat16_wrapper(float in) {
+  uint32_t out;
+  FloatToNotBFloat16(&in, &out, 1);
+  return out;
+}
+
+TVM_DLL float NotBFloat16ToFloat_wrapper(uint32_t in) {
+  float out;
+  NotBFloat16ToFloat(&in, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t IntToNotBFloat16_wrapper(int in) {
+  uint32_t out;
+  float in_f = (float)in;
+  FloatToNotBFloat16(&in_f, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Add_wrapper(uint32_t a, uint32_t b) {
+  uint32_t out;
+  NotBFloat16Add(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Sub_wrapper(uint32_t a, uint32_t b) {
+  uint32_t out;
+  NotBFloat16Sub(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Mul_wrapper(uint32_t a, uint32_t b) {
+  uint32_t out;
+  NotBFloat16Mul(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Div_wrapper(uint32_t a, uint32_t b) {
+  uint32_t out;
+  NotBFloat16Div(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Max_wrapper(uint32_t a, uint32_t b) {
+  uint32_t out;
+  NotBFloat16Max(&a, &b, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Sqrt_wrapper(uint32_t a) {
+  uint32_t out;
+  NotBFloat16Sqrt(&a, &out, 1);
+  return out;
+}
+
+TVM_DLL uint32_t NotBFloat16Exp_wrapper(uint32_t a) {
+  uint32_t out;
+  NotBFloat16Exp(&a, &out, 1);
+  return out;
+}
+}
