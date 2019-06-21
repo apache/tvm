@@ -255,6 +255,91 @@ def test_change_dtype_mobilenet():
         result = ex.evaluate()(input, **params)
 
 
+
+def test_conv2d():
+    def run_test_conv2d(src_dtype,
+                        dst_dtype,
+                        scale,
+                        dshape,
+                        kshape,
+                        padding=(1, 1),
+                        fref=None,
+                        groups=1,
+                        dilation=(1, 1),
+                        except_targets=None,
+                        **attrs):
+        if except_targets is None:
+            except_targets = []
+
+        x = relay.var("x", shape=dshape, dtype=src_dtype)
+        w = relay.var("w", dtype=src_dtype)
+        y = relay.nn.conv2d(
+            x, w, padding=padding, dilation=dilation, groups=groups, **attrs)
+        func = relay.Function([x, w], y)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(src_dtype)
+        kernel = np.random.uniform(
+            -scale, scale, size=kshape).astype(src_dtype)
+        dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
+        if fref is None:
+            ref_res = topi.testing.conv2d_nchw_python(
+                data.astype(src_dtype),
+                dkernel.astype(src_dtype),
+                1,
+                padding,
+                groups=groups)
+        else:
+            ref_res = fref(data.astype(src_dtype), dkernel.astype(src_dtype))
+
+        for target, ctx in [("llvm", tvm.cpu(0))]:
+            if target in except_targets:
+                continue
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            # convert function
+            func, _ = change_dtype(src_dtype, dst_dtype, func, [], intrp1)
+            data_converted = convert_ndarray(dst_dtype, data, intrp1)
+            kernel_converted = convert_ndarray(dst_dtype, kernel, intrp1)
+            with tvm.build_config(disable_vectorize=True):
+                op_res1 = intrp1.evaluate(func)(data_converted, kernel_converted)
+            op_res1_converted = convert_ndarray(src_dtype, op_res1, intrp1)
+            # TODO(gus) previous rtol, atol 1e-5
+            tvm.testing.assert_allclose(
+                op_res1_converted.asnumpy(), ref_res, rtol=0.5, atol=0.5)
+
+    # depthwise conv2d
+    dshape = (1, 32, 18, 18)
+    kshape = (32, 1, 3, 3)
+    run_test_conv2d("float32", "custom[bfloat]16", 1, dshape, kshape,
+                    padding=(1, 1), channels=32, groups=32, kernel_size=(3 ,3),
+                    fref=lambda x, w: topi.testing.depthwise_conv2d_python_nchw(
+                        x, w, (1, 1), "SAME"))
+
+    # CUDA is disabled for 'direct' schedule:
+    # https://github.com/dmlc/tvm/pull/3070#issuecomment-486597553
+    # group conv2d
+    dshape = (1, 32, 18, 18)
+    kshape = (32, 4, 3, 3)
+    run_test_conv2d("float32", "custom[bfloat]16", 1, dshape, kshape,
+                    padding=(1, 1), channels=32, groups=8, kernel_size=(3 ,3),
+                    except_targets=['cuda'])
+    # also group conv2d
+    dshape = (1, 32, 18, 18)
+    kshape = (64, 1, 3, 3)
+    run_test_conv2d("float32", "custom[bfloat]16", 1, dshape, kshape,
+                    padding=(1, 1), channels=64, groups=32, kernel_size=(3 ,3),
+                    except_targets=['cuda'])
+
+    # normal conv2d
+    dshape = (1, 3, 224, 224)
+    kshape = (10, 3, 3, 3)
+    run_test_conv2d("float32", "custom[bfloat]16", 1, dshape, kshape,
+                    padding=(1, 1), channels=10, kernel_size=(3 ,3))
+
+    # dilated conv2d
+    dshape = (1, 3, 18, 18)
+    kshape = (10, 3, 3, 3)
+    run_test_conv2d("float32", "custom[bfloat]16", 1, dshape, kshape,
+                    padding=(1, 1), channels=10, kernel_size=(3 ,3), dilation=(3, 3))
+
 if __name__ == "__main__":
     setup()
     test_change_dtype_inception_v3()
