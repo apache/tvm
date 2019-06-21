@@ -81,6 +81,55 @@ def setup():
         "bfloat",
         intrinsic_name="exp")
 
+    tvm.datatype.register("notbfloat", 130)
+
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("FloatToNotBFloat16_wrapper"), "Cast",
+        "llvm", "notbfloat", "float")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("NotBFloat16ToFloat_wrapper"), "Cast",
+        "llvm", "float", "notbfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("IntToNotBFloat16_wrapper"), "Cast",
+        "llvm", "notbfloat", "int")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("NotBFloat16Add_wrapper"), "Add",
+        "llvm", "notbfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("NotBFloat16Sub_wrapper"), "Sub",
+        "llvm", "notbfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("FloatToNotBFloat16_wrapper"),
+        "FloatImm", "llvm", "notbfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("NotBFloat16Mul_wrapper"), "Mul",
+        "llvm", "notbfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("NotBFloat16Div_wrapper"), "Div",
+        "llvm", "notbfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("NotBFloat16Max_wrapper"), "Max",
+        "llvm", "notbfloat")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("NotBFloat16Sqrt_wrapper"),
+        "Call",
+        "llvm",
+        "notbfloat",
+        intrinsic_name="sqrt")
+    # TODO(gus) not sure if this will work...
+    tvm.datatype.register_op(
+        tvm.datatype.lower_ite,
+        "Call",
+        "llvm",
+        "notbfloat",
+        intrinsic_name="tvm_if_then_else")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("NotBFloat16Exp_wrapper"),
+        "Call",
+        "llvm",
+        "notbfloat",
+        intrinsic_name="exp")
+
 
 def convert_ndarray(dst_dtype, array, executor):
     x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
