@@ -364,7 +364,6 @@ class VMCompiler : ExprFunctor<void(const Expr& expr)> {
   void VisitExpr_(const LetNode* let_node) {
     DLOG(INFO) << let_node->value;
     this->VisitExpr(let_node->value);
-    DLOG(INFO) << this->last_register_;
     var_register_map_.insert({let_node->var, this->last_register_});
     this->VisitExpr(let_node->body);
   }
@@ -648,23 +647,21 @@ class VMCompiler : ExprFunctor<void(const Expr& expr)> {
  protected:
   /*! \brief Store the expression a variable points to. */
   std::unordered_map<Var, Expr, NodeHash, NodeEqual> expr_map_;
-
+  /*! \brief Instructions in the VMFunction. */
   std::vector<Instruction> instructions_;
-
+  /*! \brief Parameter names of the function. */
   std::vector<std::string> params_;
-
-  // var -> register num
+  /*! \brief Map from var to register number. */
   std::unordered_map<Var, RegName, NodeHash, NodeEqual> var_register_map_;
-
+  /*! \brief Last used register number. */
   size_t last_register_;
-
-  // Total number of virtual registers allocated
+  /*! \brief Total number of virtual registers allocated. */
   size_t registers_num_;
+  /*! \brief Compiler engine to lower primitive functions. */
   CompileEngine engine_;
-
   /*! \brief Global shared meta data */
   VMCompilerContext* context_;
-
+  /*! \brief Target devices. */
   TargetsMap targets_;
 };
 
@@ -805,9 +802,13 @@ class VMBuildModule : public runtime::ModuleNode {
   }
 
  protected:
+  /*! \brief Target devices. */
   TargetsMap targets_;
+  /*! \brief Target host device. */
   tvm::Target target_host_;
+  /*! \brief Global shared meta data */
   VMCompilerContext context_;
+  /*! \brief Compiled virtual machine. */
   std::shared_ptr<VirtualMachine> vm_;
 };
 

@@ -42,8 +42,8 @@ def _update_target(target):
             dev_type = tvm.expr.IntImm("int32", tvm.nd.context(dev).device_type)
             tgts[dev_type] = tvm.target.create(tgt)
     else:
-        raise TypeError("target is expected to be str or " +
-                        "tvm.target.Target, but received " +
+        raise TypeError("target is expected to be str, tvm.target.Target, " +
+                        "or dict of str to str/tvm.target.Target, but received " +
                         "{}".format(type(target)))
     return tgts
 
@@ -134,7 +134,7 @@ class BuildModule(object):
             The Relay module to build.
 
         target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-        device/context name) to str/tvm.target.Target, optional
+            device/context name) to str/tvm.target.Target, optional
             For heterogeneous compilation, it is a dictionary indicating context
             to target mapping. For homogeneous compilation, it is a build target.
 
@@ -178,7 +178,8 @@ class VMExecutor(Executor):
         The target option to build the function.
     """
     def __init__(self, mod, ctx, target):
-        assert mod is not None
+        if mod is None:
+            raise RuntimeError("Must provide module to get VM executor.")
         self.mod = mod
         self.ctx = ctx
         self.target = target

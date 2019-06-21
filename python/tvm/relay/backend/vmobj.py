@@ -22,13 +22,15 @@ from tvm._ffi.vmobj import Object, ObjectTag, register_object
 from tvm import ndarray as _nd
 from . import _vmobj
 
+# TODO(@icemelon9): Add ClosureObject
+
 @register_object
 class TensorObject(Object):
     """Tensor object."""
     tag = ObjectTag.TENSOR
 
     def __init__(self, handle):
-        """Constructs a tensor object
+        """Constructs a Tensor object
 
         Parameters
         ----------
@@ -60,7 +62,7 @@ class DatatypeObject(Object):
     tag = ObjectTag.DATATYPE
 
     def __init__(self, handle):
-        """Constructs a tensor object
+        """Constructs a Datatype object
 
         Parameters
         ----------
@@ -69,8 +71,8 @@ class DatatypeObject(Object):
 
         Returns
         -------
-        obj : TensorObject
-            A tensor object.
+        obj : DatatypeObject
+            A Datatype object.
         """
         super(DatatypeObject, self).__init__(handle)
         self.tag = _vmobj.GetDatatypeTag(self)

@@ -22,7 +22,6 @@ import numpy as np
 from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
-#from tvm.relay.vm import BuildModule
 
 def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
