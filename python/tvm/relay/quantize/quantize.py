@@ -163,7 +163,7 @@ def qconfig(**kwargs):
 
 
 class AnnotateContext(object):
-    # a global singleton annotate scope
+    """A global singleton annotate scope"""
     Current = None
 
     def __init__(self):
@@ -192,7 +192,7 @@ def annotate_context():
         AnnotateContext.Current = AnnotateContext()
     return AnnotateContext.Current
 
-  
+
 def calibrate(graph, mod=None, ctx=None):
     """The calibrate procedure will try to calculate the content of
     dom_scale, nbit, clip_min, clip_max for every `simulated_quantize`
