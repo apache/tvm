@@ -43,14 +43,9 @@ class ParseError(Exception):
 
 PYTHON_VERSION = sys.version_info.major
 try:
-    if PYTHON_VERSION == 2:
-        from .grammar.py2.RelayVisitor import RelayVisitor
-        from .grammar.py2.RelayParser import RelayParser
-        from .grammar.py2.RelayLexer import RelayLexer
-    else:
-        from .grammar.py3.RelayVisitor import RelayVisitor
-        from .grammar.py3.RelayParser import RelayParser
-        from .grammar.py3.RelayLexer import RelayLexer
+    from .grammar.py3.RelayVisitor import RelayVisitor
+    from .grammar.py3.RelayParser import RelayParser
+    from .grammar.py3.RelayLexer import RelayLexer
 except ImportError:
     raise ParseError("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
 
