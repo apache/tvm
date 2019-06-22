@@ -130,6 +130,54 @@ def setup():
         "notbfloat",
         intrinsic_name="exp")
 
+    tvm.datatype.register("posit", 131)
+
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("FloatToPosit16es1"), "Cast",
+        "llvm", "posit", "float")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("Posit16es1ToFloat"), "Cast",
+        "llvm", "float", "posit")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("IntToPosit16es1"), "Cast",
+        "llvm", "posit", "int")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("Posit16es1Add"), "Add",
+        "llvm", "posit")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("Posit16es1Sub"), "Sub",
+        "llvm", "posit")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("FloatToPosit16es1"),
+        "FloatImm", "llvm", "posit")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("Posit16es1Mul"), "Mul",
+        "llvm", "posit")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("Posit16es1Div"), "Div",
+        "llvm", "posit")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("Posit16es1Max"), "Max",
+        "llvm", "posit")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("Posit16es1Sqrt"),
+        "Call",
+        "llvm",
+        "posit",
+        intrinsic_name="sqrt")
+    # TODO(gus) not sure if this will work...
+    tvm.datatype.register_op(
+        tvm.datatype.lower_ite,
+        "Call",
+        "llvm",
+        "posit",
+        intrinsic_name="tvm_if_then_else")
+    tvm.datatype.register_op(
+        tvm.datatype.create_lower_func("Posit16es1Exp"),
+        "Call",
+        "llvm",
+        "posit",
+        intrinsic_name="exp")
 
 def convert_ndarray(dst_dtype, array, executor):
     x = relay.var('x', shape=array.shape, dtype=str(array.dtype))
@@ -447,6 +495,10 @@ if __name__ == "__main__":
     setup()
     # test_conv2d()
     test_ops('float32', 'custom[bfloat]16')
+    test_ops('float32', 'custom[posit]16')
+    test_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]16')
+    # test_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]16')
+    # test_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]16')
     # test_change_dtype_inception_v3()
     # test_change_dtype_simple()
     # test_change_dtype_mobilenet()

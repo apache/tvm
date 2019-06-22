@@ -56,6 +56,7 @@ include_directories("3rdparty/dlpack/include")
 include_directories("3rdparty/dmlc-core/include")
 include_directories("3rdparty/rang/include")
 include_directories("3rdparty/compiler-rt")
+include_directories("3rdparty/universal")
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -154,6 +155,7 @@ if(NOT USE_RTTI)
 endif()
 
 list(APPEND RUNTIME_SRCS 3rdparty/bfloat16/bfloat16.cc)
+list(APPEND RUNTIME_SRCS 3rdparty/posit/posit-wrapper.cc)
 
 if(USE_RPC)
   message(STATUS "Build with RPC support...")

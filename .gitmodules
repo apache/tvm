@@ -10,3 +10,6 @@
 [submodule "3rdparty/rang"]
 	path = 3rdparty/rang
 	url = https://github.com/agauniyal/rang
+[submodule "3rdparty/universal"]
+	path = 3rdparty/universal
+	url = https://github.com/stillwater-sc/universal
