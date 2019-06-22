@@ -337,16 +337,15 @@ def quantize(graph, params=None, dataset=None):
 
     calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
                                               name="QuantizeCalibrate")
-    _set_conv_counter(0)  # reset counter
     quantize_seq = _transform.Sequential([annotate(),
                                           calibrate_pass,
                                           realize(),
                                           _transform.FoldConstant()])
-    with _transform.PassContext(opt_level=3,
-                                required_pass=["QuantizeAnnotate",
-                                               "QuantizeCalibrate",
-                                               "QuantizeRealize"]):
-        mod = optimize(mod)
-        with annotate_context():
+    with annotate_context():
+        with _transform.PassContext(opt_level=3,
+                                    required_pass=["QuantizeAnnotate",
+                                                   "QuantizeCalibrate",
+                                                   "QuantizeRealize"]):
+            mod = optimize(mod)
             mod = quantize_seq(mod)
     return mod[mod.entry_func.name_hint]
