@@ -231,8 +231,12 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const GlobalVarNode* gvar) {
-    // TODO(wweic): Support Load GlobalVar into a register
-    LOG(FATAL) << "Loading GlobalVar into register is not yet supported";
+    auto var = GetRef<GlobalVar>(gvar);
+    auto func = this->context->module->Lookup(var);
+    auto it = this->context->global_map.find(var);
+    CHECK(it != this->context->global_map.end());
+    // Allocate closure with zero free vars
+    Emit(Instruction::AllocClosure(it->second, 0, {}, NewRegister()));
   }
 
   void VisitExpr_(const IfNode* if_node) {
