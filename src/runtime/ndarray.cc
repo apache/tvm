@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -46,7 +46,7 @@ inline void VerifyDataType(DLDataType dtype) {
   CHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
-inline size_t GetDataAlignment(const DLTensor& arr) {
+size_t GetDataAlignment(const DLTensor& arr) {
   size_t align = (arr.dtype.bits / 8) * arr.dtype.lanes;
   if (align < kAllocAlignment) return kAllocAlignment;
   return align;
