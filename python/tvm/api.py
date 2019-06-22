@@ -319,7 +319,8 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
                                                  out_ndim,
                                                  body.intrin,
                                                  body.tensors,
-                                                 body.regions)
+                                                 body.regions,
+                                                 body.scalar_inputs)
     else:
         if not isinstance(body, (list, tuple)):
             body = [body]

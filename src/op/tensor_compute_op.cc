@@ -58,7 +58,8 @@ Operation TensorComputeOpNode::make(std::string name,
                                     int schedulable_ndim,
                                     TensorIntrin intrin,
                                     Array<Tensor> tensors,
-                                    Array<Region> regions) {
+                                    Array<Region> regions,
+                                    Array<Expr> scalar_inputs) {
   auto n = make_node<TensorComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
@@ -68,6 +69,7 @@ Operation TensorComputeOpNode::make(std::string name,
   n->intrin = std::move(intrin);
   n->inputs = std::move(tensors);
   n->input_regions = std::move(regions);
+  n->scalar_inputs = std::move(scalar_inputs);
   return Operation(n);
 }
 
@@ -183,6 +185,19 @@ Stmt TensorComputeOpNode::BuildProvide(
   // Check variable remap
   std::unordered_map<const Variable*, Expr> vmap;
   ir::ArgBinder binder(&vmap);
+
+  // Map the expressions passed in the call to the TensorIntrin, to the placeholder
+  // variables
+  Array<Expr> user_expr = this->scalar_inputs;
+  Array<Var> scalar_params = this->intrin->scalar_params;
+  Array<Expr> sp_expr;
+  for (auto sp : scalar_params) {
+    Expr esp = sp;
+    sp_expr.push_back(esp);
+  }
+  CHECK_EQ(sp_expr.size(), user_expr.size());
+  // TODO(jdavies-huawei): what name should be used here?
+  binder.BindArray(sp_expr, user_expr, this->name);
 
   size_t tloc = stage->leaf_iter_vars.size();
   ComputeLoopNest n = ComputeLoopNest::make(this, stage, dom_map, debug_keep_trivial_loop);
