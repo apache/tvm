@@ -81,7 +81,7 @@ def test_quantize_pass():
     graph = make_graph(data)
     dataset, params = make_dataset(graph, 10)
 
-    with qtz.qconfig(skip_k_conv=0, global_scale=4.0,
+    with qtz.qconfig(skip_conv_layers=None, global_scale=4.0,
                      round_for_shift=False, store_lowbit_output=False):
         qgraph0 = qtz.quantize(graph, params)
         qgraph0 = relay.ir_pass.infer_type(qgraph0)

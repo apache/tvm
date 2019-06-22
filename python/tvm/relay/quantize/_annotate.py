@@ -22,7 +22,7 @@ import warnings
 import topi
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig
-from .quantize import _conv_counter, _set_conv_counter
+from .quantize import annotate_context
 from .. import expr as _expr
 from .. import op as _op
 from ..op import op as _reg
@@ -116,7 +116,6 @@ def register_annotate_function(op_name, frewrite=None, level=10):
     return _register(frewrite) if frewrite is not None else _register
 
 
-@register_func("relay.quantize.attach_simulated_quantize")
 def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     """Attach a simulated quantize operation after input data expr.
 
@@ -133,11 +132,20 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
         if data.attrs.kind == kind and data.attrs.sign == sign and data.attrs.rounding == rounding:
             return data
 
+    actx = annotate_context()
+    key = tuple([data, kind, sign, rounding])
+    if key in actx.qnode_map:
+        return actx.qnode_map[key]
+
     dom_scale = _expr.var("dom_scale")
     clip_min = _expr.var("clip_min")
     clip_max = _expr.var("clip_max")
-    return _quantize.simulated_quantize(
+    qnode = _quantize.simulated_quantize(
         data, dom_scale, clip_min, clip_max, kind, sign, rounding)
+    actx.qnode_map[key] = qnode
+    return qnode
+
+register_func("relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
 
 
 @register_annotate_function("nn.contrib_conv2d_NCHWc")
@@ -152,18 +160,13 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     """Rewrite function for conv2d. Lhs of conv will be quantized to
     input field, and rhs of conv will be quantized to weight field.
     Output would be in activation field"""
-    cnt = _conv_counter()
-    if cnt < current_qconfig().skip_k_conv:
-        _set_conv_counter(cnt + 1)
-        return None
-
+    actx = annotate_context()
     if current_qconfig().skip_conv_layers is not None:
-        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if cnt in leave_alone_indices:
-            _set_conv_counter(cnt + 1)
+        skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if actx.conv2d_counter() in skipped_indices:
+            actx.count_conv2d()
             return None
-
-    _set_conv_counter(cnt + 1)
+    actx.count_conv2d()
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -179,17 +182,21 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
+def check_to_skip():
+    """Check the index of conv2d layer to decide whether to skip the current operator."""
+    if current_qconfig().skip_conv_layers is not None:
+        skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if annotate_context().conv2d_counter() - 1 in skipped_indices:
+            return True
+    return False
+
+
 @register_annotate_function("nn.dense")
 def dense_rewrite(ref_call, new_args, ctx):
     """Rewrite function for dense. Lhs of dense will be quantized to input field, and rhs of
     dense will be quantized to weight field. Output would be in activation field."""
-    cnt = _conv_counter()
-    if cnt < current_qconfig().skip_k_conv:
+    if check_to_skip():
         return None
-    if current_qconfig().skip_conv_layers is not None:
-        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if cnt - 1 in leave_alone_indices:
-            return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -207,13 +214,8 @@ def dense_rewrite(ref_call, new_args, ctx):
 @register_annotate_function("multiply")
 def multiply_rewrite(ref_call, new_args, ctx):
     """Rewrite function for multiply."""
-    cnt = _conv_counter()
-    if cnt <= current_qconfig().skip_k_conv:
+    if check_to_skip():
         return None
-    if current_qconfig().skip_conv_layers is not None:
-        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if cnt - 1 in leave_alone_indices:
-            return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -234,13 +236,8 @@ def multiply_rewrite(ref_call, new_args, ctx):
 @register_annotate_function("add")
 def add_rewrite(ref_call, new_args, ctx):
     """Rewrite function for add."""
-    cnt = _conv_counter()
-    if cnt <= current_qconfig().skip_k_conv:
+    if check_to_skip():
         return None
-    if current_qconfig().skip_conv_layers is not None:
-        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if cnt - 1 in leave_alone_indices:
-            return None
 
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
@@ -265,15 +262,25 @@ def add_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
+@register_annotate_function("stop_fusion")
+def stop_fusion_rewrite(ref_call, new_args, ctx):
+    """Rewrite function for add."""
+    if check_to_skip():
+        return None
+
+    x_expr, x_kind = _get_expr_kind(new_args[0])
+    if x_kind is None:
+        return None
+
+    ret_expr = attach_simulated_quantize(x_expr, QAnnotateKind.INPUT)
+    ret_expr = _forward_op(ref_call, [ret_expr])
+    return QAnnotateExpr(ret_expr, QAnnotateKind.INPUT)
+
+
 def identity_rewrite(ref_call, new_args, ctx):
     """Simply forward the original operation"""
-    cnt = _conv_counter()
-    if cnt <= current_qconfig().skip_k_conv:
+    if check_to_skip():
         return None
-    if current_qconfig().skip_conv_layers is not None:
-        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if cnt - 1 in leave_alone_indices:
-            return None
 
     x_expr, x_kind = _get_expr_kind(new_args[0])
     if x_kind is None:
@@ -283,6 +290,7 @@ def identity_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(ret_expr, x_kind)
 
 
+register_annotate_function("clip", identity_rewrite)
 register_annotate_function("nn.relu", identity_rewrite)
 register_annotate_function("strided_slice", identity_rewrite)
 register_annotate_function("nn.avg_pool2d", identity_rewrite)
@@ -290,13 +298,8 @@ register_annotate_function("nn.avg_pool2d", identity_rewrite)
 
 def pool2d_rewrite(ref_call, new_args, ctx):
     """Rewrite function for max pool2d"""
-    cnt = _conv_counter()
-    if cnt <= current_qconfig().skip_k_conv:
+    if check_to_skip():
         return None
-    if current_qconfig().skip_conv_layers is not None:
-        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if cnt - 1 in leave_alone_indices:
-            return None
 
     expr, x_kind = _get_expr_kind(new_args[0])
 
@@ -314,13 +317,8 @@ register_annotate_function("nn.max_pool2d", pool2d_rewrite)
 @register_annotate_function("concatenate")
 def concatenate_rewrite(ref_call, new_args, ctx):
     """Rewrite function for concatenate"""
-    cnt = _conv_counter()
-    if cnt <= current_qconfig().skip_k_conv:
+    if check_to_skip():
         return None
-    if current_qconfig().skip_conv_layers is not None:
-        leave_alone_indices = [int(x) for x in current_qconfig().skip_conv_layers]
-        if cnt - 1 in leave_alone_indices:
-            return None
 
     input_tuple = new_args[0]
     expr_list = [_get_expr_kind(x)[0] for x in input_tuple]
