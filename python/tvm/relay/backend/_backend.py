@@ -17,7 +17,6 @@
 """The interface of expr function exposed from C++."""
 from __future__ import absolute_import
 
-import logging
 from ... import build_module as _build
 from ... import container as _container
 from ..._ffi.function import _init_api, register_func
