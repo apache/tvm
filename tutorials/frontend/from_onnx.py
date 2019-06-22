@@ -71,16 +71,16 @@ target = 'llvm'
 
 input_name = '1'
 shape_dict = {input_name: x.shape}
-sym, params = relay.frontend.from_onnx(onnx_model, shape_dict)
+mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
 with relay.build_config(opt_level=1):
-    intrp = relay.build_module.create_executor('graph', sym, tvm.cpu(0), target)
+    intrp = relay.build_module.create_executor('graph', mod, tvm.cpu(0), target)
 
 ######################################################################
 # Execute on TVM
 # ---------------------------------------------
 dtype = 'float32'
-tvm_output = intrp.evaluate(sym)(tvm.nd.array(x.astype(dtype)), **params).asnumpy()
+tvm_output = intrp.evaluate()(tvm.nd.array(x.astype(dtype)), **params).asnumpy()
 
 ######################################################################
 # Display results

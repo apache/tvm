@@ -23,6 +23,7 @@ import tvm
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
+from .. import module as _module
 from ... import nd as _nd
 
 from .common import StrAttrsDict
@@ -93,6 +94,15 @@ def _mx_compare(new_op, wrapper):
     return impl
 
 
+def _mx_zeros(inputs, attrs):
+    assert len(inputs) == 0
+    shape = attrs.get_int_tuple("shape")
+    dtype = attrs.get_str("dtype", "float32")
+    if 0 in shape:
+        return None
+    return _op.zeros(shape=shape, dtype=dtype)
+
+
 def _mx_conv2d(inputs, attrs):
     kernel_size = attrs.get_int_tuple("kernel")
     if len(kernel_size) != 2:
@@ -149,7 +159,7 @@ def _mx_conv2d_transpose(inputs, attrs):
     new_attrs["groups"] = attrs.get_int("num_group", 1)
     new_attrs["data_layout"] = data_layout
     new_attrs["kernel_layout"] = kernel_layout
-    use_bias = not attrs.get_bool("no_bias", False)
+    use_bias = not attrs.get_bool("no_bias", True)
     res = _op.nn.conv2d_transpose(inputs[0], inputs[1], **new_attrs)
 
     if use_bias:
@@ -277,6 +287,28 @@ def _mx_slice_axis(inputs, attrs):
     return _op.strided_slice(inputs[0], begin, end)
 
 
+def _mx_crop_like(inputs, attrs):
+    if len(inputs) < 2:
+        raise tvm.error.OpAttributeUnimplemented(
+            "Only support crop_like pattern for operator Crop.")
+    if attrs.get_bool("center_crop", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            "Center crop is not supported in operator Crop.")
+    if attrs.get_int_tuple("h_w", (0, 0)) != (0, 0):
+        raise tvm.error.OpAttributeUnimplemented(
+            "Doesn't support h_w in operator Crop.")
+    offset = attrs.get_int_tuple("offset", (0, 0))
+    new_attrs = {}
+    if offset == (0, 0):
+        new_attrs["axes"] = (2, 3)
+        return _op.slice_like(*inputs, **new_attrs)
+    like_shape = ir_pass.infer_type(inputs[1]).checked_type.shape
+    new_attrs['begin'] = [0, 0, offset[0], offset[1]]
+    new_attrs['end'] = [like_shape[0], like_shape[1], offset[0]+like_shape[2],
+                        offset[1]+like_shape[3]]
+    return _op.strided_slice(inputs[0], **new_attrs)
+
+
 def _mx_split(inputs, attrs):
     axis = attrs.get_int("axis", 1)
     new_attrs = {}
@@ -298,6 +330,10 @@ def _mx_softmax_output(inputs, attrs):
     if attrs.get_bool("multi_output", False):
         return _op.nn.softmax(inputs[0], axis=1)
     return _op.nn.softmax(inputs[0])
+
+
+def _mx_linear_regression_output(inputs, _):
+    return inputs[0]
 
 
 def _mx_concat(inputs, attrs):
@@ -543,7 +579,8 @@ def _mx_box_nms(inputs, attrs):
         raise tvm.error.OpAttributeInvalid(
             'Value of attribute "out_format" must equal "corner" for operator box_nms.')
 
-    ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
+    ret = _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh,
+                                      id_index=id_index, score_index=score_index)
     nms_out = _op.vision.non_max_suppression(ret[1],
                                              ret[0],
                                              iou_threshold=iou_thresh,
@@ -657,6 +694,21 @@ def _mx_argsort(inputs, attrs):
     return _op.argsort(inputs[0], **new_attrs)
 
 
+def _mx_topk(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["k"] = attrs.get_int("k", 1)
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["is_ascend"] = attrs.get_bool("is_ascend", True)
+    ret_type = attrs.get_str("ret_typ", "indices")
+    if ret_type == "mask":
+        raise tvm.error.OpAttributeUnimplemented(
+            "Attribute ret_type=mask is not supported in topk operator")
+    new_attrs["ret_type"] = "values" if ret_type == "value" else ret_type
+    new_attrs["dtype"] = attrs.get_str("dtype", "float32")
+    return _op.topk(inputs[0], **new_attrs)
+
+
 def _mx_rnn_param_concat(inputs, _):
     # We don't need to concatenate RNN params because we will unravel the RNN op
     return [inputs]
@@ -712,9 +764,30 @@ def _mx_rnn_layer(inputs, attrs):
 
     seq_data = inputs[0]
     concat_weight = inputs[1]
-    concat_states = inputs[2:]
-    seq_len = int(ir_pass.infer_type(seq_data).checked_type.shape[0])
+    init_states = inputs[2:]
+
+    data_shape = ir_pass.infer_type(seq_data).checked_type.shape
+    seq_len = int(data_shape[0])
     assert len(concat_weight) == num_layers * 4
+    output_states = True
+    for idx, state in enumerate(init_states[:]):
+        if isinstance(state, dict):
+            node = state
+            attrs = StrAttrsDict(node.get("attrs", {}))
+            op_name = node["op"]
+            # by default, RNN layer uses zeros to initialize states
+            assert op_name == "_zeros"
+            shape = attrs.get_int_tuple("shape")
+            dtype = attrs.get_str("dtype", "float32")
+            init_layout = attrs.get_str("__layout__")
+            new_shape = list(shape)
+            for i, dim in enumerate(shape):
+                if dim == 0:
+                    axis = layout.find(init_layout[i])
+                    assert axis >= 0
+                    new_shape[i] = int(data_shape[axis])
+            init_states[idx] = _op.zeros(new_shape, dtype)
+            output_states = False
 
     weights = []
     bias = []
@@ -726,7 +799,7 @@ def _mx_rnn_layer(inputs, attrs):
         for j in range(2):
             w.append(concat_weight[i*2 + j].args[0])
             b.append(concat_weight[num_layers*2 + i*2 + j].args[0])
-        for state in concat_states:
+        for state in init_states:
             s.append(_op.take(state, _expr.const(i, "int32"), axis=0))
         weights.append(w)
         bias.append(b)
@@ -747,8 +820,9 @@ def _mx_rnn_layer(inputs, attrs):
         seq_output.append(out)
 
     outputs = [_op.stack(seq_output, axis=0)]
-    for i in range(num_states):
-        outputs.append(_op.stack([s[i] for s in states], axis=0))
+    if output_states:
+        for i in range(num_states):
+            outputs.append(_op.stack([s[i] for s in states], axis=0))
     return outputs
 
 
@@ -839,7 +913,6 @@ _convert_map = {
     "argmin"        : _arg_reduce(_op.argmin),
     # init ops
     "_ones"         : _init_op(_op.ones),
-    "_zeros"        : _init_op(_op.zeros),
     # softmax
     "softmax"       : _softmax_op(_op.nn.softmax),
     "log_softmax"   : _softmax_op(_op.nn.log_softmax),
@@ -853,6 +926,7 @@ _convert_map = {
     "UpSampling"    : _upsampling,
     "add_n"         : _elemwise_sum,
     # MXNet specific implementations
+    "_zeros"        : _mx_zeros,
     "FullyConnected": _mx_fully_connected,
     "Activation"    : _mx_activations,
     "Convolution"   : _mx_conv2d,
@@ -888,8 +962,10 @@ _convert_map = {
     "shape_array"   : _mx_shape_array,
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
+    "topk"          : _mx_topk,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
+    "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
@@ -905,18 +981,20 @@ _convert_map = {
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,
+    # Depricated:
+    "Crop"              : _mx_crop_like,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
-    # "Crop"          : _crop_like,
 }
 
 # set identity list
 _convert_map.update({k : _rename(k) for k in _identity_list})
 
 
-def _from_mxnet_impl(symbol, shape_dict, dtype_info):
+def _from_mxnet_impl(symbol, shape_dict, dtype_info, mod=None):
+    #pylint: disable=unused-argument
     """Convert mxnet symbol to compatible relay Function.
 
     Reconstruct a relay Function by traversing the mxnet symbol.
@@ -932,6 +1010,10 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
 
     dtype_info : dict or str.
         Known parameter dtypes
+
+    mod : tvm.relay.Module
+        The module that contains global information. It will be used for
+        converting ops that need global information, e.g. control-flow ops.
 
     Returns:
     -------
@@ -957,7 +1039,10 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]
         elif op_name in _convert_map:
             res = _convert_map[op_name](children, attrs)
-            if isinstance(res, (_expr.TupleWrapper, tuple, list)):
+            if res is None:
+                # defer conversion, used in RNN state initialization
+                res = [node]
+            elif isinstance(res, (_expr.TupleWrapper, tuple, list)):
                 pass
             elif isinstance(res, _expr.Expr):
                 res = [res]
@@ -1018,8 +1103,8 @@ def from_mxnet(symbol,
 
     Returns
     -------
-    sym : tvm.relay.Function
-        Compatible relay Function
+    mod : tvm.relay.Module
+        The relay module for compilation
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by nnvm
@@ -1029,6 +1114,7 @@ def from_mxnet(symbol,
     except ImportError as e:
         raise ImportError("{}. MXNet is required to parse symbols.".format(e))
 
+    mod = _module.Module()
     if isinstance(symbol, mx.sym.Symbol):
         params = {}
         arg_params = arg_params if arg_params else {}
@@ -1038,7 +1124,7 @@ def from_mxnet(symbol,
         for k, v in aux_params.items():
             params[k] = _nd.array(v.asnumpy())
         shape, dtype = _update_shape_dtype(shape, dtype, params)
-        sym = _from_mxnet_impl(symbol, shape, dtype)
+        func = _from_mxnet_impl(symbol, shape, dtype, mod)
     elif isinstance(symbol, mx.gluon.HybridBlock):
         if arg_params is not None or aux_params is not None:
             raise ValueError("arg_params and aux_params ae not used when importing HybridBlock")
@@ -1050,10 +1136,11 @@ def from_mxnet(symbol,
         if isinstance(sym, (list, tuple)):
             sym = mx.sym.Group(sym)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
-        sym = _from_mxnet_impl(sym, shape, dtype)
+        func = _from_mxnet_impl(sym, shape, dtype, mod)
     elif isinstance(symbol, mx.gluon.Block):
         raise NotImplementedError("Only Hybrid Blocks are supported now.")
     else:
         msg = "mxnet.Symbol or gluon.HybridBlock expected, got {}".format(type(symbol))
         raise ValueError(msg)
-    return sym, params
+    mod[mod.entry_func] = func
+    return mod, params

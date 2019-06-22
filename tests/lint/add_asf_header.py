@@ -117,6 +117,7 @@ header_groovystyle = """
 """.strip()
 
 FMT_MAP = {
+    "sh" : header_pystyle,
     "cc" : header_cstyle,
     "h" : header_cstyle,
     "py" : header_pystyle,
@@ -128,6 +129,7 @@ FMT_MAP = {
     "cmake" : header_pystyle,
     "rst" : header_rststyle,
     "gradle" : header_groovystyle,
+    "xml": header_mdstyle,
 }
 
 def add_header(fname, header):
@@ -142,8 +144,23 @@ def add_header(fname, header):
         return
 
     with open(fname, "w") as outfile:
-        outfile.write(header + "\n\n")
-        outfile.write(orig)
+        skipline = False
+        lines = orig.split('\n')
+        ext = os.path.splitext(fname)[1][1:]
+        if ext == 'sh' and lines[0][:2] == '#!':
+            skipline = True
+        elif ext == 'xml' and lines[0][:2] == '<?':
+            skipline = True
+
+        if skipline:
+            outfile.write(lines[0] + "\n")
+            outfile.write(header + "\n\n")
+            outfile.write("\n".join(lines[1:]))
+            outfile.write(header + "\n\n")
+            outfile.write(orig)
+        else:
+            outfile.write(header + "\n\n")
+            outfile.write(orig)
     print("Add header to %s" % fname)
 
 
@@ -160,6 +177,8 @@ def main(args):
         suffix = fname.split(".")[-1]
         if suffix in FMT_MAP:
             add_header(fname, FMT_MAP[suffix])
+        elif os.path.basename(fname) == 'gradle.properties':
+            add_header(fname, FMT_MAP['h'])
         else:
             print("Cannot handle %s ..." % fname)
 

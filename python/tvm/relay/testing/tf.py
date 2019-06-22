@@ -163,13 +163,10 @@ def get_workload_official(model_url, model_sub_path):
     model_sub_path:
         Sub path in extracted tar for the ftozen protobuf file.
 
-    temp_dir: TempDirectory
-        The temporary directory object to download the content.
-
     Returns
     -------
-    graph_def: graphdef
-        graph_def is the tensorflow workload for mobilenet.
+    model_path: str
+        Full path to saved model file
 
     """
 
@@ -200,7 +197,7 @@ def get_workload(model_path, model_sub_path=None):
     Returns
     -------
     graph_def: graphdef
-        graph_def is the tensorflow workload for mobilenet.
+        graph_def is the tensorflow workload.
 
     """
 

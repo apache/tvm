@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -39,6 +39,7 @@ TVM_REGISTER_API("arith.intset_vector")
 TVM_REGISTER_API("arith.intset_interval")
 .set_body_typed(IntSet::interval);
 
+
 TVM_REGISTER_API("arith.DetectLinearEquation")
 .set_body_typed(DetectLinearEquation);
 
@@ -58,7 +59,6 @@ TVM_REGISTER_API("arith.DeduceBound")
 TVM_REGISTER_API("arith.DomainTouched")
 .set_body_typed(DomainTouched);
 
-
 TVM_REGISTER_API("_IntervalSetGetMin")
 .set_body_method(&IntSet::min);
 
@@ -71,11 +71,19 @@ TVM_REGISTER_API("_IntSetIsNothing")
 TVM_REGISTER_API("_IntSetIsEverything")
 .set_body_method(&IntSet::is_everything);
 
+ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
+  return ConstIntBound(min_value, max_value);
+}
+
 TVM_REGISTER_API("arith._make_ConstIntBound")
-.set_body_typed(ConstIntBoundNode::make);
+.set_body_typed(MakeConstIntBound);
+
+ModularSet MakeModularSet(int64_t coeff, int64_t base) {
+  return ModularSet(coeff, base);
+}
 
 TVM_REGISTER_API("arith._make_ModularSet")
-.set_body_typed(ModularSetNode::make);
+.set_body_typed(MakeModularSet);
 
 TVM_REGISTER_API("arith._CreateAnalyzer")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -103,6 +111,10 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             *ret = self->canonical_simplify(args[0]);
         });
+      } else if (name == "int_set") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            *ret = self->int_set(args[0], args[1]);
+        });
       } else if (name == "bind") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             auto& sptr = args[1].node_sptr();
@@ -116,8 +128,8 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             // can't use make_shared due to noexcept(false) decl in destructor,
             // see https://stackoverflow.com/a/43907314
-            auto ctx =
-                std::shared_ptr<ConstraintContext>(new ConstraintContext(self.get(), args[0]));
+            auto ctx = std::shared_ptr<With<ConstraintContext> >(
+                new With<ConstraintContext>(self.get(), args[0]));
             auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable {
               ctx.reset();
             };

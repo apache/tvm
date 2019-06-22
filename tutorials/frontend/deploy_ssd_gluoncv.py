@@ -47,9 +47,6 @@ from gluoncv import model_zoo, data, utils
 #
 #   To get best performance fo SSD on Intel graphics,
 #   change target argument to 'opencl -device=intel_graphics'
-#
-#   SSD with VGG as body network is not supported yet since
-#   x86 conv2d schedule doesn't support dilation.
 
 supported_model = [
     'ssd_512_resnet50_v1_voc',
@@ -57,6 +54,8 @@ supported_model = [
     'ssd_512_resnet101_v2_voc',
     'ssd_512_mobilenet1.0_voc',
     'ssd_512_mobilenet1.0_coco',
+    'ssd_300_vgg16_atrous_voc'
+    'ssd_512_vgg16_atrous_coco',
 ]
 
 model_name = supported_model[0]
@@ -77,9 +76,9 @@ x, img = data.transforms.presets.ssd.load_test(im_fname, short=512)
 block = model_zoo.get_model(model_name, pretrained=True)
 
 def build(target):
-    net, params = relay.frontend.from_mxnet(block, {"data": dshape})
+    mod, params = relay.frontend.from_mxnet(block, {"data": dshape})
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(net, target, params=params)
+        graph, lib, params = relay.build(mod[mod.entry_func], target, params=params)
     return graph, lib, params
 
 ######################################################################

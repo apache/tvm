@@ -29,7 +29,6 @@
 //! For examples of use, please refer to the multi-file tests in the `tests` directory.
 
 #![feature(
-    alloc,
     allocator_api,
     box_syntax,
     fn_traits,
@@ -77,6 +76,7 @@ pub use tvm_common::{
     packed_func::{self, *},
     TVMArgValue, TVMRetValue,
 };
+pub use tvm_macros::import_module;
 
 pub use self::{array::*, errors::*, graph::*, module::*, threading::*, workspace::*};
 

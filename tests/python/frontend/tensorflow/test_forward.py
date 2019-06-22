@@ -22,8 +22,6 @@ This article is a test script to test tensorflow operator with Relay.
 """
 from __future__ import print_function
 import numpy as np
-import tvm
-from tvm import relay
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
@@ -35,8 +33,9 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import init_ops
-
 from distutils.version import LooseVersion
+import tvm
+from tvm import relay
 import tvm.relay.testing.tf as tf_testing
 
 #######################################################################
@@ -56,31 +55,23 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
     layout = None
     if target == "cuda":
         layout = "NCHW"
-    target_host = 'llvm'
+    target_host = None
 
-    if isinstance(input_data, list):
-        shape_dict = {}
-        dtype_dict = {}
-        for i, e in enumerate(input_node):
-            shape_dict[e] = input_data[i].shape
-            dtype_dict[e] = input_data[i].dtype
-    else:
-        shape_dict = {input_node: input_data.shape}
-        dtype_dict = {input_node: input_data.dtype}
+    shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
 
-    sym, params = relay.frontend.from_tensorflow(graph_def,
+    mod, params = relay.frontend.from_tensorflow(graph_def,
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
     with relay.build_config(opt_level=opt_level):
-        graph, lib, params = relay.build(sym, target, params=params)
+        graph, lib, params = relay.build(mod[mod.entry_func], target, target_host, params)
 
     ctx = tvm.context(target, 0)
     from tvm.contrib import graph_runtime
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
-    for i, e in enumerate(input_node):
-        m.set_input(e, tvm.nd.array(input_data[i].astype(input_data[i].dtype)))
+    for e, i in zip(input_node, input_data):
+        m.set_input(e, tvm.nd.array(i))
 
     m.set_input(**params)
     # execute
@@ -88,10 +79,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
     # get outputs
     assert out_names is None or num_output == len(out_names), (
         "out_names: {} num_output: {}".format(out_names, num_output))
-    tvm_output_list = []
-    for i in range(0, num_output):
-        tvm_output = m.get_output(i)
-        tvm_output_list.append(tvm_output.asnumpy())
+    tvm_output_list = [m.get_output(i).asnumpy() for i in range(num_output)]
     return tvm_output_list
 
 def run_tf_graph(sess, input_data, input_node, output_node):
@@ -100,13 +88,9 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     input_node = convert_to_list(input_node)
     output_node = convert_to_list(output_node)
 
-    tensor = [0] * len(output_node)
-    for i in range(len(output_node)):
-        tensor[i] = sess.graph.get_tensor_by_name(output_node[i])
+    tensor = [sess.graph.get_tensor_by_name(output_name) for output_name in output_node]
 
-    input_dict = {}
-    for i, e in enumerate(input_node):
-        input_dict[e] = input_data[i]
+    input_dict = {e: input_data[i] for i, e in enumerate(input_node)}
 
     output_data = sess.run(tensor, input_dict)
     return output_data
@@ -115,17 +99,15 @@ def run_tf_graph(sess, input_data, input_node, output_node):
 def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
                         no_gpu=False, opt_level=3):
     """Generic function to generate and compare tensorflow and TVM output"""
+    def name_without_num(name):
+        return name.split(':')[0] if ":" in name else name
 
     out_name = convert_to_list(out_name)
-    out_node = [0]*len(out_name)
-    for i in range(len(out_name)):
-        out_node[i] = out_name[i].split(':')[0] if ":" in out_name[i] else out_name[i]
+    out_node = [name_without_num(name) for name in out_name]
 
     in_data = convert_to_list(in_data)
     in_name = convert_to_list(in_name)
-    in_node = [0]*len(in_name)
-    for i in range(len(in_name)):
-        in_node[i] = in_name[i].split(':')[0] if ":" in in_name[i] else in_name[i]
+    in_node = [name_without_num(name) for name in in_name]
     with tf.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
@@ -196,46 +178,46 @@ def test_forward_pooling():
     """ Pooling """
 
     for pool_type in ['AVG', 'MAX']:
-            _test_pooling(input_shape=[2, 9, 10, 2],
-                         window_shape=[1, 1],
-                         padding='SAME',
-                         pooling_type=pool_type,
-                         dilation_rate=[1, 1],
-                         strides=[1, 1])
+        _test_pooling(input_shape=[2, 9, 10, 2],
+                      window_shape=[1, 1],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1],
+                      strides=[1, 1])
 
-            _test_pooling(input_shape=[2, 10, 9, 2],
-                         window_shape=[1, 1],
-                         padding='SAME',
-                         pooling_type=pool_type,
-                         dilation_rate=[1, 1],
-                         strides=[1, 1])
+        _test_pooling(input_shape=[2, 10, 9, 2],
+                      window_shape=[1, 1],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1],
+                      strides=[1, 1])
 
-            _test_pooling(input_shape=[2, 9, 10, 2],
-                         window_shape=[2, 1],
-                         padding='SAME',
-                         pooling_type=pool_type,
-                         dilation_rate=[1, 1],
-                         strides=[1, 1])
+        _test_pooling(input_shape=[2, 9, 10, 2],
+                      window_shape=[2, 1],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1],
+                      strides=[1, 1])
 
-            _test_pooling(input_shape=[2, 10, 9, 2],
-                         window_shape=[2, 3],
-                         padding='SAME',
-                         pooling_type=pool_type,
-                         dilation_rate=[1, 1],
-                         strides=[2, 1])
+        _test_pooling(input_shape=[2, 10, 9, 2],
+                      window_shape=[2, 3],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1],
+                      strides=[2, 1])
 
-            # Tests involving SpaceToBatchND
-            _test_pooling(input_shape=[1, 1, 2, 1],
-                         window_shape=[1, 1],
-                         padding='VALID',
-                         pooling_type=pool_type,
-                         dilation_rate=[1, 2])
+        # Tests involving SpaceToBatchND
+        _test_pooling(input_shape=[1, 1, 2, 1],
+                      window_shape=[1, 1],
+                      padding='VALID',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 2])
 
-            _test_pooling(input_shape=[1, 2, 1],
-                         window_shape=[1],
-                         padding='VALID',
-                         pooling_type=pool_type,
-                         dilation_rate=[2])
+        _test_pooling(input_shape=[1, 2, 1],
+                      window_shape=[1],
+                      padding='VALID',
+                      pooling_type=pool_type,
+                      dilation_rate=[2])
 
 #######################################################################
 # Convolution
@@ -478,24 +460,29 @@ def test_forward_squeeze():
 # ConcatV2
 # --------
 
-def _test_concat_v2(data, dim):
+def _test_concat_v2(shape1, shape2, dim):
     """ One iteration of ConcatV2 """
 
     with tf.Graph().as_default():
-        gen_array_ops._concat_v2(data, dim)
+        dtype = 'float32'
+        in1 = tf.placeholder(shape=shape1, dtype=dtype, name='in1')
+        in2 = tf.placeholder(shape=shape2, dtype=dtype, name='in2')
+        array_ops.concat_v2([in1, in2], dim)
 
-        compare_tf_with_tvm(data, ['ConcatV2/values_0:0', 'ConcatV2/values_1:0'],
-                            'ConcatV2:0')
+        np_data1 = np.random.uniform(size=shape1).astype(dtype)
+        np_data2 = np.random.uniform(size=shape2).astype(dtype)
 
-def _test_forward_concat_v2():
-    t1 = np.array([])
-    t2 = np.array([])
-    _test_concat_v2([t1, t2], 0)
+        compare_tf_with_tvm([np_data1, np_data2], ['in1:0', 'in2:0'], 'ConcatV2:0')
 
-    t1 = np.array([[1, 2, 3], [4, 5, 6]])
-    t2 = np.array([[7, 8, 9], [10, 11, 12]])
+def test_forward_concat_v2():
+    if tf.__version__ < LooseVersion('1.4.1'):
+        return
 
-    _test_concat_v2([t1, t2], 1)
+    _test_concat_v2([2, 3], [2, 3], 0)
+    _test_concat_v2([10, 3, 5], [2, 3, 5], 0)
+    _test_concat_v2([2, 3], [2, 3], 1)
+    _test_concat_v2([5, 8], [5, 4], 1)
+    _test_concat_v2([2, 8, 5], [2, 8, 6], -1)
 
 #######################################################################
 # Sigmoid
@@ -528,8 +515,8 @@ def _test_argx(func, data, **kwargs):
         compare_tf_with_tvm(data, 'c0:0', 'argx0:0')
 
 def test_forward_argminmax():
-    for axis in [None,0,1,2]:
-        data = np.random.uniform(size=(8,4,9)).astype('float32')
+    for axis in [None, 0, 1, 2]:
+        data = np.random.uniform(size=(8, 4, 9)).astype('float32')
         _test_argx(tf.argmax, data=data, axis=axis)
         _test_argx(tf.argmin, data=data, axis=axis)
 
@@ -547,10 +534,10 @@ def _test_reduce(func, data, **kwargs):
         compare_tf_with_tvm(data, 'c0:0', 'reducex0:0')
 
 def test_forward_reduce():
-    data = np.random.uniform(size=(8,4,9)).astype('float32')
+    data = np.random.uniform(size=(8, 4, 9)).astype('float32')
     _test_reduce(tf.reduce_sum, data=data)
     _test_reduce(tf.reduce_sum, data=data, axis=0)
-    _test_reduce(tf.reduce_sum, data=data, axis=(0,1))
+    _test_reduce(tf.reduce_sum, data=data, axis=(0, 1))
 
 
 #######################################################################
@@ -578,20 +565,52 @@ def test_forward_variable():
 
 
 #######################################################################
+# MatMul
+# ------
+
+def _test_matmul(i, j, k, dtype, outer=None):
+    """ One iteration of matmul """
+
+    A_shape_init = [i, j]
+    B_shape_init = [j, k]
+
+    for transpose_a in [False, True]:
+        for transpose_b in [False, True]:
+            outer = outer or []
+            A_shape = outer + (A_shape_init[::-1] if transpose_a else A_shape_init)
+            B_shape = outer + (B_shape_init[::-1] if transpose_b else B_shape_init)
+
+            with tf.Graph().as_default():
+                A = tf.placeholder(shape=A_shape, dtype=dtype, name='A')
+                B = tf.placeholder(shape=B_shape, dtype=dtype, name='B')
+                result = tf.matmul(A, B, transpose_a=transpose_a, transpose_b=transpose_b)
+
+                A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
+                B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
+                compare_tf_with_tvm([A_np, B_np], [A.name, B.name], result.name)
+
+def test_forward_matmul():
+    """ Matmul op test"""
+    _test_matmul(1, 3, 6, 'int32')
+    _test_matmul(5, 3, 1, 'float64')
+    # TODO non-empty outer requires BatchMatMul (BatchMatMulV2 for some cases?) support
+
+
+#######################################################################
 # StridedSlice
 # ------------
 
 def _test_stridedslice(ip_shape, begin, end, stride, dtype,
-                             begin_mask=0, end_mask=0, new_axis_mask=0,
-                             shrink_axis_mask=0, ellipsis_mask=0):
+                       begin_mask=0, end_mask=0, new_axis_mask=0,
+                       shrink_axis_mask=0, ellipsis_mask=0):
     """ One iteration of a Stridedslice """
 
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
     tf.strided_slice(in_data, begin, end, stride, begin_mask=begin_mask,
-                         end_mask=end_mask, new_axis_mask=new_axis_mask,
-                         shrink_axis_mask=shrink_axis_mask,
-                         ellipsis_mask=ellipsis_mask, name="strided_slice")
+                     end_mask=end_mask, new_axis_mask=new_axis_mask,
+                     shrink_axis_mask=shrink_axis_mask,
+                     ellipsis_mask=ellipsis_mask, name="strided_slice")
     np_data = np.random.uniform(size=ip_shape).astype(dtype)
 
     compare_tf_with_tvm(np_data, 'in_data:0', 'strided_slice:0')
@@ -606,31 +625,87 @@ def test_forward_stridedslice():
     _test_stridedslice((3, 4, 5, 3), [1, 0], [4, 2], [2, 1], 'float32', ellipsis_mask=2)
     _test_stridedslice((3, 4, 5, 3), [1, 0, 1], [4, 2, 2], [2, 1, 1], 'float32', ellipsis_mask=2)
     _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 2], [2, 1, 1], 'float32', new_axis_mask=5)
-    _test_stridedslice((3, 4, 3), [1, 1, 1], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=4)
-    _test_stridedslice((6, 4, 5), [1, 1, 1], [6, 3, 4], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=5)
-    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=4, new_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
-    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=2)
-    _test_stridedslice((3,4), [1, 0], [4, 4], [1, 1], 'float32', shrink_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=1, new_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=1)
-    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0], [2, 3], [1, 1], 'float32', shrink_axis_mask=5, new_axis_mask=1)
+    _test_stridedslice((3, 4, 3), [1, 1, 1], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2,
+                       new_axis_mask=4)
+    _test_stridedslice((6, 4, 5), [1, 1, 1], [6, 3, 4], [2, 1, 1], 'float32', ellipsis_mask=2,
+                       new_axis_mask=5)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=4,
+                       new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2,
+                       new_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2,
+                       new_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2,
+                       new_axis_mask=2)
+    _test_stridedslice((3, 4), [1, 0], [4, 4], [1, 1], 'float32', shrink_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2,
+                       new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=1,
+                       new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2,
+                       new_axis_mask=1)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0], [2, 3], [1, 1], 'float32', shrink_axis_mask=5,
+                       new_axis_mask=1)
     _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
-                       'float32', shrink_axis_mask=5, new_axis_mask=1, ellipsis_mask=2, begin_mask=8, end_mask=8)
+                       'float32', shrink_axis_mask=5, new_axis_mask=1, ellipsis_mask=2,
+                       begin_mask=8, end_mask=8)
     _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
-                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
+                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2,
+                       begin_mask=5, end_mask=5)
     _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
-                       'float32', shrink_axis_mask=16, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
+                       'float32', shrink_axis_mask=16, new_axis_mask=1, ellipsis_mask=2,
+                       begin_mask=5, end_mask=5)
     _test_stridedslice((3, 4, 5, 4, 5, 6), [1, 2, 0, -3], [4, 5, 3, 3], [2, 2, 1, 1],
-                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5,
-                       end_mask=8)
+                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2,
+                       begin_mask=5, end_mask=8)
+
+#######################################################################
+# FloorDiv, RealDiv
+# -----------------
+
+def _test_forward_divide(ip_shape, dtype):
+    np_numer = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
+    np_denomin = np.random.uniform(1, 100, size=ip_shape).astype(dtype)
+    tf.reset_default_graph()
+    numerator = tf.placeholder(dtype, ip_shape, name="numer")
+    denominator = tf.placeholder(dtype, ip_shape, name="denomin")
+    tf.math.divide(numerator, denominator, name='RealDiv')
+    compare_tf_with_tvm([np_numer, np_denomin], ['numer:0', 'denomin:0'], 'RealDiv:0')
+
+def _test_forward_floordiv(ip_shape, dtype):
+    np_numer = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
+    tf.reset_default_graph()
+    numerator = tf.placeholder(dtype, ip_shape, name="numer")
+    tf.math.floordiv(numerator, tf.constant(5, dtype=dtype), name='FloorDiv')
+    compare_tf_with_tvm([np_numer], ['numer:0'], 'FloorDiv:0')
+
+def test_forward_divide():
+    '''test FloorDiv, RealDiv'''
+    _test_forward_divide((4,), 'int32')
+    _test_forward_divide((4, 3, 7), 'float32')
+    _test_forward_floordiv((4, 3, 7), 'float32')
 
 
 #######################################################################
-# Gather, GatherV2
-# ----------------
+# TruncateMod
+# -----------
+def _test_forward_truncatemod(ip_shape, dtype):
+    np_data_1 = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
+    np_data_2 = np.random.uniform(1, 10, size=ip_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(dtype, ip_shape, name="in_data_1")
+    in_data_2 = tf.placeholder(dtype, ip_shape, name="in_data_2")
+    tf.truncatemod(in_data_1, in_data_2, name='truncatemod')
+    compare_tf_with_tvm([np_data_1, np_data_2], ['in_data_1:0', 'in_data_2:0'], 'truncatemod:0')
+
+def test_forward_truncatemod():
+    '''test TruncateMod'''
+    _test_forward_truncatemod((4, 3, 7), 'int32')
+
+
+#######################################################################
+# Gather, GatherV2, GatherNd
+# --------------------------
 
 def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
     """ One iteration of a GatherV2 """
@@ -638,7 +713,7 @@ def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
     indices = tf.placeholder("int32", indice_shape, name="indices")
-    tf.gather(in_data, indices, axis=axis)
+    out = tf.gather(in_data, indices, axis=axis)
     np_data = np.random.uniform(1, 10, size=ip_shape).astype(dtype)
 
     def _fill_indices(indice_value):
@@ -650,57 +725,46 @@ def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
         return indices
     np_indices = _fill_indices(indice_value)
 
-    compare_tf_with_tvm([np_data, np_indices], ['in_data:0', 'indices:0'], 'GatherV2:0')
+    compare_tf_with_tvm([np_data, np_indices], ['in_data:0', 'indices:0'], out.name)
 
 def test_forward_gather():
-    '''test GatherV2 layer'''
+    '''test Gather/GatherV2 layer'''
     _test_gather((4,), (1,), 1, 0, 'int32')
     _test_gather((4,), (1,), 1, 0, 'float32')
     _test_gather((1, 4), (1,), [0], 0, 'int32')
-    _test_gather((4,), (1, 2, 2), [[[1, 0],[0, 1]]], 0, 'float32')
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0],[0, 1]]], 0, 'int32')
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0],[0, 1]]], 1, 'int32')
-    _test_gather((2, 2), (1, 2, 2), [[[1, 0],[0, 1]]], 0, 'float32')
+    _test_gather((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 'float32')
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 'int32')
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 1, 'int32')
+    _test_gather((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 0, 'float32')
     _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, 'int32')
     _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, 'int32')
     _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, 'float32')
 
-
-def _test_gather_v1(ip_shape, indice_shape, indice_value, dtype):
-    """ One iteration of a Gather"""
+def test_forward_gather_nd():
+    """test operator GatherNd"""
+    np_data = np.random.uniform(1, 100, size=(2, 2)).astype(np.float32)
     tf.reset_default_graph()
-    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
-    indices = tf.placeholder("int32", indice_shape, name="indices")
-    tf.gather(in_data, indices)
-    np_data = np.random.uniform(size=ip_shape).astype(dtype)
-
-    def _fill_indices(indice_value):
-        indices = np.array(ip_shape, dtype=dtype)
-        if isinstance(indice_value, int):
-            indices = np.array([indice_value], dtype='int32')
-        else:
-            indices = np.asarray(indice_value, dtype='int32')
-        return indices
-    np_indices = _fill_indices(indice_value)
-
-    compare_tf_with_tvm([np_data, np_indices], ['in_data:0', 'indices:0'], 'Gather:0')
+    in_data = tf.placeholder(tf.float32, (2, 2), name="in_data")
+    tf.gather_nd(in_data, indices=[[1, 0], [0, 1]], name="gather_nd")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'gather_nd:0')
 
 
-def test_forward_gather_v1():
-    '''test gather layer'''
+#######################################################################
+# BiasAdd
+# -------
+def test_forward_bias_add():
+    """test Op BiasAdd"""
+    def check_bias_add(lh_shpae, rh_shape, dtype):
+        tf.reset_default_graph()
+        lh_data = np.random.uniform(size=lh_shpae).astype(dtype)
+        rh_data = np.random.uniform(size=rh_shape).astype(dtype)
+        lft_data = tf.placeholder(dtype, name="lft_data")
+        rgt_data = tf.placeholder(dtype, name="rgt_data")
+        tf.nn.bias_add(lft_data, rgt_data, name="BiasAdd")
+        compare_tf_with_tvm([lh_data, rh_data], ['lft_data:0', 'rgt_data:0'], 'BiasAdd:0')
 
-    if tf.__version__ < LooseVersion('1.7'):
-        _test_gather_v1((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 'float32')
-        _test_gather_v1((4,), (1,), 1, 'int32')
-        _test_gather_v1((4,), (1,), 1, 'float32')
-        _test_gather_v1((1, 4), (1,), [0], 'int32')
-        _test_gather_v1((4,), (1, 2, 2), [[[1, 0], [0, 1]]], 'float32')
-        _test_gather_v1((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 'int32')
-        _test_gather_v1((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 'int32')
-        _test_gather_v1((2, 2), (1, 2, 2), [[[1, 0], [0, 1]]], 'float32')
-        _test_gather_v1((3, 3, 3), (1, 1, 2), [[[1, 0]]], 'int32')
-        _test_gather_v1((3, 3, 3), (1, 1, 2), [[[1, 0]]], 'int32')
-        _test_gather_v1((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 'float32')
+    check_bias_add((10, 8, 16, 32), (32,), dtype="int32")
+    check_bias_add((10, 20), (20,), dtype="float32")
 
 
 #######################################################################
@@ -713,7 +777,8 @@ def _test_split(in_shape, axis, num_or_size_splits, dtype):
     """ One iteration of a Split """
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, in_shape, name="in_data")
-    num_split = len(num_or_size_splits) if isinstance(num_or_size_splits, list) else num_or_size_splits
+    num_split = len(num_or_size_splits) if isinstance(num_or_size_splits, list)\
+                else num_or_size_splits
     tf.split(in_data, num_or_size_splits, axis=axis)
 
     compare_tf_with_tvm([np_data], ['in_data:0'], [f'split:{n}' for n in range(num_split)])
@@ -752,6 +817,24 @@ def test_forward_split():
     # size_splits list
     _test_split((6,), 0, [1, 2, 3], 'int32')
     _test_split((3, 6, 4), -2, [1, 4, 1], 'float32')
+
+
+######################################################################
+# TopKV2
+# ------
+
+def _test_forward_top_k_v2(in_shape, k):
+    np_data = np.random.uniform(-100, 100, size=in_shape).astype("float32")
+    tf.reset_default_graph()
+    in_data = tf.placeholder("float32", in_shape, name="in_data")
+    tf.math.top_k(in_data, k, name='TopK')
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'TopK:0')
+
+def test_forward_top_k_v2():
+    _test_forward_top_k_v2((3,), 1)
+    _test_forward_top_k_v2((3,), 3)
+    _test_forward_top_k_v2((3, 5, 7), 3)
+    _test_forward_top_k_v2((3, 5, 7), 3)
 
 
 #######################################################################
@@ -799,6 +882,23 @@ def test_forward_tile():
     _test_tile((2, 2), (2, 3), "float32")
     _test_tile((2, 4, 6), (6, 7, 8), "float64")
 
+
+#######################################################################
+# ClipByValue
+# -----------
+
+def _test_forward_clip_by_value(ip_shape, clip_value_min, clip_value_max, dtype):
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.clip_by_value(in_data, clip_value_min, clip_value_max, name="ClipByValue")
+    np_data = np.random.uniform(-100, 100, size=ip_shape).astype(dtype)
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'ClipByValue:0')
+
+def test_forward_clip_by_value():
+    '''test ClipByValue op'''
+    if tf.__version__ < LooseVersion('1.9'):
+        _test_forward_clip_by_value((4,), .1, 5., 'float32')
+        _test_forward_clip_by_value((4, 4), 1, 5, 'int32')
 
 #######################################################################
 # Multi Input to graph
@@ -996,10 +1096,10 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
     def _get_tensorflow_output():
         with tf.Session() as sess:
             with variable_scope.variable_scope(
-                "root", initializer=init_ops.constant_initializer(0.5)):
+                    "root", initializer=init_ops.constant_initializer(0.5)):
                 m0 = array_ops.zeros([batch_size, num_hidden])
                 m1 = array_ops.zeros([batch_size, num_hidden])
-                x=tf.placeholder(shape=(batch_size, input_size), dtype=dtype)
+                x = tf.placeholder(shape=(batch_size, input_size), dtype=dtype)
                 g, ((out_m0, out_m1)) = \
                      tf.contrib.rnn.LSTMBlockCell(num_hidden,
                                                   forget_bias=forget_bias)(x, ((m0, m1)))
@@ -1047,17 +1147,43 @@ def _test_pack(axis, shape, **kwargs):
     with tf.Graph().as_default():
         tf_a = array_ops.placeholder(shape=shape, dtype='float32', name='pl_a')
         tf_b = array_ops.placeholder(shape=shape, dtype='float32', name='pl_b')
-        tf_c = tf.stack([tf_a,tf_b], axis=axis, **kwargs)
+        tf_c = tf.stack([tf_a, tf_b], axis=axis, **kwargs)
         assert tf_c.op.op_def.name == 'Pack', "tf.stack() is expected to produce 'Pack' operation"
 
-        compare_tf_with_tvm([a,b], ['pl_a:0','pl_b:0'], 'stack:0')
+        compare_tf_with_tvm([a, b], ['pl_a:0', 'pl_b:0'], 'stack:0')
 
 def test_forward_pack():
-    for axis in range(-3,3):
-        _test_pack(axis, [3,2,1])
-    for axis in range(-1,1):
+    for axis in range(-3, 3):
+        _test_pack(axis, [3, 2, 1])
+    for axis in range(-1, 1):
         _test_pack(axis, [3])
     _test_pack(0, [])
+
+
+#######################################################################
+# Unpack
+# ------
+def _test_forward_unpack(in_shape, axis, dtype):
+    """test operator Unpack"""
+    np_data = np.random.uniform(-100, 100, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    tf.unstack(in_data, axis=axis, name="Unpack")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'Unpack:0')
+
+def test_forward_unpack():
+    _test_forward_unpack((3,), 0, 'int32')
+    _test_forward_unpack((3,), -1, 'int16')
+    _test_forward_unpack((21, 23, 3), 2, 'float32')
+
+#######################################################################
+# Range
+# -----
+def test_forward_range():
+    """test operator Range"""
+    tf.reset_default_graph()
+    tf.range(1, 18, 3, name="range")
+    compare_tf_with_tvm([], [], 'range:0')
 
 #######################################################################
 # Pad
@@ -1082,8 +1208,8 @@ def _test_pad(input_shape, paddings, mode, **kwargs):
 
 def test_forward_pad():
     """ Pad """
-    _test_pad((2, 3), [[1,1], [2,2]], mode="CONSTANT")
-    _test_pad((2, 3), [[1,1], [2,2]], mode="CONSTANT", constant_values=1.0)
+    _test_pad((2, 3), [[1, 1], [2, 2]], mode="CONSTANT")
+    _test_pad((2, 3), [[1, 1], [2, 2]], mode="CONSTANT", constant_values=1.0)
 
 #######################################################################
 # Logical operators
@@ -1093,8 +1219,8 @@ def test_logical_and():
         in1 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in1')
         in2 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in2')
         out = tf.logical_and(in1, in2, name='out')
-        in_data1 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
-        in_data2 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        in_data1 = np.random.choice(a=[False, True], size=(1, 4, 4, 3)).astype('bool')
+        in_data2 = np.random.choice(a=[False, True], size=(1, 4, 4, 3)).astype('bool')
         compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
 
 def test_logical_or():
@@ -1102,8 +1228,8 @@ def test_logical_or():
         in1 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in1')
         in2 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in2')
         out = tf.logical_or(in1, in2, name='out')
-        in_data1 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
-        in_data2 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        in_data1 = np.random.choice(a=[False, True], size=(1, 4, 4, 3)).astype('bool')
+        in_data2 = np.random.choice(a=[False, True], size=(1, 4, 4, 3)).astype('bool')
         compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
 
 def test_logical_xor():
@@ -1111,15 +1237,15 @@ def test_logical_xor():
         in1 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in1')
         in2 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in2')
         out = tf.logical_xor(in1, in2, name='out')
-        in_data1 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
-        in_data2 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        in_data1 = np.random.choice(a=[False, True], size=(1, 4, 4, 3)).astype('bool')
+        in_data2 = np.random.choice(a=[False, True], size=(1, 4, 4, 3)).astype('bool')
         compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
 
 def test_logical_not():
     with tf.Graph().as_default():
         in1 = tf.placeholder(tf.bool, shape=[1, 4, 4, 3], name='in1')
         out = tf.logical_not(in1, name='out')
-        in_data1 = np.random.choice(a=[False, True],size=(1, 4, 4, 3)).astype('bool')
+        in_data1 = np.random.choice(a=[False, True], size=(1, 4, 4, 3)).astype('bool')
         compare_tf_with_tvm(in_data1, 'in1:0', 'out:0')
 
 def test_forward_logical():
@@ -1132,7 +1258,7 @@ def test_forward_logical():
 #######################################################################
 # Where, Select
 # -------------
-def test_where():
+def test_forward_where():
     ''' Where: return elements depending on conditions'''
     with tf.Graph().as_default():
         with tf.Session() as sess:
@@ -1151,7 +1277,8 @@ def test_where():
 def test_forward_inception_v3():
     '''test inception V3 model'''
     with tf.Graph().as_default():
-        graph_def = tf_testing.get_workload('InceptionV3/inception_v3_2016_08_28_frozen-with_shapes.pb')
+        graph_def = tf_testing.get_workload(
+            'InceptionV3/inception_v3_2016_08_28_frozen-with_shapes.pb')
         # Call the utility to import the graph definition into default graph.
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
@@ -1180,7 +1307,7 @@ def test_forward_inception_v1():
         img = Image.frombuffer('RGB', (600, 600), img_array.tostring(), 'raw', 'RGB', 0, 1)
         temp = util.tempdir()
         img_path = temp.relpath("tf-test.jpg")
-        img.save(img_path);
+        img.save(img_path)
 
         import os.path
         if not tf.gfile.Exists(os.path.join(img_path)):
@@ -1219,7 +1346,8 @@ def test_forward_mobilenet():
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
             tf_output = run_tf_graph(sess, data, 'input:0', out_node + ':0')
             tvm_output = run_tvm_graph(graph_def, data, 'input')
-            tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]),
+                                        rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # ResnetV2
@@ -1228,7 +1356,8 @@ def test_forward_resnetv2():
     '''test resnet model'''
     if is_gpu_available():
         with tf.Graph().as_default():
-            graph_def = tf_testing.get_workload("ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb")
+            graph_def = tf_testing.get_workload(
+                "ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb")
             # Call the utility to import the graph definition into default graph.
             graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
@@ -1242,8 +1371,10 @@ def test_forward_resnetv2():
                     if not ctx.exist:
                         print("Skip because %s is not enabled" % device)
                         continue
-                    tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', len(tf_output), target=device)
-                    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+                    tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', len(tf_output),
+                                               target=device)
+                    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]),
+                                                rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Placeholder
@@ -1263,7 +1394,8 @@ def test_forward_placeholder():
             graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
             tf_output = run_tf_graph(sess, data, 'Placeholder:0', out_node + ':0')
             tvm_output = run_tvm_graph(graph_def, data, 'Placeholder')
-            tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]), rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tf_output[0]),
+                                        rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # PTB
@@ -1292,17 +1424,21 @@ def test_forward_ptb():
     def _get_tvm_graph_module(graph_def):
         #Cell inputs 'c and 'h' consist of all layers values
         shape_dict = {'Model/Placeholder': (batch_size, num_steps),
-                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':(num_layers, batch_size, num_hidden),
-                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':(num_layers, batch_size, num_hidden)}
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':
+                      (num_layers, batch_size, num_hidden),
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':
+                      (num_layers, batch_size, num_hidden)}
 
-        sym, params = relay.frontend.from_tensorflow(graph_def, shape=shape_dict)
+        mod, params = relay.frontend.from_tensorflow(graph_def, shape=shape_dict)
 
         dtype_dict = {'Model/Placeholder': 'int32',
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':'float32',
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':'float32'}
         target = 'llvm'
         with relay.build_config(opt_level=0):
-            graph, lib, params = relay.build(sym, target, params=params)
+            graph, lib, params = relay.build(mod[mod.entry_func],
+                                             target,
+                                             params=params)
         from tvm.contrib import graph_runtime
         ctx = tvm.cpu(0)
         return params, graph_runtime.create(graph, lib, ctx)
@@ -1320,15 +1456,15 @@ def test_forward_ptb():
 
             model.set_input('Model/Placeholder', tvm.nd.array(input_data.astype("int32")))
             model.set_input('Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c',
-                        tvm.nd.array(in_state_c.astype("float32")))
+                            tvm.nd.array(in_state_c.astype("float32")))
             model.set_input('Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h',
-                        tvm.nd.array(in_state_h.astype("float32")))
+                            tvm.nd.array(in_state_h.astype("float32")))
             model.set_input(**params)
             model.run()
             tvm_output = model.get_output(0, tvm.nd.empty(out_sample_shape,
-                                                      "float32")).asnumpy()
+                                                          "float32")).asnumpy()
             state_output = model.get_output(1, tvm.nd.empty(out_state_shape,
-                                                        "float32")).asnumpy()
+                                                            "float32")).asnumpy()
             sample = tf_testing.pick_from_weight(tvm_output[0])
 
             return sample, state_output
@@ -1368,13 +1504,14 @@ def test_forward_ptb():
                                                     for word in seed_for_sample],
                                                 in_state, params, cnt_sample)
         tvm_sample_str = _pretty_print(tvm_samples, False, id_to_word)
-        tf_samples, tf_state = tf_testing.do_tf_sample(sess,
-                                [word_to_id[word] for word in seed_for_sample],
-                                in_state, cnt_sample)
+        tf_samples, tf_state = tf_testing.do_tf_sample(
+            sess,
+            [word_to_id[word] for word in seed_for_sample],
+            in_state, cnt_sample)
         tf_sample_str = _pretty_print(tf_samples, False, id_to_word)
         inpt = tvm_sample_str
         tvm.testing.assert_allclose(tf_samples, tvm_samples, rtol=1e-5, atol=1e-5)
-        assert(tvm_sample_str == tf_sample_str)
+        assert tvm_sample_str == tf_sample_str
 
 #######################################################################
 # LRN (Local Response Normalization)
@@ -1503,6 +1640,22 @@ def test_forward_tanh():
         tf.nn.tanh(in1)
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Tanh:0')
 
+
+#######################################################################
+# Softmax
+# -------
+def test_forward_softmax():
+    """test operator Softmax """
+    def check_softmax(in_shape, axis, dtype):
+        np_data = np.random.uniform(-100, 100, size=in_shape).astype(dtype)
+        tf.reset_default_graph()
+        in_data = tf.placeholder(dtype, in_shape, name="in_data")
+        tf.nn.softmax(in_data, axis=axis, name="Softmax")
+        compare_tf_with_tvm([np_data], ['in_data:0'], 'Softmax:0')
+    check_softmax((2, 3, 5), 2, "float32")
+    check_softmax((2, 3, 5), -1, "float32")
+
+
 #######################################################################
 # Tensor
 # ------
@@ -1514,6 +1667,29 @@ def test_forward_round():
     in_data = tf.placeholder(tf.float32, (5, 7), name="in_data")
     tf.round(in_data, name="round")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'round:0')
+
+def test_forward_abs():
+    """test operator Abs"""
+    np_data = np.random.uniform(1, 100, size=(9, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (9, 11), name="in_data")
+    tf.math.abs(in_data, name="abs")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'abs:0')
+
+def _test_forward_zeros_like(in_shape, dtype):
+    np_data = np.random.uniform(-10, 10, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    tf.zeros_like(in_data, name="zeros_like")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'zeros_like:0')
+
+def test_forward_zeros_like():
+    if tf.__version__ < LooseVersion('1.2'):
+        _test_forward_zeros_like((2, 3), "int32")
+        _test_forward_zeros_like((2, 3, 5), "int8")
+        _test_forward_zeros_like((2, 3, 5, 7), "uint16")
+        _test_forward_zeros_like((2, 3, 11), "float32")
+        _test_forward_zeros_like((2, 3, 11), "float64")
 
 def _test_forward_reverse_v2(in_shape, axis, dtype):
     np_data = np.random.uniform(-10, 10, size=in_shape).astype(dtype)
@@ -1538,6 +1714,14 @@ def test_forward_sign():
     tf.sign(in_data, name="sign")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'sign:0')
 
+def test_forward_square():
+    """test operator Square """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.square(in_data, name="square")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'square:0')
+
 def test_forward_pow_exp():
     """test Pow and Exp """
     np_in1 = np.random.uniform(-2, 2, size=(5, 7, 11)).astype(np.float32)
@@ -1557,6 +1741,22 @@ def test_forward_log():
     in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
     tf.log(in_data, name="log")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'log:0')
+
+def test_forward_negative():
+    """test tf operator Neg """
+    np_data = np.random.uniform(-100, 255, size=(224, 224, 3)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (224, 224, 3), name="in_data")
+    tf.negative(in_data, name="negative")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'negative:0')
+
+def test_forward_log_softmax():
+    """test operator LogSoftmax"""
+    np_data = np.random.uniform(1, 100, size=(9, 11)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (9, 11), name="in_data")
+    tf.math.log_softmax(in_data, name="LogSoftmax")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'LogSoftmax:0')
 
 def test_forward_softplus():
     """test operator Softplus"""
@@ -1582,6 +1782,34 @@ def test_forward_sqrt():
     tf.sqrt(in_data, name="sqrt")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'sqrt:0')
 
+def _test_forward_right_shift(in_shape, dtype):
+    """test operator RightShift"""
+    lh_data = np.random.randint(1, 3, size=in_shape).astype(dtype)
+    rh_data = np.random.randint(1, 8, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    lft_data = tf.placeholder(dtype, in_shape, name="lft_data")
+    rgt_data = tf.placeholder(dtype, in_shape, name="rgt_data")
+    tf.bitwise.right_shift(lft_data, rgt_data, name="RightShift")
+    compare_tf_with_tvm([lh_data, rh_data], ['lft_data:0', 'rgt_data:0'], 'RightShift:0')
+
+def test_forward_right_shift():
+    _test_forward_right_shift((7,), 'int32')
+    _test_forward_right_shift((3, 11), 'int16')
+
+def _test_forward_left_shift(in_shape, dtype):
+    """test operator LeftShift"""
+    lh_data = np.random.randint(100, 1000000, size=in_shape).astype(dtype)
+    rh_data = np.random.randint(1, 3, size=in_shape).astype(dtype)
+    tf.reset_default_graph()
+    lft_data = tf.placeholder(dtype, in_shape, name="lft_data")
+    rgt_data = tf.placeholder(dtype, in_shape, name="rgt_data")
+    tf.bitwise.left_shift(lft_data, rgt_data, name="LeftShift")
+    compare_tf_with_tvm([lh_data, rh_data], ['lft_data:0', 'rgt_data:0'], 'LeftShift:0')
+
+def test_forward_left_shift():
+    _test_forward_left_shift((10,), 'int32')
+    _test_forward_left_shift((224, 224, 3), 'int16')
+
 #######################################################################
 # Mean
 # ----
@@ -1594,19 +1822,43 @@ def test_forward_mean():
             compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Mean:0', no_gpu=True)
 
     check_mean((10, 8, 16, 32))
-    check_mean((10, 8, 16, 32), axis=(2,3))
-    check_mean((10, 8, 16, 32), axis=(1,2), keepdims=True)
+    check_mean((10, 8, 16, 32), axis=(2, 3))
+    check_mean((10, 8, 16, 32), axis=(1, 2), keepdims=True)
 
 #######################################################################
-# All
-# ---
-def test_forward_all():
+# All, Max, Min
+# -------------
+def test_forward_reduce_all():
     """Test the All operator."""
     np_data = np.random.choice([True, False], size=(5, 7, 11))
     tf.reset_default_graph()
     in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
     tf.reduce_all(in_data, name="all")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'all:0')
+
+def test_forward_reduce_max():
+    def check_max(ishape, axis, keepdims, dtype):
+        tf.reset_default_graph()
+        np_data = np.random.uniform(size=ishape).astype(dtype)
+        in_data = tf.placeholder(dtype, name="in_data")
+        tf.math.reduce_max(in_data, axis=axis, keepdims=keepdims, name="reduce_max")
+        compare_tf_with_tvm([np_data], ['in_data:0'], 'reduce_max:0')
+
+    check_max((10, 8, 16, 32), axis=(-1), keepdims=True, dtype="int32")
+    check_max((10, 8, 16, 32), axis=(2, 3), keepdims=True, dtype="float32")
+    check_max((10, 8, 16, 32), axis=(1, 2), keepdims=True, dtype='float32')
+
+def test_forward_reduce_min():
+    def check_min(ishape, axis, keepdims, dtype):
+        tf.reset_default_graph()
+        np_data = np.random.uniform(size=ishape).astype(dtype)
+        in_data = tf.placeholder(dtype, name="in_data")
+        tf.math.reduce_min(in_data, axis=axis, keepdims=keepdims, name="reduce_max")
+        compare_tf_with_tvm([np_data], ['in_data:0'], 'reduce_max:0')
+
+    check_min((10, 8, 16, 32), axis=(-1), keepdims=True, dtype="int32")
+    check_min((10, 8, 16, 32), axis=(2, 3), keepdims=True, dtype="float32")
+    check_min((10, 8, 16, 32), axis=(1, 2), keepdims=True, dtype='float32')
 
 #######################################################################
 # Relational operators
@@ -1666,6 +1918,38 @@ def test_forward_reduce_prod():
 
 
 #######################################################################
+# Maximum, Minimum
+# ----------------
+def test_forward_maximum():
+    """test Op Maximum"""
+    def check_maximum(lh_shape, rh_shape, dtype):
+        tf.reset_default_graph()
+        lh_data = np.random.uniform(size=lh_shape).astype(dtype)
+        rh_data = np.random.uniform(size=rh_shape).astype(dtype)
+        lft_data = tf.placeholder(dtype, name="lft_data")
+        rgt_data = tf.placeholder(dtype, name="rgt_data")
+        tf.math.maximum(lft_data, rgt_data, name="maximum")
+        compare_tf_with_tvm([lh_data, rh_data], ['lft_data:0', 'rgt_data:0'], 'maximum:0')
+
+    check_maximum((10, 8, 16, 32), (1,), dtype="int32")
+    check_maximum((10, 8, 16, 32), (10, 8, 16, 32), dtype="float32")
+
+def test_forward_minimum():
+    """test Op Minimum"""
+    def check_minimum(lh_shape, rh_shape, dtype):
+        tf.reset_default_graph()
+        lh_data = np.random.uniform(size=lh_shape).astype(dtype)
+        rh_data = np.random.uniform(size=rh_shape).astype(dtype)
+        lft_data = tf.placeholder(dtype, name="lft_data")
+        rgt_data = tf.placeholder(dtype, name="rgt_data")
+        tf.math.minimum(lft_data, rgt_data, name="minimum")
+        compare_tf_with_tvm([lh_data, rh_data], ['lft_data:0', 'rgt_data:0'], 'minimum:0')
+
+    check_minimum((10, 8, 16, 32), (1,), dtype="int32")
+    check_minimum((10, 8, 16, 32), (10, 8, 16, 32), dtype="float32")
+
+
+#######################################################################
 # PlaceholderWithDefault
 # ----------------------
 def test_placeholder():
@@ -1680,7 +1964,9 @@ def test_placeholder():
         out1 = tf.math.add(var1, var2, name='out1')
         out2 = tf.math.add(out1, place1, name='out2')
 
-        compare_tf_with_tvm([in_data1, in_data2], ['place1:0', 'in2:0'], 'out2:0', init_global_variables=True)
+        compare_tf_with_tvm([in_data1, in_data2], ['place1:0', 'in2:0'], 'out2:0',
+                            init_global_variables=True)
+
 
 #######################################################################
 # Main
@@ -1698,12 +1984,21 @@ if __name__ == '__main__':
     test_forward_fill()
     test_forward_crop()
     test_forward_pad()
+    test_forward_unpack()
     test_forward_gather()
-    test_forward_gather_v1()
+    test_forward_gather_nd()
     test_forward_stridedslice()
     test_forward_split()
     test_forward_unstack()
     test_forward_tile()
+    test_forward_top_k_v2()
+    test_forward_clip_by_value()
+    test_forward_maximum()
+    test_forward_minimum()
+    test_forward_range()
+    test_forward_right_shift()
+    test_forward_left_shift()
+    test_forward_truncatemod()
 
     # Activations
     test_forward_sigmoid()
@@ -1719,17 +2014,27 @@ if __name__ == '__main__':
     test_forward_pow_exp()
     test_forward_sign()
     test_forward_log()
+    test_forward_negative()
+    test_forward_divide()
+    test_forward_abs()
     test_forward_softplus()
     test_forward_sqrt()
     test_forward_rsqrt()
     test_forward_expand_dims()
+    test_forward_square()
+    test_forward_softmax()
+    test_forward_log_softmax()
+    test_forward_bias_add()
+    test_forward_zeros_like()
 
     # Reductions
     test_forward_argminmax()
     test_forward_reduce()
     test_forward_mean()
     test_forward_reduce_prod()
-    test_forward_all()
+    test_forward_reduce_all()
+    test_forward_reduce_max()
+    test_forward_reduce_min()
 
     # General
     test_forward_multi_input()
@@ -1740,8 +2045,7 @@ if __name__ == '__main__':
     # NN
     test_forward_convolution()
     test_forward_pooling()
-    if tf.__version__ == '1.4.1':
-        _test_forward_concat_v2()
+    test_forward_concat_v2()
     test_forward_lrn()
     test_forward_l2_normalize()
     test_forward_space_to_batch_nd()
@@ -1765,4 +2069,7 @@ if __name__ == '__main__':
     # Relational ops
     test_forward_rel_ops()
     test_forward_logical()
-    test_where()
+    test_forward_where()
+
+    test_forward_matmul()
+    # TODO missing tests: rank, range

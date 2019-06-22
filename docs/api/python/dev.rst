@@ -61,6 +61,7 @@ tvm.ir_pass
    tvm.ir_pass.CanonicalSimplify
    tvm.ir_pass.StorageFlatten
    tvm.ir_pass.VectorizeLoop
+   tvm.ir_pass.SkipVectorize
    tvm.ir_pass.UnrollLoop
    tvm.ir_pass.ThreadSync
    tvm.ir_pass.StorageRewrite

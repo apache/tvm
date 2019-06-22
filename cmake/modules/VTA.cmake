@@ -29,8 +29,7 @@ elseif(PYTHON)
       --use-cfg=${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)
   endif()
 
-  execute_process(COMMAND ${VTA_CONFIG} --target OUTPUT_VARIABLE __vta_target)
-  string(STRIP ${__vta_target} VTA_TARGET)
+  execute_process(COMMAND ${VTA_CONFIG} --target OUTPUT_VARIABLE VTA_TARGET OUTPUT_STRIP_TRAILING_WHITESPACE)
 
   message(STATUS "Build VTA runtime with target: " ${VTA_TARGET})
 
@@ -44,6 +43,13 @@ elseif(PYTHON)
 
   add_library(vta SHARED ${VTA_RUNTIME_SRCS})
 
+  if(${VTA_TARGET} STREQUAL "tsim")
+    target_compile_definitions(vta PUBLIC USE_TSIM)
+    include_directories("vta/include")
+    file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
+  endif()
+
   target_include_directories(vta PUBLIC vta/include)
 
   foreach(__def ${VTA_DEFINITIONS})
@@ -55,16 +61,10 @@ elseif(PYTHON)
     set_target_properties(vta PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
   endif(APPLE)
 
-  # PYNQ rules for Pynq v2.3
+  # PYNQ rules for Pynq v2.4
   if(${VTA_TARGET} STREQUAL "pynq")
     find_library(__cma_lib NAMES cma PATH /usr/lib)
     target_link_libraries(vta ${__cma_lib})
-  endif()
-
-  if(NOT USE_VTA_TSIM STREQUAL "OFF")
-    include_directories("vta/include")
-    file(GLOB RUNTIME_DPI_SRCS vta/src/dpi/module.cc)
-    list(APPEND RUNTIME_SRCS ${RUNTIME_DPI_SRCS})
   endif()
 
 else()

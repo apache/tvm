@@ -21,7 +21,7 @@ from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 import keras
 
-# prevent keras from using up all gpu memory
+# prevent Keras from using up all gpu memory
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 config = tf.ConfigProto()
@@ -42,9 +42,11 @@ def verify_keras_frontend(keras_model, need_transpose=True):
 
     def get_tvm_output(xs, target, ctx, dtype='float32'):
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
-        func, params = relay.frontend.from_keras(keras_model, shape_dict)
-        with relay.build_module.build_config(opt_level=2):
-            graph, lib, params = relay.build(func, target, params=params)
+        mod, params = relay.frontend.from_keras(keras_model, shape_dict)
+        with relay.transform.build_config(opt_level=2):
+            graph, lib, params = relay.build(mod[mod.entry_func],
+                                             target,
+                                             params=params)
         m = graph_runtime.create(graph, lib, ctx)
         for name, x in zip(keras_model.input_names, xs):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))

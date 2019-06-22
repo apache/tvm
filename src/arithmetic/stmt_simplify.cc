@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -48,11 +48,11 @@ class StmtSimplifier : public IRMutator {
     Expr condition = this->Mutate(op->condition);
     Stmt then_case, else_case;
     {
-      ConstraintContext ctx(&analyzer_, condition);
+      With<ConstraintContext> ctx(&analyzer_, condition);
       then_case = this->Mutate(op->then_case);
     }
     if (op->else_case.defined()) {
-      ConstraintContext ctx(&analyzer_, Mutate(Not::make(condition)));
+      With<ConstraintContext> ctx(&analyzer_, Mutate(Not::make(condition)));
       else_case = this->Mutate(op->else_case);
     }
     if (is_one(condition)) return then_case;
@@ -94,7 +94,7 @@ class StmtSimplifier : public IRMutator {
   Stmt Mutate_(const AssertStmt* op, const Stmt& s) final {
     Expr condition = this->Mutate(op->condition);
     Expr message = this->Mutate(op->message);
-    ConstraintContext ctx(&analyzer_, condition);
+    With<ConstraintContext> ctx(&analyzer_, condition);
     Stmt body = this->Mutate(op->body);
 
     if (condition.same_as(op->condition) &&

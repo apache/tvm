@@ -147,7 +147,7 @@ class Operation(NodeBase):
 
     @property
     def num_outputs(self):
-        """Number of outputs of this op."""
+        """Number of outputs from this op."""
         return _api_internal._OpNumOutputs(self)
 
     @property
@@ -166,7 +166,7 @@ class BaseComputeOp(Operation):
     """Compute operation."""
     @property
     def axis(self):
-        """Represent axis of IterVar, defined when it is a ComputeOp"""
+        """Represent the IterVar axis, defined when it is a ComputeOp"""
         return self.__getattr__("axis")
 
     @property
@@ -191,7 +191,7 @@ class ScanOp(Operation):
     """Scan operation."""
     @property
     def scan_axis(self):
-        """Represent axis of scan, only defined when it is a ScanOp"""
+        """Represent the scan axis, only defined when it is a ScanOp"""
         return self.__getattr__("scan_axis")
 
 
@@ -205,7 +205,7 @@ class HybridOp(Operation):
     """Hybrid operation."""
     @property
     def axis(self):
-        """Represent axis of IterVar, also defined when it is a HybridOp"""
+        """Represent the IterVar axis, also defined when it is a HybridOp"""
         return self.__getattr__("axis")
 
 

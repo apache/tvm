@@ -33,8 +33,8 @@ Please install CFFI and CV2 before executing this script
 
 import nnvm
 import nnvm.frontend.darknet
-import nnvm.testing.yolo_detection
-import nnvm.testing.darknet
+import tvm.relay.testing.yolo_detection
+import tvm.relay.testing.darknet
 import matplotlib.pyplot as plt
 import numpy as np
 import tvm
@@ -42,7 +42,7 @@ import sys
 
 from ctypes import *
 from tvm.contrib.download import download_testdata
-from nnvm.testing.darknet import __darknetffi__
+from tvm.relay.testing.darknet import __darknetffi__
 
 # Model name
 MODEL_NAME = 'yolov3'
@@ -104,7 +104,7 @@ img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + \
           test_image + '?raw=true'
 img_path = download_testdata(img_url, test_image, "data")
 
-data = nnvm.testing.darknet.load_image(img_path, netw, neth)
+data = tvm.relay.testing.darknet.load_image(img_path, netw, neth)
 ######################################################################
 # Execute on TVM Runtime
 # ----------------------
@@ -153,12 +153,12 @@ elif MODEL_NAME == 'yolov3':
 # do the detection and bring up the bounding boxes
 thresh = 0.5
 nms_thresh = 0.45
-img = nnvm.testing.darknet.load_image_color(img_path)
+img = tvm.relay.testing.darknet.load_image_color(img_path)
 _, im_h, im_w = img.shape
-dets = nnvm.testing.yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh,
+dets = tvm.relay.testing.yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh,
                                                       1, tvm_out)
 last_layer = net.layers[net.n - 1]
-nnvm.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
+tvm.relay.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
 
 coco_name = 'coco.names'
 coco_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + coco_name + '?raw=true'
@@ -172,6 +172,6 @@ with open(coco_path) as f:
 
 names = [x.strip() for x in content]
 
-nnvm.testing.yolo_detection.draw_detections(font_path, img, dets, thresh, names, last_layer.classes)
+tvm.relay.testing.yolo_detection.draw_detections(font_path, img, dets, thresh, names, last_layer.classes)
 plt.imshow(img.transpose(1, 2, 0))
 plt.show()

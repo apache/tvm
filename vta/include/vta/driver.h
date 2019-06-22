@@ -45,11 +45,19 @@ extern "C" {
 #define VTA_MAX_XFER (1<<22)
 #endif
 
+/*! PAGE SIZE */
+#define VTA_PAGE_BITS 12
+#define VTA_PAGE_BYTES (1 << VTA_PAGE_BITS)
+
 /*! \brief Device resource context  */
 typedef void * VTADeviceHandle;
 
 /*! \brief physical address */
+#ifdef USE_TSIM
+typedef uint64_t vta_phy_addr_t;
+#else
 typedef uint32_t vta_phy_addr_t;
+#endif
 
 /*!
  * \brief Allocate a device resource handle
@@ -72,10 +80,22 @@ void VTADeviceFree(VTADeviceHandle handle);
  *
  * \return 0 if running is successful, 1 if timeout.
  */
+#ifdef USE_TSIM
+int VTADeviceRun(VTADeviceHandle device,
+                 vta_phy_addr_t insn_phy_addr,
+                 vta_phy_addr_t uop_phy_addr,
+                 vta_phy_addr_t inp_phy_addr,
+                 vta_phy_addr_t wgt_phy_addr,
+                 vta_phy_addr_t acc_phy_addr,
+                 vta_phy_addr_t out_phy_addr,
+                 uint32_t insn_count,
+                 uint32_t wait_cycles);
+#else
 int VTADeviceRun(VTADeviceHandle device,
                  vta_phy_addr_t insn_phy_addr,
                  uint32_t insn_count,
                  uint32_t wait_cycles);
+#endif
 
 /*!
  * \brief Allocates physically contiguous region in memory (limited by MAX_XFER).

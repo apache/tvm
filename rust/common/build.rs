@@ -22,23 +22,30 @@ extern crate bindgen;
 use std::path::PathBuf;
 
 fn main() {
+    let tvm_home = option_env!("TVM_HOME").map(str::to_string).unwrap_or({
+        let tvm_home = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .canonicalize()
+            .unwrap();
+        tvm_home
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string()
+    });
     if cfg!(feature = "bindings") {
         println!("cargo:rerun-if-env-changed=TVM_HOME");
         println!("cargo:rustc-link-lib=dylib=tvm_runtime");
-        println!("cargo:rustc-link-search={}/build", env!("TVM_HOME"));
+        println!("cargo:rustc-link-search={}/build", tvm_home);
     }
 
     // @see rust-bindgen#550 for `blacklist_type`
     bindgen::Builder::default()
-        .header(format!(
-            "{}/include/tvm/runtime/c_runtime_api.h",
-            env!("TVM_HOME")
-        ))
-        .header(format!(
-            "{}/include/tvm/runtime/c_backend_api.h",
-            env!("TVM_HOME")
-        ))
-        .clang_arg(format!("-I{}/3rdparty/dlpack/include/", env!("TVM_HOME")))
+        .header(format!("{}/include/tvm/runtime/c_runtime_api.h", tvm_home))
+        .header(format!("{}/include/tvm/runtime/c_backend_api.h", tvm_home))
+        .clang_arg(format!("-I{}/3rdparty/dlpack/include/", tvm_home))
         .blacklist_type("max_align_t")
         .layout_tests(false)
         .derive_partialeq(true)

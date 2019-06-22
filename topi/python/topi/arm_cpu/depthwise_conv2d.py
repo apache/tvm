@@ -26,11 +26,11 @@ from ..util import traverse_inline, get_const_tuple, get_const_int
 from ..nn.util import get_pad_tuple
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.register_topi_compute(depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct',
+autotvm.register_topi_compute(depthwise_conv2d_nchw, 'arm_cpu', 'direct',
                               depthwise_conv2d_nchw.fdefault)
 
 # register customized schedule for arm cpu.
-@autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, ['arm_cpu', 'cpu'],
+@autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, 'arm_cpu',
                                 ['direct', 'contrib_spatial_pack'])
 def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
     """Schedule depthwise conv2d
@@ -151,7 +151,7 @@ def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
-@autotvm.register_topi_compute(depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], ['contrib_spatial_pack'])
+@autotvm.register_topi_compute(depthwise_conv2d_nchw, 'arm_cpu', ['contrib_spatial_pack'])
 def depthwise_conv2d_arm_cpu(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """TOPI compute callback for depthwise_conv2d nchw
 

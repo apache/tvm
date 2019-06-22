@@ -75,6 +75,8 @@ def test_quantize_pass():
         out = relay.Function(relay.ir_pass.free_vars(out), out)
         return out
 
+    np.random.seed(42)
+
     data = relay.var("data", relay.TensorType((n, c, h, w), "float32"))
     graph = make_graph(data)
     dataset, params = make_dataset(graph, 10)
@@ -95,6 +97,5 @@ def test_quantize_pass():
 
 
 if __name__ == "__main__":
-    np.random.seed(42)
     test_simulated_quantize()
     test_quantize_pass()

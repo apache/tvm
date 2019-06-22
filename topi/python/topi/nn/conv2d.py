@@ -28,8 +28,8 @@ from ..util import simplify, const_matrix, get_const_tuple
 
 # workload description of conv2d
 Workload = namedtuple('Workload',
-                      ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'out_filter',
-                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
+                      ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'groups',
+                       'out_filter', 'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
 @tvm.target.generic_func
 def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=None):
@@ -94,12 +94,45 @@ def conv2d_alter_layout(attrs, inputs, tinfos, F):
     # not to change by default
     return None
 
+@tvm.target.generic_func
+def conv2d_infer_layout(workload, cfg):
+    """Infer input/output shapes and layouts from a workload and cfg.
 
-def _get_workload(data, kernel, stride, padding, out_dtype):
+    Parameters
+    ----------
+    workload : tuple
+        conv2d workload
+
+    cfg : tuple
+        tvm.autotvm config
+
+    Returns
+    -------
+    Output : [tuple of tuple and str, tuple of tuple and str]
+        Input shapes and layouts, and output shapes and layouts
+    """
+    raise ValueError("missing register for topi.nn.conv2d_infer_layout")
+
+
+
+def _get_workload(data, kernel, stride, padding, out_dtype, data_layout='NCHW'):
     """ Get the workload structure. """
-    _, CI, IH, IW = [x.value for x in data.shape]
-    CO, _, KH, KW = [x.value for x in kernel.shape]
+    if data_layout == 'NCHW':
+        _, CI, IH, IW = [x.value for x in data.shape]
+    elif data_layout == 'NHWC':
+        _, IH, IW, CI = [x.value for x in data.shape]
+    elif data_layout == 'HWCN':
+        IH, IW, CI, _ = [x.value for x in data.shape]
+    else:
+        raise ValueError("not support this layout {} yet".format(data_layout))
+
+    if data_layout == 'NCHW':
+        CO, CIG, KH, KW = [x.value for x in kernel.shape]
+    else:
+        KH, KW, CO, CIG = [x.value for x in kernel.shape]
+
     HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
     else:
@@ -107,7 +140,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
     assert (data.dtype == kernel.dtype) or (data.dtype == 'uint8' and kernel.dtype == 'int8'), \
         "Do not support inputs with different data types now. ' \
         '{} vs. {}".format(data.dtype, kernel.dtype)
-    return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
+    return Workload(data.dtype, out_dtype, IH, IW, CI, GRPS, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 
 def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):

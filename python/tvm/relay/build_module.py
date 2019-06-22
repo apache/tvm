@@ -20,7 +20,6 @@ from a Relay expression.
 """
 import numpy as np
 
-from tvm._ffi.runtime_ctypes import TVMContext
 from tvm import expr as tvm_expr
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
@@ -30,78 +29,6 @@ from . import ty as _ty
 from . import expr as _expr
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
-
-class BuildConfig(object):
-    """Configuration scope to set a build config option.
-
-    Parameters
-    ----------
-    kwargs
-        Keyword arguments of configurations to set.
-    """
-    current = None
-    defaults = {
-        "opt_level": 2,
-        "add_pass": None,
-        "disable_pass": None,
-        "fallback_device": None,
-    }
-
-    def __init__(self, **kwargs):
-        self._old_scope = None
-        for k, _ in kwargs.items():
-            if k not in BuildConfig.defaults:
-                raise ValueError("invalid argument %s, candidates are %s" %
-                                 (k, BuildConfig.defaults.keys()))
-        self._attr = kwargs
-
-    def __getattr__(self, name):
-        if name not in self._attr:
-            return BuildConfig.defaults[name]
-        return self._attr[name]
-
-    def __enter__(self):
-        # pylint: disable=protected-access
-        self._old_scope = BuildConfig.current
-        attr = BuildConfig.current._attr.copy()
-        attr.update(self._attr)
-        self._attr = attr
-        BuildConfig.current = self
-        return self
-
-    def __exit__(self, ptype, value, trace):
-        assert self._old_scope
-        BuildConfig.current = self._old_scope
-
-
-BuildConfig.current = BuildConfig()
-
-
-def build_config(**kwargs):
-    """Configure the build behavior by setting config variables.
-
-    Parameters
-    ----------
-    opt_level: int, default=2
-        Optimization level. See OPT_PASS_LEVEL for level of each pass.
-
-    add_pass: set of str
-        Optimization pass to be added regardless of optimization level.
-
-    disable_pass: set of str
-        Optimization pass to be disabled during optimization.
-
-    fallback_device : str or tvm.TVMContext
-        The fallback device. It is also used as the default device for
-        operators without specified device during heterogeneous execution.
-
-    Returns
-    -------
-    config: BuildConfig
-        The build configuration
-    """
-    return BuildConfig(**kwargs)
-
 
 def _update_target(target):
     target = target if target else _target.current_target()
@@ -132,10 +59,6 @@ class BuildModule(object):
         self._get_graph_json = self.mod["get_graph_json"]
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
-        self._add_pass = self.mod["add_pass"]
-        self._disable_pass = self.mod["disable_pass"]
-        self._set_opt_level = self.mod["set_opt_level"]
-        self._set_fallback_device = self.mod["set_fallback_device"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
 
@@ -177,8 +100,9 @@ class BuildModule(object):
         """
         target = _update_target(target)
 
-        # Setup the build configurations passed in through `with build_config`.
-        self._setup_build_config(params)
+        # Setup the params.
+        if params:
+            self._set_params(params)
         # Build the function
         self._build(func, target, target_host)
         # Get artifacts
@@ -188,41 +112,6 @@ class BuildModule(object):
 
         return graph_json, mod, params
 
-    def _setup_build_config(self, params):
-        cfg = BuildConfig.current
-
-        # Set opt_level.
-        self.set_opt_level(cfg.opt_level)
-
-        # Set fallback device if it is available.
-        if cfg.fallback_device:
-            self.set_fallback_device(cfg.fallback_device)
-
-        # Add required passes.
-        if cfg.add_pass:
-            passes = set()
-            if isinstance(cfg.add_pass, (list, tuple, set)):
-                passes = set(cfg.add_pass)
-            else:
-                raise TypeError("add_pass must be list, tuple, or set, but " +
-                                "got {}".format(type(cfg.add_pass)))
-            for pass_name in passes:
-                self.add_pass(pass_name)
-
-        # Add disabled passes.
-        if cfg.disable_pass:
-            passes = set()
-            if isinstance(cfg.disable_pass, (list, tuple, set)):
-                passes = set(cfg.disable_pass)
-            else:
-                raise TypeError("disable_pass must be list, tuple, or set, " +
-                                "but got {}".format(type(cfg.disable_pass)))
-            for pass_name in passes:
-                self.disable_pass(pass_name)
-
-        if params:
-            self._set_params(params)
-
     def _set_params(self, params):
         inputs = {}
         for name, param in params.items():
@@ -230,28 +119,6 @@ class BuildModule(object):
                 param = _nd.array(param)
             inputs[name] = _expr.const(param)
         self._set_params_func(inputs)
-
-    def add_pass(self, pass_name):
-        """Add a pass to the pass list.
-
-        Parameters
-        ----------
-        pass_name : str
-            The name of the pass that will be added to the list of passes used
-            for optimizations.
-        """
-        self._add_pass(pass_name)
-
-    def disable_pass(self, pass_name):
-        """Add a pass to the disabled pass list.
-
-        Parameters
-        ----------
-        pass_name : str
-            The name of a pass. This pass will be added to the list of passes
-            that are disabled during optimization.
-        """
-        self._disable_pass(pass_name)
 
     def get_json(self):
         """Return the json file of the built program."""
@@ -268,33 +135,6 @@ class BuildModule(object):
         for key, value in params.items():
             ret[key] = value.data
         return ret
-
-    def set_opt_level(self, level):
-        """Set the optimization level.
-
-        Parameters
-        ----------
-        level : int
-            The optimization level for build.
-        """
-        self._set_opt_level(level)
-
-    def set_fallback_device(self, fallback_device):
-        """Set the fallback device for heterogeneous execution.
-
-        Parameters
-        ----------
-        fallback_device : str or tvm.TVMContext
-            The fallback device used for heterogeneous execution.
-        """
-        if isinstance(fallback_device, str):
-            fallback_device = _nd.context(fallback_device)
-        if not isinstance(fallback_device, TVMContext):
-            raise TypeError("fallback_device is expected to be str " +
-                            "TVMContext, or dict of device name to target, " +
-                            "but received: {}".format(type(fallback_device)))
-
-        self._set_fallback_device(fallback_device.device_type)
 
 
 def build(func, target=None, target_host=None, params=None):
@@ -379,16 +219,19 @@ class GraphExecutor(_interpreter.Executor):
         self.ctx = ctx
         self.target = target
 
-    def _make_executor(self, func):
-        ret_type = ir_pass.infer_type(func).ret_type
+    def _make_executor(self, expr=None):
+        if not expr:
+            assert self.mod, "either expr or self.mod should be not null."
+            expr = self.mod[self.mod.entry_func]
+        ret_type = ir_pass.infer_type(expr).ret_type
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
-        graph_json, mod, params = build(func, target=self.target)
+        graph_json, mod, params = build(expr, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
         if params:
             gmodule.set_input(**params)
 
         def _graph_wrapper(*args, **kwargs):
-            args = self._convert_args(func, args, kwargs)
+            args = self._convert_args(expr, args, kwargs)
             # Create map of inputs.
             for i, arg in enumerate(args):
                 gmodule.set_input(i, arg)

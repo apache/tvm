@@ -24,11 +24,11 @@ Cross Compilation and RPC
 This tutorial introduces cross compilation and remote device
 execution with RPC in TVM.
 
-With cross compilation and RPC, you can **compile program on your
+With cross compilation and RPC, you can **compile a program on your
 local machine then run it on the remote device**. It is useful when
-the resource of remote devices is limited, like Raspberry Pi and mobile
-platforms. In this tutorial, we will take Raspberry Pi for CPU example
-and Firefly-RK3399 for opencl example.
+the remote device resource are limited, like Raspberry Pi and mobile
+platforms. In this tutorial, we will use the Raspberry Pi for a CPU example
+and the Firefly-RK3399 for an OpenCL example.
 """
 
 ######################################################################
@@ -39,9 +39,9 @@ and Firefly-RK3399 for opencl example.
 #
 # .. note::
 #
-#   All instructions in both this section and next section should be
-#   executed on the target device, e.g. Raspberry Pi. And we assume it
-#   has Linux running.
+#   All instructions in both this section and the next section should be
+#   executed on the target device, e.g. Raspberry Pi.  We assume the target
+#   is running Linux.
 #
 # Since we do compilation on the local machine, the remote device is only used
 # for running the generated code. We only need to build the TVM runtime on
@@ -53,7 +53,7 @@ and Firefly-RK3399 for opencl example.
 #   cd tvm
 #   make runtime -j2
 #
-# After building runtime successfully, we need to set environment variables
+# After building the runtime successfully, we need to set environment variables
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`
 # using :code:`vi ~/.bashrc` and add the line below (Assuming your TVM
 # directory is in :code:`~/tvm`):
@@ -88,7 +88,7 @@ and Firefly-RK3399 for opencl example.
 #
 # .. note::
 #
-#   Now we back to the local machine, which has a full TVM installed
+#   Now we go back to the local machine, which has a full TVM installed
 #   (with LLVM).
 #
 # Here we will declare a simple kernel on the local machine:
@@ -127,15 +127,15 @@ func.export_library(path)
 # .. note::
 #
 #   To run this tutorial with a real remote device, change :code:`local_demo`
-#   to False and replace :code:`target` in :code:`build` with the true
-#   target triple of your device. The target triple which might be
+#   to False and replace :code:`target` in :code:`build` with the appropriate
+#   target triple for your device. The target triple which might be
 #   different for different devices. For example, it is
 #   :code:`'llvm -target=armv7l-linux-gnueabihf'` for Raspberry Pi 3B and
 #   :code:`'llvm -target=aarch64-linux-gnu'` for RK3399.
 #
-#   Usually, you can query the target by execute :code:`gcc -v` on your
-#   device, and look for the line starting with :code:`Target:`
-#   (Though it may be still a loose configuration.)
+#   Usually, you can query the target by running :code:`gcc -v` on your
+#   device, and looking for the line starting with :code:`Target:`
+#   (Though it may still be a loose configuration.)
 #
 #   Besides :code:`-target`, you can also set other compilation options
 #   like:
@@ -160,7 +160,7 @@ func.export_library(path)
 ######################################################################
 # Run CPU Kernel Remotely by RPC
 # ------------------------------
-# We show how to run the generated cpu kernel on the remote device.
+# We show how to run the generated CPU kernel on the remote device.
 # First we obtain an RPC session from remote device.
 
 if local_demo:
@@ -200,8 +200,8 @@ print('%g secs/op' % cost)
 #########################################################################
 # Run OpenCL Kernel Remotely by RPC
 # ---------------------------------
-# As for remote OpenCL devices, the workflow is almost the same as above.
-# You can define the kernel, upload files, and run by RPC.
+# For remote OpenCL devices, the workflow is almost the same as above.
+# You can define the kernel, upload files, and run via RPC.
 #
 # .. note::
 #
@@ -209,7 +209,7 @@ print('%g secs/op' % cost)
 #    Firefly-RK3399. You may follow this `tutorial <https://gist.github.com/mli/585aed2cec0b5178b1a510f9f236afa2>`_
 #    to setup the OS and OpenCL driver for RK3399.
 #
-#    Also we need to build the runtime with OpenCL enabled on rk3399 board. In the tvm
+#    Also we need to build the runtime with OpenCL enabled on rk3399 board. In the TVM
 #    root directory, execute
 #
 # .. code-block:: bash
@@ -218,7 +218,7 @@ print('%g secs/op' % cost)
 #    sed -i "s/USE_OPENCL OFF/USE_OPENCL ON/" config.cmake
 #    make runtime -j4
 #
-# The following function shows how we run OpenCL kernel remotely
+# The following function shows how we run an OpenCL kernel remotely
 
 def run_opencl():
     # NOTE: This is the setting for my rk3399 board. You need to modify
@@ -256,7 +256,7 @@ def run_opencl():
 # This tutorial provides a walk through of cross compilation and RPC
 # features in TVM.
 #
-# - Set up RPC server on the remote device.
-# - Set up target device configuration to cross compile kernel on the
+# - Set up an RPC server on the remote device.
+# - Set up the target device configuration to cross compile the kernels on the
 #   local machine.
-# - Upload and run the kernel remotely by RPC API.
+# - Upload and run the kernels remotely via the RPC API.

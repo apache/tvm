@@ -82,8 +82,9 @@ print('x', x.shape)
 # It's as easy as several lines.
 # We support MXNet static graph(symbol) and HybridBlock in mxnet.gluon
 shape_dict = {'data': x.shape}
-func, params = relay.frontend.from_mxnet(block, shape_dict)
+mod, params = relay.frontend.from_mxnet(block, shape_dict)
 ## we want a probability so add a softmax operator
+func = mod[mod.entry_func]
 func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
 
 ######################################################################
@@ -132,6 +133,6 @@ mx.model.save_checkpoint('resnet18_v1', 0, mx_sym, args, auxs)
 # for a normal mxnet model, we start from here
 mx_sym, args, auxs = mx.model.load_checkpoint('resnet18_v1', 0)
 # now we use the same API to get Relay computation graph
-relay_func, relay_params = relay.frontend.from_mxnet(mx_sym, shape_dict,
-                                                     arg_params=args, aux_params=auxs)
+mod, relay_params = relay.frontend.from_mxnet(mx_sym, shape_dict,
+                                              arg_params=args, aux_params=auxs)
 # repeat the same steps to run this model using TVM

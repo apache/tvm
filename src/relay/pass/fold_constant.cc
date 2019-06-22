@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,6 +26,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
@@ -203,10 +204,10 @@ Expr FoldConstant(const Expr& expr) {
   DLContext ctx;
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
-  Target target = Target::create("llvm");
+  Target target = Target::Create("llvm");
   // use a fresh build context
   // in case we are already in a build context.
-  BuildConfigContext fresh_build_ctx(build_config());
+  With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
   return ConstantFolder(CreateInterpreter(
       Module(nullptr), ctx, target)).Mutate(expr);
@@ -214,6 +215,21 @@ Expr FoldConstant(const Expr& expr) {
 
 TVM_REGISTER_API("relay._ir_pass.FoldConstant")
 .set_body_typed(FoldConstant);
+
+namespace transform {
+
+Pass FoldConstant() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+      return Downcast<Function>(FoldConstant(f));
+  };
+  return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
+}
+
+TVM_REGISTER_API("relay._transform.FoldConstant")
+.set_body_typed(FoldConstant);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

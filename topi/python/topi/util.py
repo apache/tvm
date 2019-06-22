@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 from numbers import Integral
 
 import tvm
+from tvm.api import layout, bijective_layout
 from . import tag
 
 def traverse_inline(s, final_op, callback):
@@ -151,11 +152,7 @@ def get_const_tuple(in_tuple):
     out_tuple : tuple of int
         The output.
     """
-    out_tuple = ()
-    for elem in in_tuple:
-        value = get_const_int(elem)
-        out_tuple = out_tuple + (value, )
-    return out_tuple
+    return tuple(get_const_int(elem) for elem in in_tuple)
 
 
 def get_float_tuple(in_tuple):
@@ -171,11 +168,7 @@ def get_float_tuple(in_tuple):
     out_tuple : tuple of float
         The output.
     """
-    out_tuple = ()
-    for elem in in_tuple:
-        value = get_const_float(elem)
-        out_tuple = out_tuple + (value, )
-    return out_tuple
+    return tuple(get_const_float(elem) for elem in in_tuple)
 
 
 def simplify(expr):
@@ -297,3 +290,41 @@ def get_max_power2_factor(n, max_value=None):
         x *= 2
         n /= 2
     return x
+
+
+def get_shape(src_shape, src_layout, dst_layout):
+    """Given a source shape, a source layout and a destination layout, infer
+    the destination shape.
+
+    Parameter
+    ---------
+    src_shape : tuple of int or IntImm
+        Source shape
+
+    src_layout : str or Layout
+        Source layout
+
+    dst_layout : str or Layout
+        Destination layout
+
+    Returns
+    -------
+    dst_shape : tuple of int
+        Destination shape
+    """
+    if src_layout == dst_layout:
+        return get_const_tuple(src_shape)
+
+    if isinstance(src_layout, str):
+        src_layout = layout(src_layout)
+    if isinstance(dst_layout, str):
+        dst_layout = layout(dst_layout)
+
+    assert len(src_layout) == len(dst_layout), \
+        "Incompatible layout %s vs %s" % (src_layout, dst_layout)
+
+    layout_mapping = bijective_layout(src_layout, dst_layout)
+    dst_indices = layout_mapping.forward_index(
+        tvm.convert([i for i in range(len(src_layout))]))
+
+    return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))

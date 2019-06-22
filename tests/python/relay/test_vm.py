@@ -35,9 +35,9 @@ def veval(f, *args, ctx=tvm.cpu()):
         mod = f
         ex = relay.create_executor('vm', mod=mod, ctx=ctx)
         if len(args) == 0:
-            return ex.evaluate(mod[mod.entry_func])
+            return ex.evaluate()
         else:
-            return ex.evaluate(mod[mod.entry_func])(*args)
+            return ex.evaluate()(*args)
 
 def test_split():
     x = relay.var('x', shape=(12,))
@@ -48,6 +48,17 @@ def test_split():
     x_data = np.random.rand(12,).astype('float32')
     res = veval(f, x_data)
     tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
+
+def test_split_no_fuse():
+    x = relay.var('x', shape=(12,))
+    y = relay.split(x, 3, axis=0).astuple()
+    z = relay.concatenate([relay.TupleGetItem(y, 0)], axis=0)
+    z = relay.annotation.stop_fusion(z)
+    f = relay.Function([x], z)
+    x_data = np.random.rand(12,).astype('float32')
+    res = veval(f, x_data)
+    tvm.testing.assert_allclose(res.asnumpy(), np.split(x_data, 3, axis=0)[0])
+
 
 def test_id():
     x = relay.var('x', shape=(10, 10))
@@ -174,9 +185,7 @@ def test_tuple_second():
     result = veval(f, (i_data, j_data))
     tvm.testing.assert_allclose(result.asnumpy(), j_data)
 
-@nottest
 def test_list_constructor():
-    # TODO(wweic): implement pattern match to support this test
     def to_list(o):
         if isinstance(o, tvm.relay.backend.interpreter.TensorValue):
             return [o.data.asnumpy().tolist()]
@@ -193,6 +202,11 @@ def test_list_constructor():
     cons = p.cons
     l = p.l
 
+    # remove all functions to not have pattern match to pass vm compilation
+    # TODO(wweic): remove the hack and implement pattern match
+    for v, _ in mod.functions.items():
+        mod[v] = relay.const(0)
+
     one2 = cons(relay.const(1), nil())
     one3 = cons(relay.const(2), one2)
     one4 = cons(relay.const(3), one3)
@@ -202,7 +216,6 @@ def test_list_constructor():
 
     result = veval(mod)()
     obj = to_list(result)
-    import pdb; pdb.set_trace()
     tvm.testing.assert_allclose(obj, np.array([3,2,1]))
 
 def test_let_tensor():
@@ -259,6 +272,8 @@ if __name__ == "__main__":
     test_tuple_second()
     test_let_scalar()
     test_let_tensor()
+    test_split()
+    test_split_no_fuse()
     # TODO(@jroesch): restore when match is supported
     # test_list_constructor()
     test_closure()

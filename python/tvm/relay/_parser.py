@@ -242,10 +242,12 @@ class ParseTreeToRelayIR(RelayVisitor):
             self.visit_list(ctx.defn())
             return self.module
 
-        return self.visit(ctx.expr())
+        if ctx.expr():
+            return self.visit(ctx.expr())
+
+        return self.module
 
     # Exprs
-
     def visitOpIdent(self, ctx):
         # type: (RelayParser.OpIdentContext) -> op.Op
         return op.get(ctx.CNAME().getText())
@@ -368,14 +370,25 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.enter_var_scope()
         # Capture type params in params.
         self.enter_type_param_scope()
+        type_params = ctx.typeParamSeq()
+
+        if type_params is not None:
+            type_params = type_params.ident()
+            assert type_params
+            for ty_param in type_params:
+                name = ty_param.getText()
+                self.mk_typ(name, ty.Kind.Type)
+
         var_list, attr_list = self.visit(ctx.argList())
         ret_type = self.getType_(ctx.type_())
 
+        body = self.visit(ctx.body())
+        # NB(@jroesch): you must stay in the type parameter scope until
+        # after you exit the body, you can reference the type parameters
+        # of your parent scopes.
         type_params = list(self.exit_type_param_scope())
         if type_params:
             _, type_params = zip(*type_params)
-
-        body = self.visit(ctx.body())
         self.exit_var_scope()
 
         attrs = tvm.make.node("DictAttrs", **attr_list) if attr_list is not None else None
@@ -453,16 +466,23 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type (RelayParser.IncompleteTypeContext) -> None:
         return None
 
-    def visitIdentType(self, ctx):
-        # type: (RelayParser.IdentTypeContext) -> Union[ty.TensorType, str]
-        ident_type = ctx.CNAME().getText()
+    def visitTypeIdent(self, ctx):
+        # type: (RelayParser.TypeIdentContext) -> Union[ty.TensorType, str]
+        '''
+        Handle type identifier.
+        '''
+        type_ident = ctx.CNAME().getText()
 
-        # look through all type prefixes for a match
+        # Look through all type prefixes for a match
         for type_prefix in TYPE_PREFIXES:
-            if ident_type.startswith(type_prefix):
-                return ty.scalar_type(ident_type)
+            if type_ident.startswith(type_prefix):
+                return ty.scalar_type(type_ident)
 
-        raise ParseError("Unknown builtin type: {}".format(ident_type))
+        type_param = lookup(self.type_param_scopes, type_ident)
+        if type_param is not None:
+            return type_param
+
+        raise ParseError("Unknown builtin type: {}".format(type_ident))
 
     # def visitCallType(self, ctx):
     #     # type: (RelayParser.CallTypeContext) -> Union[expr.Expr, ty.TensorType]

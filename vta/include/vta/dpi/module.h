@@ -35,7 +35,7 @@ namespace dpi {
 class DPIModuleNode : public tvm::runtime::ModuleNode {
  public:
 /*!
- * \brief Launch accelerator until it finishes or reach max_cycles
+ * \brief Launch hardware simulation until accelerator finishes or reach max_cycles
  * \param max_cycles The maximum of cycles to wait
  */
   virtual void Launch(uint64_t max_cycles) = 0;
@@ -53,7 +53,7 @@ class DPIModuleNode : public tvm::runtime::ModuleNode {
  */
   virtual uint32_t ReadReg(int addr) = 0;
 
-/*! \brief Kill or Exit() the accelerator */
+/*! \brief Finish hardware simulation */
   virtual void Finish() = 0;
 
   static tvm::runtime::Module Load(std::string dll_name);

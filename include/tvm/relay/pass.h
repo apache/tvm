@@ -20,225 +20,24 @@
 /*!
  * \file tvm/relay/pass.h
  * \brief The set of Relay passes written in C++.
- *
- * This file also implements a pass manager. The pass manager manages a sequence
- * of Relay-to-Relay transformation passes over a particlar unit of AST. The
- * design is largely inspired from LLVM's pass manager and modern deep learning
- * frameworks that perform tensor->tensor transformations.
- *
- * The responsibilities of a traditional compiler pass manager usually involves:
- *  - Organizing the execution order of optimization passes though not
- * necessarily in the optimal sequence.
- *  - Collecting required analysis information and keep them up-to-date.
- *  - Reducing the effort required to implement new passes for compiler
- * developers, etc.
- *
- * Similar to LLVM's pass manager, we designed the Relay pass manager to work
- * different granularity, i.e. module level, function level, and even sequential
- * passe that contains a host of passes.
- *
- * However, we also extend the functionality of the traditional pass manager
- * with the consideration of requirements/convention from deep learning
- * frameworks, such as Pytorch and Gluon, etc. Each pass in the Relay pass
- * manager performs the Relay.Module -> Relay.Module transformation. All
- * different types of passes, including the sequential-level pass object, are
- * essentially pass objects. This design, therefore, effectively provides users
- * a consistent and convenient interface, i.e. Pass, to play with. It offers a
- * means to ease the development and testing of Relay passes. For example, with
- * the pass manager, external users will be able to have custom passes correctly
- * scheduled without having to modify a single handcrafted pass order.
- *
- * In the future we need to describe constraints between passes. For example,
- * we may want to preserve dependencies between different passes and validate
- * them on the completion of a certain pass.
- *
- * We also need to store side information and import the error reporting system.
- */
+  */
 #ifndef TVM_RELAY_PASS_H_
 #define TVM_RELAY_PASS_H_
 
 #include <tvm/ir.h>
 #include <tvm/packed_func_ext.h>
-#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/adt.h>
+#include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <string>
 #include <vector>
 
 namespace tvm {
 namespace relay {
-
-namespace pass {
-
-/*
- * \brief The context of pass.
- */
-class PassContext;
-
-/*!
- * \brief PassContextNode contains the information that a pass can rely on, such as
- * analysis results.
- */
-class PassContextNode : public RelayNode {
- public:
-  /*!
-   * \brief The error reporter used to notify users why an optimization fails.
-   */
-  ErrorReporter err_reporter;
-
-  PassContextNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-  }
-
-  TVM_DLL static PassContext make();
-
-  static constexpr const char* _type_key = "relay.PassContext";
-  TVM_DECLARE_NODE_TYPE_INFO(PassContextNode, RelayNode);
-};
-
-TVM_DEFINE_NODE_REF(PassContext, PassContextNode)
-
-/*
- * \brief The meta data of a pass.
- *
- * PassInfo can be extended conveniently in the future if more meta information
- * is needed.
- */
-class PassInfo;
-
-/*!
- * \brief PassInfoNode contains meta data that will be used to help optimization
- * and analysis.
- */
-class PassInfoNode : public RelayNode {
- public:
-  /*! \brief The minimal optimization level that this pass will be enabled. */
-  int opt_level;
-
-  /*! \brief The name of an optimization/analysis pass. */
-  std::string name;
-
-  /*! \brief The passes that are required to perform the current pass. */
-  tvm::Array<tvm::Expr> required;
-
-  PassInfoNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("opt_level", &opt_level);
-    v->Visit("name", &name);
-    v->Visit("required", &required);
-  }
-
-  TVM_DLL static PassInfo make(int opt_level, std::string name,
-                               tvm::Array<tvm::Expr> required);
-
-  static constexpr const char* _type_key = "relay.PassInfo";
-  TVM_DECLARE_NODE_TYPE_INFO(PassInfoNode, RelayNode);
-};
-
-TVM_DEFINE_NODE_REF(PassInfo, PassInfoNode)
-
-class Pass;
-
-/*!
- * \brief PassNode is the base type of differnt types of optimization passes.
- * It is designed as a pure class and implemented by different pass subclasses
- * at different granularity of Relay nodes.
- */
-class PassNode : public RelayNode {
- public:
-  /*
-   * \brief Get the pass information/meta data. */
-  virtual PassInfo Info() const = 0;
-
-  /*!
-   * \brief Set the context information for a pass.
-   *
-   * \param pass_ctx The context information for a certain pass.
-   */
-  virtual void SetContext(const PassContext& pass_ctx) = 0;
-
-  /*!
-   * \brief Execute the optimization pass using a functor.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return The updated module.
-   */
-  virtual Module operator()(const Module& mod) const = 0;
-
-  void VisitAttrs(tvm::AttrVisitor* v) override {}
-
-  static constexpr const char* _type_key = "relay.Pass";
-  TVM_DECLARE_BASE_NODE_INFO(PassNode, RelayNode);
-};
-
-class Pass : public NodeRef {
- public:
-  Pass() = default;
-  explicit Pass(NodePtr<tvm::Node> p) : NodeRef(p) {}
-
-  PassNode* operator->() const {
-    return static_cast<PassNode*>(this->node_.get());
-  }
-
-  using ContainerType = PassNode;
-};
-
-/*
- * \brief Create a module pass.
- *
- * \param pass_func The packed function that contains the optimization.
- * \param opt_level The optimization level of the module pass.
- * \param name The name of the module pass.
- * \param required The list of the passes that the module pass is dependent on.
- *
- * \return The created module pass.
- */
-Pass CreateModulePass(
-    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<tvm::Expr>& required);
-
-/*
- * \brief Create a function pass.
- *
- * \param pass_func The packed function that contains the optimization.
- * \param opt_level The optimization level of the function pass.
- * \param name The name of the function pass.
- * \param required The list of the passes that the function pass is dependent on.
- *
- * \return The created function pass.
- */
-Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<tvm::Expr>& required);
-/*
- * \brief Create a sequential pass.
- *
- * \param passes The optimization passes will be performed.
- * \param opt_level The optimization level of the sequential pass.
- * \param name The name of the sequential pass.
- * \param required The list of the passes that the sequential pass is dependent on.
- * \param disabled The disabled passes.
- *
- * \return The created sequential pass.
- */
-Pass CreateSequentialPass(const tvm::Array<Pass>& passes,
-                          int opt_level,
-                          const std::string& name,
-                          const tvm::Array<tvm::Expr>& required,
-                          const tvm::Array<tvm::Expr>& disabled);
-
-}  // namespace pass
 
 /*!
  * \brief Infer the type of an expression.
@@ -286,7 +85,8 @@ TVM_DLL Function InferType(const Function& f, const Module& mod,
  */
 TVM_DLL Kind KindCheck(const Type& t, const Module& mod);
 
-/*! \brief Compare two expressions for structural equivalence.
+/*!
+ * \brief Compare two expressions for structural equivalence.
  *
  * This comparison operator respects scoping and compares
  * expressions without regard to variable choice.
@@ -303,7 +103,8 @@ TVM_DLL Kind KindCheck(const Type& t, const Module& mod);
  */
 TVM_DLL bool AlphaEqual(const Expr& e1, const Expr& e2);
 
-/*! \brief Compare two types for structural equivalence.
+/*!
+ * \brief Compare two types for structural equivalence.
  *
  * This comparison operator respects scoping and compares
  * expressions without regard to variable choice.
@@ -321,7 +122,26 @@ TVM_DLL bool AlphaEqual(const Expr& e1, const Expr& e2);
  */
 TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
 
-/*! \brief Add abstraction over a function
+/*!
+ * \brief Compare two patterns for structural equivalence.
+ *
+ * This comparison operator respects scoping and compares
+ * patterns without regard to variable choice.
+ *
+ * For example: `A(x, _, y)` is equal to `A(z, _, a)`.
+ *
+ * See https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
+ * for more details.
+ *
+ * \param t1 The left hand pattern.
+ * \param t2 The right hand pattern.
+ *
+ * \return true if equal, otherwise false
+ */
+TVM_DLL bool AlphaEqual(const Pattern& t1, const Pattern& t2);
+
+/*!
+ * \brief Add abstraction over a function
  *
  * For example: `square` is transformed to
  * `fun x -> square x`.
@@ -337,7 +157,8 @@ TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
  */
 TVM_DLL Expr EtaExpand(const Expr& e, const Module& mod);
 
-/*! \brief Check that each Var is only bound once.
+/*!
+ * \brief Check that each Var is only bound once.
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
  *
@@ -350,7 +171,8 @@ TVM_DLL Expr EtaExpand(const Expr& e, const Module& mod);
  */
 TVM_DLL bool WellFormed(const Expr& expr);
 
-/*! \brief Get all bound variables from expression expr.
+/*!
+ * \brief Get all bound variables from expression expr.
  *
  * Bound variables are all variables that are declared in the expr.
  * They only have meaning inside that expr, and can only be used in it.
@@ -361,7 +183,8 @@ TVM_DLL bool WellFormed(const Expr& expr);
  */
 TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
 
-/*! \brief Get all bound variables from pattern pat.
+/*!
+ * \brief Get all bound variables from pattern pat.
  *
  * Bound variables are all variables that got bound by the pat.
  * They only have meaning inside that expr, and can only be used in it.
@@ -372,7 +195,8 @@ TVM_DLL tvm::Array<Var> BoundVars(const Expr& expr);
  */
 TVM_DLL tvm::Array<Var> BoundVars(const Pattern& pat);
 
-/*! \brief Get free type parameters from expression expr.
+/*!
+ * \brief Get free type parameters from expression expr.
  *
  * Free variables are variables that are not bound by a
  * let or a function parameter in the context.
@@ -383,7 +207,8 @@ TVM_DLL tvm::Array<Var> BoundVars(const Pattern& pat);
  */
 TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
 
-/*! \brief Get all variables from expression expr.
+/*!
+ * \brief Get all variables from expression expr.
  *
  * \param expr the expression.
  *
@@ -391,7 +216,8 @@ TVM_DLL tvm::Array<Var> FreeVars(const Expr& expr);
  */
 TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
 
-/*! \brief Get free TypeVars from expression expr.
+/*!
+ * \brief Get free TypeVars from expression expr.
  *
  * Free type parameters are type parameters that are not bound by a function
  * type in the context.
@@ -403,7 +229,8 @@ TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
  */
 TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const Module& mod);
 
-/*! \brief Get free TypeVars from type t.
+/*!
+ * \brief Get free TypeVars from type t.
  *
  * Free type parameters are type parameters that are not bound by a function
  * type in the context.
@@ -415,7 +242,8 @@ TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const Module& mod);
  */
 TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t, const Module& mod);
 
-/*! \brief Get all bound type variables from expression expr.
+/*!
+ * \brief Get all bound type variables from expression expr.
  *
  * Bound variables are all type variables that are declared in the expr.
  * They only have meaning inside that expr, and can only be used in it.
@@ -427,7 +255,8 @@ TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t, const Module& mod);
  */
 TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const Module& mod);
 
-/*! \brief Get all bound type variables from type t.
+/*!
+ * \brief Get all bound type variables from type t.
  *
  * Bound variables are all type variables that are declared in the type.
  * They only have meaning inside that type, and can only be used in it.
@@ -439,7 +268,8 @@ TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const Module& mod);
  */
 TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Type& t, const Module& mod);
 
-/*! \brief Get all type variables in expression expr.
+/*!
+ * \brief Get all type variables in expression expr.
  *
  * \param expr the expression.
  * \param mod the module.
@@ -448,7 +278,8 @@ TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Type& t, const Module& mod);
  */
 TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod);
 
-/*! \brief Get all type variables in type t.
+/*!
+ * \brief Get all type variables in type t.
  *
  * \param t the type.
  * \param mod the module.
@@ -465,32 +296,39 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
  * For example, this pass should turn `let a = 1 in 2` into `2`,
  * as the value of the expression does not depend on a.
  *
- * As another example, `let a = 1 in a` will be optimized into 1.
+ * As another example, `let a = 1 in a` will be optimized into 1,
+ * if the flag is turned on.
  *
  * \param e the expression to optimize.
+ * \param inline_once whether or not to inline binding used one.
  *
  * \return the optimized expression.
  */
-TVM_DLL Expr DeadCodeElimination(const Expr& e);
+TVM_DLL Expr DeadCodeElimination(const Expr& e, bool inline_once = false);
 
 /*!
  * \brief Fold constant expressions.
+ *
  * \param expr the expression to be optimized.
+ *
  * \return The optimized expression.
  */
 TVM_DLL Expr FoldConstant(const Expr& expr);
 
 /*!
  * \brief Fuse operations into expr into seperate functions.
+ *
  * \param expr The expression.
  * \param fuse_opt_level Optimization level.
  * \param mod the module.
+ *
  * \return The optimized expression.
  */
 TVM_DLL Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& mod);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order.
+ *
  * \param expr The expression.
  * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
  *                              rule function.
@@ -500,39 +338,122 @@ TVM_DLL Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& mod);
  * \return The rewritten expression.
  */
 TVM_DLL Expr ForwardRewrite(const Expr& expr,
-                    const std::string& rewrite_map_attr_name,
-                    std::function<NodeRef(const Call&)> fcontext = nullptr,
-                    std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+                            const std::string& rewrite_map_attr_name,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order.
+ *
  * \param expr The expression.
  * \param rewrite_func The rewrite func that will apply to all operators.
  * \param fcontext Additional callback to provide context argument for each call node.
  * \param fmulti_ref_trigger Transformation function to be called when
  *                           an Expr consumed by multiple callers.
+ *
  * \return The rewritten expression.
  */
 TVM_DLL Expr ForwardRewrite(const Expr& expr,
-                    const FForwardRewrite& rewrite_func,
-                    std::function<NodeRef(const Call&)> fcontext = nullptr,
-                    std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+                            const FForwardRewrite& rewrite_func,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
 /*!
  * \brief Rewrite the annotated program.
+ *
  * \param expr The expression.
  * \param fallback_device The fallback device which is the default device for
  *                        operators without annotation.
+ *
  * \return The updated program.
  */
 TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
 
 /*!
  * \brief Collect the device mapping information of each expression.
+ *
  * \param expr The expression.
+ *
  * \return The device mapping.
  */
 TVM_DLL Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
+
+/*!
+ * \brief Collect the device anntation operators.
+ *
+ * \param expr The expression.
+ *
+ * \return The annotated expression to device type mapping for annotation ops.
+ */
+TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
+
+/*!
+ * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
+ *
+ * It will turn an expression that is in a graph form (with sharing implicit),
+ * to an expression with explicit sharing (A-Normal Form).
+ *
+ * The scope of the root expression is the global scope.
+ *
+ * The scope of any non root expression is the least common ancestor of all it's scope.
+ *
+ * Values are ordered by post-DFS order in each scope.
+ *
+ * \param e the expression to observably share.
+ * \param mod The module used for referencing global functions, can be
+ * None.
+ *
+ * \return expression in A-Normal Form.
+ */
+TVM_DLL Expr ToANormalForm(const Expr& e, const Module& mod);
+
+/*!
+ * \brief Remove let binding and directly share via pointer instead.
+ *
+ * It will remove all let binding,
+ * and turn all of the variable bound by let into direct pointer reference.
+ *
+ * \param e the expression.
+ *
+ * \return the expression in graph normal form.
+ */
+TVM_DLL Expr ToGraphNormalForm(const Expr& e);
+
+/*!
+ * \brief Finds cases that the given match expression does not catch, if any.
+ *
+ * \param match the match expression to test
+ *
+ * \param mod The module used for accessing global type var definitions, can be None.
+ *
+ * \return Returns a list of cases (as patterns) that are not handled by the match
+ * expression.
+ */
+TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
+
+/*!
+ * \brief Aggressive constant propagation/constant folding/inlining.
+ * It will do as much computation in compile time as possible.
+ * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
+ * As a side effect, code size will explode.
+ *
+ * \param e the expression
+ * \param mod the module
+ *
+ * \return the optimized expression.
+ */
+TVM_DLL Expr PartialEval(const Expr& e, const Module& mod);
+
+/*!
+ * \brief Bind the free variables to a Relay expression.
+ *
+ * \param expr The expression.
+ * \param bind_map The variable to expression map that will be used to help the
+ *        binding.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& bind_map);
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {
@@ -540,9 +461,9 @@ struct StructuralHash {
    *
    * Implements structural hashing of a Relay type.
    *
-   *  \param type the type to hash.
+   * \param type the type to hash.
    *
-   *  \return the hash value.
+   * \return the hash value.
    */
   size_t operator()(const Type& type) const;
 
@@ -557,49 +478,13 @@ struct StructuralHash {
   size_t operator()(const Expr& expr) const;
 };
 
-/*! \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
- *
- * It will turn an expression that is in a graph form (with sharing implicit),
- * to an expression with explicit sharing (A-Normal Form).
- *
- * The scope of the root expression is the global scope.
-
- * The scope of any non root expression is the least common ancestor of all it's scope.
- *
- * Values are ordered by post-DFS order in each scope.
- *
- * \param e the expression to observably share
- *
- * \param mod The module used for referencing global functions, can be
- * None.
- *
- * \return expression in A-Normal Form
- */
-TVM_DLL Expr ToANormalForm(const Expr& e, const Module& mod);
-
-/*! \brief Remove let binding and directly share via pointer instead.
- *
- * It will remove all let binding,
- * and turn all of the variable bound by let into direct pointer reference.
- *
- * \param e the expression.
- *
- * \return the expression in graph normal form.
- */
-TVM_DLL Expr ToGraphNormalForm(const Expr& e);
-
-/*! \brief Aggressive constant propagation/constant folding/inlining.
- * It will do as much computation in compile time as possible.
- * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
- * As a side effect, code size will explode.
- */
-Expr PartialEval(const Expr& e);
-
 namespace vm {
 
-/*! \brief Compile a module, and construct the virtual machine.
+/*!
+ * \brief Compile a module, and construct the virtual machine.
  *
  * \param mod The module to compile.
+ *
  * \return The constructed virtual machine.
  */
 runtime::vm::VirtualMachine CompileModule(const Module& mod);

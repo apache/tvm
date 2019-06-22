@@ -373,7 +373,7 @@ class TCPSocket : public Socket {
   }
   /*!
    * \brief decide whether the socket is at OOB mark
-   * \return 1 if at mark, 0 if not, -1 if an error occured
+   * \return 1 if at mark, 0 if not, -1 if an error occurred
    */
   int AtMark() const {
 #ifdef _WIN32

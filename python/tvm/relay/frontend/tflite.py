@@ -22,6 +22,7 @@ import numpy as np
 import tvm
 from .. import ir_pass
 from .. import expr as _expr
+from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable
@@ -59,12 +60,22 @@ class OperatorConverter(object):
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'RESHAPE': self.convert_reshape,
+            'RESIZE_BILINEAR': self.convert_resize_bilinear,
+            'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'SOFTMAX': self.convert_softmax,
             'SQUEEZE': self.convert_squeeze,
             'MAX_POOL_2D': self.convert_max_pool2d,
             'CONCATENATION': self.convert_concatenation,
             'ADD': self.convert_add,
+            'SUB': self.convert_sub,
+            'MUL': self.convert_mul,
+            'DIV': self.convert_div,
+            'POW': self.convert_pow,
+            'MAXIMUM': self.convert_maximum,
+            'MINIMUM': self.convert_minimum,
             'FULLY_CONNECTED': self.convert_fully_connected,
+            'PAD': self.convert_pad,
+            'LOGISTIC': self.convert_logistic,
         }
 
     def check_unsupported_ops(self):
@@ -112,7 +123,7 @@ class OperatorConverter(object):
         op_code_str = self.builtin_op_code[op_code_id]
         if op_code_id == BuiltinOperator.CUSTOM:
             # Custom operator
-            raise NotImplementedError("Not Support Custom Operator Now")
+            raise NotImplementedError("Custom operators are currently not supported")
         return op_code_str
 
     def get_input_tensors(self, op):
@@ -155,7 +166,7 @@ class OperatorConverter(object):
         if tensor_wrapper.tensor.Type() == TensorType.INT32:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int32).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
-        raise NotImplementedError("Not support tensor type {}"
+        raise NotImplementedError("Tensor type {} is currently not supported"
                                   .format(str(tensor_wrapper.tensor.Type())))
 
     def get_tensor_type_str(self, tensor_type):
@@ -171,7 +182,8 @@ class OperatorConverter(object):
             return "float32"
         if tensor_type == TensorType.INT32:
             return "int32"
-        raise NotImplementedError("Not support tensor type {}".format(str(tensor_type)))
+        raise NotImplementedError("Tensor type {} is currently not supported"
+                                  .format(str(tensor_type)))
 
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
@@ -209,44 +221,79 @@ class OperatorConverter(object):
         reshape_options = ReshapeOptions()
         reshape_options.Init(op_options.Bytes, op_options.Pos)
         target_shape = reshape_options.NewShapeAsNumpy()
-        input_shape_length = len(input_tensor.tensor.ShapeAsNumpy())
 
         in_expr = self.get_expr(input_tensor_idx)
-
-        if input_shape_length in (1, 2):
-            # The rule is channel first (after N but before H, W).
-            # length of 1 means N*H*W*C, do nothing.
-            # length of 2 means N*H*W, C, do nothing.
-            pass
-        elif input_shape_length == 3:
-            # convert N C H*W to N H*W C
-            in_expr = _op.transpose(in_expr, axes=(0, 2, 1))
-        elif input_shape_length == 4:
-            # convert input to N H W C, then reshape to target shape,
-            # finally convert back if necessary
-            in_expr = _op.transpose(in_expr, axes=(0, 2, 3, 1))
-        else:
-            msg = 'Input shape length {} for operator Reshape is not valid.'
-            raise tvm.error.OpAttributeInvalid(msg.format(input_shape_length))
-
         out = _op.reshape(in_expr, newshape=tuple(target_shape))
 
-        # The rule is channel first.
-        # 1: N*H*W*C
-        # 2: N*H*W, C
-        # 3: N H W C, reshape to N H*W C, transpose to N C H*W
-        # 4: N H W C, transpose to N C H W
-        # add more if we need target shapes in future
-        if len(target_shape) == 1 or len(target_shape) == 2:
-            pass
-        elif len(target_shape) == 3:
-            out = _op.transpose(out, axes=(0, 2, 1))
-        elif len(target_shape) == 4:
-            out = _op.transpose(out, axes=(0, 3, 1, 2))
-        else:
-            raise tvm.error.OpAttributeInvalid(
-                'Length of target shape must be between 1 and 5 for operator Reshape.')
+        return out
 
+    def _convert_resize(self, method, op):
+        """Generic method to Convert TFLite RESIZE operators"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.ResizeBilinearOptions import ResizeBilinearOptions
+            # ResizeNearestNeighborOptions was added in tflite v1.13
+            tflite_ver = 1120
+            if 'ResizeNearestNeighborOptions' in dir(BuiltinOptions):
+                from tflite.ResizeNearestNeighborOptions import ResizeNearestNeighborOptions
+                tflite_ver = 1130
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        # images, 4-D Tensor with shape NHWC.
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # size - 1-D int32 Tensor of 2 elements: new_height, new_width
+        target_size = tuple(self.get_tensor_value(input_tensors[1]))
+
+        # Options - align_corners (bool)
+        resize_options = None
+        align_corners = False
+        if method == "BILINEAR":
+            assert op.BuiltinOptionsType() == BuiltinOptions.ResizeBilinearOptions
+            resize_options = ResizeBilinearOptions()
+        elif tflite_ver >= 1130:
+            assert op.BuiltinOptionsType() == BuiltinOptions.ResizeNearestNeighborOptions
+            resize_options = ResizeNearestNeighborOptions()
+
+        if resize_options is not None:
+            op_options = op.BuiltinOptions()
+            resize_options.Init(op_options.Bytes, op_options.Pos)
+            align_corners = resize_options.AlignCorners()
+
+        # Use layout NHWC
+        out = _op.image.resize(in_expr, target_size, "NHWC", method, align_corners)
+        return out
+
+    def convert_resize_bilinear(self, op):
+        """Convert TFLite RESIZE_BILINEAR"""
+        return self._convert_resize("BILINEAR", op)
+
+    def convert_resize_nearest_neighbor(self, op):
+        """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
+        return self._convert_resize("NEAREST_NEIGHBOR", op)
+
+    def convert_logistic(self, op):
+        """Convert TFLite LOGISTIC"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        out = _op.sigmoid(in_expr)
         return out
 
     def convert_softmax(self, op):
@@ -269,7 +316,7 @@ class OperatorConverter(object):
         return out
 
     def convert_concatenation(self, op):
-        """ convert TFLite concatenation"""
+        """Convert TFLite concatenation"""
         try:
             from tflite.Operator import Operator
             from tflite.ConcatenationOptions import ConcatenationOptions
@@ -292,15 +339,6 @@ class OperatorConverter(object):
         concatenation_options.Init(op_options.Bytes, op_options.Pos)
         concatenation_axis = concatenation_options.Axis()
         fused_activation_fn = concatenation_options.FusedActivationFunction()
-        input_shape_length = len(input_tensors[0].tensor.ShapeAsNumpy())
-
-        # TFLite is N H W C, our layout is N C H W
-        if input_shape_length <= 4:
-            axis_convert_map = [0] + list(range(2, input_shape_length)) + [1]
-            concatenation_axis = axis_convert_map[concatenation_axis]
-        else:
-            raise NotImplementedError("Not support input shape length {} of concatenatio : "
-                                      .format(str(input_shape_length)))
 
         # with axis in N H W C
         out = _op.concatenate(in_exprs, axis=concatenation_axis)
@@ -310,10 +348,16 @@ class OperatorConverter(object):
             out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
-    def convert_add(self, op):
-        """Convert TFLite add"""
+    def _convert_elemwise(self, relay_op, op):
+        """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.Operator import Operator
+            from tflite.AddOptions import AddOptions
+            from tflite.SubOptions import SubOptions
+            from tflite.MulOptions import MulOptions
+            from tflite.DivOptions import DivOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -326,32 +370,62 @@ class OperatorConverter(object):
 
         rhs_tensor = input_tensors[1]
         if self.has_expr(rhs_tensor.tensor_idx):
-            # In most cases, we can assume that TOCO fuses ADD operators
+            # In most cases, we can assume that TOCO fuses elemwise operators
             # with constants - it means both will be tensors.
             rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
         else:
-            # However, in some corner cases, the ADD operator is not fused,
+            # However, in some corner cases, the elemwise operator is not fused,
             # we can receive as constant.
             rhs_type_str = self.get_tensor_type_str(rhs_tensor.tensor.Type())
             rhs_expr = self.exp_tab.new_const(self.get_tensor_value(rhs_tensor),
                                               dtype=rhs_type_str)
+        out = relay_op(lhs_expr, rhs_expr)
 
-            # In this case, we have to be careful about formatting.
-            input_shape_length = len(rhs_tensor.tensor.ShapeAsNumpy())
-            if input_shape_length in (1, 2):
-                pass
-            elif input_shape_length == 3:
-                # N H*W C to N C H*W
-                rhs_expr = _op.transpose(rhs_expr, axes=(0, 2, 1))
-            elif input_shape_length == 4:
-                # N H W C to N C H W
-                rhs_expr = _op.transpose(rhs_expr, axes=(0, 3, 1, 2))
-            else:
-                msg = 'Input shape length {} for operator ADD is not valid.'
-                raise tvm.error.OpAttributeInvalid(msg.format(input_shape_length))
+        # Options (fused_activation_function)
+        options = None
+        if op.BuiltinOptionsType() == BuiltinOptions.AddOptions:
+            options = AddOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.SubOptions:
+            options = SubOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.MulOptions:
+            options = MulOptions()
+        elif op.BuiltinOptionsType() == BuiltinOptions.DivOptions:
+            options = DivOptions()
 
-        out = _op.add(lhs_expr, rhs_expr)
+        if options is not None:
+            op_options = op.BuiltinOptions()
+            options.Init(op_options.Bytes, op_options.Pos)
+            fused_activation_fn = options.FusedActivationFunction()
+            # if we have activation fn
+            if fused_activation_fn != ActivationFunctionType.NONE:
+                out = self.convert_fused_activation_function(out, fused_activation_fn)
+
         return out
+
+    def convert_add(self, op):
+        """Convert TFLite ADD"""
+        return self._convert_elemwise(_op.add, op)
+
+    def convert_sub(self, op):
+        """Convert TFLite SUB"""
+        return self._convert_elemwise(_op.subtract, op)
+
+    def convert_mul(self, op):
+        """Convert TFLite MUL"""
+        return self._convert_elemwise(_op.multiply, op)
+
+    def convert_div(self, op):
+        """Convert TFLite DIV"""
+        return self._convert_elemwise(_op.divide, op)
+
+    def convert_pow(self, op):
+        return self._convert_elemwise(_op.power, op)
+
+    def convert_maximum(self, op):
+        return self._convert_elemwise(_op.maximum, op)
+
+    def convert_minimum(self, op):
+        return self._convert_elemwise(_op.minimum, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
@@ -440,45 +514,9 @@ class OperatorConverter(object):
         squeeze_options = SqueezeOptions()
         squeeze_options.Init(op_options.Bytes, op_options.Pos)
         squeeze_axis = squeeze_options.SqueezeDimsAsNumpy()
-        input_shape_length = len(input_tensor.tensor.ShapeAsNumpy())
-        output_shape_length = len(output_tensors[0].tensor.ShapeAsNumpy())
 
         in_expr = self.get_expr(input_tensor_idx)
-
-        # TFLite is N H W C, our layout is N C H W
-        if input_shape_length in (1, 2):
-            # The rule is channel first (after N but before H, W).
-            # length of 1 means N*H*W*C, do nothing.
-            # length of 2 means N*H*W, C, do nothing.
-            pass
-        elif input_shape_length == 3:
-            # convert N C H*W to N H*W C
-            in_expr = _op.transpose(in_expr, axes=(0, 2, 1))
-        elif input_shape_length == 4:
-            # convert input to N H W C, then reshape to target shape,
-            # finally convert back if necessary
-            in_expr = _op.transpose(in_expr, axes=(0, 2, 3, 1))
-        else:
-            msg = 'Input shape length {} for operator Squeeze is not valid.'
-            raise tvm.error.OpAttributeInvalid(msg.format(input_shape_length))
-
         out = _op.squeeze(in_expr, axis=tuple(squeeze_axis))
-
-        # The rule is channel first.
-        # 1: N*H*W*C
-        # 2: N*H*W, C
-        # 3: N H W C, reshape to N H*W C, transpose to N C H*W
-        # 4: N H W C, transpose to N C H W
-        # add more if we need target shapes in future
-        if output_shape_length in (1, 2):
-            pass
-        elif output_shape_length == 3:
-            out = _op.transpose(out, axes=(0, 2, 1))
-        elif output_shape_length == 4:
-            out = _op.transpose(out, axes=(0, 3, 1, 2))
-        else:
-            msg = 'Output shape length {} for operator Squeeze is not valid.'
-            raise tvm.error.OpAttributeInvalid(msg.format(output_shape_length))
 
         return out
 
@@ -535,8 +573,8 @@ class OperatorConverter(object):
             conv_options = DepthwiseConv2DOptions()
             conv_options.Init(op_options.Bytes, op_options.Pos)
             depth_multiplier = conv_options.DepthMultiplier()
-            assert depth_multiplier == 1, "TF frontend have transformed it be 1 " \
-                                          "no matter original value be set by 0.25, 0.5 or any else"
+            assert depth_multiplier == 1, "TF frontend transforms it to be 1 regardless of what " \
+                                          "original value is set to 0.25, 0.5 or anything else"
         else:
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported for frontend TFLite.'.format(conv_type))
@@ -562,13 +600,16 @@ class OperatorConverter(object):
         params = {'kernel_size': [kernel_h, kernel_w],
                   'strides': [stride_h, stride_w],
                   'dilation': [dilation_h, dilation_w],
-                  'padding': [0, 0]}
+                  'padding': [0, 0],
+                  'data_layout': 'NHWC'}
 
         if is_depthwise_conv:
             params['channels'] = int(in_channels * multiplier)
             params['groups'] = int(in_channels)
+            params['kernel_layout'] = 'HWOI'
         else:
             params['channels'] = int(output_channels)
+            params['kernel_layout'] = 'HWIO'
 
         # weight tensor type should be UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
@@ -578,12 +619,9 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor_idx)
         weight_value = self.get_tensor_value(weight_tensor)
 
-        if is_depthwise_conv:
-            # TFLite is M KH KW IC, we require IC M KH KW
-            weight_value = weight_value.transpose((3, 0, 1, 2))
-        else:
-            # TFLite is OC KH KW IC, we require OC IC KH kW
-            weight_value = weight_value.transpose((0, 3, 1, 2))
+        # TFLite is OC/M KH KW IC, we require KH KW IC OC/M
+        # M means multiplier in depthwise convolution
+        weight_value = weight_value.transpose((1, 2, 3, 0))
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
 
@@ -592,9 +630,10 @@ class OperatorConverter(object):
         elif padding == Padding.SAME:
             pad_top, pad_bottom = get_pad_value(input_h, dilated_kernel_h, stride_h)
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
-            in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0), (0, 0),
+            in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0),
                                                           (pad_top, pad_bottom),
-                                                          (pad_left, pad_right)))
+                                                          (pad_left, pad_right),
+                                                          (0, 0)))
         else:
             raise tvm.error.OpAttributeUnimplemented(
                 'Padding format {} is not supported for operator Conv.'.format(padding))
@@ -610,7 +649,8 @@ class OperatorConverter(object):
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
             bias_expr = self.exp_tab.new_const(self.get_tensor_value(bias_tensor),
                                                dtype=bias_tensor_type_str)
-            out = _op.nn.bias_add(out, bias_expr)
+            channel_axis = 3
+            out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
         # If we have fused activations
         if fused_activation_fn != ActivationFunctionType.NONE:
@@ -648,7 +688,8 @@ class OperatorConverter(object):
 
         params = {'pool_size': (filter_h, filter_w),
                   'strides': (stride_h, stride_w),
-                  'padding': [0, 0]}
+                  'padding': [0, 0],
+                  'layout': 'NHWC'}
 
         in_expr = self.get_expr(input_tensor_idx)
 
@@ -675,6 +716,31 @@ class OperatorConverter(object):
         if fused_activation_fn != ActivationFunctionType.NONE:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
 
+        return out
+
+    def convert_pad(self, op):
+        """Convert TFLite PAD"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        # TFLite only support CONSTANT mode and does not support constant_values parameter.
+        # tensor
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # paddings
+        pad_list = self.get_tensor_value(input_tensors[1])
+        # convert list of lists to tuple of tuples
+        paddings = tuple(tuple(l) for l in pad_list)
+
+        # Use default pad_value 0 because TFLite does not support constant_values parameter
+        out = _op.nn.pad(in_expr, paddings)
         return out
 
     def get_expr(self, input_tensor_idx):
@@ -764,8 +830,8 @@ def from_tflite(model, shape_dict, dtype_dict):
 
     Returns
     -------
-    func : tvm.relay.Function
-        Compatible relay Function
+    mod : tvm.relay.Module
+        The relay module for compilation.
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by relay
@@ -803,4 +869,4 @@ def from_tflite(model, shape_dict, dtype_dict):
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
     func = _expr.Function(ir_pass.free_vars(outputs), outputs)
-    return func, params
+    return _module.Module.from_expr(func), params

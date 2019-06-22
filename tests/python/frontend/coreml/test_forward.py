@@ -31,7 +31,7 @@ import model_zoo
 
 def get_tvm_output(func, x, params, target, ctx,
                    out_shape=(1, 1000), input_name='image', dtype='float32'):
-    with relay.build_module.build_config(opt_level=3):
+    with relay.transform.build_config(opt_level=3):
         graph, lib, params = relay.build(func, target, params=params)
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
@@ -46,9 +46,9 @@ def run_model_checkonly(model_file, model_name='', input_name='image'):
     model = cm.models.MLModel(model_file)
     x = model_zoo.get_cat_image()
     shape_dict = {input_name : x.shape}
-    func, params = relay.frontend.from_coreml(model, shape_dict)
+    mod, params = relay.frontend.from_coreml(model, shape_dict)
     for target, ctx in ctx_list():
-        tvm_output = get_tvm_output(func, x, params, target, ctx)
+        tvm_output = get_tvm_output(mod[mod.entry_func], x, params, target, ctx)
         print(target, ctx, model_name, 'prediction id: ', np.argmax(tvm_output.flat))
 
 def test_mobilenet_checkonly():
@@ -71,9 +71,9 @@ def run_tvm_graph(coreml_model, target, ctx, input_data, input_name, output_shap
         shape_dict = {input_name: input_data.shape}
         dtype_dict = {input_name: input_data.dtype}
 
-    func, params = relay.frontend.from_coreml(coreml_model, shape_dict)
-    with relay.build_module.build_config(opt_level=3):
-        graph, lib, params = relay.build(func, target, params=params)
+    mod, params = relay.frontend.from_coreml(coreml_model, shape_dict)
+    with relay.transform.build_config(opt_level=3):
+        graph, lib, params = relay.build(mod[mod.entry_func], target, params=params)
 
     from tvm.contrib import graph_runtime
     m = graph_runtime.create(graph, lib, ctx)
@@ -179,7 +179,7 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
 
     a_np = np.full(input_dim, 1, dtype=dtype)
     if mode == 'NN':
-        b_np = topi.testing.upsampling_python(a_np, scale)
+        b_np = topi.testing.upsampling_python(a_np, (scale, scale))
     else:
         new_h = input_dim[2] * scale
         new_w = input_dim[3] * scale

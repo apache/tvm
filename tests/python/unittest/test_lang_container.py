@@ -65,9 +65,16 @@ def test_map_save_load_json():
     assert(dd == {"a": 2, "b": 3})
 
 
+def test_in_container():
+    arr = tvm.convert(['a', 'b', 'c'])
+    assert 'a' in arr
+    assert tvm.make.StringImm('a') in arr
+    assert 'd' not in arr
+
 if __name__ == "__main__":
     test_str_map()
     test_array()
     test_map()
     test_array_save_load_json()
     test_map_save_load_json()
+    test_in_container()

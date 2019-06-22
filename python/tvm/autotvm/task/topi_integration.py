@@ -74,7 +74,7 @@ class TaskExtractEnv:
     """Global environment for extracting tuning tasks from nnvm graph"""
     current = None
 
-    def __init__(self):
+    def __init__(self, allow_duplicate=False):
         import topi
 
         # topi compute -> autotvm task name
@@ -106,6 +106,7 @@ class TaskExtractEnv:
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
         }
 
+        self.allow_duplicate = allow_duplicate
         self._register_tracing()
         self._register_topi_task()
         self.task_collection = []
@@ -123,10 +124,9 @@ class TaskExtractEnv:
                     assert not kwargs, "Do not support extracting tuning tasks when" \
                                        "kwargs is used in TOPI function call." \
                                        "Please modify it to use only positional args."
-
                     if compute_func in self.wanted_topi_funcs:  # record this call
                         key = (self.topi_to_task[compute_func], serialize_args(args))
-                        if key not in self.task_collection:
+                        if self.allow_duplicate or key not in self.task_collection:
                             self.task_collection.append(key)
                     return compute_func.fdefault(*args)
             _local_scope(topi_compute)
@@ -262,8 +262,15 @@ class TaskExtractEnv:
         return self.task_collection
 
     @staticmethod
-    def get():
+    def get(allow_duplicate=False):
         """Get the single instance of TaskExtractEnv
+
+        Parameters
+        ----------
+        allow_duplicate : boolean
+            Whether to fetch all workloads in the network,
+            even though some of them are the same. This is
+            useful for graph tuning.
 
         Returns
         -------
@@ -271,11 +278,13 @@ class TaskExtractEnv:
             The single instance of TaskExtractEnv
         """
         if not TaskExtractEnv.current:
-            TaskExtractEnv.current = TaskExtractEnv()
+            TaskExtractEnv.current = TaskExtractEnv(allow_duplicate)
+        else:
+            TaskExtractEnv.current.allow_duplicate = allow_duplicate
         return TaskExtractEnv.current
 
 
-def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
+def register_topi_compute(topi_compute, target_keys, template_keys, func=None, override=False):
     """Register a tunable template for a topi compute function.
 
     After the registration, this topi compute will become a configuration dispatcher. It uses
@@ -324,7 +333,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
 
             config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_compute]
 
-            @config_dispatcher.register(template_keys)
+            @config_dispatcher.register(template_keys, override=override)
             def template_call(cfg, *args, **kwargs):
                 """call the topi func and attach workload to compute node"""
                 assert not kwargs, "Do not support kwargs in template function call"
@@ -363,7 +372,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
     return _decorator
 
 
-def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None):
+def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None, override=False):
     """Register a tunable template for a topi schedule function.
 
     After the registration. This topi schedule will become a configuration dispatcher. It dispatches
@@ -429,7 +438,7 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
 
             config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_schedule]
 
-            @config_dispatcher.register(template_keys)
+            @config_dispatcher.register(template_keys, override=override)
             def template_call(cfg, outs, *args, **kwargs):
                 """call the schedule func"""
                 if f == topi_schedule.fdefault:

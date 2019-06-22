@@ -410,10 +410,15 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
     new_regions.push_back(region);
   }
 
+  Array<Expr> new_scalar_inputs;
+  for (Expr old_input : tensor_op->scalar_inputs) {
+    new_scalar_inputs.push_back(VarReplacer(vsub2newvar).Mutate(old_input));
+  }
+
   Operation cache_op = TensorComputeOpNode::make(
       tensor_op->name + "." + scope, tensor_op->tag, new_axis,
       tensor_op->reduce_axis, tensor_op->schedulable_ndim,
-      tensor_op->intrin, tensor_op->inputs, new_regions);
+      tensor_op->intrin, tensor_op->inputs, new_regions, new_scalar_inputs);
 
   // axis will be used in generating compute op
   Array<IterVar> compute_axis = tensor_op->axis;

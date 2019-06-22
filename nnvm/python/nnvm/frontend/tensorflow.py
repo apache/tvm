@@ -1168,7 +1168,7 @@ class GraphProto(object):
         self._input_shapes = {}
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
+        """Construct nnvm nodes from tensorflow graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to NNVM.
         Some of the assumptions listed below.
@@ -1177,7 +1177,7 @@ class GraphProto(object):
             -> All Const nodes are params.
             -> Last node is assumed as graph output.
             -> _output_shapes : Graph should be frozen with add_shapes=True.
-                                Or user can pass input shape dictionaly optionally.
+                                Or user can pass input shape dictionary optionally.
             -> DecodeJpeg, ResizeBilinear: These are dummy operators.
                                            Hence user should handle preprocessing outside.
             -> CheckNumerics: No implementation as of now for this.
@@ -1193,6 +1193,9 @@ class GraphProto(object):
 
         shape : Dictionary of input dimensions (Optional)
             Graph level input shape dictionary.
+
+        outputs : List of output tensor names (Optional)
+            if not specified then the last node is assumed as graph output.
 
         Returns
         -------
@@ -1517,7 +1520,7 @@ class GraphProto(object):
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):
         """Convert from Tensorflow operator to nnvm operator.
-        The converter must specify conversions explicity for incompatible name, and
+        The converter must specify conversions explicitly for incompatible name, and
         apply handlers to operator attributes.
 
         Parameters
@@ -1569,13 +1572,22 @@ class GraphProto(object):
         return inputs
 
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
-    """  Load tensorflow graph which is a python tensorflow graph object into nnvm graph.
+    """Load tensorflow graph which is a python tensorflow graph object into nnvm graph.
     The companion parameters will be handled automatically.
 
     Parameters
     ----------
     graph : GraphDef object
         Tensorflow GraphDef
+
+    layout : target layout to be used (Optional)
+        NCHW only supported now to enable NHWC models on GPU.
+
+    shape : Dictionary of input dimensions (Optional)
+        Graph level input shape dictionary.
+
+    outputs : List of output tensor names (Optional)
+        if not specified then the last node is assumed as graph output.
 
     Returns
     -------

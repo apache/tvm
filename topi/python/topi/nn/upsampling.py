@@ -53,5 +53,4 @@ def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
         out_shape = (simplify(data.shape[1] * scale), simplify(data.shape[2] * scale))
     else:
         raise ValueError("not support this layout {} yet".format(layout))
-
     return topi.cpp.nn.upsampling(data, out_shape, layout, method)

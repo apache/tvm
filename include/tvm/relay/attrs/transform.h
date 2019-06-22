@@ -25,6 +25,7 @@
 #define TVM_RELAY_ATTRS_TRANSFORM_H_
 
 #include <tvm/attrs.h>
+#include <tvm/relay/base.h>
 #include <string>
 
 namespace tvm {
@@ -101,7 +102,8 @@ struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
     TVM_ATTR_FIELD(mode).set_default("clip")
         .describe("Specify how out-of-bound indices will behave."
                   "clip - clip to the range (default)"
-                  "wrap - wrap around the indices");
+                  "wrap - wrap around the indices"
+                  "fast - no clip or wrap around (user must make sure indices are in-bound)");
   }
 };
 

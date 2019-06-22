@@ -137,6 +137,17 @@ using FInferType = FInferNodeEntryAttr<int>;
 using TIsBackward = bool;
 
 /*!
+ * \brief Whether this op is a ghost node.
+ * If TIsGhost is true:
+ *   - The node with this op will not be visible in the indexed graph.
+ *
+ * \note Register under "TIsGhost"
+ * This enables shape/type inference for backward nodes when
+ * fusion is present.
+ */
+using TIsGhost = bool;
+
+/*!
  * \brief Get possible inplace options.
  *  This function enables optimization to reuse memory of inputs in output.
  * \param attrs The attributes of the node

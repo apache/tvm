@@ -49,23 +49,27 @@ sudo apt install verilator sbt
 ## Setup in TVM
 
 1. Install `verilator` and `sbt` as described above
-2. Enable VTA TSIM by turning on the switch `USE_VTA_TSIM` in config.cmake
-3. Build tvm
+2. Get tvm `git clone https://github.com/dmlc/tvm.git`
+3. Change VTA target in `tvm/vta/config/vta_config.json` from `sim` to `tsim`
+4. Build [tvm](https://docs.tvm.ai/install/from_source.html#build-the-shared-library)
 
 ## How to run VTA TSIM examples
 
-There are two sample VTA accelerators (add-by-one) designed in Chisel3 and Verilog to show how *TSIM* works.
-These examples are located at `<tvm-root>/vta/apps/tsim_example`.
+There are two sample VTA accelerators, add-a-constant, designed in Chisel3 and Verilog to show how *TSIM* works.
+The default `TARGET` language for these two implementations is Verilog. The following instructions show
+how to run both of them:
 
-* Instructions
-    * Open `<tvm-root>/vta/apps/tsim_example/python/tsim/config.json`
-    * Change `TARGET` from `verilog` to `chisel`, depending on what language backend you would like to test
-    * Go to `tvm/vta/apps/tsim`
+* Test Verilog backend
+    * Go to `<tvm-root>/vta/apps/tsim_example`
     * Run `make`
 
+* Test Chisel3 backend
+    * Go to `<tvm-root>/vta/apps/tsim_example`
+    * Run `make run_chisel`
+
 * Some pointers
-    * Build cmake script for software library`<tvm-root>/vta/apps/tsim_example/cmake/modules/sw.cmake`
-    * Build cmake script for hardware library`<tvm-root>/vta/apps/tsim_example/cmake/modules/hw.cmake`
-    * Software driver that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
-    * Add-by-one accelerator in Verilog `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
-    * Add-by-one accelerator in Chisel3 `<tvm-root>/vta/apps/tsim_example/hardware/chisel`
+    * Verilog and Chisel3 tests in `<tvm-root>/vta/apps/tsim_example/tests/python`
+    * Verilog accelerator backend `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
+    * Chisel3 accelerator backend `<tvm-root>/vta/apps/tsim_example/hardware/chisel`
+    * Software C++ driver (backend) that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
+    * Software Python driver (frontend) that handles the accelerator `<tvm-root>/vta/apps/tsim_example/python/accel`
