@@ -224,3 +224,6 @@ Pipfile.lock
 # conda package artifacts
 conda/Dockerfile.cuda*
 conda/pkg
+
+.envrc
+*.nix
