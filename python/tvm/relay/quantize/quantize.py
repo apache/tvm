@@ -360,8 +360,6 @@ def quantize(graph, params=None, dataset=None):
     if params:
         graph = _bind_params(graph, params)
 
-    cfg = current_qconfig()
-
     mod = _module.Module.from_expr(graph)
     # Perform "SimplifyInference", "FoldScaleAxis", "FoldConstant", and
     # "CanonicalizeOps" optimization before quantization.
@@ -378,8 +376,7 @@ def quantize(graph, params=None, dataset=None):
                     calibrate_pass,
                     realize(),
                     _transform.FoldConstant()]
-    # Add rewrite_for_vta() pass if target is VTA
-    if cfg.target_vta:
+    if current_qconfig().store_lowbit_output:
         quant_passes = [rewrite_for_vta()] + quant_passes
     quantize_seq = _transform.Sequential(quant_passes)
     with _transform.PassContext(opt_level=3,

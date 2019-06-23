@@ -72,9 +72,12 @@ class QAnnotateExprNode : public TempExprNode {
 RELAY_DEFINE_NODE_REF(QAnnotateExpr, QAnnotateExprNode, TempExpr);
 
 
+/*!
+ * \brief TempExpr used to insert `force_cast` for VTA.
+ */
 class QVTAExpr;
 /*!
- * \brief TempExprNode used during annotate forward rewrite.
+ * \brief TempExprNode used to insert `force_cast` for VTA.
  */
 class QVTAExprNode : public TempExprNode {
  public:
