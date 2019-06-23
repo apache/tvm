@@ -140,7 +140,7 @@ print("Tensorflow protobuf imported to relay frontend.")
 #   lib: target library which can be deployed on target with TVM runtime.
 
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(mod[mod.entry_func],
+    graph, lib, params = relay.build(mod,
                                      target=target,
                                      target_host=target_host,
                                      params=params)

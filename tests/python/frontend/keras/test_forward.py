@@ -44,7 +44,7 @@ def verify_keras_frontend(keras_model, need_transpose=True):
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
         mod, params = relay.frontend.from_keras(keras_model, shape_dict)
         with relay.transform.build_config(opt_level=2):
-            graph, lib, params = relay.build(mod[mod.entry_func],
+            graph, lib, params = relay.build(mod,
                                              target,
                                              params=params)
         m = graph_runtime.create(graph, lib, ctx)

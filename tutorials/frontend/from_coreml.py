@@ -71,7 +71,7 @@ shape_dict = {'image': x.shape}
 mod, params = relay.frontend.from_coreml(mlmodel, shape_dict)
 
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(mod[mod.entry_func],
+    graph, lib, params = relay.build(mod,
                                      target,
                                      params=params)
 

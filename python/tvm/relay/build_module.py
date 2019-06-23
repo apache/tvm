@@ -18,6 +18,7 @@
 Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
+import warnings
 import numpy as np
 
 from tvm import expr as tvm_expr
@@ -27,6 +28,7 @@ from . import _build_module
 from . import ir_pass
 from . import ty as _ty
 from . import expr as _expr
+from .module import Module as _Module
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -137,14 +139,14 @@ class BuildModule(object):
         return ret
 
 
-def build(func, target=None, target_host=None, params=None):
+def build(mod, target=None, target_host=None, params=None):
     """Helper function that builds a Relay function to run on TVM graph
     runtime.
 
     Parameters
     ----------
-    func: relay.Function
-        The function to build.
+    mod : relay.Module
+        The module to build. Using relay.Function is deprecated.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
     name) to str/tvm.target.Target, optional
@@ -175,6 +177,17 @@ def build(func, target=None, target_host=None, params=None):
     params : dict
         The parameters of the final graph.
     """
+    if isinstance(mod, _Module):
+        func = mod[mod.entry_func]
+    elif isinstance(mod, _expr.Function):
+        func = mod
+        warnings.warn(
+            "Please use input parameter mod (tvm.relay.module.Module) "
+            "instead of deprecated parameter func (tvm.relay.expr.Function)",
+            DeprecationWarning)
+    else:
+        raise ValueError("Type of input parameter mod must be tvm.relay.module.Module")
+
     target = _update_target(target)
 
     if isinstance(target_host, (str, _target.Target)):
@@ -192,8 +205,7 @@ def build(func, target=None, target_host=None, params=None):
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.build(func, target, target_host,
-                                                params)
+        graph_json, mod, params = bld_mod.build(func, target, target_host, params)
     return graph_json, mod, params
 
 
