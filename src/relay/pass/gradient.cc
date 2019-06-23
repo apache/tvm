@@ -61,13 +61,6 @@ using namespace tvm::runtime;
  *  There are multiple implementation of AD in relay, with different characteristic.
  *  However, they all transform the input expr according to WithGradientType.
  */
-Type WithGradientType(const Type&);
-
-/*! return an expression that represent differentiation of e (according to WithGradientType).
- *  This version only work on first order code without control flow.
- */
-Expr FirstOrderGradient(const Expr& e, const Module& mod);
-
 Type WithGradientType(const Type& t) {
   // TODO(M.K.): stricter checking
   auto ty = t.as<FuncTypeNode>();
@@ -76,15 +69,6 @@ Type WithGradientType(const Type& t) {
                             TupleTypeNode::make({
                               ty->ret_type,
                               TupleTypeNode::make(ty->arg_types)}), {}, {});
-}
-
-//! \brief if the expression is a GlobalVar, transform to it's expression.
-Expr DeGlobal(const Module& mod, const Expr& e) {
-  if (const auto* x = e.as<GlobalVarNode>()) {
-    return mod->Lookup(GetRef<GlobalVar>(x))->body;
-  } else {
-    return e;
-  }
 }
 
 /*! \brief A fragment of the program being built by the automatic differentation
@@ -209,18 +193,22 @@ Type GradRetType(const Function& f) {
   return TupleTypeNode::make({f->ret_type, TupleTypeNode::make(vt)});
 }
 
-Expr FirstOrderGradient(const Expr& re, const Module& mod) {
+/*!
+ * \brief Return an expression that represents differentiation of an
+ * input expression (according to WithGradientType).
+ *  This version only works on first order code without control flow.
+ */
+Expr FirstOrderGradient(const Expr& re) {
   // Currently we first remove any global functions for the first
   // order case.
-  auto e = DeGlobal(mod, re);
-  auto f = e.as<FunctionNode>();
+  auto f = re.as<FunctionNode>();
   CHECK(f) << "FOWithGradient expects its argument to be a function: " << f;
   CHECK(f->type_params.size() == 0) << "no polymorphism supported for now";
 
   // We will then build a sequence of lets which implement reverse mode.
   Expr body = LetList::With([&](LetList* ll) {
     FirstOrderReverseAD reverse_ad(ll);
-    ADValue rev = reverse_ad(e);
+    ADValue rev = reverse_ad(re);
     std::vector<ADValue> args;
     for (const auto& p : f->params) {
       args.push_back(std::make_shared<ADTensor>(ll, p));
@@ -245,9 +233,6 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
 
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
-
-TVM_REGISTER_API("relay._ir_pass.first_order_gradient")
-.set_body_typed(FirstOrderGradient);
 
 struct ReverseADType : TypeMutator {
   Type VisitType_(const TensorTypeNode* ttn) final {
@@ -327,14 +312,13 @@ Expr BPEmpty() {
   return RefCreateNode::make(unitF);
 }
 
-Expr Gradient(const Expr& re, const Module& mod) {
-  auto e = DeGlobal(mod, re);
-  auto f = e.as<FunctionNode>();
+Expr Gradient(const Expr& re) {
+  auto f = re.as<FunctionNode>();
   CHECK(f) << "input need to be a function";
   CHECK(f->type_params.size() == 0) << "no polymorphism supported for now";
   Expr body = LetList::With([&](LetList* ll) {
     Var bp = ll->Push(BPEmpty());
-    Expr rev = ReverseAD(bp)(e);
+    Expr rev = ReverseAD(bp)(re);
     std::vector<Expr> args;
     for (const auto& p : f->params) {
       args.push_back(ll->Push(Pair(p, RefCreateNode::make(ZerosLike(p)))));
@@ -351,8 +335,33 @@ Expr Gradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._ir_pass.gradient")
+namespace transform {
+
+Pass Gradient() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(Gradient(f));
+  };
+  return CreateFunctionPass(pass_func, 3, "Gradient",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay._transform.Gradient")
 .set_body_typed(Gradient);
+
+Pass FirstOrderGradient() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(FirstOrderGradient(f));
+  };
+  return CreateFunctionPass(pass_func, 3, "FirstOrderGradient",
+                            {ir::StringImm::make("InferType")});
+}
+
+TVM_REGISTER_API("relay._transform.FirstOrderGradient")
+.set_body_typed(FirstOrderGradient);
+
+}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

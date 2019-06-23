@@ -84,23 +84,6 @@ def backward_fold_scale_axis(expr):
     """
     return _ir_pass.backward_fold_scale_axis(expr)
 
-def eta_expand(expr, mod):
-    """Add abstraction over a function.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression, we expect that expr's types
-        should be fully inferred by infer_type.
-    mod : tvm.relay.Module
-         The global module.
-
-    Returns
-    -------
-    expanded_expr : tvm.relay.Expr
-        The expression after eta expansion.
-    """
-    return _ir_pass.eta_expand(expr, mod)
 
 def forward_fold_scale_axis(expr):
     """Fold the scaling of axis into weights of conv2d/dense.
@@ -318,25 +301,6 @@ def canonicalize_ops(expr):
     return _ir_pass.canonicalize_ops(expr)
 
 
-def dead_code_elimination(expr, inline_once=False):
-    """ Remove expressions which does not effect the program result (dead code).
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input Expression
-
-    inline_once : Optional[Bool]
-        Whether to inline binding that occur only once.
-    Returns
-    -------
-    result : tvm.relay.Expr
-        An expression which is semantically equal to the input expression,
-        but with dead code removed.
-    """
-    return _ir_pass.dead_code_elimination(expr, inline_once)
-
-
 def alpha_equal(lhs, rhs):
     """Compare two Relay expr for structural equivalence (alpha equivalence).
 
@@ -534,77 +498,6 @@ def collect_device_annotation_ops(expr):
     return _ir_pass.CollectDeviceAnnotationOps(expr)
 
 
-def to_a_normal_form(expr, mod=None):
-    """
-    Turn Graph Normal Form expression into A Normal Form Expression.
-
-    The scope of the root expression is the global scope.
-
-    The scope of any non root expression is the least common ancestor of all it's scope.
-
-    Values are ordered by post-DFS order in each scope.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
-    mod : Optional[tvm.relay.Module]
-        The global module.
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-      The output expression.
-    """
-    return _ir_pass.to_a_normal_form(expr, mod)
-
-
-def to_graph_normal_form(expr):
-    """Turn A Normal Form expression into Graph Normal Form expression
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression
-    Returns
-    -------
-    result : tvm.relay.Expr
-      The output expression
-    """
-    return _ir_pass.to_graph_normal_form(expr)
-
-
-def gradient(expr, mod=None, mode='higher_order'):
-    """
-    Transform the input function,
-    returning a function that calculate the original result,
-    paired with gradient of the input.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression, which is a Function or a GlobalVar.
-
-    mod : Optional[tvm.relay.Module]
-
-    mode : Optional[String]
-        The mode of the automatic differentiation algorithm.
-        'first_order' only work on first order code, but will not produce reference nor closure.
-        'higher_order' work on all code using reference and closure.
-
-    Returns
-    -------
-    expr : tvm.relay.Expr
-      The transformed expression.
-    """
-    if mode == 'first_order':
-        return _ir_pass.first_order_gradient(expr, mod)
-    elif mode == 'higher_order':
-        return _ir_pass.gradient(expr, mod)
-    else:
-        raise Exception('unknown mode')
-
-
 def get_total_mac_number(expr):
     """
     Count the number of MACs (multiply-accumulate) of a model
@@ -640,26 +533,6 @@ def eliminate_common_subexpr(expr, fskip=None):
       The output expression.
     """
     return _ir_pass.eliminate_common_subexpr(expr, fskip)
-
-
-def partial_evaluate(expr, mod=None):
-    """
-    Evaluate the static fragment of the code.
-
-    Parameters
-    ----------
-    expr : tvm.relay.Expr
-        The input expression.
-
-    mod : Optional[tvm.relay.Module]
-        The global module
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-      The output expression.
-    """
-    return _ir_pass.partial_evaluate(expr, mod)
 
 
 def unmatched_cases(match, mod=None):

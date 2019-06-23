@@ -573,6 +573,18 @@ class PassContext::Internal {
   }
 };
 
+Expr OptimizeOnExpr(const Expr& expr, const Array<Pass>& passes) {
+  auto mod = ModuleNode::FromExpr(expr);
+  Sequential seq(passes);
+  auto pass_ctx = PassContext::Create();
+  pass_ctx->opt_level = 3;
+  tvm::With<PassContext> ctx_scope(pass_ctx);
+  mod = seq(mod);
+  CHECK(mod.defined());
+  auto entry_func = mod->Lookup(mod->entry_func);
+  return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
+}
+
 TVM_REGISTER_API("relay._transform.GetCurrentPassContext")
 .set_body_typed(PassContext::Current);
 
@@ -581,6 +593,9 @@ TVM_REGISTER_API("relay._transform.EnterPassContext")
 
 TVM_REGISTER_API("relay._transform.ExitPassContext")
 .set_body_typed(PassContext::Internal::ExitScope);
+
+TVM_REGISTER_API("relay._transform.OptimizeOnExpr")
+.set_body_typed(OptimizeOnExpr);
 
 }  // namespace transform
 }  // namespace relay

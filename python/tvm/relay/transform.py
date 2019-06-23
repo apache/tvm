@@ -302,15 +302,20 @@ def CanonicalizeOps():
     return _transform.CanonicalizeOps()
 
 
-def DeadCodeElimination():
-    """ Remove expressions which does not effect the program result (dead code).
+def DeadCodeElimination(inline_once=False):
+    """Remove expressions which does not effect the program result (dead code).
+
+    Parameters
+    ----------
+    inline_once: Optional[Bool]
+        Whether to inline binding that occurs only once.
 
     Returns
     -------
     ret: tvm.relay.Pass
         The registered pass that eliminates the dead code in a Relay program.
     """
-    return _transform.DeadCodeElimination()
+    return _transform.DeadCodeElimination(inline_once)
 
 
 def FoldConstant():
@@ -406,6 +411,7 @@ def ToANormalForm():
     """
     return _transform.ToANormalForm()
 
+
 def EtaExpand():
     """Add abstraction over a function
 
@@ -415,6 +421,7 @@ def EtaExpand():
         The registered pass that eta expands an expression.
     """
     return _transform.EtaExpand()
+
 
 def ToGraphNormalForm():
     """Turn A Normal Form expression into Graph Normal Form expression
@@ -449,7 +456,7 @@ def PartialEvaluate():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret: tvm.relay.Pass
         The registered pass that performs partial evaluation on an expression.
     """
     return _transform.PartialEvaluate()
@@ -464,6 +471,55 @@ def CanonicalizeCast():
         The registered pass that canonicalizes cast expression.
     """
     return _transform.CanonicalizeCast()
+
+
+def Gradient(mode='higher_order'):
+    """
+    Compute the gradient of the expressions in an input module.
+
+    Parameters
+    ----------
+    mode: Optional[String]
+        The mode of the automatic differentiation algorithm.
+        'first_order' indicates the computation of the first order gradient,
+        which does not produce reference or closure. 'higher_order' can work on
+        all Relay expressions including those with reference and closure.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that computes the gradient.
+    """
+    if mode == 'first_order':
+        return _transform.FirstOrderGradient()
+    if mode == 'higher_order':
+        return _transform.Gradient()
+    raise TypeError("Unknow mode: {}".format(mode))
+
+
+def OptimizeOnExpr(expr, passes):
+    """Perform optimization passes on an expressioin.
+
+    Parameters
+    ----------
+    expr: tvm.relay.Expr
+        The expression for optimization.
+
+    passes: Union[Pass, List[Pass]]
+        The list of optimizations to be applied.
+
+    Returns
+    -------
+    ret: tvm.relay.Expr
+        The optimized expression.
+    """
+    if isinstance(passes, Pass):
+        passes = [passes]
+    if not isinstance(passes, (list, tuple)):
+        raise TypeError("passes must be a pass or a list of pass objects.")
+
+    return _transform.OptimizeOnExpr(expr, passes)
+
 
 def _wrap_class_module_pass(pass_cls, pass_info):
     """Wrap a python class as function pass"""

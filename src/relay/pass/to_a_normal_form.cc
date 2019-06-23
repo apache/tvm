@@ -26,6 +26,8 @@
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/logging.h>
 #include "let_list.h"
 #include "../../common/arena.h"
@@ -34,10 +36,6 @@
 
 namespace tvm {
 namespace relay {
-
-Expr ToANormalForm(const Expr& e,
-                   const Module& m,
-                   std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv);
 
 struct ScopeNode;
 using Scope = std::shared_ptr<ScopeNode>;
@@ -104,29 +102,21 @@ bool IsPrimitiveFunction(const Expr& e) {
 class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  public:
   static Expr ToANormalForm(const Expr& e,
-                            const Module& m,
                             const DependencyGraph& dg,
-                            std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-                            std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv) {
-    Fill fi(m, dg, node_scope, gv);
+                            std::unordered_map<DependencyGraph::Node*, Scope>* node_scope) {
+    Fill fi(dg, node_scope);
     return fi.GetScope(e)->ll->Get(fi.VisitExpr(e));
   }
 
  private:
-  Module mod_;
   const DependencyGraph& dg_;
   std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
-  std::unordered_set<GlobalVar, NodeHash, NodeEqual>* visited_;
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo;
 
-  Fill(Module mod,
-       const DependencyGraph& dg,
-       std::unordered_map<DependencyGraph::Node*, Scope>* node_scope,
-       std::unordered_set<GlobalVar, NodeHash, NodeEqual>* visited) :
-    mod_(mod),
+  Fill(const DependencyGraph& dg,
+       std::unordered_map<DependencyGraph::Node*, Scope>* node_scope) :
     dg_(dg),
-    node_scope_(node_scope),
-    visited_(visited) { }
+    node_scope_(node_scope) { }
 
   Scope GetScope(const Expr& e) {
     return node_scope_->at(dg_.expr_node.at(e));
@@ -246,10 +236,6 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
     GlobalVar gv = GetRef<GlobalVar>(gvn);
-    if (visited_->count(gv) == 0) {
-      visited_->insert(gv);
-      mod_->Update(gv, Downcast<Function>(relay::ToANormalForm(mod_->Lookup(gv), mod_, visited_)));
-    }
     return Atomic(gv, gv, v);
   }
 
@@ -276,9 +262,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   }
 };
 
-Expr ToANormalFormAux(const Expr& e,
-                      const Module& m,
-                      std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv) {
+Expr ToANormalFormAux(const Expr& e) {
   /* When you lift a lambda, what is inside is also being lift.
    *
    * So we must determine the scope of the lambda before determining the scope of it's body.
@@ -301,46 +285,40 @@ Expr ToANormalFormAux(const Expr& e,
    * We do an additional pass to fill all the LetList and we are done.
    */
   std::unordered_map<DependencyGraph::Node*, Scope> node_scope = CalcScope(dg);
-  return Fill::ToANormalForm(e, m, dg, &node_scope, gv);
+  return Fill::ToANormalForm(e, dg, &node_scope);
 }
 
-Expr ToANormalForm(const Expr& e,
-                   const Module& m,
-                   std::unordered_set<GlobalVar, NodeHash, NodeEqual>* gv) {
-  DLOG(INFO)
-  << "ToANF:" << std::endl
-  << AsText(e, false);
+Module ToANormalForm(const Module& m) {
+  DLOG(INFO) << "ToANF:" << std::endl << m;
 
-  Expr ret =
-    TransformF([&](const Expr& e) {
-      return ToANormalFormAux(e, m, gv);
-    }, e);
+  tvm::Map<GlobalVar, Function> updates;
+  auto funcs = m->functions;
+  for (const auto& it : funcs) {
+    Expr ret =
+      TransformF([&](const Expr& e) {
+        return ToANormalFormAux(e);
+      }, it.second);
+    CHECK_EQ(FreeVars(ret).size(), 0);
+    updates.Set(it.first, Downcast<Function>(ret));
+  }
 
-  CHECK_EQ(FreeVars(ret).size(), 0);
+  for (auto pair : updates) {
+    m->Add(pair.first, pair.second, true);
+  }
 
-  DLOG(INFO)
-    << "ToANF: transformed" << std::endl
-    << AsText(ret, false);
+  DLOG(INFO) << "ToANF: transformed" << std::endl << m;
 
-  return ret;
+  return m;
 }
-
-Expr ToANormalForm(const Expr& e, const Module& m) {
-  std::unordered_set<GlobalVar, NodeHash, NodeEqual> gv;
-  return ToANormalForm(e, m, &gv);
-}
-
-TVM_REGISTER_API("relay._ir_pass.to_a_normal_form")
-.set_body_typed(static_cast<Expr (*)(const Expr&, const Module&)>(ToANormalForm));
 
 namespace transform {
 
 Pass ToANormalForm() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
-    return Downcast<Function>(ToANormalForm(f, m));
+  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
+    [=](Module m, PassContext pc) {
+    return ToANormalForm(m);
   };
-  return CreateFunctionPass(pass_func, 1, "ToANormalForm", {});
+  return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }
 
 TVM_REGISTER_API("relay._transform.ToANormalForm")

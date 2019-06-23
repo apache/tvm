@@ -17,17 +17,23 @@
 import tvm
 import numpy as np
 from tvm import relay
-from tvm.relay.ir_pass import gradient, infer_type
+from tvm.relay import transform
 from tvm.relay.testing import ctx_list
+
+def run_gradient_pass(func, mode='higher_order'):
+    return transform.OptimizeOnExpr(func, [transform.Gradient(mode),
+                                           transform.InferType()])
 
 def sigmoid(x):
     one = np.ones_like(x)
     return one / (one + np.exp(-x))
 
+
 def relu(x):
     x_copy = np.copy(x)
     np.maximum(x_copy, 0, x_copy)
     return x_copy
+
 
 def test_unary_op():
     def check_single_op(opfunc, ref):
@@ -41,7 +47,7 @@ def test_unary_op():
             data = np.random.rand(*shape).astype(dtype)
             ref_grad = ref(data)
             fwd_func = relay.Function([x], y)
-            bwd_func = infer_type(gradient(fwd_func))
+            bwd_func = run_gradient_pass(fwd_func)
 
             for target, ctx in ctx_list():
                 intrp = relay.create_executor(ctx=ctx, target=target)
@@ -73,7 +79,7 @@ def test_binary_op():
         y_data = np.random.rand(*s).astype(t.dtype)
         ref_grad0, ref_grad1 = ref(x_data, y_data)
         fwd_func = relay.Function([x, y], z)
-        bwd_func = infer_type(gradient(fwd_func))
+        bwd_func = run_gradient_pass(fwd_func)
 
         for target, ctx in ctx_list():
             intrp = relay.create_executor(ctx=ctx, target=target)

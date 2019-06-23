@@ -156,9 +156,6 @@ Expr DeadCodeElimination(const Expr& e, bool inline_once) {
   return CalcDep::Eliminate(e, inline_once);
 }
 
-TVM_REGISTER_API("relay._ir_pass.dead_code_elimination")
-.set_body_typed(DeadCodeElimination);
-
 namespace transform {
 
 Pass DeadCodeElimination(bool inline_once) {

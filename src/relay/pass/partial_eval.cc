@@ -1086,27 +1086,30 @@ Expr PostProcess(const Expr& e) {
 
 }  // namespace partial_eval
 
-Expr PartialEval(const Expr& e, const Module& m) {
-  return TransformF([&](const Expr& e) {
+Module PartialEval(const Module& m) {
+  CHECK(m->entry_func.defined());
+  auto func = m->Lookup(m->entry_func);
+  Expr ret =
+    TransformF([&](const Expr& e) {
       return LetList::With([&](LetList* ll) {
-          relay::partial_eval::PartialEvaluator pe(FreeVars(e), m);
-          pe.InitializeFuncId(e);
-          return relay::partial_eval::PostProcess(pe.VisitExpr(e, ll)->dynamic);
-        });
-    }, e);
+        relay::partial_eval::PartialEvaluator pe(FreeVars(e), m);
+        pe.InitializeFuncId(e);
+        return relay::partial_eval::PostProcess(pe.VisitExpr(e, ll)->dynamic);
+      });
+    }, func);
+  CHECK(ret->is_type<FunctionNode>());
+  m->Update(m->entry_func, Downcast<Function>(ret));
+  return m;
 }
-
-TVM_REGISTER_API("relay._ir_pass.partial_evaluate")
-.set_body_typed(PartialEval);
 
 namespace transform {
 
 Pass PartialEval() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
-    return Downcast<Function>(PartialEval(f, m));
+  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
+    [=](Module m, PassContext pc) {
+    return PartialEval(m);
   };
-  return CreateFunctionPass(pass_func, 1, "PartialEvaluate", {});
+  return CreateModulePass(pass_func, 1, "PartialEvaluate", {});
 }
 
 TVM_REGISTER_API("relay._transform.PartialEvaluate")
