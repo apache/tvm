@@ -360,7 +360,7 @@ def test_forward_concatenation():
 # ---
 
 def _test_elemwise(math_op, data, fused_activation_function=None):
-    """ One iteration of add """
+    """ One iteration of elemwise """
 
     assert len(data) == 2
 
@@ -456,6 +456,74 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_pow)
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise(_test_minimum)
+
+#######################################################################
+# Reduce
+# ------
+
+def _test_reduce(math_op, data, keep_dims=None):
+    """ One iteration of reduce """
+
+    assert len(data) == 2
+
+    # Test with tensor and constant
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')
+        out = math_op(in_data, data[1], keep_dims)
+        compare_tflite_with_tvm([data[0]], ['in:0'], [in_data], [out])
+
+
+#######################################################################
+# Reduce_min
+# ----------
+
+def _test_reduce_min(data, keep_dims=None):
+    """ One iteration of reduce_min """
+    return _test_reduce(math_ops.reduce_min, data, keep_dims)
+
+#######################################################################
+# Reduce_max
+# ----------
+
+def _test_reduce_max(data, keep_dims=None):
+    """ One iteration of reduce_max """
+    return _test_reduce(math_ops.reduce_max, data, keep_dims)
+
+#######################################################################
+# Reduce_mean
+# -----------
+
+def _test_reduce_mean(data, keep_dims=None):
+    """ One iteration of reduce_mean """
+    return _test_reduce(math_ops.reduce_mean, data, keep_dims)
+
+#######################################################################
+# Reduce_prod
+# -----------
+
+def _test_reduce_prod(data, keep_dims=None):
+    """ One iteration of reduce_prod """
+    return _test_reduce(math_ops.reduce_prod, data, keep_dims)
+
+
+def _test_forward_reduce(testop):
+    """ Reduce """
+    data0 = [np.random.rand(16, 16, 16, 16).astype("float32"), None]
+    data1 = [np.random.rand(16, 16, 16, 16).astype("float32"), np.array([1, 2], dtype=np.int32)]
+    testop(data0)
+    testop(data0, keep_dims=False)
+    testop(data0, keep_dims=True)
+    testop(data1)
+    testop(data1, keep_dims=False)
+    testop(data1, keep_dims=True)
+
+
+def test_all_reduce():
+    _test_forward_reduce(_test_reduce_min)
+    _test_forward_reduce(_test_reduce_max)
+    _test_forward_reduce(_test_reduce_mean)
+    _test_forward_reduce(_test_reduce_prod)
+
 
 #######################################################################
 # Squeeze
@@ -694,6 +762,9 @@ if __name__ == '__main__':
 
     # Elemwise
     test_all_elemwise()
+
+    # Reduce
+    test_all_reduce()
 
     # End to End
     test_forward_mobilenet_v1()
