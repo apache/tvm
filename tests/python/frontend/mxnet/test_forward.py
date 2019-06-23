@@ -536,29 +536,31 @@ def test_forward_bilinear_resize():
     verify_mxnet_frontend_impl(mx_sym, (1, 2, 3, 4), (1, 2, 5, 10))
 
 def test_forward_rnn_layer():
-    def verify(mode, input_size, seq_len, hidden_size, num_layers, init_states=True):
+    def verify(mode, seq_len, input_size, hidden_size, num_layers,
+               batch=1, init_states=True, bidirectional=False):
         if mode == "rnn":
-            layer = gluon.rnn.RNN(hidden_size, num_layers)
+            layer = gluon.rnn.RNN(hidden_size, num_layers, bidirectional=bidirectional)
         elif mode == "gru":
-            layer = gluon.rnn.GRU(hidden_size, num_layers)
+            layer = gluon.rnn.GRU(hidden_size, num_layers, bidirectional=bidirectional)
         else: # mode == "lstm"
-            layer = gluon.rnn.LSTM(hidden_size, num_layers)
+            layer = gluon.rnn.LSTM(hidden_size, num_layers, bidirectional=bidirectional)
         num_states = 2 if mode == "lstm" else 1
         layer.initialize()
         layer.hybridize()
 
         dtype = "float32"
-        batch = 1
+        directions = 2 if bidirectional else 1
         data_np = np.random.uniform(size=(seq_len, batch, input_size)).astype(dtype)
         data_mx = mx.nd.array(data_np)
 
         if init_states:
             shape_dict = {'data0': data_np.shape}
             inputs = {'data0': data_np}
+            state_shape = (num_layers*directions, batch, hidden_size)
             states_np = []
             states_mx = []
             for i in range(num_states):
-                s = np.random.uniform(size=(num_layers, batch, hidden_size)).astype(dtype)
+                s = np.random.uniform(size=state_shape).astype(dtype)
                 states_np.append(s)
                 states_mx.append(mx.nd.array(s))
                 shape_dict['data%s' % (i+1)] = s.shape
@@ -592,10 +594,13 @@ def test_forward_rnn_layer():
                         op_res.asnumpy(), mx_res.asnumpy(), rtol=1e-3)
 
     for mode in ["rnn", "gru", "lstm"]:
-        verify(mode, 64, 10, 64, 1)
-        verify(mode, 64, 10, 64, 2)
-        verify(mode, 64, 10, 32, 2)
-        verify(mode, 64, 10, 64, 2, init_states=False)
+        verify(mode, 1, 64, 64, 1)
+        verify(mode, 10, 64, 64, 2)
+        verify(mode, 10, 64, 32, 2)
+        verify(mode, 10, 64, 32, 2, batch=2)
+        verify(mode, 10, 64, 64, 3, init_states=False)
+        verify(mode, 10, 32, 64, 1, bidirectional=True)
+        verify(mode, 10, 64, 64, 3, batch=2, bidirectional=True, init_states=False)
 
 def test_forward_Crop():
     def verify(xshape, yshape, offset=None):
