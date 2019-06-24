@@ -131,7 +131,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         # convert to tflite model
-        converter = tf.contrib.lite.TFLiteConverter.from_session(
+        converter = tf.lite.TFLiteConverter.from_session(
             sess, input_tensors, output_tensors)
         tflite_model_buffer = converter.convert()
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
