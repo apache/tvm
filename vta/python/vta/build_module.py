@@ -19,10 +19,8 @@
 from __future__ import absolute_import as _abs
 
 import tvm
-from tvm import rpc
 from . import ir_pass
 from .environment import get_env
-from .testing import simulator
 
 
 def lift_coproc_scope(x):
