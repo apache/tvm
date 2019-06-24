@@ -41,12 +41,11 @@ def _build(func,
 
     from tvm import relay
 
-    if "vta" in str(target):
+    if target.device_name == "vta":
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
-            if target.device_name == "vta":
-                import vta
-                with vta.build_config():
-                    return relay.build(func, target, target_host, params)
+            import vta
+            with vta.build_config():
+                return relay.build(func, target, target_host, params)
     # default case
     return relay.build(func, target, target_host, params)
 
@@ -125,7 +124,7 @@ def extract_from_program(func, params, ops, target, target_host=None):
                          template_key='direct')
             tasks.append(tsk)
         except topi.InvalidShapeError:
-            print("[Warning] Invalid shape during AutoTVM task creation")
+            warnings.warn("Invalid shape during AutoTVM task creation")
     return tasks
 
 
