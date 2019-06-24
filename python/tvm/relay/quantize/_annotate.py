@@ -367,7 +367,7 @@ def concatenate_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
-# register for vta stop fusion
+# Graph rewrite function registration for VTA target
 def register_vta_rewrite(op_name, frewrite=None, level=10):
     def _register(func):
         return _op.op._Register(op_name, "FQVTARewrite", func, level)
