@@ -41,7 +41,7 @@ def _build(func,
 
     from tvm import relay
 
-    if target.device_name == "vta":
+    if "vta" in str(target):
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             import vta
             with vta.build_config():
