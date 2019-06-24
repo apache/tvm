@@ -73,6 +73,10 @@ class OperatorConverter(object):
             'POW': self.convert_pow,
             'MAXIMUM': self.convert_maximum,
             'MINIMUM': self.convert_minimum,
+            'REDUCE_MIN': self._convert_reduce_min,
+            'REDUCE_MAX': self._convert_reduce_max,
+            'MEAN': self._convert_reduce_mean,
+            'REDUCE_PROD': self._convert_reduce_prod,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'PAD': self.convert_pad,
             'LOGISTIC': self.convert_logistic,
@@ -426,6 +430,48 @@ class OperatorConverter(object):
 
     def convert_minimum(self, op):
         return self._convert_elemwise(_op.minimum, op)
+
+    def _convert_reduce(self, relay_op, op):
+        """Generic method to Convert TFLite MEAN operators"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.ReducerOptions import ReducerOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        # input_tensor
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # axis
+        axis = tuple(self.get_tensor_value(input_tensors[1]))
+
+        # Options - keep_dims (bool)
+        assert op.BuiltinOptionsType() == BuiltinOptions.ReducerOptions
+        reduce_options = ReducerOptions()
+        op_options = op.BuiltinOptions()
+        reduce_options.Init(op_options.Bytes, op_options.Pos)
+        keep_dims = reduce_options.KeepDims()
+
+        out = relay_op(in_expr, axis, keep_dims)
+        return out
+
+    def _convert_reduce_min(self, op):
+        return self._convert_reduce(_op.reduce.min, op)
+
+    def _convert_reduce_max(self, op):
+        return self._convert_reduce(_op.reduce.max, op)
+
+    def _convert_reduce_mean(self, op):
+        return self._convert_reduce(_op.reduce.mean, op)
+
+    def _convert_reduce_prod(self, op):
+        return self._convert_reduce(_op.reduce.prod, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
