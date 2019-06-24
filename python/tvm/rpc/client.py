@@ -175,6 +175,10 @@ class RPCSession(object):
         """Construct extension device."""
         return self.context(12, dev_id)
 
+    def hexagon(self, dev_id=0):
+        """Construct extension device."""
+        return self.context(13, dev_id)
+
 
 class LocalSession(RPCSession):
     """RPCSession interface backed by local environment.

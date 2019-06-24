@@ -495,6 +495,18 @@ def vta(model='unknown', options=None):
     ret = _api_internal._TargetCreate("ext_dev", *opts)
     return ret
 
+def hexagon(options=None):
+    """Returns a Hexagon target.
+
+    Parameters
+    ----------
+    options : str or list of str
+        Additional options
+    """
+    # No extra options, but pass an empty list instead of None to avoid
+    # an assertion in packed_func.h in conversion to std::string().
+    opts = _merge_opts([], options)
+    return _api_internal._TargetCreate("hexagon", *opts)
 
 def create(target_str):
     """Get a target given target string.

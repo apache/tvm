@@ -1,1 +1,15 @@
 TVM End to End Deep Learning Compiler Stack: https://tvm.ai/
+
+This product includes contributions provided by Qualcomm Technologies, Inc.,
+a Delaware corporation, or its subsidiary Qualcomm Innovation Center, Inc.,
+a California corporation, under certain additional terms and conditions
+pursuant to Section 5 of the Apache 2.0 license.  In this regard, with
+respect to these Contributions, the term "Work" in Section 1 of the
+Apache 2.0 license means only the specific subdirectory within the TVM repo
+(currently at https://github.com/dmlc/tvm) to which these Contribution were
+made.
+In any case, these submissions are "Not a Contribution" with respect to its
+permitted use with any of the "vta" and "verilog" subdirectories in the TVM
+repo.
+Qualcomm Technologies, Inc. and Qualcomm Innovation Center, Inc. retain
+copyright of their respective Contributions.

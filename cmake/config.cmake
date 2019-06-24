@@ -135,3 +135,6 @@ set(USE_ANTLR OFF)
 # Whether use Relay debug mode
 set(USE_RELAY_DEBUG OFF)
 
+# Whether to use hexagon device
+set(USE_HEXAGON OFF)
+set(USE_HEXAGON_SDK /path/to/sdk)

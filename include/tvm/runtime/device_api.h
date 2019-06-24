@@ -46,10 +46,10 @@ enum DeviceAttrKind : int {
 };
 
 /*! \brief Number of bytes each allocation must align to */
-constexpr int kAllocAlignment = 64;
+constexpr int kAllocAlignment = 128;
 
 /*! \brief Number of bytes each allocation must align to in temporary allocation */
-constexpr int kTempAllocaAlignment = 64;
+constexpr int kTempAllocaAlignment = 128;
 
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
@@ -215,6 +215,7 @@ inline const char* DeviceName(int type) {
     case kDLROCM: return "rocm";
     case kOpenGL: return "opengl";
     case kDLExtDev: return "ext_dev";
+    case kDLHexagon: return "hexagon";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
 }
