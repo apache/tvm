@@ -123,42 +123,42 @@ class ModuleNode : public RelayNode {
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
-  TVM_DLL GlobalVar GetGlobalVar(const std::string& str);
+  TVM_DLL GlobalVar GetGlobalVar(const std::string& str) const;
 
   /*!
    * \brief Look up a global function by its name.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
-  TVM_DLL GlobalTypeVar GetGlobalTypeVar(const std::string& str);
+  TVM_DLL GlobalTypeVar GetGlobalTypeVar(const std::string& str) const;
 
   /*!
    * \brief Lookup a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.
    */
-  TVM_DLL Function Lookup(const GlobalVar& var);
+  TVM_DLL Function Lookup(const GlobalVar& var) const;
 
   /*!
    * \brief Lookup a global function by its string name
    * \param name The name of the function.
    * \returns The function named by the argument.
    */
-  TVM_DLL Function Lookup(const std::string& name);
+  TVM_DLL Function Lookup(const std::string& name) const;
 
   /*!
    * \brief Lookup a global type definition by its variable.
    * \param var The var of the global type definition.
    * \return The type definition.
    */
-  TVM_DLL TypeData LookupDef(const GlobalTypeVar& var);
+  TVM_DLL TypeData LookupDef(const GlobalTypeVar& var) const;
 
   /*!
    * \brief Lookup a global type definition by its name.
    * \param var The name of the global type definition.
    * \return The type definition.
    */
-  TVM_DLL TypeData LookupDef(const std::string& var);
+  TVM_DLL TypeData LookupDef(const std::string& var) const;
 
   /*!
    * \brief Update the functions inside this environment by
