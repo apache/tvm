@@ -105,8 +105,6 @@ def extract_from_graph(graph, shape, dtype, target, symbols, params=None, target
     tasks = []
     for task_name, args in env.get_tasks():
         try:
-            print(task_name)
-            print(args)
             tsk = create(task_name, args,
                          target=target, target_host=target_host,
                          template_key='direct')
