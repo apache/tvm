@@ -86,7 +86,10 @@ class LocalBuilder(Builder):
                 build_func = ndk.create_shared
             else:
                 raise ValueError("Invalid build_func" + build_func)
-        self.build_func = _wrap_build_func(build_func)
+            self.build_func = _wrap_build_func(build_func)
+        else:
+            # If build_func is callable, bypass wrapper
+            self.build_func = build_func
         self.executor = LocalExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
 
