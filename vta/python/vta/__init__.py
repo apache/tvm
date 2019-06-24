@@ -18,5 +18,5 @@ __version__ = "0.1.0"
 # to maintain minimum dependency on the board
 if sys.argv[0] not in ("-c", "-m"):
     from . import top
-    from .build_module import build_config, lower, build, vta_autotvm_build_func
+    from .build_module import build_config, lower, build
     from . import graph

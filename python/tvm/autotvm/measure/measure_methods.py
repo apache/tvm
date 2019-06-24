@@ -86,10 +86,7 @@ class LocalBuilder(Builder):
                 build_func = ndk.create_shared
             else:
                 raise ValueError("Invalid build_func" + build_func)
-            self.build_func = _wrap_build_func(build_func)
-        else:
-            # If build_func is callable, bypass wrapper
-            self.build_func = build_func
+        self.build_func = _wrap_build_func(build_func)
         self.executor = LocalExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
 
@@ -362,8 +359,13 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
         if cuda_arch:
             set_cuda_target_arch(cuda_arch)
 
-        with build_config(**opts):
-            func = build(s, args, target_host=task.target_host)
+        if measure_input.target.device_name == 'vta':
+            # if target is vta, we need to use vta build
+            import vta
+            func = vta.build(s, args, target_host=task.target_host)
+        else:
+            with build_config(**opts):
+                func = build(s, args, target_host=task.target_host)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
