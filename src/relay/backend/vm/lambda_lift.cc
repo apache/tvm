@@ -112,7 +112,7 @@ struct LambdaLifter : ExprMutator {
     CHECK(lifted_func.defined());
 
     auto name = GenerateName(lifted_func);
-    auto global = module_->GetGlobalVar(name);
+    auto global = GlobalVarNode::make(name);
 
     // Add the lifted function to the module.
     module_->Add(global, lifted_func);
