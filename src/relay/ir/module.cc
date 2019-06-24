@@ -57,15 +57,11 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
   return Module(n);
 }
 
-GlobalVar ModuleNode::GetGlobalVar(const std::string& name) {
+GlobalVar ModuleNode::GetGlobalVar(const std::string& name) const {
   auto it = global_var_map_.find(name);
-  if (it == global_var_map_.end()) {
-    auto gvar = GlobalVarNode::make(name);
-    global_var_map_.Set(name, gvar);
-    return gvar;
-  } else {
-    return (*it).second;
-  }
+  CHECK(it != global_var_map_.end())
+    << "Cannot find global var " << name << " in the Module";
+  return (*it).second;
 }
 
 void ModuleNode::AddUnchecked(const GlobalVar& var,
@@ -84,7 +80,7 @@ void ModuleNode::AddUnchecked(const GlobalVar& var,
   global_var_map_.Set(var->name_hint, var);
 }
 
-GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) {
+GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
   auto it = global_type_var_map_.find(name);
   CHECK(it != global_type_var_map_.end())
     << "Cannot find global type var " << name << " in the Module";
@@ -137,26 +133,26 @@ void ModuleNode::Remove(const GlobalVar& var) {
   gvar_node->data.erase(var->name_hint);
 }
 
-Function ModuleNode::Lookup(const GlobalVar& var) {
+Function ModuleNode::Lookup(const GlobalVar& var) const {
   auto it = functions.find(var);
   CHECK(it != functions.end())
       << "There is no definition of " << var->name_hint;
   return (*it).second;
 }
 
-Function ModuleNode::Lookup(const std::string& name) {
+Function ModuleNode::Lookup(const std::string& name) const {
   GlobalVar id = this->GetGlobalVar(name);
   return this->Lookup(id);
 }
 
-TypeData ModuleNode::LookupDef(const GlobalTypeVar& var) {
+TypeData ModuleNode::LookupDef(const GlobalTypeVar& var) const {
   auto it = type_definitions.find(var);
   CHECK(it != type_definitions.end())
     << "There is no definition of " << var->var->name_hint;
   return (*it).second;
 }
 
-TypeData ModuleNode::LookupDef(const std::string& name) {
+TypeData ModuleNode::LookupDef(const std::string& name) const {
   GlobalTypeVar id = this->GetGlobalTypeVar(name);
   return this->LookupDef(id);
 }
