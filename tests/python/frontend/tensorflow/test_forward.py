@@ -949,8 +949,8 @@ def test_forward_multi_output():
                 tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
 #######################################################################
-# Resize Bilinear
-# ---------------
+# Resize Bilinear, Nearest_Neighbor
+# ---------------------------------
 
 def _test_resize_bilinear(in_shape, to_shape, align_corners):
     """ One iteration of resize bilinear """
@@ -980,13 +980,31 @@ def _test_resize_bilinear_from_tensor(in_shape, align_corners):
 
         compare_tf_with_tvm(data, 'Placeholder:0', 'ResizeBilinear:0')
 
-def test_forward_resize_bilinear():
-    """ Resize Bilinear """
+
+def _test_resize_nearest_neighbor(in_shape, to_shape):
+    """ One iteration of resize nearest neighbor """
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+    shape_data = np.array(to_shape).astype('int32')
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        shape_data = constant_op.constant(
+            shape_data, shape=shape_data.shape, dtype=shape_data.dtype)
+        tf.image.resize_nearest_neighbor(in_data, shape_data, name='resize_nearest_neighbor')
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'resize_nearest_neighbor:0')
+
+
+def test_forward_resize():
+    """ Resize Bilinear, Nearest_Neighbor """
 
     _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
     _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
     _test_resize_bilinear_from_tensor((4, 16, 32, 32), False)
     _test_resize_bilinear_from_tensor((6, 32, 50, 50), True)
+    _test_resize_nearest_neighbor((6, 32, 64, 64), [20, 20])
+
 
 #######################################################################
 # BroadcastTo
@@ -1078,6 +1096,39 @@ def _test_crop(in_shape, off_h, off_w, tar_h, tar_w):
 def test_forward_crop():
     """ Crop to bounding box """
     _test_crop((1, 224, 224, 3), 20, 20, 120, 120)
+
+
+#######################################################################
+# CropAndResize
+# -------------
+
+def _test_forward_crop_and_resize(img_shape, boxes, box_idx, crop_size, method='bilinear', dtype="float32"):
+    image = np.random.uniform(0, 10, size=img_shape).astype(dtype)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, image.shape, name="in_data")
+    tf.image.crop_and_resize(in_data, boxes=boxes, box_ind=box_idx, crop_size=crop_size,
+                             method=method, name="crop_and_resize")
+    compare_tf_with_tvm([image], ['in_data:0'], 'crop_and_resize:0')
+
+def test_forward_crop_and_resize():
+    """ CropAndResize """
+    _test_forward_crop_and_resize([1, 11, 11, 3], [[0, 0, 1, 1]], [0], [5, 5])
+    _test_forward_crop_and_resize([1, 11, 11, 3], [[0, 0, .9, .9]], [0], [5, 5])
+    _test_forward_crop_and_resize([1, 11, 11, 3], [[.1, .2, 1, 1]], [0], [5, 5])
+    _test_forward_crop_and_resize([1, 21, 21, 3], [[.2, .3, .7, .9]], [0], [3, 4])
+    _test_forward_crop_and_resize([1, 106, 106, 3], [[0.2, 0.4, 0.8, 0.8]], [0], [3, 3])
+    _test_forward_crop_and_resize([10, 11, 11, 3],
+                                  [[0, 0, 0.9, 0.9], [0.2, 0.2, 0.8, 0.8]],
+                                  [0, 1],
+                                  [5, 5])
+    _test_forward_crop_and_resize([3, 11, 11, 3],
+                                  [[0, 0, 0.9, 0.9], [0.2, 0.2, 0.8, 0.8],[0, 0, 1, 1]],
+                                  [0, 1, 2],
+                                  [3, 3])
+    _test_forward_crop_and_resize([3, 11, 11, 3],
+                                  [[0, 0, 1, 0.8], [0, 0, 0.9, 0.9], [0, 0, 1, 0.8]],
+                                  [2, 1, 0],
+                                  [3, 3])
 
 
 #######################################################################
@@ -1979,10 +2030,11 @@ if __name__ == '__main__':
     test_forward_depthtospace()
     test_forward_squeeze()
     test_forward_pack()
-    test_forward_resize_bilinear()
     test_forward_broadcast_to()
     test_forward_fill()
     test_forward_crop()
+    test_forward_resize()
+    test_forward_crop_and_resize()
     test_forward_pad()
     test_forward_unpack()
     test_forward_gather()

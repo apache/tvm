@@ -18,7 +18,6 @@
 from __future__ import absolute_import as _abs
 from __future__ import print_function
 import os
-from tensorflow.core.framework import graph_pb2
 from tvm.contrib import util
 
 
@@ -35,12 +34,12 @@ class TFParser(object):
     --------
     .. code-block:: python
 
-        parser = TfParser(model_dir)
-        graph = parser.parse()
-        # graph is related graphdef of the model
+        parser = TFParser(model_dir)
+        graphdef = parser.parse()
     """
 
     def __init__(self, model_dir):
+        from tensorflow.core.framework import graph_pb2
         self._tmp_dir = util.tempdir()
         self._model_dir = model_dir
         self._graph = graph_pb2.GraphDef()
@@ -96,6 +95,7 @@ class TFParser(object):
             from tensorflow.python.tools import freeze_graph
             from tensorflow.python.framework import ops
             from tensorflow.python.framework import graph_util
+            from tensorflow.core.framework import graph_pb2
         except ImportError:
             raise ImportError(
                 "InputConfiguration: Unable to import tensorflow which is "
