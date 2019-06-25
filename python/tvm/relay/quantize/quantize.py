@@ -158,9 +158,6 @@ def qconfig(**kwargs):
         is None, which means will try to call all operartors' annotate rewrite
         function.
 
-    target_vta: boolean
-        Whether we are performing quantization for VTA.
-
     Returns
     -------
     config: QConfig
