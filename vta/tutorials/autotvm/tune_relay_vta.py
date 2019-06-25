@@ -90,9 +90,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 
     # Perform quantization in Relay
     with relay.quantize.qconfig(global_scale=8.0,
-                                skip_k_conv=1,
-                                skip_k_dense=1,
-                                target_vta=True):
+                                skip_conv_layers=[0]):
         relay_prog = relay.quantize.quantize(mod[mod.entry_func], params=params)
 
     # Perform graph packing and constant folding for VTA target
