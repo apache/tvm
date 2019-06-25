@@ -117,7 +117,7 @@ def _create_data(target, dshape, dtype, layout):
 
 def test_graph_tuner_layout_transform():
     log_file = "%s/test_tuner.log" % (os.getcwd())
-    target = "llvm"
+    target = tvm.target.arm_cpu()
     dshape = (1, 3, 8, 8)
     dtype = "float32"
     layout = "NCHW"
@@ -152,7 +152,7 @@ def test_graph_tuner_layout_transform():
 
 def test_DPTuner_run():
     log_file = "%s/test_tuner.log" % (os.getcwd())
-    target = "llvm"
+    target = tvm.target.arm_cpu()
     dtype = "float32"
     layout = "NCHW"
     dshape = (1, 3, 8, 8)
@@ -201,7 +201,7 @@ def test_DPTuner_run():
 
 
 def test_PBQPTuner_run():
-    target = "llvm"
+    target = tvm.target.arm_cpu()
     dtype = "float32"
     layout = "NCHW"
     dshape = (1, 3, 8, 8)
