@@ -388,7 +388,6 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
                             const Array<Expr>& args,
                             DataType* dtype_ptr,
                             Expr* scale_ptr) {
-  static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
   const QConfig& cfg = QConfig::Current();
 
   std::vector<const QRealizeIntExprNode*> nptrs;
@@ -411,20 +410,6 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
     ret.Set(0, Cast(ret[0], dtype));
   } else {
     LOG(FATAL) << "should not touch here.";
-  }
-
-  for (size_t i = 0; i < ret.size(); ++i) {
-    auto ref_arg = ref_args[i].as<CallNode>();
-    if (nptrs[i]->dtype != dtype) {
-      ret.Set(i, Cast(ret[i], dtype));
-    } else if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
-               ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
-      auto new_arg = Cast(ret[i], cfg->dtype_input);
-      if (cfg->store_lowbit_output) {
-        new_arg = StopFusion(new_arg);
-      }
-      ret.Set(i, Cast(new_arg, dtype));
-    }
   }
 
   // unify the dom_scale
