@@ -33,9 +33,9 @@ import tempfile
 
 import numpy as np
 
-from ... import ir_pass, build, build_config, nd, TVMError, register_func, \
-    rpc as _rpc, target as _target
-from ...contrib import nvcc, ndk, tar
+from ... import ir_pass, build, build_config, nd, TVMError, rpc as _rpc, \
+    target as _target
+from ...contrib import ndk, tar
 
 from ..util import get_const_tuple
 from ..env import AutotvmGlobalScope
