@@ -203,6 +203,7 @@ def test_reduce_functions():
                  [relay.max, np.max],
                  [relay.min, np.min],
                  [relay.mean, np.mean],
+                 [relay.variance, np.var],
                  [relay.prod, np.prod],
                  [relay.all, np.all],
                  [relay.argmin, _with_keepdims(np.argmin)],

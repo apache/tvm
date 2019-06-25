@@ -230,8 +230,19 @@ def _mx_batch_norm(inputs, attrs):
     new_attrs["axis"] = attrs.get_int("axis", 1)
     new_attrs["epsilon"] = attrs.get_float("eps", 0.001)
     new_attrs["center"] = True
-    new_attrs["scale"] = not attrs.get_bool("fix_gamma", False)
+    new_attrs["scale"] = not attrs.get_bool("fix_gamma", True)
     return _op.nn.batch_norm(*inputs, **new_attrs)
+
+
+def _mx_layer_norm(inputs, attrs):
+    assert len(inputs) == 3
+    if attrs.get_bool("output_mean_var", False):
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "output_mean_var" is not supported for operator Layer Norm.')
+    new_attrs = {}
+    new_attrs["axis"] = attrs.get_int("axis", -1)
+    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
+    return _op.nn.layer_norm(*inputs, **new_attrs)
 
 
 def _mx_slice(inputs, attrs):
@@ -881,16 +892,6 @@ def _mx_rnn_layer(inputs, attrs):
                     inputs.append(back_states[l][i])
             ret.append(_op.stack(inputs, axis=0))
     return ret
-
-
-def _mx_layer_norm(inputs, attrs):
-    assert len(inputs) == 3
-    if attrs.get_bool("output_mean_var", False):
-        raise RuntimeError("batch_norm do not support output_mean_var")
-    new_attrs = {}
-    new_attrs["axis"] = attrs.get_int("axis", -1)
-    new_attrs["epsilon"] = attrs.get_float("eps", 1e-5)
-    return _op.nn.layer_norm(*inputs, **new_attrs)
 
 
 # Note: due to attribute conversion constraint

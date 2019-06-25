@@ -689,7 +689,7 @@ bool LayerNormRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
   const LayerNormAttrs* param = attrs.as<LayerNormAttrs>();
-  int axis = param->axis > 0 ? param->axis : param->axis + data->shape.size();
+  int axis = param->axis >= 0 ? param->axis : param->axis + data->shape.size();
   CHECK(axis >= 0 && axis < (int)data->shape.size());
   reporter->Assign(types[1], TensorTypeNode::make({data->shape[axis]}, data->dtype));
   reporter->Assign(types[2], TensorTypeNode::make({data->shape[axis]}, data->dtype));
@@ -698,18 +698,20 @@ bool LayerNormRel(const Array<Type>& types,
   return true;
 }
 
-Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, 
-                   int axis, double epsilon) {
+Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
+                   bool center, bool scale) {
   auto attrs = make_node<LayerNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
+  attrs->center = center;
+  attrs->scale = scale;
   static const Op& op = Op::Get("nn.layer_norm");
   return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_API("relay.op.nn._make.layer_norm")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 5>(MakeLayerNorm, args, rv);
+    runtime::detail::unpack_call<Expr, 7>(MakeLayerNorm, args, rv);
   });
 
 RELAY_REGISTER_OP("nn.layer_norm")
