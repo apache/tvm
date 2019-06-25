@@ -720,7 +720,7 @@ void VirtualMachine::Run() {
       }
       case Opcode::AllocTensor: {
         auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
-        for (uint i = 0; i < instr.alloc_tensor.ndim; ++i) {
+        for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
           shape[i] = instr.alloc_tensor.shape[i];
         }
         auto allocator = MemoryManager::Global()->GetAllocator(ctxs[0]);
