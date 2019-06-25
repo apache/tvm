@@ -388,6 +388,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
                             const Array<Expr>& args,
                             DataType* dtype_ptr,
                             Expr* scale_ptr) {
+  static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
   const QConfig& cfg = QConfig::Current();
 
   std::vector<const QRealizeIntExprNode*> nptrs;
