@@ -199,8 +199,6 @@ def dense_rewrite(ref_call, new_args, ctx):
     if check_to_skip():
         return None
 
-    _set_dense_counter(cnt + 1)
-
     lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
     rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
 
@@ -226,6 +224,7 @@ def multiply_rewrite(ref_call, new_args, ctx):
 
     if lhs_kind is None and rhs_kind is None:
         return None
+
     if lhs_kind in [QAnnotateKind.ACTIVATION, QAnnotateKind.INPUT] and rhs_kind is None:
         # quantize lhs to INPUT field
         if lhs_kind == QAnnotateKind.ACTIVATION:
@@ -234,6 +233,7 @@ def multiply_rewrite(ref_call, new_args, ctx):
         rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+
     raise ValueError
 
 
@@ -325,6 +325,7 @@ def pool2d_rewrite(ref_call, new_args, ctx):
         return None
     if x_kind == QAnnotateKind.ACTIVATION:
         expr = attach_simulated_quantize(expr, QAnnotateKind.INPUT)
+
     expr = _forward_op(ref_call, [expr])
     return QAnnotateExpr(expr, QAnnotateKind.INPUT)
 
@@ -335,8 +336,9 @@ register_annotate_function("nn.max_pool2d", pool2d_rewrite)
 @register_annotate_function("annotation.force_cast")
 def force_cast_rewrite(ref_call, new_args, ctx):
     """Rewrite function to force cast"""
-    if _conv_counter() <= current_qconfig().skip_k_conv:
+    if check_to_skip():
         return None
+
     expr, x_kind = _get_expr_kind(new_args[0])
 
     if x_kind is None:
@@ -395,11 +397,13 @@ def vta_expr_check(expr):
 @register_vta_rewrite("nn.conv2d")
 def conv2d_vta_rewrite(ref_call, new_args, ctx):
     """Rewrite function for conv2d for VTA target"""
-    cnt = _conv_counter()
-    if cnt < current_qconfig().skip_k_conv:
-        _set_conv_counter(cnt + 1)
-        return None
-    _set_conv_counter(cnt + 1)
+    actx = annotate_context()
+    if current_qconfig().skip_conv_layers is not None:
+        skipped_indices = [int(x) for x in current_qconfig().skip_conv_layers]
+        if actx.conv2d_counter() in skipped_indices:
+            actx.count_conv2d()
+            return None
+    actx.count_conv2d()
 
     data_cond, data = vta_expr_check(new_args[0])
     kernel_cond, kernel = vta_expr_check(new_args[1])

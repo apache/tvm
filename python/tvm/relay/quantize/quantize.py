@@ -199,20 +199,6 @@ def annotate_context():
     return AnnotateContext.Current
 
 
-_DENSE_COUNTER = 0
-
-
-def _dense_counter():
-    """Get the global counter for dense."""
-    return _DENSE_COUNTER
-
-
-def _set_dense_counter(n):
-    """Set the value of the global dense counter."""
-    global _DENSE_COUNTER
-    _DENSE_COUNTER = n
-
-
 def calibrate(graph, mod=None, ctx=None):
     """The calibrate procedure will try to calculate the content of
     dom_scale, nbit, clip_min, clip_max for every `simulated_quantize`
