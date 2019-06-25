@@ -52,12 +52,6 @@ uint64_t vta(
   snprintf(str_block_bit_width, sizeof(str_block_bit_width), "%d", VTA_WGT_WIDTH);
   snprintf(bitstream, sizeof(bitstream), "%s", "vta.bit");
 
-#if VTA_DEBUG == 1
-  printf("INFO - Programming FPGA: %s!\n", bitstream);
-#endif
-
-  // Program VTA
-  VTAProgram(bitstream);
   // Get VTA handles
   void* vta_fetch_handle = VTAMapRegister(VTA_FETCH_ADDR, VTA_RANGE);
   void* vta_load_handle = VTAMapRegister(VTA_LOAD_ADDR, VTA_RANGE);
