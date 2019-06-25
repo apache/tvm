@@ -18,7 +18,7 @@
 CC ?= g++
 CFLAGS = -Wall -O3 -std=c++11 -I/usr/include
 LDFLAGS = -L/usr/lib -L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/
-LIBS = -l:libsds_lib.so -l:libdma.so -lstdc++
+LIBS = -l:libcma.so -lstdc++ -pthread
 INCLUDE_DIR = ../../../include
 DRIVER_DIR = ../../../src/pynq
 TESTLIB_DIR = ../common
@@ -33,11 +33,15 @@ CFLAGS += `${VTA_CONFIG} --cflags`
 LDFLAGS += `${VTA_CONFIG} --ldflags`
 VTA_TARGET := $(shell ${VTA_CONFIG} --target)
 
+# Include bitstream
+VTA_PROGRAM = python3 ../../../python/vta/program_bitstream.py
+VTA_BIT = "vta.bit"
+
 # Define flags
 CFLAGS += -I $(INCLUDE_DIR) -DNO_SIM -DVTA_DEBUG=0
 
 # All Target
-all: $(EXECUTABLE)
+all: vtainstall $(EXECUTABLE)
 
 %.o: %.cc $(SOURCES)
 	$(CC) -c -o $@ $< $(CFLAGS)
@@ -45,5 +49,7 @@ all: $(EXECUTABLE)
 $(EXECUTABLE): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@ $(LIBS)
 
+vtainstall:
+	${VTA_PROGRAM} ${VTA_TARGET} ${VTA_BIT}
 clean:
 	rm -rf *.o $(EXECUTABLE)
