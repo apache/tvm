@@ -155,6 +155,40 @@ def setup():
     # TODO(@gussmith23) update this with the real value at some point
     register_min_func(lambda num_bits: -3.38953139e38, "posit")
 
+def test_ops_same_function(src_dtype, dst_dtype):
+    def check_unary_op(op, src_dtype, dst_dtype):
+        t1 = relay.TensorType((5, 10, 5))
+        x = relay.var("x", t1)
+        z = op(x)
+        x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
+
+        func = relay.Function([x], z)
+
+        ex = relay.create_executor("graph")
+
+        correct = ex.evaluate(func)(x_data)
+
+        func, _ = change_dtype(src_dtype, dst_dtype, func, [], ex)
+
+        x_converted = convert_ndarray(dst_dtype, x_data, ex)
+        maybe_correct = ex.evaluate(func)(x_converted)
+        maybe_correct_converted = convert_ndarray(src_dtype, maybe_correct, ex)
+        np.testing.assert_allclose(
+            maybe_correct_converted.asnumpy(), correct.asnumpy(), rtol=0.0001, atol=0.0001)
+        print(maybe_correct_converted)
+        print(correct)
+
+    for op in [
+            #(tvm.relay.log, np.log),
+            #(tvm.relay.exp, np.exp),
+            # (tvm.relay.sqrt, np.sqrt),
+            # (tvm.relay.rsqrt, rsqrt),
+            # #(tvm.relay.sigmoid, sigmoid),
+            # #(tvm.relay.tanh, np.tanh),
+            # (relay.nn.relu, relu),
+            relay.nn.softmax]:
+        check_unary_op(op, src_dtype, dst_dtype)
+
 
 def test_ops(src_dtype, dst_dtype):
     def check_unary_op(opfunc, ref, src_dtype, dst_dtype):
