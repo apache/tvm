@@ -55,8 +55,8 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
     shift = Add(shift, beta);
   }
 
-  int axis = param->axis;
   auto ndim = ttype->shape.size();
+  int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
   scale = ExpandBiasToMatchAxis(scale, ndim, {axis});
   shift = ExpandBiasToMatchAxis(shift, ndim, {axis});
 
@@ -68,13 +68,27 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
 Expr LayerNormToInferUnpack(const Attrs attrs,
                             Expr data,
                             Expr gamma,
-                            Expr beta) {
+                            Expr beta,
+                            Type tdata) {
+  auto ttype = tdata.as<TensorTypeNode>();
+  CHECK(ttype);
   const auto param = attrs.as<LayerNormAttrs>();
+  CHECK(param);
+
   Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
-  auto mean = Mean(data, {param->axis}, true, false);
-  auto var = Variance(data, mean, {param->axis}, true, false);
-  auto denom = Sqrt(Add(var, epsilon));
-  Expr out = Add(Multiply(Divide(Substract(data, mean), denom), gamma), beta);
+  Expr mean = Mean(data, {param->axis}, true, false);
+  Expr var = Variance(data, mean, {param->axis}, true, false);
+  Expr denom = Sqrt(Add(var, epsilon));
+  Expr out = Divide(Subtract(data, mean), denom);
+
+  size_t ndim = ttype->shape.size();
+  int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
+  if (param->scale) {
+    out = Multiply(out, ExpandBiasToMatchAxis(gamma, ndim, {axis}));
+  }
+  if (param->center) {
+    out = Add(out, ExpandBiasToMatchAxis(beta, ndim, {axis}));
+  }
   return out;
 }
 
@@ -107,7 +121,8 @@ class InferenceSimplifier : public ExprMutator {
     if (n->op.same_as(batch_norm)) {
       ty_map_[new_n.as<CallNode>()->args[0]] = n->args[0]->checked_type();
     } else if (n->op.same_as(layer_norm)) {
-      return LayerNormToInferUnpack(n->attrs, n->args[0], n->args[1], n->args[2]);
+      return LayerNormToInferUnpack(
+              n->attrs, n->args[0], n->args[1], n->args[2], n->args[0]->checked_type());
     }
     return new_n;
   }
