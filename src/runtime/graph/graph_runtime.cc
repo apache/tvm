@@ -265,6 +265,11 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     CHECK_EQ(data_entry_[eid].use_count(), 1);
     data_entry_[eid] = other.GetInput(GetInputIndex(names[i]));
     CHECK_GT(data_entry_[eid].use_count(), 1);
+    dltensor_entry_[eid] = std::make_shared<DLTensor>(*(data_entry_[eid].operator->()));
+    dltensor_entry_shapes_[eid].resize(dltensor_entry_[eid]->ndim);
+    for (size_t j = 0; j < dltensor_entry_shapes_[eid].size(); ++j) {
+      dltensor_entry_shapes_[eid][j] = dltensor_entry_[eid]->shape[j];
+    }
   }
   this->SetupOpExecs();
 }
@@ -339,7 +344,6 @@ void GraphRuntime::SetupStorage() {
     for (size_t j = 0; j < dltensor_entry_shapes_[i].size(); ++j) {
       dltensor_entry_shapes_[i][j] = dltensor_entry_[i]->shape[j];
     }
-    std::make_shared<DLTensor>(*(data_entry_[i].operator->()));
   }
 }
 
