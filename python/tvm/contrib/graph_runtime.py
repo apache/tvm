@@ -147,14 +147,16 @@ class GraphModule(object):
            Additonal arguments
         """
         if key is not None:
-            self._set_input(key, ndarray.array(value))
+            ctx = self._get_input(key).ctx
+            self._set_input(key, ndarray.array(value, ctx=ctx))
 
         if params:
             # upload big arrays first to avoid memory issue in rpc mode
             keys = list(params.keys())
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
-                self._set_input(k, ndarray.array(params[k]))
+                ctx = self._get_input(k).ctx
+                self._set_input(k, ndarray.array(params[k], ctx=ctx))
 
     def run(self, **input_dict):
         """Run forward execution of the graph

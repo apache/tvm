@@ -252,7 +252,12 @@ void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
     CHECK_EQ(data_entry_[eid].use_count(), 1);
     data_entry_[eid] = other.GetInput(GetInputIndex(names[i]));
     CHECK_GT(data_entry_[eid].use_count(), 1);
-    SetDLTensorEntry(eid);
+    dltensor_entry_[eid] = std::make_shared<DLTensor>(*(data_entry_[eid].operator->()));
+    flatten_dltensor_entry_[eid] = std::make_shared<DLTensor>(*(data_entry_[eid].operator->()));
+    dltensor_entry_shapes_[eid].resize(dltensor_entry_[eid]->ndim);
+    for (size_t j = 0; j < dltensor_entry_shapes_[eid].size(); ++j) {
+      dltensor_entry_shapes_[eid][j] = dltensor_entry_[eid]->shape[j];
+    }
   }
   this->SetupOpExecs();
 }
