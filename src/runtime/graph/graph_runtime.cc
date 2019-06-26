@@ -102,6 +102,8 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   data_entry_[eid].CopyFrom(data_in);
+  LOG(INFO) << "Set input " << eid << ": " << data_entry_[eid].operator->()->data;
+  SetDLTensorEntry(eid);
 }
 /*!
  * \brief set index-th input to the graph without copying the data.
@@ -135,25 +137,7 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   dl_managed->manager_ctx = nullptr;
   dl_managed->deleter = DefaultDeleter;
   data_entry_[eid] = NDArray::FromDLPack(dl_managed);
-  shared = std::make_shared<DLTensor>(*data_ref);
-  for (auto& op_arg : op_args_) {
-    if (op_arg) {
-      const auto it = op_arg->input_entry_ids.find(eid);
-      if (it != op_arg->input_entry_ids.end()) {
-        for (const auto i : it->second) {
-          op_arg->args[i] = shared;
-          TVMValue v;
-          DLTensor* t = op_arg->args[i].get();
-          v.v_handle = t;
-          op_arg->arg_values[i] = v;
-          if (op_arg->flatten_data) {
-            t->ndim = 1;
-            t->shape = &(op_arg->shape_data[i]);
-          }
-        }
-      }
-    }
-  }
+  SetDLTensorEntry(eid);
 }
 /*!
  * \brief Get the number of outputs
@@ -240,10 +224,16 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     NDArray temp;
     temp.Load(strm);
     data_entry_[eid].CopyFrom(temp);
+    SetDLTensorEntry(eid);
   }
 }
 
-  void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
+void GraphRuntime::SetDLTensorEntry(int i) {
+  dltensor_entry_[i]->data = data_entry_[i].operator->()->data;
+  flatten_dltensor_entry_[i]->data = data_entry_[i].operator->()->data;
+}
+
+void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
     uint64_t header, reserved;
     CHECK(strm->Read(&header))
       << "Invalid parameters file format";
@@ -265,11 +255,7 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     CHECK_EQ(data_entry_[eid].use_count(), 1);
     data_entry_[eid] = other.GetInput(GetInputIndex(names[i]));
     CHECK_GT(data_entry_[eid].use_count(), 1);
-    dltensor_entry_[eid] = std::make_shared<DLTensor>(*(data_entry_[eid].operator->()));
-    dltensor_entry_shapes_[eid].resize(dltensor_entry_[eid]->ndim);
-    for (size_t j = 0; j < dltensor_entry_shapes_[eid].size(); ++j) {
-      dltensor_entry_shapes_[eid][j] = dltensor_entry_[eid]->shape[j];
-    }
+    SetDLTensorEntry(eid);
   }
   this->SetupOpExecs();
 }
@@ -333,6 +319,7 @@ void GraphRuntime::SetupStorage() {
   // is mapped to this pool.
   data_entry_.resize(num_node_entries());
   dltensor_entry_.resize(num_node_entries());
+  flatten_dltensor_entry_.resize(num_node_entries());
   dltensor_entry_shapes_.resize(num_node_entries());
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
@@ -340,6 +327,7 @@ void GraphRuntime::SetupStorage() {
     data_entry_[i] =
         storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
     dltensor_entry_[i] = std::make_shared<DLTensor>(*(data_entry_[i].operator->()));
+    flatten_dltensor_entry_[i] = std::make_shared<DLTensor>(*(data_entry_[i].operator->()));
     dltensor_entry_shapes_[i].resize(dltensor_entry_[i]->ndim);
     for (size_t j = 0; j < dltensor_entry_shapes_[i].size(); ++j) {
       dltensor_entry_shapes_[i][j] = dltensor_entry_[i]->shape[j];
@@ -355,19 +343,22 @@ void GraphRuntime::SetupOpExecs() {
     const auto& inode = nodes_[nid];
     if (inode.op_type == "null") continue;
     std::vector<std::shared_ptr<DLTensor> > args;
+    std::vector<std::shared_ptr<DLTensor> > flatten_args;
     std::vector<uint32_t> input_entry_ids;
     for (const auto& e : inode.inputs) {
       uint32_t eid = this->entry_id(e);
       args.push_back(dltensor_entry_[eid]);
+      flatten_args.push_back(flatten_dltensor_entry_[eid]);
       input_entry_ids.push_back(eid);
     }
     for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
       uint32_t eid = this->entry_id(nid, index);
       args.push_back(dltensor_entry_[eid]);
+      flatten_args.push_back(flatten_dltensor_entry_[eid]);
     }
     CHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
-    std::tie(op_execs_[nid], op_args_[nid]) = CreateTVMOp(inode.param, args, inode.inputs.size());
+    std::tie(op_execs_[nid], op_args_[nid]) = CreateTVMOp(inode.param, args, flatten_args, inode.inputs.size());
     auto& entry_to_input_pos = op_args_[nid]->input_entry_ids;
     for (uint32_t i = 0; i < input_entry_ids.size(); ++i) {
       const auto eid = input_entry_ids[i];
@@ -384,17 +375,21 @@ void GraphRuntime::SetupOpExecs() {
 std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRuntime::CreateTVMOp(
     const TVMOpParam& param,
     const std::vector<std::shared_ptr<DLTensor> >& args,
+    const std::vector<std::shared_ptr<DLTensor> >& flatten_args,
     size_t num_inputs) {
   std::shared_ptr<GraphRuntime::OpArgs> arg_ptr = std::make_shared<GraphRuntime::OpArgs>();
   // setup address.
+  std::string fname = param.func_name;
   arg_ptr->args = args;
+  arg_ptr->flatten_args = flatten_args;
   if (param.flatten_data) {
     arg_ptr->flatten_data = true;
     arg_ptr->shape_data.resize(arg_ptr->args.size());
+    LOG(INFO) << "Flattening func: " << fname;
   }
   for (size_t i = 0; i < arg_ptr->args.size(); ++i) {
     TVMValue v;
-    DLTensor* t = arg_ptr->args[i].get();
+    DLTensor* t = param.flatten_data ? arg_ptr->flatten_args[i].get() : arg_ptr->args[i].get();
     v.v_handle = t;
     arg_ptr->arg_values.push_back(v);
     arg_ptr->arg_tcodes.push_back(kArrayHandle);
@@ -424,8 +419,14 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
-  auto fexec = [arg_ptr, pf]() {
+  auto fexec = [arg_ptr, pf, fname]() {
     TVMRetValue rv;
+    int k = 0;
+    LOG(INFO) << "Function: " << fname;
+    for (auto& v: arg_ptr->arg_values) {
+      LOG(INFO) << "input " << k++ << ": "<< reinterpret_cast<DLTensor*>(v.v_handle)->ndim
+                << ", " << reinterpret_cast<DLTensor*>(v.v_handle)->data;
+    }
     TVMArgs targs(arg_ptr->arg_values.data(),
                   arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));

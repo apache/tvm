@@ -70,6 +70,7 @@ struct TVMOpParam {
 class GraphRuntime : public ModuleNode {
   struct OpArgs {
     std::vector<std::shared_ptr<DLTensor> > args;
+    std::vector<std::shared_ptr<DLTensor> > flatten_args;
     std::vector<TVMValue> arg_values;
     std::vector<int> arg_tcodes;
     std::vector<int64_t> shape_data;
@@ -383,7 +384,14 @@ class GraphRuntime : public ModuleNode {
    */
   std::pair<std::function<void()>, std::shared_ptr<OpArgs> > CreateTVMOp(
       const TVMOpParam& attrs, const std::vector<std::shared_ptr<DLTensor> >& args,
+      const std::vector<std::shared_ptr<DLTensor> >& flatten_args,
       size_t num_inputs);
+  /*!
+   * \brief convenient method to setup up dltensor_entry_[i] and
+   *        dltensor_entry_shapes_[i] after data_entry_[i] has been changed.
+   * \param i Index of the changed data_entry_
+   */
+  void SetDLTensorEntry(int i);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const {
     return node_row_ptr_[nid] + index;
@@ -416,6 +424,8 @@ class GraphRuntime : public ModuleNode {
   std::vector<NDArray> data_entry_;
   /*! \brief DLTensor entry of each node. */
   std::vector<std::shared_ptr<DLTensor> > dltensor_entry_;
+  /*! \brief flattened version of DLTensor entry of each node. */
+  std::vector<std::shared_ptr<DLTensor> > flatten_dltensor_entry_;
   /*! \brief Shape of each DLTensor of each node. */
   std::vector<std::vector<int64_t> > dltensor_entry_shapes_;
   /*! \brief Operator on each node. */
