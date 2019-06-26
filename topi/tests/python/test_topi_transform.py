@@ -637,8 +637,8 @@ def test_sequence_mask():
                         val_len_expand_shape[1 - axis] = in_shape[1 - axis]
                         seq_len_expand_shape = [1 for _ in range(len(in_shape))]
                         seq_len_expand_shape[axis] = in_shape[axis]
-                        mask = np.broadcast_to(np.arange(max_length).reshape(seq_len_expand_shape), in_shape) >=\
-                               B_data.reshape(val_len_expand_shape)
+                        mask = np.broadcast_to(np.arange(max_length).reshape(seq_len_expand_shape),
+                                               in_shape) >= B_data.reshape(val_len_expand_shape)
                         C_gt_data = A_data * (1 - mask) + pad_val * mask
                     else:
                         C_gt_data = A_data
