@@ -102,8 +102,6 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   data_entry_[eid].CopyFrom(data_in);
-  LOG(INFO) << "Set input " << eid << ": " << data_entry_[eid].operator->()->data;
-  SetDLTensorEntry(eid);
 }
 /*!
  * \brief set index-th input to the graph without copying the data.
@@ -224,7 +222,6 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     NDArray temp;
     temp.Load(strm);
     data_entry_[eid].CopyFrom(temp);
-    SetDLTensorEntry(eid);
   }
 }
 
@@ -358,7 +355,8 @@ void GraphRuntime::SetupOpExecs() {
     }
     CHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
-    std::tie(op_execs_[nid], op_args_[nid]) = CreateTVMOp(inode.param, args, flatten_args, inode.inputs.size());
+    std::tie(op_execs_[nid], op_args_[nid]) =
+        CreateTVMOp(inode.param, args, flatten_args, inode.inputs.size());
     auto& entry_to_input_pos = op_args_[nid]->input_entry_ids;
     for (uint32_t i = 0; i < input_entry_ids.size(); ++i) {
       const auto eid = input_entry_ids[i];
@@ -423,7 +421,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
     TVMRetValue rv;
     int k = 0;
     LOG(INFO) << "Function: " << fname;
-    for (auto& v: arg_ptr->arg_values) {
+    for (auto& v : arg_ptr->arg_values) {
       LOG(INFO) << "input " << k++ << ": "<< reinterpret_cast<DLTensor*>(v.v_handle)->ndim
                 << ", " << reinterpret_cast<DLTensor*>(v.v_handle)->data;
     }
