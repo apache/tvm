@@ -382,13 +382,11 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
     size_t num_inputs) {
   std::shared_ptr<GraphRuntime::OpArgs> arg_ptr = std::make_shared<GraphRuntime::OpArgs>();
   // setup address.
-  std::string fname = param.func_name;
   arg_ptr->args = args;
   arg_ptr->flatten_args = flatten_args;
   if (param.flatten_data) {
     arg_ptr->flatten_data = true;
     arg_ptr->shape_data.resize(arg_ptr->args.size());
-    LOG(INFO) << "Flattening func: " << fname;
   }
   for (size_t i = 0; i < arg_ptr->args.size(); ++i) {
     TVMValue v;
@@ -422,14 +420,8 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
-  auto fexec = [arg_ptr, pf, fname]() {
+  auto fexec = [arg_ptr, pf]() {
     TVMRetValue rv;
-    int k = 0;
-    LOG(INFO) << "Function: " << fname;
-    for (auto& v : arg_ptr->arg_values) {
-      LOG(INFO) << "input " << k++ << ": "<< reinterpret_cast<DLTensor*>(v.v_handle)->ndim
-                << ", " << reinterpret_cast<DLTensor*>(v.v_handle)->data;
-    }
     TVMArgs targs(arg_ptr->arg_values.data(),
                   arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));

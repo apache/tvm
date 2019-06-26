@@ -19,7 +19,7 @@ import numpy as np
 
 from .._ffi.base import string_types
 from .._ffi.function import get_global_func
-from .._ffi.ndarray import empty
+from .._ffi.ndarray import empty, NDArrayBase
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
 
@@ -147,6 +147,8 @@ class GraphModule(object):
            Additonal arguments
         """
         def construct_input_ndarray(k, v):
+            if isinstance(v, NDArrayBase):
+                return v
             arr = self._get_input(k)
             return empty(arr.shape, arr.dtype, arr.ctx).copyfrom(v)
 
