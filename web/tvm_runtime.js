@@ -191,6 +191,12 @@ var tvm_runtime = tvm_runtime || {};
       "number"  // int override
      ]);
 
+    var TVMFuncRemoveGlobal = Module.cwrap
+    ("TVMFuncRemoveGlobal",
+     "number",
+     ["string", // name
+     ]);
+
     var TVMFuncGetGlobal = Module.cwrap
     ("TVMFuncGetGlobal",
      "number",
@@ -835,6 +841,13 @@ var tvm_runtime = tvm_runtime || {};
       override = (typeof override !== "undefined") ?  override: false;
       var ioverride = override ? 1 : 0;
       TVM_CALL(TVMFuncRegisterGlobal(name, f._tvm_function.handle, ioverride));
+    };
+    /**
+     * Remove name from the global table in tvm runtime.
+     * @param {string} name The name to be removed.
+     */
+    this.removeFunc = function(name) {
+      TVM_CALL(TVMFuncRegisterGlobal(name));
     };
     /**
      * Create a typed scalar constant.

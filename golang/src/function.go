@@ -382,3 +382,19 @@ func RegisterFunction(args ...interface{}) (err error) {
     runtime.SetFinalizer(fhandle, nil)
     return
 }
+
+
+// RemoveFunction removes the name from the TVM runtime global space.
+//
+// `name` Name to remove
+//
+// Returns err indicating native error if any.
+func RemoveFunction(name string) (err error) {
+    cname := C.CString(name)
+    result := (int32) (C.TVMFuncRemoveGlobal(cname))
+    C.free(unsafe.Pointer(cname))
+    if result != 0 {
+	    err = errors.New(getTVMLastError())
+    }
+    return
+}

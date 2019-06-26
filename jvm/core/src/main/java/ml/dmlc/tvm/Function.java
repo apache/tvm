@@ -312,6 +312,14 @@ public class Function extends TVMValue {
   }
 
   /**
+   * Remove name from the global table.
+   * @param name The name to remove.
+   */
+  public static void remove(String name) {
+    Base.checkCall(Base._LIB.tvmFuncRemoveGlobal(name));
+  }
+
+  /**
    * Convert a Java function to TVM function.
    * @param function Java function.
    * @return TVM function.

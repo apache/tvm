@@ -333,6 +333,15 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncRegisterGlobal(
   return ret;
 }
 
+
+JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmFuncRemoveGlobal(
+  JNIEnv *env, jobject obj, jstring jname) {
+  const char *name = env->GetStringUTFChars(jname, 0);
+  int ret = TVMFuncRemoveGlobal(name);
+  env->ReleaseStringUTFChars(jname, name);
+  return ret;
+}
+
 // Module
 JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmModFree(
   JNIEnv *env, jobject obj, jlong jhandle) {

@@ -398,6 +398,17 @@ macro_rules! register_global_func {
     }}
 }
 
+/// Removes a named entry from the global table
+pub fn remove<S: AsRef<str>>(
+    name: S,
+) -> Result<(), Error> {
+    let name = CString::new(name.as_ref())?;
+    check_call!(ffi::TVMFuncRemoveGlobal(
+        name.into_raw(),
+    ));
+    Ok(())
+}
+
 /// Convenient macro for calling TVM packed functions by providing a
 /// function identifier and some arguments. This macro outputs a `Result` type
 /// and let user to perform proper error handling.

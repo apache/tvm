@@ -49,6 +49,8 @@ class LibInfo {
 
   native int tvmFuncRegisterGlobal(String name, long handle, int override);
 
+  native int tvmFuncRegisterGlobal(String name);
+
   // Module
   native int tvmModFree(long handle);
 
