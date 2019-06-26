@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 import topi
 from . import cpp
+from . import tag
 
 
 def expand_dims(a, axis, num_newaxis=1):
@@ -436,3 +437,65 @@ def shape(array, dtype="int32"):
         The resulting tensor.
     """
     return cpp.shape(array, dtype)
+
+
+# pylint: disable=too-many-arguments
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def sequence_mask(data, sequence_length=None, use_sequence_length=False, value=0, axis=0,
+                  name="SequenceMask"):
+    """Sets all elements outside the sequence to a constant value.
+
+    This function takes an n-dimensional input array of the form [MAX_LENGTH, batch_size, ...] or
+     [batch_size, MAX_LENGTH, ...] and returns an array of the same shape.
+
+     `axis` means the axis of the length dimension and can only be 0 or 1. If `axis` is 0,
+     the data must have shape [MAX_LENGTH, batch_size, ...]. Otherwise (axis=1), the data must have
+     shape [batch_size, MAX_LENGTH, ...].
+
+    `sequence_length` is used to handle variable-length sequences. `sequence_length` should be
+     a 1D int array with positive ints and has dimension [batch_size,]. To use this parameter,
+      set `use_sequence_length` to True.
+     If `use_sequence_length` is False, each example in the batch is assumed to have the max sequence
+      length and this operator works as the identity operator.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        N-D with shape [MAX_LENGTH, batch_size, ...] or [batch_size, MAX_LENGTH, ...]
+         depending on the value of `axis`.
+
+    sequence_length : tvm.Tensor or None
+        1-D with shape [batch_size,]
+        If `use_sequence_length` is False, this parameter will not be used and the operation
+         will be treated as an identity operator.
+
+    use_sequence_length : bool
+        Whether to use the `sequence_length`.
+
+    value : float, default 0
+        The masking value, default
+
+    axis : int, default 0
+        axis of the length dimension, must be 0 or 1.
+
+    Returns
+    -------
+    output : tvm.Tensor
+        N-D with shape [MAX_LENGTH, batch_size, ...] or [batch_size, MAX_LENGTH, ...]
+         depending on the value of `axis`.
+    """
+
+    assert len(data.shape) >= 2,\
+        "only support data.ndim >= 2, received data.shape = {}".format(data.shape)
+    assert axis == 0 or axis == 1, "only support axis = 0, 1, received axis = {}".format(axis)
+    if not use_sequence_length:
+        # pylint: disable=unnecessary-lambda
+        return tvm.compute(data.shape, lambda *i: data(*i), name='identity')
+    def _compute(*indices):
+        tid = indices[axis]
+        bid = indices[1 - axis]
+        ret = tvm.if_then_else(tid.astype(sequence_length.dtype) >= sequence_length(bid), value,
+                               data(*indices))
+        return ret
+    return tvm.compute(data.shape, _compute, name=name)
+# pylint: enable=too-many-arguments
