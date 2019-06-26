@@ -212,6 +212,19 @@ def register_func(func_name, f=None, override=False):
     return register
 
 
+def remove_func(name):
+    """Remove a name from the global table.
+
+    Parameters
+    ----------
+    name : str
+        The name of the global function
+    """
+    if not isinstance(name, str):
+        raise ValueError("expect string function name")
+    check_call(_LIB.TVMFuncRemoveGlobal(c_str(name)))
+
+
 def get_global_func(name, allow_missing=False):
     """Get a global function by name
 

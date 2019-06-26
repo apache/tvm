@@ -156,6 +156,12 @@ int TVMFuncRegisterGlobal(
   API_END();
 }
 
+int TVMFuncRemoveGlobal(const char* name) {
+  API_BEGIN();
+  tvm::runtime::Registry::Remove(name);
+  API_END();
+}
+
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   API_BEGIN();
   const tvm::runtime::PackedFunc* fp =

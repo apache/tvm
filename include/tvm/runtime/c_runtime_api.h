@@ -379,6 +379,14 @@ TVM_DLL int TVMFuncRegisterGlobal(
     const char* name, TVMFunctionHandle f, int override);
 
 /*!
+ * \brief Remove a name from the runtime's global table.
+ *
+ * \param name The name to remove.
+ * \return 1 when the name was present, 0 otherwise.
+ */
+TVM_DLL int TVMFuncRemoveGlobal(const char* name);
+
+/*!
  * \brief Get a global function.
  *
  * \param name The name of the function.
