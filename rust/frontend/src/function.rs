@@ -399,13 +399,9 @@ macro_rules! register_global_func {
 }
 
 /// Removes a named entry from the global table
-pub fn remove<S: AsRef<str>>(
-    name: S,
-) -> Result<(), Error> {
+pub fn remove<S: AsRef<str>>(name: S) -> Result<(), Error> {
     let name = CString::new(name.as_ref())?;
-    check_call!(ffi::TVMFuncRemoveGlobal(
-        name.into_raw(),
-    ));
+    check_call!(ffi::TVMFuncRemoveGlobal(name.into_raw()));
     Ok(())
 }
 
