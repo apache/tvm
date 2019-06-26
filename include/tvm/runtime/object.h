@@ -44,6 +44,7 @@ enum struct ObjectTag {
   kClosure = 1U,
   /*! \brief The tag of a structure. */
   kDatatype = 2U,
+  kInt = 3U,
 };
 
 std::ostream& operator<<(std::ostream& os, const ObjectTag&);
@@ -308,6 +309,7 @@ class ObjectPtr {
 struct TensorCell;
 struct DatatypeCell;
 struct ClosureCell;
+struct IntCell;
 
 /*!
  * \brief A managed object in the TVM runtime.
@@ -327,6 +329,7 @@ class Object {
 
   /*! \brief Construct a tensor object. */
   static Object Tensor(const NDArray& data);
+  static Object Int(size_t val);  
   /*! \brief Construct a datatype object. */
   static Object Datatype(size_t tag, const std::vector<Object>& fields);
   /*! \brief Construct a tuple object. */
@@ -335,6 +338,7 @@ class Object {
   static Object Closure(size_t func_index, const std::vector<Object>& free_vars);
 
   ObjectPtr<TensorCell> AsTensor() const;
+  ObjectPtr<IntCell> AsInt() const;
   ObjectPtr<DatatypeCell> AsDatatype() const;
   ObjectPtr<ClosureCell> AsClosure() const;
 };
@@ -344,6 +348,13 @@ struct TensorCell : public ObjectCell {
   /*! \brief The NDArray. */
   NDArray data;
   explicit TensorCell(const NDArray& data) : ObjectCell(ObjectTag::kTensor), data(data) {}
+};
+
+/*! \brief An object containing an Int. */
+struct IntCell : public ObjectCell {
+  /*! \brief Value that this cell holds. */
+  size_t val;
+  explicit IntCell(size_t val) : ObjectCell(ObjectTag::kInt), val(val) {}
 };
 
 /*! \brief An object representing a structure or enumeration. */

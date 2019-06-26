@@ -58,11 +58,19 @@ Instruction::Instruction(const Instruction& instr) {
     case Opcode::Move:
       this->from = instr.from;
       return;
+    case Opcode::Cmpi:
+      this->cmpi = instr.cmpi;
+      return;
+    case Opcode::Fatal:
+      return;
     case Opcode::Select:
       this->select_cond = instr.select_cond;
       this->select_op1 = instr.select_op1;
       this->select_op2 = instr.select_op2;
       return;
+    case Opcode::Selecti:
+      this->selecti = instr.selecti;
+      return;      
     case Opcode::Ret:
       this->result = instr.result;
       return;
@@ -107,13 +115,22 @@ Instruction::Instruction(const Instruction& instr) {
       this->true_offset = instr.true_offset;
       this->false_offset = instr.false_offset;
       return;
+    case Opcode::Ifi:
+      this->ifi = instr.ifi;
+      return;      
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
       return;
+    case Opcode::LoadConsti:
+      this->load_consti = instr.load_consti;
+      return;      
     case Opcode::GetField:
       this->object = instr.object;
       this->field_index = instr.field_index;
       return;
+    case Opcode::GetTagi:
+      this->get_tagi = instr.get_tagi;
+      return;      
     case Opcode::Goto:
       this->pc_offset = instr.pc_offset;
       return;
@@ -139,11 +156,22 @@ Instruction& Instruction::operator=(const Instruction& instr) {
     case Opcode::Move:
       this->from = instr.from;
       return *this;
+    case Opcode::Cmpi:
+      this->cmpi = instr.cmpi;
+      return *this;
+    case Opcode::Fatal:
+      return *this;
+    case Opcode::LoadConsti:
+      this->load_consti = instr.load_consti;
+      return *this;
     case Opcode::Select:
       this->select_cond = instr.select_cond;
       this->select_op1 = instr.select_op1;
       this->select_op2 = instr.select_op2;
       return *this;
+    case Opcode::Selecti:
+      this->selecti = instr.selecti;
+      return *this;      
     case Opcode::Ret:
       this->result = instr.result;
       return *this;
@@ -193,6 +221,9 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->true_offset = instr.true_offset;
       this->false_offset = instr.false_offset;
       return *this;
+    case Opcode::Ifi:
+      this->ifi = instr.ifi;
+      return *this;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
       return *this;
@@ -200,6 +231,9 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->object = instr.object;
       this->field_index = instr.field_index;
       return *this;
+    case Opcode::GetTagi:
+      this->get_tagi = instr.get_tagi;
+      return *this;      
     case Opcode::Goto:
       this->pc_offset = instr.pc_offset;
       return *this;
@@ -214,12 +248,18 @@ Instruction::~Instruction() {
   switch (this->op) {
     case Opcode::Move:
     case Opcode::Select:
+    case Opcode::Selecti:
     case Opcode::Ret:
     case Opcode::AllocTensorReg:
     case Opcode::If:
+    case Opcode::Ifi:
     case Opcode::LoadConst:
     case Opcode::GetField:
+    case Opcode::GetTagi:
     case Opcode::Goto:
+    case Opcode::Cmpi:
+    case Opcode::LoadConsti:
+    case Opcode::Fatal:
       return;
     case Opcode::AllocTensor:
       delete this->alloc_tensor.shape;
@@ -249,6 +289,21 @@ Instruction Instruction::Ret(RegName result) {
   Instruction instr;
   instr.op = Opcode::Ret;
   instr.result = result;
+  return instr;
+}
+
+Instruction Instruction::Fatal() {
+  Instruction instr;
+  instr.op = Opcode::Fatal;
+  return instr;
+}
+
+Instruction Instruction::Cmpi(RegName op1, RegName op2, RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::Cmpi;
+  instr.dst = dst;
+  instr.cmpi.op1 = op1;
+  instr.cmpi.op2 = op2;
   return instr;
 }
 
@@ -325,12 +380,29 @@ Instruction Instruction::GetField(RegName object, Index field_index, RegName dst
   return instr;
 }
 
+Instruction Instruction::GetTagi(RegName object, RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::GetTagi;
+  instr.dst = dst;
+  instr.get_tagi.object = object;
+  return instr;
+}
+
 Instruction Instruction::If(RegName cond, Index true_branch, Index false_branch) {
   Instruction instr;
   instr.op = Opcode::If;
   instr.if_cond = cond;
   instr.true_offset = true_branch;
   instr.false_offset = false_branch;
+  return instr;
+}
+
+Instruction Instruction::Ifi(RegName cond, Index true_branch, Index false_branch) {
+  Instruction instr;
+  instr.op = Opcode::Ifi;
+  instr.ifi.if_cond = cond;
+  instr.ifi.true_offset = true_branch;
+  instr.ifi.false_offset = false_branch;
   return instr;
 }
 
@@ -341,6 +413,16 @@ Instruction Instruction::Select(RegName cond, RegName op1, RegName op2, RegName 
   instr.select_cond = cond;
   instr.select_op1 = op1;
   instr.select_op2 = op2;
+  return instr;
+}
+
+Instruction Instruction::Selecti(RegName cond, RegName op1, RegName op2, RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::Selecti;
+  instr.dst = dst;
+  instr.selecti.cond = cond;
+  instr.selecti.op1 = op1;
+  instr.selecti.op2 = op2;
   return instr;
 }
 
@@ -384,6 +466,14 @@ Instruction Instruction::LoadConst(Index const_index, RegName dst) {
   instr.op = Opcode::LoadConst;
   instr.dst = dst;
   instr.const_index = const_index;
+  return instr;
+}
+
+Instruction Instruction::LoadConsti(size_t val, RegName dst) {
+  Instruction instr;
+  instr.op = Opcode::LoadConsti;
+  instr.dst = dst;
+  instr.load_consti.val = val;
   return instr;
 }
 
@@ -437,6 +527,14 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       os << "ret $" << instr.result;
       break;
     }
+    case Opcode::Fatal: {
+      os << "fatal";
+      break;
+    }
+    case Opcode::Cmpi: {
+      os << "cmpi $" << instr.dst << " " << instr.cmpi.op1 << " " << instr.cmpi.op2;
+      break;
+    }    
     case Opcode::InvokePacked: {
       os << "invoke_packed PackedFunc[" << instr.packed_index << "](in: $"
          << StrJoin<RegName>(instr.packed_args, 0, instr.arity - instr.output_size, ",$")
@@ -475,6 +573,11 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
          << instr.false_offset;
       break;
     }
+    case Opcode::Ifi: {
+      os << "ifi " << "$" << instr.ifi.if_cond << " " << instr.ifi.true_offset << " "
+         << instr.ifi.false_offset;
+      break;
+    }
     case Opcode::Invoke: {
       os << "invoke $" << instr.dst << " VMFunc[" << instr.func_index << "]($"
          << StrJoin<RegName>(instr.invoke_args_registers, 0, instr.num_args, ",$")
@@ -491,11 +594,19 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       os << "load_const $" << instr.dst << " Const[" << instr.const_index << "]";
       break;
     }
+    case Opcode::LoadConsti: {
+      os << "load_consti $" << instr.dst << " Const[" << instr.load_consti.val << "]";
+      break;
+    }    
     case Opcode::GetField: {
       os << "get_field $" << instr.dst << " $" << instr.object << "["
          << instr.field_index << "]";
       break;
     }
+    case Opcode::GetTagi: {
+      os << "get_tagi $" << instr.dst << " $" << instr.get_tagi.object;
+      break;
+    }    
     case Opcode::Goto: {
       os << "goto " << instr.pc_offset;
       break;
@@ -503,6 +614,11 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::Select: {
       os << "select $" << instr.dst << " $" << instr.select_cond << " $"
          << instr.select_op1 << " $" << instr.select_op2;
+      break;
+    }
+    case Opcode::Selecti: {
+      os << "selecti $" << instr.dst << " $" << instr.selecti.cond << " $"
+         << instr.selecti.op1 << " $" << instr.selecti.op2;
       break;
     }
     default:
@@ -548,6 +664,7 @@ Index VirtualMachine::PopFrame() {
 
 void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Object>& args) {
   DLOG(INFO) << "Invoking global " << func.name << " " << args.size();
+  std::cout << func << "\n";
 
   PushFrame(func.params, this->pc + 1, func);
   for (size_t i = 0; i < args.size(); ++i) {
@@ -625,8 +742,8 @@ void VirtualMachine::Run() {
   main_loop:
     auto const& instr = this->code[this->pc];
     DLOG(INFO) << "Executing(" << pc << "): ";
-#if USE_RELAY_DEBUG
     InstructionPrint(std::cout, instr);
+#if USE_RELAY_DEBUG
 #endif  // USE_RELAY_DEBUG
 
     switch (instr.op) {
@@ -641,8 +758,16 @@ void VirtualMachine::Run() {
         pc++;
         goto main_loop;
       }
+      case Opcode::Fatal: {
+        throw std::runtime_error("VM encountered fatal error");
+      }
       case Opcode::LoadConst: {
         WriteRegister(instr.dst, this->constants[instr.const_index]);
+        pc++;
+        goto main_loop;
+      }
+      case Opcode::LoadConsti: {
+        WriteRegister(instr.dst, Object::Int(instr.load_consti.val));
         pc++;
         goto main_loop;
       }
@@ -666,6 +791,19 @@ void VirtualMachine::Run() {
         for (Index i = 0; i < instr.output_size; ++i) {
           WriteRegister(instr.packed_args[instr.arity - instr.output_size + i],
                         args[instr.arity - instr.output_size + i]);
+        }
+        pc++;
+        goto main_loop;
+      }
+      case Opcode::Cmpi: {
+        auto op1_obj = ReadRegister(instr.cmpi.op1);
+        auto op2_obj = ReadRegister(instr.cmpi.op2);
+        auto op1 = op1_obj.AsInt();
+        auto op2 = op2_obj.AsInt();
+        if (op1->val == op2->val) {
+          WriteRegister(instr.dst, Object::Int(1));
+        } else {
+          WriteRegister(instr.dst, Object::Int(0));
         }
         pc++;
         goto main_loop;
@@ -695,6 +833,17 @@ void VirtualMachine::Run() {
         pc++;
         goto main_loop;
       }
+      case Opcode::GetTagi: {
+        auto object = ReadRegister(instr.get_tagi.object);
+        CHECK(object->tag == ObjectTag::kDatatype)
+            << "Object is not data type object, register " << instr.get_tagi.object << ", Object tag "
+            << static_cast<int>(object->tag);
+        const auto& data = object.AsDatatype();
+        auto tag = data->tag;
+        WriteRegister(instr.dst, Object::Int(tag));
+        pc++;
+        goto main_loop;
+      }      
       case Opcode::Goto: {
         pc += instr.pc_offset;
         goto main_loop;
@@ -716,6 +865,17 @@ void VirtualMachine::Run() {
           pc += instr.false_offset;
         }
 
+        goto main_loop;
+      }
+      case Opcode::Ifi: {
+        auto cond_obj = ReadRegister(instr.ifi.if_cond);
+        auto cond = cond_obj.AsInt();
+
+        if (cond->val) {
+          pc += instr.ifi.true_offset;
+        } else {
+          pc += instr.ifi.false_offset;
+        }
         goto main_loop;
       }
       case Opcode::AllocTensor: {
@@ -783,6 +943,19 @@ void VirtualMachine::Run() {
           WriteRegister(instr.dst, op1);
         } else {
           auto op2 = ReadRegister(instr.select_op2);
+          WriteRegister(instr.dst, op2);
+        }
+        pc++;
+        goto main_loop;
+      }
+      case Opcode::Selecti: {
+        auto cond_obj = ReadRegister(instr.selecti.cond);
+        auto cond = cond_obj.AsInt();
+        if (cond->val) {
+          auto op1 = ReadRegister(instr.selecti.op1);
+          WriteRegister(instr.dst, op1);
+        } else {
+          auto op2 = ReadRegister(instr.selecti.op2);
           WriteRegister(instr.dst, op2);
         }
         pc++;

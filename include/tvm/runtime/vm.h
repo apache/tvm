@@ -63,7 +63,13 @@ enum class Opcode {
   If = 10U,
   Select = 11U,
   LoadConst = 12U,
-  Goto = 13U
+  Goto = 13U,
+  GetTagi = 14U,
+  Cmpi = 15U,
+  LoadConsti = 16U,
+  Ifi = 17U,
+  Selecti = 18U,
+  Fatal = 19U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -91,6 +97,10 @@ struct Instruction {
       /*! \brief The datatype of tensor to be allocated. */
       DLDataType dtype;
     } alloc_tensor;
+    struct /* Cmpi Operands*/{
+      RegName op1;
+      RegName op2;
+    } cmpi;
     struct /* AllocTensorReg Operands */ {
       /*! \brief The register to read the shape out of. */
       RegName shape_register;
@@ -131,6 +141,14 @@ struct Instruction {
       /*! \brief The false branch. */
       RegName select_op2;
     };
+    struct /* Selecti Operands */ {
+      /*! \brief The condition of select. */
+      RegName cond;
+      /*! \brief The true branch. */
+      RegName op1;
+      /*! \brief The false branch. */
+      RegName op2;
+    } selecti;
     struct /* If Operands */ {
       /*! \brief The register containing the condition value. */
       RegName if_cond;
@@ -139,6 +157,14 @@ struct Instruction {
       /*! \brief The program counter offset for the false branch. */
       Index false_offset;
     };
+    struct /* Ifi Operands */ {
+      /*! \brief The register containing the condition value. */
+      RegName if_cond;
+      /*! \brief The program counter offset for the true branch. */
+      Index true_offset;
+      /*! \brief The program counter offset for the false branch. */
+      Index false_offset;
+    } ifi;
     struct /* Invoke Operands */ {
       /*! \brief The function to call. */
       Index func_index;
@@ -151,6 +177,10 @@ struct Instruction {
       /* \brief The index into the constant pool. */
       Index const_index;
     };
+    struct /* LoadConsti Operands */ {
+      /* \brief The index into the constant pool. */
+      size_t val;
+    } load_consti;
     struct /* Jump Operands */ {
       /*! \brief The jump offset. */
       Index pc_offset;
@@ -161,6 +191,10 @@ struct Instruction {
       /*! \brief The field to read out. */
       Index field_index;
     };
+    struct /* GetTagi Operands */ {
+      /*! \brief The register to project from. */
+      RegName object;
+    } get_tagi;
     struct /* AllocDatatype Operands */ {
       /*! \brief The datatype's constructor tag. */
       Index constructor_tag;
@@ -187,11 +221,31 @@ struct Instruction {
    *  \return The select instruction.
    */
   static Instruction Select(RegName cond, RegName op1, RegName op2, RegName dst);
+
+  /*! \brief Construct a selecti instruction.
+   *  \param cond The condition register.
+   *  \param op1 The true register.
+   *  \param op2 The false register.
+   *  \param dst The destination register.
+   *  \return The selecti instruction.
+   */
+  static Instruction Selecti(RegName cond, RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a return instruction.
    *  \param return_reg The register containing the return value.
    *  \return The return instruction.
    * */
   static Instruction Ret(RegName return_reg);
+  /*! \brief Construct a fatal instruction.
+   *  \return The fatal instruction.
+   * */  
+  static Instruction Fatal();
+  /*! \brief Construct a cmpi instruction.
+   *  \param op1 The first register.
+   *  \param op2 The second register.
+   *  \param dst The register containing the return value.
+   *  \return The cmpi instruction.
+   * */
+  static Instruction Cmpi(RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a invoke packed instruction.
    *  \param packed_index The index of the packed function.
    *  \param arity The arity of the function.
@@ -240,6 +294,12 @@ struct Instruction {
    *  \return The get field instruction.
    */
   static Instruction GetField(RegName object_reg, Index field_index, RegName dst);
+  /*! \brief Construct a get_tagi instruction.
+   *  \param object_reg The register containing the object to project from.
+   *  \param dst The destination register.
+   *  \return The get_tagi instruction.
+   */
+  static Instruction GetTagi(RegName object_reg, RegName dst);
   /*! \brief Construct an if instruction.
    *  \param cond_reg The register containing the condition.
    *  \param true_branch The offset to the true branch.
@@ -247,6 +307,13 @@ struct Instruction {
    *  \return The if instruction.
    */
   static Instruction If(RegName cond_reg, Index true_branch, Index false_branch);
+  /*! \brief Construct an ifi instruction.
+   *  \param cond_reg The register containing the condition.
+   *  \param true_branch The offset to the true branch.
+   *  \param false_branch The offset to the false branch.
+   *  \return The ifi instruction.
+   */  
+  static Instruction Ifi(RegName cond_reg, Index true_branch, Index false_branch);  
   /*! \brief Construct a goto instruction.
    *  \param pc_offset The offset from the current pc.
    *  \return The goto instruction.
@@ -272,6 +339,12 @@ struct Instruction {
    *  \return The load constant instruction.
    */
   static Instruction LoadConst(Index const_index, RegName dst);
+  /*! \brief Construct a load_constanti instruction.
+   *  \param val The interger constant value.
+   *  \param dst The destination register.
+   *  \return The load_constanti instruction.
+   */
+  static Instruction LoadConsti(size_t val, RegName dst);  
   /*! \brief Construct a move instruction.
    *  \param src The source register.
    *  \param dst The destination register.
