@@ -455,8 +455,8 @@ def sequence_mask(data, sequence_length=None, use_sequence_length=False, value=0
     `sequence_length` is used to handle variable-length sequences. `sequence_length` should be
      a 1D int array with positive ints and has dimension [batch_size,]. To use this parameter,
       set `use_sequence_length` to True.
-     If `use_sequence_length` is False, each example in the batch is assumed to have the max sequence
-      length and this operator works as the identity operator.
+     If `use_sequence_length` is False, each example in the batch is assumed to have the
+      max sequence length and this operator works as the identity operator.
 
     Parameters
     ----------
