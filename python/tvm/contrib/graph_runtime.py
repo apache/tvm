@@ -19,9 +19,9 @@ import numpy as np
 
 from .._ffi.base import string_types
 from .._ffi.function import get_global_func
+from .._ffi.ndarray import empty
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
-from .. import ndarray
 
 def create(graph_json_str, libmod, ctx):
     """Create a runtime executor module given a graph and module.
@@ -146,17 +146,19 @@ class GraphModule(object):
         params : dict of str to NDArray
            Additonal arguments
         """
+        def construct_input_ndarray(k, v):
+            arr = self._get_input(k)
+            return empty(arr.shape, arr.dtype, arr.ctx).copyfrom(v)
+
         if key is not None:
-            ctx = self._get_input(key).ctx
-            self._set_input(key, ndarray.array(value, ctx=ctx))
+            self._set_input(key, construct_input_ndarray(key, value))
 
         if params:
             # upload big arrays first to avoid memory issue in rpc mode
             keys = list(params.keys())
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
-                ctx = self._get_input(k).ctx
-                self._set_input(k, ndarray.array(params[k], ctx=ctx))
+                self._set_input(k, construct_input_ndarray(k, params[k]))
 
     def run(self, **input_dict):
         """Run forward execution of the graph
