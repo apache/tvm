@@ -34,6 +34,9 @@ else
     fi
 fi
 
+# When cuda is not set, we default to False
+cuda=${cuda:-False}
+
 if [ "$cuda" == "True" ]; then
     CUDA_OPT="-DUSE_CUDA=ON -DUSE_CUBLAS=ON -DUSE_CUDNN=ON"
     TOOLCHAIN_OPT=""
