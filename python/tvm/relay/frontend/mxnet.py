@@ -61,10 +61,18 @@ def _mx_fully_connected(inputs, attrs):
     use_flatten = attrs.get_bool("flatten", True)
     if has_flatten and use_flatten:
         inputs[0] = _op.nn.batch_flatten(inputs[0])
+    data_shape = _infer_type(inputs[0]).checked_type.shape
+    weight_shape = _infer_type(inputs[1]).checked_type.shape
+    if len(data_shape) > 2:
+        inputs[0] = _op.reverse_reshape(inputs[0], [-1, 0])
     res = _op.nn.dense(inputs[0], inputs[1], units=units)
     if use_bias:
         assert len(inputs) == 3
         res = _op.nn.bias_add(res, inputs[2], axis=-1)
+    if len(data_shape) > 2:
+        new_shape = data_shape[:-1]
+        new_shape.append(weight_shape[0])
+        res = _op.reshape(res, new_shape)
     return res
 
 
@@ -247,8 +255,8 @@ def _mx_layer_norm(inputs, attrs):
 
 def _mx_slice(inputs, attrs):
     new_attrs = {}
-    begin = attrs.get_int_tuple('begin', None)
-    end = attrs.get_int_tuple('end', None)
+    begin = list(attrs.get_int_tuple('begin', None))
+    end = list(attrs.get_int_tuple('end', None))
     stride = attrs.get_int_tuple('step', None)
     if begin is None:
         raise tvm.error.OpAttributeRequired(
@@ -257,11 +265,12 @@ def _mx_slice(inputs, attrs):
         raise tvm.error.OpAttributeRequired(
             'Attribute "end" not found in operator Slice.')
     if None in begin:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "begin" of operator Slice is not valid.')
-    if None in end:
-        raise tvm.error.OpAttributeInvalid(
-            'Value None in attribute "end" of operator Slice is not valid.')
+        data_shape = _infer_type(inputs[0]).checked_type.shape
+        for i, beg in enumerate(begin):
+            if beg is None:
+                assert end[i] is None
+                begin[i] = 0
+                end[i] = data_shape[i]
     new_attrs = {'begin': begin, 'end': end}
     if stride is not None:
         new_attrs['strides'] = stride
@@ -503,7 +512,8 @@ def _mx_arange(inputs, attrs):
             'Attribute "repeat" is not supported in operator arange.')
     new_attrs = {}
     new_attrs["start"] = _expr.const(attrs.get_float("start", 0.0))
-    new_attrs["stop"] = _expr.const(attrs.get_float("stop"))
+    stop = attrs.get_str("stop", "None")
+    new_attrs["stop"] = None if stop == "None" else _expr.const(eval(stop))
     new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0))
     new_attrs["dtype"] = attrs.get_str("dtype", "float32")
     return _op.arange(**new_attrs)
@@ -749,6 +759,19 @@ def _mx_rnn_param_concat(inputs, _):
     return [inputs]
 
 
+def _mx_contrib_div_sqrt_dim(inputs, _):
+    assert len(inputs) == 1
+    ndim = len(_infer_type(inputs[0]).checked_type.shape)
+    dim = _op.take(_op.shape_of(inputs[0]), _expr.const(ndim-1, dtype="int32"))
+    sqrt_dim = _op.sqrt(dim.astype('float32'))
+    out = inputs[0] / sqrt_dim
+    return out
+
+
+def _mx_sequence_mask(inputs, attrs):
+    return inputs[0]
+
+
 def _mx_rnn_layer(inputs, attrs):
     def _rnn_cell(data, states, i2h_weight, h2h_weight, i2h_bias, h2h_bias, activation):
         i2h = _op.nn.bias_add(_op.nn.dense(data, i2h_weight), i2h_bias, axis=-1)
@@ -899,6 +922,7 @@ def _mx_rnn_layer(inputs, attrs):
 _identity_list = [
     "log",
     "exp",
+    "erf",
     "sqrt",
     "floor",
     "ceil",
@@ -1037,6 +1061,8 @@ _convert_map = {
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
+    "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
+    "SequenceMask"  : _mx_sequence_mask,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,

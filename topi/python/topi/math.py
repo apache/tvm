@@ -75,6 +75,23 @@ def exp(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
+def erf(x):
+    """Take gauss error function of input x.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.erf(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def tanh(x):
     """Take hyperbolic tanh of input x.
 

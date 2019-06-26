@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import scipy
 import tvm
 import topi
 import topi.testing
@@ -84,6 +85,7 @@ def test_ewise():
     test_apply(topi.log, "log", np.log, 0, 100)
     test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
     test_apply(topi.rsqrt, "rsqrt", lambda x: np.ones_like(x) / np.sqrt(x), 0, 100, skip_name_check=True)
+    test_apply(topi.erf, "erf", scipy.special.erf, -.1, .1, dtype="float32")
 
 
 def test_cast():

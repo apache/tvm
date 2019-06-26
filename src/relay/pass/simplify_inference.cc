@@ -121,8 +121,9 @@ class InferenceSimplifier : public ExprMutator {
     if (n->op.same_as(batch_norm)) {
       ty_map_[new_n.as<CallNode>()->args[0]] = n->args[0]->checked_type();
     } else if (n->op.same_as(layer_norm)) {
-      return LayerNormToInferUnpack(
-              n->attrs, n->args[0], n->args[1], n->args[2], n->args[0]->checked_type());
+      const auto* call = new_n.as<CallNode>();
+      return LayerNormToInferUnpack(call->attrs, call->args[0], call->args[1],
+                                    call->args[2], n->args[0]->checked_type());
     }
     return new_n;
   }
