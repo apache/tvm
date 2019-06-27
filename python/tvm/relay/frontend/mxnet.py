@@ -718,7 +718,7 @@ def _mx_SequenceMask(inputs, attrs):
     if use_sequence_length:
         return _op.sequence_mask(*inputs, **new_attrs)
     else:
-        return _op.copy(inputs[0])
+        return inputs[0]
 
 
 def _mx_rnn_param_concat(inputs, _):

@@ -697,6 +697,9 @@ def test_forward_sequence_mask():
             mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": shape}, dtype={"data": dtype})
         for target, ctx in ctx_list():
             for kind in ['graph', 'debug']:
+                if use_sequence_length is False and kind == 'graph':
+                    # Disable the test for 'graph' when it's identity.
+                    continue
                 intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
                 if use_sequence_length:
                     op_res = intrp.evaluate()(data_np, valid_length_np)

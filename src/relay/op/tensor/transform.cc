@@ -2228,9 +2228,9 @@ bool SequenceMaskRel(const Array<Type>& types,
   // `types` contains: [data, valid_length, result]
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+  CHECK(data);
   const auto* valid_length = types[1].as<TensorTypeNode>();
-  CHECK(valid_length != nullptr);
+  CHECK(valid_length);
   reporter->Assign(types[2], types[0]);
   return true;
 }
