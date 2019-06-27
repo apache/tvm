@@ -55,7 +55,7 @@ def _get_tvm_output(net, data, build_dtype='float32', states=None):
     mod, params = relay.frontend.from_darknet(net, data.shape, dtype)
     target = 'llvm'
     shape_dict = {'data': data.shape}
-    graph, library, params = relay.build(mod[mod.entry_func],
+    graph, library, params = relay.build(mod,
                                          target,
                                          params=params)
 

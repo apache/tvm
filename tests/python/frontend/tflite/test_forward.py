@@ -71,9 +71,7 @@ def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target
                                              shape_dict=shape_dict,
                                              dtype_dict=dtype_dict)
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(mod[mod.entry_func],
-                                         target,
-                                         params=params)
+        graph, lib, params = relay.build(mod, target, params=params)
 
     ctx = tvm.context(target, 0)
     from tvm.contrib import graph_runtime

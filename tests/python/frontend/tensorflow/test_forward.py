@@ -64,7 +64,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
                                                  shape=shape_dict,
                                                  outputs=out_names)
     with relay.build_config(opt_level=opt_level):
-        graph, lib, params = relay.build(mod[mod.entry_func], target, target_host, params)
+        graph, lib, params = relay.build(mod, target, target_host, params)
 
     ctx = tvm.context(target, 0)
     from tvm.contrib import graph_runtime
@@ -1487,7 +1487,7 @@ def test_forward_ptb():
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':'float32'}
         target = 'llvm'
         with relay.build_config(opt_level=0):
-            graph, lib, params = relay.build(mod[mod.entry_func],
+            graph, lib, params = relay.build(mod,
                                              target,
                                              params=params)
         from tvm.contrib import graph_runtime
