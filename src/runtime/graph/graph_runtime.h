@@ -74,8 +74,6 @@ class GraphRuntime : public ModuleNode {
     std::vector<TVMValue> arg_values;
     std::vector<int> arg_tcodes;
     std::vector<int64_t> shape_data;
-    std::unordered_map<uint32_t, std::vector<uint32_t> > input_entry_ids;
-    bool flatten_data{false};
   };
 
  public:

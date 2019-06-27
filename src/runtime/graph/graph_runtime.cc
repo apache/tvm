@@ -346,12 +346,10 @@ void GraphRuntime::SetupOpExecs() {
     if (inode.op_type == "null") continue;
     std::vector<std::shared_ptr<DLTensor> > args;
     std::vector<std::shared_ptr<DLTensor> > flatten_args;
-    std::vector<uint32_t> input_entry_ids;
     for (const auto& e : inode.inputs) {
       uint32_t eid = this->entry_id(e);
       args.push_back(dltensor_entry_[eid]);
       flatten_args.push_back(flatten_dltensor_entry_[eid]);
-      input_entry_ids.push_back(eid);
     }
     for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
       uint32_t eid = this->entry_id(nid, index);
@@ -362,16 +360,6 @@ void GraphRuntime::SetupOpExecs() {
 
     std::tie(op_execs_[nid], op_args_[nid]) =
         CreateTVMOp(inode.param, args, flatten_args, inode.inputs.size());
-    auto& entry_to_input_pos = op_args_[nid]->input_entry_ids;
-    for (uint32_t i = 0; i < input_entry_ids.size(); ++i) {
-      const auto eid = input_entry_ids[i];
-      auto it = entry_to_input_pos.find(eid);
-      if (it == entry_to_input_pos.end()) {
-        entry_to_input_pos.emplace(eid, std::vector<uint32_t>{i});
-      } else {
-        it->second.push_back(i);
-      }
-    }
   }
 }
 
@@ -385,7 +373,6 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
   arg_ptr->args = args;
   arg_ptr->flatten_args = flatten_args;
   if (param.flatten_data) {
-    arg_ptr->flatten_data = true;
     arg_ptr->shape_data.resize(arg_ptr->args.size());
   }
   for (size_t i = 0; i < arg_ptr->args.size(); ++i) {
