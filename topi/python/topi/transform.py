@@ -20,7 +20,6 @@ from __future__ import absolute_import as _abs
 import tvm
 import topi
 from . import cpp
-from . import tag
 
 
 def expand_dims(a, axis, num_newaxis=1):
