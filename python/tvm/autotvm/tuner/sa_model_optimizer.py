@@ -75,10 +75,10 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         scores = model.predict(points)
 
         # build heap and insert initial points
-        heap_items = [(float('-inf'), -i) for i in range(num)]
+        heap_items = [(float('-inf'), - 1 - i) for i in range(num)]
         heapq.heapify(heap_items)
         in_heap = set(exclusive)
-        in_heap.update([-i for i in range(num)])
+        in_heap.update([x for x in heap_items])
 
         for s, p in zip(scores, points):
             if s > heap_items[0][0] and p not in in_heap:
@@ -128,6 +128,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
                              time.time() - tic)
 
         heap_items.sort(key=lambda item: -item[0])
+        heap_items = [x for x in heap_items if x >= 0]
         logger.debug("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\telapsed: %.2f",
                      k, k_last_modify, heap_items[-1][0], heap_items[0][0], time.time() - tic)
         logger.debug("SA Maximums: %s", heap_items)
