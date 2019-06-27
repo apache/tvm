@@ -2230,7 +2230,7 @@ bool SequenceMaskRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* valid_length = types[1].as<TensorTypeNode>();
   CHECK(data);
-  CHECK(valid_length)
+  CHECK(valid_length);
   const auto param = attrs.as<SequenceMaskAttrs>();
   Array<IndexExpr> valid_length_shape;
   valid_length_shape.push_back(data->shape[1 - param.axis]);
