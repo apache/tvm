@@ -1437,9 +1437,8 @@ def _LSTMBlockCell():
         gate_list = _op.split(gates_bias, indices_or_sections=4, axis=1)
         in_gate = _op.sigmoid(gate_list[0])
         in_transform = _op.tanh(gate_list[1])
-        forget_gate = _op.sigmoid(gate_list[2])
-        forget_gate = _op.add(forget_gate,
-                              tvm.relay.const(forget_bias, attr['T'].name))
+        forget_gate = _op.add(gate_list[2], tvm.relay.const(forget_bias, attr['T'].name))
+        forget_gate = _op.sigmoid(forget_gate)
         out_gate = _op.sigmoid(gate_list[3])
         next_c = _op.add(_op.multiply(forget_gate, in_state_c),
                          _op.multiply(in_gate, in_transform))
