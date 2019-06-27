@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Neural network related operators."""
-from __future__ import absolute_import as _abs
-from .nn import *
-from . import _nn
-from . import _quantize
+"""Constructor APIs"""
+from ...._ffi.function import _init_api
+
+_init_api("relay.op.nn._quantize._make", __name__)
