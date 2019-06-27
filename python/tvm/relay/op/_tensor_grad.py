@@ -110,3 +110,11 @@ def collapse_sum_like_grad(orig, grad):
     """Returns [broadcast_to_like(grad, x), 0]"""
     x, y = orig.args
     return [broadcast_to_like(grad, x), zeros_like(y)]
+
+@register_gradient("abs")
+def abs_grad(orig, grad):
+    """Returns grad * (select(x < 0, -1, 1))."""
+    x = orig.args[0]
+    zeros = zeros_like(x)
+    ones = ones_like(x)
+    return [where(less(x, zeros), -ones * grad, ones * grad)]
