@@ -46,6 +46,19 @@ Install `sbt` and `verilator`.
 sudo apt install verilator sbt
 ```
 
+Verilator version check
+
+```bash
+verilator --version
+```
+
+the supported version of Verilator should be at least 4.012, 
+if homebrew (OSX) or package-manager (Linux) does not support that version,
+please install Verilator 4.012 or later from binary or source base on following
+instruction of Verilator wiki.  
+
+https://www.veripool.org/projects/verilator/wiki/Installing
+
 ## Setup in TVM
 
 1. Install `verilator` and `sbt` as described above
