@@ -444,14 +444,14 @@ TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
  */
 TVM_DLL Expr PartialEval(const Expr& e, const Module& mod);
 
-/*!
- * \brief Bind the free variables to a Relay expression.
+/*
+ * \brief Bind function parameters or free variables.
  *
- * \param expr The expression.
- * \param bind_map The variable to expression map that will be used to help the
- *        binding.
+ * Parameter binding can only happen if expr is a Function.
+ * binds cannot change internal arguments of internal functions.
  *
- * \return The updated expression.
+ * \param expr The function to be binded.
+ * \param binds The map of arguments to
  */
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& bind_map);
 
