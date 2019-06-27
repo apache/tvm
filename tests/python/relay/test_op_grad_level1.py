@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 import numpy as np
+import torch
 from tvm import relay
 from tvm.relay.ir_pass import gradient, infer_type
 from tvm.relay.testing import ctx_list
@@ -48,13 +49,16 @@ def test_unary_op():
                 op_res, (op_grad, ) = intrp.evaluate(bwd_func)(data)
                 np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
-    for opfunc, ref in [(tvm.relay.log, lambda x: 1 / x),
-                        (tvm.relay.exp, np.exp),
-                        (tvm.relay.sigmoid, lambda x: sigmoid(x) * (1 - sigmoid(x))),
-                        (tvm.relay.tanh, lambda x: 1 - np.tanh(x) * np.tanh(x)),
-                        (tvm.relay.sqrt, lambda x: 0.5 * np.power(x, -0.5)),
+    for opfunc, ref in [(relay.log, lambda x: 1 / x),
+                        (relay.exp, np.exp),
+                        (relay.sigmoid, lambda x: sigmoid(x) * (1 - sigmoid(x))),
+                        (relay.tanh, lambda x: 1 - np.tanh(x) * np.tanh(x)),
+                        (relay.sqrt, lambda x: 0.5 * np.power(x, -0.5)),
                         (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
-                        (tvm.relay.negative, lambda x: -1 * np.ones_like(x))]:
+                        (relay.negative, lambda x: -1 * np.ones_like(x)),
+                        (relay.zeros_like, lambda x: np.zeros_like(x)),
+                        (relay.ones_like, lambda x: np.zeros_like(x)),
+                        (relay.shape_of, lambda x: np.zeros_like(x))]:
         check_single_op(opfunc, ref)
 
 
@@ -64,7 +68,7 @@ def test_binary_op():
 
     def check_binary_op(opfunc, ref):
         s = (5, 10, 5)
-        t = relay.TensorType((5, 10, 5))
+        t = relay.TensorType(s)
         x = relay.var("x", t)
         y = relay.var("y", t)
         z = opfunc(x, y)
@@ -84,38 +88,44 @@ def test_binary_op():
     for opfunc, ref in [(relay.add, lambda x, y: [np.ones_like(x), np.ones_like(y)]),
                         (relay.subtract, lambda x, y: [np.ones_like(x), -np.ones_like(y)]),
                         (relay.multiply, lambda x, y: [y, x]),
-                        (relay.divide, lambda x, y: [1 / y, - x / (y**2)])]:
+                        (relay.divide, lambda x, y: [1 / y, - x / (y**2)]),
+                        (relay.collapse_sum_like, lambda x, y: [np.ones_like(x), np.zeros_like(y)])]:
         check_binary_op(opfunc, ref)
 
 def test_reduce_op():
-    def softmax_grad_naive(x_data, axis):
-        x = relay.var("x", relay.TensorType(x_data.shape))
-        max_x = relay.max(x, axis, True)
-        z = relay.exp(x - max_x) / relay.sum(relay.exp(x - max_x), axis, True)
-        naive_fwd = relay.Function([x], z)
-        naive_bwd = infer_type(gradient(infer_type(naive_fwd)))
+    def softmax_grad_torch(x_data, axis):
+        x = torch.tensor(x_data, requires_grad=True)
+        sm = torch.nn.Softmax(axis)(x)
+        sm.backward(torch.ones(x.shape))
+        return x.grad.numpy()
 
-        return naive_bwd
+    def max_grad_torch(x_data, axis):
+        x = torch.tensor(x_data, requires_grad=True)
+        m = x.max(axis).values
+        m.backward(torch.ones(m.shape))
+        return x.grad.numpy()
 
-    def test_softmax():
-        s = (5, 10, 9, 4)
+    def check_reduce_op(opfunc, ref):
+        s = (5, 10, 5)
         t = relay.TensorType(s)
         x = relay.var("x", t)
-        axis = 2
-        z = relay.nn.softmax(x, axis)
+        axis = 0
+        z = opfunc(x, axis)
 
-        x_data = np.random.rand(*s).astype(t.dtype)
-        ref_func = softmax_grad_naive(x_data, axis)
-        fwd_func = infer_type(relay.Function([x], z))
+        x_data = np.random.randn(*s).astype(t.dtype)
+        ref_grad = ref(x_data, axis)
+        fwd_func = relay.Function([x], z)
         bwd_func = infer_type(gradient(fwd_func))
 
         for target, ctx in ctx_list():
             intrp = relay.create_executor(ctx=ctx, target=target)
-            ref_res, (ref_grad,) = intrp.evaluate(ref_func)(x_data)
-            softmax_res, (softmax_grad,) = intrp.evaluate(bwd_func)(x_data)
-            np.testing.assert_allclose(softmax_grad.asnumpy(), ref_grad.asnumpy(), rtol=0.01, atol=0.000001)
+            op_res, (op_grad,) = intrp.evaluate(bwd_func)(x_data)
+            np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01, atol=10e-8)
 
-    test_softmax()
+    for opfunc, ref in [(relay.nn.softmax, softmax_grad_torch),
+                        (relay.max, max_grad_torch),
+                        (tvm.relay.sum, lambda x, axis: np.ones_like(x))]:
+        check_reduce_op(opfunc, ref)
 
 if __name__ == "__main__":
     test_unary_op()

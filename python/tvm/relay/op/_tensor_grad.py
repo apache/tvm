@@ -37,25 +37,21 @@ def exp_grad(orig, grad):
     """Returns [grad * exp(x)]"""
     return [grad * exp(orig.args[0])]
 
-
 @register_gradient("sqrt")
 def sqrt_grad(orig, grad):
     """Returns [grad * 0.5 * (x ^ -0.5)]"""
     a = const(0.5)  # (TODO) type?
     return [grad * a * power(orig.args[0], negative(a))]
 
-
 @register_gradient("sigmoid")
 def sigmoid_grad(orig, grad):
     """Returns [grad * sigmoid(x) * (1 - sigmoid(x))]."""
     return [grad * orig * (ones_like(orig) - orig)]
 
-
 @register_gradient("tanh")
 def tanh_grad(orig, grad):
     """Returns grad * (1 - tanh(x) * tanh(x))."""
     return [grad * ones_like(orig) - orig * orig]
-
 
 @register_gradient("nn.relu")
 def relu_grad(orig, grad):
@@ -65,20 +61,17 @@ def relu_grad(orig, grad):
     ones = ones_like(x)
     return [where(less(x, zeros), zeros, ones * grad)]
 
-
 @register_gradient("add")
 def add_grad(orig, grad):
     """Returns [grad, grad]"""
     return [collapse_sum_like(grad, orig.args[0]),
             collapse_sum_like(grad, orig.args[1])]
 
-
 @register_gradient("subtract")
 def subtract_grad(orig, grad):
     """Returns [grad, -grad]"""
     return [collapse_sum_like(grad, orig.args[0]),
             collapse_sum_like(negative(grad), orig.args[1])]
-
 
 @register_gradient("multiply")
 def multiply_grad(orig, grad):
@@ -87,14 +80,12 @@ def multiply_grad(orig, grad):
     return [collapse_sum_like(grad * y, x),
             collapse_sum_like(grad * x, y)]
 
-
 @register_gradient("divide")
 def divide_grad(orig, grad):
     """Returns [grad / y,  - grad * (x / y) / y]"""
     x, y = orig.args
     return [collapse_sum_like(grad / y, x),
             collapse_sum_like(- (grad * orig / y), y)]
-
 
 @register_gradient("zeros_like")
 def zeros_like_grad(orig, grad):
@@ -117,14 +108,17 @@ def sum_grad(orig, grad):
     """Returns [broadcast_to_like(grad, x)]"""
     return [broadcast_to_like(grad, orig.args[0])]
 
+# SEMI-BROKEN
 @register_gradient("max")
 def max_grad(orig, grad):
     """Returns the gradient of max"""
+    # broken when axis isn't 0, since broadcasting orig to x behaves incorrectly
     x, axis = orig.args[0], orig.attrs.axis
+    assert(axis != None and len(axis) == 1 and int(axis[0]) == 0)
     orig = broadcast_to_like(orig, x)
     grad = broadcast_to_like(grad, x)
     indicators = cast_like(equal(orig, x), grad)
-    count = broadcast_to_like(sum(indicators, axis, True), x)
+    count = sum(indicators, axis, True)
     return [divide(indicators, count) * grad]
 
 @register_gradient("nn.softmax")
@@ -136,27 +130,31 @@ def softmax_grad(orig, grad):
 def negative_grad(orig, grad):
     return [negative(broadcast_to_like(grad, orig.args[0]))]
 
-# UNTESTED BELOW
-
+# UNTESTED, credits to @SWu
 @register_gradient("nn.dense")
 def dense_grad(orig, grad):
     data, weight = orig.args
     return [collapse_sum_like(grad * transpose(weight), data),
             collapse_sum_like(data * transpose(grad), weight)]
 
+# UNTESTED
 @register_gradient("cast")
 def cast_grad(orig, grad):
     grad = cast_like(grad, orig.args[0])
     return [broadcast_to_like(grad, orig.args[0])]
 
+# UNTESTED
 @register_gradient("reshape")
 def reshape_grad(orig, grad):
     return [reshape_like(grad, orig.args[0])]
 
+# BROKEN
 @register_gradient("take")
 def take_grad(orig, grad):
     x, y = orig.args
-    return [broadcast_to_like(grad, x), zeros_like(y)]
+    # Instead of ones_like, it should be 1 where the index was taken, and 0 else.
+    # This could probably be done with some ugly C++, but more idiomatically in Relay with Any (@jroesch).
+    return [ones_like(x), zeros_like(y)]
 
 @register_gradient("shape_of")
 def shape_of_grad(orig, grad):
