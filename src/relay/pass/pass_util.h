@@ -97,6 +97,13 @@ inline Expr TransformF(const std::function<Expr(const Expr&)>& func, const Expr&
   }
 }
 
+/*!
+ * \brief Decide whether the expression atomic or not?
+ * \param e the expression
+ * \return
+ *   is it atomic?
+ *   if so, the compute cost of the expression is bounded so it can be copy without graph mode.
+ */
 inline bool IsAtomic(const Expr& e) {
   return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
 }
