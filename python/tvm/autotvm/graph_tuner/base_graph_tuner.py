@@ -141,6 +141,9 @@ class BaseGraphTuner(object):
             self._logger.propagate = False
 
         # Generate workload and schedule dictionaries.
+        if isinstance(graph, relay.Module):
+            graph = graph[graph.entry_func]
+
         if isinstance(graph, relay.expr.Function):
             node_dict = {}
             graph = bind_inputs(graph, input_shapes, dtype)
