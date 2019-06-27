@@ -120,10 +120,11 @@ def run_tflite_graph(tflite_model_buf, input_data):
 
 
 def compare_tflite_with_tvm(in_data, in_name, input_tensors,
-                            output_tensors, init_global_variables=False):
+                            output_tensors, init_global_variables=False, out_names=None):
     """Generic function to generate and compare TFLite and TVM output"""
     in_data = convert_to_list(in_data)
     in_name = convert_to_list(in_name)
+    out_names = convert_to_list(out_names)
     in_node = [0] * len(in_name)
     for i in range(len(in_name)):
         in_node[i] = in_name[i].split(':')[0] if ":" in in_name[i] else in_name[i]
@@ -143,7 +144,8 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
                 print("Skip because %s is not enabled" % device)
                 continue
 
-            tvm_output = run_tvm_graph(tflite_model_buffer, in_data, in_node, target=device)
+            tvm_output = run_tvm_graph(tflite_model_buffer, in_data, in_node, target=device,
+                                       num_output=len(out_names), out_names=out_names)
             for i in range(len(tflite_output)):
                 tvm.testing.assert_allclose(tflite_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
@@ -161,6 +163,29 @@ def with_fused_activation_function(input_tensor, fn_name):
         return math_ops.tanh(input_tensor)
     raise AssertionError("Unknown fused_activation_function {}".format(fn_name))
 
+def _test_split(in_shape, num_Splits, dtype):
+    '''internal split tester taking as parameters in_shape, number of tensors to split into
+       and dtype (data type)'''
+    np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=in_shape, dtype=dtype)
+        out = array_ops.split(in_data, num_Splits)
+        compare_tflite_with_tvm(np_data, 'Placeholder:0',  [in_data], out,
+                                out_names=[f'out:{n}' for n in range(num_Splits)])
+
+def test_forward_split():
+    '''test split layer'''
+    # rank 1
+    _test_split((3,), 1, 'float32')
+    _test_split((3,), 3, 'float32')
+    _test_split((6,), 3, 'float32')
+    # rank 2
+    _test_split((6, 2), 3, 'float32')
+    # rank 3
+    _test_split((6, 2, 4), 2, 'int32')
+    # rank 4
+    _test_split((6, 1, 3, 5), 3, 'float32')
+    _test_split((6, 1, 3, 5), 3, 'float32')
 
 #######################################################################
 # Pooling
@@ -747,6 +772,8 @@ def test_forward_ssd_mobilenet_v1():
 # Main
 # ----
 if __name__ == '__main__':
+    # Split
+    test_forward_split()
     # Transforms
     test_forward_concatenation()
     test_forward_pad()

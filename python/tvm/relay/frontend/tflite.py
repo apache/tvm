@@ -80,6 +80,7 @@ class OperatorConverter(object):
             'FULLY_CONNECTED': self.convert_fully_connected,
             'PAD': self.convert_pad,
             'LOGISTIC': self.convert_logistic,
+            'SPLIT': self.convert_split
         }
 
     def check_unsupported_ops(self):
@@ -703,6 +704,33 @@ class OperatorConverter(object):
             out = self.convert_fused_activation_function(out, fused_activation_fn)
 
         return out
+
+    def convert_split(self, op):
+        """split implementation."""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.SplitOptions import SplitOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+
+        assert len(input_tensors) == 2, "input tensors length should be == 2"
+
+        input_tensor = input_tensors[1]
+        input_tensor_idx = input_tensor.tensor_idx
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.SplitOptions
+
+        in_expr = self.get_expr(input_tensor_idx)
+        op_options = op.BuiltinOptions()
+        split_options = SplitOptions()
+        split_options.Init(op_options.Bytes, op_options.Pos)
+        num_splits = split_options.NumSplits()
+        retval = _op.split(in_expr, num_splits, axis=0)
+        return retval
 
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
