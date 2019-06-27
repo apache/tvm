@@ -805,7 +805,7 @@ Examples::
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("indices", "Tensor", "The indices tensor.")
-.set_support_level(2)
+.set_support_level(3)
 .add_type_rel("Take", TakeRel)
 .set_attr<FTVMCompute>("FTVMCompute", TakeCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
