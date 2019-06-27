@@ -19,11 +19,11 @@
 from __future__ import absolute_import
 from ..expr import const
 from .op import register_gradient
-from .transform import collapse_sum_like, broadcast_to_like, where, cast, transpose, reshape_like, cast_like
+from .transform import collapse_sum_like, broadcast_to_like, reshape_like, cast_like
+from .transform import where, transpose
 from .tensor import exp, negative, power, less, equal, divide
 from .tensor import zeros_like, ones_like
-from .reduce import sum
-from .nn import dense
+from .reduce import sum as reduce_sum
 
 @register_gradient("log")
 def log_grad(orig, grad):
@@ -113,17 +113,17 @@ def max_grad(orig, grad):
     """Returns the gradient of max"""
     # broken when axis isn't 0, since broadcasting orig to x behaves incorrectly
     x, axis = orig.args[0], orig.attrs.axis
-    assert(axis != None and len(axis) == 1 and int(axis[0]) == 0)
+    assert(axis is not None and len(axis) == 1 and int(axis[0]) == 0)
     orig = broadcast_to_like(orig, x)
     grad = broadcast_to_like(grad, x)
     indicators = cast_like(equal(orig, x), grad)
-    count = sum(indicators, axis, True)
+    count = reduce_sum(indicators, axis, True)
     return [divide(indicators, count) * grad]
 
 @register_gradient("nn.softmax")
 def softmax_grad(orig, grad):
     """Returns [(grad - sum(grad * orig, orig.attrs.axis, True)) * orig]"""
-    return [(grad - sum(grad * orig, orig.attrs.axis, True)) * orig]
+    return [(grad - reduce_sum(grad * orig, orig.attrs.axis, True)) * orig]
 
 @register_gradient("negative")
 def negative_grad(orig, grad):
@@ -152,7 +152,8 @@ def reshape_grad(orig, grad):
 def take_grad(orig, grad):
     x, y = orig.args
     # Instead of ones_like, it should be 1 where the index was taken, and 0 else.
-    # This could probably be done with some ugly C++, but more idiomatically in Relay with Any (@jroesch).
+    # This could probably be done with some ugly C++, but more idiomatically in Relay
+    # with Any shape support (@jroesch).
     return [ones_like(x), zeros_like(y)]
 
 @register_gradient("shape_of")

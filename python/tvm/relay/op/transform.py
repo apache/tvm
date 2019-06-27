@@ -46,10 +46,10 @@ def cast_like(data, dtype_like):
     ----------
     data : relay.Expr
         The input data to the operator.
-    
+
     dtype_like: relay.Expr
         The tensor to cast to.
-    
+
     Returns
     -------
     result : relay.Expr
