@@ -95,7 +95,7 @@ data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {'data': data.shape}
 print("Compiling the model...")
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(mod[mod.entry_func],
+    graph, lib, params = relay.build(mod,
                                      target=target,
                                      target_host=target_host,
                                      params=params)

@@ -263,7 +263,7 @@ shape_dict = {input_name: x.shape}
 mod, params = relay.frontend.from_keras(keras_mobilenet_v2, shape_dict)
 
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build(mod[mod.entry_func], target=target,
+    graph, lib, params = relay.build(mod, target=target,
                                      target_host=target_host, params=params)
 
 # After `relay.build`, you will get three return values: graph,
