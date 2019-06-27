@@ -1183,7 +1183,7 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
 
 def test_forward_lstm():
     '''test LSTM block cell'''
-    _test_lstm_cell(1, 2, 1, 0.0, 'float32')
+    _test_lstm_cell(1, 2, 1, 0.5, 'float32')
 
 
 
