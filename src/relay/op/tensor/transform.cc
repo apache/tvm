@@ -2234,7 +2234,7 @@ bool SequenceMaskRel(const Array<Type>& types,
   const auto param = attrs.as<SequenceMaskAttrs>();
   Array<IndexExpr> valid_length_shape;
   valid_length_shape.push_back(data->shape[1 - param->axis]);
-  reporter->Assign(types[1], TensorTypeNode::make(valid_length_shape, valid_length->dtype))
+  reporter->Assign(types[1], TensorTypeNode::make(valid_length_shape, valid_length->dtype));
   reporter->Assign(types[2], types[0]);
   return true;
 }
