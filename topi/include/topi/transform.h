@@ -665,6 +665,8 @@ inline Tensor take(const Tensor& a,
 * \param valid_length The real length of each sequence.
 * \param mask_value The masking value.
 * \param axis The axis of the temporal dimension of the sequence
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
 *
 * \return A Tensor whose op member is the sequence_mask operation
 */
