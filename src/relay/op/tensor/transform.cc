@@ -2228,9 +2228,13 @@ bool SequenceMaskRel(const Array<Type>& types,
   // `types` contains: [data, valid_length, result]
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data);
   const auto* valid_length = types[1].as<TensorTypeNode>();
-  CHECK(valid_length);
+  CHECK(data);
+  CHECK(valid_length)
+  const auto param = attrs.as<SequenceMaskAttrs>();
+  Array<IndexExpr> valid_length_shape;
+  valid_length_shape.push_back(data->shape[1 - param.axis]);
+  reporter->Assign(types[1], TensorTypeNode::make(valid_length_shape, valid_length->dtype))
   reporter->Assign(types[2], types[0]);
   return true;
 }
