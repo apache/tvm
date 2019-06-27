@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import print_function
 import sys
 import os.path, re, StringIO
 
@@ -69,21 +70,21 @@ def expand(x, pending):
         return
 
     if x in pending:
-        #print 'loop found: %s in ' % x, pending
+        #print('loop found: %s in ' % x, pending)
         return
 
-    print >>out, "//===== EXPANDING: %s =====\n" %x
+    print("//===== EXPANDING: %s =====\n" % x, file=out)
     for line in open(x):
         if line.find('#include') < 0:
             out.write(line)
             continue
         if line.strip().find('#include') > 0:
-            print line
+            print(line)
             continue
         m = re1.search(line)
         if not m: m = re2.search(line)
         if not m:
-            print line + ' not found'
+            print(line + ' not found')
             continue
         h = m.groups()[0].strip('./')
         source = find_source(h, x)
@@ -94,7 +95,7 @@ def expand(x, pending):
                 'nnpack' not in h): sysheaders.append(h)
         else:
             expand(source, pending + [x])
-    print >>out, "//===== EXPANDED: %s =====\n" %x
+    print("//===== EXPANDED: %s =====\n" % x, file=out)
     history.add(x)
 
 
@@ -105,12 +106,12 @@ f = open(sys.argv[3], 'wb')
 
 
 for k in sorted(sysheaders):
-    print >>f, "#include <%s>" % k
+    print("#include <%s>" % k, file=f)
 
-print >>f, ''
-print >>f, out.getvalue()
+print('', file=f)
+print(out.getvalue(), file=f)
 
 for x in sources:
     if x not in history and not x.endswith('.o'):
-        print 'Not processed:', x
+        print('Not processed:', x)
 
