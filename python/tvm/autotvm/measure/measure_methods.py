@@ -359,8 +359,9 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
         if cuda_arch:
             set_cuda_target_arch(cuda_arch)
 
-        if measure_input.target.device_name == 'vta':
-            # if target is vta, we need to use vta build
+        # if target is vta, we need to use vta build
+        if hasattr(measure_input.target, 'device_name') and \
+            measure_input.target.device_name == 'vta':
             import vta
             func = vta.build(s, args, target_host=task.target_host)
         else:
@@ -457,7 +458,8 @@ def run_through_rpc(measure_input, build_result,
         # upload built module
         remote = request_remote(*remote_args)
         # Program the FPGA every single time when targeting VTA
-        if measure_input.target.device_name == 'vta':
+        if hasattr(measure_input.target, 'device_name') and \
+            measure_input.target.device_name == 'vta':
             from vta import program_fpga, reconfig_runtime
             program_fpga(remote, None)
             reconfig_runtime(remote)
