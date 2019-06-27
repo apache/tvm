@@ -72,10 +72,9 @@ MakeLoopNest(const Stage& stage,
 
     // Mark the iter var in the IR, to remember the point
     if (bind_iv->thread_tag.length() == 0) {
-
-      //Onlyl generate new loop if we're not bound to a thread.
+      // Only generate new loop if we're not bound to a thread.
       if (new_loop_var) {
-	var = Var(iv->var->name_hint + ".init", bind_iv->var.type());
+        var = Var(iv->var->name_hint + ".init", bind_iv->var.type());
       }
 
       ForType for_type = ForType::Serial;
