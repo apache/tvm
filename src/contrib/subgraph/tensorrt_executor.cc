@@ -587,6 +587,17 @@ void AddPooling(
   } else {
     network->setPoolingOutputDimensionsFormula(nullptr);
   }
+  if (!is_global_pool) {
+    if (nodes[nid].attrs.count("count_include_pad")) {
+      if (nodes[nid].attrs.at("count_include_pad") == "True") {
+        pool_layer->setAverageCountExcludesPadding(false);
+      } else {
+       pool_layer->setAverageCountExcludesPadding(true);
+      }
+    } else {
+      pool_layer->setAverageCountExcludesPadding(true);
+    }
+  }
   nid2layer->emplace(nid, pool_layer);
 }
 
