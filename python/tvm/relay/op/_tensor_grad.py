@@ -18,7 +18,6 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 from ..expr import const
-from ..ir_pass import infer_type
 from .op import register_gradient
 from .transform import collapse_sum_like, broadcast_to_like, where, cast, transpose, reshape_like, cast_like
 from .tensor import exp, negative, power, less, equal, divide
