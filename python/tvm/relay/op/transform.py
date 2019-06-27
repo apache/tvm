@@ -678,3 +678,49 @@ def gather_nd(data, indices):
         relay.gather_nd(data, indices) = [[3, 4], [5, 6]]
     """
     return _make.gather_nd(data, indices)
+
+
+def sequence_mask(data, valid_length, mask_value=0, axis=0):
+    """Sets all elements outside the expected length of the sequence to a constant value.
+
+    This function takes an n-dimensional input array of the form [MAX_LENGTH, batch_size, ...] or
+    [batch_size, MAX_LENGTH, ...] and returns an array of the same shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data.
+
+    valid_length : relay.Expr
+        The expected (valid) length of each sequence in the tensor.
+
+    mask_value : float
+        The masking value.
+
+    axis : int
+        The axis of the length dimension.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  7.,   8.,   9.], [ 10.,  11.,  12.]],
+             [[ 13.,  14.,   15.], [ 16.,  17.,   18.]]]
+
+       relay.sequence_mask(x, valid_length=[1, 1]) =
+            [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  0.,   0.,   0.], [  0.,   0.,   0.]],
+             [[  0.,   0.,   0.], [  0.,   0.,   0.]]]
+
+       relay.sequence_mask(x, valid_length=[2, 3], mask_value=0.1) =
+            [[[  1.,   2.,   3.], [  4.,   5.,   6.]],
+             [[  7.,   8.,   9.], [  10.,  11.,  12.]],
+             [[  0.1,  0.1,  0.1], [  16.,  17.,  18.]]]
+    """
+    return _make.sequence_mask(data, valid_length, mask_value, axis)

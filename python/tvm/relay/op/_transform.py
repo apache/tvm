@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 from . import op as _reg
 from ._reduce import _schedule_reduce
-from .op import schedule_injective, OpPattern
+from .op import OpPattern
 
 schedule_injective = _reg.schedule_injective
 schedule_broadcast = _reg.schedule_injective
@@ -50,6 +50,8 @@ _reg.register_schedule("stack", schedule_injective)
 _reg.register_schedule("concatenate", schedule_concatenate)
 _reg.register_schedule("_contrib_reverse_reshape", schedule_injective)
 _reg.register_schedule("gather_nd", schedule_injective)
+_reg.register_schedule("sequence_mask", schedule_injective)
+
 
 # layout_transform
 _reg.register_schedule("layout_transform", schedule_injective)
