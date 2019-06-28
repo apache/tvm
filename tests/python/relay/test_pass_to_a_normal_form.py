@@ -22,6 +22,7 @@ from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count
 from tvm.relay.feature import Feature
+import tvm.relay.testing
 
 
 def run_opt_pass(expr, passes):
@@ -186,6 +187,20 @@ def test_function():
     check_eval(anf_f(d), 8)
 
 
+def test_gradient_if():
+    x = relay.var("a", shape=(1, 16))
+    y = relay.var("y", shape=(1, 16))
+    cond = relay.var("cond", shape=(), dtype='uint1')
+    net = relay.If(cond, x, x)
+    net = relay.add(x, net)
+    net = relay.Function([cond,x,y], net)
+    net = relay.ir_pass.infer_type(net)
+    mod = relay.Module.from_expr(net)
+    mod = relay.transform.ToANormalForm()(mod)
+    mod[mod.entry_func] = relay.ir_pass.gradient(mod[mod.entry_func], mode='higher_order')
+    mod = relay.transform.ToANormalForm()(mod)
+
+
 if __name__ == '__main__':
     test_explicit_bound()
     test_order()
@@ -195,3 +210,4 @@ if __name__ == '__main__':
     test_let()
     test_nat_add()
     test_function()
+    test_gradient_if()

@@ -89,8 +89,9 @@ GlobalTypeVar ModuleNode::GetGlobalTypeVar(const std::string& name) const {
 }
 
 void ModuleNode::Add(const GlobalVar& var,
-                     const Function& func,
+                     const Function& f,
                      bool update) {
+  Function func = Downcast<Function>(DeDup(f));
   // Type check the item before we add it to the module.
   auto mod = GetRef<Module>(this);
   Function checked_func = InferType(func, mod, var);
