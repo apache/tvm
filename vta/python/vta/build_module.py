@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """VTA specific buildin for runtime."""
 from __future__ import absolute_import as _abs
 

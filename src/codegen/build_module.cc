@@ -58,6 +58,7 @@ Target CreateTarget(const std::string& target_name,
 
   std::string libs_flag = "-libs=";
   std::string device_flag = "-device=";
+  std::string keys_flag = "-keys=";
   for (auto& item : options) {
     t->options_array.push_back(ir::StringImm::make(item));
 
@@ -69,6 +70,13 @@ Target CreateTarget(const std::string& target_name,
       }
     } else if (item.find(device_flag) == 0) {
       t->device_name = item.substr(device_flag.length());
+      t->keys_array.push_back(ir::StringImm::make(t->device_name));
+    } else if (item.find(keys_flag) == 0) {
+      std::stringstream ss(item.substr(keys_flag.length()));
+      std::string key_item;
+      while (std::getline(ss, key_item, ',')) {
+        t->keys_array.push_back(ir::StringImm::make(key_item));
+      }
     }
   }
 
@@ -572,6 +580,9 @@ runtime::Module build(const Map<std::string, Array<LoweredFunc>>& inputs,
   Map<Target, Array<LoweredFunc>> updated_input;
   for (const auto& it : inputs) {
     auto target = Target::Create(it.first);
+    if (target->device_name == "vta") {
+      target = Target::Create("ext_dev");
+    }
     updated_input.Set(target, it.second);
   }
   return build(updated_input, target_host, config);

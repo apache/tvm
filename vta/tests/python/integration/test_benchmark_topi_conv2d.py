@@ -14,7 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Testing if we can generate code in topi style"""
+
+"""Testing topi conv2d operator for VTA"""
+
+import os
+import json
+from collections import namedtuple
+
+import numpy as np
 
 import tvm
 from tvm import autotvm
@@ -23,11 +30,32 @@ from tvm.contrib.pickle_memoize import memoize
 import topi
 import topi.testing
 import vta
+from vta import program_fpga, reconfig_runtime
 import vta.testing
-import numpy as np
+from vta.testing import simulator
 
-Workload = vta.top.vta_conv2d.Workload
+Workload = namedtuple("Conv2DWorkload",
+                      ['batch', 'height', 'width', 'in_filter', 'out_filter',
+                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
+# ResNet18 workloads
+resnet_wkls = [
+    # Workloads of resnet18 on imagenet
+    # ('resnet-18.C1',  Workload(1, 224, 224, 3,   64,  7, 7, 3, 3, 2, 2)),
+    ('resnet-18.C2',  Workload(1,  56,  56, 64,  64,  3, 3, 1, 1, 1, 1)),
+    # ('resnet-18.C3',  Workload(1,  56,  56, 64,  64,  1, 1, 0, 0, 1, 1)), # this layer does not appear in ResNet
+    ('resnet-18.C4',  Workload(1,  56,  56, 64,  128, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C5',  Workload(1,  56,  56, 64,  128, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C6',  Workload(1,  28,  28, 128, 128, 3, 3, 1, 1, 1, 1)),
+    ('resnet-18.C7',  Workload(1,  28,  28, 128, 256, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C8',  Workload(1,  28,  28, 128, 256, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C9',  Workload(1,  14,  14, 256, 256, 3, 3, 1, 1, 1, 1)),
+    ('resnet-18.C10', Workload(1,  14,  14, 256, 512, 3, 3, 1, 1, 2, 2)),
+    ('resnet-18.C11', Workload(1,  14,  14, 256, 512, 1, 1, 0, 0, 2, 2)),
+    ('resnet-18.C12', Workload(1,   7,   7, 512, 512, 3, 3, 1, 1, 1, 1)),
+]
+
+# FIXME: we need a custom clip operator to circumvent a pattern detection limitation
 @tvm.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
@@ -37,249 +65,168 @@ def my_clip(x, a_min, a_max):
     x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
     return x
 
-def test_cpu_conv2d():
-    def run_cpu_conv2d(env, remote, key, batch_size, wl, profile=True):
-        data_shape = (batch_size, wl.in_filter, wl.height, wl.width)
-        kernel_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
+def run_conv2d(env, remote, wl, target,
+               check_correctness=True, print_ir=False,
+               samples=4):
 
-        fout_height = (wl.height + 2 * wl.hpad - wl.hkernel) // wl.hstride + 1
-        fout_width = (wl.width + 2 * wl.wpad - wl.wkernel) // wl.wstride + 1
-        data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
-        kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
-        res_conv = topi.nn.conv2d(
-            data, kernel, padding=(wl.hpad, wl.wpad),
-            strides=(wl.hstride, wl.wstride),
-            dilation=(1, 1),
-            out_dtype="int32")
-        res = topi.right_shift(res_conv, 8)
-        res = my_clip(res, 0, 127)
-        res = topi.cast(res, "int8")
+    # Workload assertions
+    assert wl.hpad == wl.wpad
 
-        # To compute number of ops, use a x2 factor for FMA
-        num_ops = 2 * batch_size * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
+    # Perform packing only if we are targeting the accelerator
+    if "arm_cpu" in target.keys:
+        data_pack = False
+        layout = "NCHW"
+    elif "vta" in target.keys:
+        data_pack = True
+        layout = "NCHW%dn%dc" % (env.BATCH, env.BLOCK_IN)
 
-        a_shape = (batch_size, wl.in_filter, wl.height, wl.width)
-        w_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
-        stride = (wl.hstride, wl.wstride)
-        data_dtype = data.dtype
-        kernel_dtype = kernel.dtype
-        acc_dtype = env.acc_dtype
-        assert wl.hpad == wl.wpad
-        padding = wl.hpad
-
-        @memoize("vta.tests.test_benchmark_topi.conv2d.cpu.verify_nhwc")
-        def get_ref_data():
-            a_np = (np.random.uniform(size=a_shape) * 4).astype(data_dtype)
-            w_np = (np.random.uniform(size=w_shape) * 4).astype(kernel_dtype)
-            a_np = np.abs(a_np)
-            w_np = np.abs(w_np)
-            b_np = topi.testing.conv2d_nchw_python(
-                a_np.astype(acc_dtype), w_np.astype(acc_dtype), stride, padding).astype(acc_dtype)
-            return a_np, w_np, b_np
-
-
-        def verify(s, check_correctness):
-            mod = tvm.build(s, [data, kernel, res],
-                            target_host=env.target_host,
-                            name="conv2d")
-            temp = util.tempdir()
-            mod.save(temp.relpath("conv2d.o"))
-            remote.upload(temp.relpath("conv2d.o"))
-            f = remote.load_module("conv2d.o")
-            # verify
-            ctx = remote.cpu(0)
-            # Data in original format
-            data_orig, kernel_orig, res_ref = get_ref_data()
-            res_shape = topi.util.get_const_tuple(res.shape)
-            res_np = np.zeros(res_shape).astype(res.dtype)
-            data_arr = tvm.nd.array(data_orig, ctx)
-            kernel_arr = tvm.nd.array(kernel_orig, ctx)
-            res_arr = tvm.nd.array(res_np, ctx)
-            time_f = f.time_evaluator("conv2d", ctx, number=5)
-            cost = time_f(data_arr, kernel_arr, res_arr)
-            res_unpack = res_arr.asnumpy()
-            if check_correctness:
-                assert wl.hpad == wl.wpad
-                stride = (wl.hstride, wl.wstride)
-                padding = wl.hpad
-                res_ref = res_ref >> 8
-                res_ref = np.clip(res_ref, 0, 127).astype("int8")
-                tvm.testing.assert_allclose(res_unpack, res_ref)
-            return cost
-
-        def conv_normal(print_ir):
-            print("----- CONV2D CPU End-to-End Test-------")
-            s = topi.generic.schedule_conv2d_nchw([res])
-            if print_ir:
-                print(tvm.lower(s, [data, kernel, res], simple_mode=True))
-            cost = verify(s, True)
-            gops = (num_ops / cost.mean) / float(10 ** 9)
-            print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
-
-        conv_normal(False)
-
-    def _run(env, remote):
-        # ResNet18 workloads
-        resnet = {
-            # Workloads of resnet18 on imagenet
-            0: Workload(1, 224, 224, 16, 64, 7, 7, 3, 3, 2, 2),
-            1: Workload(1, 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
-            2: Workload(1, 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
-            3: Workload(1, 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
-            4: Workload(1, 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
-            5: Workload(1, 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
-            6: Workload(1, 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
-            7: Workload(1, 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
-            8: Workload(1, 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
-            9: Workload(1, 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
-            10: Workload(1, 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
-            11: Workload(1, 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
-        }
-        batch_size = 1
-        for i in range(1, len(resnet)):
-            wl = resnet[i]
-            key = "resnet-cfg[%d]" % i
-            print("key=%s" % key)
-            print(wl)
-            with tvm.target.create("llvm -device=vtacpu"):
-                run_cpu_conv2d(env, remote, key, batch_size, wl)
-
-    # load pre-tuned operator parameters for ARM CPU
-    autotvm.tophub.check_backend('vta')
-    with autotvm.tophub.context('llvm -device=vtacpu'):
-        vta.testing.run(_run)
-
-
-def test_vta_conv2d():
-    def run_vta_conv2d(env, remote, key, batch_size, wl, profile=True):
-        data_shape = (batch_size//env.BATCH, wl.in_filter//env.BLOCK_IN,
-                      wl.height, wl.width, env.BATCH, env.BLOCK_IN)
+    # Derive shapes depending upon packing
+    a_shape = (wl.batch, wl.in_filter, wl.height, wl.width)
+    w_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
+    b_shape = (wl.batch, wl.out_filter, 1, 1)
+    if data_pack:
+        data_shape = (wl.batch//env.BATCH, wl.in_filter//env.BLOCK_IN,
+                  wl.height, wl.width, env.BATCH, env.BLOCK_IN)
         kernel_shape = (wl.out_filter//env.BLOCK_OUT, wl.in_filter//env.BLOCK_IN,
                         wl.hkernel, wl.wkernel, env.BLOCK_OUT, env.BLOCK_IN)
-        bias_shape = (1, wl.out_filter//env.BLOCK_OUT, 1, 1, env.BATCH, env.BLOCK_OUT)
+        bias_shape = (wl.batch//env.BATCH, wl.out_filter//env.BLOCK_OUT,
+                      1, 1, env.BATCH, env.BLOCK_OUT)
+    else:
+        data_shape = a_shape
+        kernel_shape = w_shape
+        bias_shape = b_shape
+    data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
 
-        fout_height = (wl.height + 2 * wl.hpad - wl.hkernel) // wl.hstride + 1
-        fout_width = (wl.width + 2 * wl.wpad - wl.wkernel) // wl.wstride + 1
-        data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
-        kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
-        bias = tvm.placeholder(bias_shape, name="kernel", dtype=env.acc_dtype)
-
-        res_conv = vta.top.packed_conv2d(
-            data, kernel, padding=(wl.hpad, wl.wpad), strides=(wl.hstride, wl.wstride))
-        res = topi.right_shift(res_conv, 8)
+    # Define base computation schedule
+    with target:
+        res = topi.nn.conv2d(
+            data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), (1, 1),
+            layout, env.acc_dtype)
+        res = topi.right_shift(res, 8)
         res = topi.add(res, bias)
-        res = my_clip(res, 0, 127)
-        res = topi.cast(res, "int8")
+        res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
+        res = topi.cast(res, env.out_dtype)
+        # Derive base schedule
+        s = topi.generic.schedule_conv2d_nchw([res])
+        if print_ir:
+            print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
 
-        # To compute number of ops, use a x2 factor for FMA
-        num_ops = 2 * batch_size * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
+    # Derive number of ops
+    fout_height = (wl.height + 2 * wl.hpad - wl.hkernel) // wl.hstride + 1
+    fout_width = (wl.width + 2 * wl.wpad - wl.wkernel) // wl.wstride + 1
+    num_ops = 2 * wl.batch * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
 
-        a_shape = (batch_size, wl.in_filter, wl.height, wl.width)
-        w_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
-        stride = (wl.hstride, wl.wstride)
-        data_dtype = data.dtype
-        kernel_dtype = kernel.dtype
-        acc_dtype = env.acc_dtype
-        assert wl.hpad == wl.wpad
-        padding = wl.hpad
+    # @memoize("vta.tests.test_benchmark_topi.conv2d.verify_nhwc")
+    def get_ref_data():
+        # derive min max for act, wgt, and bias types (max non inclusive)
+        a_min, a_max = 0 - (1 << (env.INP_WIDTH - 1)), (1 << (env.INP_WIDTH - 1))
+        w_min, w_max = 0 - (1 << (env.WGT_WIDTH - 1)), (1 << (env.WGT_WIDTH - 1))
+        b_min, b_max = 0 - 1 << (env.INP_WIDTH + env.WGT_WIDTH - 2), 1 << (env.INP_WIDTH + env.WGT_WIDTH - 2)
+        a_np = np.random.randint(a_min, a_max, size=a_shape).astype(data.dtype)
+        w_np = np.random.randint(w_min, w_max, size=w_shape).astype(kernel.dtype)
+        b_np = np.random.randint(b_min, b_max, size=b_shape).astype(env.acc_dtype)
+        r_np = topi.testing.conv2d_nchw_python(
+            a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype), (wl.hstride, wl.wstride), wl.hpad).astype(env.acc_dtype)
+        return a_np, w_np, b_np, r_np
 
-        @memoize("vta.tests.test_benchmark_topi.conv2d.verify_nhwc")
-        def get_ref_data():
-            a_np = (np.random.uniform(size=a_shape) * 4).astype(data_dtype)
-            w_np = (np.random.uniform(size=w_shape) * 4).astype(kernel_dtype)
-            a_np = np.abs(a_np)
-            w_np = np.abs(w_np)
-            b_np = topi.testing.conv2d_nchw_python(
-                a_np.astype(acc_dtype), w_np.astype(acc_dtype), stride, padding).astype(acc_dtype)
-            return a_np, w_np, b_np
+    # Data in original format
+    data_np, kernel_np, bias_np, res_ref = get_ref_data()
+    if data_pack:
+        data_np = data_np.reshape(
+            wl.batch//env.BATCH, env.BATCH,
+            wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
+            wl.height, wl.width).transpose((0, 2, 4, 5, 1, 3))
+        kernel_np = kernel_np.reshape(
+            wl.out_filter//env.BLOCK_OUT, env.BLOCK_OUT,
+            wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
+            wl.hkernel, wl.wkernel).transpose((0, 2, 4, 5, 1, 3))
+        bias_np = bias_np.reshape(
+            wl.batch // env.BATCH, wl.out_filter // env.BLOCK_OUT,
+            1, 1, env.BATCH, env.BLOCK_OUT)
 
-        def verify(s, check_correctness):
-            mod = vta.build(s, [data, kernel, bias, res], "ext_dev",
-                            env.target_host, name="conv2d")
-            temp = util.tempdir()
+    # Build
+    if "vta" in target.keys:
+        mod = vta.build(s, [data, kernel, bias, res],
+                        target=target,
+                        target_host=env.target_host,
+                        name="conv2d")
+    else:
+        mod = tvm.build(s, [data, kernel, bias, res],
+                        target=target,
+                        target_host=env.target_host,
+                        name="conv2d")
+    temp = util.tempdir()
+    mod.save(temp.relpath("conv2d.o"))
+    remote.upload(temp.relpath("conv2d.o"))
+    f = remote.load_module("conv2d.o")
+    ctx = remote.context(str(target))
 
-            mod.save(temp.relpath("conv2d.o"))
-            remote.upload(temp.relpath("conv2d.o"))
-            f = remote.load_module("conv2d.o")
-            # verify
-            ctx = remote.ext_dev(0)
-            # Data in original format
-            data_orig, kernel_orig, res_ref = get_ref_data()
-            bias_orig = (np.random.uniform(size=(wl.out_filter,)) * 4).astype("int32")
-            bias_orig = np.abs(bias_orig)
+    res_np = np.zeros(topi.util.get_const_tuple(res.shape)).astype(res.dtype)
+    data_arr = tvm.nd.array(data_np, ctx)
+    kernel_arr = tvm.nd.array(kernel_np, ctx)
+    bias_arr = tvm.nd.array(bias_np, ctx)
+    res_arr = tvm.nd.array(res_np, ctx)
+    time_f = f.time_evaluator("conv2d", ctx, number=samples)
 
-            data_packed = data_orig.reshape(
-                batch_size//env.BATCH, env.BATCH,
-                wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
-                wl.height, wl.width).transpose((0, 2, 4, 5, 1, 3))
-            kernel_packed = kernel_orig.reshape(
-                wl.out_filter//env.BLOCK_OUT, env.BLOCK_OUT,
-                wl.in_filter//env.BLOCK_IN, env.BLOCK_IN,
-                wl.hkernel, wl.wkernel).transpose((0, 2, 4, 5, 1, 3))
-            bias_packed = bias_orig.reshape(
-                1, wl.out_filter // env.BLOCK_OUT, 1, 1, env.BATCH, env.BLOCK_OUT)
-            res_shape = topi.util.get_const_tuple(res.shape)
-
-            res_np = np.zeros(res_shape).astype(res.dtype)
-            data_arr = tvm.nd.array(data_packed, ctx)
-            kernel_arr = tvm.nd.array(kernel_packed, ctx)
-            bias_arr = tvm.nd.array(bias_packed, ctx)
-            res_arr = tvm.nd.array(res_np, ctx)
-            time_f = f.time_evaluator("conv2d", ctx, number=5)
+    # In vta sim mode, collect simulator runtime statistics
+    stats = {}
+    cost = None
+    if env.TARGET == "sim":
+        # Check if we're in local RPC mode (allows us to rebuild the
+        # runtime on the fly when varying the VTA designs)
+        local_rpc = int(os.environ.get("VTA_LOCAL_SIM_RPC", "0"))
+        if local_rpc:
+            remote.get_function("vta.simulator.profiler_clear")()
             cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
-            res_unpack = res_arr.asnumpy().transpose(
-                (0, 4, 1, 5, 2, 3)).reshape(batch_size, wl.out_filter, fout_height, fout_width)
-            if check_correctness:
-                assert wl.hpad == wl.wpad
-                stride = (wl.hstride, wl.wstride)
-                padding = wl.hpad
-                res_ref = res_ref >> 8
-                res_ref += bias_orig.reshape(wl.out_filter, 1, 1)
-                res_ref = np.clip(res_ref, 0, 127).astype("int8")
-                tvm.testing.assert_allclose(res_unpack, res_ref)
-            return cost
+            stats = json.loads(remote.get_function("vta.simulator.profiler_status")())
+        else:
+            simulator.clear_stats()
+            cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
+            stats = simulator.stats()
+    else:
+        cost = time_f(data_arr, kernel_arr, bias_arr, res_arr)
 
-        def conv_normal(print_ir):
-            print("----- CONV2D End-to-End Test-------")
-            with vta.build_config():
-                s = vta.top.schedule_packed_conv2d([res])
-                if print_ir:
-                    print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
-            cost = verify(s, True)
-            gops = (num_ops / cost.mean) / float(10 ** 9)
-            print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
+    # Check correctness
+    correct = False
+    if check_correctness:
+        res_orig = res_arr.asnumpy()
+        if data_pack:
+            res_orig = res_orig.transpose(
+                (0, 4, 1, 5, 2, 3)).reshape(wl.batch, wl.out_filter, fout_height, fout_width)
+        res_ref = res_ref >> 8
+        res_ref += bias_np.reshape(wl.out_filter, 1, 1)
+        res_ref = np.clip(res_ref, 0, (1 << env.OUT_WIDTH - 1) - 1)
+        res_ref = res_ref.astype(env.out_dtype)
+        correct = np.allclose(res_orig, res_ref)
 
-        conv_normal(False)
+    gops = (num_ops / cost.mean) / float(10 ** 9)
+    status = "PASSED" if correct else "FAILED"
+    if "arm_cpu" in target.keys:
+        device = "CPU"
+    elif "vta" in target.keys:
+        device = "VTA"
+    print("%s CONV2D TEST %s: Time cost = %g sec/op, %g GOPS" % (device, status, cost.mean, gops))
 
+    return correct, cost, stats
+
+def test_conv2d(device="vta"):
     def _run(env, remote):
-        # ResNet18 workloads
-        resnet = {
-            # Workloads of resnet18 on imagenet
-            0: Workload(1, 224, 224, 16, 64, 7, 7, 3, 3, 2, 2),
-            1: Workload(1, 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
-            2: Workload(1, 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
-            3: Workload(1, 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
-            4: Workload(1, 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
-            5: Workload(1, 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
-            6: Workload(1, 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
-            7: Workload(1, 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
-            8: Workload(1, 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
-            9: Workload(1, 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
-            10: Workload(1, 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
-            11: Workload(1, 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
-        }
-
-        batch_size = 1
-        for i in range(0, len(resnet)):
-            wl = resnet[i]
-            key = "resnet-cfg[%d]" % i
-            print("key=%s" % key)
-            print(wl)
-            run_vta_conv2d(env, remote, key, batch_size, wl)
-
+        if device == "vta":
+            target = env.target
+            if env.TARGET != "sim":
+                assert tvm.module.enabled("rpc")
+                program_fpga(remote, bitstream=None)
+                reconfig_runtime(remote)
+        elif device == "arm_cpu":
+            target = env.target_vta_cpu
+        with autotvm.tophub.context(target): # load pre-tuned schedule parameters
+            for _, wl in resnet_wkls:
+                print(wl)
+                run_conv2d(env, remote, wl, target)
     vta.testing.run(_run)
 
-
 if __name__ == "__main__":
-    test_cpu_conv2d()
-    test_vta_conv2d()
+    test_conv2d(device="arm_cpu")
+    test_conv2d(device="vta")
