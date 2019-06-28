@@ -666,6 +666,51 @@ def test_forward_topk():
     verify((3, 5, 6), k=2, axis=1, ret_type="value", is_ascend=True)
     verify((3, 5, 6), k=0, axis=2, ret_type="both", dtype="int32")
 
+def test_forward_sequence_mask():
+    def verify(shape, use_sequence_length, value, axis, dtype, itype):
+        data_np = np.random.uniform(size=shape).astype(dtype)
+        valid_length_np = np.random.randint(0, shape[axis], size=shape[1-axis]).astype(itype)
+        if use_sequence_length:
+            ref_res = mx.nd.SequenceMask(mx.nd.array(data_np, dtype=dtype),
+                                         sequence_length=mx.nd.array(valid_length_np, dtype=itype),
+                                         use_sequence_length=use_sequence_length,
+                                         value=value,
+                                         axis=axis)
+            mx_sym = mx.sym.SequenceMask(mx.sym.var('data'),
+                                         sequence_length=mx.sym.var('valid_length'),
+                                         use_sequence_length=use_sequence_length,
+                                         value=value,
+                                         axis=axis)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": shape,
+                                                        'valid_length': valid_length_np.shape},
+                                               dtype={"data": dtype,
+                                                      "valid_length": itype})
+        else:
+            ref_res = mx.nd.SequenceMask(mx.nd.array(data_np, dtype=dtype),
+                                         use_sequence_length=use_sequence_length,
+                                         value=value,
+                                         axis=axis)
+            mx_sym = mx.sym.SequenceMask(mx.sym.var('data'),
+                                         use_sequence_length=use_sequence_length,
+                                         value=value,
+                                         axis=axis)
+            mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": shape}, dtype={"data": dtype})
+        for target, ctx in ctx_list():
+            for kind in ['graph', 'debug']:
+                if use_sequence_length is False and kind == 'graph':
+                    # Disable the test for 'graph' when it's identity.
+                    continue
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                if use_sequence_length:
+                    op_res = intrp.evaluate()(data_np, valid_length_np)
+                else:
+                    op_res = intrp.evaluate()(data_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((5, 10), True, 0.0, 0, 'float32', 'float32')
+    verify((5, 4, 3), True, 1.0, 1, 'float32', 'float32')
+    verify((5, 4, 3), False, 1.0, 1, 'float64', 'float64')
+    verify((5, 4, 3, 2), True, 1.0, 0, 'float32', 'float32')
+
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -710,3 +755,4 @@ if __name__ == '__main__':
     test_forward_Crop()
     test_forward_argsort()
     test_forward_topk()
+    test_forward_sequence_mask()
