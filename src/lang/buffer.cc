@@ -432,10 +432,9 @@ Buffer BufferNode::make(Var data,
   n->offset_factor = offset_factor;
   n->buffer_type = std::move(buffer_type);
   if (n->buffer_type == "broadcast" && n->shape.size() > 0 && n->strides.empty()) {
-    for (size_t i = 0; i < n->shape.size() - 1; ++i) {
+    for (size_t i = 0; i < n->shape.size(); ++i) {
       n->strides.push_back(tvm::var("stride"));
     }
-    n->strides.push_back(make_const(n->shape[0].type(), 1));
   }
   return Buffer(n);
 }

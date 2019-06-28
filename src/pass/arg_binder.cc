@@ -243,10 +243,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       init_nest_.emplace_back(Block::make(check, Evaluate::make(0)));
     }
   } else if (buffer->buffer_type == "broadcast") {
-    Buffer stride_view = buffer.MakeStrideView();
     Type stype = buffer->DefaultIndexType();
     Expr stride = make_const(stype, 1);
-    for (size_t i = stride_view->strides.size(); i != 0; --i) {
+    for (size_t i = buffer->shape.size(); i != 0; --i) {
       size_t k = i - 1;
       std::ostringstream field_name;
       field_name << v_strides->name_hint << '[' << k << ']';
