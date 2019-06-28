@@ -30,6 +30,7 @@
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
+#include <topi/tags.h>
 #include <utility>
 #include <limits>
 #include <mutex>
@@ -170,7 +171,7 @@ class ScheduleGetter :
           LOG(FATAL) << "not handled";
           return tvm::Expr();
         }
-      });
+      }, "compile_engine_const", topi::kBroadcast);
     scalars_.push_back(value->op);
     return {value};
   }

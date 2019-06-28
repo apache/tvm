@@ -56,7 +56,7 @@ def compute_dense(attrs, inputs, out_type, target):
     """Compute definition of dense"""
     out_dtype = attrs.out_dtype
     out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
-    return [topi.nn.dense(inputs[0], inputs[1], out_dtype=out_dtype)]
+    return [topi.nn.dense(inputs[0], inputs[1], None, out_dtype)]
 
 
 @reg.register_schedule("nn.dense")
@@ -119,21 +119,21 @@ def compute_conv2d(attrs, inputs, out_type, target):
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
-            dilation, layout, out_dtype=out_dtype)
+            dilation, layout, out_dtype)
     elif layout == "NCHW" and \
             get_const_int(inputs[1].shape[0]) == groups and \
             get_const_int(inputs[1].shape[1]) == 1:
         out = topi.nn.depthwise_conv2d_nchw(
-            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype)
     elif layout == "NHWC" and \
             kernel_layout == "HWOI" and\
             get_const_int(inputs[1].shape[2]) == groups and \
             get_const_int(inputs[1].shape[3]) == 1:
         out = topi.nn.depthwise_conv2d_nhwc(
-            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype)
     elif layout in ['NCHW', 'NCHW4c']:
         out = topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups,
-                                        out_dtype=out_dtype)
+                                        out_dtype)
     else:
         raise ValueError("not support arbitrary group number for now")
     return [out]

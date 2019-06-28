@@ -344,7 +344,7 @@ def generic_func(fdefault):
             The function to be registered.
 
         override : bool
-            Whether override existing registeration.
+            Whether override existing registration.
 
         Returns
         -------
@@ -487,6 +487,13 @@ def rasp(options=None):
     warnings.warn('tvm.target.rasp() is going to be deprecated. '
                   'Please use tvm.target.arm_cpu("rasp3b")')
     return arm_cpu('rasp3b', options)
+
+
+def vta(model='unknown', options=None):
+    opts = ["-device=vta", '-keys=cpu', '-model=%s' % model]
+    opts = _merge_opts(opts, options)
+    ret = _api_internal._TargetCreate("ext_dev", *opts)
+    return ret
 
 
 def create(target_str):

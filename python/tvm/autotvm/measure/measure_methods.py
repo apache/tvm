@@ -86,7 +86,6 @@ class LocalBuilder(Builder):
                 build_func = ndk.create_shared
             else:
                 raise ValueError("Invalid build_func" + build_func)
-
         self.build_func = _wrap_build_func(build_func)
         self.executor = LocalExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
@@ -360,8 +359,14 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
         if cuda_arch:
             set_cuda_target_arch(cuda_arch)
 
-        with build_config(**opts):
-            func = build(s, args, target_host=task.target_host)
+        # if target is vta, we need to use vta build
+        if hasattr(measure_input.target, 'device_name') and \
+            measure_input.target.device_name == 'vta':
+            import vta
+            func = vta.build(s, args, target_host=task.target_host)
+        else:
+            with build_config(**opts):
+                func = build(s, args, target_host=task.target_host)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
@@ -452,6 +457,12 @@ def run_through_rpc(measure_input, build_result,
     try:
         # upload built module
         remote = request_remote(*remote_args)
+        # Program the FPGA every single time when targeting VTA
+        if hasattr(measure_input.target, 'device_name') and \
+            measure_input.target.device_name == 'vta':
+            from vta import program_fpga, reconfig_runtime
+            program_fpga(remote, None)
+            reconfig_runtime(remote)
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)

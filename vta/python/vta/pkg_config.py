@@ -77,8 +77,6 @@ class PkgConfig(object):
         if self.target == "pynq":
             self.ldflags = [
                 "-L/usr/lib",
-                "-L/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/",
-                "-L/opt/python3.6/lib/python3.6/site-packages/pynq/lib/",
                 "-l:libcma.so"]
         else:
             self.ldflags = []

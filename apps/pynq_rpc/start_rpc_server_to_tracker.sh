@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,24 +15,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Reuse conv2d schedule from ARM CPU"""
+PROJROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../" && pwd )"
 
-import tvm
 
-from topi.nn import conv2d, conv2d_alter_layout
-from topi import generic
-
-@conv2d.register(["vtacpu", "vta"])
-def compute(*args, **kwargs):
-    with tvm.target.arm_cpu("vtacpu"):
-        return conv2d(*args, **kwargs)
-
-@generic.schedule_conv2d_nchw.register(["vtacpu", "vta"])
-def schedule(*args, **kwargs):
-    with tvm.target.arm_cpu("vtacpu"):
-        return generic.schedule_conv2d_nchw(*args, **kwargs)
-
-@conv2d_alter_layout.register(["vtacpu", "vta"])
-def alter(*args, **kwargs):
-    with tvm.target.arm_cpu("vtacpu"):
-        return conv2d_alter_layout(*args, **kwargs)
+export PYTHONPATH=${PYTHONPATH}:${PROJROOT}/python:${PROJROOT}/vta/python
+export PYTHONPATH=${PYTHONPATH}:/home/xilinx/pynq
+python3 -m vta.exec.rpc_server --tracker fleet:9190 --key pynq
