@@ -26,3 +26,5 @@ LAYOUT_FIXED_OP = ["batch_flatten", "transpose", "reshape",
 # We set a large time to represent an invalid layout-transformation.
 # This number is set to be 10e9 seconds to align with autotvm.
 INVALID_LAYOUT_TIME = 10e9
+
+MAX_OUTPUT_NODES = 16
