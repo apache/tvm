@@ -23,7 +23,7 @@
 [Release Notes](NEWS.md)
 
 [![Build Status](http://ci.tvm.ai:8080/buildStatus/icon?job=tvm/master)](http://ci.tvm.ai:8080/job/tvm/job/master/)
-[![Azure Pipline Status](https://dev.azure.com/tvmai/tvm/_apis/build/status/tqchen.tvm?branchName=master)](https://dev.azure.com/tvmai/tvm/_build/latest?definitionId=1&branchName=master)
+[![Azure Pipeline](https://dev.azure.com/tvmai/tvm/_apis/build/status/tvm?branchName=master)](https://dev.azure.com/tvmai/tvm/_build/latest?definitionId=2&branchName=master)
 
 TVM is a compiler stack for deep learning systems. It is designed to close the gap between the
 productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
