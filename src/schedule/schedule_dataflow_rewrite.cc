@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -761,12 +761,15 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   VarReplacer replacer(vsub);
   Array<Expr> new_source = ir::UpdateArray(reduce->source,
     [&replacer] (const Expr& e) { return replacer.Mutate(e); });
+
+  Expr new_pred = replacer.Mutate(predicate);
+
   std::vector<Expr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
     body.emplace_back(Reduce::make(reduce->combiner,
                                    new_source,
                                    n->reduce_axis,
-                                   predicate,
+                                   new_pred,
                                    idx));
   }
   n->body = Array<Expr>(body);
