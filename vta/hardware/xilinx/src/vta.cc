@@ -586,19 +586,29 @@ void vta(
 
   // Instantiate temporary instruction queues (used for peeking)
   hls::stream<insn_T> tmp_load_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=tmp_load_queue)
   hls::stream<insn_T> tmp_gemm_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=tmp_gemm_queue)
   hls::stream<insn_T> tmp_store_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=tmp_store_queue)
 
   // Instatiate physical instruction queues
   hls::stream<insn_T> load_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=load_queue)
   hls::stream<insn_T> gemm_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=gemm_queue)
   hls::stream<insn_T> store_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=store_queue)
 
   // Dependence queues
   hls::stream<bool> l2g_dep_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=l2g_dep_queue)
   hls::stream<bool> s2g_dep_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=s2g_dep_queue)
   hls::stream<bool> g2l_dep_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=g2s_dep_queue)
   hls::stream<bool> g2s_dep_queue;
+  PRAGMA_HLS(HLS stream depth=STREAM_IN_DEPTH variable=g2s_dep_queue)
 
   // Instantiate memories
   inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH];

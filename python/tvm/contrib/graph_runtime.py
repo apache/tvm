@@ -129,6 +129,7 @@ class GraphModule(object):
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
         self._load_params = module["load_params"]
+        self._share_params = module["share_params"]
 
     def set_input(self, key=None, value=None, **params):
         """Set inputs to the module via kwargs
@@ -233,6 +234,19 @@ class GraphModule(object):
             The serialized parameter dict.
         """
         self._load_params(bytearray(params_bytes))
+
+    def share_params(self, other, params_bytes):
+        """Share parameters from pre-existing GraphRuntime instance.
+
+        Parameters
+        ----------
+        other: GraphRuntime
+            The parent GraphRuntime from which this instance should share
+            it's parameters.
+        params_bytes : bytearray
+            The serialized parameter dict (used only for the parameter names).
+        """
+        self._share_params(other.module, bytearray(params_bytes))
 
     def __getitem__(self, key):
         """Get internal module function

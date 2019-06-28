@@ -71,12 +71,10 @@ class QConfig(NodeBase):
         "dtype_weight": "int8",
         "dtype_activation": "int32",
         "global_scale": 8.0,
-        "skip_k_conv": 1,
-        "skip_conv_layers": None,
+        "skip_conv_layers": [0],
         "round_for_shift": True,
         "store_lowbit_output": True,
         "debug_enabled_ops": None,
-        "use_stop_fusion": True
     }
 
     # pylint: disable=no-member
@@ -138,11 +136,8 @@ def qconfig(**kwargs):
     global_scale: float
         The global scale for calibration.
 
-    skip_k_conv: int
-        The number of skipped conv2d.
-
     skip_conv_layers: list
-        Different way of specifying which layers to avoid. Provide a list of indices
+        Specifying which layers to be skipped. Provide a list of indices
         that indicate which conv2d layers to leave untouched.
 
     round_for_shift: boolean
@@ -152,9 +147,10 @@ def qconfig(**kwargs):
         Whether to store low-bit integer back as output before dequantizing.
         Some accelerators need this, e.g. VTA.
 
-    use_stop_fusion: boolean
-        Whether add stop_fusion when casting to dtype_activation. stop_fusion forces lowbit
-        results to be stored in memory.
+    debug_enabled_ops: None or list of str
+        Partially quantize specified operators for debugging. The default value
+        is None, which means will try to call all operartors' annotate rewrite
+        function.
 
     Returns
     -------
@@ -166,18 +162,35 @@ def qconfig(**kwargs):
     return _make.node("relay.quantize.QConfig", **node_args)
 
 
-CONV_COUNTER = 0
+class AnnotateContext(object):
+    """A global singleton annotate scope"""
+    Current = None
+
+    def __init__(self):
+        self.qnode_map = dict()
+        self._conv2d_counter = 0
+
+    def __enter__(self):
+        self._conv2d_counter = 0
+        return self
+
+    def conv2d_counter(self):
+        """Get the counter for conv2d."""
+        return self._conv2d_counter
+
+    def count_conv2d(self):
+        """Increase the value of the conv2d counter by one."""
+        self._conv2d_counter += 1
+
+    def __exit__(self, ptype, value, traceback):
+        pass
 
 
-def _conv_counter():
-    """Get the global counter for conv2d."""
-    return CONV_COUNTER
-
-
-def _set_conv_counter(n):
-    """Set the value of the global conv2d counter."""
-    global CONV_COUNTER
-    CONV_COUNTER = n
+def annotate_context():
+    """Get the global singleton scope"""
+    if AnnotateContext.Current is None:
+        AnnotateContext.Current = AnnotateContext()
+    return AnnotateContext.Current
 
 
 def calibrate(graph, mod=None, ctx=None):
@@ -324,15 +337,15 @@ def quantize(graph, params=None, dataset=None):
 
     calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
                                               name="QuantizeCalibrate")
-    _set_conv_counter(0)  # reset counter
     quantize_seq = _transform.Sequential([annotate(),
                                           calibrate_pass,
                                           realize(),
                                           _transform.FoldConstant()])
-    with _transform.PassContext(opt_level=3,
-                                required_pass=["QuantizeAnnotate",
-                                               "QuantizeCalibrate",
-                                               "QuantizeRealize"]):
-        mod = optimize(mod)
-        mod = quantize_seq(mod)
+    with annotate_context():
+        with _transform.PassContext(opt_level=3,
+                                    required_pass=["QuantizeAnnotate",
+                                                   "QuantizeCalibrate",
+                                                   "QuantizeRealize"]):
+            mod = optimize(mod)
+            mod = quantize_seq(mod)
     return mod[mod.entry_func.name_hint]

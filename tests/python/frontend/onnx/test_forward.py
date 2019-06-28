@@ -47,7 +47,7 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict)
     with relay.build_config(opt_level=1):
-        graph, lib, params = relay.build(mod[mod.entry_func],
+        graph, lib, params = relay.build(mod,
                                          target,
                                          params=params)
 

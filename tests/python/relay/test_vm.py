@@ -250,6 +250,47 @@ def test_let_scalar():
     result = veval(f, x_data)
     tvm.testing.assert_allclose(result.asnumpy(), x_data + 42.0)
 
+def test_compose():
+    mod = relay.Module()
+    p = Prelude(mod)
+
+    compose = p.compose
+
+    # remove all functions to not have pattern match to pass vm compilation
+    # TODO(wweic): remove the hack and implement pattern match
+    for v, _ in mod.functions.items():
+        if v.name_hint == 'compose':
+            continue
+        mod[v] = relay.const(0)
+
+    # add_one = fun x -> x + 1
+    sb = relay.ScopeBuilder()
+    x = relay.var('x', 'float32')
+    x1 = sb.let('x1', x)
+    xplusone = x1 + relay.const(1.0, 'float32')
+    sb.ret(xplusone)
+    body = sb.get()
+    add_one = relay.GlobalVar("add_one")
+    add_one_func = relay.Function([x], body)
+
+    # add_two = compose(add_one, add_one)
+    sb = relay.ScopeBuilder()
+    y = relay.var('y', 'float32')
+    add_two_func = sb.let('add_two', compose(add_one_func, add_one_func))
+    add_two_res = add_two_func(y)
+    sb.ret(add_two_res)
+    add_two_body = sb.get()
+
+    mod[add_one] = add_one_func
+
+    f = relay.Function([y], add_two_body)
+    mod[mod.entry_func] = f
+
+    x_data = np.array(np.random.rand()).astype('float32')
+    result = veval(mod)(x_data)
+
+    tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
+
 def test_closure():
     x = relay.var('x', shape=())
     y = relay.var('y', shape=())

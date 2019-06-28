@@ -482,8 +482,8 @@ class Prelude:
         with open(prelude_file) as prelude:
             prelude = fromtext(prelude.read())
             self.mod.update(prelude)
-            self.id = self.mod["id"]
-            self.compose = self.mod["compose"]
+            self.id = self.mod.get_global_var("id")
+            self.compose = self.mod.get_global_var("compose")
 
 
     def __init__(self, mod):

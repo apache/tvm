@@ -209,11 +209,43 @@ def test_tensor_intrin():
     assert(s[z].iter_var_attrs[xi].tensor_intrin == intrin)
     assert(s[z].iter_var_attrs[xi].iter_type == tvm.schedule.IterVar.Tensorized)
 
+def test_tensor_intrin_scalar_params():
+    n = tvm.var("n")
+    x = tvm.placeholder((n,), name='x')
+    v = tvm.var("v")
+    w = tvm.var("w")
+    z = tvm.compute((n,), lambda i: x[i]*v + w, name='z')
+
+    def intrin_func(ins, outs, sp):
+        assert(isinstance(ins[0], tvm.schedule.Buffer))
+        assert(ins[0].shape[0] == n)
+        assert(sp[0] == v)
+        assert(sp[1] == w)
+        return tvm.call_packed("hw_func", ins[0].data, outs[0].data, sp[0], sp[1])
+
+    with tvm.build_config(offset_factor=1):
+      intrin = tvm.decl_tensor_intrin(z.op, intrin_func, scalar_params=[v, w])
+    assert intrin.op == z.op
+    assert intrin.reduce_init is None
+    assert tuple(intrin.inputs) == tuple(z.op.input_tensors)
+    assert(intrin.buffers[0].shape[0] == n)
+    assert tuple(intrin.scalar_params) == tuple((v, w))
+
+    A = tvm.placeholder((10,10), name='A')
+    # Pass scalar inputs to the TensorIntrin, interleaved with tensor inputs
+    C = tvm.compute((10,10), lambda i, j: intrin(i*i, A[i, j], i+j), name="C")
+    s = tvm.create_schedule(C.op)
+    stmt = tvm.lower(s, [A, C], simple_mode=True)
+    assert isinstance(stmt.body.body.body, tvm.stmt.Evaluate)
+    assert len(stmt.body.body.body.value.args) == 5
+    assert str(stmt.body.body.body.value.args[3]) == "(i*i)"
+    assert str(stmt.body.body.body.value.args[4]) == "(i + j)"
 
 if __name__ == "__main__":
     test_singleton()
     test_pragma()
     test_tensor_intrin()
+    test_tensor_intrin_scalar_params()
     test_rfactor()
     test_schedule_create()
     test_reorder()

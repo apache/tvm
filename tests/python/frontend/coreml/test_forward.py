@@ -73,7 +73,7 @@ def run_tvm_graph(coreml_model, target, ctx, input_data, input_name, output_shap
 
     mod, params = relay.frontend.from_coreml(coreml_model, shape_dict)
     with relay.transform.build_config(opt_level=3):
-        graph, lib, params = relay.build(mod[mod.entry_func], target, params=params)
+        graph, lib, params = relay.build(mod, target, params=params)
 
     from tvm.contrib import graph_runtime
     m = graph_runtime.create(graph, lib, ctx)

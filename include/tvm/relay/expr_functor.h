@@ -237,17 +237,6 @@ class ExprMutator
  */
 void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 
-/*
- * \brief Bind function parameters or free variables.
- *
- * Parameter binding can only happen if expr is a Function.
- * binds cannot change internal arguments of internal functions.
- *
- * \param expr The function to be binded.
- * \param binds The map of arguments to
- */
-Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_FUNCTOR_H_

@@ -286,6 +286,8 @@ class TensorComputeOpNode : public BaseComputeOpNode {
   Array<Tensor> inputs;
   /*! \brief region of input tensors */
   Array<Region> input_regions;
+  /*! \brief scalar expression inputs */
+  Array<Expr> scalar_inputs;
   /*! \brief constructor */
   TensorComputeOpNode() {}
   // override functions
@@ -314,6 +316,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
     v->Visit("intrin", &intrin);
     v->Visit("inputs", &inputs);
     v->Visit("input_regions", &input_regions);
+    v->Visit("scalar_inputs", &scalar_inputs);
   }
   static Operation make(std::string name,
                         std::string tag,
@@ -322,7 +325,8 @@ class TensorComputeOpNode : public BaseComputeOpNode {
                         int schedulable_ndim,
                         TensorIntrin intrin,
                         Array<Tensor> tensors,
-                        Array<Region> regions);
+                        Array<Region> regions,
+                        Array<Expr> scalar_inputs);
 
   static constexpr const char* _type_key = "TensorComputeOp";
   TVM_DECLARE_NODE_TYPE_INFO(TensorComputeOpNode, BaseComputeOpNode);

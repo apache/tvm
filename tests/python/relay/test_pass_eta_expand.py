@@ -15,13 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 from tvm import relay
+import tvm.relay.module as _module
+import tvm.relay.transform as _transform
 
 def test_eta_expand_basic():
-    mod = relay.Module()
     x = relay.var('x', 'int32')
-    y = relay.var('y', 'int32')
     orig = relay.Function([x], x)
-    got = relay.ir_pass.eta_expand(orig, mod)
+    mod = _module.Module.from_expr(orig)
+    seq = _transform.Sequential([_transform.EtaExpand()])
+    with _transform.PassContext(opt_level=3):
+        mod = seq(mod)
+
+    got = mod[mod.entry_func.name_hint]
+
+    y = relay.var('y', 'int32')
     expected = relay.Function([y], orig(y))
 
     got = relay.ir_pass.infer_type(got, mod)

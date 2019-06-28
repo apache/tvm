@@ -67,5 +67,20 @@ Expr EtaExpand(const Expr& e, const Module& mod) {
 
 TVM_REGISTER_API("relay._ir_pass.eta_expand").set_body_typed(EtaExpand);
 
+namespace transform {
+
+Pass EtaExpand() {
+  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
+    [=](Function f, Module m, PassContext pc) {
+    return Downcast<Function>(EtaExpand(f, m));
+  };
+  return CreateFunctionPass(pass_func, 1, "EtaExpand", {});
+}
+
+TVM_REGISTER_API("relay._transform.EtaExpand")
+.set_body_typed(EtaExpand);
+
+}  // namespace transform
+
 }  // namespace relay
 }  // namespace tvm

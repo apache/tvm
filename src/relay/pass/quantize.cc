@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -393,7 +393,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args,
     } else if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
                ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
       auto new_arg = Cast(ret[i], cfg->dtype_input);
-      if (cfg->use_stop_fusion) {
+      if (cfg->store_lowbit_output) {
         new_arg = StopFusion(new_arg);
       }
       ret.Set(i, Cast(new_arg, dtype));
@@ -430,6 +430,28 @@ Expr AddRealize(const Call& ref_call,
 
 RELAY_REGISTER_OP("add")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", AddRealize);
+
+Expr ClipRealize(const Call& ref_call,
+                 const Array<Expr>& new_args,
+                 const NodeRef& ctx) {
+  CHECK_EQ(new_args.size(), 1);
+  if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
+    const auto ref_attrs = ref_call->attrs.as<ClipAttrs>();
+    auto attrs = make_node<ClipAttrs>();
+    double dom_scale = GetScalarFromConstant<float>(n->dom_scale);
+    attrs->a_min = ref_attrs->a_min / dom_scale;
+    attrs->a_max = ref_attrs->a_max / dom_scale;
+
+    Expr ret = CallNode::make(ref_call->op,
+      {n->data}, Attrs(attrs), ref_call->type_args);
+    return QRealizeIntExprNode::make(ret, n->dom_scale, n->dtype);
+  }
+  CHECK(!new_args[0]->derived_from<TempExprNode>());
+  return Expr(nullptr);
+}
+
+RELAY_REGISTER_OP("clip")
+.set_attr<FForwardRewrite>("FQRealizeRewrite", ClipRealize);
 
 
 Expr ConcatenateRealize(const Call& ref_call,
@@ -572,12 +594,10 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "nbit_weight=" << op->nbit_weight << ", ";
   p->stream << "nbit_activation=" << op->nbit_activation << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
-  p->stream << "skip_k_conv==" << op->skip_k_conv << ", ";
   p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
   p->stream << "store_lowbit_output==" << op->store_lowbit_output << ", ";
-  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops << ", ";
-  p->stream << "use_stop_fusion==" << op->use_stop_fusion;
+  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops;
   p->stream << ")";
 });
 

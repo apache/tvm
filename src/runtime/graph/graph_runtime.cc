@@ -184,6 +184,32 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   }
 }
 
+  void GraphRuntime::ShareParams(const GraphRuntime& other, dmlc::Stream* strm) {
+    uint64_t header, reserved;
+    CHECK(strm->Read(&header))
+      << "Invalid parameters file format";
+    CHECK(header == kTVMNDArrayListMagic)
+      << "Invalid parameters file format";
+    CHECK(strm->Read(&reserved))
+      << "Invalid parameters file format";
+  std::vector<std::string> names;
+  CHECK(strm->Read(&names)) << "Invalid parameters file format";
+  uint64_t sz;
+  strm->Read(&sz);
+  size_t size = static_cast<size_t>(sz);
+  CHECK(size == names.size()) << "Invalid parameters file format";
+  for (size_t i = 0; i < size; ++i) {
+    int in_idx = GetInputIndex(names[i]);
+    CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
+    uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
+    CHECK_LT(eid, data_entry_.size());
+    CHECK_EQ(data_entry_[eid].use_count(), 1);
+    data_entry_[eid] = other.GetInput(GetInputIndex(names[i]));
+    CHECK_GT(data_entry_[eid].use_count(), 1);
+  }
+  this->SetupOpExecs();
+}
+
 void GraphRuntime::SetupStorage() {
   // Grab saved optimization plan from graph.
   std::vector<TVMType> vtype;
@@ -371,6 +397,14 @@ PackedFunc GraphRuntime::GetFunction(
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->LoadParams(args[0].operator std::string());
+      });
+  } else if (name == "share_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        const auto& module = args[0].operator Module();
+        CHECK_EQ(module.operator->()->type_key(), "GraphRuntime");
+        const auto& param_blob = args[1].operator std::string();
+        dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
+        this->ShareParams(dynamic_cast<const GraphRuntime&>(*module.operator->()), &strm);
       });
   } else {
     return PackedFunc();
