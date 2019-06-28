@@ -496,3 +496,7 @@ def ndarray_size(array, dtype="int32"):
         The resulting tensor.
     """
     return cpp.ndarray_size(array, dtype)
+
+
+def where(cond, x, y):
+    return cpp.where(cond, x, y)
