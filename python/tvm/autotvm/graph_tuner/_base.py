@@ -18,9 +18,10 @@
 """Helper functions and global data"""
 
 
-RULE_OUT_NODE_NAMES = ["Tuple", "TupleGetItem", "batch_flatten", "transpose", "reshape",
-                       "multibox_prior", "multibox_transform_loc", "where",
-                       "non_max_suppression", "strided_slice"]
+# Operators dependent on original layouts.
+LAYOUT_FIXED_OP = ["batch_flatten", "transpose", "reshape",
+                   "multibox_prior", "multibox_transform_loc", "where",
+                   "non_max_suppression", "strided_slice"]
 
 # We set a large time to represent an invalid layout-transformation.
 # This number is set to be 10e9 seconds to align with autotvm.

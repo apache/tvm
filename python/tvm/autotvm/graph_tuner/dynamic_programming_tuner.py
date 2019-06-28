@@ -21,7 +21,7 @@ import numpy as np
 
 from .base_graph_tuner import BaseGraphTuner
 from .dynamic_programming_stage import DPStage
-from .utils import has_multiple_inputs, is_input_node
+from .utils import has_multiple_inputs, is_boundary_node
 
 if sys.version_info[0] == 3:
     import queue
@@ -126,13 +126,15 @@ class DPTuner(BaseGraphTuner):
         while not bfs_q.empty():
             node_idx = bfs_q.get()
             visited.add(node_idx)
-            if is_input_node(self._node_list[node_idx], input_names):
+            node = self._node_list[node_idx]
+            if is_boundary_node(node, input_names):
                 continue
             optimal_sch_idx = optimal_record_dict[node_idx]
             full_states = self._stage_dict[node_idx].full_states
             if not has_multiple_inputs(self._node_list, node_idx, input_names):
                 input_idx = self._in_nodes_dict[node_idx][0]
-                if is_input_node(self._node_list[input_idx], input_names):
+                input_node = self._node_list[input_idx]
+                if is_boundary_node(input_node, input_names):
                     continue
                 if input_idx not in visited:
                     bfs_q.put(input_idx)

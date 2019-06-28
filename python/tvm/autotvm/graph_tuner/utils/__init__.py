@@ -23,4 +23,4 @@ from . import utils
 
 from .traverse_graph import expr2graph, get_direct_ancestor, get_in_nodes, \
     get_out_nodes
-from .utils import has_multiple_inputs, is_input_node, bind_inputs
+from .utils import has_multiple_inputs, is_boundary_node, bind_inputs
