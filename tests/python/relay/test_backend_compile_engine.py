@@ -57,7 +57,7 @@ def test_compile_placeholder_bypass():
     result = relay.Tuple([x, relay.op.concatenate([y, z], axis=0)])
     func = relay.Function(relay.ir_pass.free_vars(result), result)
     with relay.build_config(opt_level=0):
-       graph, lib, params = relay.build(func, 'llvm')
+       graph, lib, params = relay.build(relay.Module.from_expr(func), 'llvm')
 
 
 def test_compile_injective_with_tuple():
@@ -66,7 +66,7 @@ def test_compile_injective_with_tuple():
     x_transpose = relay.transpose(x)
     output = relay.Tuple([x_transpose, y])
     func = relay.Function([x, y], output)
-    relay.build(func, 'llvm')
+    relay.build(relay.Module.from_expr(func), 'llvm')
 
 
 def test_compile_tuple_dup():
@@ -74,7 +74,7 @@ def test_compile_tuple_dup():
     log = relay.log(x)
     output = relay.Tuple([log, log])
     f = relay.Function([x], output)
-    relay.build(f, 'llvm')
+    relay.build(relay.Module.from_expr(f), 'llvm')
 
 
 if __name__ == "__main__":
