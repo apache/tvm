@@ -135,7 +135,7 @@ struct SockAddr {
   }
 
 #ifdef _WIN32
-    const char *s = inet_ntop(addr.ss_family, sinx_addr,
+    const char *s = inet_ntop(addr.ss_family, (PVOID)sinx_addr,  // NOLINT(*)
                               &buf[0], buf.length());
 #else
     const char *s = inet_ntop(addr.ss_family, sinx_addr,
