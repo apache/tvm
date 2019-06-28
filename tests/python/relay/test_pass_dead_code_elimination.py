@@ -48,7 +48,7 @@ e = env()
 def test_let():
     orig = relay.Let(e.x, e.y, e.z)
     orig = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function([orig], orig), Function([e.z], e.z))
+    assert alpha_equal(Function(free_vars(orig), orig), Function([e.z], e.z))
 
 
 def test_used_let():
@@ -61,13 +61,13 @@ def test_used_let():
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
     orig = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function([orig], orig), Function([e.d], e.d))
+    assert alpha_equal(Function(free_vars(orig), orig), Function([e.d], e.d))
 
 
 def test_chain_unused_let():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.e))
     orig = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function([orig], orig), Function([e.e], e.e))
+    assert alpha_equal(Function(free_vars(orig), orig), Function([e.e], e.e))
 
 
 # make sure we dont infinite loop

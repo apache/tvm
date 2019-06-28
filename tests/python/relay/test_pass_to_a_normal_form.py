@@ -17,7 +17,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import alpha_equal, infer_type, detect_feature
+from tvm.relay.ir_pass import alpha_equal, detect_feature
 from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count
@@ -65,7 +65,8 @@ def test_order():
     expected_output = relay.Let(c, z, expected_output)
     expected_output = relay.Let(b, y, expected_output)
     expected_output = relay.Let(a, x, expected_output)
-    expected_output = infer_type(expected_output)
+    expected_output = transform.OptimizeOnExpr(expected_output,
+                                               transform.InferType())
     assert alpha_equal(anf, expected_output)
 
 
@@ -83,7 +84,8 @@ def test_if():
     expected_output = relay.If(c, true_branch, false_branch)
     expected_output = relay.Let(d, expected_output, d)
     expected_output = relay.Let(c, cond, expected_output)
-    expected_output = infer_type(expected_output)
+    expected_output = transform.OptimizeOnExpr(expected_output,
+                                               transform.InferType())
     assert alpha_equal(anf, expected_output)
 
 
@@ -152,7 +154,7 @@ def test_nat_add():
     mod[f] = relay.Function([], expr)
     mod = transform.ToANormalForm()(mod)
     expr = mod["f"]
-    assert count(p, intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
+    assert count(p, intrp.evaluate(expr.body)) == 2
     assert Feature.fLet in detect_feature(mod[add])
 
 

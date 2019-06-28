@@ -473,30 +473,6 @@ def CanonicalizeCast():
     return _transform.CanonicalizeCast()
 
 
-def Gradient(mode='higher_order'):
-    """
-    Compute the gradient of the expressions in an input module.
-
-    Parameters
-    ----------
-    mode: Optional[String]
-        The mode of the automatic differentiation algorithm.
-        'first_order' indicates the computation of the first order gradient,
-        which does not produce reference or closure. 'higher_order' can work on
-        all Relay expressions including those with reference and closure.
-
-    Returns
-    -------
-    ret: tvm.relay.Pass
-        The registered pass that computes the gradient.
-    """
-    if mode == 'first_order':
-        return _transform.FirstOrderGradient()
-    if mode == 'higher_order':
-        return _transform.Gradient()
-    raise TypeError("Unknow mode: {}".format(mode))
-
-
 def OptimizeOnExpr(expr, passes):
     """Perform optimization passes on an expressioin.
 

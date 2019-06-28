@@ -14,24 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
-from nose.tools import nottest
-
 import tvm
 from tvm import relay
-from tvm.relay import create_executor, transform
+from tvm.relay.ir_pass import free_vars, free_type_vars, gradient
+from tvm.relay import create_executor
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, make_nat_expr
 
-
-def run_gradient_pass(func, mod=None, mode='higher_order'):
-    if mod:
-        mod[mod.entry_func] = func
-        mod = transform.Gradient(mode)(mod)
-        return mod[mod.entry_func]
-    else:
-        return transform.OptimizeOnExpr(func, [transform.Gradient(mode),
-                                               transform.InferType()])
+import numpy as np
 
 
 def rand(dtype='float32', *shape):
@@ -44,7 +34,7 @@ def test_id():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x)
-    back_func = run_gradient_pass(func)
+    back_func = relay.ir_pass.infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
     x = rand(dtype, *shape)
@@ -59,7 +49,7 @@ def test_add():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x + x)
-    back_func = run_gradient_pass(func)
+    back_func = relay.ir_pass.infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
     x = rand(dtype, *shape)
@@ -75,7 +65,7 @@ def test_temp_add():
     x = relay.var("x", t)
     y = x + x
     func = relay.Function([x], y + y)
-    back_func = run_gradient_pass(func)
+    back_func = relay.ir_pass.infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
     x = rand(dtype, *shape)
@@ -90,7 +80,7 @@ def test_sub():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x - x)
-    back_func = run_gradient_pass(func)
+    back_func = relay.ir_pass.infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     ex = create_executor()
     x = rand(dtype, *shape)
@@ -113,7 +103,7 @@ def test_broadcast_add():
     x = relay.var("x", t1)
     y = relay.var("y", t2)
     func = relay.Function([x, y], x + y)
-    full_func = run_gradient_pass(func)
+    full_func = relay.ir_pass.infer_type(gradient(func))
     assert full_func.checked_type == relay.FuncType([t1, t2],
                                                     relay.TupleType([relay.TensorType(expected_forward.shape, dtype),
                                                                      relay.TupleType([t1, t2])]))
@@ -140,7 +130,7 @@ def test_broadcast_subtract():
     x = relay.var("x", t1)
     y = relay.var("y", t2)
     func = relay.Function([x, y], x - y)
-    full_func = run_gradient_pass(func)
+    full_func = relay.ir_pass.infer_type(gradient(func))
     assert full_func.checked_type == relay.FuncType([t1, t2],
                                                     relay.TupleType([relay.TensorType(expected_forward.shape, dtype),
                                                                      relay.TupleType([t1, t2])]))
@@ -165,7 +155,7 @@ def test_tuple():
                                                relay.TupleGetItem(tup, 0) +
                                                relay.TupleGetItem(tup, 1) -
                                                relay.TupleGetItem(tup, 2)))
-    back_func = run_gradient_pass(func)
+    back_func = relay.ir_pass.infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t, t, t], relay.TupleType([t, relay.TupleType([t, t, t])]))
     x_nd = rand(dtype, *shape)
     y_nd = rand(dtype, *shape)
@@ -182,10 +172,7 @@ def test_tuple():
     tvm.testing.assert_allclose(grad_z.asnumpy(), -1 * np.ones_like(grad_z.asnumpy()))
 
 
-@nottest
 def test_pow():
-    # This pass is disabled for now since the gradient pass does not really
-    # support polymophism yet.
     mod = relay.Module()
     p = Prelude(mod)
     add_nat_definitions(p)
@@ -196,7 +183,7 @@ def test_pow():
     double = relay.Function([x], x + x)
     i = relay.var("i", t)
     func = relay.Function([i], p.nat_iterate(double, make_nat_expr(p, 3))(i))
-    back_func = run_gradient_pass(func, mod=mod)
+    back_func = relay.ir_pass.infer_type(gradient(func, mod=mod), mod=mod)
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     i_nd = rand(dtype, *shape)
     ex = create_executor(mod=mod)
@@ -216,7 +203,7 @@ def test_ref():
     body = relay.Let(u, relay.RefWrite(r, relay.RefRead(r) + relay.RefRead(r)), body)
     body = relay.Let(r, relay.RefCreate(x), body)
     func = relay.Function([x], body)
-    back_func = run_gradient_pass(func)
+    back_func = relay.ir_pass.infer_type(gradient(func))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     x_nd = rand(dtype, *shape)
     ex = create_executor()
@@ -231,10 +218,11 @@ def test_square_second_order():
     t = relay.TensorType(shape, dtype)
     x = relay.var("x", t)
     func = relay.Function([x], x * x)
-    back_func = run_gradient_pass(func)
+    back_func = relay.ir_pass.infer_type(gradient(func))
     y = relay.var("y", t)
     back_func_adjusted = relay.Function([y], relay.TupleGetItem(relay.TupleGetItem(back_func(y), 1), 0))
-    back_back_func = run_gradient_pass(back_func_adjusted)
+    back_func_adjusted = relay.ir_pass.infer_type(back_func_adjusted)
+    back_back_func = relay.ir_pass.infer_type(gradient(back_func_adjusted))
     assert back_func.checked_type == relay.FuncType([t], relay.TupleType([t, relay.TupleType([t])]))
     x_nd = rand(dtype, *shape)
     ex = create_executor()

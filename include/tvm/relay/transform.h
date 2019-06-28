@@ -555,13 +555,6 @@ TVM_DLL Pass CanonicalizeCast();
 TVM_DLL Pass EtaExpand();
 
 /*!
- * \brief Compute the automatic differentiation of the Relay IR.
- *
- * \return The pass.
- */
-TVM_DLL Pass Gradient();
-
-/*!
  * \brief This is a helper function that runs a some optimization passes on
  * a certain expression and returns the optimized version. With the help of this
  * function, users don't need to manually construct a module, then perform

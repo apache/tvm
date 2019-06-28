@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import alpha_equal
+from tvm.relay.ir_pass import alpha_equal, gradient
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
@@ -41,11 +41,11 @@ def tipe(expr):
                                      transform.InferType()])
 
 
-def dcpe(expr, mod=None, grad_mod=None):
+def dcpe(expr, mod=None, grad=False):
     passes = [transform.PartialEvaluate(),
               transform.DeadCodeElimination(inline_once=True)]
-    if grad_mod:
-        passes = [transform.Gradient(mode=grad_mod)] + passes
+    if grad:
+        expr = gradient(expr)
     if mod:
         assert isinstance(expr, Function)
         mod[mod.entry_func] = expr
@@ -93,7 +93,7 @@ def test_empty_ad():
     t = TensorType(shape, dtype)
     d = Var("d", t)
     f = Function([d], d)
-    g = dcpe(f, grad_mod='higher_order')
+    g = dcpe(f, grad=True)
     expected = Function([d], Tuple([d, Tuple([op.ones_like(d)])]))
     expected = transform.OptimizeOnExpr(expected, transform.InferType())
     assert alpha_equal(g, expected)
@@ -105,7 +105,7 @@ def test_ad():
     t = TensorType(shape, dtype)
     d = Var("d", t)
     f = Function([d], d * d)
-    g = dcpe(f, grad_mod='higher_order')
+    g = dcpe(f, grad=True)
     m = d * d
     x = relay.Var("x")
     o = op.ones_like(x)
@@ -215,9 +215,9 @@ def test_swap_loop():
     loop = GlobalVar("loop")
     mod[loop] = Function([x, y], loop(y, x), nat)
     prog = loop(make_nat_expr(p, 1), make_nat_expr(p, 2))
-    prog = Function([], prog)
-    res = dcpe(prog, mod=mod)
-    assert alpha_equal(prog.body, res.body)
+    res = Function([], prog)
+    res = dcpe(res, mod=mod)
+    assert alpha_equal(prog, res.body)
 
 
 def test_abs_diff():
@@ -236,12 +236,10 @@ def test_abs_diff():
     x_z_case = Clause(PatternConstructor(p.z, []), y)
     x_s_case = Clause(PatternConstructor(p.s, [PatternVar(xp)]), Match(y, [y_z_case, y_s_case]))
     mod[diff] = Function([x, y], Match(x, [x_z_case, x_s_case]))
-    expected = make_nat_expr(p, 4)
-    expected = Function([], expected)
     orig = diff(make_nat_expr(p, 7), make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, expected.body)
+    assert alpha_equal(res.body, make_nat_expr(p, 4))
 
 
 def test_match_nat_id():
@@ -255,12 +253,10 @@ def test_match_nat_id():
     z_case = Clause(PatternConstructor(p.z, []), p.z())
     s_case = Clause(PatternConstructor(p.s, [PatternVar(y)]), p.s(y))
     mod[nat_id] = Function([x], Match(x, [z_case, s_case]))
-    expected = make_nat_expr(p, 3)
-    expected = Function([], expected)
     orig = nat_id(make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, expected.body)
+    assert alpha_equal(res.body, make_nat_expr(p, 3))
 
 
 def test_nat_id():
@@ -272,12 +268,10 @@ def test_nat_id():
     y = Var("y", nat)
     nat_id = GlobalVar("nat_id")
     mod[nat_id] = Function([x], x)
-    expected = make_nat_expr(p, 3)
-    expected = Function([], expected)
     orig = nat_id(make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, expected.body)
+    assert alpha_equal(res.body, make_nat_expr(p, 3))
 
 
 def test_global_match_nat_id():
@@ -288,24 +282,20 @@ def test_global_match_nat_id():
     x = Var("x", nat)
     z_case = Clause(PatternConstructor(p.z, []), p.z())
     s_case = Clause(PatternConstructor(p.s, [PatternVar(x)]), p.s(x))
-    expected = make_nat_expr(p, 3)
-    expected = Function([], expected)
     orig = Match(make_nat_expr(p, 3), [z_case, s_case])
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, expected.body)
+    assert alpha_equal(res.body, make_nat_expr(p, 3))
 
 
 def test_double():
     mod = Module()
     p = Prelude(mod)
     add_nat_definitions(p)
-    expected = make_nat_expr(p, 6)
-    expected = Function([], expected)
     orig = p.double(make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, expected.body)
+    assert alpha_equal(res.body, make_nat_expr(p, 6))
 
 
 if __name__ == '__main__':

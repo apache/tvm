@@ -498,6 +498,37 @@ def collect_device_annotation_ops(expr):
     return _ir_pass.CollectDeviceAnnotationOps(expr)
 
 
+def gradient(expr, mod=None, mode='higher_order'):
+    """
+    Transform the input function,
+    returning a function that calculate the original result,
+    paired with gradient of the input.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, which is a Function or a GlobalVar.
+
+    mod : Optional[tvm.relay.Module]
+
+    mode : Optional[String]
+        The mode of the automatic differentiation algorithm.
+        'first_order' only work on first order code, but will not produce reference nor closure.
+        'higher_order' work on all code using reference and closure.
+
+    Returns
+    -------
+    expr : tvm.relay.Expr
+      The transformed expression.
+    """
+    if mode == 'first_order':
+        return _ir_pass.first_order_gradient(expr, mod)
+    elif mode == 'higher_order':
+        return _ir_pass.gradient(expr, mod)
+    else:
+        raise Exception('unknown mode')
+
+
 def get_total_mac_number(expr):
     """
     Count the number of MACs (multiply-accumulate) of a model
