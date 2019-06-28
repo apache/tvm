@@ -438,7 +438,7 @@ def shape(array, dtype="int32"):
     return cpp.shape(array, dtype)
 
 
-def sequence_mask(data, valid_length=None, mask_value=0, axis=0):
+def sequence_mask(data, valid_length, mask_value=0, axis=0):
     """Sets all elements outside the expected length of the sequence to a constant value.
 
     This function takes an n-dimensional input array of the form [MAX_LENGTH, batch_size, ...] or
@@ -457,7 +457,7 @@ def sequence_mask(data, valid_length=None, mask_value=0, axis=0):
         N-D with shape [MAX_LENGTH, batch_size, ...] or [batch_size, MAX_LENGTH, ...]
         depending on the value of `axis`.
 
-    valid_length : tvm.Tensor or None
+    valid_length : tvm.Tensor
         1-D with shape [batch_size,]
 
     mask_value : float, optional
@@ -470,7 +470,7 @@ def sequence_mask(data, valid_length=None, mask_value=0, axis=0):
     -------
     output : tvm.Tensor
         N-D with shape [MAX_LENGTH, batch_size, ...] or [batch_size, MAX_LENGTH, ...]
-         depending on the value of `axis`.
+        depending on the value of `axis`.
     """
 
     assert len(data.shape) >= 2,\
