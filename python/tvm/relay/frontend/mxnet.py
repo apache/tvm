@@ -742,7 +742,7 @@ def _mx_topk(inputs, attrs):
     return _op.topk(inputs[0], **new_attrs)
 
 
-def _mx_SequenceMask(inputs, attrs):
+def _mx_sequence_mask(inputs, attrs):
     assert len(inputs) == 1 or len(inputs) == 2
     new_attrs = {}
     use_sequence_length = attrs.get_bool('use_sequence_length', False)
@@ -766,10 +766,6 @@ def _mx_contrib_div_sqrt_dim(inputs, _):
     sqrt_dim = _op.sqrt(dim.astype('float32'))
     out = inputs[0] / sqrt_dim
     return out
-
-
-def _mx_sequence_mask(inputs, attrs):
-    return inputs[0]
 
 
 def _mx_rnn_layer(inputs, attrs):
@@ -1056,13 +1052,12 @@ _convert_map = {
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
     "topk"          : _mx_topk,
-    "SequenceMask"  : _mx_SequenceMask,
+    "SequenceMask"  : _mx_sequence_mask,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
-    "SequenceMask"  : _mx_sequence_mask,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
