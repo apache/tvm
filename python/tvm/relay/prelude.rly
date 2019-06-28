@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-v0.0.2
+v0.0.3
 
 def @id[a](%x: a) -> a {
     %x

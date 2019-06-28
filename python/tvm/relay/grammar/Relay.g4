@@ -19,7 +19,7 @@
 
 grammar Relay;
 
-SEMVER: 'v0.0.2' ;
+SEMVER: 'v0.0.3' ;
 
 // Lexing
 // comments
@@ -52,10 +52,9 @@ BOOL_LIT
   ;
 
 // non-negative floats
-FLOAT
-  : NAT '.' NAT EXP? // 1.35, 1.35E-9, 0.3, 4.5
-  | NAT EXP // 1e10 3e4
-  ;
+fragment PREFLOAT : NAT ('.' NAT)? EXP?; // 1.35, 1.35E-9, 0.3, 4.5, 1, 1e10 3e4
+
+FLOAT : PREFLOAT 'f';
 
 // non-negative ints
 NAT: DIGIT+ ;

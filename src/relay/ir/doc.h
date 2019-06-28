@@ -60,11 +60,17 @@ class Doc {
  public:
   Doc() {}
   explicit Doc(const std::string& str);
+  template<typename T>
+  explicit Doc(const T& str) {
+    (*this) << str;
+  }
 
   // Append right to this.
   Doc& operator<<(const Doc& right);
-  // Like above, but automatically lifts string to a Doc.
+  // Like above.
   Doc& operator<<(const std::string& right);
+  // Like above.
+  Doc& operator<<(const DocAtom& right);
   // Like above, but converts right to a string first.
   template<typename T>
   Doc& operator<<(const T& right) {
@@ -93,6 +99,8 @@ Doc PrintBool(bool value);
 Doc PrintDType(DataType dtype);
 // Print a string.
 Doc PrintString(const std::string& value);
+// Print a newline.
+Doc PrintNewLine(int indent = 0);
 /*!
  * \brief special method to print out const scalar
  * \param dtype The data type
@@ -106,7 +114,7 @@ Doc PrintConstScalar(DataType dtype, const T* data) {
   } else if (dtype == Float(32)) {
     os << data[0] << 'f';
   } else if (dtype == Bool()) {
-      return PrintBool(data[0] != 0);
+    return PrintBool(data[0] != 0);
   } else {
     os << dtype << "(" << data[0] << ")";
   }

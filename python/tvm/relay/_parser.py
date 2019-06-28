@@ -206,7 +206,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         if node_type == RelayLexer.NAT:
             return int(node_text)
         if node_type == RelayLexer.FLOAT:
-            return float(node_text)
+            return float(node_text[:-1])
         if node_type == RelayLexer.BOOL_LIT:
             if node_text == "True":
                 return True
@@ -375,6 +375,8 @@ class ParseTreeToRelayIR(RelayVisitor):
                 self.mk_typ(name, ty.Kind.Type)
 
         var_list, attr_list = self.visit(ctx.argList())
+        if var_list is None:
+            var_list = []
         ret_type = self.getType_(ctx.type_())
 
         body = self.visit(ctx.body())
@@ -387,7 +389,6 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.exit_var_scope()
 
         attrs = tvm.make.node("DictAttrs", **attr_list) if attr_list is not None else None
-
         return expr.Function(var_list, body, ret_type, type_params, attrs)
 
     @spanify
