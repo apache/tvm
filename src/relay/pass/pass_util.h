@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -95,6 +95,17 @@ inline Expr TransformF(const std::function<Expr(const Expr&)>& func, const Expr&
   } else {
     return func(e);
   }
+}
+
+/*!
+ * \brief Decide whether the expression atomic or not?
+ * \param e the expression
+ * \return
+ *   is it atomic?
+ *   if so, the compute cost of the expression is bounded so it can be copy without graph mode.
+ */
+inline bool IsAtomic(const Expr& e) {
+  return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
 }
 
 }  // namespace relay

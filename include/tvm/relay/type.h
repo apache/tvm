@@ -116,10 +116,10 @@ class TensorTypeNode : public BaseTensorTypeNode {
 
 RELAY_DEFINE_NODE_REF(TensorType, TensorTypeNode, Type);
 
-/*! \brief possible kinds of Type */
+/*! \brief Possible kinds of Type. */
 enum Kind : int {
-  /*! \brief template variable in shape expression */
   kType = 0,
+  /*! \brief Template variable in shape expression. */
   kShapeVar = 1,
   kBaseType = 2,
   kShape = 3,

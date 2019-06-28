@@ -389,10 +389,6 @@ FInterpreter CPUInterpreter() {
   return CreateInterpreter(Module(nullptr), CPUContext(), target);
 }
 
-bool IsAtomic(const Expr& e) {
-  return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
-}
-
 using FuncId = int;
 
 /*!
