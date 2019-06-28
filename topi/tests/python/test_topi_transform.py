@@ -619,6 +619,36 @@ def test_shape():
         check_device(backend)
 
 
+def test_sequence_mask():
+    for in_shape in (5, 10), (3, 4, 5, 4):
+        for axis in [0, 1]:
+            for mask_value in [0.0, 1.0]:
+                max_length = in_shape[axis]
+                batch_size = in_shape[1 - axis]
+                A = tvm.placeholder(shape=in_shape, dtype="float32", name="A")
+                B = tvm.placeholder(shape=(batch_size,), dtype="int32", name="B")
+                C = topi.sequence_mask(A, B, axis=axis, mask_value=mask_value)
+                A_data = np.random.normal(0, 1, in_shape).astype(np.float32)
+                B_data = np.random.randint(1, max_length, (batch_size,)).astype(np.int32)
+                C_gt_data = topi.testing.sequence_mask(A_data, B_data, mask_value, axis)
+
+                def check_device(device):
+                    ctx = tvm.context(device, 0)
+                    if not ctx.exist:
+                        print("Skip because %s is not enabled" % device)
+                        return
+                    tvm_A = tvm.nd.array(A_data, ctx)
+                    tvm_B = tvm.nd.array(B_data, ctx)
+                    tvm_C = tvm.nd.empty(in_shape, ctx=ctx, dtype="float32")
+                    print("Running on target: %s" % device)
+                    with tvm.target.create(device):
+                        s = topi.generic.schedule_injective(C)
+                    f = tvm.build(s, [A, B, C], device, name="SequenceMask")
+                    f(tvm_A, tvm_B, tvm_C)
+                    tvm.testing.assert_allclose(tvm_C.asnumpy(), C_gt_data)
+                for backend in get_all_backend():
+                    check_device(backend)
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
@@ -637,3 +667,4 @@ if __name__ == "__main__":
     test_repeat()
     test_tile()
     test_shape()
+    test_sequence_mask()

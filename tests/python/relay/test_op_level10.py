@@ -249,6 +249,27 @@ def test_adaptive_pool2d():
     verify_adaptive_pool2d((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool2d((1, 5, 46, 97), (4, 96), "avg")
 
+def test_sequence_mask():
+    def _verify(data_shape, mask_value, axis, dtype, itype):
+        max_length = data_shape[axis]
+        nbatch = data_shape[1 - axis]
+        data = relay.var("data", relay.TensorType(data_shape, dtype))
+        valid_length = relay.var("valid_length", relay.TensorType((nbatch,), itype))
+        out = relay.sequence_mask(data, valid_length, mask_value, axis)
+        assert relay.ir_pass.infer_type(out).checked_type == relay.ty.TensorType(data_shape, dtype)
+        func = relay.Function([data, valid_length], out)
+        data_np = np.random.uniform(size=data_shape).astype(dtype)
+        valid_length_np = np.random.randint(0, max_length, size=nbatch).astype(itype)
+        gt_out_np = topi.testing.sequence_mask(data_np, valid_length_np, mask_value, axis)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                out_relay = intrp.evaluate(func)(data_np, valid_length_np)
+                tvm.testing.assert_allclose(out_relay.asnumpy(), gt_out_np)
+    _verify((5, 10), 0.0, 1, 'float32', 'int32')
+    _verify((2, 3, 5, 3), 0.0, 0, 'float32', 'int64')
+    _verify((5, 8, 3), 0.1, 1, 'float64', 'float32')
 
 if __name__ == "__main__":
     test_adaptive_pool2d()
@@ -258,3 +279,4 @@ if __name__ == "__main__":
     test_reverse_reshape()
     test_batch_matmul()
     test_shape_of()
+    test_sequence_mask()
