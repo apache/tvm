@@ -23,8 +23,8 @@ from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
 from .parser import fromtext
-
 __PRELUDE_PATH__ = os.path.dirname(os.path.realpath(__file__))
+from .module import Module
 
 class Prelude:
     """Contains standard definitions."""
@@ -486,7 +486,9 @@ class Prelude:
             self.compose = self.mod.get_global_var("compose")
 
 
-    def __init__(self, mod):
+    def __init__(self, mod=None):
+        if mod is None:
+            mod = Module()
         self.mod = mod
         self.load_prelude()
         self.define_list_adt()
