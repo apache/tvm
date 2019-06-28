@@ -706,10 +706,10 @@ def test_forward_sequence_mask():
                 else:
                     op_res = intrp.evaluate()(data_np)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
-    verify((5, 10), True, 0.0, 0, 'float32', 'int32')
+    verify((5, 10), True, 0.0, 0, 'float32', 'float32')
     verify((5, 4, 3), True, 1.0, 1, 'float32', 'float32')
-    verify((5, 4, 3), False, 1.0, 1, 'float64', 'int64')
-    verify((5, 4, 3, 2), True, 1.0, 0, 'float32', 'int64')
+    verify((5, 4, 3), False, 1.0, 1, 'float64', 'float64')
+    verify((5, 4, 3, 2), True, 1.0, 0, 'float32', 'float32')
 
 
 if __name__ == '__main__':
