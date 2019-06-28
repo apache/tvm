@@ -39,9 +39,9 @@ Expr QuantizeForwardRewrite(const Call& ref_call,
   Expr data = new_args[0];
   const auto* attrs = ref_call->attrs.as<QuantizeAttrs>();
   const auto out_dtype = attrs->out_dtype;
-  const auto* new_tesnor = data.operator->()->checked_type().as<TensorTypeNode>();
-  CHECK(new_tesnor) << "Expected TensorTypeNode but was " << data.operator->()->checked_type();
-  const auto input_dtype = new_tesnor->dtype;
+  const auto* new_tensor = data.operator->()->checked_type().as<TensorTypeNode>();
+  CHECK(new_tensor) << "Expected TensorTypeNode but was " << data.operator->()->checked_type();
+  const auto input_dtype = new_tensor->dtype;
   if(is_Float32(input_dtype)) // this the quantization, float32 -> [int8, uint8]
   {
     const auto output_zero_point = MakeConstantScalar(Int(32), attrs->output_zero_point);
@@ -69,8 +69,8 @@ Expr DequantizeForwardRewrite(const Call& ref_call,
   CHECK_EQ(new_args.size(), 1);
   Expr data = new_args[0];
   const auto* attrs = ref_call->attrs.as<DequantizeAttrs>();
-  const auto* new_tesnor = data.operator->()->checked_type().as<TensorTypeNode>();
-  CHECK(new_tesnor) << "Expected TensorTypeNode but was " << data.operator->()->checked_type();
+  const auto* new_tensor = data.operator->()->checked_type().as<TensorTypeNode>();
+  CHECK(new_tensor) << "Expected TensorTypeNode but was " << data.operator->()->checked_type();
   const auto input_zero_point = MakeConstantScalar(Int(32), attrs->input_zero_point);
   const auto input_scale = MakeConstantScalar(Float(32), attrs->input_scale);
   auto shift = Subtract(Cast(data, Int(32)), input_zero_point);
