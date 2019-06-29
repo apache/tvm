@@ -27,12 +27,12 @@ from ..util import traverse_inline, get_const_tuple
 
 @autotvm.register_topi_compute(nn.dense, "cpu", "direct")
 def _declaration_dense(cfg, data, weight, bias=None, out_dtype=None):
-    M, _ = get_const_tuple(data.shape)
+    M, K = get_const_tuple(data.shape)
 
     # For small batch sizes, don't pack weight into cache-friendly layout
     # because of overhead in packing and limited reuse from batch dimension
     # TODO(icemelon9): use a more systematic way to determine which schedule to use
-    if M <= 16:
+    if K / M > 4:
         return _declaration_dense_nopack(cfg, data, weight, bias, out_dtype)
     return _declaration_dense_pack(cfg, data, weight, bias, out_dtype)
 
