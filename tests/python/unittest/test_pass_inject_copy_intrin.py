@@ -80,7 +80,6 @@ def test_single_point_test():
     stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 def assert_expr_equal(a, b):
-    print(a, b)
     assert tvm.ir_pass.Simplify(a - b).value == 0
 
 def test_copy_pad_split():

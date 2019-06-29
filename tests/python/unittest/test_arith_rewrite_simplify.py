@@ -151,6 +151,12 @@ def test_add_index_simplify():
     ck.verify(tvm.min(x, y + 2) + (-2), tvm.min(x + (-2), y));
     ck.verify(tvm.min(x + 2, y + 3) + (-2), tvm.min(x, y + 1));
 
+    ck.verify(tvm.max(0, 1 - x * 4) + x * 4, tvm.max(x * 4, 1))
+    ck.verify(tvm.max(2 - x * 4, 0) + x * 4, tvm.max(x * 4, 2))
+
+    ck.verify(tvm.min(0, 1 - x * 4) + x * 4, tvm.min(x * 4, 1))
+    ck.verify(tvm.min(2 - x * 4, 0) + x * 4, tvm.min(x * 4, 2))
+
     ck.verify(x * y + x * 10, x * (y + 10))
     ck.verify(y * x + x * 10, x * (y + 10))
     ck.verify(y * x + 10 * x, x * (y + 10))
@@ -211,6 +217,11 @@ def test_sub_index_simplify():
     ck.verify(tvm.min(y + x, z) - x, tvm.min(y, z - x))
     ck.verify(tvm.min(z, x + y) - x, tvm.min(z - x, y))
     ck.verify(tvm.min(z, y + x) - x, tvm.min(z - x, y))
+
+    ck.verify(tvm.max(x + y, z) - x, tvm.max(y, z - x))
+    ck.verify(tvm.max(y + x, z) - x, tvm.max(y, z - x))
+    ck.verify(tvm.max(z, x + y) - x, tvm.max(z - x, y))
+    ck.verify(tvm.max(z, y + x) - x, tvm.max(z - x, y))
 
     ck.verify(x - tvm.min(x + y, z), tvm.max(0 - y, x - z))
     ck.verify(x - tvm.min(y + x, z), tvm.max(0 - y, x - z))
