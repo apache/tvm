@@ -305,6 +305,16 @@ class IntervalSetEvaluator :
   IntervalSet Eval(const Expr& val) {
     return this->VisitExpr(val);
   }
+  // evaluate and relax the set
+  IntervalSet Eval(IntervalSet val) {
+    // avoid recursive indefinite recursive expansion.
+    if (static_cast<size_t>(recur_depth_) >= dom_map_.size()) return val;
+    ++recur_depth_;
+    IntervalSet min_set = this->Eval(val->min_value);
+    IntervalSet max_set = this->Eval(val->max_value);
+    --recur_depth_;
+    return IntervalSet(min_set->min_value, max_set->max_value);
+  }
 
   IntervalSet VisitExpr_(const IntImm* op) final {
     return IntervalSet::SinglePoint(GetRef<Expr>(op));
@@ -318,7 +328,14 @@ class IntervalSetEvaluator :
     Var var = GetRef<Var>(op);
     auto it = dom_map_.find(var);
     if (it != dom_map_.end()) {
-      return ToIntervalSet((*it).second);
+      IntervalSet res = ToIntervalSet((*it).second);
+      if (res->min_value.same_as(var) &&
+          res->max_value.same_as(var)) {
+        return res;
+      }
+      // recursively evaluate mapped result
+      // in case the domain contains variables to be relaxed.
+      return Eval(res);
     } else {
       return IntervalSet::SinglePoint(var);
     }
@@ -440,6 +457,9 @@ class IntervalSetEvaluator :
     return Combine<T>(analyzer_, a, b);
   }
 
+  // recursive depth
+  int recur_depth_{0};
+  // analyzer
   Analyzer* analyzer_;
   const Map<Var, IntSet>& dom_map_;
   bool eval_vec_{false};
@@ -662,13 +682,10 @@ IntSet EvalSet(Range r,
                const Map<Var, IntSet>& dom_map) {
   Analyzer ana;
   IntervalSetEvaluator m(&ana, dom_map);
-  IntervalSet min_set = m.Eval(r->min);
   // Simplifying first can give tighter bounds if r->min and r->extent share variables
   Expr sum = r->min + r->extent - 1;
-  IntervalSet max_set = m.Eval(Simplify(sum));
-  if (!min_set->HasLowerBound()) return IntSet::everything();
-  if (!max_set->HasUpperBound()) return IntSet::everything();
-  return IntervalSet(min_set->min_value, max_set->max_value);
+  auto res  = m.Eval(IntervalSet(r->min,  Simplify(sum)));
+  return res;
 }
 
 IntSet EvalSet(Range r,
