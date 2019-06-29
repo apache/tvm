@@ -147,6 +147,17 @@ Mutate_(const Add* op, const Expr& self) {
     TVM_TRY_REWRITE(min(x - z, y) + z, min(x, y + z));
     TVM_TRY_REWRITE(max(x, y - z) + z, max(x + z, y));
     TVM_TRY_REWRITE(max(x - z, y) + z, max(x, y + z));
+
+
+    TVM_TRY_REWRITE_IF(min(x, y + z * c1) + z * c2, min(x + z * c2, y),
+                       c1.Eval()->value == -c2.Eval()->value);
+    TVM_TRY_REWRITE_IF(max(x, y + z * c1) + z * c2, max(x + z * c2, y),
+                       c1.Eval()->value == -c2.Eval()->value);
+    TVM_TRY_REWRITE_IF(min(y + z * c1, x) + z * c2, min(x + z * c2, y),
+                       c1.Eval()->value == -c2.Eval()->value);
+    TVM_TRY_REWRITE_IF(max(y + z * c1, x) + z * c2, max(x + z * c2, y),
+                       c1.Eval()->value == -c2.Eval()->value);
+
     TVM_TRY_REWRITE(max(x, y) + min(x, y), x + y);
     TVM_TRY_REWRITE(min(x, y) + max(x, y), x + y);
     TVM_TRY_REWRITE(max(x, y) + min(y, x), x + y);
@@ -264,6 +275,11 @@ Mutate_(const Sub* op, const Expr& self) {
     TVM_TRY_REWRITE(min(y + x, z) - x,  min(y, z - x));
     TVM_TRY_REWRITE(min(z, x + y) - x,  min(z - x, y));
     TVM_TRY_REWRITE(min(z, y + x) - x,  min(z - x, y));
+
+    TVM_TRY_REWRITE(max(x + y, z) - x,  max(y, z - x));
+    TVM_TRY_REWRITE(max(y + x, z) - x,  max(y, z - x));
+    TVM_TRY_REWRITE(max(z, x + y) - x,  max(z - x, y));
+    TVM_TRY_REWRITE(max(z, y + x) - x,  max(z - x, y));
 
     TVM_TRY_REWRITE(x - min(x + y, z),  max(0 - y, x - z));
     TVM_TRY_REWRITE(x - min(y + x, z),  max(0 - y, x - z));
@@ -396,6 +412,12 @@ Mutate_(const Div* op, const Expr& self) {
   PVar<Integer> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
+
+  // x / 2.0 = x * 0.5
+  if (const FloatImm* ptr = op->b.as<FloatImm>()) {
+    CHECK(op->type.is_float());
+    return op->a * make_const(op->b.type(), 1.0 / ptr->value);
+  }
 
   // Vector rules
   if (op->type.lanes() != 1) {
