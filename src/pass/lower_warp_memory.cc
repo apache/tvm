@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -80,8 +80,11 @@ namespace ir {
 class WarpStoreCoeffFinder : private IRVisitor {
  public:
   WarpStoreCoeffFinder(const Variable* buffer,
-                       Var warp_index)
-      : buffer_(buffer), warp_index_(warp_index) {
+                       Var warp_index,
+                       arith::Analyzer* analyzer)
+      : buffer_(buffer),
+        warp_index_(warp_index),
+        analyzer_(analyzer) {
   }
   // find the warp co-efficient in the statement given the warp size
   int Find(const Stmt& stmt) {
@@ -113,7 +116,7 @@ class WarpStoreCoeffFinder : private IRVisitor {
     CHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed due to store index=" << index;
     int coeff = 0;
-    Expr mcoeff = ir::Simplify(m[0]);
+    Expr mcoeff = analyzer_->canonical_simplify(m[0]);
 
     CHECK(arith::GetConstInt(mcoeff, &coeff) && coeff > 0)
         << "LowerWarpMemory failed due to store index=" << index
@@ -134,6 +137,8 @@ class WarpStoreCoeffFinder : private IRVisitor {
   Var warp_index_;
   // the coefficient
   int warp_coeff_{0};
+  // analyzer.
+  arith::Analyzer* analyzer_;
 };
 
 
@@ -184,8 +189,8 @@ class WarpIndexFinder : private IRVisitor {
 // Mutator to change the read pattern
 class WarpAccessRewriter : protected IRMutator {
  public:
-  explicit WarpAccessRewriter(int warp_size)
-      : warp_size_(warp_size) {}
+  explicit WarpAccessRewriter(int warp_size, arith::Analyzer* analyzer)
+      : warp_size_(warp_size), analyzer_(analyzer) {}
   // Rewrite the allocate statement which transforms
   // warp memory to local memory.
   Stmt Rewrite(const Allocate* op, const Stmt& stmt) {
@@ -196,7 +201,7 @@ class WarpAccessRewriter : protected IRMutator {
     alloc_size *= op->type.lanes();
     warp_index_ = WarpIndexFinder(warp_size_).Find(op->body)->var;
     warp_coeff_ = WarpStoreCoeffFinder(
-        buffer_, warp_index_).Find(op->body);
+        buffer_, warp_index_, analyzer_).Find(op->body);
     CHECK_EQ(alloc_size % (warp_size_ * warp_coeff_), 0)
         << "Warp memory must be multiple of warp size";
     warp_group_ = alloc_size / (warp_size_ * warp_coeff_);
@@ -258,21 +263,19 @@ class WarpAccessRewriter : protected IRMutator {
       return std::make_pair(local_index, group);
     }
     Expr m = make_const(index.type(), warp_coeff_);
-    Range rng = Range::make_by_min_extent(
-        make_zero(index.type()), make_const(index.type(), warp_size_));
-    Map<Var, Range> vrange({{warp_index_, rng}});
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
-      Expr x = Simplify(index % m, vrange);
-      Expr z = Simplify(index / m, vrange);
+      Expr x = analyzer_->canonical_simplify(index % m);
+      Expr z = analyzer_->canonical_simplify(index / m);
       return std::make_pair(x, z);
     } else {
-      Expr x = Simplify(index % m, vrange);
+      Expr x = analyzer_->canonical_simplify(index % m);
       Expr y = index / make_const(index.type(), warp_coeff_ * warp_size_);
       y = y * m + x;
       Expr z = index % make_const(index.type(), warp_coeff_ * warp_size_) / m;
-      return std::make_pair(Simplify(y, vrange), Simplify(z, vrange));
+      return std::make_pair(analyzer_->canonical_simplify(y),
+                            analyzer_->canonical_simplify(z));
     }
   }
 
@@ -287,6 +290,44 @@ class WarpAccessRewriter : protected IRMutator {
   int warp_coeff_{0};
   // the coefficient n
   int warp_group_{0};
+  // Internal analyzer
+  arith::Analyzer* analyzer_;
+};
+
+
+// Bind bound information of variables to make analyzer more effective
+// TODO(tqchen): consider a pass to inline the bound info into the expr
+// so analysis can be context independent.
+class BindVarBoundInfo : public IRVisitor {
+ public:
+  explicit BindVarBoundInfo(arith::Analyzer* analyzer)
+      : analyzer_(analyzer) {}
+
+  void Visit_(const For* op) final {
+    Var loop_var(op->loop_var.node_);
+    analyzer_->Bind(loop_var, Range::make_by_min_extent(op->min, op->extent));
+    IRVisitor::Visit_(op);
+  }
+
+  void Visit_(const AttrStmt* op) {
+    if (op->attr_key == attr::thread_extent ||
+        op->attr_key == attr::virtual_thread) {
+      IterVar iv(op->node.node_);
+      CHECK_NE(iv->thread_tag.length(), 0U);
+      if (!var_dom_.count(iv->var.get())) {
+        Range dom = Range::make_by_min_extent(0, op->value);
+        var_dom_[iv->var.get()] = dom;
+        analyzer_->Bind(iv->var, dom);
+      }
+    }
+    IRVisitor::Visit_(op);
+  }
+
+ protected:
+  // internal analyzer.
+  arith::Analyzer* analyzer_;
+  // variable domain
+  std::unordered_map<const Variable*, Range> var_dom_;
 };
 
 // Mutator to change the read pattern
@@ -298,6 +339,7 @@ class WarpMemoryRewriter : private IRMutator {
 
   Stmt Rewrite(Stmt stmt) {
     if (warp_size_ == 1) return stmt;
+    BindVarBoundInfo(&analyzer_).Visit(stmt);
     stmt = this->Mutate(stmt);
     stmt = CanonicalSimplify(stmt);
     return stmt;
@@ -306,7 +348,7 @@ class WarpMemoryRewriter : private IRMutator {
  private:
   Stmt Mutate_(const Allocate* op, const Stmt& stmt) {
     if (warp_buffer_.count(op->buffer_var.get())) {
-      WarpAccessRewriter rewriter(warp_size_);
+      WarpAccessRewriter rewriter(warp_size_, &analyzer_);
       return rewriter.Rewrite(op, stmt);
     } else {
       return IRMutator::Mutate_(op, stmt);
@@ -331,6 +373,9 @@ class WarpMemoryRewriter : private IRMutator {
 
   int warp_size_{0};
   std::unordered_set<const Variable*> warp_buffer_;
+  arith::Analyzer analyzer_;
+  // variable domain
+  std::unordered_map<const Variable*, Range> var_dom_;
 };
 
 LoweredFunc
