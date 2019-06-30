@@ -271,6 +271,8 @@ def test_mul_index_simplify():
 def test_div_index_simplify():
     ck = RewriteChecker()
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
+
+    ck.verify(x / x, 1)
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000), override=True)
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 1000), override=True)
     ck.analyzer.update(z, tvm.arith.ConstIntBound(0, 1000), override=True)
@@ -309,6 +311,7 @@ def test_div_index_simplify():
     ck.verify((z * x + y) / z, x + y / z)
     ck.verify((y + x * z) / z, y / z + x)
     ck.verify((y + z * x) / z, y / z + x)
+
 
 
 def test_mod_index_simplify():
