@@ -49,7 +49,7 @@ Buffer decl_buffer(Array<Expr> shape,
       name,
       "",
       0, 0,
-      "");
+      kDefault);
 }
 
 // Split the given expression w.r.t the add operator
@@ -407,7 +407,7 @@ Buffer BufferNode::make(Var data,
                         std::string scope,
                         int data_alignment,
                         int offset_factor,
-                        std::string buffer_type) {
+                        BufferType buffer_type) {
   auto n = make_node<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
@@ -430,8 +430,8 @@ Buffer BufferNode::make(Var data,
   n->elem_offset = std::move(elem_offset);
   n->data_alignment = data_alignment;
   n->offset_factor = offset_factor;
-  n->buffer_type = std::move(buffer_type);
-  if (n->buffer_type == "broadcast" && n->shape.size() > 0 && n->strides.empty()) {
+  n->buffer_type = buffer_type;
+  if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
     for (size_t i = 0; i < n->shape.size(); ++i) {
       n->strides.push_back(tvm::var("stride"));
     }

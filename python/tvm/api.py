@@ -575,8 +575,8 @@ def decl_buffer(shape,
         If 0 is pssed, the alignment will be set to 1.
         if non-zero is passed, we will created a Var for elem_offset if elem_offset is not None.
 
-    buffer_type: str, optional, {"", "broadcast"}
-        broadcast buffer allows one to implement broadcast computation
+    buffer_type: str, optional, {"", "auto_broadcast"}
+        auto_broadcast buffer allows one to implement broadcast computation
         without considering whether dimension size equals to one.
         TVM will insert `strides[i] = shape[i] == 1 ? 0 : strides[i]` during arg binding.
         See src/pass/arg_binder.cc for reference.

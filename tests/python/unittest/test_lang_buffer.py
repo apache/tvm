@@ -119,8 +119,8 @@ def test_buffer_broadcast():
 
     C = tvm.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
 
-    Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="broadcast")
-    Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="broadcast")
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
     s = tvm.create_schedule(C.op)
 
     def check():

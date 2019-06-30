@@ -242,7 +242,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       check = IfThenElse::make(Not::make(is_null), check, Stmt());
       init_nest_.emplace_back(Block::make(check, Evaluate::make(0)));
     }
-  } else if (buffer->buffer_type == "broadcast") {
+  } else if (buffer->buffer_type == kAutoBroadcast) {
     Type stype = buffer->DefaultIndexType();
     Expr stride = make_const(stype, 1);
     for (size_t i = buffer->shape.size(); i != 0; --i) {
@@ -255,7 +255,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       value = tvm::if_then_else(is_null, stride, value);
       value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
       Bind_(buffer->strides[k], value, field_name.str(), true);
-      stride = stride * buffer->shape[k];
+      stride = Simplify(stride * buffer->shape[k]);
     }
   } else {
     std::ostringstream stride_null_err_msg;
