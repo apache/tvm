@@ -256,9 +256,14 @@ class SumExprNode : public CanonicalExprNode {
         SplitExpr& rhs = args[j];
         if (!lhs->IndexEqual(rhs)) break;
         if (lhs->upper_factor < rhs->lower_factor) break;
-        if (lhs->lower_factor == rhs->upper_factor &&
-            lhs->scale % rhs->scale == 0 &&
-            lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor) {
+        if (lhs->upper_factor == rhs->upper_factor &&
+            lhs->lower_factor == rhs->lower_factor) {
+          // folding same co-efficient.
+          rhs.CopyOnWrite()->scale += lhs->scale;
+          lhs.CopyOnWrite()->scale = 0;
+        } else if (lhs->lower_factor == rhs->upper_factor &&
+                   lhs->scale % rhs->scale == 0 &&
+                   lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor) {
           // Rules used in the proof:
           //
           // Rule 1:  (x % (c * s)) / c  =  (x / c) % s
