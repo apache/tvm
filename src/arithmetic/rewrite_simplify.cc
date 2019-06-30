@@ -105,7 +105,14 @@ TryCompare(const Expr& x, int64_t val) {
 void RewriteSimplifier::Impl::
 Update(const Var& var, const Expr& info, bool override) {
   if (!override) {
-    CHECK(!var_map_.count(var));
+    auto it = var_map_.find(var);
+    if (it != var_map_.end()) {
+      CHECK(Equal(it->second, info))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different value: "
+          << "original=" << it->second
+          << ", new=" << info;
+    }
   }
   var_map_[var] = info;
 }
