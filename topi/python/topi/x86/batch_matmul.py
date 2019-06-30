@@ -21,7 +21,7 @@ import tvm
 
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
-from .. import generic
+from .. import generic, nn
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
 def _default_dense_pack_config(cfg, M, N, K):
@@ -32,6 +32,11 @@ def _default_dense_pack_config(cfg, M, N, K):
     cfg["tile_y"] = SplitEntity([M // tile_y, tile_y])
     cfg["tile_x"] = SplitEntity([N // tile_x, tile_x])
     cfg["tile_k"] = SplitEntity([K // tile_k, tile_k])
+
+
+@autotvm.register_topi_compute(nn.batch_matmul, "cpu", "direct")
+def _decl(cfg, x, y):
+    return nn.batch_matmul(x, y)
 
 
 @autotvm.register_topi_schedule(generic.schedule_batch_matmul, 'cpu', ['direct'])
