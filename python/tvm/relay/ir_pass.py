@@ -25,6 +25,7 @@ from . import _make
 from .expr import Expr
 from .ty import Type
 from .module import Module
+from .feature import Feature
 
 
 def post_order_visit(expr, fvisit):
@@ -604,7 +605,6 @@ def gradient(expr, mod=None, mode='higher_order'):
         raise Exception('unknown mode')
 
 
-
 def get_total_mac_number(expr):
     """
     Count the number of MACs (multiply-accumulate) of a model
@@ -641,6 +641,7 @@ def eliminate_common_subexpr(expr, fskip=None):
     """
     return _ir_pass.eliminate_common_subexpr(expr, fskip)
 
+
 def partial_evaluate(expr, mod=None):
     """
     Evaluate the static fragment of the code.
@@ -660,6 +661,7 @@ def partial_evaluate(expr, mod=None):
     """
     return _ir_pass.partial_evaluate(expr, mod)
 
+
 def unmatched_cases(match, mod=None):
     """
     Finds cases that the match expression does not catch, if any.
@@ -677,3 +679,26 @@ def unmatched_cases(match, mod=None):
       Patterns that the match expression does not catch.
     """
     return _ir_pass.unmatched_cases(match, mod)
+
+
+def detect_feature(a, b=None):
+    """
+    Detect the feature used in a relay program.
+
+    Parameters
+    ----------
+    a : Union[tvm.relay.Expr, tvm.relay.Module]
+      The input expression or module.
+
+    b : Optional[Union[tvm.relay.Expr, tvm.relay.Module]]
+      The input expression or module.
+      The two arguments cannot both be expression or module.
+
+    Returns
+    -------
+    features : Set[Feature]
+      Features used in the program.
+    """
+    if isinstance(a, Module):
+        a, b = b, a
+    return set([Feature(int(x)) for x in _ir_pass.detect_feature(a, b)])

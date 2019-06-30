@@ -66,6 +66,9 @@ def server_start():
 
     @tvm.register_func("tvm.contrib.vta.init", override=True)
     def program_fpga(file_name):
+        from pynq import xlnk
+        # Reset xilinx driver
+        xlnk.Xlnk().xlnk_reset()
         path = tvm.get_global_func("tvm.rpc.server.workpath")(file_name)
         env = get_env()
         program_bitstream.bitstream_program(env.TARGET, path)

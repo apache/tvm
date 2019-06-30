@@ -65,18 +65,19 @@ def expr2graph(expr, target_ops, node_dict, node_list):
                                % op_name)
         topi_funcs += OP2COMPUTE[op_name]
     env.reset(topi_funcs)
-    _expr2graph_impl(expr, target_ops, node_dict, node_list)
-    task_pos = 0
-    for node_entry in node_list:
-        if node_entry["op"] in target_ops:
-            task_name, args = env.task_collection[task_pos]
-            task = autotvm.task.create(task_name, args,
-                                       target="llvm",
-                                       target_host=None,
-                                       template_key='direct')
-            node_entry["workloads"] = [task.workload]
-            node_entry["topi_op"] = [task_name]
-            task_pos += 1
+    with env:
+        _expr2graph_impl(expr, target_ops, node_dict, node_list)
+        task_pos = 0
+        for node_entry in node_list:
+            if node_entry["op"] in target_ops:
+                task_name, args = env.task_collection[task_pos]
+                task = autotvm.task.create(task_name, args,
+                                           target="llvm",
+                                           target_host=None,
+                                           template_key='direct')
+                node_entry["workloads"] = [task.workload]
+                node_entry["topi_op"] = [task_name]
+                task_pos += 1
 
 
 def _expr2graph_impl(expr, target_ops, node_dict, node_list):

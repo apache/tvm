@@ -805,7 +805,7 @@ Examples::
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("indices", "Tensor", "The indices tensor.")
-.set_support_level(2)
+.set_support_level(3)
 .add_type_rel("Take", TakeRel)
 .set_attr<FTVMCompute>("FTVMCompute", TakeCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
@@ -2216,6 +2216,109 @@ output shape will simply be (Y_0, ..., Y_{K-1}).
 .set_support_level(3)
 .add_type_rel("GatherND", GatherNDRel)
 .set_attr<FTVMCompute>("FTVMCompute", GatherNDCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
+// relay.sequence_mask
+TVM_REGISTER_NODE_TYPE(SequenceMaskAttrs);
+
+bool SequenceMaskRel(const Array<Type>& types,
+                     int num_inputs,
+                     const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  // `types` contains: [data, valid_length, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* valid_length = types[1].as<TensorTypeNode>();
+  CHECK(data);
+  CHECK(valid_length);
+  const auto param = attrs.as<SequenceMaskAttrs>();
+  Array<IndexExpr> valid_length_shape;
+  CHECK(param->axis == 0 || param->axis == 1);
+  valid_length_shape.push_back(data->shape[1 - param->axis]);
+  reporter->Assign(types[1], TensorTypeNode::make(valid_length_shape, valid_length->dtype));
+  reporter->Assign(types[2], types[0]);
+  return true;
+}
+
+Array<Tensor> SequenceMaskCompute(const Attrs& attrs,
+                                  const Array<Tensor>& inputs,
+                                  const Type& out_type,
+                                  const Target& target) {
+  const auto* param = attrs.as<SequenceMaskAttrs>();
+  CHECK(param != nullptr);
+  return Array<Tensor>{ topi::sequence_mask(inputs[0], inputs[1], param->mask_value, param->axis) };
+}
+
+Expr MakeSequenceMask(Expr data,
+                      Expr valid_length,
+                      double mask_value,
+                      int axis) {
+  auto attrs = make_node<SequenceMaskAttrs>();
+  attrs->mask_value = std::move(mask_value);
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("sequence_mask");
+  return CallNode::make(op, {data, valid_length}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.sequence_mask")
+.set_body_typed(MakeSequenceMask);
+
+RELAY_REGISTER_OP("sequence_mask")
+.describe(R"code(Sets all elements outside the expected length of the sequence to a constant value.
+
+This function takes an n-dimensional input array of the form [MAX_LENGTH, batch_size, ...] or
+[batch_size, MAX_LENGTH, ...] and returns an array of the same shape.
+
+`axis` means the axis of the length dimension and can only be 0 or 1. If axis is 0,
+the data must have shape [MAX_LENGTH, batch_size, ...]. Otherwise (axis=1), the data must have
+shape [batch_size, MAX_LENGTH, ...].
+
+`valid_length` gives the length of each sequence. `valid_length` should be
+a 1D int array with positive ints and has dimension [batch_size,].
+
+Examples::
+
+  x = [[[  1.,   2.,   3.],
+        [  4.,   5.,   6.]],
+
+       [[  7.,   8.,   9.],
+        [ 10.,  11.,  12.]],
+
+       [[ 13.,  14.,   15.],
+        [ 16.,  17.,   18.]]]
+
+  // valid_length [1, 1] means only the first block of each batch will be kept
+  // and other blocks are masked with default mask value = 0
+  sequence_mask(x, valid_length=[1, 1]) =
+       [[[  1.,   2.,   3.],
+         [  4.,   5.,   6.]],
+
+        [[  0.,   0.,   0.],
+         [  0.,   0.,   0.]],
+
+        [[  0.,   0.,   0.],
+         [  0.,   0.,   0.]]]
+
+  // valid_length [2, 3] means the first 2 blocks of the 1st batch will be kept
+  // and the first 3 blocks of the 2nd batch will be kept
+  // the masked values are set to be the specified mask value = 0.1
+  sequence_mask(x, valid_length=[2, 3], mask_value=0.1) =
+       [[[  1.,   2.,   3.],
+         [  4.,   5.,   6.]],
+
+        [[  7.,   8.,   9.],
+         [  10.,  11.,  12.]],
+
+        [[  0.1,  0.1,  0.1],
+         [  16.,  17.,  18.]]]
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.SequenceMaskAttrs")
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("valid_length", "Tensor", "The real (valid) length of each sequence.")
+.set_support_level(10)
+.add_type_rel("SequenceMask", SequenceMaskRel)
+.set_attr<FTVMCompute>("FTVMCompute", SequenceMaskCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay

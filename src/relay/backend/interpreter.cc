@@ -299,7 +299,9 @@ class Interpreter :
     auto closure = ClosureNode::make(captured_mod, func);
     auto mut_closure =
         static_cast<ClosureNode*>(const_cast<Node*>(closure.get()));
-    mut_closure->env.Set(letrec_name, closure);
+    if (letrec_name.defined()) {
+      mut_closure->env.Set(letrec_name, closure);
+    }
     return std::move(closure);
   }
 

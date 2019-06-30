@@ -600,7 +600,7 @@ def test_gather_nd():
 
         func = relay.Function([x, y], z)
         x_data = np.random.uniform(size=xshape).astype("float32")
-        ref_res = x_data[y_data]
+        ref_res = x_data[tuple(y_data)]
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:

@@ -124,7 +124,9 @@ def current_qconfig():
     """Get the current quantization configuration."""
     return _quantize._GetCurrentQConfig()
 
-
+# TODO(tmoreau89, ZihengJiang) the skip parameters are
+# hacky - we should explore a more future-proof way to
+# skip operators based on pattern matching
 def qconfig(**kwargs):
     """Configure the quantization behavior by setting config variables.
 
@@ -279,6 +281,17 @@ def realize():
     return _quantize.QuantizeRealize()
 
 
+def rewrite_for_vta():
+    """Performs rewriting for VTA target.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass for VTA rewrite.
+    """
+    return _quantize.QuantizeRewriteForVTA()
+
+
 def _bind_params(func, params):
     """Bind the params to the expression.
     """
@@ -337,15 +350,19 @@ def quantize(graph, params=None, dataset=None):
 
     calibrate_pass = _transform.function_pass(calibrate, opt_level=1,
                                               name="QuantizeCalibrate")
-    quantize_seq = _transform.Sequential([annotate(),
-                                          calibrate_pass,
-                                          realize(),
-                                          _transform.FoldConstant()])
-    with annotate_context():
-        with _transform.PassContext(opt_level=3,
-                                    required_pass=["QuantizeAnnotate",
-                                                   "QuantizeCalibrate",
-                                                   "QuantizeRealize"]):
-            mod = optimize(mod)
-            mod = quantize_seq(mod)
+    # Quantize pass list
+    quant_passes = [annotate(),
+                    calibrate_pass,
+                    realize(),
+                    _transform.FoldConstant()]
+    if current_qconfig().store_lowbit_output:
+        quant_passes = [rewrite_for_vta()] + quant_passes
+    quantize_seq = _transform.Sequential(quant_passes)
+    with _transform.PassContext(opt_level=3,
+                                required_pass=["QuantizeAnnotate",
+                                               "QuantizeCalibrate",
+                                               "QuantizeRealize"]):
+        mod = optimize(mod)
+        mod = quantize_seq(mod)
+
     return mod[mod.entry_func.name_hint]

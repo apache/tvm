@@ -140,7 +140,7 @@ class Integer : public Expr {
    */
   operator int64_t() const {
     CHECK(node_ != nullptr)
-        << " Trying get reference a null Integer";
+        << " Trying to reference a null Integer";
     return (*this)->value;
   }
   /*! \brief type indicate the container type */
