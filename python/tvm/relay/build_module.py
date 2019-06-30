@@ -234,7 +234,7 @@ class GraphExecutor(_interpreter.Executor):
     def _make_executor(self, expr=None):
         if expr:
             self.mod[self.mod.entry_func] = expr
-        ret_type = self.mod[self.mod.entry_func]
+        ret_type = self.mod[self.mod.entry_func].checked_type.ret_type
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
         graph_json, mod, params = build(self.mod, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
