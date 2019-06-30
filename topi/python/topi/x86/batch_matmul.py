@@ -55,8 +55,8 @@ def schedule_batch_matmul(cfg, outs):
         if "batch_matmul" in op.tag:
             C = op.output(0)
             A = s[C].op.input_tensors[0]
-            _, K = get_const_tuple(A.shape)
             _, M, N = get_const_tuple(C.shape)
+            _, _, K = get_const_tuple(A.shape)
             b, y, x = s[C].op.axis
             k, = s[C].op.reduce_axis
             cfg.define_split("tile_k", k, num_outputs=2,
