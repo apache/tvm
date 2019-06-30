@@ -19,12 +19,13 @@
 from __future__ import absolute_import as _abs
 import tvm
 
+from tvm import autotvm
 from .. import generic
-from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
+from ..util import traverse_inline
 
 
-@generic.schedule_batch_matmul.register(["cpu"])
-def schedule_batch_matmul(outs):
+@autotvm.register_topi_schedule(generic.schedule_batch_matmul, 'cpu', ['direct'])
+def schedule_batch_matmul(cfg, outs):
     """Schedule for batch_matmul
 
     Parameters
@@ -43,17 +44,19 @@ def schedule_batch_matmul(outs):
     def _callback(op):
         if "batch_matmul" in op.tag:
             C = op.output(0)
-            A, B = s[C].op.input_tensors
-            _, M, N = get_const_tuple(C.shape)
             k, = s[C].op.reduce_axis
-            ko, ki = s[C].split(k, 16)
+            cfg.define_split("tile_k", k, num_outputs=2,
+                             filter=lambda item: item.size[-1] <= 64)
+            ko, ki = cfg["tile_k"].apply(s, C, k)
             CC = s.rfactor(C, ki)
 
             b, y, x = s[C].op.axis
-            y_bn = get_max_power2_factor(M, 8)
-            x_bn = get_max_power2_factor(N, 8)
-            yo, yi = s[C].split(y, y_bn)
-            xo, xi = s[C].split(x, x_bn)
+            cfg.define_split("tile_y", y, num_outputs=2,
+                             filter=lambda item: item.size[-1] <= 32)
+            cfg.define_split("tile_x", x, num_outputs=2,
+                             filter=lambda item: item.size[-1] <= 32)
+            yo, yi = cfg["tile_y"].apply(s, C, y)
+            xo, xi = cfg["tile_x"].apply(s, C, x)
             s[C].reorder(b, yo, xo, yi, xi)
             bxyo = s[C].fuse(b, yo, xo)
             s[C].parallel(bxyo)
