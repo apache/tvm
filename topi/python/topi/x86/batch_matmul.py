@@ -24,7 +24,7 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import generic, nn
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
-def _default_dense_pack_config(cfg, M, N, K):
+def _default_batch_matmul_pack_config(cfg, M, N, K):
     tile_y = get_max_power2_factor(M, 8)
     tile_x = get_max_power2_factor(N, 8)
     tile_k = get_max_power2_factor(N, 16)
@@ -81,7 +81,7 @@ def schedule_batch_matmul(cfg, outs):
             _, _, K = get_const_tuple(A.shape)
 
             if cfg.is_fallback:
-                _default_dense_pack_config(cfg, M, N, K)
+                _default_batch_matmul_pack_config(cfg, M, N, K)
 
             k, = s[C].op.reduce_axis
             ko, ki = cfg["tile_k"].apply(s, C, k)
