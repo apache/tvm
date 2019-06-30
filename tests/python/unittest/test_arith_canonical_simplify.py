@@ -187,6 +187,18 @@ def test_simplify_if_then_else():
     ck.verify(res, 0)
 
 
+def test_complex_cases():
+    ck = CanonicalChecker()
+    x = tvm.var("x")
+    y = tvm.var("y")
+    res2 = (((((((((((x*128) + y) % 1296)/36)*2) + 1)/2)*36) +
+              ((((((x*128) + y) % 36)*2) + 1)/2))
+             - (((x*128) + y) % 1296)) + 1)
+    ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 5))
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 127))
+    ck.verify(res2, 1)
+
+
 if __name__ == "__main__":
     test_simplify_if_then_else()
     test_div_simplify()
@@ -195,3 +207,4 @@ if __name__ == "__main__":
     test_mul_sum_simplify()
     test_split_index_simplify()
     test_canonical_mixed()
+    test_complex_cases()
