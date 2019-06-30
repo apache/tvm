@@ -106,6 +106,19 @@ class StmtSimplifier : public IRMutator {
     }
   }
 
+  // eliminate useless stores
+  Stmt Mutate_(const Store* op, const Stmt& s) {
+    Stmt stmt = IRMutator::Mutate_(op, s);
+    op = stmt.as<Store>();
+    if (const Load* load = op->value.as<Load>()) {
+      if (load->buffer_var.same_as(op->buffer_var) &&
+          Equal(load->index, op->index)) {
+        return Evaluate::make(0);
+      }
+    }
+    return stmt;
+  }
+
  protected:
   Analyzer analyzer_;
   // variable domain
