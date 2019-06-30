@@ -27,7 +27,6 @@
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
 
-#include <arithmetic/Simplify.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

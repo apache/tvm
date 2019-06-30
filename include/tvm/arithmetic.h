@@ -623,12 +623,15 @@ IntSet Intersect(const Array<IntSet>& sets);
  *  give the domain of each variables. Return undefined IntSet to
  *  represent failure.
  *
+ * \note The returned set may be smaller than set that
+ *       contains all possible values of v that satisfies the bound.
+ *
  * \param v The target variable to be deduced.
  * \param cond The conditional expression.
  * \param hint_map The domain of variable, used to help deduce.
  * \param relax_map The domain of each variable, used to relax the domain,
- *        The deduce bound mush implies e for all value in relax_map
- * \return An integer set that can cover all the possible values.
+ *        The deduce bound must implies e for all value in relax_map
+ * \return An integer set that always satisfies the condition.
  */
 IntSet DeduceBound(Expr v, Expr cond,
                    const Map<Var, IntSet>& hint_map,
@@ -641,7 +644,7 @@ IntSet DeduceBound(Expr v, Expr cond,
  * \param hint_map The domain of variable, used to help deduce.
  * \param relax_map The domain of each variable, used to relax the domain,
  *        The deduce bound mush implies e for all value in relax_map
- * \return An integer set that can cover all the possible values.
+ * \return An integer set that always satisfies the condition.
  */
 IntSet DeduceBound(Expr v, Expr cond,
                    const std::unordered_map<const Variable*, IntSet>& hint_map,
