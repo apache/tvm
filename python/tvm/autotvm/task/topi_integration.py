@@ -121,7 +121,7 @@ class TaskExtractEnv:
             topi.nn.bitserial_conv2d_nhwc:  lambda x: setattr(topi.nn, 'bitserial_conv2d_nhwc', x),
             topi.nn.bitserial_dense:        lambda x: setattr(topi.nn, 'bitserial_dense', x),
             topi.nn.deformable_conv2d_nchw: lambda x: setattr(topi.nn, 'deformable_conv2d_nchw', x),
-            topi.nn.batch_matmul:           lambda x, y: setattr(topi.nn, 'batch_matmul', x, y),
+            topi.nn.batch_matmul:           lambda x: setattr(topi.nn, 'batch_matmul', x),
         }
 
         self.allow_duplicate = allow_duplicate

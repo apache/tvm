@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 
 from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import generic, nn
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
@@ -32,11 +32,28 @@ def _default_dense_pack_config(cfg, M, N, K):
     cfg["tile_y"] = SplitEntity([M // tile_y, tile_y])
     cfg["tile_x"] = SplitEntity([N // tile_x, tile_x])
     cfg["tile_k"] = SplitEntity([K // tile_k, tile_k])
+    cfg["auto_unroll_max_step"] = OtherOptionEntity(16)
 
 
 @autotvm.register_topi_compute(nn.batch_matmul, "cpu", "direct")
 def _decl(cfg, x, y):
-    return nn.batch_matmul(x, y)
+    assert len(x.shape) == 3 and len(y.shape) == 3, "only support 3-dim batch_matmul"
+    x_shape = get_const_tuple(x.shape)
+    y_shape = get_const_tuple(y.shape)
+    assert x_shape[0] == y_shape[0], "batch dimension doesn't match"
+    assert x_shape[2] == y_shape[2], "shapes of x and y is inconsistant"
+    batch, M, K = x_shape
+    N = y_shape[1]
+    cfg.define_split("tile_y", M, num_outputs=2,
+                     filter=lambda item: item.size[-1] <= 64)
+    cfg.define_split("tile_x", N, num_outputs=2,
+                     filter=lambda item: item.size[-1] <= 64)
+    cfg.define_split("tile_k", K, num_outputs=2,
+                     filter=lambda item: item.size[-1] <= 64)
+    k = tvm.reduce_axis((0, K), name='k')
+    return tvm.compute((batch, M, N),
+                       lambda b, i, j: tvm.sum(x[b, i, k] * y[b, j, k], axis=k),
+                       tag='batch_matmul')
 
 
 @autotvm.register_topi_schedule(generic.schedule_batch_matmul, 'cpu', ['direct'])
@@ -62,20 +79,14 @@ def schedule_batch_matmul(cfg, outs):
             A = s[C].op.input_tensors[0]
             _, M, N = get_const_tuple(C.shape)
             _, _, K = get_const_tuple(A.shape)
-            b, y, x = s[C].op.axis
-            k, = s[C].op.reduce_axis
-            cfg.define_split("tile_k", k, num_outputs=2,
-                             filter=lambda item: item.size[-1] <= 64)
-            cfg.define_split("tile_y", y, num_outputs=2,
-                             filter=lambda item: item.size[-1] <= 32)
-            cfg.define_split("tile_x", x, num_outputs=2,
-                             filter=lambda item: item.size[-1] <= 32)
 
             if cfg.is_fallback:
                 _default_dense_pack_config(cfg, M, N, K)
 
+            k, = s[C].op.reduce_axis
             ko, ki = cfg["tile_k"].apply(s, C, k)
             CC = s.rfactor(C, ki)
+            b, y, x = s[C].op.axis
             yo, yi = cfg["tile_y"].apply(s, C, y)
             xo, xi = cfg["tile_x"].apply(s, C, x)
             s[C].reorder(b, yo, xo, yi, xi)
@@ -87,7 +98,8 @@ def schedule_batch_matmul(cfg, outs):
             _, _, y, x = s[CC].op.axis
             s[CC].fuse(y, x)
             s[CC].vectorize(s[CC].op.axis[0])
-            s[C].pragma(bxyo, 'auto_unroll_max_step', 16)
+            cfg.define_knob("auto_unroll_max_step", [0, 16, 32])
+            s[C].pragma(bxyo, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
