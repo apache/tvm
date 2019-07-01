@@ -25,6 +25,10 @@ def constructor_list(p):
     return [p.nil, p.cons, p.rose, p.some, p.none, p.z, p.s]
 
 
+def adt_list(p):
+    return [p.nat, p.l, p.optional, p.tree]
+
+
 def test_constructor_tag_round_trip():
     mod1 = Module()
     p1 = Prelude(mod1)
@@ -42,3 +46,23 @@ def test_constructor_tag_round_trip():
         ctor = mod2.get_constructor(tag)
         assert ctor == ctors2[i]
         assert ctor.name_hint == ctors1[i].name_hint
+
+
+def test_constructor_tag_differences():
+    # ensure that if we have the type data for a given ADT, the tags
+    # for the constructors of the *same ADT* are simple offsets from
+    # each other
+    mod = Module()
+    p = Prelude(mod)
+    add_nat_definitions(p)
+
+    adts = adt_list(p)
+    for adt in adts:
+        data = mod[adt]
+        for i in range(len(data.constructors) - 1):
+            ctor1 = data.constructors[i]
+            ctor2 = data.constructors[i + 1]
+            assert ctor2.tag - ctor1.tag == 1
+            # make sure there is something present at the MSB
+            assert ctor1.tag - i != 0
+            assert ctor2.tag - (i + 1) != 0

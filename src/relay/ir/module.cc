@@ -112,10 +112,13 @@ void ModuleNode::Add(const GlobalVar& var,
 }
 
 void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {
+  // We hash the global type var name to use as a globally unique prefix for tags.
+  // The hash will be used as the most significant byte of the tag, with the index of
+  // the constructor in the less significant bytes
+  size_t hash = std::hash<std::string>()(var->var->name_hint);
+  int64_t prefix = static_cast<int64_t>(hash & 0xff) << 56;
   for (size_t i = 0; i < type->constructors.size(); ++i) {
-    size_t hash = dmlc::HashCombine(std::hash<std::string>()(var->var->name_hint),
-                                    std::hash<size_t>()(i));
-    type->constructors[i]->tag = static_cast<int64_t>(hash);
+    type->constructors[i]->tag = prefix | static_cast<int64_t>(i);
     constructor_tag_map_[type->constructors[i]->tag] = type->constructors[i];
   }
 }
