@@ -166,7 +166,7 @@ class MacCounter : private ExprVisitor {
   }
   static int64_t GetTotalMacNumber(const Expr& expr) {
     LOG(INFO) << "This pass only counts MACs in direct CONV 2D, "
-              << "CONV 2D Tranpose and Dense ops";
+              << "CONV 2D Transpose and Dense ops";
     MacCounter counter;
     counter(expr);
     return counter.count_;
