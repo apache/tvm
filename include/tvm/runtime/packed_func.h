@@ -962,10 +962,10 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  if (GetCustomTypeRegistered(t.code)) {
-    os << "custom[" << GetCustomTypeName(t.code) << "]";
-  } else {
+  if (t.code < kCustomBegin) {
     os << TypeCode2Str(t.code);
+  } else {
+    os << "custom[" << GetCustomTypeName(t.code) << "]";
   }
   if (t.code == kHandle) return os;
   os << static_cast<int>(t.bits);
@@ -987,10 +987,10 @@ inline std::string TVMType2String(TVMType t) {
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     return "bool";
   }
-  if (GetCustomTypeRegistered(t.code)) {
-    repr += "custom[" + GetCustomTypeName(t.code) + "]";
-  } else {
+  if (t.code < kCustomBegin) {
     repr += TypeCode2Str(t.code);
+  } else {
+    repr += "custom[" + GetCustomTypeName(t.code) + "]";
   }
   if (t.code == kHandle) return repr;
   repr += std::to_string(static_cast<int>(t.bits));
