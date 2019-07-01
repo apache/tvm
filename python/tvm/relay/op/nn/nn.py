@@ -137,6 +137,12 @@ def conv2d_transpose(data,
     dilation : Tuple[int], optional
         Specifies the dilation rate to be used for dilated convolution.
 
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
     groups : int, optional
         Number of groups for grouped convolution.
 
