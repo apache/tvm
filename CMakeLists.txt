@@ -154,7 +154,11 @@ file(GLOB_RECURSE NNVM_COMPILER_SRCS
 file(GLOB TOPI_SRCS
     topi/src/*.cc
 )
-file(GLOB_RECURSE HALIDEIR_SRCS 3rdparty/HalideIR/src/*.cpp)
+file(GLOB_RECURSE HALIDEIR_SRCS
+  3rdparty/HalideIR/src/base/*.cpp
+  3rdparty/HalideIR/src/ir/*.cpp
+  3rdparty/HalideIR/src/tvm/*.cpp
+)
 list(APPEND COMPILER_SRCS ${HALIDEIR_SRCS})
 file(GLOB RUNTIME_SRCS
   src/runtime/*.cc

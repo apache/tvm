@@ -541,6 +541,33 @@ TVM_DLL Pass AlterOpLayout();
  */
 TVM_DLL Pass CanonicalizeCast();
 
+/*!
+ * \brief Add abstraction over a function
+ *
+ * For example: `square` is transformed to
+ * `fun x -> square x`.
+ *
+ * See https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B7-conversion
+ * for more details.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass EtaExpand();
+
+/*!
+ * \brief This is a helper function that runs a some optimization passes on
+ * a certain expression and returns the optimized version. With the help of this
+ * function, users don't need to manually construct a module, then perform
+ * passes, and finally and extract the target function/expression from the
+ * returned module frequently.
+ *
+ * \param expr The expression to be optimized.
+ * \param passes The passses that will be applied on the given expression.
+ *
+ * \return The optimized expression.
+ */
+TVM_DLL Expr OptimizeOnExpr(const Expr& expr, const Array<Pass>& passes);
+
 }  // namespace transform
 }  // namespace relay
 }  // namespace tvm
