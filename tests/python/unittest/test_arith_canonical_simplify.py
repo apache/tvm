@@ -166,12 +166,18 @@ def test_simplify_if_then_else():
                            tvm.if_then_else(24512 <= ((((x*4) + y) - 466036) % 24528),
                                             (((((x*4) + y)  - 466036) % 24528) -24512) % 16,
                                             x), y)
+
+    res2 = tvm.if_then_else((x * 4) >= 466036 - y,
+                           tvm.if_then_else(24512 <= ((((x*4) + y) - 466036) % 24528),
+                                            (((((x*4) + y)  - 466036) % 24528) -24512) % 16,
+                                            x), y)
     expected = tvm.if_then_else(
         tvm.expr.LE(466036, (x * 4 + y)),
         tvm.if_then_else(tvm.expr.LE(24512, ((((x*4) + y) - 4) % 24528)),
                          (((x*4) + y)  - 4) % 16,
                          x), y)
     ck.verify(res, expected)
+    ck.verify(res2, expected)
     # can only simplify if condition
     res = tvm.expr.Select(tvm.all(x >= -1, y >= 0), (x + y + 100) % 3, (x + 100) % 3)
     expected = tvm.expr.Select(tvm.all(x >= -1, y >= 0), (x + y + 1) % 3, (x + 100) % 3)
