@@ -142,7 +142,7 @@ def conv2d_transpose(data,
 
     kernel_size : tuple of int, optional
         The spatial of the convolution kernel.
-    
+
     groups : int, optional
         Number of groups for grouped convolution.
 
