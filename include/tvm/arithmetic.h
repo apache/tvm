@@ -516,6 +516,24 @@ class Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   bool CanProveGreaterEqual(const Expr& expr, int64_t lower_bound);
+  /*!
+   * \brief Whether can we prove condition.
+   *
+   * \param cond The expression to be proved.
+   * \return The result.
+   *
+   * \note Analyzer will call into sub-analyzers to get the result.
+   */
+  bool CanProve(const Expr& cond);
+  /*!
+   * \brief Simplify expr.
+   *
+   * \param expr The expression to be simplified.
+   * \return The result.
+   *
+   * \note Analyzer will call into sub-analyzers to get the result.
+   */
+  Expr Simplify(const Expr& expr);
 };
 
 //-----------------------------------------------

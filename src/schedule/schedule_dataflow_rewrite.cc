@@ -203,14 +203,16 @@ void PrepareAxisMapping(Stage orig_stage,
   auto& vsub = *p_vsub;
   auto& vsub2newvar = *p_vsub2newvar;
   auto& predicates = *p_predicates;
+  arith::Analyzer analyzer;
 
   for (IterVar iv : op->reduce_axis) {
     red_axis.insert(iv);
   }
   for (IterVar iv : op->axis) {
     dom_map[iv] = iv->dom;
+    analyzer.Bind(iv->var, iv->dom);
   }
-  schedule::PassDownDomain(orig_stage, &dom_map, true);
+  schedule::PassDownDomain(orig_stage, &dom_map, &analyzer, true);
   {
     // The source->cache
     std::unordered_map<IterVar, Expr> value_map;
@@ -679,6 +681,8 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
         << "Factor axis touches normal axis.";
     skip_bound_check.insert(iv);
   }
+  // get analyzer.
+  arith::Analyzer analyzer;
   // Get the replace index
   std::unordered_map<IterVar, Range> dom_map;
   std::unordered_map<IterVar, Expr> value_map;
@@ -688,8 +692,9 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     } else {
       skip_bound_check.insert(iv);
     }
+    analyzer.Bind(iv->var, iv->dom);
   }
-  schedule::PassDownDomain(reduce_stage, &dom_map, true);
+  schedule::PassDownDomain(reduce_stage, &dom_map, &analyzer, true);
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
     if (touch_map.count(iv)) {
       Range dom = dom_map.at(iv);

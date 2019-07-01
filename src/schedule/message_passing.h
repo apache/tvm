@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -43,11 +43,13 @@ namespace schedule {
  *
  * \param stage The stage to operate on.
  * \param p_state The state of the message passing.
+ * \param analyzer Analyzer context, storing information about bounds in p_state.
  * \param allow_missing Whether allow missing value.
  */
 void PassDownDomain(
     const Stage& stage,
     std::unordered_map<IterVar, Range>* p_state,
+    arith::Analyzer* analyzer,
     bool allow_missing = false);
 
 /*!
