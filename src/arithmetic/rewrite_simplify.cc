@@ -1187,6 +1187,12 @@ Mutate_(const LT* op, const Expr& self) {
     TVM_TRY_RECURSIVE_REWRITE(z < min(x, y), z < x && z < y);
     TVM_TRY_RECURSIVE_REWRITE(z < max(x, y), z < x || z < y);
 
+    TVM_TRY_RECURSIVE_REWRITE(x < c1 - y, x + y < c1);
+    TVM_TRY_RECURSIVE_REWRITE(x < c1 + y, x - y < c1);
+    TVM_TRY_RECURSIVE_REWRITE(c1 - y < x, c1 < x + y);
+    TVM_TRY_RECURSIVE_REWRITE(c1 + y < x, c1 < x - y);
+
+
     TVM_TRY_REWRITE(x - c1 < 0, x < c1);
     TVM_TRY_REWRITE(x + c1 < c2, x < c2 - c1);
   }
