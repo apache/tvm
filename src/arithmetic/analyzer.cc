@@ -23,6 +23,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/arithmetic.h>
+#include <tvm/expr_operator.h>
 
 namespace tvm {
 namespace arith {
@@ -49,8 +50,13 @@ void Analyzer::Bind(const VarExpr& v, const Expr& expr) {
 }
 
 void Analyzer::Bind(const VarExpr& v, const Range& range) {
+  CHECK(range.defined());
   Var var(v.node_);
   this->const_int_bound.Bind(var, range);
+  if (is_one(range->extent)) {
+    this->rewrite_simplify.Update(var, range->min);
+    this->canonical_simplify.Update(var, range->min);
+  }
   // skip modular_set
   // skip rewrite simplify
 }
@@ -80,6 +86,28 @@ bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
   if (bd->min_value >= lower_bound) return true;
   return false;
+}
+
+bool Analyzer::CanProve(const Expr& expr) {
+  if (const auto* ptr = expr.as<ir::UIntImm>()) {
+    return ptr->value != 0;
+  }
+  auto res = this->rewrite_simplify(expr);
+  if (const auto* ptr = res.as<ir::UIntImm>()) {
+    return ptr->value != 0;
+  }
+  res = this->canonical_simplify(expr);
+  if (const auto* ptr = res.as<ir::UIntImm>()) {
+    return ptr->value != 0;
+  }
+  return false;
+}
+
+Expr Analyzer::Simplify(const Expr& expr) {
+  if (is_const(expr)) return expr;
+  auto res = this->rewrite_simplify(expr);
+  res = this->canonical_simplify(res);
+  return res;
 }
 
 }  // namespace arith
