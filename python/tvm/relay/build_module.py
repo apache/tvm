@@ -242,7 +242,7 @@ class GraphExecutor(_interpreter.Executor):
             gmodule.set_input(**params)
 
         def _graph_wrapper(*args, **kwargs):
-            args = self._convert_args(expr, args, kwargs)
+            args = self._convert_args(self.mod[self.mod.entry_func], args, kwargs)
             # Create map of inputs.
             for i, arg in enumerate(args):
                 gmodule.set_input(i, arg)
