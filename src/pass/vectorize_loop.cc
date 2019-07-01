@@ -25,6 +25,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/arithmetic.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
@@ -132,11 +133,11 @@ class Vectorizer : public IRMutator {
       if (lanes != 1) {
         const Ramp* b_ramp = b.as<Ramp>();
         const Ramp* a_ramp = a.as<Ramp>();
-        if (a_ramp && b.type().lanes() == 1 && can_prove(b > 0)) {
+        if (a_ramp && b.type().lanes() == 1 && analyzer_.CanProve(b > 0)) {
           return Ramp::make(
               a_ramp->base * b, a_ramp->stride * b, a_ramp->lanes);
         }
-        if (b_ramp && a.type().lanes() == 1 && can_prove(a > 0)) {
+        if (b_ramp && a.type().lanes() == 1 && analyzer_.CanProve(a > 0)) {
           return Ramp::make(
               b_ramp->base * a, b_ramp->stride * a, b_ramp->lanes);
         }
@@ -186,7 +187,7 @@ class Vectorizer : public IRMutator {
     Expr stride = this->Mutate(op->stride);
     if (base.type().lanes() > 1 && stride.type().lanes() == 1) {
       const Ramp* base_ramp = base.as<Ramp>();
-      if (can_prove(base_ramp->stride == stride * make_const(stride.type(), op->lanes))) {
+      if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.type(), op->lanes))) {
         return Ramp::make(base_ramp->base, stride, op->lanes * base_ramp->lanes);
       }
     }
@@ -423,6 +424,8 @@ class Vectorizer : public IRMutator {
   }
 
  private:
+  // analyzer
+  arith::Analyzer analyzer_;
   // variable to be replaced
   Var var_;
   // the lanes.

@@ -155,9 +155,10 @@ template<>
 inline Expr TryConstFold<ir::Div>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const Type& rtype = a.type();
-      // due to division and mod can have different modes
-      // only constant fold positive number where rule is fixed.
-      if (pa && pb && pa->value >= 0 && pb->value > 0) {
+      if (pa && pb) {
+        // due to division and mod can have different modes
+        // NOTE: this will assumes truc div.
+        CHECK_NE(pb->value, 0) << "Divide by zero";
         return IntImm::make(rtype, pa->value / pb->value);
       }
       if (pa) {

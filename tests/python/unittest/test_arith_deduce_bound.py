@@ -16,6 +16,14 @@
 # under the License.
 import tvm
 
+
+def assert_expr_equal(a, b):
+    res =  tvm.ir_pass.Simplify(a - b)
+    equal = isinstance(res, tvm.expr.IntImm) and res.value == 0
+    if not equal:
+        raise ValueError("{} and {} are not equal".format(a, b))
+
+
 def test_deduce():
     a = tvm.var('a')
     b = tvm.var('b')
@@ -29,31 +37,34 @@ def test_deduce():
 
     e0 = (-b)*a+c-d
     res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((d - c) /(b*-1))
-    assert str(tvm.ir_pass.Simplify(res0.max_value)) == str(ans0)
+    ans0 = ((d - c) /(b*-1) + (-1))
+    assert_expr_equal(res0.max_value, ans0)
 
     # expression containing variable a is on rhs
     res0 = tvm.arith.DeduceBound(a, zero <= e0, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(tvm.ir_pass.Simplify(res0.max_value)) == str(ans0)
+    assert_expr_equal(res0.max_value, ans0)
 
     e0 = d*a+c-d
     res0 = tvm.arith.DeduceBound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
-    ans0 = ((0-c)/d + 1)
-    assert str(tvm.ir_pass.Simplify(res0.max_value)) == str(ans0)
+    ans0 = ((d-c)/d - 1)
+    assert_expr_equal(res0.max_value, ans0)
 
     # expression containing variable a is on rhs
     res0 = tvm.arith.DeduceBound(a, zero <= e0, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(tvm.ir_pass.Simplify(res0.max_value)) == str(ans0)
+    assert_expr_equal(res0.max_value, ans0)
+
 
     e1 = (a*4+b < c)
     res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    ans1 = (((c - b) + -1)/4)
-    assert str(tvm.ir_pass.Simplify(res1.max_value)) == str(ans1)
+    ans1 = (((c - b) + -1)/4 -1)
+    assert_expr_equal(res1.max_value, ans1)
+
 
     # expression containing variable a is on rhs
     e1 = (c > a*4+b)
     res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(tvm.ir_pass.Simplify(res1.max_value)) == str(ans1)
+    assert_expr_equal(res1.max_value, ans1)
+
 
     e2 = (tvm.max(5, a * 4) < 0)
     res2 = tvm.arith.DeduceBound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
@@ -66,7 +77,6 @@ def test_deduce():
     assert str(res2.max_value) == "neg_inf"
     assert str(res2.min_value) == "pos_inf"
 
-
     e3 = (-b)+a*c-d
     res3 = tvm.arith.DeduceBound(a, e3>=0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
     ans3 = 2/c+1
@@ -74,6 +84,7 @@ def test_deduce():
 
     res3 = tvm.arith.DeduceBound(a, zero <= e3, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
     assert str(tvm.ir_pass.Simplify(res3.min_value)) == str(ans3)
+
 
 def test_check():
     a = tvm.var('a')

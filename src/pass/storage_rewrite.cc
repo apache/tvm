@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -606,7 +606,7 @@ class StoragePlanRewriter : public IRMutator {
           }
           // transform to alloc bytes
           auto type_bits = alloc_type.bits() * alloc_type.lanes();
-          bool divided = can_prove(combo_size % type_bits == 0);
+          bool divided = analyzer_.CanProve(combo_size % type_bits == 0);
           combo_size = combo_size / type_bits;
           // round up for can not divided
           if (!divided) {
@@ -920,6 +920,8 @@ class StoragePlanRewriter : public IRMutator {
   std::unordered_map<const Variable*, StorageEntry*> alloc_map_;
   // The allocations
   std::vector<std::unique_ptr<StorageEntry> > alloc_vec_;
+  // analyzer
+  arith::Analyzer analyzer_;
 };
 
 // Turn alloc into vector alloc

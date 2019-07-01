@@ -155,7 +155,6 @@ Mutate_(const Add* op, const Expr& self) {
     TVM_TRY_REWRITE(max(x, y - z) + z, max(x + z, y));
     TVM_TRY_REWRITE(max(x - z, y) + z, max(x, y + z));
 
-
     TVM_TRY_REWRITE_IF(min(x, y + z * c1) + z * c2, min(x + z * c2, y),
                        c1.Eval()->value == -c2.Eval()->value);
     TVM_TRY_REWRITE_IF(max(x, y + z * c1) + z * c2, max(x + z * c2, y),
