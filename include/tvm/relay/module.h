@@ -166,7 +166,7 @@ class ModuleNode : public RelayNode {
    * \param tag The tag for the constructor.
    * \return The constructor object.
    */
-  TVM_DLL Constructor LookupTag(const int64_t tag);
+  TVM_DLL Constructor LookupTag(const int32_t tag);
 
   /*!
    * \brief Update the functions inside this environment by
@@ -209,7 +209,7 @@ class ModuleNode : public RelayNode {
   /*! \brief A map from constructor tags to constructor objects
    * for convenient access
    */
-  std::unordered_map<int64_t, Constructor> constructor_tag_map_;
+  std::unordered_map<int32_t, Constructor> constructor_tag_map_;
 };
 
 struct Module : public NodeRef {

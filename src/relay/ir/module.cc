@@ -116,9 +116,9 @@ void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& 
   // The hash will be used as the most significant byte of the tag, with the index of
   // the constructor in the less significant bytes
   size_t hash = std::hash<std::string>()(var->var->name_hint);
-  int64_t prefix = static_cast<int64_t>(hash & 0xff) << 56;
+  int32_t prefix = static_cast<int32_t>(hash & 0xff) << 24;
   for (size_t i = 0; i < type->constructors.size(); ++i) {
-    type->constructors[i]->tag = prefix | static_cast<int64_t>(i);
+    type->constructors[i]->tag = prefix | static_cast<int32_t>(i);
     constructor_tag_map_[type->constructors[i]->tag] = type->constructors[i];
   }
 }
@@ -172,7 +172,7 @@ TypeData ModuleNode::LookupDef(const std::string& name) {
   return this->LookupDef(id);
 }
 
-Constructor ModuleNode::LookupTag(const int64_t tag) {
+Constructor ModuleNode::LookupTag(const int32_t tag) {
   auto it = constructor_tag_map_.find(tag);
   CHECK(it != constructor_tag_map_.end())
     << "There is no constructor with the tag " << tag;
@@ -238,7 +238,7 @@ TVM_REGISTER_API("relay._module.Module_LookupDef_str")
   });
 
 TVM_REGISTER_API("relay._module.Module_LookupTag")
-.set_body_typed<Constructor(Module, int64_t)>([](Module mod, int64_t tag) {
+.set_body_typed<Constructor(Module, int32_t)>([](Module mod, int32_t tag) {
     return mod->LookupTag(tag);
   });
 

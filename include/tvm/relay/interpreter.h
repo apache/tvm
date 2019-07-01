@@ -182,7 +182,7 @@ RELAY_DEFINE_NODE_REF(RefValue, RefValueNode, Value);
 class ConstructorValue;
 
 struct ConstructorValueNode : ValueNode {
-  int64_t tag;
+  int32_t tag;
 
   tvm::Array<Value> fields;
 
@@ -195,7 +195,7 @@ struct ConstructorValueNode : ValueNode {
     v->Visit("constructor", &constructor);
   }
 
-  TVM_DLL static ConstructorValue make(int64_t tag,
+  TVM_DLL static ConstructorValue make(int32_t tag,
                                        tvm::Array<Value> fields,
                                        Constructor construtor = {});
 
