@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -213,6 +213,8 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   // Prepare context
   GraphContext ctx;
   Array<Operation> roots;
+  arith::Analyzer analyzer;
+
   for (Operation op : sch->outputs) {
     roots.push_back(sch->stage_map[op]->op);
   }
@@ -233,16 +235,26 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   for (size_t i = sch->stages.size(); i != 0; --i) {
     const Stage& stage = sch->stages[i - 1];
     InferRootBound(stage, ctx, &ret);
+
+    // bind bound of root iter vars.
+    for (auto iv :  stage->op->root_iter_vars()) {
+      auto it = ret.find(iv);
+      if (it != ret.end()) {
+        analyzer.Bind(iv->var, it->second);
+      }
+    }
+
     // pass down to get bound of all iter vars.
-    PassDownDomain(stage, &ret);
+    PassDownDomain(stage, &ret, &analyzer);
     for (IterVar iv : stage->env_threads) {
       CHECK(iv->dom.defined());
       ret[iv] = iv->dom;
     }
   }
   for (auto& p : ret) {
-    ret[p.first] = Range::make_by_min_extent(ir::Simplify(p.second->min),
-                                             ir::Simplify(p.second->extent));
+    ret[p.first] = Range::make_by_min_extent(
+        analyzer.Simplify(p.second->min),
+        analyzer.Simplify(p.second->extent));
   }
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }

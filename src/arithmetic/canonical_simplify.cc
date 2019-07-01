@@ -262,6 +262,7 @@ class SumExprNode : public CanonicalExprNode {
           rhs.CopyOnWrite()->scale += lhs->scale;
           lhs.CopyOnWrite()->scale = 0;
         } else if (lhs->lower_factor == rhs->upper_factor &&
+                   rhs->scale != 0 &&
                    lhs->scale % rhs->scale == 0 &&
                    lhs->lower_factor == (lhs->scale / rhs->scale) * rhs->lower_factor) {
           // Rules used in the proof:
