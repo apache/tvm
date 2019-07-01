@@ -578,8 +578,7 @@ def decl_buffer(shape,
     buffer_type: str, optional, {"", "auto_broadcast"}
         auto_broadcast buffer allows one to implement broadcast computation
         without considering whether dimension size equals to one.
-        TVM will insert `strides[i] = shape[i] == 1 ? 0 : strides[i]` during arg binding.
-        See src/pass/arg_binder.cc for reference.
+        TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension i's shape equals 1.
 
     Returns
     -------
