@@ -141,23 +141,6 @@ TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
 TVM_DLL bool AlphaEqual(const Pattern& t1, const Pattern& t2);
 
 /*!
- * \brief Add abstraction over a function
- *
- * For example: `square` is transformed to
- * `fun x -> square x`.
- *
- * See https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B7-conversion
- * for more details.
- *
- * \param e The original function.
- * \param mod The module used for referencing global functions, can be
- * None.
- *
- * \return the new function with abstraction
- */
-TVM_DLL Expr EtaExpand(const Expr& e, const Module& mod);
-
-/*!
  * \brief Check that each Var is only bound once.
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
@@ -288,24 +271,6 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod);
  */
 TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
 
-/*! \brief Remove expressions which does not effect the program result.
- *
- * It will remove let bindings which are not referenced,
- * and inline let bindings that are only used once.
- *
- * For example, this pass should turn `let a = 1 in 2` into `2`,
- * as the value of the expression does not depend on a.
- *
- * As another example, `let a = 1 in a` will be optimized into 1,
- * if the flag is turned on.
- *
- * \param e the expression to optimize.
- * \param inline_once whether or not to inline binding used one.
- *
- * \return the optimized expression.
- */
-TVM_DLL Expr DeadCodeElimination(const Expr& e, bool inline_once = false);
-
 /*!
  * \brief Fold constant expressions.
  *
@@ -388,38 +353,6 @@ TVM_DLL Map<Expr, Integer> CollectDeviceInfo(const Expr& expr);
 TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
 
 /*!
- * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
- *
- * It will turn an expression that is in a graph form (with sharing implicit),
- * to an expression with explicit sharing (A-Normal Form).
- *
- * The scope of the root expression is the global scope.
- *
- * The scope of any non root expression is the least common ancestor of all it's scope.
- *
- * Values are ordered by post-DFS order in each scope.
- *
- * \param e the expression to observably share.
- * \param mod The module used for referencing global functions, can be
- * None.
- *
- * \return expression in A-Normal Form.
- */
-TVM_DLL Expr ToANormalForm(const Expr& e, const Module& mod);
-
-/*!
- * \brief Remove let binding and directly share via pointer instead.
- *
- * It will remove all let binding,
- * and turn all of the variable bound by let into direct pointer reference.
- *
- * \param e the expression.
- *
- * \return the expression in graph normal form.
- */
-TVM_DLL Expr ToGraphNormalForm(const Expr& e);
-
-/*!
  * \brief Finds cases that the given match expression does not catch, if any.
  *
  * \param match the match expression to test
@@ -432,28 +365,17 @@ TVM_DLL Expr ToGraphNormalForm(const Expr& e);
 TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
 
 /*!
- * \brief Aggressive constant propagation/constant folding/inlining.
- * It will do as much computation in compile time as possible.
- * It has two benefit: remove runtime overhead, and allow more optimization (typically fusion).
- * As a side effect, code size will explode.
- *
- * \param e the expression
- * \param mod the module
- *
- * \return the optimized expression.
- */
-TVM_DLL Expr PartialEval(const Expr& e, const Module& mod);
-
-/*
- * \brief Bind function parameters or free variables.
+ * \brief Bind the free variables to a Relay expression.
  *
  * Parameter binding can only happen if expr is a Function.
  * binds cannot change internal arguments of internal functions.
  *
  * \param expr The function to be binded.
  * \param binds The map of arguments to
+ *
+ * \return The expression with all free vars bound.
  */
-TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& bind_map);
+TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {
