@@ -17,10 +17,9 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import to_graph_normal_form, to_a_normal_form, alpha_equal, detect_feature
-from tvm.relay import op, create_executor
+from tvm.relay import op, create_executor, transform
+from tvm.relay.ir_pass import detect_feature
 from tvm.relay.feature import Feature
-from tvm.relay.backend.interpreter import Value, TupleValue
 
 
 def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
@@ -41,9 +40,9 @@ def test_implicit_share():
     body = relay.Let(z, op.add(y, y), op.add(z, z))
     body = relay.Let(y, op.add(x, x), body)
     f = relay.Function([], relay.Let(x, relay.const(1), body))
-    g = to_graph_normal_form(f)
-    assert "let" in f.astext()
-    assert not "let" in g.astext()
+    g = transform.OptimizeOnExpr(f, transform.ToGraphNormalForm())
+    assert Feature.fLet in detect_feature(f)
+    assert not Feature.fLet in detect_feature(g)
     check_eval(f, [], 8.0)
     check_eval(g, [], 8.0)
 
@@ -55,8 +54,8 @@ def test_round_trip():
     body = relay.Let(z, op.add(y, y), op.add(z, z))
     body = relay.Let(y, op.add(x, x), body)
     f = relay.Function([], relay.Let(x, relay.const(1), body))
-    g = to_graph_normal_form(f)
-    h = to_a_normal_form(g)
+    g = transform.OptimizeOnExpr(f, transform.ToGraphNormalForm())
+    h = transform.OptimizeOnExpr(g, transform.ToANormalForm())
     assert Feature.fLet in detect_feature(f)
     assert not Feature.fLet in detect_feature(g)
     check_eval(f, [], 8.0)

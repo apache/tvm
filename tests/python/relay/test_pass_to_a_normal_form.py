@@ -17,9 +17,8 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import to_a_normal_form, alpha_equal, infer_type, detect_feature
-from tvm.relay import op, create_executor
-from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
+from tvm.relay.ir_pass import alpha_equal, detect_feature
+from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count
 from tvm.relay.feature import Feature
@@ -39,7 +38,7 @@ def test_explicit_bound():
     z = op.add(y, y)
     f = relay.Function([], op.add(z, z))
     assert not Feature.fLet in detect_feature(f)
-    anf = to_a_normal_form(f)
+    anf = transform.OptimizeOnExpr(f, transform.ToANormalForm())
     assert Feature.fLet in detect_feature(anf)
     check_eval(f(), 8.0)
     check_eval(anf(), 8.0)
@@ -53,7 +52,8 @@ def test_order():
     x = relay.const(1)
     val = x + y * z
     check_eval(val, 7.0)
-    anf = infer_type(to_a_normal_form(val))
+    anf = transform.OptimizeOnExpr(val, [transform.ToANormalForm(),
+                                         transform.InferType()])
     a = relay.Var('a', relay.IncompleteType())
     b = relay.Var('b', relay.IncompleteType())
     c = relay.Var('c', relay.IncompleteType())
@@ -65,14 +65,16 @@ def test_order():
     expected_output = relay.Let(c, z, expected_output)
     expected_output = relay.Let(b, y, expected_output)
     expected_output = relay.Let(a, x, expected_output)
-    expected_output = infer_type(expected_output)
+    expected_output = transform.OptimizeOnExpr(expected_output,
+                                               transform.InferType())
     assert alpha_equal(anf, expected_output)
 
 
 def test_if():
     cond = relay.const(True)
     x = relay.If(cond, relay.const(2), relay.const(3))
-    anf = infer_type(to_a_normal_form(x))
+    anf = transform.OptimizeOnExpr(x, [transform.ToANormalForm(),
+                                       transform.InferType()])
     a = relay.Var('a', relay.IncompleteType())
     b = relay.Var('b', relay.IncompleteType())
     c = relay.Var('c', relay.IncompleteType())
@@ -82,7 +84,8 @@ def test_if():
     expected_output = relay.If(c, true_branch, false_branch)
     expected_output = relay.Let(d, expected_output, d)
     expected_output = relay.Let(c, cond, expected_output)
-    expected_output = infer_type(expected_output)
+    expected_output = transform.OptimizeOnExpr(expected_output,
+                                               transform.InferType())
     assert alpha_equal(anf, expected_output)
 
 
@@ -114,7 +117,8 @@ def test_recursion():
     mod[f] = value
     check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
     old_f = mod[f]
-    f = to_a_normal_form(f, mod=mod)
+    mod = transform.ToANormalForm()(mod)
+    f = mod[f]
     check_eval(f(relay.const(5, 'int64')), 30.0, mod=mod)
 
 
@@ -129,7 +133,8 @@ def test_ref():
     body = relay.Let(iv, relay.RefRead(i), body)
     body = relay.Let(i, relay.RefCreate(relay.const(1)), body)
     check_eval(body, 3)
-    check_eval(to_a_normal_form(body), 3)
+    opt_body = transform.OptimizeOnExpr(body, transform.ToANormalForm())
+    check_eval(opt_body, 3)
 
 
 def test_nat_add():
@@ -144,7 +149,12 @@ def test_nat_add():
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     assert count(p, intrp.evaluate(add(s(z()), s(z())))) == 2
-    assert count(p, intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
+    expr = add(s(z()), s(z()))
+    f = relay.GlobalVar("f")
+    mod[f] = relay.Function([], expr)
+    mod = transform.ToANormalForm()(mod)
+    expr = mod["f"]
+    assert count(p, intrp.evaluate(expr.body)) == 2
     assert Feature.fLet in detect_feature(mod[add])
 
 
@@ -155,14 +165,16 @@ def test_let():
     body = relay.Let(y, x, x + y)
     body = relay.Let(x, d, body)
     check_eval(body, 8)
-    check_eval(to_a_normal_form(body), 8)
+    opt_body = transform.OptimizeOnExpr(body, transform.ToANormalForm())
+    check_eval(opt_body, 8)
 
 
 def test_function():
-    x = relay.Var("x")
+    t = relay.TensorType((), 'float32')
+    x = relay.Var("x", t)
     f = relay.Function([x], x + x)
     d = relay.const(4.0, 'float32')
-    anf_f = to_a_normal_form(f)
+    anf_f = transform.OptimizeOnExpr(f, transform.ToANormalForm())
     assert isinstance(anf_f, relay.Function)
     check_eval(f(d), 8)
     check_eval(anf_f(d), 8)
