@@ -166,12 +166,18 @@ def test_simplify_if_then_else():
                            tvm.if_then_else(24512 <= ((((x*4) + y) - 466036) % 24528),
                                             (((((x*4) + y)  - 466036) % 24528) -24512) % 16,
                                             x), y)
+
+    res2 = tvm.if_then_else((x * 4) >= 466036 - y,
+                           tvm.if_then_else(24512 <= ((((x*4) + y) - 466036) % 24528),
+                                            (((((x*4) + y)  - 466036) % 24528) -24512) % 16,
+                                            x), y)
     expected = tvm.if_then_else(
         tvm.expr.LE(466036, (x * 4 + y)),
         tvm.if_then_else(tvm.expr.LE(24512, ((((x*4) + y) - 4) % 24528)),
                          (((x*4) + y)  - 4) % 16,
                          x), y)
     ck.verify(res, expected)
+    ck.verify(res2, expected)
     # can only simplify if condition
     res = tvm.expr.Select(tvm.all(x >= -1, y >= 0), (x + y + 100) % 3, (x + 100) % 3)
     expected = tvm.expr.Select(tvm.all(x >= -1, y >= 0), (x + y + 1) % 3, (x + 100) % 3)
@@ -197,6 +203,12 @@ def test_complex_cases():
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 5))
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 127))
     ck.verify(res2, 1)
+
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 1024), True)
+    res3 = ((((((((((x*1024) + y)/65536) + ((((x*1024) + y) % 65536)/256))
+                 + ((((x*1024) + y) % 256)/16)) + (((x*1024) + y) % 16)) - (y/256)) -
+              ((y % 256)/16))  - (y % 16)) - (x*4))
+    ck.verify(res3, ((((x*1024) + y)/256) - (y/256)) - (x*4))
 
 
 if __name__ == "__main__":

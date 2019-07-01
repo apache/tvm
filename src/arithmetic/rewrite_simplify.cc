@@ -105,7 +105,14 @@ TryCompare(const Expr& x, int64_t val) {
 void RewriteSimplifier::Impl::
 Update(const Var& var, const Expr& info, bool override) {
   if (!override) {
-    CHECK(!var_map_.count(var));
+    auto it = var_map_.find(var);
+    if (it != var_map_.end()) {
+      CHECK(Equal(it->second, info))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different value: "
+          << "original=" << it->second
+          << ", new=" << info;
+    }
   }
   var_map_[var] = info;
 }
@@ -199,6 +206,9 @@ Mutate_(const Add* op, const Expr& self) {
     TVM_TRY_RECURSIVE_REWRITE(x + c1 + y, (x + y) + c1);
     TVM_TRY_RECURSIVE_REWRITE(x + (c1 + y), (x + y) + c1);
     TVM_TRY_RECURSIVE_REWRITE((y % c1) + x * c1, x * c1 + (y % c1));
+
+    TVM_TRY_RECURSIVE_REWRITE(x + max(y, z), max(y, z) + x);
+    TVM_TRY_RECURSIVE_REWRITE(x + min(y, z), min(y, z) + x);
   }
 
   // condition rules.
@@ -477,6 +487,10 @@ Mutate_(const Div* op, const Expr& self) {
       }
     }
 
+    TVM_TRY_REWRITE(x / x, OneWithTypeLike(x));
+    TVM_TRY_REWRITE(x * c1 / x, c1);
+    TVM_TRY_REWRITE(c1 * x / x, c1);
+
     // Rules involving 2-operands.
     TVM_TRY_REWRITE_IF((x * c1 + y) / c2, x * (c1 / c2) + y / c2,
                        c1.Eval()->value >= 0 &&
@@ -684,6 +698,9 @@ Mutate_(const Mod* op, const Expr& self) {
       if (mod->coeff % c1val == 0 &&
           CanProveGreaterEqual(x.Eval(), 0)) {
         return (mod->base % c1).Eval();
+      } else if (mod->coeff % c1val == 0 &&
+                 mod->base % c1val == 0) {
+        return make_zero(ret.type());
       }
     }
   }
@@ -1169,6 +1186,12 @@ Mutate_(const LT* op, const Expr& self) {
     TVM_TRY_RECURSIVE_REWRITE(max(x, y) < z, x < z && y < z);
     TVM_TRY_RECURSIVE_REWRITE(z < min(x, y), z < x && z < y);
     TVM_TRY_RECURSIVE_REWRITE(z < max(x, y), z < x || z < y);
+
+    TVM_TRY_RECURSIVE_REWRITE(x < c1 - y, x + y < c1);
+    TVM_TRY_RECURSIVE_REWRITE(x < c1 + y, x - y < c1);
+    TVM_TRY_RECURSIVE_REWRITE(c1 - y < x, c1 < x + y);
+    TVM_TRY_RECURSIVE_REWRITE(c1 + y < x, c1 < x - y);
+
 
     TVM_TRY_REWRITE(x - c1 < 0, x < c1);
     TVM_TRY_REWRITE(x + c1 < c2, x < c2 - c1);
