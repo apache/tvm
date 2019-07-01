@@ -97,7 +97,7 @@ struct Instruction {
       /*! \brief The datatype of tensor to be allocated. */
       DLDataType dtype;
     } alloc_tensor;
-    struct /* Cmpi Operands*/{
+    struct /* Cmpi Operands*/ {
       RegName op1;
       RegName op2;
     } cmpi;
@@ -313,7 +313,7 @@ struct Instruction {
    *  \param false_branch The offset to the false branch.
    *  \return The ifi instruction.
    */  
-  static Instruction Ifi(RegName cond_reg, Index true_branch, Index false_branch);  
+  static Instruction Ifi(RegName cond_reg, Index true_branch, Index false_branch);
   /*! \brief Construct a goto instruction.
    *  \param pc_offset The offset from the current pc.
    *  \return The goto instruction.
@@ -344,7 +344,7 @@ struct Instruction {
    *  \param dst The destination register.
    *  \return The load_constanti instruction.
    */
-  static Instruction LoadConsti(size_t val, RegName dst);  
+  static Instruction LoadConsti(size_t val, RegName dst);
   /*! \brief Construct a move instruction.
    *  \param src The source register.
    *  \param dst The destination register.

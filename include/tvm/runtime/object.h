@@ -329,7 +329,8 @@ class Object {
 
   /*! \brief Construct a tensor object. */
   static Object Tensor(const NDArray& data);
-  static Object Int(size_t val);  
+  /*! \brief Construct an int object. */
+  static Object Int(size_t val);
   /*! \brief Construct a datatype object. */
   static Object Datatype(size_t tag, const std::vector<Object>& fields);
   /*! \brief Construct a tuple object. */

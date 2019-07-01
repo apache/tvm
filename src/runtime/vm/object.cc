@@ -43,7 +43,7 @@ std::ostream& operator<<(std::ostream& os, const ObjectTag& tag) {
       break;
     case ObjectTag::kInt:
       os << "Int";
-      break;      
+      break;
     default:
       LOG(FATAL) << "Invalid object tag: found " << static_cast<int>(tag);
   }

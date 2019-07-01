@@ -70,7 +70,7 @@ Instruction::Instruction(const Instruction& instr) {
       return;
     case Opcode::Selecti:
       this->selecti = instr.selecti;
-      return;      
+      return;
     case Opcode::Ret:
       this->result = instr.result;
       return;
@@ -117,20 +117,20 @@ Instruction::Instruction(const Instruction& instr) {
       return;
     case Opcode::Ifi:
       this->ifi = instr.ifi;
-      return;      
+      return;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
       return;
     case Opcode::LoadConsti:
       this->load_consti = instr.load_consti;
-      return;      
+      return;
     case Opcode::GetField:
       this->object = instr.object;
       this->field_index = instr.field_index;
       return;
     case Opcode::GetTagi:
       this->get_tagi = instr.get_tagi;
-      return;      
+      return;
     case Opcode::Goto:
       this->pc_offset = instr.pc_offset;
       return;
@@ -171,7 +171,7 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       return *this;
     case Opcode::Selecti:
       this->selecti = instr.selecti;
-      return *this;      
+      return *this;
     case Opcode::Ret:
       this->result = instr.result;
       return *this;
@@ -233,7 +233,7 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       return *this;
     case Opcode::GetTagi:
       this->get_tagi = instr.get_tagi;
-      return *this;      
+      return *this;
     case Opcode::Goto:
       this->pc_offset = instr.pc_offset;
       return *this;
@@ -534,7 +534,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::Cmpi: {
       os << "cmpi $" << instr.dst << " " << instr.cmpi.op1 << " " << instr.cmpi.op2;
       break;
-    }    
+    }
     case Opcode::InvokePacked: {
       os << "invoke_packed PackedFunc[" << instr.packed_index << "](in: $"
          << StrJoin<RegName>(instr.packed_args, 0, instr.arity - instr.output_size, ",$")
@@ -597,7 +597,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::LoadConsti: {
       os << "load_consti $" << instr.dst << " Const[" << instr.load_consti.val << "]";
       break;
-    }    
+    }
     case Opcode::GetField: {
       os << "get_field $" << instr.dst << " $" << instr.object << "["
          << instr.field_index << "]";
@@ -606,7 +606,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::GetTagi: {
       os << "get_tagi $" << instr.dst << " $" << instr.get_tagi.object;
       break;
-    }    
+    }
     case Opcode::Goto: {
       os << "goto " << instr.pc_offset;
       break;
@@ -836,14 +836,15 @@ void VirtualMachine::Run() {
       case Opcode::GetTagi: {
         auto object = ReadRegister(instr.get_tagi.object);
         CHECK(object->tag == ObjectTag::kDatatype)
-            << "Object is not data type object, register " << instr.get_tagi.object << ", Object tag "
+            << "Object is not data type object, register "
+            << instr.get_tagi.object << ", Object tag "
             << static_cast<int>(object->tag);
         const auto& data = object.AsDatatype();
         auto tag = data->tag;
         WriteRegister(instr.dst, Object::Int(tag));
         pc++;
         goto main_loop;
-      }      
+      }
       case Opcode::Goto: {
         pc += instr.pc_offset;
         goto main_loop;

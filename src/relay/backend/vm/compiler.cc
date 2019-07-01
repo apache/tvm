@@ -133,7 +133,7 @@ struct RegisterValue : MatchValue {
   // The register num
   RegName rergister_num;
 
-  RegisterValue(RegName reg) : rergister_num(reg) {}
+  explicit RegisterValue(RegName reg) : rergister_num(reg) {}
 
   ~RegisterValue() {}
 };
@@ -148,7 +148,7 @@ struct AccessField : MatchValue {
 
   AccessField(MatchValuePtr parent, size_t index)
   : parent(parent), index(index) {}
-  
+
   ~AccessField() {}
 };
 
@@ -601,9 +601,9 @@ using TreeNodePtr = std::shared_ptr<TreeNode>;
 struct TreeLeafNode : TreeNode {
   Expr body;
 
-  TreeLeafNode(Expr body)
+  explicit TreeLeafNode(Expr body)
   : body(body) {}
-  
+
   static TreeNodePtr Make(Expr body) {
     return std::make_shared<TreeLeafNode>(body);
   }
@@ -617,7 +617,7 @@ struct TreeLeafNode : TreeNode {
 
 struct TreeLeafFatalNode : TreeNode {
   TreeLeafFatalNode() = default;
-  
+
   static TreeNodePtr Make() {
     return std::make_shared<TreeLeafFatalNode>();
   }
@@ -640,8 +640,8 @@ struct TreeBranchNode : TreeNode {
   : cond(cond), then_branch(then_branch), else_branch(else_branch) {}
 
 
-  static TreeNodePtr Make(ConditionNodePtr cond, 
-                          TreeNodePtr then_branch, 
+  static TreeNodePtr Make(ConditionNodePtr cond,
+                          TreeNodePtr then_branch,
                           TreeNodePtr else_branch) {
     return std::make_shared<TreeBranchNode>(cond, then_branch, else_branch);
   }
@@ -673,16 +673,16 @@ struct TreeBranchNode : TreeNode {
   ~TreeBranchNode() {}
 };
 
-TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data, 
-                                                       Pattern pattern, 
-                                                       TreeNodePtr then_branch, 
-                                                       TreeNodePtr else_branch) {
+TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data,
+                                         Pattern pattern,
+                                         TreeNodePtr then_branch,
+                                         TreeNodePtr else_branch) {
   if (pattern.as<PatternWildcardNode>()) {
     // We ignore wildcard binding since it's not producing new vars
     return then_branch;
   } else if (pattern.as<PatternVarNode>()) {
     auto pat = pattern.as<PatternVarNode>();
-    auto pattern = GetRef<PatternVar>(pat);    
+    auto pattern = GetRef<PatternVar>(pat);
     auto cond = std::make_shared<VarBinding>(pattern->var, data);
     return TreeBranchNode::Make(cond, then_branch, else_branch);
   } else {
