@@ -432,9 +432,9 @@ void PassDownBitMaskOr(const Stage& stage,
  */
 void PassUpBoundCheck(const Stage& s,
                       const Map<IterVar, Range>& dom_map,
-                      std::unordered_map<IterVar, bool>* p_state) {
+                      std::unordered_map<IterVar, bool>* p_state,
+                      arith::Analyzer* analyzer) {
   auto& state = *p_state;
-  using HalideIR::Internal::can_prove;
   for (size_t i = s->relations.size(); i != 0; --i) {
     IterVarRelation rel = s->relations[i - 1];
     if (const SplitNode* s = rel.as<SplitNode>()) {
@@ -447,7 +447,7 @@ void PassUpBoundCheck(const Stage& s,
         if (outer || inner) {
           state[s->parent] = true;
         } else {
-          if (can_prove(dom_map.at(s->parent)->extent == factor * step)) {
+          if (analyzer->CanProve(dom_map.at(s->parent)->extent == factor * step)) {
             state[s->parent] = false;
           } else {
             state[s->parent] = true;
@@ -476,11 +476,13 @@ std::vector<Expr> MakeBoundCheck(
     const std::unordered_map<IterVar, Expr>& value_map,
     bool skip_ivar_domain,
     const std::unordered_set<IterVar>& skip_iter) {
+  Analyzer analyzer;
+
   std::unordered_map<IterVar, bool> bound_state;
   for (IterVar iv : stage->leaf_iter_vars) {
     bound_state[iv] = false;
   }
-  PassUpBoundCheck(stage, dom_map, &bound_state);
+  PassUpBoundCheck(stage, dom_map, &bound_state, &analyzer);
 
   std::vector<Expr> preds;
   std::unordered_map<const Variable*, IntSet> iset_dmap;
@@ -496,7 +498,7 @@ std::vector<Expr> MakeBoundCheck(
       Range dom = dom_map.at(iv);
       Expr value = ComputeExpr<Sub>(value_map.at(iv), dom->min);
       Expr vmax = EvalSet(value, iset_dmap).max();
-      if (vmax.type() != value.type() || !can_prove(vmax < dom->extent)) {
+      if (vmax.type() != value.type() || !analyzer.CanProve(vmax < dom->extent)) {
         preds.emplace_back(value < dom->extent);
       }
     }
@@ -511,10 +513,10 @@ std::vector<Expr> MakeBoundCheck(
       Expr vmin = s.min();
       Expr vmax = s.max();
       // The range of `value` resides in [vmin, vmax]
-      if (vmin.type() != value.type() || !can_prove(vmin >= 0)) {
+      if (vmin.type() != value.type() || !analyzer.CanProve(vmin >= 0)) {
         preds.emplace_back(value >= 0);
       }
-      if (vmax.type() != value.type() || !can_prove(vmax < iv->dom->extent)) {
+      if (vmax.type() != value.type() || !analyzer.CanProve(vmax < iv->dom->extent)) {
         preds.emplace_back(value < iv->dom->extent);
       }
     }

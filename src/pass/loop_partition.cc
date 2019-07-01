@@ -466,8 +466,13 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
                                    Stmt body,
                                    bool partition_thread_scope) {
   using namespace arith;
+  // include hint of var.
+  hint_map_.insert({var.get(), IntSet::interval(min, max)});
+
   PartitionFinder finder(var, hint_map_, relax_map_);
   finder.Visit(body);
+
+  hint_map_.erase(var.get());
   if (finder.partitions.empty()) return Stmt();
 
   arith::IntervalSet for_interval(min, max);
@@ -504,9 +509,9 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   bool pre_stmt_recurse = true;
   if (middle_interval_i->HasLowerBound()) {
     body_begin = ir::Simplify(middle_interval.min());
-    if (!can_prove(body_begin == min)) {
+    if (!analyzer_.CanProve(body_begin == min)) {
       Expr cond = (body_begin - min >= 0);
-      if (!can_prove(cond)) {
+      if (!analyzer_.CanProve(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the pre doubt loop";
         body_begin = Max::make(body_begin, min);
@@ -529,10 +534,10 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   bool post_stmt_recurse = true;
   if (middle_interval_i->HasUpperBound()) {
     post_doubt_begin = ir::Simplify(middle_interval.max() + 1);
-    if (!can_prove(middle_interval.max() == max)) {
+    if (!analyzer_.CanProve(middle_interval.max() == max)) {
       // require the extent to be non-negative
       Expr cond = (max - post_doubt_begin + 1 >= 0);
-      if (!can_prove(cond)) {
+      if (!analyzer_.CanProve(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the post doubt loop";
         post_doubt_begin = Min::make(post_doubt_begin, max);
@@ -554,7 +559,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   // Generating code for middle subrange
   if (!partition_thread_scope) {
     Stmt mid_stmt;
-    if (!can_prove(body_begin >= post_doubt_begin)) {
+    if (!analyzer_.CanProve(body_begin >= post_doubt_begin)) {
       // [body_begin, post_doubt_begin)
       Stmt simplified_body = ConditionEliminator(cond_set, cond_value).Mutate(body);
       Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
@@ -576,8 +581,8 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     s = AppendStmts(s, post_stmt);
   } else {
     Expr cond = const_true();
-    if (!can_prove(body_begin == min)) cond = cond && (var >= body_begin);
-    if (!can_prove(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
+    if (!analyzer_.CanProve(body_begin == min)) cond = cond && (var >= body_begin);
+    if (!analyzer_.CanProve(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
     s = ThreadPartitionInserter(cond_set, cond).Mutate(stmt);
   }
   s = ConvertSSA(s);
@@ -587,7 +592,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
 inline Stmt LoopPartitioner::MakeFor(const Node *node, Expr extent, Stmt body) {
   const For *for_node = static_cast<const For*>(node);
   CHECK(for_node);
-  if (can_prove(extent == make_const(Int(32), 1))) {
+  if (analyzer_.CanProve(extent == make_const(Int(32), 1))) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(Int(32), 0)}});
   } else {
