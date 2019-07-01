@@ -231,6 +231,16 @@ def test_square_second_order():
     tvm.testing.assert_allclose(grad_x.asnumpy(), 2 * np.ones_like(grad_x.asnumpy()))
 
 
+def test_if():
+    x = relay.var("x", shape=(1, 16, 64, 64))
+    y = relay.var("y", shape=(1, 16, 64, 64))
+    cond = relay.var("cond", shape=(), dtype='uint1')
+    net = relay.If(cond, x, y)
+    net = relay.log(net)
+    net = relay.ir_pass.infer_type(relay.Function(relay.ir_pass.free_vars(net), net))
+    back_func = relay.ir_pass.infer_type(relay.ir_pass.gradient(net, mode='higher_order'))
+
+
 if __name__ == "__main__":
     test_id()
     test_add()
@@ -242,3 +252,4 @@ if __name__ == "__main__":
     test_pow()
     test_ref()
     test_square_second_order()
+    test_if()

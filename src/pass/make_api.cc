@@ -184,7 +184,7 @@ LoweredFunc MakeAPI(Stmt body,
     for (Var v : undefined) {
       os << " \'" << v->name_hint << "\' ";
     }
-    os << " does not appeared in api_args";
+    os << " does not appear in api_args";
     LOG(FATAL) << "Not all Vars are passed in api_args: " << os.str();
   }
   return f;

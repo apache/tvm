@@ -72,6 +72,33 @@ class QAnnotateExprNode : public TempExprNode {
 RELAY_DEFINE_NODE_REF(QAnnotateExpr, QAnnotateExprNode, TempExpr);
 
 
+/*!
+ * \brief TempExpr used to insert `force_cast` for VTA.
+ */
+class QVTAExpr;
+/*!
+ * \brief TempExprNode used to insert `force_cast` for VTA.
+ */
+class QVTAExprNode : public TempExprNode {
+ public:
+  /*! \brief The original expression */
+  Expr expr;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("expr", &expr);
+  }
+
+  TVM_DLL static QVTAExpr make(Expr expr);
+
+  Expr Realize() const final;
+
+  static constexpr const char* _type_key = "relay.QVTAExpr";
+  TVM_DECLARE_NODE_TYPE_INFO(QVTAExprNode, TempExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(QVTAExpr, QVTAExprNode, TempExpr);
+
+
 /*! \brief TempExpr used during realize forward rewrite. */
 class QRealizeExpr;
 /*! \brief TempExpr representing integer. */

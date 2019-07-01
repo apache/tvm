@@ -17,11 +17,12 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import to_a_normal_form, alpha_equal, infer_type
+from tvm.relay.ir_pass import to_a_normal_form, alpha_equal, infer_type, detect_feature
 from tvm.relay import op, create_executor
 from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count
+from tvm.relay.feature import Feature
 
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
@@ -37,9 +38,9 @@ def test_explicit_bound():
     y = op.add(x, x)
     z = op.add(y, y)
     f = relay.Function([], op.add(z, z))
-    assert not "let" in f.astext() # assert the values are implicitly bounded
+    assert not Feature.fLet in detect_feature(f)
     anf = to_a_normal_form(f)
-    assert "let" in anf.astext() # assert the values are explicitly bounded
+    assert Feature.fLet in detect_feature(anf)
     check_eval(f(), 8.0)
     check_eval(anf(), 8.0)
 
@@ -144,7 +145,7 @@ def test_nat_add():
     assert mod[add].checked_type == relay.FuncType([nat(), nat()], nat())
     assert count(p, intrp.evaluate(add(s(z()), s(z())))) == 2
     assert count(p, intrp.evaluate(to_a_normal_form(add(s(z()), s(z())), mod))) == 2
-    assert "let" in mod[add].astext()
+    assert Feature.fLet in detect_feature(mod[add])
 
 
 def test_let():
@@ -173,7 +174,6 @@ if __name__ == '__main__':
     test_if()
     test_recursion()
     test_ref()
-    test_add()
     test_let()
     test_nat_add()
     test_function()

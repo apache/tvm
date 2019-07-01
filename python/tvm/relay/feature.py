@@ -14,24 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Reuse conv2d schedule from ARM CPU"""
+# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
+"""The type nodes of the Relay language."""
+from enum import IntEnum
 
-import tvm
-
-from topi.nn import conv2d, conv2d_alter_layout
-from topi import generic
-
-@conv2d.register(["vtacpu", "vta"])
-def compute(*args, **kwargs):
-    with tvm.target.arm_cpu("vtacpu"):
-        return conv2d(*args, **kwargs)
-
-@generic.schedule_conv2d_nchw.register(["vtacpu", "vta"])
-def schedule(*args, **kwargs):
-    with tvm.target.arm_cpu("vtacpu"):
-        return generic.schedule_conv2d_nchw(*args, **kwargs)
-
-@conv2d_alter_layout.register(["vtacpu", "vta"])
-def alter(*args, **kwargs):
-    with tvm.target.arm_cpu("vtacpu"):
-        return conv2d_alter_layout(*args, **kwargs)
+class Feature(IntEnum):
+    """ The features a program might contain. """
+    fVar = 0
+    fGlobalVar = 1
+    fConstant = 2
+    fTuple = 3
+    fTupleGetItem = 4
+    fFunction = 5
+    fOp = 6
+    fCall = 7
+    fLet = 8
+    fIf = 9
+    fRefCreate = 10
+    fRefRead = 11
+    fRefWrite = 12
+    fConstructor = 13
+    fMatch = 14
+    """ Whether any non-atom fragment of the program is shared, making the program a graph. """
+    fGraph = 15
+    """ Whether there is local fixpoint in the program. """
+    fLetRec = 16

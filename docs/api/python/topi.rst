@@ -101,6 +101,7 @@ List of operators
    topi.image.resize
    topi.argsort
    topi.topk
+   topi.sequence_mask
 
 
 List of schedules
@@ -167,6 +168,7 @@ topi
 .. autofunction:: topi.layout_transform
 .. autofunction:: topi.argsort
 .. autofunction:: topi.topk
+.. autofunction:: topi.sequence_mask
 
 topi.nn
 ~~~~~~~

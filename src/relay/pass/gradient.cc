@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -309,6 +309,12 @@ struct ReverseAD : ExprMutator {
   Expr VisitExpr_(const ConstantNode* op) final {
     Expr e = GetRef<Expr>(op);
     return Pair(e, RefCreateNode::make(ZerosLike(e)));
+  }
+
+  Expr VisitExpr_(const IfNode* op) final {
+    return IfNode::make(TupleGetItemNode::make(VisitExpr(op->cond), 0),
+                        VisitExpr(op->true_branch),
+                        VisitExpr(op->false_branch));
   }
 
   Type VisitType(const Type& t) final {

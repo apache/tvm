@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, import-self, len-as-condition
+# pylint: disable=invalid-name, import-self, len-as-condition, no-else-return
 """MXNet symbol frontend."""
 from __future__ import absolute_import as _abs
 
@@ -709,6 +709,18 @@ def _mx_topk(inputs, attrs):
     return _op.topk(inputs[0], **new_attrs)
 
 
+def _mx_SequenceMask(inputs, attrs):
+    assert len(inputs) == 1 or len(inputs) == 2
+    new_attrs = {}
+    use_sequence_length = attrs.get_bool('use_sequence_length', False)
+    new_attrs['mask_value'] = attrs.get_float('value', 0.0)
+    new_attrs['axis'] = attrs.get_int('axis', 0)
+    if use_sequence_length:
+        return _op.sequence_mask(*inputs, **new_attrs)
+    else:
+        return inputs[0]
+
+
 def _mx_rnn_param_concat(inputs, _):
     # We don't need to concatenate RNN params because we will unravel the RNN op
     return [inputs]
@@ -994,6 +1006,7 @@ _convert_map = {
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
     "topk"          : _mx_topk,
+    "SequenceMask"  : _mx_SequenceMask,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,
