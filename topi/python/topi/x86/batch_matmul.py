@@ -50,6 +50,7 @@ def _decl(cfg, x, y):
                      filter=lambda item: item.size[-1] <= 64)
     cfg.define_split("tile_k", K, num_outputs=2,
                      filter=lambda item: item.size[-1] <= 64)
+    cfg.define_knob("auto_unroll_max_step", [0, 16, 32])
     k = tvm.reduce_axis((0, K), name='k')
     return tvm.compute((batch, M, N),
                        lambda b, i, j: tvm.sum(x[b, i, k] * y[b, j, k], axis=k),
@@ -98,7 +99,6 @@ def schedule_batch_matmul(cfg, outs):
             _, _, y, x = s[CC].op.axis
             s[CC].fuse(y, x)
             s[CC].vectorize(s[CC].op.axis[0])
-            cfg.define_knob("auto_unroll_max_step", [0, 16, 32])
             s[C].pragma(bxyo, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
 
     traverse_inline(s, outs[0].op, _callback)
