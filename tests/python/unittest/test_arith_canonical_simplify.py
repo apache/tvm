@@ -198,6 +198,12 @@ def test_complex_cases():
     ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 127))
     ck.verify(res2, 1)
 
+    ck.analyzer.update(y, tvm.arith.ConstIntBound(0, 1024), True)
+    res3 = ((((((((((x*1024) + y)/65536) + ((((x*1024) + y) % 65536)/256))
+                 + ((((x*1024) + y) % 256)/16)) + (((x*1024) + y) % 16)) - (y/256)) -
+              ((y % 256)/16))  - (y % 16)) - (x*4))
+    ck.verify(res3, ((((x*1024) + y)/256) - (y/256)) - (x*4))
+
 
 if __name__ == "__main__":
     test_simplify_if_then_else()
