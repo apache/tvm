@@ -26,7 +26,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/attrs.h>
 #include "type_functor.h"
 #include "../../lang/attr_functor.h"
@@ -412,12 +412,12 @@ size_t StructuralHash::operator()(const Expr& expr) const {
   return RelayHashHandler().ExprHash(expr);
 }
 
-TVM_REGISTER_API("relay._ir_pass._expr_hash")
+TVM_REGISTER_API("relay._analysis._expr_hash")
 .set_body_typed<int64_t(NodeRef)>([](NodeRef ref) {
   return static_cast<int64_t>(RelayHashHandler().Hash(ref));
 });
 
-TVM_REGISTER_API("relay._ir_pass._type_hash")
+TVM_REGISTER_API("relay._analysis._type_hash")
 .set_body_typed<int64_t(Type)>([](Type type) {
   return static_cast<int64_t>(RelayHashHandler().TypeHash(type));
 });

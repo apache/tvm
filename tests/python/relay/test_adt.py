@@ -14,12 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import infer_type
-from tvm.relay.backend.interpreter import Value, TupleValue, ConstructorValue
-from tvm.relay import testing, create_executor
+from tvm.relay.backend.interpreter import ConstructorValue
+from tvm.relay import create_executor
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
 
@@ -125,8 +123,14 @@ def test_nat_value():
 
 
 def test_nat_constructor():
-    assert relay.ir_pass.infer_type(z(), mod).checked_type == nat()
-    assert relay.ir_pass.infer_type(s(z()), mod).checked_type == nat()
+    func = relay.Function([], z())
+    test_z = relay.GlobalVar("test_z")
+    mod[test_z] = func
+    assert mod[test_z].body.checked_type == nat()
+    test_sz = relay.GlobalVar("test_sz")
+    func = relay.Function([], s(z()))
+    mod[test_sz] = func
+    assert mod[test_sz].body.checked_type == nat()
 
 
 def test_double():
@@ -142,8 +146,10 @@ def test_add():
 
 
 def test_list_constructor():
-    a = relay.TypeVar("a")
-    assert relay.ir_pass.infer_type(cons(z(), nil()), mod).checked_type == l(nat())
+    test_consz = relay.GlobalVar("test_consz")
+    func = relay.Function([], cons(z(), nil()))
+    mod[test_consz] = func
+    assert mod[test_consz].body.checked_type == l(nat())
 
 def test_hd_tl():
     expected = list(range(10))

@@ -17,16 +17,34 @@
 """Test that type checker correcly computes types
    for expressions.
 """
-import tvm
-import numpy as np
-from tvm.relay.ir_pass import infer_type
 from tvm import relay
-from tvm.relay import op
-from tvm.relay.scope_builder import ScopeBuilder
+from tvm.relay import op, transform, analysis
+
+
+def run_infer_type(expr, mod=None):
+    if not mod:
+        mod = relay.Module.from_expr(expr)
+        mod = transform.InferType()(mod)
+        entry = mod[mod.entry_func]
+        return entry if isinstance(expr, relay.Function) else entry.body
+    else:
+        if isinstance(expr, relay.GlobalVar):
+            gv = expr.name_hint
+        else:
+            func = expr
+            if not isinstance(expr, relay.Function):
+                func = relay.Function(analysis.free_vars(expr), expr)
+            mod[mod.entry_func] = func
+            gv = "main"
+        mod = transform.InferType()(mod)
+
+        if isinstance(expr, (relay.GlobalVar, relay.Function)):
+            return mod[gv]
+        return mod[gv].body
 
 
 def assert_has_type(expr, typ, mod=relay.module.Module({})):
-    checked_expr = infer_type(expr, mod)
+    checked_expr = run_infer_type(expr, mod)
     checked_type = checked_expr.checked_type
     if checked_type != typ:
         raise RuntimeError("Type mismatch %s vs %s" % (
@@ -48,7 +66,7 @@ def test_monomorphic_let():
     sb = relay.ScopeBuilder()
     x = sb.let('x', relay.const(1.0, "float64"))
     sb.ret(x)
-    xchecked = relay.ir_pass.infer_type(sb.get())
+    xchecked = run_infer_type(sb.get())
     assert xchecked.checked_type == relay.scalar_type("float64" )
 
 
@@ -94,7 +112,7 @@ def test_dual_op():
     t2 = sb.let("t2", relay.add(t1, x))
     sb.ret(t2)
     f = relay.Function([x], sb.get())
-    fchecked = relay.ir_pass.infer_type(f)
+    fchecked = run_infer_type(f)
     assert fchecked.checked_type == relay.FuncType([tp], tp)
 
 
@@ -107,7 +125,7 @@ def test_decl():
     tp = relay.TensorType((10, 10))
     x = relay.var("x", tp)
     f = relay.Function([x], relay.log(x))
-    fchecked = relay.ir_pass.infer_type(f)
+    fchecked = run_infer_type(f)
     assert fchecked.checked_type == relay.FuncType([tp], tp)
 
 
@@ -145,7 +163,7 @@ def test_incomplete_call():
     f = relay.var('f')
     func = relay.Function([x, f], relay.Call(f, [x]), tt)
 
-    ft = relay.ir_pass.infer_type(func)
+    ft = run_infer_type(func)
     f_type = relay.FuncType([tt], tt)
     assert ft.checked_type == relay.FuncType([tt, f_type], tt)
 
@@ -164,7 +182,7 @@ def test_higher_order_argument():
     # function even though id_func takes a type parameter
     ho_call = ho_func(id_func, relay.const(0, 'int32'))
 
-    hc = relay.ir_pass.infer_type(ho_call)
+    hc = run_infer_type(ho_call)
     expected = relay.scalar_type('int32')
     assert hc.checked_type == expected
 
@@ -177,7 +195,7 @@ def test_higher_order_return():
     b = relay.TypeVar('b')
     nested_id = relay.Function([], id_func, relay.FuncType([b], b), [b])
 
-    ft = relay.ir_pass.infer_type(nested_id)
+    ft = run_infer_type(nested_id)
     assert ft.checked_type == relay.FuncType([], relay.FuncType([b], b), [b])
 
 
@@ -198,7 +216,7 @@ def test_higher_order_nested():
         [b])
 
     expected = relay.FuncType([choice_t], relay.FuncType([b], b), [b])
-    ft = relay.ir_pass.infer_type(top)
+    ft = run_infer_type(top)
     assert ft.checked_type == expected
 
 
@@ -206,8 +224,7 @@ def test_tuple():
     tp = relay.TensorType((10,))
     x = relay.var("x", tp)
     res = relay.Tuple([x, x])
-    assert (relay.ir_pass.infer_type(res).checked_type ==
-            relay.TupleType([tp, tp]))
+    assert (run_infer_type(res).checked_type == relay.TupleType([tp, tp]))
 
 
 def test_ref():
@@ -215,17 +232,17 @@ def test_ref():
     y = relay.var("y", "float32")
     r = relay.RefCreate(x)
     st = relay.scalar_type("float32")
-    assert relay.ir_pass.infer_type(r).checked_type == relay.RefType(st)
+    assert run_infer_type(r).checked_type == relay.RefType(st)
     g = relay.RefRead(r)
-    assert relay.ir_pass.infer_type(g).checked_type == st
+    assert run_infer_type(g).checked_type == st
     w = relay.RefWrite(r, y)
-    assert relay.ir_pass.infer_type(w).checked_type == relay.TupleType([])
+    assert run_infer_type(w).checked_type == relay.TupleType([])
 
 
 def test_free_expr():
     x = relay.var("x", "float32")
     y = relay.add(x, x)
-    yy = relay.ir_pass.infer_type(y)
+    yy = run_infer_type(y)
     assert yy.checked_type == relay.scalar_type("float32")
     assert x.vid.same_as(yy.args[0].vid)
 
@@ -234,7 +251,7 @@ def test_type_args():
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(1, 10))
     z = relay.add(x, y)
-    ty_z = relay.ir_pass.infer_type(z)
+    ty_z = run_infer_type(z)
     ty_args = ty_z.type_args
     assert len(ty_args) == 2
     assert ty_args[0].dtype == "float32"
@@ -256,15 +273,15 @@ def test_global_var_recursion():
     func = relay.Function([x], relay.Call(gv, [x]), tt)
     mod[gv] = func
 
-    ft = relay.ir_pass.infer_type(gv, mod)
-    assert mod[ft].checked_type == relay.FuncType([tt], tt)
+    ft = run_infer_type(gv, mod)
+    assert ft.checked_type == relay.FuncType([tt], tt)
 
 
 def test_equal():
     i = relay.var('i', shape=[], dtype='int32')
     eq = op.equal(i, relay.const(0, dtype='int32'))
     func = relay.Function([i], eq)
-    ft = relay.ir_pass.infer_type(func)
+    ft = run_infer_type(func)
 
     assert ft.checked_type == relay.FuncType([relay.scalar_type('int32')], relay.scalar_type('bool'))
 
@@ -275,8 +292,7 @@ def test_constructor_type():
 
     a = relay.TypeVar('a')
     x = relay.Var('x', a)
-    ct = relay.ir_pass.infer_type(
-        relay.Function([x], constructor(x), box(a), [a]), mod)
+    ct = run_infer_type(relay.Function([x], constructor(x), box(a), [a]), mod)
     expected = relay.FuncType([a], box(a), [a])
     assert ct.checked_type == expected
 
@@ -288,8 +304,8 @@ def test_constructor_call():
     box_unit = constructor(relay.Tuple([]))
     box_constant = constructor(relay.const(0, 'float32'))
 
-    ut = relay.ir_pass.infer_type(box_unit, mod)
-    ct = relay.ir_pass.infer_type(box_constant, mod)
+    ut = run_infer_type(box_unit, mod)
+    ct = run_infer_type(box_constant, mod)
     assert ut.checked_type == box(relay.TupleType([]))
     assert ct.checked_type == box(relay.TensorType((), 'float32'))
 
@@ -308,7 +324,7 @@ def test_adt_match():
                          relay.Clause(relay.PatternWildcard(),
                                       relay.Tuple([]))])
 
-    mt = relay.ir_pass.infer_type(match, mod)
+    mt = run_infer_type(match, mod)
     assert mt.checked_type == relay.TupleType([])
 
 
@@ -328,7 +344,7 @@ def test_adt_match_type_annotations():
                                                      relay.Tuple([]))])
 
     func = relay.Function([x], match)
-    ft = relay.ir_pass.infer_type(func, mod)
+    ft = run_infer_type(func, mod)
     assert ft.checked_type == relay.FuncType([tt], relay.TupleType([]))
 
 

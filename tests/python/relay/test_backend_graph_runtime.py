@@ -19,7 +19,6 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.ir_pass import infer_type
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.op import add
 from tvm.relay.module import Module
@@ -124,9 +123,9 @@ def test_plan_memory():
     z = relay.exp(z)
     z = relay.exp(z)
     func = relay.Function([x, y], z)
-    func = relay.ir_pass.infer_type(func)
-    func = relay.ir_pass.fuse_ops(func, opt_level=0)
-    func = relay.ir_pass.infer_type(func)
+    mod = relay.Module.from_expr(func)
+    mod = relay.transform.FuseOps(0)(mod)
+    func = mod[mod.entry_func]
     smap = relay.backend._backend.GraphPlanMemory(func)
     storage_ids = set()
     device_types = set()

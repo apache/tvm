@@ -28,8 +28,9 @@
  * CalcDep turn an expr into a dependency graph of expr,
  * GenLet turn the dependency graph into a let list, taking only the used value.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
 #include "let_list.h"
 
 namespace tvm {

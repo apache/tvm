@@ -22,7 +22,8 @@
 #include <tvm/tvm.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
 #include <topi/generic/injective.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>

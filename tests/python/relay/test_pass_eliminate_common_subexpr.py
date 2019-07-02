@@ -17,7 +17,15 @@
 """Test eliminate common subexpr pass"""
 from tvm import relay
 from tvm.relay.op import register_alter_op_layout
-from tvm.relay import ir_pass
+from tvm.relay import transform, analysis
+
+
+def run_opt_pass(expr, opt_pass):
+    assert isinstance(opt_pass, transform.Pass)
+    mod = relay.Module.from_expr(expr)
+    mod = opt_pass(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 
 def test_simple():
@@ -37,11 +45,11 @@ def test_simple():
         y = relay.add(y, relay.const(1.0, "float32"))
         y = relay.add(y, y)
         f = relay.Function([x], y)
-        return f
+        return run_opt_pass(f, transform.InferType())
 
     z = before()
-    z = ir_pass.eliminate_common_subexpr(z)
-    assert ir_pass.alpha_equal(z, expected())
+    z = run_opt_pass(z, transform.EliminateCommonSubexpr())
+    assert analysis.alpha_equal(z, expected())
 
 
 def test_callback():
@@ -62,7 +70,7 @@ def test_callback():
         y2 = relay.add(y, relay.const(1.0, "float32"))
         y = relay.add(y1, y2)
         f = relay.Function([x], y)
-        return f
+        return run_opt_pass(f, transform.InferType())
 
     def fskip(expr):
         if isinstance(expr, relay.expr.Call) and expr.op.name == 'add':
@@ -70,8 +78,8 @@ def test_callback():
         return False
 
     z = before()
-    z = ir_pass.eliminate_common_subexpr(z, fskip)
-    assert ir_pass.alpha_equal(z, expected())
+    z = run_opt_pass(z, transform.EliminateCommonSubexpr(fskip))
+    assert analysis.alpha_equal(z, expected())
 
 
 if __name__ == "__main__":

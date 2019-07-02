@@ -42,7 +42,7 @@
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include "./pass_util.h"
 #include "type_solver.h"
@@ -812,11 +812,6 @@ Function InferType(const Function& func,
     << std::endl << free_tvars;
   return Downcast<Function>(func_ret);
 }
-
-TVM_REGISTER_API("relay._ir_pass.infer_type")
-.set_body_typed<Expr(const Expr&, const Module&)>([](const Expr& expr, const Module& mod_ref) {
-    return InferType(expr, mod_ref);
-  });
 
 namespace transform {
 

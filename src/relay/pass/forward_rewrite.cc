@@ -23,9 +23,9 @@
  * \file forward_rewrite.cc
  * \brief Apply rewriting rules in a forward fashion.
  */
-#include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
 #include "pass_util.h"
 
 namespace tvm {
@@ -205,38 +205,6 @@ Expr ForwardRewrite(const Expr& expr,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger) {
   return ForwardRewriter(&rewrite_func, fcontext, fmulti_ref_trigger).Rewrite(expr);
 }
-
-namespace transform {
-
-using std::function;
-
-Pass ForwardRewrite(const std::string& rewrite_map_attr_name,
-                    function<NodeRef(const Call&)> fcontext,
-                    function<Expr(const Expr&)> fmulti_ref_trigger) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
-    return Downcast<Function>(ForwardRewrite(f,
-                                             rewrite_map_attr_name,
-                                             fcontext,
-                                             fmulti_ref_trigger));
-  };
-  return CreateFunctionPass(pass_func, 1, "ForwardRewrite", {});
-}
-
-Pass ForwardRewrite(const FForwardRewrite& rewrite_func,
-                    function<NodeRef(const Call&)> fcontext,
-                    function<Expr(const Expr&)> fmulti_ref_trigger) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
-    return Downcast<Function>(ForwardRewrite(f,
-                                             rewrite_func,
-                                             fcontext,
-                                             fmulti_ref_trigger));
-  };
-  return CreateFunctionPass(pass_func, 1, "ForwardRewriteFunc", {});
-}
-
-}  // namespace transform
 
 }  // namespace relay
 }  // namespace tvm

@@ -79,15 +79,6 @@ class Module(RelayNode):
         if isinstance(val, _expr.Expr):
             if isinstance(var, _base.string_types):
                 var = _expr.GlobalVar(var)
-
-            # TODO(@jroesch): Port this logic to C++.
-            if not isinstance(val, _expr.Function):
-                if isinstance(val, _expr.GlobalVar):
-                    val = ir_pass.eta_expand(val, self)
-                else:
-                    val = _expr.Function([], val)
-
-
             _make.Module_Add(self, var, val, update)
         else:
             assert isinstance(val, _ty.Type)

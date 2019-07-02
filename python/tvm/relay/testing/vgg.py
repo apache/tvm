@@ -90,7 +90,7 @@ def get_net(batch_size, image_shape, num_classes, dtype, num_layers=11, batch_no
     feature = get_feature(data, layers, filters, batch_norm)
     classifier = get_classifier(feature, num_classes)
     symbol = relay.nn.softmax(data=classifier)
-    args = relay.ir_pass.free_vars(symbol)
+    args = relay.analysis.free_vars(symbol)
     return relay.Function(args, symbol)
 
 

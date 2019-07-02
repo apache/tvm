@@ -79,7 +79,7 @@ def _make_dense_net(num_init_features, growth_rate, block_config,
 
     ret = layers.dense_add_bias(flat, units=classes, name='dense')
 
-    return relay.Function(relay.ir_pass.free_vars(ret), ret)
+    return relay.Function(relay.analysis.free_vars(ret), ret)
 
 def get_workload(densenet_size=121, classes=1000, batch_size=4,
                  image_shape=(3, 224, 224), dtype='float32'):

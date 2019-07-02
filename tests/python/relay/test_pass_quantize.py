@@ -19,10 +19,18 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import quantize as qtz
+from tvm.relay import transform
+
+
+def run_infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 
 def make_dataset(graph, size=100):
-    args = relay.ir_pass.infer_type(graph).params
+    args = run_infer_type(graph).params
     def create_arr(var):
         ttype = var.type_annotation
         np_arr = np.random.uniform(-1.0, 1.0, size=ttype.concrete_shape).astype(ttype.dtype)
@@ -40,7 +48,7 @@ def make_dataset(graph, size=100):
 def test_simulated_quantize():
     data = relay.var("data", relay.ty.TensorType((3, 4, 5, 6), "float32"))
     out = qtz._annotate.attach_simulated_quantize(data, 1)
-    out = relay.ir_pass.infer_type(out)
+    out = run_infer_type(out)
     assert out.checked_type == out.args[0].checked_type
     assert out.args[1].checked_type == relay.ty.TensorType(tuple(), "float32")
     assert out.args[2].checked_type == relay.ty.TensorType(tuple(), "float32")
@@ -59,7 +67,7 @@ def test_quantize_pass():
     def make_graph(data):
         weight = relay.var("conv_weight")
         out = relay.nn.conv2d(data, weight, kernel_size=(3, 3), padding=(1, 1), channels=c)
-        out = relay.Function(relay.ir_pass.free_vars(out), out)
+        out = relay.Function(relay.analysis.free_vars(out), out)
         return out
 
     def make_qgraph(data, weight):
@@ -72,7 +80,7 @@ def test_quantize_pass():
                               padding=(1, 1), channels=c, out_dtype='int32')
         out = out.astype('float32')
         out = relay.multiply(out, relay.const(0.00024414062))
-        out = relay.Function(relay.ir_pass.free_vars(out), out)
+        out = relay.Function(relay.analysis.free_vars(out), out)
         return out
 
     np.random.seed(42)
@@ -84,11 +92,11 @@ def test_quantize_pass():
     with qtz.qconfig(skip_conv_layers=None, global_scale=4.0,
                      round_for_shift=False, store_lowbit_output=False):
         qgraph0 = qtz.quantize(graph, params)
-        qgraph0 = relay.ir_pass.infer_type(qgraph0)
+        qgraph0 = run_infer_type(qgraph0)
 
     conv_weight = quantize_weight(params['conv_weight'])
     qgraph1 = make_qgraph(data, conv_weight)
-    qgraph1 = relay.ir_pass.infer_type(qgraph1)
+    qgraph1 = run_infer_type(qgraph1)
 
     graph = relay.create_executor('graph')
     res0 = graph.evaluate(qgraph0)(dataset[0]['data'])

@@ -172,7 +172,6 @@ with autotvm.tophub.context(target):
             env.WGT_WIDTH,
             start_name=start_pack,
             stop_name=stop_pack)
-        relay_prog = relay.ir_pass.fold_constant(relay_prog)
 
     # Compile Relay program with AlterOpLayout disabled
     with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):

@@ -32,7 +32,6 @@
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
-#include <tvm/relay/pass.h>
 #include <stack>
 
 namespace tvm {
@@ -236,15 +235,15 @@ Array<Pattern> UnmatchedCases(const Match& match, const Module& mod) {
 }
 
 // expose for testing only
-TVM_REGISTER_API("relay._ir_pass.unmatched_cases")
-.set_body_typed<Array<Pattern>(const Match&,
-                               const Module&)>([](const Match& match,
-                                                  const Module& mod_ref) {
-                                                 Module call_mod = mod_ref;
-                                                 if (!call_mod.defined()) {
-                                                   call_mod = ModuleNode::make({}, {});
-                                                 }
-                                                 return UnmatchedCases(match, call_mod);
-                                               });
+TVM_REGISTER_API("relay._analysis.unmatched_cases")
+.set_body_typed<Array<Pattern>(const Match&, const Module&)>(
+  [](const Match& match, const Module& mod_ref) {
+    Module call_mod = mod_ref;
+    if (!call_mod.defined()) {
+      call_mod = ModuleNode::make({}, {});
+    }
+    return UnmatchedCases(match, call_mod);
+  });
+
 }  // namespace relay
 }  // namespace tvm

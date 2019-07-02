@@ -26,7 +26,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include "type_functor.h"
 #include "../../lang/attr_functor.h"
 

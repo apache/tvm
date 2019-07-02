@@ -27,9 +27,10 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/base.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -259,6 +260,13 @@ Expr QuantizeRealize(const Call& ref_call,
   return QRealizeIntExprNode::make(round_data, dom_scale, Float(32));
 }
 
+Expr FoldConstantOpt(const Expr& expr) {
+  auto mod = ModuleNode::FromExpr(expr);
+  mod = transform::FoldConstant()(mod);
+  auto entry_func = mod->Lookup(mod->entry_func);
+  return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
+}
+
 RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", QuantizeRealize);
 
@@ -290,7 +298,8 @@ Expr Conv2dRealize(const Call& ref_call,
 
   Expr ret = CallNode::make(ref_call->op,
     {ldata, rdata}, Attrs(attrs), ref_call->type_args);
-  Expr dom_scale = FoldConstant(Multiply(lhs->dom_scale, rhs->dom_scale));
+  Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
+  Expr dom_scale = FoldConstantOpt(mul);
   return QRealizeIntExprNode::make(ret, dom_scale, out_dtype);
 }
 
@@ -323,7 +332,8 @@ Expr DenseRealize(const Call& ref_call,
 
   Expr ret = CallNode::make(ref_call->op,
           {ldata, rdata}, Attrs(attrs), ref_call->type_args);
-  Expr dom_scale = FoldConstant(Multiply(lhs->dom_scale, rhs->dom_scale));
+  Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
+  Expr dom_scale = FoldConstantOpt(mul);
   return QRealizeIntExprNode::make(ret, dom_scale, out_dtype);
 }
 
@@ -356,7 +366,8 @@ Expr MulRealize(const Call& ref_call,
     }
 
     Expr ret = ForwardOp(ref_call, {ldata, rdata});
-    Expr dom_scale = FoldConstant(Multiply(lhs->dom_scale, rhs->dom_scale));
+    Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
+    Expr dom_scale = FoldConstantOpt(mul);
     return QRealizeIntExprNode::make(ret, dom_scale, dtype);
   }
   CHECK(!new_args[0]->derived_from<TempExprNode>() && !new_args[1]->derived_from<TempExprNode>());

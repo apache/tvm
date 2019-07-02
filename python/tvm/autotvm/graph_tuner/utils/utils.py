@@ -17,6 +17,7 @@
 # pylint: disable=eval-used,invalid-name,too-many-arguments
 """Utility functions"""
 from tvm import relay
+from tvm.relay import transform
 
 
 def has_multiple_inputs(node_list, node_idx, input_names):
@@ -107,4 +108,7 @@ def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
             rebind_dict[var] = updated_input_dict[var.name_hint]
     updated_expr = relay.expr.bind(expr, rebind_dict)
 
-    return relay.ir_pass.infer_type(updated_expr)
+    mod = relay.Module.from_expr(updated_expr)
+    mod = transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(updated_expr, relay.Function) else entry.body

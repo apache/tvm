@@ -19,7 +19,7 @@ import tvm
 from tvm import relay
 from tvm.expr import *
 from tvm.relay import op
-from tvm.relay.ir_pass import graph_equal
+from tvm.relay.analysis import graph_equal
 
 
 def check_json_roundtrip(node):

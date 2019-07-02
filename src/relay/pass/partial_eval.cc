@@ -91,7 +91,8 @@
  *
  * These assumptions do not affect the correctness of the algorithm, however.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/interpreter.h>
@@ -740,9 +741,14 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   // Constant evaluate a expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
-    Expr infered = InferType(expr, Module(nullptr));
-    Expr fused = FuseOps(infered, 0, Module(nullptr));
-    Expr fused_infered = InferType(fused, Module(nullptr));
+    std::vector<transform::Pass> passes = {transform::FuseOps(0),
+                                           transform::InferType()};
+    auto mod = ModuleNode::FromExpr(expr);
+    auto seq = transform::Sequential(passes);
+    mod = seq(mod);
+    auto entry_func = mod->Lookup(mod->entry_func);
+    auto fused_infered =
+        expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return Reify(executor_(fused_infered), ll);
   }
 

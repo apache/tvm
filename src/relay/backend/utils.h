@@ -27,7 +27,6 @@
 
 #include <dmlc/json.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/pass.h>
 #include <tvm/relay/type.h>
 #include <tvm/tvm.h>
 #include <tvm/build_module.h>

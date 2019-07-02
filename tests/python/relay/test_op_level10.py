@@ -20,9 +20,16 @@ import numpy as np
 import tvm
 import topi.testing
 from tvm import relay
+from tvm.relay import transform
 from tvm.relay.testing import ctx_list
 import topi
 import topi.testing
+
+def run_infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_collapse_sum_like():
     shape = (3, 4, 5, 6)
@@ -31,7 +38,7 @@ def test_collapse_sum_like():
     x = relay.Var("x", relay.ty.TensorType(shape , dtype))
     y = relay.Var("y", relay.ty.TensorType(shape_like, dtype))
     z = relay.collapse_sum_like(x, y)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(shape_like, dtype)
 
     func = relay.Function([x, y], z)
@@ -50,7 +57,7 @@ def test_broadcast_to():
     dtype = "float32"
     x = relay.Var("x", relay.ty.TensorType(shape , dtype))
     z = relay.broadcast_to(x, shape=shape_like)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(shape_like, dtype)
 
     func = relay.Function([x], z)
@@ -69,7 +76,7 @@ def test_broadcast_to_like():
     x = relay.Var("x", relay.ty.TensorType(shape , dtype))
     y = relay.Var("y", relay.ty.TensorType(shape_like, dtype))
     z = relay.broadcast_to_like(x, y)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(shape_like, dtype)
 
     func = relay.Function([x, y], z)
@@ -106,7 +113,7 @@ def verify_slice_like(data, slice_like, axes, output, dtype="float32"):
     x = relay.var("data", relay.TensorType(data, dtype))
     y = relay.var("slice_like", relay.TensorType(slice_like, dtype))
     z = relay.slice_like(x, y, axes)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     if axes:
         assert "axes" in z.astext()
     assert zz.checked_type == relay.ty.TensorType(output, dtype)
@@ -144,7 +151,7 @@ def test_reverse_reshape():
     def verify_reverse_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
         z = relay.reverse_reshape(x, newshape=newshape)
-        zz = relay.ir_pass.infer_type(z)
+        zz = run_infer_type(z)
         assert "newshape=" in z.astext()
         assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
 
@@ -166,7 +173,7 @@ def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
     x = relay.var("x", relay.TensorType(x_shape, dtype))
     y = relay.var("y", relay.TensorType(y_shape, dtype))
     z = relay.nn.batch_matmul(x, y)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(out_shape, dtype)
 
     func = relay.Function([x, y], z)
@@ -185,7 +192,7 @@ def test_batch_matmul():
     x = relay.var("x", relay.TensorType((b, m, k), "float32"))
     y = relay.var("y", relay.TensorType((b, n, k), "float32"))
     z = relay.nn.batch_matmul(x, y)
-    zz = relay.ir_pass.infer_type(z)
+    zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((b, m, n), "float32")
 
     verify_batch_matmul((1, 16, 32), (1, 16, 32), (1, 16, 16))
@@ -197,7 +204,7 @@ def test_shape_of():
     shape = (10, 5, 12)
     x = relay.var("x", shape=shape)
     func = relay.Function([x], relay.op.shape_of(x))
-    func = relay.ir_pass.infer_type(func)
+    func = run_infer_type(func)
     x_data = np.random.rand(*shape).astype('float32')
     for target, ctx in ctx_list():
         # Because using graph executor, this op will be optimized after
@@ -256,7 +263,8 @@ def test_sequence_mask():
         data = relay.var("data", relay.TensorType(data_shape, dtype))
         valid_length = relay.var("valid_length", relay.TensorType((nbatch,), itype))
         out = relay.sequence_mask(data, valid_length, mask_value, axis)
-        assert relay.ir_pass.infer_type(out).checked_type == relay.ty.TensorType(data_shape, dtype)
+        checked = run_infer_type(out)
+        assert checked.checked_type == relay.ty.TensorType(data_shape, dtype)
         func = relay.Function([data, valid_length], out)
         data_np = np.random.uniform(size=data_shape).astype(dtype)
         valid_length_np = np.random.randint(0, max_length, size=nbatch).astype(itype)

@@ -30,7 +30,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/data_layout.h>
 #include "pattern_util.h"
 
@@ -188,7 +188,7 @@ int64_t GetTotalMacNumber(const Expr& expr) {
   return MacCounter::GetTotalMacNumber(expr);
 }
 
-TVM_REGISTER_API("relay._ir_pass.GetTotalMacNumber")
+TVM_REGISTER_API("relay._analysis.GetTotalMacNumber")
 .set_body_typed(GetTotalMacNumber);
 
 }  // namespace mac_count

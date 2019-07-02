@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from tvm import relay as rly
-from tvm.relay.ir_pass import simplify_inference, alpha_equal
+from tvm.relay.transform import SimplifyInference
 
 def test_simplify_batchnorm(dtype='float32'):
     def simple_bn(x, gamma, beta, moving_mean, moving_var,
@@ -49,10 +49,13 @@ def test_simplify_batchnorm(dtype='float32'):
             y2 = simple_bn(y2 + rly.const(1, dtype),
                            gamma, beta, moving_mean, moving_var,
                            epsilon=eps, axis=axis, shape=ttype1.shape)
-        y1 = rly.ir_pass.infer_type(y1)
-        y1 = simplify_inference(y1)
 
-        assert rly.ir_pass.graph_equal(y1, y2)
+        mod = rly.Module.from_expr(y1)
+        simplify = SimplifyInference()
+        mod = simplify(mod)
+        y1 = mod["main"].body
+
+        assert rly.analysis.graph_equal(y1, y2)
 
     check(2, 1, 1)
     check(4, 1, 1)

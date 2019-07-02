@@ -18,7 +18,7 @@
 """Caffe2 frontend"""
 from __future__ import absolute_import as _abs
 import tvm
-from .. import ir_pass
+from .. import analysis
 from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
@@ -450,7 +450,7 @@ class Caffe2NetDef(object):
         else:
             outputs = out[0]
 
-        func = _expr.Function(ir_pass.free_vars(outputs), outputs)
+        func = _expr.Function(analysis.free_vars(outputs), outputs)
         self._mod[self._mod.entry_func] = func
 
         return self._mod, self._params

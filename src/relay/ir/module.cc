@@ -23,7 +23,8 @@
  * \brief The global module in Relay.
  */
 #include <tvm/relay/module.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
 #include <sstream>
 
 namespace tvm {
@@ -184,7 +185,26 @@ TVM_REGISTER_API("relay._make.Module")
 .set_body_typed(ModuleNode::make);
 
 TVM_REGISTER_API("relay._make.Module_Add")
-.set_body_method<Module>(&ModuleNode::Add);
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  Module mod = args[0];
+  GlobalVar var = args[1];
+  NodeRef val = args[2];
+  bool update = args[3];
+  CHECK(val->derived_from<ExprNode>());
+  if (val->derived_from<FunctionNode>()) {
+    mod->Add(var, Downcast<Function>(val), update);
+  } else if (val->derived_from<GlobalVarNode>()) {
+    GlobalVar gv = Downcast<GlobalVar>(val);
+    auto mod_copy = Module(make_node<ModuleNode>(*mod.operator->()));
+    mod_copy = transform::EtaExpand()(mod_copy);
+    auto func = mod_copy->Lookup(gv->name_hint);
+    mod->Add(var, Downcast<Function>(func), update);
+  } else {
+    auto func = FunctionNode::make({}, Downcast<Expr>(val), Type(nullptr), {});
+    mod->Add(var, func, update);
+  }
+  *ret = mod;
+});
 
 TVM_REGISTER_API("relay._module.Module_AddDef")
 .set_body_method<Module>(&ModuleNode::AddDef);
@@ -197,39 +217,39 @@ TVM_REGISTER_API("relay._module.Module_GetGlobalTypeVar")
 
 TVM_REGISTER_API("relay._module.Module_Lookup")
 .set_body_typed<Function(Module, GlobalVar)>([](Module mod, GlobalVar var) {
-    return mod->Lookup(var);
-  });
+  return mod->Lookup(var);
+});
 
 TVM_REGISTER_API("relay._module.Module_Lookup_str")
 .set_body_typed<Function(Module, std::string)>([](Module mod, std::string var) {
-    return mod->Lookup(var);
-  });
+  return mod->Lookup(var);
+});
 
 TVM_REGISTER_API("relay._module.Module_LookupDef")
 .set_body_typed<TypeData(Module, GlobalTypeVar)>([](Module mod, GlobalTypeVar var) {
-    return mod->LookupDef(var);
-  });
+  return mod->LookupDef(var);
+});
 
 TVM_REGISTER_API("relay._module.Module_LookupDef_str")
 .set_body_typed<TypeData(Module, std::string)>([](Module mod, std::string var) {
-    return mod->LookupDef(var);
-  });
+  return mod->LookupDef(var);
+});
 
 TVM_REGISTER_API("relay._module.Module_FromExpr")
 .set_body_typed<Module(Expr)>([](Expr e) {
-    return ModuleNode::FromExpr(e);
+  return ModuleNode::FromExpr(e);
 });
 
 TVM_REGISTER_API("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {
-    mod->Update(from);
-  });
+  mod->Update(from);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ModuleNode>(
-    [](const ModuleNode *node, tvm::IRPrinter *p) {
-      p->stream << "ModuleNode( " << node->functions << ")";
-    });
+  [](const ModuleNode *node, tvm::IRPrinter *p) {
+    p->stream << "ModuleNode( " << node->functions << ")";
+});
 
 }  // namespace relay
 }  // namespace tvm

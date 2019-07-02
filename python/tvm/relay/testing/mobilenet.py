@@ -108,7 +108,7 @@ def mobile_net(num_classes=1000, data_shape=(1, 3, 224, 224),
     weight = relay.var('fc_weight')
     fc = relay.nn.dense(data=flatten, weight=weight, units=num_classes)
     softmax = relay.nn.softmax(data=fc)
-    return relay.Function(relay.ir_pass.free_vars(softmax), softmax)
+    return relay.Function(relay.analysis.free_vars(softmax), softmax)
 
 
 def get_workload(batch_size=1, num_classes=1000, image_shape=(3, 224, 224), dtype='float32'):

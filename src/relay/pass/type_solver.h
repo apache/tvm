@@ -27,7 +27,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/error.h>
 #include <vector>
 #include <queue>
