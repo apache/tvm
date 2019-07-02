@@ -303,7 +303,10 @@ Module ToANormalForm(const Module& m) {
       TransformF([&](const Expr& e) {
         return ToANormalFormAux(e);
       }, it.second);
-    CHECK_EQ(FreeVars(ret).size(), 0) << AsText(ret) << "should not has free vars: " << FreeVars(ret);
+    CHECK_EQ(FreeVars(ret).size(), 0)
+      << AsText(ret)
+      << "should not has free vars: "
+      << FreeVars(ret);
     updates.Set(it.first, Downcast<Function>(ret));
   }
 
