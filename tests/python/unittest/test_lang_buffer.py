@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 from tvm.schedule import Buffer
+import numpy as np
 
 def test_buffer():
     m = tvm.var('m')
@@ -108,6 +109,34 @@ def test_buffer_index_merge_mult_mod():
     index_direct = A.vload((0, ((k0 % (k1 / s)) / n) * n + ((k0 % (k1 / n)) % n + (k0 % k1))))
     assert_simplified_equal(index_simplified, index_direct)
 
+def test_buffer_broadcast():
+    m0, m1, m2 = tvm.var("m0"), tvm.var("m1"), tvm.var("m2")
+    n0, n1, n2 = tvm.var("n0"), tvm.var("n1"), tvm.var("n2")
+    o0, o1, o2 = tvm.var("o0"), tvm.var("o1"), tvm.var("o2")
+
+    A = tvm.placeholder((m0, m1, m2), name='A')
+    B = tvm.placeholder((n0, n1, n2), name='B')
+
+    C = tvm.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
+
+    Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
+    Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
+    s = tvm.create_schedule(C.op)
+
+    def check():
+        if not tvm.module.enabled("llvm"):
+            return
+        fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
+        ctx = tvm.cpu(0)
+        a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=(2, 1, 1)).astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), ctx)
+        fadd(a, b, c)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+
+    check()
+
+
 if __name__ == "__main__":
     test_buffer()
     test_buffer_access_ptr()
@@ -115,3 +144,4 @@ if __name__ == "__main__":
     test_buffer_access_ptr_extent()
     test_buffer_vload()
     test_buffer_index_merge_mult_mod()
+    test_buffer_broadcast()

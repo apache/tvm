@@ -242,6 +242,21 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       check = IfThenElse::make(Not::make(is_null), check, Stmt());
       init_nest_.emplace_back(Block::make(check, Evaluate::make(0)));
     }
+  } else if (buffer->buffer_type == kAutoBroadcast) {
+    Type stype = buffer->DefaultIndexType();
+    Expr stride = make_const(stype, 1);
+    for (size_t i = buffer->shape.size(); i != 0; --i) {
+      size_t k = i - 1;
+      std::ostringstream field_name;
+      field_name << v_strides->name_hint << '[' << k << ']';
+      Expr value = cast(buffer->shape[k].type(),
+                        Load::make(tvm_shape_type, v_strides,
+                                   IntImm::make(Int(32), k), const_true(1)));
+      value = tvm::if_then_else(is_null, stride, value);
+      value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
+      Bind_(buffer->strides[k], value, field_name.str(), true);
+      stride = Simplify(stride * buffer->shape[k]);
+    }
   } else {
     std::ostringstream stride_null_err_msg;
     stride_null_err_msg << arg_name << ".strides: expected non-null strides.";
