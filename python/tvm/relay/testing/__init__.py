@@ -17,6 +17,9 @@
 """Utilities for testing and benchmarks"""
 from __future__ import absolute_import as _abs
 
+import tvm.relay as relay
+from tvm.relay import transform
+
 from . import mlp
 from . import resnet
 from . import dqn
@@ -32,8 +35,6 @@ from . import yolo_detection
 from .config import ctx_list
 from .init import create_workload
 from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
-import tvm.relay as relay
-from tvm.relay import transform
 
 
 def run_opt_pass(expr, opt_pass):

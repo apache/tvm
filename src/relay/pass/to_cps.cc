@@ -259,7 +259,7 @@ Function ToCPS(const Function& f, const Module& m, CPSMap* cm, VarMap* vm, const
         next = [&]() {
           if (args.size() == op->args.size()) {
             args.push_back(reify(k));
-            return Expr(CallNode::make(f, args));
+            return Expr(CallNode::make(f, args, op->attrs, op->type_args));
           } else {
             return VisitExpr(op->args[args.size()], [&](const Expr& v) {
               args.push_back(v);
