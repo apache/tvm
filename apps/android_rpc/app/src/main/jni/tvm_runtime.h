@@ -66,6 +66,10 @@
 #include "../src/runtime/vulkan/vulkan_module.cc"
 #endif
 
+#ifdef USE_SORT
+#include "../src/contrib/sort/sort.cc"
+#endif
+
 
 #include <android/log.h>
 

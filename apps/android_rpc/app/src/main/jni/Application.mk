@@ -23,3 +23,7 @@ ifeq ($(USE_VULKAN), 1)
     APP_CPPFLAGS += -DTVM_VULKAN_RUNTIME=1
     APP_LDFLAGS += -lvulkan
 endif
+
+ifeq ($(USE_SORT), 1)
+    APP_CPPFLAGS += -DUSE_SORT=1
+endif
