@@ -25,7 +25,6 @@ from tvm import expr as tvm_expr
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
-from . import ir_pass
 from . import ty as _ty
 from . import expr as _expr
 from .module import Module as _Module
@@ -227,23 +226,23 @@ class GraphExecutor(_interpreter.Executor):
     """
 
     def __init__(self, mod, ctx, target):
+        assert mod is not None
         self.mod = mod
         self.ctx = ctx
         self.target = target
 
     def _make_executor(self, expr=None):
-        if not expr:
-            assert self.mod, "either expr or self.mod should be not null."
-            expr = self.mod[self.mod.entry_func]
-        ret_type = ir_pass.infer_type(expr).ret_type
+        if expr:
+            self.mod[self.mod.entry_func] = expr
+        ret_type = self.mod[self.mod.entry_func].checked_type.ret_type
         num_outputs = len(ret_type.fields) if isinstance(ret_type, _ty.TupleType) else 1
-        graph_json, mod, params = build(expr, target=self.target)
+        graph_json, mod, params = build(self.mod, target=self.target)
         gmodule = _graph_rt.create(graph_json, mod, self.ctx)
         if params:
             gmodule.set_input(**params)
 
         def _graph_wrapper(*args, **kwargs):
-            args = self._convert_args(expr, args, kwargs)
+            args = self._convert_args(self.mod[self.mod.entry_func], args, kwargs)
             # Create map of inputs.
             for i, arg in enumerate(args):
                 gmodule.set_input(i, arg)
@@ -280,6 +279,8 @@ def create_executor(kind="debug",
     target : :py:class:`tvm.Target`
         The corresponding context
     """
+    if mod is None:
+        mod = _Module()
     if ctx is not None:
         assert ctx.device_type == _nd.context(str(target), 0).device_type
     else:
