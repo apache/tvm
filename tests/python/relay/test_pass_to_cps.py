@@ -17,11 +17,11 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import alpha_equal, infer_type, detect_feature
-from tvm.relay.ir_pass import to_cps, un_cps
+from tvm.relay.analysis import alpha_equal, detect_feature
+from tvm.relay.transform import to_cps, un_cps
 from tvm.relay.feature import Feature
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, make_nat_expr
+from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, run_opt_pass
 from tvm.relay import create_executor
 from tvm.relay import Function, transform
 
@@ -42,13 +42,12 @@ def test_recursion():
     double = relay.Function([x], x + x)
     i = relay.var("i", t)
     func = relay.Function([i], p.nat_iterate(double, make_nat_expr(p, 3))(i))
-    func = infer_type(func, mod=mod)
-    cps_func = infer_type(un_cps(infer_type(to_cps(func, mod=mod), mod=mod)), mod=mod)
-    print(mod)
-    print(cps_func)
+    mod[mod.entry_func] = func
+    mod[mod.entry_func] = to_cps(mod[mod.entry_func], mod=mod)
+    mod[mod.entry_func] = un_cps(mod[mod.entry_func])
     ex = create_executor(mod=mod)
     i_nd = rand(dtype, *shape)
-    forward = ex.evaluate(cps_func)(i_nd)
+    forward = ex.evaluate(mod.entry_func)(i_nd)
     tvm.testing.assert_allclose(forward.asnumpy(), 8 * i_nd.asnumpy())
 
 
@@ -57,12 +56,12 @@ def test_recursion():
 # cps and pe can completely eliminate the allocation of reference.
 def test_cps_pe():
     def destroy_ref(x):
-        x = infer_type(x)
+        x = run_infer_type(x)
         x = to_cps(x)
-        x = infer_type(x)
+        x = run_infer_type(x)
         y = un_cps(x)
-        y = infer_type(y)
-        x = transform.OptimizeOnExpr(x, [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)])
+        y = run_infer_type(y)
+        x = run_opt_pass(x, transform.Sequential([transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]))
         assert Feature.fRefCreate not in detect_feature(x)
     unit = relay.Function([], relay.const(0., dtype='float32'))
     f_ref = relay.Var("f_ref")
@@ -82,7 +81,7 @@ def test_cps_pe():
     destroy_ref(F)
 
     G = relay.Function([cond], relay.If(cond, one, two))
-    G = relay.ir_pass.gradient(G)
+    G = relay.transform.gradient(G)
     destroy_ref(G)
 
     x = relay.var("x", shape=(1, 16))
@@ -92,7 +91,7 @@ def test_cps_pe():
     H = relay.If(cond, x, y)
     H = relay.add(H, z)
     H = relay.Function([cond,x,y,z], H)
-    H = relay.ir_pass.gradient(H)
+    H = relay.transform.gradient(H)
     destroy_ref(H)
 
 

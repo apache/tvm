@@ -32,3 +32,17 @@ from . import yolo_detection
 from .config import ctx_list
 from .init import create_workload
 from .nat import add_nat_definitions, count, make_nat_value, make_nat_expr
+import tvm.relay as relay
+from tvm.relay import transform
+
+
+def run_opt_pass(expr, opt_pass):
+    assert isinstance(opt_pass, transform.Pass)
+    mod = relay.Module.from_expr(expr)
+    mod = opt_pass(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
+
+
+def run_infer_type(expr):
+    return run_opt_pass(expr, transform.InferType())
