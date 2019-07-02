@@ -263,10 +263,26 @@ class Vectorizer : public IRMutator {
           {cond, t, f}, op->call_type, op->func, op->value_index);
     }
   }
+  Expr MutateErf_(const Call* op, const Expr& e) {
+    Expr arg = this->Mutate(op->args[0]);
+    if (arg.type().is_vector()) {
+      need_scalarize_ = true;
+      return e;
+    }
+    if (arg.same_as(op->args[0])) {
+      return e;
+    } else {
+      return Call::make(
+          op->type, op->name, {arg}, op->call_type, op->func, op->value_index);
+    }
+  }
   // Call
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->name == intrinsic::tvm_if_then_else) {
       return MutateIfThenElseExpr_(op, e);
+    }
+    if (op->name == "erf") {
+      return MutateErf_(op, e);
     }
     int lane = 0;
     Array<Expr> new_args = MutateArray(op->args, &lane);
