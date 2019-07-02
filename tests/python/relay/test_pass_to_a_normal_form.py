@@ -22,7 +22,6 @@ from tvm.relay import op, create_executor, transform
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count
 from tvm.relay.feature import Feature
-import tvm.relay.testing
 
 
 def run_opt_pass(expr, passes):
@@ -194,10 +193,9 @@ def test_gradient_if():
     net = relay.If(cond, x, x)
     net = relay.add(x, net)
     net = relay.Function([cond,x,y], net)
-    net = relay.ir_pass.infer_type(net)
     mod = relay.Module.from_expr(net)
     mod = relay.transform.ToANormalForm()(mod)
-    mod[mod.entry_func] = relay.ir_pass.gradient(mod[mod.entry_func], mode='higher_order')
+    mod[mod.entry_func] = relay.transform.gradient(mod[mod.entry_func], mode='higher_order')
     mod = relay.transform.ToANormalForm()(mod)
 
 

@@ -17,6 +17,7 @@
 import tvm
 from tvm import relay
 from tvm.relay import transform
+from tvm.relay.testing import run_opt_pass
 
 
 def test_fuse_simple():
