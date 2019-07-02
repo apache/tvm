@@ -84,21 +84,18 @@ class PythonConverter(ExprFunctor):
 
     def optimize(self, prog: Expr):
         '''Performs optimizations necessary to be able to generate code for prog.'''
-        # TODO: use pass manager
-
         # unwrap tuple wrappers (some op calls produce them)
         unwrapped = prog.astuple() if isinstance(prog, relay.TupleWrapper) else prog
-        check = relay.ir_pass.infer_type(unwrapped, self.mod)
-        assert relay.ir_pass.well_formed(check)
+        assert relay.analysis.well_formed(unwrapped)
+        mod = self.mod.from_expr(unwrapped, self.mod.functions, self.mod.type_definitions)
 
         # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
         # and fusion (to get primitive functions)
-        simplify = relay.ir_pass.simplify_inference(check)
-        simplify_checked = relay.ir_pass.infer_type(simplify, self.mod)
-        fused = relay.ir_pass.fuse_ops(simplify_checked, opt_level=0)
-        fused_checked = relay.ir_pass.infer_type(fused, self.mod)
-        assert relay.ir_pass.well_formed(fused_checked)
-        return fused_checked
+        opts = relay.transform.Sequential([relay.transform.SimplifyInference(),
+                                           relay.transform.FuseOps(fuse_opt_level=0)])
+        opts(mod)
+        optimized = mod[mod.entry_func]
+        return optimized if isinstance(unwrapped, Function) else optimized.body
 
 
     def sanitize(self, name: str) -> str:
@@ -233,7 +230,7 @@ class PythonConverter(ExprFunctor):
 
         # compile the function and register globally
         cc_key = compile_engine.CCacheKey(op, self.tgt)
-        func_hash = relay.ir_pass.structural_hash(op)
+        func_hash = relay.analysis.structural_hash(op)
         op_name = '_lowered_op_{}'.format(func_hash)
         if not tvm.get_global_func(op_name, allow_missing=True):
             jitted = self.engine.jit(cc_key, self.tgt)

@@ -187,8 +187,9 @@ void ModuleNode::Update(const Module& mod) {
 
 Module ModuleNode::FromExpr(
   const Expr& expr,
-  const tvm::Map<GlobalVar, Function>& global_funcs) {
-  auto mod = ModuleNode::make(global_funcs, {});
+  const tvm::Map<GlobalVar, Function>& global_funcs,
+  const tvm::Map<GlobalTypeVar, TypeData>& type_definitions) {
+  auto mod = ModuleNode::make(global_funcs, type_definitions);
   auto func_node = expr.as<FunctionNode>();
   Function func;
   if (func_node) {
@@ -266,9 +267,14 @@ TVM_REGISTER_API("relay._module.Module_LookupTag")
   });
 
 TVM_REGISTER_API("relay._module.Module_FromExpr")
-.set_body_typed<Module(Expr)>([](Expr e) {
-  return ModuleNode::FromExpr(e);
-});
+.set_body_typed<
+  Module(Expr,
+         tvm::Map<GlobalVar, Function>,
+         tvm::Map<GlobalTypeVar, TypeData>)>([](Expr e,
+                                                tvm::Map<GlobalVar, Function> funcs,
+                                                tvm::Map<GlobalTypeVar, TypeData> type_defs) {
+                                               return ModuleNode::FromExpr(e, funcs, type_defs);
+                                             });
 
 TVM_REGISTER_API("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {
