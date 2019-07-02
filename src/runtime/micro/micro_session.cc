@@ -25,7 +25,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <memory>
-#include <string>
+#include <vector>
 #include "micro_session.h"
 #include "low_level_device.h"
 #include "target_data_layout_encoder.h"
@@ -154,12 +154,13 @@ void MicroSession::FreeInSection(SectionKind type, DevBaseOffset ptr) {
 
 std::string MicroSession::ReadString(DevBaseOffset str_offset) {
   std::stringstream result;
-  static char buf[256];
-  size_t i = 256;
-  while (i == 256) {
-    low_level_device()->Read(str_offset, reinterpret_cast<void*>(buf), 256);
+  const size_t buf_size = 256;
+  std::vector<char> buf(buf_size, 0);
+  size_t i = buf_size;
+  while (i == buf_size) {
+    low_level_device()->Read(str_offset, buf.data(), buf_size);
     i = 0;
-    while (i < 256) {
+    while (i < buf_size) {
       if (buf[i] == 0) break;
       result << buf[i];
       i++;
