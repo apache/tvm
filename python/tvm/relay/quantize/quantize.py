@@ -22,7 +22,7 @@ import numpy as np
 from . import _quantize
 from .. import expr as _expr
 from .. import module as _module
-from .. import ir_pass as _ir_pass
+from .. import analysis as _analysis
 from .. import transform as _transform
 from .. import op as _op
 from ... import make as _make
@@ -250,7 +250,7 @@ def calibrate(graph, mod=None, ctx=None):
             const_params[nclip_min] = _make_const(- (valid_range - 1))
             const_params[nclip_max] = _make_const((valid_range - 1))
 
-    _ir_pass.post_order_visit(graph, visit_func)
+    _analysis.post_order_visit(graph, visit_func)
     return _expr.bind(graph, const_params)
 
 

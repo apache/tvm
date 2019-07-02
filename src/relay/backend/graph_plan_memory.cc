@@ -25,7 +25,7 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include "../../common/arena.h"
 
 namespace tvm {

@@ -23,7 +23,7 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/packed_func.h>
@@ -100,7 +100,9 @@ TEST(Relay, Sequential) {
       relay::FunctionNode::make(relay::FreeVars(zz), zz, relay::Type(), {});
 
   // Infer type for the expected function.
-  auto expected = relay::InferType(expected_func, relay::Module(nullptr));
+  auto mod1 = relay::ModuleNode::FromExpr(expected_func);
+  mod1 = relay::transform::InferType()(mod1);
+  auto expected = mod1->Lookup(mod1->entry_func);
   CHECK(relay::AlphaEqual(f, expected));
 }
 

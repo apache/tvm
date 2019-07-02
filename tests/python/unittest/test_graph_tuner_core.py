@@ -43,7 +43,7 @@ def _create_data(target, dshape, dtype, layout):
     w2 = relay.var("w2_weight")
     conv2 = relay.nn.conv2d(conv1, w2, channels=32, kernel_size=(3, 3), padding=(1, 1))
     out = relay.add(conv1, conv2)
-    net = relay.Function(relay.ir_pass.free_vars(out), out)
+    net = relay.Function(relay.analysis.free_vars(out), out)
     net, params = relay.testing.create_workload(net)
     tasks = autotvm.task.extract_from_program(net,
                                               target=target,

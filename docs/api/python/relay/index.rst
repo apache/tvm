@@ -33,7 +33,8 @@ compiler stack.
    expr
    frontend
    image
-   ir_pass
+   analysis
+   transform
    module
    nn
    op

@@ -21,7 +21,7 @@
  * Copyright (c) 2018 by Contributors
  * \file constant_folding.cc
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/interpreter.h>
@@ -156,9 +156,13 @@ class ConstantFolder : public ExprMutator {
   }
   // Constant evaluate a expression.
   Expr ConstEvaluate(Expr expr) {
-    expr = InferType(expr, Module(nullptr));
-    expr = FuseOps(expr, 0, Module(nullptr));
-    expr = InferType(expr, Module(nullptr));
+    std::vector<transform::Pass> passes = {transform::FuseOps(0),
+                                           transform::InferType()};
+    auto mod = ModuleNode::FromExpr(expr);
+    auto seq = transform::Sequential(passes);
+    mod = seq(mod);
+    auto entry_func = mod->Lookup(mod->entry_func);
+    expr = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return ValueToExpr(executor_(expr));
   }
   // Evaluate shape_of op
@@ -212,9 +216,6 @@ Expr FoldConstant(const Expr& expr) {
   return ConstantFolder(CreateInterpreter(
       Module(nullptr), ctx, target)).Mutate(expr);
 }
-
-TVM_REGISTER_API("relay._ir_pass.FoldConstant")
-.set_body_typed(FoldConstant);
 
 namespace transform {
 

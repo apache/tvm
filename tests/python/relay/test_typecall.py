@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 from tvm import relay
-from tvm.relay.ir_pass import infer_type
+from tvm.relay import transform
 
 def test_dup_type():
     a = relay.TypeVar("a")
@@ -23,7 +23,10 @@ def test_dup_type():
     make_id = relay.Function([av], relay.Tuple([av, av]), None, [a])
     t = relay.scalar_type("float32")
     b = relay.Var("b", t)
-    assert relay.ir_pass.infer_type(make_id(b)).checked_type == relay.TupleType([t, t])
+    mod = relay.Module.from_expr(make_id(b))
+    mod = transform.InferType()(mod)
+    inferred = mod[mod.entry_func].body
+    assert inferred.checked_type == relay.TupleType([t, t])
 
 
 def test_id_type():
@@ -36,7 +39,9 @@ def test_id_type():
     make_id = relay.Var("make_id", relay.FuncType([b], id_type(b), [b]))
     t = relay.scalar_type("float32")
     b = relay.Var("b", t)
-    assert relay.ir_pass.infer_type(make_id(b), mod).checked_type == id_type(t)
+    mod[mod.entry_func] = relay.Function([], make_id(b))
+    mod = transform.InferType()(mod)
+    assert mod[mod.entry_func].body.checked_type == id_type(t)
 
 
 if __name__ == "__main__":

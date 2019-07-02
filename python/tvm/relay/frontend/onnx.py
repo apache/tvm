@@ -22,7 +22,7 @@ import logging
 import numpy as np
 import tvm
 from ... import nd as _nd
-from .. import ir_pass
+from .. import analysis
 from .. import transform as _transform
 from .. import expr as _expr
 from .. import module as _module
@@ -412,7 +412,7 @@ class Reshape(OnnxOpConverter):
         else:
             data, shape = inputs
             logging.warning("Constant evaluating Reshape's shape argument, may reduce performance")
-            shape_params = ir_pass.free_vars(shape)
+            shape_params = analysis.free_vars(shape)
             func = _expr.Function(shape_params, shape)
             mod = _module.Module.from_expr(func)
             seq = _transform.Sequential([_transform.InferType(),
@@ -1106,7 +1106,7 @@ class GraphProto(object):
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        func = _expr.Function(ir_pass.free_vars(outputs), outputs)
+        func = _expr.Function(analysis.free_vars(outputs), outputs)
         return _module.Module.from_expr(func), self._params
 
     def _parse_value_proto(self, value_proto):

@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import numpy as np
 
 from . import _backend
-from .. import _make, ir_pass, transform
+from .. import _make, analysis, transform
 from .. import module
 from ... import register_func, nd
 from ..base import NodeBase, register_relay_node
@@ -239,7 +239,7 @@ class Executor(object):
             return self._make_executor()
 
         if isinstance(expr, Function):
-            assert not ir_pass.free_vars(expr)
+            assert not analysis.free_vars(expr)
 
         if isinstance(expr, (Function, GlobalVar)):
             return self._make_executor(expr)

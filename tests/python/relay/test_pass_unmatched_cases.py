@@ -18,7 +18,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.prelude import Prelude
-from tvm.relay.ir_pass import unmatched_cases
+from tvm.relay.analysis import unmatched_cases
 
 def test_empty_match_block():
     # empty match block will not match anything, so it should return a wildcard pattern

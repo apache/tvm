@@ -16,12 +16,11 @@
 # under the License.
 import mxnet as mx
 from tvm import relay
+from tvm.relay import transform
 import model_zoo
 
 def compare_graph(f1, f2):
-    f1 = relay.ir_pass.infer_type(f1)
-    f2 = relay.ir_pass.infer_type(f2)
-    assert relay.ir_pass.alpha_equal(f1, f2)
+    assert relay.analysis.alpha_equal(f1, f2)
 
 def test_mlp():
     shape = {"data": (1, 1, 28, 28)}
@@ -97,7 +96,10 @@ def test_multi_outputs():
         y = F.var("y", shape=yshape)
         z = F.split(x, **kwargs)
         z = F.subtract(F.add(z[0], z[2]), y)
-        return relay.Function(relay.ir_pass.free_vars(z), z)
+        func = relay.Function(relay.analysis.free_vars(z), z)
+        mod = relay.Module.from_expr(func)
+        mod = transform.InferType()(mod)
+        return mod[mod.entry_func]
 
     mx_sym = mx_compose(mx, num_outputs=3, axis=1)
     mod, _ = relay.frontend.from_mxnet(

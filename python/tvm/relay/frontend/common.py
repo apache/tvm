@@ -19,8 +19,8 @@ from __future__ import absolute_import as _abs
 import logging
 from topi.util import get_const_tuple
 from .. import expr as _expr
-from .. import expr as _expr
-from .. import ir_pass
+from .. import module as _module
+from .. import transform as _transform
 from .. import op as _op
 
 
@@ -407,9 +407,17 @@ def get_name(node):
         name = node.name_hint
     return name
 
+
+def infer_type(node):
+    """A method to infer the type of an intermediate node in the relay graph."""
+    mod = _module.Module.from_expr(node)
+    mod = _transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(node, _expr.Function) else entry.body
+
 def infer_shape(inputs):
     """A method to get the output shape of an intermediate node in the graph."""
-    out_type = ir_pass.infer_type(inputs)
+    out_type = infer_type(inputs)
     out_shapes = get_const_tuple(out_type.checked_type.shape)
     return out_shapes
 
@@ -417,7 +425,7 @@ def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide
     these attributes. We check the shape of weights provided to get the number.
     """
-    out_type = ir_pass.infer_type(inputs)
+    out_type = infer_type(inputs)
     out_shapes = [get_const_tuple(out_type.checked_type.shape)]
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels

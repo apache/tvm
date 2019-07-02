@@ -21,7 +21,7 @@
  * Copyright (c) 2018 by Contributors
  * \file simplify_inference.cc
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
@@ -102,9 +102,6 @@ class InferenceSimplifier : public ExprMutator {
 Expr SimplifyInference(const Expr& e) {
   return InferenceSimplifier().Mutate(e);
 }
-
-TVM_REGISTER_API("relay._ir_pass.simplify_inference")
-.set_body_typed(SimplifyInference);
 
 namespace transform {
 

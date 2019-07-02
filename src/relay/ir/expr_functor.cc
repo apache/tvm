@@ -345,7 +345,7 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_REGISTER_API("relay._ir_pass.post_order_visit")
+TVM_REGISTER_API("relay._analysis.post_order_visit")
 .set_body_typed<void(Expr, PackedFunc)>([](Expr expr, PackedFunc f) {
     PostOrderVisit(expr, [f](const Expr& n) {
         f(n);

@@ -18,41 +18,20 @@
  */
 
 /*!
- * \file tvm/relay/pass.h
- * \brief The set of Relay passes written in C++.
-  */
-#ifndef TVM_RELAY_PASS_H_
-#define TVM_RELAY_PASS_H_
+ * \file tvm/relay/analysis.h
+ * \brief The set of Relay analysis passes written in C++.
+ */
+#ifndef TVM_RELAY_ANALYSIS_H_
+#define TVM_RELAY_ANALYSIS_H_
 
-#include <tvm/ir.h>
-#include <tvm/packed_func_ext.h>
+#include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/module.h>
-#include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/type.h>
-#include <tvm/relay/adt.h>
-#include <tvm/relay/transform.h>
-#include <tvm/runtime/vm.h>
 #include <string>
-#include <vector>
 
 namespace tvm {
 namespace relay {
-
-/*!
- * \brief Infer the type of an expression.
- *
- * The result of type checking is a new expression with unambigous
- * type information filled in, as well as it's checked type field
- * populated with the result type.
- *
- * \param expr The expression to type check.
- * \param mod The module used for referencing global functions, can be
- * None.
- *
- * \return A type checked expression with its checked_type field populated.
- */
-TVM_DLL Expr InferType(const Expr& expr, const Module& mod);
 
 /*!
  * \brief Infer the type of a function as if it is mapped to var in the mod.
@@ -64,7 +43,8 @@ TVM_DLL Expr InferType(const Expr& expr, const Module& mod);
  * \return A type checked Function with its checked_type field populated.
  * \note this function mutates mod and is not thread-safe.
  */
-TVM_DLL Function InferType(const Function& f, const Module& mod,
+TVM_DLL Function InferType(const Function& f,
+                           const Module& mod,
                            const GlobalVar& var);
 
 /*!
@@ -272,58 +252,6 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod);
 TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
 
 /*!
- * \brief Fold constant expressions.
- *
- * \param expr the expression to be optimized.
- *
- * \return The optimized expression.
- */
-TVM_DLL Expr FoldConstant(const Expr& expr);
-
-/*!
- * \brief Fuse operations into expr into seperate functions.
- *
- * \param expr The expression.
- * \param fuse_opt_level Optimization level.
- * \param mod the module.
- *
- * \return The optimized expression.
- */
-TVM_DLL Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& mod);
-
-/*!
- * \brief Apply rewrite rules to rewrite the expr in post DFS order.
- *
- * \param expr The expression.
- * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
- *                              rule function.
- * \param fcontext Additional callback to provide context argument for each call node.
- * \param fmulti_ref_trigger Transformation function to be called when
- *                           an Expr consumed by multiple callers.
- * \return The rewritten expression.
- */
-TVM_DLL Expr ForwardRewrite(const Expr& expr,
-                            const std::string& rewrite_map_attr_name,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
-                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
-
-/*!
- * \brief Apply rewrite rules to rewrite the expr in post DFS order.
- *
- * \param expr The expression.
- * \param rewrite_func The rewrite func that will apply to all operators.
- * \param fcontext Additional callback to provide context argument for each call node.
- * \param fmulti_ref_trigger Transformation function to be called when
- *                           an Expr consumed by multiple callers.
- *
- * \return The rewritten expression.
- */
-TVM_DLL Expr ForwardRewrite(const Expr& expr,
-                            const FForwardRewrite& rewrite_func,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
-                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
-
-/*!
  * \brief Rewrite the annotated program.
  *
  * \param expr The expression.
@@ -364,19 +292,6 @@ TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
  */
 TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
 
-/*!
- * \brief Bind the free variables to a Relay expression.
- *
- * Parameter binding can only happen if expr is a Function.
- * binds cannot change internal arguments of internal functions.
- *
- * \param expr The function to be binded.
- * \param binds The map of arguments to
- *
- * \return The expression with all free vars bound.
- */
-TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
-
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {
   /*! \brief Hash a Relay type.
@@ -388,7 +303,6 @@ struct StructuralHash {
    * \return the hash value.
    */
   size_t operator()(const Type& type) const;
-
   /*! \brief Hash a Relay expression.
    *
    * Implements structural hashing of a Relay expression.
@@ -400,20 +314,7 @@ struct StructuralHash {
   size_t operator()(const Expr& expr) const;
 };
 
-namespace vm {
-
-/*!
- * \brief Compile a module, and construct the virtual machine.
- *
- * \param mod The module to compile.
- *
- * \return The constructed virtual machine.
- */
-runtime::vm::VirtualMachine CompileModule(const Module& mod);
-
-}  // namespace vm
-
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_PASS_H_
+#endif  // TVM_RELAY_ANALYSIS_H_

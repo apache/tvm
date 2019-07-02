@@ -150,10 +150,11 @@ def create_workload(net, initializer=None, seed=0):
     params : dict of str to NDArray
         The parameters.
     """
-    net = relay.ir_pass.infer_type(net)
+    mod = relay.Module.from_expr(net)
+    mod = relay.transform.InferType()(mod)
+    net = mod[mod.entry_func]
     shape_dict = {
         v.name_hint : v.checked_type for v in net.params}
-    net.astext()
     np.random.seed(seed)
     initializer = initializer if initializer else Xavier()
     params = {}

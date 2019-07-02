@@ -19,7 +19,18 @@ import tvm
 
 from tvm import relay
 from tvm.relay.op import register_alter_op_layout
-from tvm.relay.ir_pass import *
+from tvm.relay import transform, analysis
+
+
+def run_opt_pass(expr, passes):
+    passes = passes if isinstance(passes, list) else [passes]
+    mod = relay.Module.from_expr(expr)
+    seq = transform.Sequential(passes)
+    with transform.PassContext(opt_level=3):
+        mod = seq(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
+
 
 def test_alter_op():
     """Test directly replacing an operator with a new one"""
@@ -52,13 +63,10 @@ def test_alter_op():
         return y
 
     a = before()
-    a = infer_type(a)
-    a = alter_op_layout(a)
+    a = run_opt_pass(a, transform.AlterOpLayout())
+    b = run_opt_pass(expected(), transform.InferType())
 
-    b = expected()
-    b = infer_type(b)
-
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_return_none():
@@ -77,12 +85,11 @@ def test_alter_return_none():
         return None
 
     a = before()
-    a = infer_type(a)
-    a = alter_op_layout(a)
+    a = run_opt_pass(a, transform.AlterOpLayout())
 
     b = before()
-    b = infer_type(b)
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    b = run_opt_pass(b, transform.InferType())
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
 
@@ -102,7 +109,7 @@ def test_alter_layout():
         y = relay.nn.max_pool2d(y, pool_size=(2, 2))
         y = relay.cast(y, 'int32')
         y = relay.nn.batch_flatten(y)
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     @register_alter_op_layout("nn.conv2d", level=102)
@@ -135,20 +142,17 @@ def test_alter_layout():
         y = relay.cast(y, 'int32')
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
         y = relay.nn.batch_flatten(y)
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = canonicalize_ops(a)
-    a = infer_type(a)
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                         transform.AlterOpLayout()])
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_dual_path():
@@ -172,7 +176,7 @@ def test_alter_layout_dual_path():
         y1 = relay.nn.relu(y1)
         y2 = relay.nn.batch_flatten(y)
         ret = relay.Tuple([y1, y2])
-        y = relay.Function(free_vars(ret), ret)
+        y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
     @register_alter_op_layout("nn.conv2d", level=103)
@@ -203,18 +207,16 @@ def test_alter_layout_dual_path():
         y2 = relay.layout_transform(y, "NCHW16c", "NCHW")
         y2 = relay.nn.batch_flatten(y2)
         ret = relay.Tuple([y1, y2])
-        y = relay.Function(free_vars(ret), ret)
+        y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, transform.AlterOpLayout())
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_resnet():
     """Test alternating the layout of a residual block
@@ -236,7 +238,7 @@ def test_alter_layout_resnet():
         y2 = relay.nn.relu(y2)
         y = y + y2
         y = relay.nn.global_max_pool2d(y)
-        return relay.Function(free_vars(y), y)
+        return relay.Function(analysis.free_vars(y), y)
 
     @register_alter_op_layout("nn.conv2d", level=104)
     def alter_conv2d(attrs, inputs, tinfos):
@@ -264,17 +266,15 @@ def test_alter_layout_resnet():
         y = y + y2
         y = relay.nn.global_max_pool2d(y, layout="NCHW16c")
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
-        return relay.Function(free_vars(y), y)
+        return relay.Function(analysis.free_vars(y), y)
 
     a = before()
-    a = infer_type(a)
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, transform.AlterOpLayout())
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_broadcast_op():
@@ -287,7 +287,7 @@ def test_alter_layout_broadcast_op():
         y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         y = relay.nn.bias_add(y, bias) # test broadcasting to lhs
         y = relay.multiply(scale, y)         # test broadcasting to rhs
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     @register_alter_op_layout("nn.conv2d", level=105)
@@ -311,20 +311,17 @@ def test_alter_layout_broadcast_op():
         y = relay.add(y, bias)          # test broadcasting to lhs
         y = relay.multiply(scale, y)      # test broadcasting to rhs
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = canonicalize_ops(a)
-    a = infer_type(a)
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                         transform.AlterOpLayout()])
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_scalar():
     """Test alternating the layout of a conv2d.
@@ -335,7 +332,7 @@ def test_alter_layout_scalar():
         weight = relay.var("weight")
         y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         y = relay.add(y, relay.const(1, "float32"))
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     @register_alter_op_layout("nn.conv2d", level=106)
@@ -358,20 +355,17 @@ def test_alter_layout_scalar():
         y = relay.add(y, relay.const(1.0, "float32"))
 
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = canonicalize_ops(a)
-    a = infer_type(a)
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                         transform.AlterOpLayout()])
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_concatenate():
     """ """
@@ -388,7 +382,7 @@ def test_alter_layout_concatenate():
                              kernel_size=(3, 3),
                              padding=(1, 1))
         ret = relay.concatenate([y, y1], axis=1)
-        y = relay.Function(free_vars(ret), ret)
+        y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
     @register_alter_op_layout("nn.conv2d", level=107)
@@ -415,18 +409,16 @@ def test_alter_layout_concatenate():
                              data_layout='NCHW16c')
         ret = relay.concatenate([y, y1], axis=1)
         ret = relay.layout_transform(ret, "NCHW16c", "NCHW")
-        y = relay.Function(free_vars(ret), ret)
+        y = relay.Function(analysis.free_vars(ret), ret)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, transform.AlterOpLayout())
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_nchw_upsamping_op():
@@ -437,7 +429,7 @@ def test_alter_layout_nchw_upsamping_op():
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
         y = relay.nn.upsampling(y, scale=2)
         y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2))
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     @register_alter_op_layout("nn.conv2d", level=108)
@@ -456,21 +448,17 @@ def test_alter_layout_nchw_upsamping_op():
         y = relay.nn.upsampling(y, scale=2, layout="NCHW16c")
         y = relay.nn.avg_pool2d(y, pool_size=(2, 2), strides=(2, 2), layout='NCHW16c')
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = canonicalize_ops(a)
-    a = infer_type(a)
-
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                         transform.AlterOpLayout()])
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_alter_layout_strided_slice():
@@ -480,7 +468,7 @@ def test_alter_layout_strided_slice():
         weight = relay.var('weight', shape=(32, 32, 3, 3))
         y = relay.nn.conv2d(x, weight, channels=32, kernel_size=(3, 3), padding=(1, 1))
         y = relay.strided_slice(y, begin=[0, 16], end=[None, None])
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     @register_alter_op_layout("nn.conv2d", level=109)
@@ -498,21 +486,17 @@ def test_alter_layout_strided_slice():
                             data_layout="NCHW4c")
         y = relay.strided_slice(y, begin=[0, 4], end=[None, 8])
         y = relay.layout_transform(y, "NCHW4c", "NCHW")
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = canonicalize_ops(a)
-    a = infer_type(a)
-
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                         transform.AlterOpLayout()])
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert alpha_equal(a, b), "Actual = \n" + str(a)
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 def test_alter_layout_depthwise_conv2d():
     """Test depthwise_conv2d operator"""
@@ -520,7 +504,7 @@ def test_alter_layout_depthwise_conv2d():
         x = relay.var("x", shape=(1, 32, 56, 56))
         w = relay.var("w", shape=(32, 1, 3, 3))
         y = relay.nn.conv2d(x, w, padding=(1, 1), channels=32, kernel_size=(3, 3), groups=32)
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     import topi
@@ -538,20 +522,17 @@ def test_alter_layout_depthwise_conv2d():
                                                     groups=32, data_layout="NCHW8c", kernel_layout="OIHW1i8o",
                                                     out_layout="NCHW8c")
         y = relay.layout_transform(y, "NCHW8c", "NCHW")
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = canonicalize_ops(a)
-    a = infer_type(a)
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                         transform.AlterOpLayout()])
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert(alpha_equal(a, b))
+    assert(analysis.alpha_equal(a, b))
 
 def test_alter_layout_prelu():
     """Test PRelu operator"""
@@ -561,7 +542,7 @@ def test_alter_layout_prelu():
         alpha = relay.var("alpha", relay.IncompleteType())
         y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         y = relay.nn.prelu(y, alpha)
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     @register_alter_op_layout("nn.conv2d", level=111)
@@ -584,20 +565,16 @@ def test_alter_layout_prelu():
                             data_layout="NCHW16c")
         y = relay.layout_transform(y, "NCHW16c", "NCHW")
         y = relay.nn.prelu(y, alpha)
-        y = relay.Function(free_vars(y), y)
+        y = relay.Function(analysis.free_vars(y), y)
         return y
 
     a = before()
-    a = infer_type(a)
-    a = canonicalize_ops(a)
-    a = infer_type(a)
-    a = alter_op_layout(a)
-    a = infer_type(a)
+    a = run_opt_pass(a, [transform.CanonicalizeOps(), transform.AlterOpLayout()])
 
     b = expected()
-    b = infer_type(b)
+    b = run_opt_pass(b, transform.InferType())
 
-    assert(alpha_equal(a, b))
+    assert(analysis.alpha_equal(a, b))
 
 
 if __name__ == "__main__":

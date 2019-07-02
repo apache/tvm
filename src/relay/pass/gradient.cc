@@ -26,7 +26,8 @@
 #include <tvm/lowered_func.h>
 #include <tvm/operation.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
 #include "pattern_util.h"
 #include "let_list.h"
 #include "../ir/type_functor.h"
@@ -246,7 +247,7 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._ir_pass.first_order_gradient")
+TVM_REGISTER_API("relay._analysis.first_order_gradient")
 .set_body_typed(FirstOrderGradient);
 
 struct ReverseADType : TypeMutator {
@@ -351,7 +352,7 @@ Expr Gradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._ir_pass.gradient")
+TVM_REGISTER_API("relay._transform.gradient")
 .set_body_typed(Gradient);
 
 }  // namespace relay

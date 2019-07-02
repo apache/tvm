@@ -60,8 +60,11 @@ def test_canonicalize_cast():
             mod = seq(mod)
         y = mod[mod.entry_func.name_hint]
         y_expected = expected(data, conv_weight, bias1, bias2)
-        y_expected = relay.ir_pass.infer_type(y_expected)
-        assert relay.ir_pass.alpha_equal(y, y_expected)
+        gv = relay.GlobalVar("expected")
+        mod[gv] = y_expected
+        mod = _transform.InferType()(mod)
+        y_expected = mod["expected"]
+        assert relay.analysis.alpha_equal(y, y_expected)
 
     check((1, 16, 7, 7))
 

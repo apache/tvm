@@ -27,7 +27,7 @@
  * to replace an expression with a previously appeared expression with the same input and
  * attributes. The fskip callback argument allows us to skip specific expressions.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <unordered_map>
@@ -84,9 +84,6 @@ class CommonSubexprEliminator : public ExprMutator {
 Expr EliminateCommonSubexpr(const Expr& expr, PackedFunc callback) {
   return CommonSubexprEliminator(callback)(expr);
 }
-
-TVM_REGISTER_API("relay._ir_pass.eliminate_common_subexpr")
-.set_body_typed<Expr(Expr, PackedFunc)>(EliminateCommonSubexpr);
 
 namespace transform {
 

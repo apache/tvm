@@ -22,7 +22,7 @@
  * \file well_formed.cc
  * \brief check that expression is well formed.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <unordered_set>
@@ -78,7 +78,7 @@ bool WellFormed(const Expr& e) {
   return WellFormedChecker().CheckWellFormed(e);
 }
 
-TVM_REGISTER_API("relay._ir_pass.well_formed")
+TVM_REGISTER_API("relay._analysis.well_formed")
 .set_body_typed(WellFormed);
 
 }  // namespace relay

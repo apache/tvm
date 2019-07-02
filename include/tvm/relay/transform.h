@@ -379,36 +379,6 @@ TVM_DLL Pass FoldConstant();
 TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 
 /*!
- * \brief Apply rewrite rules to rewrite the expr in post DFS order.
- *
- * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
- *                              rule function.
- * \param fcontext Additional callback to provide context argument for each call node.
- * \param fmulti_ref_trigger Transformation function to be called when
- *                           an Expr consumed by multiple callers.
- *
- * \return The pass.
- */
-TVM_DLL Pass ForwardRewrite(const std::string& rewrite_map_attr_name,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
-                            std::function<Expr(const Expr&)>
-                            fmulti_ref_trigger = nullptr);
-
-/*!
- * \brief Apply rewrite rules to rewrite the expr in post DFS order.
- *
- * \param rewrite_func The rewrite func that will apply to all operators.
- * \param fcontext Additional callback to provide context argument for each call node.
- * \param fmulti_ref_trigger Transformation function to be called when
- *                           an Expr consumed by multiple callers.
- *
- * \return The pass.
- */
-TVM_DLL Pass ForwardRewrite(const FForwardRewrite& rewrite_func,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
-                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
-
-/*!
  * \brief Rewrite the annotated program.
  *
  * \param fallback_device The fallback device which is the default device for
@@ -554,21 +524,68 @@ TVM_DLL Pass CanonicalizeCast();
  */
 TVM_DLL Pass EtaExpand();
 
-/*!
- * \brief This is a helper function that runs a some optimization passes on
- * a certain expression and returns the optimized version. With the help of this
- * function, users don't need to manually construct a module, then perform
- * passes, and finally and extract the target function/expression from the
- * returned module frequently.
- *
- * \param expr The expression to be optimized.
- * \param passes The passses that will be applied on the given expression.
- *
- * \return The optimized expression.
- */
-TVM_DLL Expr OptimizeOnExpr(const Expr& expr, const Array<Pass>& passes);
-
 }  // namespace transform
+
+/*!
+ * \brief Bind the free variables to a Relay expression. This is a helper
+ * function usually called by other pass functions to help optimizations.
+ *
+ * \param expr The input expression.
+ * \param binds The variable to expression map that will be used to help the
+ *        binding.
+ *
+ * \return The updated expression.
+ */
+TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
+
+/*!
+ * \brief Infer the type of a function as if it is mapped to var in the mod.
+ *
+ * \param f the function.
+ * \param mod The module used for referencing global functions.
+ * \param var The global variable corresponding to the function.
+ *
+ * \return A type checked Function with its checked_type field populated.
+ * \note this function mutates mod and is not thread-safe.
+ */
+TVM_DLL Function InferType(const Function& f,
+                           const Module& mod,
+                           const GlobalVar& var);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order. This
+ * function is used as a helper function to rewrtie an expression in a pass.
+ *
+ * \param expr The expression.
+ * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
+ *                              rule function.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ * \return The rewritten expression.
+ */
+TVM_DLL Expr ForwardRewrite(const Expr& expr,
+                            const std::string& rewrite_map_attr_name,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order. This
+ * function is used as a helper function to rewrtie an expression in a pass.
+ *
+ * \param expr The expression.
+ * \param rewrite_func The rewrite func that will apply to all operators.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ *
+ * \return The rewritten expression.
+ */
+TVM_DLL Expr ForwardRewrite(const Expr& expr,
+                            const FForwardRewrite& rewrite_func,
+                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
 }  // namespace relay
 }  // namespace tvm
 

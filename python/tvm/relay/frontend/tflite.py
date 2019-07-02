@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 import math
 import numpy as np
 import tvm
-from .. import ir_pass
+from .. import analysis
 from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
@@ -914,5 +914,5 @@ def from_tflite(model, shape_dict, dtype_dict):
     params = {k:_nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _expr.Function(ir_pass.free_vars(outputs), outputs)
+    func = _expr.Function(analysis.free_vars(outputs), outputs)
     return _module.Module.from_expr(func), params

@@ -23,7 +23,7 @@
  * \brief Detect features used in Expr/Module
  */
 #include <tvm/relay/feature.h>
-#include <tvm/relay/pass.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/module.h>
@@ -97,7 +97,7 @@ Array<Integer> PyDetectFeature(const Expr& expr, const Module& mod) {
   return static_cast<Array<Integer>>(fs);
 }
 
-TVM_REGISTER_API("relay._ir_pass.detect_feature")
+TVM_REGISTER_API("relay._analysis.detect_feature")
 .set_body_typed(PyDetectFeature);
 
 }  // namespace relay

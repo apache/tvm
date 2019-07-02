@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI exposing the Relay type inference and checking."""
+"""FFI exposing the passes for Relay program analysis."""
 
 from tvm._ffi.function import _init_api
 
-_init_api("relay._ir_pass", __name__)
+_init_api("relay._analysis", __name__)

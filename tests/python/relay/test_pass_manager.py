@@ -21,9 +21,16 @@ import tvm
 from tvm import relay
 from tvm.relay import ExprFunctor
 from tvm.relay import Function, Call
-from tvm.relay import ir_pass
+from tvm.relay import analysis
 from tvm.relay import transform as _transform
 from tvm.relay.testing import ctx_list
+
+
+def run_infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = _transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 
 def get_var_func():
@@ -107,9 +114,9 @@ def get_rand(shape, dtype='float32'):
 
 
 def check_func(func, ref_func):
-    func = ir_pass.infer_type(func)
-    ref_func = ir_pass.infer_type(ref_func)
-    assert ir_pass.graph_equal(func, ref_func)
+    func = run_infer_type(func)
+    ref_func = run_infer_type(ref_func)
+    assert analysis.graph_equal(func, ref_func)
 
 
 def test_module_pass():
@@ -493,8 +500,8 @@ def test_sequential_with_scoping():
             mod = seq(mod)
 
     zz = mod["main"]
-    zexpected = ir_pass.infer_type(expected())
-    assert relay.ir_pass.alpha_equal(zz, zexpected)
+    zexpected = run_infer_type(expected())
+    assert analysis.alpha_equal(zz, zexpected)
 
 
 if __name__ == "__main__":

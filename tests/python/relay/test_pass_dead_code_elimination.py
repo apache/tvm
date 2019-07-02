@@ -19,7 +19,7 @@ from nose.tools import nottest
 import tvm
 from tvm import relay
 from tvm.relay import Function, transform
-from tvm.relay.ir_pass import alpha_equal, graph_equal, free_vars
+from tvm.relay.analysis import alpha_equal, graph_equal, free_vars
 from tvm.relay.op import log, add, equal, subtract
 
 
@@ -45,28 +45,36 @@ class env:
 e = env()
 
 
+def run_opt_pass(expr, opt_pass):
+    assert isinstance(opt_pass, transform.Pass)
+    mod = relay.Module.from_expr(expr)
+    mod = opt_pass(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
+
+
 def test_let():
     orig = relay.Let(e.x, e.y, e.z)
-    orig = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
+    orig = run_opt_pass(orig, transform.DeadCodeElimination())
     assert alpha_equal(Function(free_vars(orig), orig), Function([e.z], e.z))
 
 
 def test_used_let():
     orig = relay.Let(e.c, e.one, e.c + e.c)
-    orig = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
+    orig = run_opt_pass(orig, transform.DeadCodeElimination())
     expected = relay.Let(e.c, e.one, e.c + e.c)
     assert alpha_equal(Function([e.c], orig), Function([e.c], expected))
 
 @nottest
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
-    orig = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
+    orig = run_opt_pass(orig, transform.DeadCodeElimination())
     assert alpha_equal(Function(free_vars(orig), orig), Function([e.d], e.d))
 
 
 def test_chain_unused_let():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.e))
-    orig = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
+    orig = run_opt_pass(orig, transform.DeadCodeElimination())
     assert alpha_equal(Function(free_vars(orig), orig), Function([e.e], e.e))
 
 
@@ -93,17 +101,17 @@ def test_recursion():
                                        log(data)]))
     value = relay.Function([n, data], funcbody, e.float32, [])
     orig = relay.Let(f, value, relay.Call(f, [relay.const(2), relay.const(10000.0)]))
-    dced = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
-    orig = transform.OptimizeOnExpr(orig, transform.InferType())
+    dced = run_opt_pass(orig, transform.DeadCodeElimination())
+    orig = run_opt_pass(orig, transform.InferType())
     assert graph_equal(dced, orig)
-    dced = transform.OptimizeOnExpr(relay.Let(f, value, e.three),
-                                    transform.DeadCodeElimination())
+    dced = run_opt_pass(relay.Let(f, value, e.three),
+                        transform.DeadCodeElimination())
     assert alpha_equal(dced, e.three)
 
 
 def test_op_let():
-    dced = transform.OptimizeOnExpr(add(relay.Let(e.a, e.one, e.three), e.two),
-                                   transform.DeadCodeElimination())
+    dced = run_opt_pass(add(relay.Let(e.a, e.one, e.three), e.two),
+                        transform.DeadCodeElimination())
     assert alpha_equal(dced, add(e.three, e.two))
 
 
@@ -112,10 +120,10 @@ def test_tuple_get_item():
     t = relay.Var('t', tt)
     a = relay.Var('a')
     g = relay.TupleGetItem(t, 0)
-    dced = transform.OptimizeOnExpr(g, transform.DeadCodeElimination())
+    dced = run_opt_pass(g, transform.DeadCodeElimination())
     assert alpha_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
     orig = relay.TupleGetItem(relay.Let(a, e.one, t), 0)
-    dced = transform.OptimizeOnExpr(orig, transform.DeadCodeElimination())
+    dced = run_opt_pass(orig, transform.DeadCodeElimination())
     assert alpha_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
 
 

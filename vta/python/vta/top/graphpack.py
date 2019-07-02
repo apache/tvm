@@ -18,8 +18,16 @@
 """A Relay implementation of graph packing."""
 
 from tvm import relay
-from tvm.relay import op
+from tvm.relay import op, transform
 from tvm.relay import ExprMutator
+
+def run_opt_pass(expr, opt_pass):
+    """Exectue a relay pass."""
+    assert isinstance(opt_pass, transform.Pass)
+    mod = relay.Module.from_expr(expr)
+    mod = opt_pass(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 def _to_shape(shape):
     return tuple(int(sh) for sh in shape)
@@ -231,7 +239,7 @@ def get_subgraph(expr, start_name, stop_name):
     """
     bitpack_start = op.op.get('annotation.bitpack_start')
     bitpack_end = op.op.get('annotation.bitpack_end')
-    anf = relay.ir_pass.to_a_normal_form(expr)
+    anf = run_opt_pass(expr, transform.ToANormalForm())
     def _recursion(anf, start_found, stop_found):
         """ Helper to obtain the subgraph.
         """
@@ -262,7 +270,7 @@ def get_subgraph(expr, start_name, stop_name):
             assert stop_found
             return anf
     annotated = _recursion(anf, False, False)
-    return relay.ir_pass.infer_type(relay.ir_pass.to_graph_normal_form(annotated))
+    return run_opt_pass(annotated, transform.ToGraphNormalForm())
 
 def graph_pack(expr,
                bfactor,
@@ -299,10 +307,10 @@ def graph_pack(expr,
     """
     assert isinstance(expr, relay.Function)
     expr = get_subgraph(expr, start_name, stop_name)
-    expr = relay.ir_pass.infer_type(expr)
+    expr = run_opt_pass(expr, transform.InferType())
     packer = ExprPack(
         bfactor, cfactor,
         weight_bits)
     expr = packer.visit(expr)
     assert not packer.start_pack
-    return relay.ir_pass.infer_type(expr)
+    return run_opt_pass(expr, transform.InferType())

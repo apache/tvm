@@ -18,12 +18,13 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.ir_pass import alpha_equal, gradient
+from tvm.relay.analysis import alpha_equal
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
 from tvm.relay import TensorType, Tuple, If, Module, Clause, PatternConstructor, PatternVar, Match
 from tvm.relay import GlobalVar, Call
+from tvm.relay.transform import gradient
 from tvm.relay.testing import add_nat_definitions, make_nat_expr
 
 def check_eval(expr, expected_result, mod=None, rtol=1e-07):
@@ -34,11 +35,19 @@ def check_eval(expr, expected_result, mod=None, rtol=1e-07):
     np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
 
 
+def run_opt_pass(expr, passes):
+    passes = passes if isinstance(passes, list) else [passes]
+    mod = relay.Module.from_expr(expr)
+    seq = transform.Sequential(passes)
+    with transform.PassContext(opt_level=3):
+       mod = seq(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
+
+
 def tipe(expr):
-    return transform.OptimizeOnExpr(expr,
-                                    [transform.InferType(),
-                                     transform.PartialEvaluate(),
-                                     transform.InferType()])
+    return run_opt_pass(expr, [transform.PartialEvaluate(),
+                               transform.InferType()])
 
 
 def dcpe(expr, mod=None, grad=False):
@@ -52,7 +61,7 @@ def dcpe(expr, mod=None, grad=False):
         seq = transform.Sequential(passes)
         mod = seq(mod)
         return mod[mod.entry_func]
-    return transform.OptimizeOnExpr(expr, passes)
+    return run_opt_pass(expr, passes)
 
 
 def test_tuple():
@@ -61,7 +70,7 @@ def test_tuple():
     body = TupleGetItem(relay.Tuple([relay.const(4.0), x]), 1)
     f = Function([x], body, None, [t])
     expected = relay.Function([x], x, None, [t])
-    expected = transform.OptimizeOnExpr(expected, transform.InferType())
+    expected = run_opt_pass(expected, transform.InferType())
     assert alpha_equal(dcpe(f), expected)
 
 
@@ -82,8 +91,7 @@ def test_ref():
     body = Let(x, RefWrite(r, RefRead(r) * RefRead(r)), body)
     body = Let(r, RefCreate(d), body)
     square = Function([d], body)
-    expected = transform.OptimizeOnExpr(Function([d], d * d),
-                                        transform.InferType())
+    expected = run_opt_pass(Function([d], d * d), transform.InferType())
     assert alpha_equal(dcpe(square), expected)
 
 
@@ -95,7 +103,7 @@ def test_empty_ad():
     f = Function([d], d)
     g = dcpe(f, grad=True)
     expected = Function([d], Tuple([d, Tuple([op.ones_like(d)])]))
-    expected = transform.OptimizeOnExpr(expected, transform.InferType())
+    expected = run_opt_pass(expected, transform.InferType())
     assert alpha_equal(g, expected)
 
 
@@ -114,7 +122,7 @@ def test_ad():
     body = Tuple([x, Tuple([grad])])
     body = relay.Let(x1, o, body)
     expected = Function([d], relay.Let(x, m, body))
-    expected = transform.OptimizeOnExpr(expected, transform.InferType())
+    expected = run_opt_pass(expected, transform.InferType())
     assert alpha_equal(g, expected)
 
 
