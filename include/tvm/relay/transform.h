@@ -603,6 +603,17 @@ TVM_DLL Expr ForwardRewrite(const Expr& expr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
 /*!
+ * \brief Rewrite the annotated program.
+ *
+ * \param expr The expression.
+ * \param fallback_device The fallback device which is the default device for
+ *                        operators without annotation.
+ *
+ * \return The updated program.
+ */
+TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
+
+/*!
  * \brief Turn an expression into continuation passing style(CPS).
  *
  * CPS mean that every function will, instead of returning the result directly,
