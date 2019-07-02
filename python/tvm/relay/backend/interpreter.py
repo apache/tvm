@@ -163,6 +163,8 @@ class Executor(object):
             args: List[tvm.NDArray]
                 The new arguments with all keyword arguments placed in the correct slot.
         """
+        assert expr is not None
+
         if not kwargs:
             return args
 

@@ -33,7 +33,7 @@ class Module(RelayNode):
 
     Parameters
     ----------
-    functions : dict, optional.
+    functions: Optional[dict].
         Map of global var to Function
     """
     def __init__(self, functions=None, type_definitions=None):
@@ -100,7 +100,7 @@ class Module(RelayNode):
 
         Parameters
         ----------
-        var: str or GlobalVar
+        var: Union[String, GlobalVar, GlobalTypeVar]
             The name or global variable.
 
         Returns

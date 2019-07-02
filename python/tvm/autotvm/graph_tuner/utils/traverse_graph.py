@@ -127,10 +127,10 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                     free_var = relay.Var("var_%d" % i, input_type)
                     params.append(free_var)
                 call = relay.Call(node.op, params, node.attrs)
-                func = relay.Function(params, call)
+                mod = relay.Module.from_expr(relay.Function(params, call))
                 relay.backend.compile_engine.get().clear()
                 build_thread = threading.Thread(target=relay.build,
-                                                args=(func,
+                                                args=(mod,
                                                       "llvm -device=tracing",
                                                       None,
                                                       None))
