@@ -64,7 +64,8 @@ def extract_from_program(func, params, ops, target, target_host=None):
     ops: List of relay op
         List of relay ops to be tuned
     target: tvm.target.Target
-        The compilation target
+        The compilation target. If a dictionary of targets for heterogeneous
+        compilation is passed, the first value will be used as task target.
     target_host: tvm.target.Target
         The host compilation target
 
@@ -118,6 +119,11 @@ def extract_from_program(func, params, ops, target, target_host=None):
 
     # create tasks for target
     tasks = []
+
+    # Check for heterogeneous target and extract first value.
+    if isinstance(target, dict):
+        target = list(target.values())[0]
+
     for task_name, args in env.get_tasks():
         try:
             tsk = create(task_name, args,
@@ -143,7 +149,8 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
     ops: List of relay op
         List of relay ops to be tuned
     target: tvm.target.Target
-        The compilation target
+        The compilation target. If a dictionary of targets for heterogeneous
+        compilation is passed, the first value will be used as task target.
     target_host: tvm.target.Target
         The host compilation target
 
@@ -185,7 +192,7 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
             relay.backend.compile_engine.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
             mod = relay.Module.from_expr(func)
-            build_thread = threading.Thread(target=my_build,
+            build_thread = threading.Thread(target=_build,
                                             args=(mod,
                                                   target,
                                                   target_host,
@@ -197,6 +204,11 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
 
     # create tasks for target
     tasks = []
+
+    # Check for heterogeneous target and extract first value.
+    if isinstance(target, dict):
+        target = list(target.values())[0]
+
     for task_name, args in env.get_tasks():
         try:
             tsk = create(task_name, args,
