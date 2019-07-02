@@ -49,7 +49,8 @@ Buffer decl_buffer(Array<Expr> shape,
       Expr(),
       name,
       "",
-      0, 0);
+      0, 0,
+      kDefault);
 }
 
 // Split the given expression w.r.t the add operator
@@ -365,7 +366,8 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           n->name + "_slice",
                           n->scope,
                           n->data_alignment,
-                          0);
+                          0,
+                          n->buffer_type);
 }
 
 Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, Expr offset) const {
@@ -405,7 +407,8 @@ Buffer BufferNode::make(Var data,
                         std::string name,
                         std::string scope,
                         int data_alignment,
-                        int offset_factor) {
+                        int offset_factor,
+                        BufferType buffer_type) {
   auto n = make_node<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
@@ -428,6 +431,12 @@ Buffer BufferNode::make(Var data,
   n->elem_offset = std::move(elem_offset);
   n->data_alignment = data_alignment;
   n->offset_factor = offset_factor;
+  n->buffer_type = buffer_type;
+  if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
+    for (size_t i = 0; i < n->shape.size(); ++i) {
+      n->strides.push_back(tvm::var("stride"));
+    }
+  }
   return Buffer(n);
 }
 
