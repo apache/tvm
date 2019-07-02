@@ -54,6 +54,14 @@ def main():
                         help="print the target")
     parser.add_argument("--cfg-str", action="store_true",
                         help="print the configuration string")
+    parser.add_argument("--get-aluen", action="store_true",
+                        help="returns whether ALU is enabled")
+    parser.add_argument("--get-mulen", action="store_true",
+                        help="returns whether mul in ALU is enabled")
+    parser.add_argument("--get-gemmii", action="store_true",
+                        help="returns the GEMM core II")
+    parser.add_argument("--get-taluii", action="store_true",
+                        help="returns the tensor ALU core II")
     parser.add_argument("--get-inpwidth", action="store_true",
                         help="returns log of input bitwidth")
     parser.add_argument("--get-wgtwidth", action="store_true",
@@ -68,6 +76,8 @@ def main():
                         help="returns log of tensor block in dimension")
     parser.add_argument("--get-blockout", action="store_true",
                         help="returns log of tensor block out dimension")
+    parser.add_argument("--get-buswidth", action="store_true",
+                        help="returns log of bus width in b")
     parser.add_argument("--get-uopbuffsize", action="store_true",
                         help="returns log of micro-op buffer size in B")
     parser.add_argument("--get-inpbuffsize", action="store_true",
@@ -103,9 +113,31 @@ def main():
         raise RuntimeError("Cannot find config in %s" % str(path_list))
     cfg = json.load(open(ok_path_list[0]))
     cfg["LOG_OUT_BUFF_SIZE"] = (
-        cfg["LOG_ACC_BUFF_SIZE"] +
-        cfg["LOG_OUT_WIDTH"] -
-        cfg["LOG_ACC_WIDTH"])
+        cfg["LOG_ACC_BUFF_SIZE"] 
+        + cfg["LOG_OUT_WIDTH"]
+        - cfg["LOG_ACC_WIDTH"]) 
+    # Generate bitstream config string.
+    # Needs to match the BITSTREAM string in python/vta/environment.py
+    cfg["BITSTREAM"] = "{}_{}x{}x{}_a{}w{}o{}s{}_{}_{}_{}_{}_{}MHz_{}ns_gii{}".format(
+        cfg["TARGET"],
+        (1 << cfg["LOG_BATCH"]),
+        (1 << cfg["LOG_BLOCK_IN"]),
+        (1 << cfg["LOG_BLOCK_OUT"]),
+        (1 << cfg["LOG_INP_WIDTH"]),
+        (1 << cfg["LOG_WGT_WIDTH"]),
+        (1 << cfg["LOG_OUT_WIDTH"]),
+        (1 << cfg["LOG_ACC_WIDTH"]),
+        cfg["LOG_UOP_BUFF_SIZE"],
+        cfg["LOG_INP_BUFF_SIZE"],
+        cfg["LOG_WGT_BUFF_SIZE"],
+        cfg["LOG_ACC_BUFF_SIZE"],
+        cfg["HW_FREQ"],
+        cfg["HW_CLK_TARGET"],
+        cfg["GEMM_II"])
+    if cfg["ALU_EN"]:
+        cfg["BITSTREAM"] += "_aii{}".format(cfg["TALU_II"])
+    if cfg["MUL_EN"] and cfg["ALU_EN"]:
+        cfg["BITSTREAM"] += "_mul"
     pkg = get_pkg_config(cfg)
 
     if args.target:
@@ -121,6 +153,8 @@ def main():
         cflags_str = " ".join(pkg.cflags)
         if cfg["TARGET"] == "pynq":
             cflags_str += " -DVTA_TARGET_PYNQ"
+        if cfg["TARGET"] == "ultra96":
+            cflags_str += " -DVTA_TARGET_ULTRA96"
         print(cflags_str)
 
     if args.ldflags:
@@ -134,21 +168,19 @@ def main():
             fo.write(pkg.cfg_json)
 
     if args.cfg_str:
-        # Needs to match the BITSTREAM string in python/vta/environment.py
-        cfg_str = "{}x{}x{}_{}bx{}b_{}_{}_{}_{}_{}MHz_{}ns_v{}".format(
-            (1 << cfg["LOG_BATCH"]),
-            (1 << cfg["LOG_BLOCK_IN"]),
-            (1 << cfg["LOG_BLOCK_OUT"]),
-            (1 << cfg["LOG_INP_WIDTH"]),
-            (1 << cfg["LOG_WGT_WIDTH"]),
-            cfg["LOG_UOP_BUFF_SIZE"],
-            cfg["LOG_INP_BUFF_SIZE"],
-            cfg["LOG_WGT_BUFF_SIZE"],
-            cfg["LOG_ACC_BUFF_SIZE"],
-            cfg["HW_FREQ"],
-            cfg["HW_CLK_TARGET"],
-            cfg["HW_VER"].replace('.', '_'))
-        print(cfg_str)
+        print(cfg["BITSTREAM"])
+
+    if args.get_aluen:
+        print(cfg["ALU_EN"])
+
+    if args.get_mulen:
+        print(cfg["MUL_EN"])
+
+    if args.get_gemmii:
+        print(cfg["GEMM_II"])
+
+    if args.get_taluii:
+        print(cfg["TALU_II"])
 
     if args.get_inpwidth:
         print(cfg["LOG_INP_WIDTH"])
@@ -170,6 +202,9 @@ def main():
 
     if args.get_blockout:
         print(cfg["LOG_BLOCK_OUT"])
+
+    if args.get_buswidth:
+        print(cfg["LOG_BUS_WIDTH"])
 
     if args.get_uopbuffsize:
         print(cfg["LOG_UOP_BUFF_SIZE"])

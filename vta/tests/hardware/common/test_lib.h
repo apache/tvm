@@ -1,22 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file test_lib.cpp
@@ -40,7 +21,7 @@
 #include "../../../src/pynq/pynq_driver.h"
 #endif  // VTA_TARGET_PYNQ
 
-typedef uint64_t axi_T;
+typedef uint64_t bus_T;
 typedef uint32_t uop_T;
 typedef int8_t wgt_T;
 typedef int8_t inp_T;
@@ -95,13 +76,23 @@ template <typename T, int T_WIDTH>
 void unpackBuffer(T **dst, T *src, int y_size, int x_size, int y_block, int x_block);
 
 /*!
-* \brief Allocates and initializes a 2D array in the heap.
+* \brief Allocates and randomly initializes a 2D array in the heap.
 * \param rows Number of rows.
 * \param cols Number of columns.
 * \return Pointer to the 2D array.
 */
-template <typename T, int T_WIDTH>
+template <typename T>
 T ** allocInit2dArray(int rows, int cols);
+
+/*!
+* \brief Allocates and initializes a 2D array to a set value in the heap.
+* \param rows Number of rows.
+* \param cols Number of columns.
+* \param val Value to set the whole array to.
+* \return Pointer to the 2D array.
+*/
+template <typename T>
+T ** allocSet2dArray(int rows, int cols, int val);
 
 /*!
 * \brief Allocates a 2D array in the heap.
