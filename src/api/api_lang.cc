@@ -207,7 +207,13 @@ TVM_REGISTER_API("Range")
   });
 
 TVM_REGISTER_API("_Buffer")
-.set_body_typed(BufferNode::make);
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    CHECK_EQ(args.size(), 10);
+    auto buffer_type = args[9].operator std::string();
+    BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
+    *ret = BufferNode::make(args[0], args[1], args[2], args[3], args[4],
+                            args[5], args[6], args[7], args[8], type);
+  });
 
 TVM_REGISTER_API("_BufferAccessPtr")
 .set_body_method(&Buffer::access_ptr);

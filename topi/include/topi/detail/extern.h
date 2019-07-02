@@ -49,7 +49,7 @@ inline Buffer DeclExternBuffer(Array<Expr> shape,
   auto data = var(name, Handle());
   auto elem_offset = Expr();
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
-                          -1, 0);
+                          -1, 0, kDefault);
 }
 
 /*!

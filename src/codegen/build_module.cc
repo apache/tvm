@@ -342,7 +342,7 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
   }
 
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
-    data_alignment, offset_factor);
+    data_alignment, offset_factor, kDefault);
 }
 
 void GetBinds(const Array<Tensor>& args,
