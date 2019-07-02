@@ -309,6 +309,24 @@ stage('Integration Test') {
   }
 }
 
+/*
+stage('Build packages') {
+  parallel 'conda CPU': {
+    node('CPU') {
+      sh "${docker_run} tvmai/conda-cpu ./conda/build_cpu.sh
+    }
+  },
+  'conda cuda': {
+    node('CPU') {
+      sh "${docker_run} tvmai/conda-cuda90 ./conda/build_cuda.sh
+      sh "${docker_run} tvmai/conda-cuda100 ./conda/build_cuda.sh
+    }
+  }
+  // Here we could upload the packages to anaconda for releases
+  // and/or the master branch
+}
+*/
+
 stage('Deploy') {
     node('doc') {
       ws('workspace/tvm/deploy-docs') {

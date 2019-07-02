@@ -1,3 +1,4 @@
+#!/bin/sh
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,8 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-packages:
-	conda build tvm-libs
-	conda build tvm
-	conda build topi
-	conda built nnvm
+set -e
+set -u
+
+# This is a fix for a weird bug in conda that makes it think
+# it can't write in /tmp
+HOME=/tmp
+mkdir -p /tmp/.conda/pkgs
+touch /tmp/.conda/pkgs/urls.txt
+touch /tmp/.conda/environments.txt
+
+
+conda build --output-folder=conda/pkg -c numba conda/tvm-libs
+conda build --output-folder=conda/pkg -m conda/conda_build_config.yaml conda/tvm

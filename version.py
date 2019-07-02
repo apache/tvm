@@ -24,8 +24,6 @@ List of affected files:
 - tvm-root/include/tvm/runtime/c_runtime_api.h
 - tvm-root/web/tvm_runtime.js
 - tvm-root/conda/tvm/meta.yaml
-- tvm-root/conda/topi/meta.yaml
-- tvm-root/conda/nnvm/meta.yaml
 - tvm-root/conda/tvm-libs/meta.yaml
 """
 import os
@@ -71,7 +69,7 @@ def main():
     update(os.path.join(proj_root, "include", "tvm", "runtime", "c_runtime_api.h"),
            "(?<=TVM_VERSION \")[.0-9a-z]+", __version__)
     # conda
-    for path in ["tvm", "topi", "nnvm", "tvm-libs"]:
+    for path in ["tvm", "tvm-libs"]:
         update(os.path.join(proj_root, "conda", path, "meta.yaml"),
                "(?<=version = \")[.0-9a-z]+", __version__)
     # web

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.6.dev" %}
+{% set version = "0.6.dev1" %}
 
 package:
   name: tvm-libs
@@ -25,21 +25,22 @@ source:
   path: ../..
 
 build:
-  number: 1
-  string: cuda{{ cuda_version }}_{{ PKG_BUILDNUM }}  # [cuda]
+  number: 0
+  string: cuda{{ cuda_version | replace('.', '') }}h{{ PKG_HASH }}_{{ PKG_BUILDNUM }}  # [cuda]
 
 requirements:
   build:
-    # The OS X build will require some manual setup or it will break
-    # See https://docs.conda.io/projects/conda-build/en/latest/source/resources/compiler-tools.html#macos-sdk
-    - {{ compiler('cxx') }}
-  host:
+    # The anaconda compilers for OS X are old an annoying
+    # so we rely on the platform ones for now
+    - {{ compiler('cxx') }}  # [linux]
     - cmake
-    - llvmdev ==6.0.0
+    - make
+  host:
+    - llvmdev ==8.0.0
     - zlib  # [linux]
   run:
     - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
-    - {{ pin_compatible('cudnn', lower_bound='7.3.1', max_pin='x') }}  # [cuda]
+    - {{ pin_compatible('cudnn', lower_bound='7.6.0', max_pin='x') }}  # [cuda]
 
 about:
   home: https://github.com/dmlc/tvm
