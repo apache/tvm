@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM nvidia/cuda:{{ cuda_version }}-devel-ubuntu16.04
+FROM nvidia/cuda:10.0-devel-ubuntu16.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
             bzip2 curl sudo binutils && \
     rm -rf /var/lib/apt/lists/*
 
-RUN  curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v{{ cudnn_short_version }}/cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz -O && \
-    tar --no-same-owner -xzf cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz -C /usr/local && \
-    rm cudnn-{{ cuda_version }}-linux-x64-v{{ cudnn_version }}.tgz && \
+RUN  curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v7.6.0/cudnn-10.0-linux-x64-v7.6.0.64.tgz -O && \
+    tar --no-same-owner -xzf cudnn-10.0-linux-x64-v7.6.0.64.tgz -C /usr/local && \
+    rm cudnn-10.0-linux-x64-v7.6.0.64.tgz && \
     ldconfig
 
 

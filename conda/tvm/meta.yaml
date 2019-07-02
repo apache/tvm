@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.6.dev" %}
+{% set version = "0.6.dev1" %}
 
 package:
   name: tvm
@@ -25,7 +25,7 @@ source:
   path: ../..
 
 build:
-  number: 1
+  number: 0
 
 requirements:
   build:
@@ -46,6 +46,15 @@ requirements:
 test:
   imports:
     - tvm
+    - topi
+    - nnvm
+  requires:
+    - nose
+    - scipy
+  source_files:
+    - tests/python
+  commands:
+    - python -m nose -v tests/python/integration
 
 about:
   home: https://github.com/dmlc/tvm

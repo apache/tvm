@@ -29,8 +29,8 @@ CUDA_VERSIONS = ['10.0', '9.0']
 # and from conda.
 
 # These two must be in sync
-CUDNN_FULL_VERSION = '7.3.1.20'
-CUDNN_VERSION = '7.3.1'
+CUDNN_FULL_VERSION = '7.6.0.64'
+CUDNN_VERSION = '7.6.0'
 
 
 condadir = os.path.dirname(sys.argv[0])
@@ -47,25 +47,10 @@ def render_dockerfile(version):
                                  cudnn_short_version=CUDNN_VERSION,
                                  cudnn_version=CUDNN_FULL_VERSION)
     fname = os.path.join(condadir,
-                         'Dockerfile.cuda' + version.replace('.', ''))
+                         '../docker/Dockerfile.conda_cuda' + version.replace('.', ''))
     with open(fname, 'w') as f:
         f.write(txt)
     return fname
-
-
-def build_docker(version):
-    vv = version.replace('.', '')
-    fname = render_dockerfile(version)
-    tagname = f'tvm-cuda{ vv }-forge'
-    subprocess.run(['docker', 'build', '-t', tagname,
-                    condadir, '-f', fname], check=True)
-    return tagname
-
-
-def build_pkg(version):
-    tagname = build_docker(version)
-    subprocess.run(['docker', 'run', '--rm', '-v', f'{ srcdir }:/workspace',
-                    tagname], check=True)
 
 
 if __name__ == '__main__':
@@ -73,4 +58,4 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         build_versions = sys.argv[1:]
     for version in build_versions:
-        build_pkg(version)
+        render_dockerfile(version)
