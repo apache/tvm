@@ -342,6 +342,9 @@ def test_tuple_get_root():
     assert relay.ir_pass.alpha_equal(zz, after)
 
 
+fuse0 = relay.transform.FuseOps(fuse_opt_level=0)
+fuse2 = relay.transform.FuseOps(fuse_opt_level=2)
+
 def test_tuple_intermediate():
     def before(x):
         inj = relay.squeeze(x)
@@ -363,16 +366,12 @@ def test_tuple_intermediate():
 
     dshape = (1, 16, 64, 64)
     x = relay.var("x", shape=dshape)
-    z = before(x)
-    z = relay.ir_pass.infer_type(z)
-    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
-    assert not relay.ir_pass.free_vars(zz)
-    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
-    relay.build(zz, 'llvm')
-    zz = relay.ir_pass.infer_type(zz)
-    assert not relay.ir_pass.free_vars(zz)
+    orig = before(x)
+    fuse0(relay.Module.from_expr(orig))
+    m = fuse2(relay.Module.from_expr(orig))
+    relay.build(m, 'llvm')
     after = relay.ir_pass.infer_type(expected(x))
-    assert relay.ir_pass.alpha_equal(zz, after)
+    assert relay.ir_pass.alpha_equal(m[m.entry_func], after)
 
 
 def test_tuple_consecutive():
@@ -422,16 +421,12 @@ def test_tuple_consecutive():
 
     dshape = (1, 16, 64, 64)
     x = relay.var("x", shape=dshape)
-    z = before(x)
-    z = relay.ir_pass.infer_type(z)
-    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
-    assert not relay.ir_pass.free_vars(zz)
-    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
-    relay.build(zz, 'llvm')
-    zz = relay.ir_pass.infer_type(zz)
-    assert not relay.ir_pass.free_vars(zz)
+    orig = before(x)
+    fuse0(relay.Module.from_expr(orig))
+    m = fuse2(relay.Module.from_expr(orig))
+    relay.build(m, 'llvm')
     after = relay.ir_pass.infer_type(expected(dshape))
-    assert relay.ir_pass.alpha_equal(zz, after)
+    assert relay.ir_pass.alpha_equal(m[m.entry_func], after)
 
 
 def test_inception_like():
@@ -493,16 +488,12 @@ def test_inception_like():
         return relay.Function(relay.ir_pass.free_vars(out), out)
 
     dshape = (1, 16, 64, 64)
-    z = before(dshape)
-    z = relay.ir_pass.infer_type(z)
-    zz = relay.ir_pass.fuse_ops(z, opt_level=0)
-    assert not relay.ir_pass.free_vars(zz)
-    zz = relay.ir_pass.fuse_ops(z, opt_level=2)
-    relay.build(zz, 'llvm')
-    zz = relay.ir_pass.infer_type(zz)
-    assert not relay.ir_pass.free_vars(zz)
+    orig = before(dshape)
+    fuse0(relay.Module.from_expr(orig))
+    m = fuse2(relay.Module.from_expr(orig))
+    relay.build(m, 'llvm')
     after = relay.ir_pass.infer_type(expected(dshape))
-    assert relay.ir_pass.alpha_equal(zz, after)
+    assert relay.ir_pass.alpha_equal(m[m.entry_func], after)
 
 
 def test_fuse_parallel_injective():

@@ -105,8 +105,9 @@ def extract_from_program(func, params, ops, target, target_host=None):
 
         relay.backend.compile_engine.get().clear()
         # wrap build call in thread to avoid multiprocessing problems
+        mod = relay.Module.from_expr(func)
         build_thread = threading.Thread(target=_build,
-                                        args=(func,
+                                        args=(mod,
                                               target,
                                               target_host,
                                               params))
@@ -183,8 +184,9 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
         for func, param in zip(funcs, params):
             relay.backend.compile_engine.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
+            mod = relay.Module.from_expr(func)
             build_thread = threading.Thread(target=my_build,
-                                            args=(func,
+                                            args=(mod,
                                                   target,
                                                   target_host,
                                                   params))

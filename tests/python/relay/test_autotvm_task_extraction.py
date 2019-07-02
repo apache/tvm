@@ -40,8 +40,8 @@ def test_task_extraction():
 
     net, params, input_shape = get_network('resnet-18', batch_size=1)
     tasks = autotvm.task.extract_from_program(net, target=target,
-                                            params=params,
-                                            ops=(relay.op.nn.conv2d,))
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d,))
     assert len(tasks) == 12
 
     net, params, input_shape = get_network('resnet-18', batch_size=1)

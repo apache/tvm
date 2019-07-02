@@ -101,7 +101,7 @@ def test_with_params():
     x_data = np.random.rand(10, 5).astype('float32')
     y_data = np.random.rand(1, 5).astype('float32')
     params = {"y": y_data}
-    graph, lib, params = relay.build(func, "llvm", params=params)
+    graph, lib, params = relay.build(relay.Module.from_expr(func), "llvm", params=params)
     mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
     mod.set_input(**params)
     mod.set_input(x=x_data)
@@ -170,7 +170,7 @@ def test_gru_like():
 
     for target, ctx in ctx_list():
         with relay.build_config(opt_level=2):
-            graph, lib, params = relay.build(z, target)
+            graph, lib, params = relay.build(relay.Module.from_expr(z), target)
             m = graph_runtime.create(graph, lib, ctx)
             m.set_input("X", tvm.nd.array(x.astype(dtype)))
             m.set_input("y", tvm.nd.array(y.astype(dtype)))
