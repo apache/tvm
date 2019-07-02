@@ -664,7 +664,6 @@ Index VirtualMachine::PopFrame() {
 
 void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<Object>& args) {
   DLOG(INFO) << "Invoking global " << func.name << " " << args.size();
-  std::cout << func << "\n";
 
   PushFrame(func.params, this->pc + 1, func);
   for (size_t i = 0; i < args.size(); ++i) {
@@ -742,8 +741,8 @@ void VirtualMachine::Run() {
   main_loop:
     auto const& instr = this->code[this->pc];
     DLOG(INFO) << "Executing(" << pc << "): ";
-    InstructionPrint(std::cout, instr);
 #if USE_RELAY_DEBUG
+    InstructionPrint(std::cout, instr);
 #endif  // USE_RELAY_DEBUG
 
     switch (instr.op) {
