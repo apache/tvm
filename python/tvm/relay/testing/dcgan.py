@@ -103,8 +103,8 @@ def get_workload(batch_size, oshape=(3, 64, 64), ngf=128, random_len=100, dtype=
 
     Returns
     -------
-    net : nnvm.symbol
-        The computational graph
+    mod : tvm.relay.Module
+        The relay module that contains a DCGAN network.
     params : dict of str to NDArray
         The parameters.
     """

@@ -72,8 +72,8 @@ def get_workload(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="flo
         The data type
     Returns
     -------
-    net : nnvm.symbol
-        The computational graph
+    mod : tvm.relay.Module
+        The relay module that contains a DQN network.
     params : dict of str to NDArray
         The parameters.
     """
