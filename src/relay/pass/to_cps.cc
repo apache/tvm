@@ -51,7 +51,7 @@
  * All cases in the transform must return via the mcont,
  * wheter directly invoking it, or indirectly by recursion.
  */
-#include <tvm/relay/pass.h>
+#include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include "../ir/type_functor.h"
@@ -360,10 +360,10 @@ Function UnCPS(const Function& f) {
                             f->attrs);
 }
 
-TVM_REGISTER_API("relay._ir_pass.to_cps")
+TVM_REGISTER_API("relay._transform.to_cps")
 .set_body_typed(static_cast<Function (*)(const Function&, const Module&)>(ToCPS));
 
-TVM_REGISTER_API("relay._ir_pass.un_cps")
+TVM_REGISTER_API("relay._transform.un_cps")
 .set_body_typed(UnCPS);
 
 namespace transform {
@@ -389,7 +389,7 @@ Pass UnCPS() {
 }
 
 TVM_REGISTER_API("relay._transform.UnCPS")
-.set_body_typed(ToCPS);
+.set_body_typed(UnCPS);
 
 }  // namespace transform
 

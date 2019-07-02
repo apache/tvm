@@ -24,8 +24,8 @@
  * \brief Use a fresh Id for every Var to make the result well-formed.
  */
 
-#include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/pattern_functor.h>
 #include "../ir/type_functor.h"
 
@@ -115,8 +115,8 @@ Expr DeDup(const Expr& e) {
   return ret;
 }
 
-TVM_REGISTER_API("relay._ir_pass.dedup")
-.set_body_typed(FreeVars);
+TVM_REGISTER_API("relay._transform.dedup")
+.set_body_typed(DeDup);
 
 }  // namespace relay
 }  // namespace tvm
