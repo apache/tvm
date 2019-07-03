@@ -19,17 +19,15 @@
 Network implement parameter hiding.
 This is like the Pytorch Model, but without the need to declare subnetwork in __init__.
 """
+import collections
 import numpy as np
-import tvm
 from tvm import relay
-from tvm.relay import op
-from tvm.relay import create_executor, Module
-from tvm.relay.backend.interpreter import TensorValue
+from tvm.relay import Module
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions
-import aot
-import collections
 
+# pylint: disable=arguments-differ,redefined-builtin,no-else-return,invalid-name
+# the orderedset is adopted from ... so I dont think we should change it.
 class OrderedSet(collections.MutableSet):
     """
     A set, but keep the elements in the order it was inserted from.
@@ -202,7 +200,7 @@ class Network:
             self.use_recurse = True
             return self.recurse(*inputs)
         else:
-            assert len(Network.stack) > 0
+            assert Network.stack
             assert Network.stack[-1].mod == self.mod
             assert Network.stack[-1].p == self.p
             Network.stack[-1].sub_network.add(self)
