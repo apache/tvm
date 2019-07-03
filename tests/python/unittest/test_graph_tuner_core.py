@@ -271,7 +271,7 @@ def test_many_sub_graphs():
     conv2 = relay.nn.conv2d(t4, w2, channels=32, kernel_size=(3, 3), padding=(1, 1))
     t5 = relay.transpose(conv2, (0, 2, 3, 1))
     out = relay.add(t3, t5)
-    net = relay.Function(relay.ir_pass.free_vars(out), out)
+    net = relay.Function(relay.analysis.free_vars(out), out)
     net, params = relay.testing.create_workload(net)
 
     tasks = autotvm.task.extract_from_program(net,
