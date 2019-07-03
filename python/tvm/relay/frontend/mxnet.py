@@ -492,9 +492,9 @@ def _mx_arange(inputs, attrs):
             'Attribute "repeat" is not supported in operator arange.')
     new_attrs = {}
     new_attrs["start"] = attrs.get_float("start", 0)
-    new_attrs["stop"] = relay.const(attrs.get_float("stop"))
-    new_attrs["step"] = relay.const(attrs.get_float("step", 1))
-    new_attrs["dtype"] = relay.const(attrs.get_str("dtype", "float32"))
+    new_attrs["stop"] = _expr.const(attrs.get_float("stop"))
+    new_attrs["step"] = _expr.const(attrs.get_float("step", 1))
+    new_attrs["dtype"] = _expr.const(attrs.get_str("dtype", "float32"))
     return _op.arange(**new_attrs)
 
 
