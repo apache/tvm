@@ -336,12 +336,12 @@ TVM_REGISTER_API("relay._make.Fatal")
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FatalNode>([](const FatalNode* node, tvm::IRPrinter* p) {
-   p->stream << "FatalNode(" << node->msg << ")";
+  p->stream << "FatalNode(" << node->msg << ")";
 });
 
 TVM_REGISTER_API("relay._expr.TempExprRealize")
 .set_body_typed<Expr(TempExpr)>([](TempExpr temp) {
-    return temp->Realize();
+   return temp->Realize();
 });
 
 }  // namespace relay
