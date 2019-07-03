@@ -144,7 +144,7 @@ def create_workload(net, initializer=None, seed=0):
 
     Returns
     -------
-    net : tvm.relay.Module
+    mod : tvm.relay.Module
         The created relay module.
 
     params : dict of str to NDArray

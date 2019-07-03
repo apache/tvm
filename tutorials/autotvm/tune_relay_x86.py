@@ -211,7 +211,7 @@ def tune_and_evaluate(tuning_opt):
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-tune_and_evaluate(tuning_option)
+# tune_and_evaluate(tuning_option)
 
 ######################################################################
 # Sample Output
