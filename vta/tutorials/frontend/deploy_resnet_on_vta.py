@@ -229,25 +229,39 @@ image = np.repeat(image, env.BATCH, axis=0)
 m.set_input(**params)
 m.set_input('data', image)
 
-# Perform inference: we run the module 4 times,
-# and repeat 3 times to get error bounds
-timer = m.module.time_evaluator("run", ctx, number=4, repeat=3)
-tcost = timer()
+# Perform inference and gather execution statistics
+# More on: https://docs.tvm.ai/api/python/module.html#tvm.module.Module.time_evaluator
+num = 4 # number of times we run module for a single measurement
+rep = 3 # number of measurements (we derive std dev from this)
+timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
+
+if env.TARGET == "sim":
+    simulator.clear_stats()
+    timer()
+    sim_stats = simulator.stats()
+    print("\nExecution statistics:")
+    for k, v in sim_stats.items():
+        # Since we execute the workload many times, we need to normalize stats
+        # Note that there is always one warm up run
+        # Therefore we divide the overall stats by (num * rep + 1)
+        print("\t{:<16}: {:>16}".format(k, v // (num * rep + 1)))
+else:
+    tcost = timer()
+    std = np.std(tcost.results) * 1000 / env.BATCH
+    mean = tcost.mean * 1000 / env.BATCH
+    print("\nPerformed inference in %.2fms/sample (std = %.2f)" % (mean, std))
 
 # Get classification results
 tvm_output = m.get_output(0, tvm.nd.empty((env.BATCH, 1000), "float32", remote.cpu(0)))
 top_categories = np.argsort(tvm_output.asnumpy()[0])
 
 # Report top-5 classification results
-std = np.std(tcost.results) * 1000 / env.BATCH
-mean = tcost.mean * 1000 / env.BATCH
-print("%s prediction" % model)
-print("                     #1:", synset[top_categories[-1]])
-print("                     #2:", synset[top_categories[-2]])
-print("                     #3:", synset[top_categories[-3]])
-print("                     #4:", synset[top_categories[-4]])
-print("                     #5:", synset[top_categories[-5]])
-print("Performed inference in %.2fms/sample (std = %.2f)" % (mean, std))
+print("\n%s prediction" % model)
+print("\t#1:", synset[top_categories[-1]])
+print("\t#2:", synset[top_categories[-2]])
+print("\t#3:", synset[top_categories[-3]])
+print("\t#4:", synset[top_categories[-4]])
+print("\t#5:", synset[top_categories[-5]])
 
 # This just checks that one of the 5 top categories
 # is one variety of cat; this is by no means an accurate
