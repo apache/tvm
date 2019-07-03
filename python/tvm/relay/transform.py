@@ -457,7 +457,7 @@ def ToCPS(expr, mod=None):
     result: tvm.relay.Pass
         The registered pass that transforms an expression into CPS.
     """
-    return _ir_pass.to_cps(expr, mod)
+    return _transform.to_cps(expr, mod)
 
 
 def EtaExpand():
