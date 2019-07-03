@@ -31,7 +31,10 @@ import aot
 import collections
 
 class OrderedSet(collections.MutableSet):
-
+    """
+    A set, but keep the elements in the order it was inserted from.
+    TODO BEFORE MERGE: INSERT PROPER CITATION
+    """
     def __init__(self, iterable=None):
         self.end = end = []
         end += [None, end, end]         # sentinel node for doubly linked list
@@ -98,6 +101,9 @@ def initialize(param):
 def copy_var(v):
     return relay.Var(v.name_hint, v.type_annotation)
 
+def dedupl):
+    return list(OrderedSet(list(l)))
+
 class Network:
     """
     To define your own network, inherit this class, and define build_impl.
@@ -143,7 +149,9 @@ class Network:
         assert isinstance(body, relay.Expr)
         if self.use_recurse:
             inputs = [copy_var(v) for v in self.inputs]
-            body = relay.Let(self.recurse, relay.Function(inputs, self.call_from_outside(*inputs)), body)
+            body = relay.Let(self.recurse,
+                             relay.Function(inputs, self.call_from_outside(*inputs)),
+                             body)
         self.mod[self.f] = relay.Function(self.inputs + self.all_weights(), body, self.ret_type)
 
     def build(self, **kwargs):
@@ -170,7 +178,8 @@ class Network:
         return i
 
     def all_weights(self):
-        return list(set(list(self.weights) + [w for n in self.sub_network for w in n.all_weights()]))
+        return dedup(list(self.weights) +
+                     [w for n in self.sub_network for w in n.all_weights()])
 
     def call_from_outside(self, *inputs):
         return self.f(*(list(inputs) + self.all_weights()))
@@ -211,7 +220,10 @@ class Network:
         """
         relay.transform.InferType()(self.mod)
         t = self.mod[self.f].checked_type
-        return relay.FuncType(t.arg_types[:len(self.inputs)], t.ret_type, t.type_params, t.type_constraints)
+        return relay.FuncType(t.arg_types[:len(self.inputs)],
+                              t.ret_type,
+                              t.type_params,
+                              t.type_constraints)
 
     def get(self):
         """
