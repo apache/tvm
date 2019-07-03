@@ -68,9 +68,6 @@ Instruction::Instruction(const Instruction& instr) {
       this->select_op1 = instr.select_op1;
       this->select_op2 = instr.select_op2;
       return;
-    case Opcode::Selecti:
-      this->selecti = instr.selecti;
-      return;
     case Opcode::Ret:
       this->result = instr.result;
       return;
@@ -114,9 +111,6 @@ Instruction::Instruction(const Instruction& instr) {
       this->if_cond = instr.if_cond;
       this->true_offset = instr.true_offset;
       this->false_offset = instr.false_offset;
-      return;
-    case Opcode::Ifi:
-      this->ifi = instr.ifi;
       return;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
@@ -169,9 +163,6 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->select_op1 = instr.select_op1;
       this->select_op2 = instr.select_op2;
       return *this;
-    case Opcode::Selecti:
-      this->selecti = instr.selecti;
-      return *this;
     case Opcode::Ret:
       this->result = instr.result;
       return *this;
@@ -221,9 +212,6 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->true_offset = instr.true_offset;
       this->false_offset = instr.false_offset;
       return *this;
-    case Opcode::Ifi:
-      this->ifi = instr.ifi;
-      return *this;
     case Opcode::LoadConst:
       this->const_index = instr.const_index;
       return *this;
@@ -248,11 +236,9 @@ Instruction::~Instruction() {
   switch (this->op) {
     case Opcode::Move:
     case Opcode::Select:
-    case Opcode::Selecti:
     case Opcode::Ret:
     case Opcode::AllocTensorReg:
     case Opcode::If:
-    case Opcode::Ifi:
     case Opcode::LoadConst:
     case Opcode::GetField:
     case Opcode::GetTagi:
@@ -397,15 +383,6 @@ Instruction Instruction::If(RegName cond, Index true_branch, Index false_branch)
   return instr;
 }
 
-Instruction Instruction::Ifi(RegName cond, Index true_branch, Index false_branch) {
-  Instruction instr;
-  instr.op = Opcode::Ifi;
-  instr.ifi.if_cond = cond;
-  instr.ifi.true_offset = true_branch;
-  instr.ifi.false_offset = false_branch;
-  return instr;
-}
-
 Instruction Instruction::Select(RegName cond, RegName op1, RegName op2, RegName dst) {
   Instruction instr;
   instr.op = Opcode::Select;
@@ -413,16 +390,6 @@ Instruction Instruction::Select(RegName cond, RegName op1, RegName op2, RegName 
   instr.select_cond = cond;
   instr.select_op1 = op1;
   instr.select_op2 = op2;
-  return instr;
-}
-
-Instruction Instruction::Selecti(RegName cond, RegName op1, RegName op2, RegName dst) {
-  Instruction instr;
-  instr.op = Opcode::Selecti;
-  instr.dst = dst;
-  instr.selecti.cond = cond;
-  instr.selecti.op1 = op1;
-  instr.selecti.op2 = op2;
   return instr;
 }
 
@@ -573,11 +540,6 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
          << instr.false_offset;
       break;
     }
-    case Opcode::Ifi: {
-      os << "ifi " << "$" << instr.ifi.if_cond << " " << instr.ifi.true_offset << " "
-         << instr.ifi.false_offset;
-      break;
-    }
     case Opcode::Invoke: {
       os << "invoke $" << instr.dst << " VMFunc[" << instr.func_index << "]($"
          << StrJoin<RegName>(instr.invoke_args_registers, 0, instr.num_args, ",$")
@@ -614,11 +576,6 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
     case Opcode::Select: {
       os << "select $" << instr.dst << " $" << instr.select_cond << " $"
          << instr.select_op1 << " $" << instr.select_op2;
-      break;
-    }
-    case Opcode::Selecti: {
-      os << "selecti $" << instr.dst << " $" << instr.selecti.cond << " $"
-         << instr.selecti.op1 << " $" << instr.selecti.op2;
       break;
     }
     default:
@@ -860,7 +817,6 @@ void VirtualMachine::Run() {
         pc += instr.pc_offset;
         goto main_loop;
       }
-      case Opcode::Ifi:
       case Opcode::If: {
         // How do we do this efficiently?
         DLContext cpu_ctx;
@@ -930,7 +886,6 @@ void VirtualMachine::Run() {
         pc++;
         goto main_loop;
       }
-      case Opcode::Selecti:
       case Opcode::Select: {
         DLContext cpu_ctx;
         cpu_ctx.device_type = kDLCPU;

@@ -67,8 +67,6 @@ enum class Opcode {
   GetTagi = 14U,
   Cmpi = 15U,
   LoadConsti = 16U,
-  Ifi = 17U,
-  Selecti = 18U,
   Fatal = 19U,
 };
 
@@ -141,14 +139,6 @@ struct Instruction {
       /*! \brief The false branch. */
       RegName select_op2;
     };
-    struct /* Selecti Operands */ {
-      /*! \brief The condition of select. */
-      RegName cond;
-      /*! \brief The true branch. */
-      RegName op1;
-      /*! \brief The false branch. */
-      RegName op2;
-    } selecti;
     struct /* If Operands */ {
       /*! \brief The register containing the condition value. */
       RegName if_cond;
@@ -157,14 +147,6 @@ struct Instruction {
       /*! \brief The program counter offset for the false branch. */
       Index false_offset;
     };
-    struct /* Ifi Operands */ {
-      /*! \brief The register containing the condition value. */
-      RegName if_cond;
-      /*! \brief The program counter offset for the true branch. */
-      Index true_offset;
-      /*! \brief The program counter offset for the false branch. */
-      Index false_offset;
-    } ifi;
     struct /* Invoke Operands */ {
       /*! \brief The function to call. */
       Index func_index;
@@ -221,15 +203,6 @@ struct Instruction {
    *  \return The select instruction.
    */
   static Instruction Select(RegName cond, RegName op1, RegName op2, RegName dst);
-
-  /*! \brief Construct a selecti instruction.
-   *  \param cond The condition register.
-   *  \param op1 The true register.
-   *  \param op2 The false register.
-   *  \param dst The destination register.
-   *  \return The selecti instruction.
-   */
-  static Instruction Selecti(RegName cond, RegName op1, RegName op2, RegName dst);
   /*! \brief Construct a return instruction.
    *  \param return_reg The register containing the return value.
    *  \return The return instruction.
@@ -307,13 +280,6 @@ struct Instruction {
    *  \return The if instruction.
    */
   static Instruction If(RegName cond_reg, Index true_branch, Index false_branch);
-  /*! \brief Construct an ifi instruction.
-   *  \param cond_reg The register containing the condition.
-   *  \param true_branch The offset to the true branch.
-   *  \param false_branch The offset to the false branch.
-   *  \return The ifi instruction.
-   */  
-  static Instruction Ifi(RegName cond_reg, Index true_branch, Index false_branch);
   /*! \brief Construct a goto instruction.
    *  \param pc_offset The offset from the current pc.
    *  \return The goto instruction.

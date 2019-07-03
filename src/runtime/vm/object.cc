@@ -41,9 +41,6 @@ std::ostream& operator<<(std::ostream& os, const ObjectTag& tag) {
     case ObjectTag::kTensor:
       os << "Tensor";
       break;
-    case ObjectTag::kInt:
-      os << "Int";
-      break;
     default:
       LOG(FATAL) << "Invalid object tag: found " << static_cast<int>(tag);
   }
@@ -52,11 +49,6 @@ std::ostream& operator<<(std::ostream& os, const ObjectTag& tag) {
 
 Object Object::Tensor(const NDArray& data) {
   ObjectPtr<ObjectCell> ptr = MakeObject<TensorCell>(data);
-  return Object(ptr);
-}
-
-Object Object::Int(size_t val) {
-  ObjectPtr<ObjectCell> ptr = MakeObject<IntCell>(val);
   return Object(ptr);
 }
 
@@ -76,12 +68,6 @@ ObjectPtr<TensorCell> Object::AsTensor() const {
   CHECK(ptr_.get());
   CHECK(ptr_.get()->tag == ObjectTag::kTensor);
   return ptr_.As<TensorCell>();
-}
-
-ObjectPtr<IntCell> Object::AsInt() const {
-  CHECK(ptr_.get());
-  CHECK(ptr_.get()->tag == ObjectTag::kInt);
-  return ptr_.As<IntCell>();
 }
 
 ObjectPtr<DatatypeCell> Object::AsDatatype() const {
