@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
@@ -553,3 +554,8 @@ def test_batch_norm():
     verify_batch_norm([(20, 10), (10,), (10,), (10,), (10,)])
     verify_batch_norm([(10, 50), (50,), (50,), (50,), (50,)])
     verify_batch_norm([(30, 40), (40,), (40,), (40,), (40,)])
+
+
+def test_fatal():
+    with pytest.raises(Exception, match="msg"):
+        run_as_python(relay.Fatal("msg", relay.TupleType([])))

@@ -84,6 +84,7 @@ FeatureSet DetectFeature(const Expr& expr) {
     DETECT_DEFAULT_CONSTRUCT(RefWrite)
     DETECT_DEFAULT_CONSTRUCT(Constructor)
     DETECT_DEFAULT_CONSTRUCT(Match)
+    DETECT_DEFAULT_CONSTRUCT(Fatal)
 #undef DETECT_DEFAULT_CONSTRUCT
   } fd;
   fd(expr);

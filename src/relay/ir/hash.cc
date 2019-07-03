@@ -351,6 +351,12 @@ class RelayHashHandler:
     return hash;
   }
 
+  size_t VisitExpr_(const FatalNode* fn) final {
+    size_t hash = std::hash<std::string>()(FatalNode::_type_key);
+    hash = Combine(hash, std::hash<std::string>()(fn->msg));
+    return hash;
+  }
+
   size_t VisitType_(const TypeCallNode* tcn) final {
     size_t hash = std::hash<std::string>()(TypeCallNode::_type_key);
     hash = Combine(hash, TypeHash(tcn->func));

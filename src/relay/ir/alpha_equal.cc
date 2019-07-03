@@ -514,6 +514,14 @@ class AlphaEqualHandler:
     return false;
   }
 
+  bool VisitExpr_(const FatalNode* lhs, const Expr& other) final {
+    if (const FatalNode* rhs = other.as<FatalNode>()) {
+      return lhs->msg == rhs->msg;
+    } else {
+      return false;
+    }
+  }
+
   bool ClauseEqual(const Clause& lhs, const Clause& rhs) {
     return PatternEqual(lhs->lhs, rhs->lhs) && ExprEqual(lhs->rhs, rhs->rhs);
   }

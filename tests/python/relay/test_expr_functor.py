@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay import ExprFunctor, ExprMutator, ExprVisitor
@@ -135,18 +136,9 @@ def test_match_completeness():
         assert result_expr.complete == completeness
 
 
+def test_fatal():
+    check_visit(relay.Fatal("meow"))
+
+
 if __name__ == "__main__":
-    test_constant()
-    test_tuple()
-    test_var()
-    test_global()
-    test_function()
-    test_call()
-    test_let()
-    test_ite()
-    test_ref_create()
-    test_ref_read()
-    test_ref_write()
-    test_memo()
-    test_match()
-    test_match_completeness()
+    pytest.main([__file__])

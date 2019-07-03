@@ -411,6 +411,13 @@ class PythonConverter(ExprFunctor):
         return (Name(gvar.name_hint, Load()), [])
 
 
+    def visit_fatal(self, fatal: Expr):
+        thunk_name = self.generate_function_name('_fatal_thunk')
+        thunk = self.create_def(thunk_name, [], [
+            ast.Raise(ast.Call(Name("Exception", Load()), [ast.Str(fatal.msg)], []), None)])
+        return (self.create_call(thunk_name, []), [thunk])
+
+
     def visit_let(self, letexp: Expr):
         # To properly account for scoping and ensure that the entire node produces an expression,
         # we translate the let binding as a function that we call with the value we intend to bind.

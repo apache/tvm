@@ -881,6 +881,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     ReflectError() : dmlc::Error("static value not found") { }
   };
 
+  PStatic VisitExpr_(const FatalNode* op, LetList* ll) final {
+    throw EmitFatal(op->msg);
+  }
+
   Expr Reflect(const PStatic& st) {
     if (!st->pstatic.defined()) {
       throw ReflectError();
@@ -1010,8 +1014,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
           throw;
         }
       }
-      LOG(FATAL) << "No case Match";
-      throw;
+      throw EmitFatal(NoMatchMsg());
     });
   }
 

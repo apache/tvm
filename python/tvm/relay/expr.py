@@ -395,6 +395,7 @@ class TupleGetItem(Expr):
 @register_relay_node
 class RefCreate(Expr):
     """Create a new reference from initial value.
+
     Parameters
     ----------
     value: tvm.relay.Expr
@@ -407,6 +408,7 @@ class RefCreate(Expr):
 @register_relay_node
 class RefRead(Expr):
     """Get the value inside the reference.
+
     Parameters
     ----------
     ref: tvm.relay.Expr
@@ -421,6 +423,7 @@ class RefWrite(Expr):
     """
     Update the value inside the reference.
     The whole expression will evaluate to an empty tuple.
+
     Parameters
     ----------
     ref: tvm.relay.Expr
@@ -431,6 +434,24 @@ class RefWrite(Expr):
     def __init__(self, ref, value):
         self.__init_handle_by_constructor__(_make.RefWrite, ref, value)
 
+
+@register_relay_node
+class Fatal(Expr):
+    """
+    Abort the execution with a fatal error message.
+
+    Parameters
+    ----------
+    msg: String
+        The message
+
+    type_annotation: Optional[tvm.relay.Type]
+        The type of Fatal. Leave none to be inferred.
+    """
+    def __init__(self, msg, ty=None):
+        self.__init_handle_by_constructor__(_make.Fatal, msg, ty)
+
+NO_MATCH_MSG = _expr.NoMatchMsg()
 
 class TempExpr(Expr):
     """Baseclass of all TempExpr.

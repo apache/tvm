@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 import tvm
 import tvm.testing
 from tvm import relay
@@ -242,18 +243,16 @@ def test_tuple_passing():
     out = f(value_tuple)
     tvm.testing.assert_allclose(out.asnumpy(), np.array(11))
 
+
+@pytest.mark.xfail()
+def test_fatal():
+    mod = relay.Module()
+    ctx = tvm.cpu()
+    target = tvm.target.create('llvm')
+    exec = relay.create_executor(mod=mod, ctx=ctx, target=target)
+    f = exec.evaluate(relay.Fatal("msg", relay.TupleType([])))
+    f()
+
+
 if __name__ == "__main__":
-    test_id()
-    test_add_const()
-    test_equal()
-    test_subtract()
-    test_simple_loop()
-    test_loop()
-    test_binds()
-    test_kwargs_params()
-    test_ref()
-    test_tensor_value()
-    test_tuple_value()
-    test_tuple_getitem()
-    test_function_taking_adt_ref_tuple()
-    test_tuple_passing()
+    pytest.main([__file__])

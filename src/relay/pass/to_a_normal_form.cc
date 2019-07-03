@@ -264,6 +264,11 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     }
     return Compound(e, MatchNode::make(data, clauses, m->complete), v);
   }
+
+  Expr VisitExpr_(const FatalNode* f, const Var& v) final {
+    Expr e = GetRef<Expr>(f);
+    return Compound(e, e, v);
+  }
 };
 
 Expr ToANormalFormAux(const Expr& e) {

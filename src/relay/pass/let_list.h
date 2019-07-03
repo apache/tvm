@@ -41,6 +41,10 @@
 namespace tvm {
 namespace relay {
 
+struct EmitFatal : dmlc::Error {
+  explicit EmitFatal(const std::string& msg) : dmlc::Error(msg) { }
+};
+
 /*!
  * \brief LetList allow you to transform expression into variables, so you can copy them around.
  *  one can insert into the LetList by calling Push, and wrap an expression with bindings with Get.
@@ -134,7 +138,13 @@ class LetList {
   template<typename F>
   static Expr With(F&& f) {
     LetList ll;
-    return ll.Get(f(&ll));
+    Expr ret;
+    try {
+      ret = f(&ll);
+    } catch (const EmitFatal& ef) {
+      ret = FatalNode::make(ef.what(), Type());
+    }
+    return ll.Get(ret);
   }
 
   static Expr Let(const Expr& e, const std::function<Expr(const Var&)>& f) {

@@ -18,7 +18,7 @@
 """The expression functor of Relay."""
 
 from .expr import Function, Call, Let, Var, GlobalVar
-from .expr import If, Tuple, TupleGetItem, Constant
+from .expr import If, Tuple, TupleGetItem, Constant, Fatal
 from .expr import RefCreate, RefRead, RefWrite
 from .adt import Constructor, Match, Clause
 from .op import Op
@@ -69,6 +69,8 @@ class ExprFunctor:
             res = self.visit_constructor(expr)
         elif isinstance(expr, Match):
             res = self.visit_match(expr)
+        elif isinstance(expr, Fatal):
+            res = self.visit_fatal(expr)
         else:
             raise Exception("warning unhandled case: {0}".format(type(expr)))
 
@@ -122,6 +124,9 @@ class ExprFunctor:
         raise NotImplementedError()
 
     def visit_match(self, _):
+        raise NotImplementedError()
+
+    def visit_fatal(self, _):
         raise NotImplementedError()
 
 
@@ -185,6 +190,9 @@ class ExprVisitor(ExprFunctor):
         self.visit(m.data)
         for c in m.clauses:
             self.visit(c.rhs)
+
+    def visit_fatal(self, r):
+        pass
 
 
 class ExprMutator(ExprFunctor):
@@ -262,3 +270,6 @@ class ExprMutator(ExprFunctor):
 
     def visit_ref_read(self, r):
         return RefRead(self.visit(r.ref))
+
+    def visit_fatal(self, r):
+        return Fatal(r.msg, r.type_annotation)

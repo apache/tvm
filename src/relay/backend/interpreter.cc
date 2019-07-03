@@ -692,6 +692,11 @@ class Interpreter :
     return Value();
   }
 
+  Value VisitExpr_(const FatalNode* op) final {
+    LOG(FATAL) << "fatal message recieved: " << op->msg;
+    return Value();
+  }
+
   bool VisitPattern_(const PatternConstructorNode* op, const Value& v) final {
     const ConstructorValueNode* cvn = v.as<ConstructorValueNode>();
     CHECK(cvn) << "need to be a constructor for match";

@@ -330,6 +330,31 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "RefWriteNode(" << node->ref << ", " << node->value << ")";
 });
 
+
+Fatal FatalNode::make(std::string msg, Type type_annotation) {
+  NodePtr<FatalNode> n = make_node<FatalNode>();
+  n->msg = std::move(msg);
+  n->type_annotation = std::move(type_annotation);
+  return Fatal(n);
+}
+
+TVM_REGISTER_NODE_TYPE(FatalNode);
+
+TVM_REGISTER_API("relay._make.Fatal")
+.set_body_typed(FatalNode::make);
+
+std::string NoMatchMsg() {
+  return "No case Match";
+}
+
+TVM_REGISTER_API("relay._expr.NoMatchMsg")
+.set_body_typed(NoMatchMsg);
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<FatalNode>([](const FatalNode* node, tvm::IRPrinter* p) {
+  p->stream << "FatalNode(" << node->msg << ")";
+});
+
 TVM_REGISTER_API("relay._expr.TempExprRealize")
 .set_body_typed<Expr(TempExpr)>([](TempExpr temp) {
   return temp->Realize();

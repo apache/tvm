@@ -323,6 +323,12 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     return op->op_type;
   }
 
+  Type VisitExpr_(const FatalNode* op) final {
+    return op->type_annotation.defined() ?
+      op->type_annotation :
+      IncompleteTypeNode::make(Kind::kType);
+  }
+
   Type VisitExpr_(const LetNode* let) final {
     // if the definition is a function literal, permit recursion
     bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;
@@ -650,6 +656,10 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
   }
 
   Expr VisitExpr_(const MatchNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Expr VisitExpr_(const FatalNode* op) final {
     return AttachCheckedType(op);
   }
 

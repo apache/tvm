@@ -99,6 +99,7 @@ TupleGetItem = expr.TupleGetItem
 RefCreate = expr.RefCreate
 RefRead = expr.RefRead
 RefWrite = expr.RefWrite
+Fatal = expr.Fatal
 
 # ADT
 PatternWildcard = adt.PatternWildcard
@@ -140,3 +141,6 @@ Sequential = transform.Sequential
 
 # Feature
 Feature = feature.Feature
+
+# Fatal Messages
+NO_MATCH_MSG = expr.NO_MATCH_MSG

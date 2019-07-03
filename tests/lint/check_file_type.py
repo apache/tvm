@@ -110,6 +110,7 @@ ALLOW_SPECIFIC_FILE = {
     "docs/_static/css/tvm_theme.css",
     "docs/_static/img/tvm-logo-small.png",
     "docs/_static/img/tvm-logo-square.png",
+    "pytest.ini",
    }
 
 
@@ -163,7 +164,7 @@ def main():
         report += "\n".join(error_list)
         report += "\nFound %d files that are now allowed\n" % len(error_list)
         report += ("We do not check in binary files into the repo.\n"
-                   "If necessary, please discuss with committers and"
+                   "If necessary, please discuss with committers and "
                    "modify tests/lint/check_file_type.py to enable the file you need.\n")
         sys.stderr.write(report)
         sys.stderr.flush()

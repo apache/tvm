@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay import analysis
@@ -626,25 +627,15 @@ def test_tuple_match():
     assert analysis.structural_hash(x) == analysis.structural_hash(y)
 
 
+def test_fatal():
+    x = relay.Fatal("msg")
+    y = relay.Fatal("msg")
+    z = relay.Fatal("dio")
+    assert analysis.alpha_equal(x, y)
+    assert analysis.structural_hash(x) == analysis.structural_hash(y)
+    assert not analysis.alpha_equal(x, z)
+    assert not analysis.structural_hash(x) == analysis.structural_hash(z)
+
+
 if __name__ == "__main__":
-    test_tensor_type_alpha_equal()
-    test_incomplete_type_alpha_equal()
-    test_constant_alpha_equal()
-    test_func_type_alpha_equal()
-    test_tuple_type_alpha_equal()
-    test_type_relation_alpha_equal()
-    test_type_call_alpha_equal()
-    test_constant_alpha_equal()
-    test_global_var_alpha_equal()
-    test_tuple_alpha_equal()
-    test_tuple_get_item_alpha_equal()
-    test_function_alpha_equal()
-    test_call_alpha_equal()
-    test_let_alpha_equal()
-    test_if_alpha_equal()
-    test_constructor_alpha_equal()
-    test_match_alpha_equal()
-    test_op_alpha_equal()
-    test_var_alpha_equal()
-    test_graph_equal()
-    test_hash_unequal()
+    pytest.main([__file__])

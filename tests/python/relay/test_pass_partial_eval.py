@@ -16,6 +16,7 @@
 # under the License.
 
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay.analysis import alpha_equal, assert_alpha_equal
@@ -23,7 +24,7 @@ from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
 from tvm.relay import TensorType, Tuple, If, Module, Clause, PatternConstructor, PatternVar, Match
-from tvm.relay import GlobalVar, Call
+from tvm.relay import GlobalVar, Call, Fatal, TupleType
 from tvm.relay.transform import gradient
 from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
 
@@ -339,24 +340,14 @@ def test_tuple_match():
     assert_alpha_equal(dcpe(x), const(2))
 
 
+def test_fatal():
+    msg = "user-defined fatal message"
+    assert alpha_equal(dcpe(Fatal(msg)), Fatal(msg))
+    mod = Module()
+    p = Prelude(mod)
+    orig = Function([], p.hd(p.nil()), TupleType([]))
+    assert alpha_equal(dcpe(orig, mod=mod).body, Fatal(relay.NO_MATCH_MSG))
+
+
 if __name__ == '__main__':
-    test_nat_update()
-    test_ref()
-    test_tuple()
-    test_empty_ad()
-    test_const_inline()
-    test_ad()
-    test_if_ref()
-    test_function_invalidate()
-    test_head_cons()
-    test_map()
-    test_loop()
-    test_swap_loop()
-    test_abs_diff()
-    test_double()
-    test_nat_id()
-    test_global_match_nat_id()
-    test_match_nat_id()
-    test_concat()
-    test_triangle_number()
-    test_tuple_match()
+    pytest.main()

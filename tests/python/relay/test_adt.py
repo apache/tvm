@@ -20,6 +20,8 @@ from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
+from tvm.relay import TypeVar, Var, Fatal, Function, Call
+from tvm.relay import PatternConstructor, Clause, PatternVar, Match
 
 import numpy as np
 
@@ -825,6 +827,19 @@ def test_tensor_take():
             tvm.testing.assert_allclose(expected, res)
     run('float32')
     run('int32')
+
+def test_head_fatal():
+    a = TypeVar("a")
+    x = Var("x", l(a))
+    y = Var("y")
+    z = Var("z")
+    nil_case = Clause(PatternConstructor(nil, []), Fatal("cannot pass nil into head"))
+    cons_case = Clause(PatternConstructor(cons, [PatternVar(y), PatternVar(z)]), y)
+    hd_fatal = Function([x], Match(x, [cons_case, nil_case]), a, [a])
+    expr = Call(hd_fatal, [cons(make_nat_expr(12), nil())])
+    res = intrp.evaluate(expr)
+    assert count(res) == 12
+
 
 if __name__ == "__main__":
     test_nat_constructor()

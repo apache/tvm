@@ -513,6 +513,32 @@ class RefWriteNode : public ExprNode {
 
 RELAY_DEFINE_NODE_REF(RefWrite, RefWriteNode, Expr);
 
+/*! \brief A fatal error has occurred. Stop all execution and report with a message. */
+class Fatal;
+class FatalNode : public ExprNode {
+ public:
+  /*! \brief The Message. */
+  std::string msg;
+  Type type_annotation;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("msg", &msg);
+    v->Visit("type_annotation", &type_annotation);
+    v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  TVM_DLL static Fatal make(std::string msg, Type type_annotation);
+
+  static constexpr const char* _type_key = "relay.Fatal";
+  TVM_DECLARE_NODE_TYPE_INFO(FatalNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(Fatal, FatalNode, Expr);
+
+/*! \brief the fatal message for case unhandled in match. */
+TVM_DLL std::string NoMatchMsg();
+
 /*!
  * \brief Base class of the temporary expression.
  *
