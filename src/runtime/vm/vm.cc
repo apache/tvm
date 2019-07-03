@@ -763,11 +763,11 @@ void VirtualMachine::Run() {
         auto op2_val = reinterpret_cast<int32_t*>(op2->data)[0];
 
         if (op1_val == op2_val) {
-          auto tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+          auto tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
           reinterpret_cast<int32_t*>(tensor->data)[0] = 1;
           WriteRegister(instr.dst, Object::Tensor(tensor));
         } else {
-          auto tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+          auto tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
           reinterpret_cast<int32_t*>(tensor->data)[0] = 0;
           WriteRegister(instr.dst, Object::Tensor(tensor));
         }
@@ -807,7 +807,7 @@ void VirtualMachine::Run() {
             << static_cast<int>(object->tag);
         const auto& data = object.AsDatatype();
         auto tag = data->tag;
-        auto tag_tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+        auto tag_tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
         reinterpret_cast<int32_t*>(tag_tensor->data)[0] = tag;
         WriteRegister(instr.dst, Object::Tensor(tag_tensor));
         pc++;
