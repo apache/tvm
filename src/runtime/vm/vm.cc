@@ -122,8 +122,8 @@ Instruction::Instruction(const Instruction& instr) {
       this->object = instr.object;
       this->field_index = instr.field_index;
       return;
-    case Opcode::GetTagi:
-      this->get_tagi = instr.get_tagi;
+    case Opcode::GetTag:
+      this->get_tag = instr.get_tag;
       return;
     case Opcode::Goto:
       this->pc_offset = instr.pc_offset;
@@ -219,8 +219,8 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->object = instr.object;
       this->field_index = instr.field_index;
       return *this;
-    case Opcode::GetTagi:
-      this->get_tagi = instr.get_tagi;
+    case Opcode::GetTag:
+      this->get_tag = instr.get_tag;
       return *this;
     case Opcode::Goto:
       this->pc_offset = instr.pc_offset;
@@ -241,7 +241,7 @@ Instruction::~Instruction() {
     case Opcode::If:
     case Opcode::LoadConst:
     case Opcode::GetField:
-    case Opcode::GetTagi:
+    case Opcode::GetTag:
     case Opcode::Goto:
     case Opcode::Cmpi:
     case Opcode::LoadConsti:
@@ -366,11 +366,11 @@ Instruction Instruction::GetField(RegName object, Index field_index, RegName dst
   return instr;
 }
 
-Instruction Instruction::GetTagi(RegName object, RegName dst) {
+Instruction Instruction::GetTag(RegName object, RegName dst) {
   Instruction instr;
-  instr.op = Opcode::GetTagi;
+  instr.op = Opcode::GetTag;
   instr.dst = dst;
-  instr.get_tagi.object = object;
+  instr.get_tag.object = object;
   return instr;
 }
 
@@ -565,8 +565,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
          << instr.field_index << "]";
       break;
     }
-    case Opcode::GetTagi: {
-      os << "get_tagi $" << instr.dst << " $" << instr.get_tagi.object;
+    case Opcode::GetTag: {
+      os << "get_tag $" << instr.dst << " $" << instr.get_tag.object;
       break;
     }
     case Opcode::Goto: {
@@ -799,11 +799,11 @@ void VirtualMachine::Run() {
         pc++;
         goto main_loop;
       }
-      case Opcode::GetTagi: {
-        auto object = ReadRegister(instr.get_tagi.object);
+      case Opcode::GetTag: {
+        auto object = ReadRegister(instr.get_tag.object);
         CHECK(object->tag == ObjectTag::kDatatype)
             << "Object is not data type object, register "
-            << instr.get_tagi.object << ", Object tag "
+            << instr.get_tag.object << ", Object tag "
             << static_cast<int>(object->tag);
         const auto& data = object.AsDatatype();
         auto tag = data->tag;

@@ -64,7 +64,7 @@ enum class Opcode {
   Select = 11U,
   LoadConst = 12U,
   Goto = 13U,
-  GetTagi = 14U,
+  GetTag = 14U,
   Cmpi = 15U,
   LoadConsti = 16U,
   Fatal = 19U,
@@ -173,10 +173,10 @@ struct Instruction {
       /*! \brief The field to read out. */
       Index field_index;
     };
-    struct /* GetTagi Operands */ {
+    struct /* GetTag Operands */ {
       /*! \brief The register to project from. */
       RegName object;
-    } get_tagi;
+    } get_tag;
     struct /* AllocDatatype Operands */ {
       /*! \brief The datatype's constructor tag. */
       Index constructor_tag;
@@ -267,12 +267,12 @@ struct Instruction {
    *  \return The get field instruction.
    */
   static Instruction GetField(RegName object_reg, Index field_index, RegName dst);
-  /*! \brief Construct a get_tagi instruction.
+  /*! \brief Construct a get_tag instruction.
    *  \param object_reg The register containing the object to project from.
    *  \param dst The destination register.
-   *  \return The get_tagi instruction.
+   *  \return The get_tag instruction.
    */
-  static Instruction GetTagi(RegName object_reg, RegName dst);
+  static Instruction GetTag(RegName object_reg, RegName dst);
   /*! \brief Construct an if instruction.
    *  \param cond_reg The register containing the condition.
    *  \param true_branch The offset to the true branch.

@@ -203,7 +203,7 @@ struct VMCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::AllocTensor:
       case Opcode::AllocTensorReg:
       case Opcode::GetField:
-      case Opcode::GetTagi:
+      case Opcode::GetTag:
       case Opcode::LoadConst:
       case Opcode::LoadConsti:
       case Opcode::Select:
@@ -575,7 +575,7 @@ void CompileCondition(ConditionNodePtr condition, VMCompiler* compiler) {
   if (std::dynamic_pointer_cast<TagCompare>(condition)) {
     auto cond = std::dynamic_pointer_cast<TagCompare>(condition);
     auto r = CompileMatchValue(cond->obj, compiler);
-    compiler->Emit(Instruction::GetTagi(r, compiler->NewRegister()));
+    compiler->Emit(Instruction::GetTag(r, compiler->NewRegister()));
     auto operand1 = compiler->last_register;
     compiler->Emit(Instruction::LoadConsti(cond->target_tag, compiler->NewRegister()));
     auto operand2 = compiler->last_register;
