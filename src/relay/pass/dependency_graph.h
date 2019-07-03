@@ -20,7 +20,7 @@
 /*!
  *  Copyright (c) 2019 by Contributors.
  * \file tvm/relay/pass/dependency_graph.h
- * \brief 
+ * \brief create a dependency graph.
  */
 #ifndef TVM_RELAY_PASS_DEPENDENCY_GRAPH_H_
 #define TVM_RELAY_PASS_DEPENDENCY_GRAPH_H_

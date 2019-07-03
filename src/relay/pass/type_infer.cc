@@ -368,8 +368,12 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     // Build a subsitituion map up from the function type and type arguments.
     // Eventually allow the type vars to be passed in.
-    for (size_t i = 0; i < fn_ty->type_params.size(); i++) {
+    for (size_t i = 0; i < ty_args.size(); ++i) {
       subst_map.Set(fn_ty->type_params[i], ty_args[i]);
+    }
+
+    for (size_t i = ty_args.size(); i < fn_ty->type_params.size(); ++i) {
+      subst_map.Set(fn_ty->type_params[i], IncompleteTypeNode::make(Kind::kType));
     }
 
     Type ret_type = fn_ty->ret_type;
@@ -437,13 +441,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
 
     Array<Type> type_args = call->type_args;
-    if (type_args.size() == 0) {
-      for (size_t i = 0; i < fn_ty_node->type_params.size(); i++) {
-        type_args.push_back(IncompleteTypeNode::make(Kind::kType));
-      }
-    }
-
-    if (type_args.size() != fn_ty_node->type_params.size()) {
+    if (type_args.size() > fn_ty_node->type_params.size()) {
       this->ReportFatalError(GetRef<Call>(call),
         RELAY_ERROR("Incorrect number of type args in "
           << call->span << ": "

@@ -252,17 +252,6 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod);
 TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
 
 /*!
- * \brief Rewrite the annotated program.
- *
- * \param expr The expression.
- * \param fallback_device The fallback device which is the default device for
- *                        operators without annotation.
- *
- * \return The updated program.
- */
-TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
-
-/*!
  * \brief Collect the device mapping information of each expression.
  *
  * \param expr The expression.

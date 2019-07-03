@@ -446,6 +446,20 @@ def ToANormalForm():
     return _transform.ToANormalForm()
 
 
+def ToCPS(expr, mod=None):
+    """
+    Turn expression into continuation passing style(CPS).
+
+    Every intermediate compute will be passed to a continuation.
+
+    Returns
+    -------
+    result: tvm.relay.Pass
+        The registered pass that transforms an expression into CPS.
+    """
+    return _ir_pass.to_cps(expr, mod)
+
+
 def EtaExpand():
     """Add abstraction over a function
 
@@ -494,14 +508,6 @@ def PartialEvaluate():
     It will directly transform the input expression to a new one if the target
     expression is provided. Otherwise, it will rely on the pass manager to
     carry out transformation.
-
-    Parameters
-    ----------
-    expr : Optional[tvm.relay.Expr]
-        The input expression.
-
-    mod : Optional[tvm.relay.Module]
-        The global module.
 
     Returns
     -------
@@ -552,6 +558,48 @@ def gradient(expr, mod=None, mode='higher_order'):
     if mode == 'higher_order':
         return _transform.gradient(expr, mod)
     raise Exception('unknown mode')
+
+
+def to_cps(func, mod=None):
+    """
+    Turn expression into CPS expression.
+
+    Every intermediate compute will be passed to a continuation.
+
+    Parameters
+    ----------
+    func: tvm.relay.Function
+        The input function.
+
+    mod: Optional[tvm.relay.Module]
+        The global module.
+
+    Returns
+    -------
+    result: tvm.relay.Function
+      The output function.
+    """
+    return _transform.to_cps(func, mod)
+
+
+def un_cps(func):
+    """
+    Turn an cps function into a Function without the continuation argument.
+
+    Note that this will not give the exact same interface as before cps:
+      If the input/output is higher order, they will still be in cps form.
+
+    Parameters
+    ----------
+    func: tvm.relay.Function
+        The input function
+
+    Returns
+    -------
+    result: tvm.relay.Function
+        The output function
+    """
+    return _transform.un_cps(func)
 
 
 def _wrap_class_module_pass(pass_cls, pass_info):

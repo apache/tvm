@@ -405,6 +405,22 @@ TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
 TVM_DLL Pass ToANormalForm();
 
 /*!
+ * \brief Turn an expression into continuation passing style(CPS).
+ *
+ * CPS mean that every function will, instead of returning the result directly,
+ * be passed down an extra function (called the continuation) as argument,
+ * and pass the result to the continuation instead.
+ *
+ * Thus, every function call has to be passed an extra argument
+ * that represent the rest of the computation (Hence the name of continuation).
+ *
+ * Similarly, all other compute will be wrapped and call the continuation as well.
+ *
+ * \return the pass.
+ */
+TVM_DLL Pass ToCPS();
+
+/*!
  * \brief Remove let binding and directly share via pointer instead.
  *
  * It will remove all let binding,
@@ -585,6 +601,57 @@ TVM_DLL Expr ForwardRewrite(const Expr& expr,
                             const FForwardRewrite& rewrite_func,
                             std::function<NodeRef(const Call&)> fcontext = nullptr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Rewrite the annotated program.
+ *
+ * \param expr The expression.
+ * \param fallback_device The fallback device which is the default device for
+ *                        operators without annotation.
+ *
+ * \return The updated program.
+ */
+TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
+
+/*!
+ * \brief Turn an expression into continuation passing style(CPS).
+ *
+ * CPS mean that every function will, instead of returning the result directly,
+ * be passed down an extra function (called the continuation) as argument,
+ * and pass the result to the continuation instead.
+ *
+ * Thus, every function call has to be passed an extra argument
+ * that represent the rest of the computation (Hence the name of continuation).
+ *
+ * Similarly, all other compute will be wrapped and call the continuation as well.
+ *
+ * \param f the function.
+ * \param mod the module.
+ *
+ * \return the converted Function.
+ */
+TVM_DLL Function ToCPS(const Function& f, const Module& mod);
+
+/*!
+ * \brief Remove the continuation argument of a CPS function.
+ *
+ * Note that this only transform the type back into un-CPS form
+ * when there is no higher order input/output.
+ *
+ * \param f the function.
+ *
+ * \return the converted Function.
+ */
+TVM_DLL Function UnCPS(const Function& f);
+
+/*!
+ * \brief Deduplicate the bound variables and type variables in the expression.
+ *
+ * \param e the expression.
+ *
+ * \return the deduplicated expression.
+ */
+TVM_DLL Expr DeDup(const Expr& e);
 
 }  // namespace relay
 }  // namespace tvm

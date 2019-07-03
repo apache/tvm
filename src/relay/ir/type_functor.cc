@@ -221,7 +221,7 @@ class TypeBinder : public TypeMutator {
 };
 
 Type Bind(const Type& type, const tvm::Map<TypeVar, Type>& args_map) {
-  return TypeBinder(args_map).VisitType(type);
+  return type.defined() ? TypeBinder(args_map).VisitType(type) : type;
 }
 
 }  // namespace relay
