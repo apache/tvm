@@ -525,7 +525,8 @@ class AlphaEqualHandler:
 
     if (rhs == nullptr
         || !ExprEqual(lhs->data, rhs->data)
-        || lhs->clauses.size() != rhs->clauses.size()) {
+        || lhs->clauses.size() != rhs->clauses.size()
+        || lhs->complete != rhs->complete) {
       return false;
     }
 

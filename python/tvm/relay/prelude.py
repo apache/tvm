@@ -51,7 +51,7 @@ class Prelude:
         y = Var("y")
         z = Var("z")
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), y)
-        self.mod[self.hd] = Function([x], Match(x, [cons_case]), a, [a])
+        self.mod[self.hd] = Function([x], Match(x, [cons_case], False), a, [a])
 
     def define_list_tl(self):
         """Defines a function to get the tail of a list.
@@ -64,7 +64,7 @@ class Prelude:
         y = Var("y")
         z = Var("z")
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]), z)
-        self.mod[self.tl] = Function([x], Match(x, [cons_case]), self.l(a), [a])
+        self.mod[self.tl] = Function([x], Match(x, [cons_case], False), self.l(a), [a])
 
 
     def define_list_nth(self):
@@ -191,7 +191,7 @@ class Prelude:
         cons_case = Clause(PatternConstructor(self.cons, [PatternVar(y), PatternVar(z)]),
                            f(y, self.foldr1(f, z)))
         self.mod[self.foldr1] = Function([f, av],
-                                         Match(av, [one_case, cons_case]), a, [a])
+                                         Match(av, [one_case, cons_case], False), a, [a])
 
 
     def define_list_concat(self):

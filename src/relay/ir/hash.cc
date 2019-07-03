@@ -341,6 +341,7 @@ class RelayHashHandler:
       hash = Combine(hash, PatternHash(c->lhs));
       hash = Combine(hash, ExprHash(c->rhs));
     }
+    hash = Combine(hash, std::hash<bool>()(mn->complete));
     return hash;
   }
 

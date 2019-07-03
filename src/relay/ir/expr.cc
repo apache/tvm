@@ -332,7 +332,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TVM_REGISTER_API("relay._expr.TempExprRealize")
 .set_body_typed<Expr(TempExpr)>([](TempExpr temp) {
-    return temp->Realize();
+  return temp->Realize();
 });
 
 }  // namespace relay
