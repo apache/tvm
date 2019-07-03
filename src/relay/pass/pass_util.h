@@ -29,6 +29,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/transform.h>
+#include <memory>
 #include <unordered_map>
 
 namespace tvm {

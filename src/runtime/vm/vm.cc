@@ -801,9 +801,9 @@ void VirtualMachine::Run() {
         auto op2_obj = ReadRegister(instr.cmpi.op2);
 
         NDArray op1 = ToNDArray(op1_obj).CopyTo({kDLCPU, 0});
-        NDArray op2 = ToNDArray(op2_obj).CopyTo({kDLCPU, 0});        
+        NDArray op2 = ToNDArray(op2_obj).CopyTo({kDLCPU, 0});
         auto op1_val = reinterpret_cast<int32_t*>(op1->data)[0];
-        auto op2_val = reinterpret_cast<int32_t*>(op2->data)[0];        
+        auto op2_val = reinterpret_cast<int32_t*>(op2->data)[0];
 
         if (op1_val == op2_val) {
           auto tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
@@ -811,7 +811,7 @@ void VirtualMachine::Run() {
           WriteRegister(instr.dst, Object::Tensor(tensor));
         } else {
           auto tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-          reinterpret_cast<int32_t*>(tensor->data)[0] = 0;          
+          reinterpret_cast<int32_t*>(tensor->data)[0] = 0;
           WriteRegister(instr.dst, Object::Tensor(tensor));
         }
         pc++;
@@ -950,7 +950,7 @@ void VirtualMachine::Run() {
         }
         pc++;
         goto main_loop;
-      }  
+      }
       case Opcode::Ret: {
         // If we have hit the point from which we started
         // running, we should return to the caller breaking
