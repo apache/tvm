@@ -636,7 +636,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
             subst.Set(func->type_params[i], type_args[i]);
           }
           for (size_t i = type_args.size(); i < func->type_params.size(); ++i) {
-            subst.Set(func->type_params[i], Type());
+            subst.Set(func->type_params[i], IncompleteTypeNode::make(kType));
           }
           std::vector<Time> args_time;
           for (const auto& v : pv) {
