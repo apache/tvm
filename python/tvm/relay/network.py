@@ -101,7 +101,7 @@ def initialize(param):
 def copy_var(v):
     return relay.Var(v.name_hint, v.type_annotation)
 
-def dedupl):
+def dedup(l):
     return list(OrderedSet(list(l)))
 
 class Network:

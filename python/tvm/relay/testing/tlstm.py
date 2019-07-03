@@ -20,8 +20,8 @@ LSTM and TreeLSTM defined using Network.
 Note how there is no need to write __init__() and forward() as in pytorch -
   only forward(), which we call build_impl(), is needed.
 """
+# pylint: disable=invalid-name,missing-docstring,redefined-builtin
 
-from tvm import relay
 from tvm.relay import op, var, Var, Function, Clause, PatternConstructor, PatternVar, Match
 from tvm.relay import TupleGetItem, Tuple, TensorType, TupleType
 from tvm.relay import Network
@@ -78,9 +78,9 @@ class LSTMTransformer(Network):
             o = cell(x, self.p.cons(c, self.p.nil()))
             return Tuple([o, TupleGetItem(o, 1)])
         res = self.p.map_accuml(lam(["c", "x"], f),
-                                 Tuple([op.zeros(shape=(1, memory_size), dtype=dtype),
-                                        op.zeros(shape=(1, memory_size), dtype=dtype)]),
-                                 l)
+                                Tuple([op.zeros(shape=(1, memory_size), dtype=dtype),
+                                       op.zeros(shape=(1, memory_size), dtype=dtype)]),
+                                l)
         return Tuple([TupleGetItem(TupleGetItem(res, 0), 1), TupleGetItem(res, 1)])
 
 class TreeLSTM(Network):
