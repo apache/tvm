@@ -221,7 +221,7 @@ class SymbolMap {
    * \param name name of the symbol
    * \return on-device offset of the symbol
    */
-  DevBaseOffset operator[](const std::string& name) {
+  DevBaseOffset operator[](const std::string& name) const {
     auto result = map_.find(name);
     CHECK(result != map_.end()) << "\"" << name << "\" not in symbol map";
     return result->second;

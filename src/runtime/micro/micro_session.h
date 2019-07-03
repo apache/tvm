@@ -124,7 +124,7 @@ class MicroSession {
   * \return value at symbol in memory
   */
   template <typename T>
-  T DevSymbolRead(SymbolMap& symbol_map, const std::string& symbol);
+  T DevSymbolRead(const SymbolMap& symbol_map, const std::string& symbol);
 
   /*!
   * \brief write value into device memory corresponding to symbol
@@ -133,7 +133,7 @@ class MicroSession {
   * \param value value being written into symbol
    */
   template <typename T>
-  void DevSymbolWrite(SymbolMap& symbol_map, const std::string& symbol, T& value);
+  void DevSymbolWrite(const SymbolMap& symbol_map, const std::string& symbol, const T& value);
 
   /*!
    * \brief returns low-level device pointer
@@ -214,7 +214,7 @@ class MicroSession {
    */
   std::shared_ptr<MicroSectionAllocator> GetAllocator(SectionKind kind) {
     return section_allocators_[static_cast<size_t>(kind)];
-  };
+  }
 };
 
 /*!

@@ -25,6 +25,7 @@
 
 #include <sys/mman.h>
 #include <cstring>
+#include <memory>
 #include "host_low_level_device.h"
 #include "micro_common.h"
 
@@ -51,7 +52,7 @@ void HostLowLevelDevice::Read(DevBaseOffset offset, void* buf, size_t num_bytes)
   std::memcpy(buf, addr, num_bytes);
 }
 
-void HostLowLevelDevice::Write(DevBaseOffset offset, void* buf, size_t num_bytes) {
+void HostLowLevelDevice::Write(DevBaseOffset offset, const void* buf, size_t num_bytes) {
   void* addr = (offset + base_addr_).cast_to<void*>();
   std::memcpy(addr, buf, num_bytes);
 }

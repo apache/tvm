@@ -163,8 +163,9 @@ BinaryInfo MicroSession::LoadBinary(std::string binary_path) {
   rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
   data_section.start = AllocateInSection(SectionKind::kData, data_section.size);
   bss_section.start = AllocateInSection(SectionKind::kBss, bss_section.size);
-  CHECK(text_section.start != nullptr && rodata_section.start != nullptr && data_section.start != nullptr &&
-        bss_section.start != nullptr) << "not enough space to load module on device";
+  CHECK(text_section.start != nullptr && rodata_section.start != nullptr &&
+        data_section.start != nullptr && bss_section.start != nullptr)
+      << "not enough space to load module on device";
 
   const DevBaseAddr base_addr = low_level_device_->base_addr();
   std::string relocated_bin = RelocateBinarySections(
@@ -299,7 +300,7 @@ void MicroSession::CheckDeviceError() {
 }
 
 template <typename T>
-T MicroSession::DevSymbolRead(SymbolMap& symbol_map, const std::string& symbol) {
+T MicroSession::DevSymbolRead(const SymbolMap& symbol_map, const std::string& symbol) {
   DevBaseOffset sym_offset = symbol_map[symbol];
   T result;
   low_level_device()->Read(sym_offset, &result, sizeof(T));
@@ -307,7 +308,9 @@ T MicroSession::DevSymbolRead(SymbolMap& symbol_map, const std::string& symbol) 
 }
 
 template <typename T>
-void MicroSession::DevSymbolWrite(SymbolMap& symbol_map, const std::string& symbol, T& value) {
+void MicroSession::DevSymbolWrite(const SymbolMap& symbol_map,
+                                  const std::string& symbol,
+                                  const T& value) {
   DevBaseOffset sym_offset = symbol_map[symbol];
   low_level_device()->Write(sym_offset, &value, sizeof(T));
 }

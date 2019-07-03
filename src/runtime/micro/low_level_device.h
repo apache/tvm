@@ -56,7 +56,7 @@ class LowLevelDevice {
    * \param num_bytes number of bytes to be written
    */
   virtual void Write(DevBaseOffset offset,
-                     void* buffer,
+                     const void* buffer,
                      size_t num_bytes) = 0;
 
   /*!

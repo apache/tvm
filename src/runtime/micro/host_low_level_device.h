@@ -22,11 +22,12 @@
  * \file host_low_level_device.h
  * \brief emulated low-level micro device implementation on host machine
  */
-#ifndef TVM_RUNTIME_MICRO_HOST_LOW_LEVEL_DEVICE_API_H_
-#define TVM_RUNTIME_MICRO_HOST_LOW_LEVEL_DEVICE_API_H_
+#ifndef TVM_RUNTIME_MICRO_HOST_LOW_LEVEL_DEVICE_H_
+#define TVM_RUNTIME_MICRO_HOST_LOW_LEVEL_DEVICE_H_
 
 #include <sys/mman.h>
 #include <cstring>
+#include <memory>
 #include "low_level_device.h"
 #include "micro_common.h"
 
@@ -50,7 +51,7 @@ class HostLowLevelDevice final : public LowLevelDevice {
 
   void Read(DevBaseOffset offset, void* buf, size_t num_bytes) final;
 
-  void Write(DevBaseOffset offset, void* buf, size_t num_bytes) final;
+  void Write(DevBaseOffset offset, const void* buf, size_t num_bytes) final;
 
   void Execute(DevBaseOffset func_offset, DevBaseOffset breakpoint) final;
 
@@ -77,4 +78,4 @@ const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes)
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_MICRO_HOST_LOW_LEVEL_DEVICE_API_H_
+#endif  // TVM_RUNTIME_MICRO_HOST_LOW_LEVEL_DEVICE_H_

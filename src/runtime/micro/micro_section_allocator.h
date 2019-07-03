@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_MICRO_MICRO_SECTION_ALLOCATOR_H_
 #define TVM_RUNTIME_MICRO_MICRO_SECTION_ALLOCATOR_H_
 
+#include <unordered_map>
 #include "micro_common.h"
 
 namespace tvm {
