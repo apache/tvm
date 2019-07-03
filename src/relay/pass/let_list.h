@@ -34,13 +34,14 @@
 #include <utility>
 #include <vector>
 #include <tuple>
+#include <string>
 #include "tvm/relay/type.h"
 
 namespace tvm {
 namespace relay {
 
 struct EmitFatal : dmlc::Error {
-  EmitFatal(const std::string& msg) : dmlc::Error(msg) { }
+  explicit EmitFatal(const std::string& msg) : dmlc::Error(msg) { }
 };
 
 /*!
