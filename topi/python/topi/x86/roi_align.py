@@ -216,7 +216,7 @@ def roi_align_nchw_cpu(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
     if not isinstance(pooled_size, (tuple, list)):
         pooled_size = (pooled_size, pooled_size)
 
-    # Pre-allocate imtermediate buffer
+    # Pre-allocate intermediate buffer
     if sample_ratio > 0:
         max_roi_bin_grid_w = max_roi_bin_grid_h = sample_ratio
     else:
