@@ -97,7 +97,7 @@ def get_network(name, batch_size):
         from mxnet.gluon.model_zoo.vision import get_model
         block = get_model('resnet18_v1', pretrained=True)
         mod, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
-        net = mod[mod.entry_func]
+        net = mod.main
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
         mod = relay.Module.from_expr(net)
     else:
@@ -318,7 +318,7 @@ def tune_and_evaluate(tuning_opt):
     # extract workloads from relay program
     print("Extract tasks...")
     mod, params, input_shape, _ = get_network(network, batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod[mod.entry_func], target=target,
+    tasks = autotvm.task.extract_from_program(mod.main, target=target,
                                               params=params,
                                               ops=(relay.op.nn.conv2d,))
 

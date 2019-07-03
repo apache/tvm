@@ -39,33 +39,33 @@ def test_task_extraction():
     target = 'llvm'
 
     mod, params, input_shape = get_network('resnet-18', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod[mod.entry_func], target=target,
+    tasks = autotvm.task.extract_from_program(mod.main, target=target,
                                               params=params,
                                               ops=(relay.op.nn.conv2d,))
     assert len(tasks) == 12
 
     mod, params, input_shape = get_network('resnet-18', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod[mod.entry_func], target=target,
-                                            params=params,
-                                            ops=(relay.op.nn.dense,))
+    tasks = autotvm.task.extract_from_program(mod.main, target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.dense,))
     assert len(tasks) == 1
 
     mod, params, input_shape = get_network('resnet-18', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod[mod.entry_func], target=target,
-                                            params=params,
-                                            ops=(relay.op.nn.conv2d, relay.op.nn.dense))
+    tasks = autotvm.task.extract_from_program(mod.main, target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d, relay.op.nn.dense))
     assert len(tasks) == 13
 
     mod, params, input_shape = get_network('mobilenet', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod[mod.entry_func], target=target,
-                                            params=params,
-                                            ops=(relay.op.nn.conv2d, relay.op.nn.dense))
+    tasks = autotvm.task.extract_from_program(mod.main, target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d, relay.op.nn.dense))
     assert len(tasks) == 20
 
     mod, params, input_shape = get_network('dcgan', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod[mod.entry_func], target=target,
-                                            params=params,
-                                            ops=(relay.op.nn.conv2d_transpose,))
+    tasks = autotvm.task.extract_from_program(mod.main, target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d_transpose,))
     assert len(tasks) == 4
 
 if __name__ == '__main__':

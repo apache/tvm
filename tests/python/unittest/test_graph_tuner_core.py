@@ -45,7 +45,7 @@ def _create_data(target, dshape, dtype, layout):
     out = relay.add(conv1, conv2)
     net = relay.Function(relay.analysis.free_vars(out), out)
     mod, params = relay.testing.create_workload(net)
-    tasks = autotvm.task.extract_from_program(mod[mod.entry_func],
+    tasks = autotvm.task.extract_from_program(mod.main,
                                               target=target,
                                               params=params,
                                               ops=(relay.op.nn.conv2d,))
@@ -160,7 +160,7 @@ def test_DPTuner_run():
 
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     mod = relay.module.Module()
-    mod[mod.entry_func] = g
+    mod.main = g
     costs = [0.02, 0.02, 0.045]
     config_list = []
     cfg_dict = {"i": -1,
