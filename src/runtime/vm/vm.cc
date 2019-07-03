@@ -723,7 +723,7 @@ void VirtualMachine::Run() {
         goto main_loop;
       }
       case Opcode::LoadConsti: {
-        auto tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+        auto tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
         reinterpret_cast<int32_t*>(tensor->data)[0] = instr.load_consti.val;
         WriteRegister(instr.dst, Object::Tensor(tensor));
         pc++;
