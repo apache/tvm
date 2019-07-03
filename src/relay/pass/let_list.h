@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,7 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
+ *  Copyright (c) 2019 by Contributors
  * \file let_list.h
  * \brief LetList record let binding and insert let expression implicitly.
  *  using it, one can treat AST as value instead of expression,
@@ -46,6 +46,11 @@ namespace relay {
  */
 class LetList {
  public:
+  ~LetList() {
+    if (lets_.size() > 0 && !used_) {
+      std::cout << "Warning: letlist not used" << std::endl;
+    }
+  }
   /*!
    * \brief insert a binding.
    *
@@ -64,13 +69,13 @@ class LetList {
   /*!
    * \brief insert a binding.
    *
-   * \param ty the type of the binding.
-   *
    * \param expr the value of the binding.
+   *
+   * \param ty the type of the binding.
    *
    * \return a Var that hold the inserted expr.
    */
-  Var Push(Type ty, Expr expr) {
+  Var Push(Expr expr, Type ty) {
     return Push(VarNode::make("x", ty), expr);
   }
 
@@ -82,7 +87,7 @@ class LetList {
    *  \return a Var that hold the inserted expr.
    */
   Var Push(Expr expr) {
-    return Push(Type(), expr);
+    return Push(expr, Type());
   }
 
   /*!
@@ -127,6 +132,12 @@ class LetList {
   static Expr With(F&& f) {
     LetList ll;
     return ll.Get(f(&ll));
+  }
+
+  static Expr Let(const Expr& e, const std::function<Expr(const Var&)>& f) {
+    return With([&](LetList* ll) {
+      return f(ll->Push(e));
+    });
   }
 
  private:

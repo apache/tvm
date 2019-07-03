@@ -18,9 +18,9 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
+ * Copyright (c) 2019 by Contributors
  *
- * \file to_anf.cc
+ * \file to_a_normal_form.cc
  *
  * \brief Turn implicit sharing into observable sharing.
  */
@@ -72,13 +72,16 @@ Scope LCA(Scope lhs, Scope rhs) {
 
 std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGraph& dg) {
   std::unordered_map<DependencyGraph::Node*, Scope> expr_scope;
+  bool global_scope_used = false;
   Scope global_scope = std::make_shared<ScopeNode>();
   for (auto it = dg.post_dfs_order.rbegin(); it != dg.post_dfs_order.rend(); ++it) {
     DependencyGraph::Node* n = *it;
     auto iit = n->parents.head;
     Scope s;
     if (iit == nullptr) {
+      CHECK(!global_scope_used);
       s = global_scope;
+      global_scope_used = true;
     } else {
       s = expr_scope.at(iit->value);
       iit = iit->next;
@@ -88,11 +91,8 @@ std::unordered_map<DependencyGraph::Node*, Scope> CalcScope(const DependencyGrap
     }
     expr_scope.insert({n, n->new_scope ? ChildScope(s) : s});
   }
+  CHECK(global_scope_used);
   return expr_scope;
-}
-
-bool IsPrimitiveFunction(const Expr& e) {
-  return e.as<FunctionNode>() && Downcast<Function>(e)->IsPrimitive();
 }
 
 /* Special care is needed to handle local recursion.
@@ -137,22 +137,26 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr VisitExpr(const Expr& e, const Var& v) final {
     if (memo.count(e) == 0) {
       memo.insert({e, ExprFunctor<Expr(const Expr&, const Var&)>::VisitExpr(e, v)});
+    } else if (v.defined()) {
+      GetScope(e)->ll->Push(v, memo.at(e));
     }
-    return memo.at(e);
+    auto ret = memo.at(e);
+    CHECK(IsAtomic(ret));
+    return ret;
   }
 
   Expr VisitExpr(const Expr& e) {
     return this->VisitExpr(e, Var());
   }
 
-  Expr Atomic(const Expr& orig, const Expr& now, const Var& v) {
-    return v.defined() ? GetScope(orig)->ll->Push(v, now) : now;
+  Expr Atomic(const Expr& e, const Var& v) {
+    return v.defined() ? GetScope(e)->ll->Push(v, e) : e;
   }
 
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
     Var var = v.defined() ?
       v :
-      VarNode::make(std::string("x"), IncompleteTypeNode::make(Kind::kType));
+      VarNode::make(std::string("x"), Type());
     return GetScope(orig)->ll->Push(var, now);
   }
 
@@ -205,7 +209,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr VisitExpr_(const FunctionNode* f, const Var& v) final {
     Expr e = GetRef<Expr>(f);
     Expr ret;
-    if (IsPrimitiveFunction(e)) {
+    if (f->IsPrimitive()) {
       ret = e;
     } else {
       ret = FunctionNode::make(f->params,
@@ -231,22 +235,22 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const VarNode* vn, const Var& v) final {
     Expr e = GetRef<Expr>(vn);
-    return Atomic(e, e, v);
+    return Atomic(e, v);
   }
 
   Expr VisitExpr_(const GlobalVarNode* gvn, const Var& v) final {
     GlobalVar gv = GetRef<GlobalVar>(gvn);
-    return Atomic(gv, gv, v);
+    return Atomic(gv, v);
   }
 
   Expr VisitExpr_(const OpNode* op, const Var& v) final {
     Expr e = GetRef<Expr>(op);
-    return Atomic(e, e, v);
+    return Atomic(e, v);
   }
 
   Expr VisitExpr_(const ConstructorNode* c, const Var& v) final {
     Expr e = GetRef<Expr>(c);
-    return Atomic(e, e, v);
+    return Atomic(e, v);
   }
 
   Expr VisitExpr_(const MatchNode* m, const Var& v) final {
@@ -294,11 +298,15 @@ Module ToANormalForm(const Module& m) {
   tvm::Map<GlobalVar, Function> updates;
   auto funcs = m->functions;
   for (const auto& it : funcs) {
+    CHECK_EQ(FreeVars(it.second).size(), 0);
     Expr ret =
       TransformF([&](const Expr& e) {
         return ToANormalFormAux(e);
       }, it.second);
-    CHECK_EQ(FreeVars(ret).size(), 0);
+    CHECK_EQ(FreeVars(ret).size(), 0)
+      << AsText(ret)
+      << "should not has free vars: "
+      << FreeVars(ret);
     updates.Set(it.first, Downcast<Function>(ret));
   }
 

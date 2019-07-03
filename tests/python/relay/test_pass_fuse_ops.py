@@ -17,14 +17,7 @@
 import tvm
 from tvm import relay
 from tvm.relay import transform
-
-
-def run_opt_pass(expr, opt_pass):
-    assert isinstance(opt_pass, transform.Pass)
-    mod = relay.Module.from_expr(expr)
-    mod = opt_pass(mod)
-    entry = mod[mod.entry_func]
-    return entry if isinstance(expr, relay.Function) else entry.body
+from tvm.relay.testing import run_opt_pass
 
 
 def test_fuse_simple():

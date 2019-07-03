@@ -22,15 +22,7 @@ from tvm.relay.analysis import free_vars, free_type_vars
 from tvm.relay import create_executor, transform
 from tvm.relay.transform import gradient
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, make_nat_expr
-
-
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod[mod.entry_func]
-    return entry if isinstance(expr, relay.Function) else entry.body
+from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
 
 
 def rand(dtype='float32', *shape):
