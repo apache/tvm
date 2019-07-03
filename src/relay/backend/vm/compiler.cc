@@ -35,6 +35,7 @@
 #include <vector>
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
+#include "../../pass/pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -538,11 +539,6 @@ RegName CompileMatchValue(MatchValuePtr val, VMCompiler* compiler) {
  */
 struct ConditionNode {
   virtual ~ConditionNode() {}
-
-  /*!
-   * \brief Compile a condition node
-   */
-  virtual void Compile(VMCompiler* compiler) = 0;
 };
 
 using ConditionNodePtr = std::shared_ptr<ConditionNode>;
@@ -556,10 +552,6 @@ struct VarBinding : ConditionNode {
 
   VarBinding(Var var, MatchValuePtr val)
   : var(var), val(val) {}
-
-  void Compile(VMCompiler* compiler) override {
-    compiler->var_register_map[var] = CompileMatchValue(val, compiler);
-  }
 
   ~VarBinding() {}
 };
@@ -578,86 +570,46 @@ struct TagCompare : ConditionNode {
   : obj(obj), target_tag(target) {
   }
 
-  void Compile(VMCompiler* compiler) override {
-    auto r = CompileMatchValue(obj, compiler);
-    compiler->Emit(Instruction::GetTagi(r, compiler->NewRegister()));
-    auto operand1 = compiler->last_register;
-    compiler->Emit(Instruction::LoadConsti(target_tag, compiler->NewRegister()));
-    auto operand2 = compiler->last_register;
-    compiler->Emit(Instruction::Cmpi(operand1, operand2, compiler->NewRegister()));
-  }
-
   ~TagCompare() {}
 };
 
-struct TreeNode {
-  virtual void Compile(VMCompiler* compiler) = 0;
-
-  virtual ~TreeNode() {}
-};
-
-using TreeNodePtr = std::shared_ptr<TreeNode>;
-
-struct TreeLeafNode : TreeNode {
-  Expr body;
-
-  explicit TreeLeafNode(Expr body)
-  : body(body) {}
-
-  static TreeNodePtr Make(Expr body) {
-    return std::make_shared<TreeLeafNode>(body);
+void CompileCondition(ConditionNodePtr condition, VMCompiler* compiler) {
+  if (std::dynamic_pointer_cast<TagCompare>(condition)) {
+    auto cond = std::dynamic_pointer_cast<TagCompare>(condition);
+    auto r = CompileMatchValue(cond->obj, compiler);
+    compiler->Emit(Instruction::GetTagi(r, compiler->NewRegister()));
+    auto operand1 = compiler->last_register;
+    compiler->Emit(Instruction::LoadConsti(cond->target_tag, compiler->NewRegister()));
+    auto operand2 = compiler->last_register;
+    compiler->Emit(Instruction::Cmpi(operand1, operand2, compiler->NewRegister()));
+  } else if (std::dynamic_pointer_cast<VarBinding>(condition)) {
+    auto cond = std::dynamic_pointer_cast<VarBinding>(condition);
+    compiler->var_register_map[cond->var] = CompileMatchValue(cond->val, compiler);
   }
+}
 
-  void Compile(VMCompiler* compiler) override {
-    compiler->VisitExpr(body);
-  }
+using TreeNodePtr = relay::TreeNodePtr;
+using TreeBranchNode = relay::TreeBranchNode<ConditionNodePtr>;
 
-  ~TreeLeafNode() {}
-};
-
-struct TreeLeafFatalNode : TreeNode {
-  TreeLeafFatalNode() = default;
-
-  static TreeNodePtr Make() {
-    return std::make_shared<TreeLeafFatalNode>();
-  }
-
-  void Compile(VMCompiler* compiler) override {
+void CompileTreeNode(TreeNodePtr tree, VMCompiler* compiler) {
+  if (std::dynamic_pointer_cast<TreeLeafNode>(tree)) {
+    auto node = std::dynamic_pointer_cast<TreeLeafNode>(tree);
+    compiler->VisitExpr(node->body);
+  } else if (std::dynamic_pointer_cast<TreeLeafFatalNode>(tree)) {
     compiler->Emit(Instruction::Fatal());
-  }
-
-  ~TreeLeafFatalNode() {}
-};
-
-struct TreeBranchNode : TreeNode {
-  ConditionNodePtr cond;
-  TreeNodePtr then_branch;
-  TreeNodePtr else_branch;
-
-  TreeBranchNode(ConditionNodePtr cond,
-                 TreeNodePtr then_branch,
-                 TreeNodePtr else_branch)
-  : cond(cond), then_branch(then_branch), else_branch(else_branch) {}
-
-
-  static TreeNodePtr Make(ConditionNodePtr cond,
-                          TreeNodePtr then_branch,
-                          TreeNodePtr else_branch) {
-    return std::make_shared<TreeBranchNode>(cond, then_branch, else_branch);
-  }
-
-  void Compile(VMCompiler* compiler) override {
-    cond->Compile(compiler);
-    if (std::dynamic_pointer_cast<TagCompare>(cond)) {
+  } else if (std::dynamic_pointer_cast<TreeBranchNode>(tree)) {
+    auto node = std::dynamic_pointer_cast<TreeBranchNode>(tree);
+    CompileCondition(node->cond, compiler);
+    if (std::dynamic_pointer_cast<TagCompare>(node->cond)) {
       // For Tag compariton, generate branches
       auto cond = compiler->last_register;
       compiler->Emit(Instruction::Ifi(cond, 1, 0));
       auto cond_offset = compiler->instructions.size() - 1;
-      then_branch->Compile(compiler);
+      CompileTreeNode(node->then_branch, compiler);
       auto if_reg = compiler->last_register;
       compiler->Emit(Instruction::Goto(1));
       auto goto_offset = compiler->instructions.size() - 1;
-      else_branch->Compile(compiler);
+      CompileTreeNode(node->else_branch, compiler);
       auto else_reg = compiler->last_register;
       compiler->Emit(Instruction::Selecti(cond, if_reg, else_reg, compiler->NewRegister()));
       auto else_offset = compiler->instructions.size() - 1;
@@ -666,12 +618,10 @@ struct TreeBranchNode : TreeNode {
       compiler->instructions[goto_offset].pc_offset = else_offset - goto_offset;
     } else {
       // For other non-branch conditions, move to then_branch directly
-      then_branch->Compile(compiler);
+      CompileTreeNode(node->then_branch, compiler);
     }
   }
-
-  ~TreeBranchNode() {}
-};
+}
 
 TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data,
                                          Pattern pattern,
@@ -721,7 +671,7 @@ TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> 
 void CompileMatch(Match match, VMCompiler* compiler) {
     auto data = std::make_shared<RegisterValue>(compiler->last_register);
     auto decision_tree = BuildDecisionTreeFromClauses(data, match->clauses);
-    decision_tree->Compile(compiler);
+    CompileTreeNode(decision_tree, compiler);
 }
 
 void PopulatePackedFuncMap(const std::vector<LoweredFunc>& lowered_funcs,
