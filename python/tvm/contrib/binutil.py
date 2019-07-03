@@ -58,13 +58,13 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
 
     # TODO(weberlo): Refactor this method and `*relocate_binary` so they are
     # both aware of [".bss", ".sbss", ".sdata"] being relocated to ".bss".
-    SECTION_MAPPING = {
+    section_mapping = {
         ".text": [".text"],
         ".rodata": [".rodata"],
         ".data": [".data"],
         ".bss": [".bss", ".sbss", ".sdata"],
     }
-    sections_to_sum = SECTION_MAPPING["." + section_name]
+    sections_to_sum = section_mapping["." + section_name]
     section_size = 0
     # Skip the first two header lines in the `size` output.
     for line in size_output.split("\n")[2:]:
@@ -79,7 +79,8 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
 
 
 @register_func("tvm_callback_relocate_binary")
-def tvm_callback_relocate_binary(binary_path, text_addr, rodata_addr, data_addr, bss_addr, toolchain_prefix):
+def tvm_callback_relocate_binary(
+    binary_path, text_addr, rodata_addr, data_addr, bss_addr, toolchain_prefix):
     """Relocates sections in the binary to new addresses
 
     Parameters
