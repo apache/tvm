@@ -50,8 +50,8 @@ class CodeGenCHost final : public CodeGenC {
  private:
   std::string module_name_;
 
-  void PrintGetFuncFromBackend(std::string func_name, std::string packed_func_name);
-  void PrintFuncCall(std::string packed_func_name, int num_args);
+  void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
+  void PrintFuncCall(const std::string& packed_func_name, int num_args);
 };
 
 }  // namespace codegen

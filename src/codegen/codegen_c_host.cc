@@ -157,7 +157,8 @@ void CodeGenCHost::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLI
   os << "))";
 }
 
-void CodeGenCHost::PrintGetFuncFromBackend(std::string func_name, std::string packed_func_name) {
+void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
+                                           const std::string& packed_func_name) {
   this->PrintIndent();
   this->stream << "if (" << packed_func_name << " == NULL) {\n";
   int packed_func_if_scope = this->BeginScope();
@@ -176,7 +177,7 @@ void CodeGenCHost::PrintGetFuncFromBackend(std::string func_name, std::string pa
   this->stream << "}\n";
 }
 
-void CodeGenCHost::PrintFuncCall(std::string packed_func_name, int num_args) {
+void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_args) {
   this->PrintIndent();
   std::string ret_val = GetUniqueName("ret_val");
   std::string ret_type_code = GetUniqueName("ret_type_code");

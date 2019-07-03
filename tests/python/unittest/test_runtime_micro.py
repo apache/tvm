@@ -234,6 +234,7 @@ def test_resnet_pretrained():
         prediction = synset[prediction_idx]
         assert prediction == "tiger cat"
 
+
 if __name__ == "__main__":
     test_add()
     test_workspace_add()
