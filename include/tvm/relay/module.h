@@ -55,7 +55,7 @@ struct Module;
  *  The functional style allows users to construct custom
  *  environments easily, for example each thread can store
  *  a Module while auto-tuning.
- * */
+ */
 
 class ModuleNode : public RelayNode {
  public:
