@@ -137,7 +137,7 @@ std::string RelocateBinarySections(const std::string& binary_path,
                                    DevAddr rodata,
                                    DevAddr data,
                                    DevAddr bss,
-                                   const std::string& binutil_prefix) {
+                                   const std::string& toolchain_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
@@ -146,13 +146,13 @@ std::string RelocateBinarySections(const std::string& binary_path,
                                    AddrToString(rodata.cast_to<void*>()),
                                    AddrToString(data.cast_to<void*>()),
                                    AddrToString(bss.cast_to<void*>()),
-                                   binutil_prefix);
+                                   toolchain_prefix);
   return relocated_bin;
 }
 
 std::string ReadSection(const std::string& binary,
                         SectionKind section,
-                        const std::string& binutil_prefix) {
+                        const std::string& toolchain_prefix) {
   CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
         section == SectionKind::kData || section == SectionKind::kBss)
       << "ReadSection requires section to be one of text, rodata, data, or bss.";
@@ -162,13 +162,13 @@ std::string ReadSection(const std::string& binary,
   TVMByteArray arr;
   arr.data = &binary[0];
   arr.size = binary.length();
-  std::string section_contents = (*f)(arr, SectionToString(section), binutil_prefix);
+  std::string section_contents = (*f)(arr, SectionToString(section), toolchain_prefix);
   return section_contents;
 }
 
 size_t GetSectionSize(const std::string& binary_path,
                       SectionKind section,
-                      const std::string& binutil_prefix,
+                      const std::string& toolchain_prefix,
                       size_t align) {
   CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
         section == SectionKind::kData || section == SectionKind::kBss)
@@ -176,7 +176,7 @@ size_t GetSectionSize(const std::string& binary_path,
   const auto* f = Registry::Get("tvm_callback_get_section_size");
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
-  size_t size = (*f)(binary_path, SectionToString(section), binutil_prefix);
+  size_t size = (*f)(binary_path, SectionToString(section), toolchain_prefix);
   size = UpperAlignValue(size, align);
   return size;
 }
