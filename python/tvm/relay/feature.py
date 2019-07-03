@@ -35,7 +35,8 @@ class Feature(IntEnum):
     fRefWrite = 12
     fConstructor = 13
     fMatch = 14
+    fFatal = 15
     """ Whether any non-atom fragment of the program is shared, making the program a graph. """
-    fGraph = 15
+    fGraph = 16
     """ Whether there is local fixpoint in the program. """
-    fLetRec = 16
+    fLetRec = 17

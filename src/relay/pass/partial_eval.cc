@@ -704,6 +704,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     return VisitFunc(GetRef<Function>(op), ll);
   }
 
+  PStatic VisitExpr_(const FatalNode* op, LetList* ll) final {
+    throw EmitFatal(op->msg);
+  }
+
   Expr Reflect(const PStatic& st) {
     if (const STensorNode* op = st->pstatic.as<STensorNode>()) {
       return ConstantNode::make(op->data);
@@ -821,8 +825,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
             return NoStatic(ll->Push(MatchNode::make(ps->dynamic, clauses)));
           }
         }
-        LOG(FATAL) << "No case Match";
-        throw;
+        throw EmitFatal("No case Match");
       });
   }
 

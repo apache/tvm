@@ -322,6 +322,23 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "RefWriteNode(" << node->ref << ", " << node->value << ")";
 });
 
+
+Fatal FatalNode::make(std::string msg) {
+  NodePtr<FatalNode> n = make_node<FatalNode>();
+  n->msg = std::move(msg);
+  return Fatal(n);
+}
+
+TVM_REGISTER_NODE_TYPE(FatalNode);
+
+TVM_REGISTER_API("relay._make.Fatal")
+.set_body_typed(FatalNode::make);
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<FatalNode>([](const FatalNode* node, tvm::IRPrinter* p) {
+   p->stream << "FatalNode(" << node->msg << ")";
+});
+
 TVM_REGISTER_API("relay._expr.TempExprRealize")
 .set_body_typed<Expr(TempExpr)>([](TempExpr temp) {
     return temp->Realize();

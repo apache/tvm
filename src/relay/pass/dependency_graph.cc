@@ -174,6 +174,8 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
   void VisitExpr_(const OpNode* o) final { }
 
   void VisitExpr_(const ConstructorNode* c) final { }
+
+  void VisitExpr_(const FatalNode* c) final { }
 };
 
 DependencyGraph DependencyGraph::Create(common::Arena* arena, const Expr& body) {

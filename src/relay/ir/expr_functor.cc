@@ -213,6 +213,10 @@ Expr ExprMutator::VisitExpr_(const MatchNode* m) {
   return MatchNode::make(VisitExpr(m->data), clauses);
 }
 
+Expr ExprMutator::VisitExpr_(const FatalNode* f) {
+  return GetRef<Expr>(f);
+}
+
 Clause ExprMutator::VisitClause(const Clause& c) {
   return ClauseNode::make(VisitPattern(c->lhs), VisitExpr(c->rhs));
 }
@@ -314,6 +318,8 @@ void ExprVisitor::VisitExpr_(const MatchNode* op) {
     this->VisitClause(c);
   }
 }
+
+void ExprVisitor::VisitExpr_(const FatalNode* op) { }
 
 void ExprVisitor::VisitClause(const Clause& op) {
   this->VisitPattern(op->lhs);
