@@ -22,9 +22,7 @@ from __future__ import absolute_import
 import logging
 import os
 
-import tvm.module
-from tvm.contrib import graph_runtime, util
-from tvm import relay
+from tvm.contrib import util
 
 from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
