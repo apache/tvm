@@ -27,31 +27,38 @@
 // Task pointers must be patched before calling a function.
 UTVMTask task;
 
-// We use a dummy function to signal execution is finished for device
-// backends which require breakpoints.
-void UTVMDone() {}
-
-void UTVMMain() {
-  task.func((void*) task.args->values, (void*) task.args->type_codes,  // NOLINT(*)
-            task.args->num_args);
-  UTVMDone();
-}
-
-// TODO(weberlo): Writes fail to pointer variables if they're initialized to
-// `NULL`.  Why?
-
 // These pointers are patched at load time to point to the workspace section.
-char *utvm_workspace_begin = (char*) 1;  // NOLINT(*)
-char *utvm_workspace_curr = (char*) 1;  // NOLINT(*)
+char *utvm_workspace_begin = NULL;  // NOLINT(*)
+char *utvm_workspace_end = NULL;  // NOLINT(*)
+char *utvm_workspace_curr = NULL;  // NOLINT(*)
 // Keep track of how many active allocations there are on the workspace.
 size_t num_active_allocs = 0;
 
-const char *last_error = (char*) 1;  // NOLINT(*)
+const char *last_error = NULL;  // NOLINT(*)
+int32_t return_code = 0;  // NOLINT(*)
+
+// We use a dummy function to signal execution is finished for device
+// backends which require breakpoints.
+void UTVMDone() { }
+
+void UTVMMain() {
+  utvm_workspace_curr = utvm_workspace_begin;
+  num_active_allocs = 0;
+  last_error = NULL;  // NOLINT(*)
+  return_code = 0;
+  return_code = task.func((void*) task.args->values, (void*) task.args->type_codes,  // NOLINT(*)
+                          task.args->num_args);
+  UTVMDone();
+}
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
                                int dtype_code_hint, int dtype_bits_hint) {
   // Align up to 8 bytes.
   utvm_workspace_curr += (8 - ((uintptr_t) utvm_workspace_curr % 8)) % 8;  // NOLINT(*)
+  if (utvm_workspace_curr + size > utvm_workspace_end) {
+    // Out of space in workspace.
+    return NULL;
+  }
   void* ret_ptr = (void*) utvm_workspace_curr;  // NOLINT(*)
   utvm_workspace_curr += size;
   num_active_allocs++;

@@ -59,6 +59,7 @@ class MicroModuleNode final : public ModuleNode {
     low_level_device_ = session_->low_level_device();
     binary_path_ = binary_path;
     binary_info_ = session_->LoadBinary(binary_path_);
+
     // Patch device lib pointers.
     PatchImplHole("TVMBackendAllocWorkspace");
     PatchImplHole("TVMBackendFreeWorkspace");
@@ -73,7 +74,6 @@ class MicroModuleNode final : public ModuleNode {
    */
   void RunFunction(const std::string& func_name, DevBaseOffset func_offset, const TVMArgs& args) {
     if (!session_->valid()) return;
-
     session_->PushToExecQueue(func_offset, args);
   }
 

@@ -48,7 +48,7 @@ typedef struct {
  */
 typedef struct {
   /*! \brief Pointer to function to call for this task */
-  void (*func)(void*, void*, int32_t);
+  int32_t (*func)(void*, void*, int32_t);
   /*! \brief Arguments for this task's function call */
   UTVMArgs* args;
 } UTVMTask;

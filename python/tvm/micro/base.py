@@ -30,7 +30,7 @@ from .._ffi.function import _init_api
 from .._ffi.libinfo import find_include_path
 from .cross_compile import create_lib
 
-SUPPORTED_DEVICE_TYPES = ["host", "openocd"]
+SUPPORTED_DEVICE_TYPES = ["host"]
 
 class Session:
     """MicroTVM Session
@@ -45,7 +45,7 @@ class Session:
           sess.create_micro_mod(c_mod)
     """
 
-    def __init__(self, device_type, binutil_prefix, port=0):
+    def __init__(self, device_type, toolchain_prefix):
         """Stores parameters for initializing a micro device session.
 
         The session is not initialized until the constructed object is used
@@ -56,21 +56,17 @@ class Session:
         device_type : str
             type of low-level device
 
-        binutil_prefix : str
-            binutil prefix to be used. For example, a prefix of
+        toolchain_prefix : str
+            toolchain prefix to be used. For example, a prefix of
             "riscv64-unknown-elf-" means "riscv64-unknown-elf-gcc" is used as
             the compiler and "riscv64-unknown-elf-ld" is used as the linker,
             etc.
-
-        port : integer, optional
-            port number of OpenOCD server
         """
         if device_type not in SUPPORTED_DEVICE_TYPES:
             raise RuntimeError("unknown micro device type \"{}\"".format(device_type))
 
         self.device_type = device_type
-        self.binutil_prefix = binutil_prefix
-        self.port = port
+        self.toolchain_prefix = toolchain_prefix
 
     def __enter__(self):
         # First, find and compile runtime library.
@@ -81,10 +77,10 @@ class Session:
         tmp_dir = util.tempdir()
         runtime_lib_path = tmp_dir.relpath("utvm_runtime.obj")
         runtime_lib_path = create_micro_lib(
-            runtime_src_path, self.binutil_prefix, obj_path=runtime_lib_path)
+            runtime_src_path, self.toolchain_prefix, obj_path=runtime_lib_path)
 
         # Then, initialize the session (includes loading the compiled runtime lib).
-        _InitSession(self.device_type, runtime_lib_path, self.port)
+        _InitSession(self.device_type, runtime_lib_path, self.toolchain_prefix)
 
         # Return `self` to bind the session as a variable in the `with` block.
         return self
@@ -93,7 +89,7 @@ class Session:
         _EndSession()
 
 
-def create_micro_lib(src_path, binutil_prefix, obj_path=None):
+def create_micro_lib(src_path, toolchain_prefix, obj_path=None):
     """Compiles code into a binary for the target micro device.
 
     Parameters
@@ -132,7 +128,7 @@ def create_micro_lib(src_path, binutil_prefix, obj_path=None):
 
     options = ["-I" + path for path in find_include_path()] + ["-fno-stack-protector"]
     # TODO(weberlo): Consolidate `create_lib` and `contrib.cc.cross_compiler`
-    create_lib(obj_path, src_path, options, "{}gcc".format(binutil_prefix))
+    create_lib(obj_path, src_path, options, "{}gcc".format(toolchain_prefix))
     return obj_path
 
 

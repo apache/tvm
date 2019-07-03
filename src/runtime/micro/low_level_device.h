@@ -79,17 +79,6 @@ class LowLevelDevice {
   virtual const char* device_type() const = 0;
 };
 
-/*!
- * \brief create a host low-level device
- * \param num_bytes size of the memory region
- */
-const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes);
-
-/*!
- * \brief connect to OpenOCD and create an OpenOCD low-level device
- * \param port port of the OpenOCD server to connect to
- */
-const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(int port);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_MICRO_LOW_LEVEL_DEVICE_H_

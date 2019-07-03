@@ -31,28 +31,81 @@
 #include <cstdint>
 #include "micro_session.h"
 #include "micro_common.h"
+#include "low_level_device.h"
 
 namespace tvm {
 namespace runtime {
 
-DevBaseOffset DevAddr::operator-(DevBaseAddr base) {
+DevBaseOffset DevAddr::operator-(DevBaseAddr base) const {
   return DevBaseOffset(value_ - base.value());
 }
 
-DevAddr DevAddr::operator+(size_t n) {
+DevAddr DevAddr::operator+(size_t n) const {
   return DevAddr(value_ + n);
 }
 
-DevAddr DevBaseAddr::operator+(DevBaseOffset offset) {
+DevAddr& DevAddr::operator+=(size_t n) {
+  value_ += n;
+  return *this;
+}
+
+DevAddr DevAddr::operator-(size_t n) const {
+  return DevAddr(value_ - n);
+}
+
+DevAddr& DevAddr::operator-=(size_t n) {
+  value_ -= n;
+  return *this;
+}
+
+DevAddr DevBaseAddr::operator+(DevBaseOffset offset) const {
   return DevAddr(value_ + offset.value());
 }
 
-DevAddr DevBaseOffset::operator+(DevBaseAddr base) {
+DevAddr DevBaseOffset::operator+(DevBaseAddr base) const {
   return DevAddr(value_ + base.value());
 }
 
-DevBaseOffset DevBaseOffset::operator+(size_t n) {
+DevBaseOffset& DevBaseOffset::operator+=(size_t n) {
+  value_ += n;
+  return *this;
+}
+
+DevBaseOffset DevBaseOffset::operator+(size_t n) const {
   return DevBaseOffset(value_ + n);
+}
+
+DevBaseOffset& DevBaseOffset::operator-=(size_t n) {
+  value_ -= n;
+  return *this;
+}
+
+DevBaseOffset DevBaseOffset::operator-(size_t n) const {
+  return DevBaseOffset(value_ - n);
+}
+
+size_t GetDefaultSectionSize(SectionKind kind) {
+  switch (kind) {
+    case SectionKind::kText:
+      return 0xF0000;
+    case SectionKind::kRodata:
+      return 0xF000;
+    case SectionKind::kData:
+      return 0xF00;
+    case SectionKind::kBss:
+      return 0xF00;
+    case SectionKind::kArgs:
+      return 0xF00000;
+    case SectionKind::kStack:
+      return 0xF000;
+    case SectionKind::kHeap:
+      return 0xF000000;
+    case SectionKind::kWorkspace:
+      return 0xF00000;
+    default:
+      LOG(FATAL) << "invalid section " << static_cast<size_t>(kind);
+      return 0;
+  }
 }
 
 const char* SectionToString(SectionKind section) {
@@ -83,7 +136,8 @@ std::string RelocateBinarySections(const std::string& binary_path,
                                    DevAddr text,
                                    DevAddr rodata,
                                    DevAddr data,
-                                   DevAddr bss) {
+                                   DevAddr bss,
+                                   const std::string& binutil_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
@@ -91,11 +145,14 @@ std::string RelocateBinarySections(const std::string& binary_path,
                                    AddrToString(text.cast_to<void*>()),
                                    AddrToString(rodata.cast_to<void*>()),
                                    AddrToString(data.cast_to<void*>()),
-                                   AddrToString(bss.cast_to<void*>()));
+                                   AddrToString(bss.cast_to<void*>()),
+                                   binutil_prefix);
   return relocated_bin;
 }
 
-std::string ReadSection(const std::string& binary, SectionKind section) {
+std::string ReadSection(const std::string& binary,
+                        SectionKind section,
+                        const std::string& binutil_prefix) {
   CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
         section == SectionKind::kData || section == SectionKind::kBss)
       << "ReadSection requires section to be one of text, rodata, data, or bss.";
@@ -105,20 +162,24 @@ std::string ReadSection(const std::string& binary, SectionKind section) {
   TVMByteArray arr;
   arr.data = &binary[0];
   arr.size = binary.length();
-  std::string section_contents = (*f)(arr, SectionToString(section));
+  std::string section_contents = (*f)(arr, SectionToString(section), binutil_prefix);
   return section_contents;
 }
 
-size_t GetSectionSize(const std::string& binary_path, SectionKind section, size_t align) {
+size_t GetSectionSize(const std::string& binary_path,
+                      SectionKind section,
+                      const std::string& binutil_prefix,
+                      size_t align) {
   CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
         section == SectionKind::kData || section == SectionKind::kBss)
       << "GetSectionSize requires section to be one of text, rodata, data, or bss.";
   const auto* f = Registry::Get("tvm_callback_get_section_size");
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
-  size_t size = (*f)(binary_path, SectionToString(section));
+  size_t size = (*f)(binary_path, SectionToString(section), binutil_prefix);
   size = UpperAlignValue(size, align);
   return size;
 }
+
 }  // namespace runtime
 }  // namespace tvm

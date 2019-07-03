@@ -44,6 +44,7 @@ def create_lib(output, sources, options=None, compile_cmd="gcc"):
     """
     cmd = [compile_cmd]
     cmd += ["-c"]
+    cmd += ["-g"]
     cmd += ["-o", output]
     if isinstance(sources, str):
         cmd += [sources]

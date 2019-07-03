@@ -57,6 +57,7 @@ class MicroDeviceAPI final : public DeviceAPI {
     CHECK(session_->valid()) << "data space alloc on invalid session";
 
     void* data = session_->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
+    CHECK(data != nullptr) << "unable to allocate " << nbytes << " bytes on device heap";
     DeviceSpace* dev_space = new DeviceSpace();
     dev_space->data = data;
     dev_space->session = session_;
@@ -125,6 +126,7 @@ class MicroDeviceAPI final : public DeviceAPI {
     CHECK(session_->valid()) << "workspace alloc on invalid session";
 
     void* data = session_->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
+    CHECK(data != nullptr) << "unable to allocate " << size << " bytes on device workspace";
     DeviceSpace* dev_space = new DeviceSpace();
     dev_space->data = data;
     dev_space->session = session_;
