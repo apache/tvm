@@ -766,7 +766,9 @@ void VirtualMachine::Run() {
         goto main_loop;
       }
       case Opcode::LoadConsti: {
-        WriteRegister(instr.dst, Object::Int(instr.load_consti.val));
+        auto tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+        reinterpret_cast<int32_t*>(tensor->data)[0] = instr.load_consti.val;
+        WriteRegister(instr.dst, Object::Tensor(tensor));
         pc++;
         goto main_loop;
       }
@@ -797,12 +799,20 @@ void VirtualMachine::Run() {
       case Opcode::Cmpi: {
         auto op1_obj = ReadRegister(instr.cmpi.op1);
         auto op2_obj = ReadRegister(instr.cmpi.op2);
-        auto op1 = op1_obj.AsInt();
-        auto op2 = op2_obj.AsInt();
-        if (op1->val == op2->val) {
-          WriteRegister(instr.dst, Object::Int(1));
+
+        NDArray op1 = ToNDArray(op1_obj).CopyTo({kDLCPU, 0});
+        NDArray op2 = ToNDArray(op2_obj).CopyTo({kDLCPU, 0});        
+        auto op1_val = reinterpret_cast<int32_t*>(op1->data)[0];
+        auto op2_val = reinterpret_cast<int32_t*>(op2->data)[0];        
+
+        if (op1_val == op2_val) {
+          auto tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+          reinterpret_cast<int32_t*>(tensor->data)[0] = 1;
+          WriteRegister(instr.dst, Object::Tensor(tensor));
         } else {
-          WriteRegister(instr.dst, Object::Int(0));
+          auto tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+          reinterpret_cast<int32_t*>(tensor->data)[0] = 0;          
+          WriteRegister(instr.dst, Object::Tensor(tensor));
         }
         pc++;
         goto main_loop;
@@ -840,7 +850,9 @@ void VirtualMachine::Run() {
             << static_cast<int>(object->tag);
         const auto& data = object.AsDatatype();
         auto tag = data->tag;
-        WriteRegister(instr.dst, Object::Int(tag));
+        auto tag_tensor = NDArray::Empty({1}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+        reinterpret_cast<int32_t*>(tag_tensor->data)[0] = tag;
+        WriteRegister(instr.dst, Object::Tensor(tag_tensor));
         pc++;
         goto main_loop;
       }
@@ -848,6 +860,7 @@ void VirtualMachine::Run() {
         pc += instr.pc_offset;
         goto main_loop;
       }
+      case Opcode::Ifi:
       case Opcode::If: {
         // How do we do this efficiently?
         DLContext cpu_ctx;
@@ -865,17 +878,6 @@ void VirtualMachine::Run() {
           pc += instr.false_offset;
         }
 
-        goto main_loop;
-      }
-      case Opcode::Ifi: {
-        auto cond_obj = ReadRegister(instr.ifi.if_cond);
-        auto cond = cond_obj.AsInt();
-
-        if (cond->val) {
-          pc += instr.ifi.true_offset;
-        } else {
-          pc += instr.ifi.false_offset;
-        }
         goto main_loop;
       }
       case Opcode::AllocTensor: {
@@ -928,6 +930,7 @@ void VirtualMachine::Run() {
         pc++;
         goto main_loop;
       }
+      case Opcode::Selecti:
       case Opcode::Select: {
         DLContext cpu_ctx;
         cpu_ctx.device_type = kDLCPU;
@@ -947,20 +950,7 @@ void VirtualMachine::Run() {
         }
         pc++;
         goto main_loop;
-      }
-      case Opcode::Selecti: {
-        auto cond_obj = ReadRegister(instr.selecti.cond);
-        auto cond = cond_obj.AsInt();
-        if (cond->val) {
-          auto op1 = ReadRegister(instr.selecti.op1);
-          WriteRegister(instr.dst, op1);
-        } else {
-          auto op2 = ReadRegister(instr.selecti.op2);
-          WriteRegister(instr.dst, op2);
-        }
-        pc++;
-        goto main_loop;
-      }
+      }  
       case Opcode::Ret: {
         // If we have hit the point from which we started
         // running, we should return to the caller breaking
