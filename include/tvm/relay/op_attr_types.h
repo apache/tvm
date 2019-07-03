@@ -158,10 +158,15 @@ using FForwardRewrite = runtime::TypedPackedFunc<
 using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(const Expr& orig_call,
                                                                   const Expr& output_grad)>;
 
+/*!
+ * \brief The codegeneration strategy for dynamic dimensions.
+ */
 enum AnyCodegenStrategy {
+  /*! \brief The default strategy of using completely variable dimensions. */
   kVariableDimensions
 };
 
+/* \brief A runtime representation of shape. */
 using Shape = Array<IndexExpr>;
 
 using FShapeFunc = runtime::TypedPackedFunc<

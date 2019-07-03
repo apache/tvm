@@ -229,9 +229,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 TVM_REGISTER_API("relay._make.Any")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Any::make();
-});
+.set_body_typed<IndexExpr()>([]() { return Any::make(); });
 
 
 }  // namespace relay

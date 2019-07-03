@@ -25,6 +25,9 @@ def while_loop(cond, loop_vars, loop_bodies):
     """
     Construct a while loop.
 
+    Parameters
+    ----------
+
     cond: Callable[Tuple[relay.Expr], relay.Expr]
         The condition of the loop.
 
@@ -37,6 +40,11 @@ def while_loop(cond, loop_vars, loop_bodies):
         The body of the loop, should be a function which
         given loop variables produces the output result
         also as a tuple
+
+    Returns
+    -------
+    loop: relay.Expr
+        The loop expression.
     """
     sb = ScopeBuilder()
     loop = _expr.Var("while_loop")

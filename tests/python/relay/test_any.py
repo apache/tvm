@@ -17,9 +17,15 @@
 
 import tvm
 from tvm import relay
-from tvm.relay import Kind
+from tvm.relay import Kind, transform
 from tvm.relay.loops import while_loop
 import numpy as np
+
+def infer_type(expr):
+    mod = relay.Module.from_expr(expr)
+    mod = transform.InferType()(mod)
+    entry = mod[mod.entry_func]
+    return entry if isinstance(expr, relay.Function) else entry.body
 
 def int32(val):
     return relay.const(val, 'int32')
@@ -65,7 +71,7 @@ def test_dynamic_concat():
     start = relay.var('start', shape=(), dtype='int32')
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
-    func = relay.ir_pass.infer_type(func)
+    func = infer_type(func)
     # TODO(@jroesch, @haichen): We should restore this code when codegeneration
     # is merged
     # ret_shape = func.checked_type.ret_type.shape
@@ -126,7 +132,7 @@ def test_dynamic_concat_with_wrong_annotation():
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
     try:
-        func = relay.ir_pass.infer_type(func)
+        func = infer_type(func)
         assert False
     except Exception as e:
         assert "in particular dimension 0 conflicts 2 does not match 1" in str(e)

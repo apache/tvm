@@ -186,8 +186,8 @@ bool ConcatenateRel(const Array<Type>& types,
   // types: [data, result]
   CHECK_EQ(types.size(), 2);
   /* If we receive a tuple we can continue, if we receive
-     anything but an incomplete type we should signal an
-     error.
+   * anything but an incomplete type we should signal an
+   * error.
   */
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
@@ -1097,12 +1097,9 @@ bool ArangeRel(const Array<Type>& types,
   }
 }
 
-inline Tensor DynamicArange(const tvm::Tensor& start,
-                     const tvm::Tensor& stop,
-                     const tvm::Tensor& step,
-                     tvm::Type dtype,
-                     std::string name = "tensor",
-                     std::string tag = topi::kInjective) {
+inline Tensor DynamicArange(const tvm::Tensor& start, const tvm::Tensor& stop,
+                            const tvm::Tensor& step, tvm::Type dtype, std::string name = "tensor",
+                            std::string tag = topi::kInjective) {
   tvm::Expr num_elem = tvm::Var("num_elem");
   return tvm::compute({num_elem}, [&](const Array<tvm::Var>& indices) {
     return tvm::cast(dtype, start[0] + step[0] * indices[0]);
@@ -1137,15 +1134,19 @@ Expr MakeArange(Expr start,
 TVM_REGISTER_API("relay.op._make.arange")
 .set_body_typed(MakeArange);
 
-// Curent problem is we want to actualy use dependency to type
-// the operator
+// An issue with the existing design is that we require dependency
+// to type the operator precisely.
 //
-// WE can use current hack to duplicate the arguments as attrs.
+// Supporting this in general is challenging so we duplicate the
+// secondary arguments as args and attributes.
 //
-// We can extend relay to quantify over inputs, but doesn't solve
-// fully dynamic case.
+// In this way reify the arguments at both the value and type level.
 //
-// ...
+// In the case our arguments are constant we can immediately recover
+// the type of arange.
+//
+// In general I think we should avoid this pattern, and introduce
+// a secondary shape analysis to recover more precise information.
 RELAY_REGISTER_OP("arange")
 .describe(R"code(Returns evenly spaced values within a given interval.
 

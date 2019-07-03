@@ -177,6 +177,14 @@ class ScopeBuilder(object):
 
 
     def type_of(self, expr):
+        """
+        Compute the type of an expression.
+
+        Parameters
+        ----------
+        expr: relay.Expr
+            The expression to compute the type of.
+        """
         if isinstance(expr, _expr.Var):
             return expr.type_annotation
 
