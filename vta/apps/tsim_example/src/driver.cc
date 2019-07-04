@@ -20,7 +20,6 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <vta/dpi/module.h>
-#include <unistd.h>
 
 namespace vta {
 namespace driver {
@@ -39,9 +38,8 @@ using tvm::runtime::Module;
 class DPILoader {
  public:
   ~DPILoader() {
-    dpi_->Resume(); // FIXME, once I move exit to SimDPI
+    dpi_->Resume();
     dpi_->Finish();
-    printf("DPILoader destructor\n");
   }
 
   void Init(Module module) {

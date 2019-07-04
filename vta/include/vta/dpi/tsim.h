@@ -38,11 +38,11 @@ typedef void* VTAContextHandle;
 
 typedef void (*VTASimDPIFunc)(
     VTAContextHandle self,
-    dpi8_t* wait);
+    dpi8_t* wait,
+    dpi8_t* exit);
 
 /*!
  * \brief Host DPI callback function that is invoked in VTAHostDPI.v every clock cycle
- * \param exit Host kill simulation
  * \param req_valid Host has a valid request for read or write a register in Accel
  * \param req_opcode Host request type, opcode=0 for read and opcode=1 for write
  * \param req_addr Host request register address
@@ -54,7 +54,6 @@ typedef void (*VTASimDPIFunc)(
  */
 typedef void (*VTAHostDPIFunc)(
     VTAContextHandle self,
-    dpi8_t* exit,
     dpi8_t* req_valid,
     dpi8_t* req_opcode,
     dpi8_t* req_addr,

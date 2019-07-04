@@ -17,16 +17,16 @@
  * under the License.
  */
 
-#include <vta/driver.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
+#include <vta/driver.h>
 #include <vta/dpi/module.h>
 
 namespace vta {
 namespace tsim {
 
-using vta::dpi::DPIModuleNode;
 using tvm::runtime::Module;
+using vta::dpi::DPIModuleNode;
 
 class Profiler {
  public:

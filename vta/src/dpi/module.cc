@@ -90,10 +90,13 @@ class SimDevice {
  public:
   void Wait();
   void Resume();
+  void Exit();
   bool GetWaitStatus();
+  bool GetExitStatus();
 
  private:
   bool wait_{false};
+  bool exit_{false};
   mutable std::mutex mutex_;
 };
 
@@ -103,11 +106,8 @@ class HostDevice {
   bool TryPopRequest(HostRequest* r, bool pop);
   void PushResponse(uint32_t value);
   void WaitPopResponse(HostResponse* r);
-  void Exit();
-  uint8_t GetExitStatus();
 
  private:
-  uint8_t exit_{0};
   mutable std::mutex mutex_;
   ThreadSafeQueue<HostRequest> req_;
   ThreadSafeQueue<HostResponse> resp_;
@@ -137,9 +137,19 @@ void SimDevice::Resume() {
   wait_ = false;
 }
 
+void SimDevice::Exit() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  exit_ = true;
+}
+
 bool SimDevice::GetWaitStatus() {
   std::unique_lock<std::mutex> lock(mutex_);
   return wait_;
+}
+
+bool SimDevice::GetExitStatus() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  return exit_;
 }
 
 void HostDevice::PushRequest(uint8_t opcode, uint8_t addr, uint32_t value) {
@@ -165,16 +175,6 @@ void HostDevice::PushResponse(uint32_t value) {
 
 void HostDevice::WaitPopResponse(HostResponse* r) {
   resp_.WaitPop(r);
-}
-
-void HostDevice::Exit() {
-  std::unique_lock<std::mutex> lock(mutex_);
-  exit_ = 1;
-}
-
-uint8_t HostDevice::GetExitStatus() {
-  std::unique_lock<std::mutex> lock(mutex_);
-  return exit_;
 }
 
 void MemDevice::SetRequest(uint8_t opcode, uint64_t addr, uint32_t len) {
@@ -243,6 +243,13 @@ class DPIModule final : public DPIModuleNode {
     CHECK(ftsim_ != nullptr);
   }
 
+  void Launch(uint64_t max_cycles) {
+    auto frun = [this, max_cycles]() {
+      (*ftsim_)(max_cycles);
+    };
+    tsim_thread_ = std::thread(frun);
+  }
+
   void Wait() {
     sim_device_.Wait();
   }
@@ -251,11 +258,9 @@ class DPIModule final : public DPIModuleNode {
     sim_device_.Resume();
   }
 
-  void Launch(uint64_t max_cycles) {
-    auto frun = [this, max_cycles]() {
-      (*ftsim_)(max_cycles);
-    };
-    tsim_thread_ = std::thread(frun);
+  void Finish() {
+    sim_device_.Exit();
+    tsim_thread_.join();
   }
 
   void WriteReg(int addr, uint32_t value) {
@@ -272,11 +277,6 @@ class DPIModule final : public DPIModuleNode {
     return value;
   }
 
-  void Finish() {
-    host_device_.Exit();
-    tsim_thread_.join();
-  }
-
  protected:
   VTADPISimFunc ftsim_;
   SimDevice sim_device_;
@@ -284,12 +284,13 @@ class DPIModule final : public DPIModuleNode {
   MemDevice mem_device_;
   std::thread tsim_thread_;
 
-  void SimDPI(dpi8_t* wait) {
+  void SimDPI(dpi8_t* wait,
+              dpi8_t* exit) {
     *wait = sim_device_.GetWaitStatus();
+    *exit = sim_device_.GetExitStatus();
   }
 
-  void HostDPI(dpi8_t* exit,
-               dpi8_t* req_valid,
+  void HostDPI(dpi8_t* req_valid,
                dpi8_t* req_opcode,
                dpi8_t* req_addr,
                dpi32_t* req_value,
@@ -297,7 +298,6 @@ class DPIModule final : public DPIModuleNode {
                dpi8_t resp_valid,
                dpi32_t resp_value) {
     HostRequest* r = new HostRequest;
-    *exit = host_device_.GetExitStatus();
     *req_valid = host_device_.TryPopRequest(r, req_deq);
     *req_opcode = r->opcode;
     *req_addr = r->addr;
@@ -331,14 +331,14 @@ class DPIModule final : public DPIModuleNode {
 
   static void VTASimDPI(
       VTAContextHandle self,
-      dpi8_t* wait) {
+      dpi8_t* wait,
+      dpi8_t* exit) {
     static_cast<DPIModule*>(self)->SimDPI(
-        wait);
+        wait, exit);
   }
 
   static void VTAHostDPI(
       VTAContextHandle self,
-      dpi8_t* exit,
       dpi8_t* req_valid,
       dpi8_t* req_opcode,
       dpi8_t* req_addr,
@@ -347,7 +347,7 @@ class DPIModule final : public DPIModuleNode {
       dpi8_t resp_valid,
       dpi32_t resp_value) {
     static_cast<DPIModule*>(self)->HostDPI(
-        exit, req_valid, req_opcode, req_addr,
+        req_valid, req_opcode, req_addr,
         req_value, req_deq, resp_valid, resp_value);
   }
 

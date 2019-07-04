@@ -26,7 +26,8 @@ module VTASimDPI
 
   import "DPI-C" function void VTASimDPI
   (
-    output byte unsigned sim_wait
+    output byte unsigned sim_wait,
+    output byte unsigned sim_exit
   );
 
   typedef logic        dpi1_t;
@@ -34,6 +35,7 @@ module VTASimDPI
 
   dpi1_t __reset;
   dpi8_t __wait;
+  dpi8_t __exit;
 
   // reset
   always_ff @(posedge clock) begin
@@ -44,10 +46,12 @@ module VTASimDPI
   always_ff @(posedge clock) begin
     if (reset | __reset) begin
       __wait = 0;
+      __exit = 0;
     end
     else begin
       VTASimDPI(
-        __wait);
+        __wait,
+	__exit);
     end
   end
 
@@ -65,10 +69,10 @@ module VTASimDPI
 
   assign dpi_wait = wait_reg;
 
-  //always_ff @(posedge clock) begin
-  //  if (__exit == 'd1) begin
-  //    $finish;
-  //  end
-  //end
+  always_ff @(posedge clock) begin
+    if (__exit == 1) begin
+      $finish;
+    end
+  end
 
 endmodule
