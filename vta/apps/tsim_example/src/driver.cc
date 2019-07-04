@@ -38,8 +38,17 @@ using tvm::runtime::Module;
 
 class DPILoader {
  public:
+  ~DPILoader() {
+    dpi_->Resume(); // FIXME, once I move exit to SimDPI
+    dpi_->Finish();
+    printf("DPILoader destructor\n");
+  }
+
   void Init(Module module) {
     mod_ = module;
+    dpi_ = this->Get();
+    dpi_->Launch(wait_cycles_);
+    dpi_->Wait();
   }
 
   DPIModuleNode* Get() {
@@ -51,13 +60,18 @@ class DPILoader {
     return &inst;
   }
 
+  // wait cycles
+  uint32_t wait_cycles_{100000000};
+  // TVM module
   Module mod_;
+  // DPI Module
+  DPIModuleNode* dpi_{nullptr};
 };
 
 class Device {
  public:
   Device() {
-    dpi_ = DPILoader::Global();
+    loader_ = DPILoader::Global();
   }
 
   uint32_t Run(uint32_t c, uint32_t length, void* inp, void* out) {
@@ -65,45 +79,42 @@ class Device {
     this->Init();
     this->Launch(c, length, inp, out);
     cycles = this->WaitForCompletion();
-    dev_->Wait();
-    sleep(1);
-    dev_->Resume();
-    dev_->Finish();
     return cycles;
   }
 
  private:
   void Init() {
-    dev_ = dpi_->Get();
+    dpi_ = loader_->Get();
+    dpi_->Resume();
   }
 
   void Launch(uint32_t c, uint32_t length, void* inp, void* out) {
-    dev_->Launch(wait_cycles_);
-    dev_->WriteReg(0x08, c);
-    dev_->WriteReg(0x0c, length);
-    dev_->WriteReg(0x10, get_half_addr(inp, false));
-    dev_->WriteReg(0x14, get_half_addr(inp, true));
-    dev_->WriteReg(0x18, get_half_addr(out, false));
-    dev_->WriteReg(0x1c, get_half_addr(out, true));
-    dev_->WriteReg(0x00, 0x1); // launch
+    dpi_->WriteReg(0x08, c);
+    dpi_->WriteReg(0x0c, length);
+    dpi_->WriteReg(0x10, get_half_addr(inp, false));
+    dpi_->WriteReg(0x14, get_half_addr(inp, true));
+    dpi_->WriteReg(0x18, get_half_addr(out, false));
+    dpi_->WriteReg(0x1c, get_half_addr(out, true));
+    dpi_->WriteReg(0x00, 0x1); // launch
   }
 
   uint32_t WaitForCompletion() {
     uint32_t i, val;
     for (i = 0; i < wait_cycles_; i++) {
-      val = dev_->ReadReg(0x00);
+      val = dpi_->ReadReg(0x00);
       if (val == 2) break; // finish
     }
-    val = dev_->ReadReg(0x04);
+    val = dpi_->ReadReg(0x04);
+    dpi_->Wait();
     return val;
   }
 
   // wait cycles
   uint32_t wait_cycles_{100000000};
   // DPI loader
-  DPILoader* dpi_;
+  DPILoader* loader_{nullptr};
   // DPI Module
-  DPIModuleNode* dev_;
+  DPIModuleNode* dpi_{nullptr};
 };
 
 using tvm::runtime::TVMRetValue;
