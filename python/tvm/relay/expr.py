@@ -448,6 +448,8 @@ class Fatal(Expr):
     def __init__(self, msg):
         self.__init_handle_by_constructor__(_make.Fatal, msg)
 
+NO_MATCH_MSG = _expr.NoMatchMsg()
+
 class TempExpr(Expr):
     """Baseclass of all TempExpr.
 

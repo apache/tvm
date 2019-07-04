@@ -534,6 +534,9 @@ class FatalNode : public ExprNode {
 
 RELAY_DEFINE_NODE_REF(Fatal, FatalNode, Expr);
 
+/*! \brief the fatal message for case unhandled in match. */
+TVM_DLL std::string NoMatchMsg();
+
 /*!
  * \brief Base class of the temporary expression.
  *

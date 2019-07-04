@@ -23,7 +23,7 @@ from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
 from tvm.relay import TensorType, Tuple, If, Module, Clause, PatternConstructor, PatternVar, Match
-from tvm.relay import GlobalVar, Call
+from tvm.relay import GlobalVar, Call, Fatal, TupleType
 from tvm.relay.transform import gradient
 from tvm.relay.testing import add_nat_definitions, make_nat_expr
 
@@ -306,6 +306,15 @@ def test_double():
     assert alpha_equal(res.body, make_nat_expr(p, 6))
 
 
+def test_fatal():
+    msg = "user-defined fatal message"
+    assert alpha_equal(dcpe(Fatal(msg)), Fatal(msg))
+    mod = Module()
+    p = Prelude(mod)
+
+    orig = Function([], p.hd(p.nil()), TupleType([]))
+    assert alpha_equal(dcpe(orig, mod=mod).body, Fatal(relay.NO_MATCH_MSG))
+
 if __name__ == '__main__':
     test_empty_ad()
     test_tuple()
@@ -323,3 +332,4 @@ if __name__ == '__main__':
     test_nat_id()
     test_global_match_nat_id()
     test_match_nat_id()
+    test_fatal()

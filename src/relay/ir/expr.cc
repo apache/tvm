@@ -334,6 +334,13 @@ TVM_REGISTER_NODE_TYPE(FatalNode);
 TVM_REGISTER_API("relay._make.Fatal")
 .set_body_typed(FatalNode::make);
 
+std::string NoMatchMsg() {
+  return "No case Match";
+}
+
+TVM_REGISTER_API("relay._expr.NoMatchMsg")
+.set_body_typed(NoMatchMsg);
+
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FatalNode>([](const FatalNode* node, tvm::IRPrinter* p) {
   p->stream << "FatalNode(" << node->msg << ")";

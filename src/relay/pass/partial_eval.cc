@@ -825,7 +825,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
             return NoStatic(ll->Push(MatchNode::make(ps->dynamic, clauses, op->complete)));
           }
         }
-        throw EmitFatal("No case Match");
+        throw EmitFatal(NoMatchMsg());
       });
   }
 

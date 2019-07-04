@@ -127,3 +127,6 @@ Sequential = transform.Sequential
 
 # Feature
 Feature = feature.Feature
+
+# Fatal Messages
+NO_MATCH_MSG = expr.NO_MATCH_MSG

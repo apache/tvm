@@ -93,6 +93,7 @@ Doc PrintBool(bool value);
 Doc PrintDType(DataType dtype);
 // Print a string.
 Doc PrintString(const std::string& value);
+
 /*!
  * \brief special method to print out const scalar
  * \param dtype The data type
