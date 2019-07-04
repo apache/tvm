@@ -86,6 +86,17 @@ class ThreadSafeQueue {
   std::condition_variable cond_;
 };
 
+class SimDevice {
+ public:
+  void Wait();
+  void Resume();
+  bool GetWaitStatus();
+
+ private:
+  bool wait_{false};
+  mutable std::mutex mutex_;
+};
+
 class HostDevice {
  public:
   void PushRequest(uint8_t opcode, uint8_t addr, uint32_t value);
@@ -115,6 +126,21 @@ class MemDevice {
   uint32_t wlen_{0};
   std::mutex mutex_;
 };
+
+void SimDevice::Wait() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  wait_ = true;
+}
+
+void SimDevice::Resume() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  wait_ = false;
+}
+
+bool SimDevice::GetWaitStatus() {
+  std::unique_lock<std::mutex> lock(mutex_);
+  return wait_;
+}
 
 void HostDevice::PushRequest(uint8_t opcode, uint8_t addr, uint32_t value) {
   HostRequest r;
@@ -212,14 +238,14 @@ class DPIModule final : public DPIModuleNode {
     VTADPIInitFunc finit =  reinterpret_cast<VTADPIInitFunc>(
         GetSymbol("VTADPIInit"));
     CHECK(finit != nullptr);
-    finit(this, VTAHostDPI, VTAMemDPI);
-    fvsim_ = reinterpret_cast<VTADPISimFunc>(GetSymbol("VTADPISim"));
-    CHECK(fvsim_ != nullptr);
+    finit(this, VTASimDPI, VTAHostDPI, VTAMemDPI);
+    ftsim_ = reinterpret_cast<VTADPISimFunc>(GetSymbol("VTADPISim"));
+    CHECK(ftsim_ != nullptr);
   }
 
   void Launch(uint64_t max_cycles) {
     auto frun = [this, max_cycles]() {
-      (*fvsim_)(max_cycles);
+      (*ftsim_)(max_cycles);
     };
     vsim_thread_ = std::thread(frun);
   }
@@ -244,10 +270,17 @@ class DPIModule final : public DPIModuleNode {
   }
 
  protected:
-  VTADPISimFunc fvsim_;
+  VTADPISimFunc ftsim_;
+  SimDevice sim_device_;
   HostDevice host_device_;
   MemDevice mem_device_;
   std::thread vsim_thread_;
+
+  void SimDPI(dpi8_t* wait,
+               dpi8_t* resume) {
+    *wait = sim_device_.GetWaitStatus();
+    *resume = !sim_device_.GetWaitStatus();
+  }
 
   void HostDPI(dpi8_t* exit,
                dpi8_t* req_valid,
@@ -288,6 +321,14 @@ class DPIModule final : public DPIModuleNode {
     if (req_valid) {
       mem_device_.SetRequest(req_opcode, req_addr, req_len);
     }
+  }
+
+  static void VTASimDPI(
+      VTAContextHandle self,
+      dpi8_t* wait,
+      dpi8_t* resume) {
+    static_cast<DPIModule*>(self)->SimDPI(
+        wait, resume);
   }
 
   static void VTAHostDPI(

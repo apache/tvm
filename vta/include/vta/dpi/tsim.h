@@ -36,6 +36,11 @@ typedef unsigned long long dpi64_t; // NOLINT(*)
 /*! \brief the context handle */
 typedef void* VTAContextHandle;
 
+typedef void (*VTASimDPIFunc)(
+    VTAContextHandle self,
+    dpi8_t* wait,
+    dpi8_t* resume);
+
 /*!
  * \brief Host DPI callback function that is invoked in VTAHostDPI.v every clock cycle
  * \param exit Host kill simulation
@@ -84,6 +89,7 @@ typedef void (*VTAMemDPIFunc)(
 
 /*! \brief The type of VTADPIInit function pointer */
 typedef void (*VTADPIInitFunc)(VTAContextHandle handle,
+                            VTASimDPIFunc sim_dpi,
                             VTAHostDPIFunc host_dpi,
                             VTAMemDPIFunc mem_dpi);
 
@@ -98,6 +104,7 @@ typedef int (*VTADPISimFunc)(uint64_t max_cycles);
  * \param mem_dpi Memory DPI function
  */
 TVM_DLL void VTADPIInit(VTAContextHandle handle,
+                VTASimDPIFunc sim_dpi,
                 VTAHostDPIFunc host_dpi,
                 VTAMemDPIFunc mem_dpi);
 

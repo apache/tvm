@@ -21,7 +21,7 @@ import tsim
 
 def test_accel():
     rmax = 64
-    n = np.random.randint(1, rmax)
+    n = 8
     c = np.random.randint(0, rmax)
     ctx = tvm.cpu(0)
     a = tvm.nd.array(np.random.randint(rmax, size=n).astype("uint64"), ctx)
@@ -34,5 +34,5 @@ def test_accel():
     print("[PASS] " + msg)
 
 if __name__ == "__main__":
-    for i in range(10):
+    for i in range(1):
         test_accel()

@@ -29,8 +29,15 @@
 #endif
 
 static VTAContextHandle _ctx = nullptr;
-static VTAMemDPIFunc _mem_dpi = nullptr;
+static VTASimDPIFunc _sim_dpi = nullptr;
 static VTAHostDPIFunc _host_dpi = nullptr;
+static VTAMemDPIFunc _mem_dpi = nullptr;
+
+void VTASimDPI(dpi8_t* wait,
+                dpi8_t* resume) {
+  assert(_sim_dpi != nullptr);
+  (*_sim_dpi)(_ctx, wait, resume);
+}
 
 void VTAHostDPI(dpi8_t* exit,
                 dpi8_t* req_valid,
@@ -63,9 +70,11 @@ void VTAMemDPI(dpi8_t req_valid,
 }
 
 void VTADPIInit(VTAContextHandle handle,
+                VTASimDPIFunc sim_dpi,
                 VTAHostDPIFunc host_dpi,
                 VTAMemDPIFunc mem_dpi) {
   _ctx = handle;
+  _sim_dpi = sim_dpi;
   _host_dpi = host_dpi;
   _mem_dpi = mem_dpi;
 }

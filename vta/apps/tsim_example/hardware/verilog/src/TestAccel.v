@@ -25,7 +25,9 @@
 module TestAccel
 (
   input clock,
-  input reset
+  input reset,
+  input sim_clock,
+  output sim_wait
 );
 
   localparam HOST_ADDR_BITS = 8;
