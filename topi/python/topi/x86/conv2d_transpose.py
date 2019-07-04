@@ -65,10 +65,11 @@ def _declaration_conv2d_transpose_impl(cfg, data, kernel, strides, padding, out_
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_transpose_nchw, 'cpu', ['direct'])
 def schedule_conv2d_transpose(cfg, outs):
+    """Create schedule for tensors"""
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    
+
     def traverse(op):
         """Traverse operators from computation graph"""
         # inline all one-to-one-mapping operators except the last stage (output)
